@@ -87,6 +87,14 @@ class PreviewBrokerClient:
 
     def __init__(self):
         self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
+        self._language = ""
+
+    def get_own_language(self):
+        return self._language
+
+    def set_own_language(self, language):
+        self._language = language
+        return language
 
     def list_users(self):
         return PREVIEW_USERS

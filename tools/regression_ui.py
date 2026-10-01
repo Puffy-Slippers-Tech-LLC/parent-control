@@ -15,6 +15,9 @@ from pathlib import PurePosixPath
 # Perl blocks; no new shared resource or cleanup lifetime is introduced.
 # Rejected-rule reports reuse the same private preview/display, synthetic local
 # broker/log collector and waited Perl blocks; the whole-module bucket applies.
+# Parent first-run dismissal reuses each preview's private accessibility bus
+# and recorded owner. The temporary reader is reset before launch returns; no
+# new process, shared setting, file or cleanup lifetime is introduced.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

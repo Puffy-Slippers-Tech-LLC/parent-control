@@ -28,6 +28,7 @@ from common.oh_no_parent_control_ui.accessibility import (
     set_automation_id,
 )
 from common.oh_no_parent_control_ui.duration import format_duration
+from common.oh_no_parent_control_ui.languages import session_language, supported_language
 from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui.feedback import FeedbackDialog
 from common.oh_no_parent_control_ui.errors import (
@@ -37,6 +38,7 @@ from common.oh_no_parent_control_ui.errors import (
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
 from .client import BrokerClient, configure_logging, management_access_denied
+from .language_dialog import LanguageDialog
 
 LOG = get_logger("parent")
 APPLICATION_ICON_NAME = "com.puffyslippers.OhNoParentControl"
@@ -301,6 +303,11 @@ class ParentWindow(Adw.ApplicationWindow):
         # instead of forcing its lower controls off-screen.
         self.set_size_request(820, -1)
         self._client = client_factory()
+        self._own_language = None
+        self._language_dialog = None
+        self._language_loading = False
+        self._language_requested = False
+        self._closed = False
         self._users = []
         self._users_loaded_once = False
         self._users_loading = False
@@ -344,6 +351,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self.connect("close-request", self._close_requested)
         LOG.info("parent.002", app_count=len(self._rows))
         GLib.idle_add(self._load_users)
+        GLib.idle_add(self._load_language)
 
     def _build(self):
         toolbar = Adw.ToolbarView()
@@ -382,6 +390,7 @@ class ParentWindow(Adw.ApplicationWindow):
             callback()
 
         for identity, label, callback in (
+            ("preferences", "Preferences", self._show_preferences),
             ("help", "Help", open_help),
             ("about", "About", self._show_about),
         ):
@@ -406,7 +415,7 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         describe_control(
             self._menu_button, "Parent app menu",
-            "Open help and view product information.",
+            "Open preferences, help and product information.",
             automation_id="parent-menu-button",
         )
         # Keep native window actions and the desktop's decoration layout, with
@@ -432,6 +441,8 @@ class ParentWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.VERTICAL,
             css_classes=["preferences-page"],
         )
+        self._language_readiness = content
+        set_automation_id(content, "parent-language-loading")
         toolbar.set_content(content)
         self._policy_warning = Gtk.Label(
             wrap=True, xalign=0, visible=False,
@@ -1136,6 +1147,60 @@ class ParentWindow(Adw.ApplicationWindow):
     def _show_about(self, *_args):
         AboutDialog(self).present()
 
+    def _load_language(self):
+        if self._language_loading or self._closed:
+            return GLib.SOURCE_REMOVE
+        self._language_loading = True
+        self._run(self._client.get_own_language, self._language_loaded, self._language_failed)
+        return GLib.SOURCE_REMOVE
+
+    def _language_loaded(self, language):
+        self._language_loading = False
+        if self._closed:
+            return
+        self._own_language = language
+        if not language or self._language_requested:
+            self._show_preferences()
+        else:
+            set_automation_id(self._language_readiness, "parent-language-ready")
+
+    def _language_failed(self, error):
+        self._language_loading = False
+        if not self._closed:
+            self._show_error(error, "Your language preference could not be loaded. Open Preferences to try again.")
+
+    def _show_preferences(self, *_args):
+        if self._closed:
+            return
+        self._language_requested = True
+        if self._own_language is None:
+            self._load_language()
+            return
+        if self._language_dialog is None:
+            selected = (supported_language(self._own_language) if self._own_language
+                        else session_language(GLib.get_language_names()))
+            self._language_dialog = LanguageDialog(
+                self, selected, self._save_language, self._language_saved)
+        self._language_dialog.present()
+
+    def _save_language(self, language, success, failure):
+        def saved(value):
+            if not self._closed:
+                success(value)
+
+        def failed(error):
+            LOG.warning("parent.004", error_type=error_code(error))
+            if not self._closed:
+                failure(error)
+
+        self._run(lambda: self._client.set_own_language(language), saved, failed)
+
+    def _language_saved(self, language):
+        self._own_language = language
+        self._language_dialog = None
+        self._language_requested = False
+        set_automation_id(self._language_readiness, "parent-language-ready")
+
     def _show_feedback(self, *_args):
         if not getattr(self, "_feedback_dialog", None):
             self._feedback_dialog = FeedbackDialog(self)
@@ -1635,6 +1700,7 @@ class ParentWindow(Adw.ApplicationWindow):
         return GLib.SOURCE_CONTINUE
 
     def _close_requested(self, *_args):
+        self._closed = True
         self._policy_warnings_closed = True
         self._cancel_time_status_retry()
         self._cancel_custom_daily_limit_save()

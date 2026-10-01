@@ -51,6 +51,13 @@ class Automation:
         yield from self.reader.nodes(root, strict=strict, protected_ids=protected_ids,
                                      snapshot=snapshot, identities=identities)
 
+    def complete_parent_language_setup(self):
+        """Use the installed worker's guarded first-run Continue helper."""
+        try:
+            self.reader.complete_parent_language_setup()
+        except UiError as error:
+            raise AutomationError(str(error).replace("ui:", "automation:")) from error
+
     def find_all(self, identity):
         """Return every fresh match so callers can assert surface cardinality."""
         reader = self.reader

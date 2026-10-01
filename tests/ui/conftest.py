@@ -220,7 +220,7 @@ def _display_scale(hermetic_ui_session, dpi_scale):
 
 
 @pytest.fixture
-def launch_ui(hermetic_ui_session):
+def launch_ui(hermetic_ui_session, wait_for_accessible_state):
     """Expose the shared owned-process launcher on this private compositor."""
     # Later aggregate categories rotate pytest's temporary roots. Keep these
     # diagnostic logs on disk so a failure remains inspectable after teardown.
@@ -228,7 +228,32 @@ def launch_ui(hermetic_ui_session):
     directory = Path(allocate(tempfile.mkdtemp, prefix="onpc-ui-preview-", dir="/var/tmp"))
     print(f"UI preview logs: {directory}", flush=True)
     with preview_applications(hermetic_ui_session, directory) as launch:
-        yield launch
+        def launch_ready(name, **kwargs):
+            result = launch(name, **kwargs)
+            if name in ("parent_preview", "parent_component_preview"):
+                import gi
+                gi.require_version("Atspi", "2.0")
+                from gi.repository import Atspi, GLib
+                from tests.e2e.public_atspi import PublicAtspi
+                from tests.support.automation import Automation
+                api = PublicAtspi(Atspi)
+                try:
+                    ui = Automation(api, lambda: api.get_desktop(0), query_errors=(GLib.Error,),
+                                    owner_pids=launch.owner_pids,
+                                    application_ids=launch.application_ids,
+                                    application_owners=launch.application_owners,
+                                    application_owner_history=launch.application_owner_history,
+                                    complete_read_wait=wait_for_accessible_state)
+                    ui.reader.timeout = UI_TIMEOUT_SECONDS
+                    ui.reader.dispatch = lambda: GLib.MainContext.default().iteration(False)
+                    ui.complete_parent_language_setup()
+                finally:
+                    api.reset()
+            return result
+
+        for name in ("owner_pids", "application_ids", "application_owners", "application_owner_history"):
+            setattr(launch_ready, name, getattr(launch, name))
+        yield launch_ready
 
 
 @pytest.fixture

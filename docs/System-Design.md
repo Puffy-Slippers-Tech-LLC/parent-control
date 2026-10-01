@@ -104,8 +104,10 @@ The broker stores language in the personal section of the same per-user record
 and infrastructure as policy and request choices. The extension and overlay
 share the child's selection; parent and kiosk use their own account's selection.
 Empty means follow the frontend
-session language. Persistence and the caller-scoped D-Bus API are implemented;
-GUI selection and translation application remain separate work. See
+session language. Parent prompts for a choice when this field is empty and saves
+it through the caller-scoped D-Bus API; its Preferences menu reopens the chooser.
+The shared catalogue supplies native language names. Translation application
+remains separate work. See
 [State](SystemDesign/State.md) for the storage and API contract.
 
 - Screen-time control and saved app policy are independent. Temporary approval

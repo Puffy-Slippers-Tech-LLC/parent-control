@@ -3,6 +3,9 @@ import inspect
 import struct
 from pathlib import Path
 from unittest import mock
+from types import SimpleNamespace
+
+from common.oh_no_parent_control_ui.languages import session_language, supported_language
 
 from parent.oh_no_parent_control_parent.main import (
     ACCOUNT_REFRESH_SECONDS, APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, STATES, ParentAccountSelector, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _minutes_label,
@@ -82,6 +85,33 @@ class ParentWindowHarness:
 
 
 class ParentWindowTests(unittest.TestCase):
+    def test_session_language_collapses_variants_and_falls_back_to_english(self):
+        for locale, expected in (
+            ("en_GB.UTF-8", "en"), ("en-AU", "en"), ("de_DE@euro", "de"),
+            ("es_MX", "es"), ("fr_CA", "fr"), ("pt_PT.UTF-8", "pt-BR"),
+            ("pt-BR", "pt-BR"), ("zh_TW.UTF-8", "zh-Hans"),
+            ("zh-Hans-CN", "zh-Hans"), ("ru_RU", "ru"), ("it_IT", "it"),
+            ("pl_PL", "pl"), ("ja_JP", "ja"), ("DE_de", "de"),
+            ("ar_EG", "en"), ("C.UTF-8", "en"), ("POSIX", "en"), ("", "en"),
+        ):
+            with self.subTest(locale=locale):
+                self.assertEqual(supported_language(locale), expected)
+        self.assertEqual(session_language(["nl_NL", "de_DE", "C"]), "en")
+        self.assertEqual(session_language([]), "en")
+
+    def test_language_read_only_prompts_for_empty_or_requested_preferences(self):
+        for language, requested, prompt in (("", False, True), ("de", False, False),
+                                             ("xx-future", False, False), ("fr", True, True)):
+            with self.subTest(language=language, requested=requested):
+                window = SimpleNamespace(_closed=False, _language_requested=requested,
+                    _language_readiness=object(), _show_preferences=mock.Mock())
+                with mock.patch("parent.oh_no_parent_control_parent.main.set_automation_id") as identify:
+                    ParentWindow._language_loaded(window, language)
+                self.assertEqual(window._own_language, language)
+                self.assertFalse(window._language_loading)
+                self.assertEqual(window._show_preferences.called, prompt)
+                self.assertEqual(identify.called, not prompt)
+
     def custom_save_window(self):
         class Window:
             _custom_daily_limit_changed = ParentWindow._custom_daily_limit_changed
@@ -1023,7 +1053,8 @@ class ParentWindowTests(unittest.TestCase):
             _update_match_rule_icon = ParentWindow._update_match_rule_icon
 
         row = SimpleNamespace(
-            app={'id': 'new-lunar.desktop', 'targets': ['/apps/Lunar Client-2.AppImage'],
+            app={'id': 'new-lunar.desktop', 'name': 'Lunar Client',
+                 'targets': ['/apps/Lunar Client-2.AppImage'],
                  'suggested_patterns': ['/apps/Lunar Client-*.AppImage']},
             policy_buttons={state: mock.Mock() for state in ('allowed', 'conditional', 'permanent')},
             match_rule_button=mock.Mock(),

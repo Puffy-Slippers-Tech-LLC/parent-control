@@ -36,6 +36,7 @@ WORKER_APIS = {
                     'open_from_app_grid', 'search_whole_query', 'launch_search_result',
                     'open_search', 'focus_search', 'enter_search_query', 'set_allowance'},
     'onpc_request_exit': {'enter_station', 'escape'},
+    'onpc_desktop_session': {'switch_user'},
     'onpc_window': {'close'},
     'onpc_about': {'open_about', 'read_help', 'open_from_help', 'open_license',
                    'check_link', 'return_to_parent'},

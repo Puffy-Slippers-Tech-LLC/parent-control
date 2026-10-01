@@ -76,8 +76,9 @@ class NativeFixtures:
         return {'verified': 4, 'verified_files': len(value['files']), 'independent_readback': True}
 
 
-def fixture_actions():
+def fixture_actions(*, include_refusal=True):
     """Fresh lifetime owner for an independent caller's guarded attempt."""
+    require(type(include_refusal) is bool, 'native:action-binding')
     def controller(journey):
         if not hasattr(journey, 'native_fixtures'):
             journey.native_fixtures = NativeFixtures(journey.transport, journey.context.verified)
@@ -91,7 +92,8 @@ def fixture_actions():
         guard()
         return controller(journey).verify()
 
-    return {'native-refuse': refuse, 'native-verify': verify}
+    return ({'native-refuse': refuse, 'native-verify': verify} if include_refusal
+            else {'native-verify': verify})
 
 
 def expected_rows():

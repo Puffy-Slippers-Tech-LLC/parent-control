@@ -139,6 +139,12 @@ sub run {
         onpc_product_free_entry::run(\&exchange);
         return;
     }
+    if ($ready->{overlay_cancel}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_cancel::run(\&exchange, 'overlay', $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{overlay_choices}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

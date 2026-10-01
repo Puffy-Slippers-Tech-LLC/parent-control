@@ -1,9 +1,7 @@
 """077b finite PARENT10 qualification; policy/filter cases remain separate."""
-from installed_journey import InstalledJourney, JourneyPlan
+from installed_journey import JourneyPlan
 from journey_blocks import fresh_desktop, parent_management
-from native_fixtures import fixture_actions, check_catalogue, search_rows
-from private_artifacts import require
-from ui_observations import AppRowsObservation
+from native_fixtures import CataloguePolicyJourney, fixture_actions
 
 SCREENS = {
     **fresh_desktop('parent'), **parent_management(),
@@ -37,30 +35,14 @@ PLAN = JourneyPlan(
     stage_actions={'installed-greeter': 'native-refuse', 'desktop': 'native-verify'},
     child_bindings={stage: 'existing' for stage in SCREENS
                     if stage.startswith('text-')},
+    catalogue_checks={'initial-rows': 'initial',
+        **{stage: ('catalogue-name', 3, 7) for stage in ('name-rows', 'reopened-name')},
+        **{stage: ('catalogue-absent', 3, 7) for stage in ('absent-rows', 'reopened-absent')},
+        'cleared-rows': 'unchanged'},
 )
 
 
-class CatalogueSearchJourney(InstalledJourney):
+class CatalogueSearchJourney(CataloguePolicyJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan,
                          actions=fixture_actions() if actions is None else actions)
-        self.initial_rows = None
-
-    def check_settings(self, stage, observed):
-        super().check_settings(stage, observed)
-        bindings = {'name-rows': 'catalogue-name', 'reopened-name': 'catalogue-name',
-                    'absent-rows': 'catalogue-absent', 'reopened-absent': 'catalogue-absent'}
-        if stage not in ('initial-rows', 'cleared-rows', *bindings):
-            return
-        rows = AppRowsObservation.from_rows(observed['ui']['apps']['rows'])
-        observed['comparison'] = {'row_count': len(rows.rows)}
-        if stage == 'initial-rows':
-            require(self.initial_rows is None, 'catalogue:replay')
-            observed['comparison'].update(check_catalogue(rows))
-            self.initial_rows = rows
-        elif stage == 'cleared-rows':
-            require(self.initial_rows is not None and rows == self.initial_rows,
-                    'catalogue:clear')
-        else:
-            require(rows.rows == search_rows(bindings[stage]), 'catalogue:exact-results')
-        observed['comparison']['complete_catalogue_result'] = True

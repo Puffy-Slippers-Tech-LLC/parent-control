@@ -847,11 +847,11 @@ wrong-entry refusals and unchanged policies. Reuse caller-owned stages from the
 `PolicyLegendJourney` owns qualification, not the complete case lifecycle.
 The native launchers are already Jordan-only per-user inputs.
 
-Case 184 owns `search_filters.PLAN` / `SearchFiltersJourney`, composing the
+Case 184 owns `search_filters.PLAN`, composing the
 shared operations through `onpc_fresh_thirty_allowance::search_filters`.
 `native_fixtures.CataloguePolicyJourney` compares caller-declared immutable row
 endpoints and exact query/match/access intersections before durable replies;
-the plan declares the initial, name, filtered and unchanged row checks, saved
+the plan's `catalogue_checks` declares the initial, name, filtered and unchanged row checks, saved
 settings and independent 1800/0/1800-second balances. Complete installed acceptance
 passed in `20261001T054514Z-f7691e2f` on every enabled VM, including collection,
 owned cleanup and baseline restoration. This supplies no acceptance for other flows.

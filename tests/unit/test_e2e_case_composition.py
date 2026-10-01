@@ -168,6 +168,16 @@ def test_ready_requests_use_shared_comparisons_with_declared_endpoints(monkeypat
                                    if variant['coverage_id'] == 192 else {})
 
 
+def test_ready_catalogue_case_uses_the_shared_engine_with_recipe_endpoints(monkeypatch):
+    from native_fixtures import CataloguePolicyJourney
+    variant = next(variant for _, variant in READY if variant['coverage_id'] == 184)
+    _, plan, options = capture_composition(monkeypatch, variant)
+    assert options['journey_type'] is CataloguePolicyJourney
+    assert plan.catalogue_checks == {
+        'initial-rows': 'initial', 'name-rows': ('catalogue-name', 3, 7),
+        'filtered-rows': ('catalogue-name', 2, 1), 'cleared-rows': 'unchanged'}
+
+
 def worker_errors(source):
     # Strip ordinary literal labels/comments, not code: a stage such as
     # 'child-choices-open' must not be mistaken for Perl's file-open operator.

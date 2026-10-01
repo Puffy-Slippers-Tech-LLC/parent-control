@@ -269,16 +269,16 @@ def test_catalogue_comparison_keeps_exact_rows_empty_expectations_and_clear_base
     journey.check_settings('initial-rows', original)
     original['ui']['apps']['rows'].clear()
     for stage in ('name-rows', 'reopened-name'):
-        journey.check_settings(stage, observed(search_rows('catalogue-name')))
         with pytest.raises(EvidenceError, match='exact-results'):
             journey.check_settings(stage, observed(()))
+        journey.check_settings(stage, observed(search_rows('catalogue-name')))
     for stage in ('absent-rows', 'reopened-absent'):
-        journey.check_settings(stage, observed(()))
         with pytest.raises(EvidenceError, match='exact-results'):
             journey.check_settings(stage, observed(expected_rows()))
-    journey.check_settings('cleared-rows', observed(expected_rows()))
-    with pytest.raises(EvidenceError, match='catalogue:clear'):
+        journey.check_settings(stage, observed(()))
+    with pytest.raises(EvidenceError, match='unchanged-policies'):
         journey.check_settings('cleared-rows', observed(()))
+    journey.check_settings('cleared-rows', observed(expected_rows()))
 
 
 @pytest.mark.parametrize('worker', ['catalogue_search', 'catalogue_filters'])
@@ -408,11 +408,13 @@ def test_independent_filter_caller_and_finite_oracle_retain_empty_results_and_po
     from catalogue import CatalogueJourney, PLAN as filter_plan
     from native_fixtures import expected_rows, catalogue_rows
     from dataclasses import replace
-    # Rename every invocation; comparisons resolve through the registered operation.
+    # Rename every invocation and its declared comparison endpoint together.
     screens = {'renamed-' + stage: operation for stage, operation in filter_plan.screen_tags.items()}
     plan = replace(filter_plan, screen_tags=screens, phases={
         'ready': 'setup', 'setup-detached': 'setup', **{stage: 'step-1' for stage in screens}},
-        advance_after={}, stage_actions={}, child_bindings={})
+        advance_after={}, stage_actions={}, child_bindings={},
+        catalogue_checks={'renamed-' + stage: check
+                          for stage, check in filter_plan.catalogue_checks.items()})
     journey = CatalogueJourney(SimpleNamespace(), Mock(), plan, actions={})
     def observed(rows):
         return {'ui': {'apps': {'rows': [list(row) for row in rows]}}}
@@ -421,12 +423,12 @@ def test_independent_filter_caller_and_finite_oracle_retain_empty_results_and_po
     initial['ui']['apps']['rows'].clear()
     for stage in ('name-rows', 'filtered-rows', 'reopened-entry', 'independent-filtered-rows'):
         rows = catalogue_rows('catalogue-name', expected_rows(), match_mask=2, access_mask=1)
-        journey.check_settings('renamed-' + stage, observed(rows))
         with pytest.raises(EvidenceError, match='exact-results'):
             journey.check_settings('renamed-' + stage, observed(()))
-    journey.check_settings('renamed-cleared-rows', observed(expected_rows()))
-    with pytest.raises(EvidenceError, match='catalogue:clear'):
+        journey.check_settings('renamed-' + stage, observed(rows))
+    with pytest.raises(EvidenceError, match='unchanged-policies'):
         journey.check_settings('renamed-cleared-rows', observed(()))
+    journey.check_settings('renamed-cleared-rows', observed(expected_rows()))
     for binding in ('catalogue-name', 'catalogue-description', 'catalogue-identifier'):
         assert catalogue_rows(binding, expected_rows()) == rows
         assert catalogue_rows(binding, expected_rows(), match_mask=0) == ()
@@ -815,9 +817,9 @@ print encode_json(\@events);
 @pytest.mark.parametrize('stage', ['name-rows', 'filtered-rows', 'cleared-rows'])
 @pytest.mark.parametrize('changed', [False, True])
 def test_case_catalogue_comparison_runs_through_real_step_before_reply(tmp_path, stage, changed):
-    from search_filters import PLAN as case_plan, SearchFiltersJourney
-    from native_fixtures import expected_rows, catalogue_rows
-    journey = SearchFiltersJourney(SimpleNamespace(directory=tmp_path), Mock(), case_plan,
+    from search_filters import PLAN as case_plan
+    from native_fixtures import CataloguePolicyJourney, expected_rows, catalogue_rows
+    journey = CataloguePolicyJourney(SimpleNamespace(directory=tmp_path), Mock(), case_plan,
         actions={'native-refuse': Mock(), 'native-verify': Mock()})
     baseline = [list(row) for row in expected_rows()]
     journey.check_settings('initial-rows', {'ui': {'apps': {'rows': baseline}}})
@@ -853,15 +855,58 @@ def test_case_catalogue_comparison_preserves_empty_oracle_and_refuses_missing_ba
     from installed_journey import JourneyPlan
     from native_fixtures import CataloguePolicyJourney, expected_rows
     plan = JourneyPlan('sample', 'sample', {'initial': 'ui:existing-parent-app-rows',
-                       'empty': 'ui:catalogue-absent-rows'}, {})
-    journey = CataloguePolicyJourney(SimpleNamespace(), Mock(), plan,
-        row_checks={'initial': 'initial', 'empty': ('catalogue-absent', 0, 0)})
+                       'empty': 'ui:catalogue-absent-rows'}, {},
+                       catalogue_checks={'initial': 'initial', 'empty': ('catalogue-absent', 0, 0)})
+    journey = CataloguePolicyJourney(SimpleNamespace(), Mock(), plan)
     with pytest.raises(EvidenceError, match='missing-initial'):
         journey.check_settings('empty', {'ui': {'apps': {'rows': []}}})
     journey.check_settings('initial', {'ui': {'apps': {'rows': [list(row) for row in expected_rows()]}}})
     journey.check_settings('empty', {'ui': {'apps': {'rows': []}}})
     with pytest.raises(EvidenceError, match='comparison-replay'):
         journey.check_settings('empty', {'ui': {'apps': {'rows': []}}})
+
+
+@pytest.mark.parametrize('checks', [
+    {}, {'missing': 'initial'}, {'initial': 'unchanged'},
+    {'initial': 'initial', 'empty': 'initial'},
+    {'initial': ('catalogue-name', 3, 7), 'empty': 'initial'},
+    {'initial': 'initial', 'empty': ('unknown', 3, 7)},
+    {'initial': 'initial', 'empty': ('catalogue-name', 4, 7)},
+])
+def test_catalogue_declarations_refuse_missing_ambiguous_or_late_baselines(checks):
+    from installed_journey import JourneyPlan
+    from native_fixtures import CataloguePolicyJourney
+    plan = JourneyPlan('independent', 'independent', {
+        'initial': 'ui:existing-parent-app-rows', 'empty': 'ui:catalogue-absent-rows'}, {},
+        catalogue_checks=checks)
+    with pytest.raises(EvidenceError, match='catalogue:'):
+        CataloguePolicyJourney(SimpleNamespace(), Mock(), plan, actions={})
+
+
+def test_catalogue_case_and_qualifications_share_comparisons_without_recipe_state():
+    from native_fixtures import CataloguePolicyJourney, expected_rows, catalogue_rows
+    from dataclasses import replace
+    from catalogue_search import PLAN as search_plan
+    from catalogue import PLAN as filter_plan
+    from policy_legend import PLAN as legend_plan
+    from search_filters import PLAN as case_plan
+    for original in (search_plan, filter_plan, legend_plan, case_plan):
+        screens = {'independent-' + stage: value for stage, value in original.screen_tags.items()}
+        checks = {'independent-' + stage: value for stage, value in original.catalogue_checks.items()}
+        plan = replace(original, screen_tags=screens, catalogue_checks=checks,
+            phases={}, advance_after={}, stage_actions={}, child_bindings={},
+            settings_checks={}, balance_checks={})
+        journey = CataloguePolicyJourney(SimpleNamespace(), Mock(), plan, actions={})
+        plan.catalogue_checks.clear()  # Consumer mutation cannot rewrite accepted bindings.
+        for stage, check in journey.row_checks.items():
+            expected = (expected_rows() if check in ('initial', 'unchanged') else
+                        catalogue_rows(check[0], expected_rows(),
+                                       match_mask=check[1], access_mask=check[2]))
+            observed = {'ui': {'apps': {'rows': [list(row) for row in expected]}}}
+            journey.check_settings(stage, observed)
+            observed['ui']['apps']['rows'].clear()
+        assert journey.initial_rows.rows == expected_rows()
+        assert journey.compared_rows == set(journey.row_checks)
 
 
 @pytest.mark.parametrize('changed', [False, True])
@@ -892,9 +937,9 @@ def test_legend_real_step_keeps_immutable_rows_and_checks_before_reply(tmp_path,
     else:
         journey.step(Mock())
         assert (tmp_path / 'final-rows.reply.json').exists()
-        assert journey.final_rows == journey.initial_rows
+        assert 'final-rows' in journey.compared_rows
         rows.clear()
-        assert len(journey.final_rows.rows) > 0
+        assert len(journey.initial_rows.rows) > 0
         journey.progress.assert_called_once()
     inherited.assert_called_once()
 

@@ -19,8 +19,7 @@ CHILD_SCREENS = {
     **prepared_request(prefix='new', entry='new', initial='selected', **CHOICES),
     'exclude-soft': 'ui:overlay-valid-fraction-excluded-select',
     'excluded-read': 'ui:overlay-valid-fraction-excluded-read',
-    **{operation: 'ui:' + operation for binding in (
-        'empty', 'letters', 'negative', 'zero', 'below', 'over', 'comma')
+    **{operation: 'ui:' + operation for binding in ('below',)
        for operation in (
            *tuple('text-overlay-invalid-' + binding + '-' + action for action in ('focus', 'selected', 'read')),
            *tuple('overlay-invalid-' + binding + '-' + action for action in ('ready', 'submit', 'read')))},
@@ -54,7 +53,7 @@ PLAN = JourneyPlan(
     activity_checks={'activity-cancel': ('activity-capture', 'same'),
                      'activity-escape': ('activity-capture', 'same')},
     assertions_after={'open-estimate': 'open-flow-estimate', 'activity-cancel': 'cancel-same-activity',
-                      'new-estimate': 'new-flow-reproduced', 'overlay-invalid-comma-read': 'invalid-no-authentication',
+                      'new-estimate': 'new-flow-reproduced', 'overlay-invalid-below-read': 'invalid-no-authentication',
                       'activity-escape': 'escape-same-activity'},
 )
 

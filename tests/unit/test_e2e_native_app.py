@@ -91,7 +91,9 @@ def test_registration_fixture_lifetime_and_exclusive_slice(monkeypatch):
             smoke.main(native_app=True, **changes)
 
 
-@pytest.mark.parametrize('fault', ['', 'logout', 'command', 'opened', 'submit', 'submitted', 'close'])
+@pytest.mark.parametrize('fault', ['', 'logout', 'command', 'opened', 'submit', 'submitted', 'close',
+                                 'child-standard-recipient-qualified',
+                                 'child-standard-recipient-rechecked', 'typing', 'challenge-role'])
 def test_actual_worker_order_markers_and_no_later_input_after_failure(fault, tmp_path):
     result = json.loads(run_perl(r'''
 use strict;
@@ -99,48 +101,63 @@ use warnings;
 use JSON::PP;
 our @events;
 our $fault = shift @ARGV;
-BEGIN { $INC{'testapi.pm'} = 1; $INC{'onpc_gdm.pm'} = 1; }
-package onpc_gdm;
-sub reattach_functional { }
+our $challenges = decode_json(shift @ARGV);
+our $declared = decode_json(shift @ARGV);
+BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub record_info { push @main::events, ['marker', $_[0]] }
-sub send_key { die 'command qualifier must not type a launch' }
+sub current_console { 'sut' }
+sub get_var { '1' }
+sub get_required_var { 'synthetic-fixture-secret' }
+sub type_password {
+    push @main::events, ['password'];
+    die 'synthetic-fixture-secret' if $main::fault eq 'typing';
+}
+sub send_key { die 'unexpected key' unless $_[0] eq 'ret'; push @main::events, ['key', $_[0]] }
 sub type_string { die 'command qualifier must not type a command' }
 package main;
 require onpc_app_rows;
 no warnings 'redefine';
-*onpc_parent::sign_in = sub {
-    my ($journey, $account) = @_;
-    push @events, ['account', $account];
-    $journey->seen('installed-greeter');
-    $journey->seen($_) for ($account eq 'parent'
-        ? qw(parent-focused recipient-qualified recipient-rechecked)
-        : qw(standard-focused standard-recipient-qualified standard-recipient-rechecked));
-    return $journey->seen('desktop');
-};
+*onpc_gdm::reattach_functional = sub { };
 *onpc_journey::finish = sub { push @events, ['finish'] };
 my $ok = eval {
     onpc_app_rows::native_app(sub {
         my ($stage) = @_;
         push @events, ['seen', $stage];
-        die 'refused' if $fault ne '' && $stage eq ($fault eq 'logout' ? 'logout' : 'first-' . $fault);
-        return {};
-    }); 1;
+        die 'refused' if $fault ne '' && $stage eq (
+            $fault eq 'logout' || $fault =~ /^child-/ ? $fault : 'first-' . $fault);
+        my $reply = {observed => $stage, ($stage =~ /greeter$/ ? (ui_focused => JSON::PP::true) : ())};
+        for my $id (keys %$challenges) {
+            my ($role, $first, $second) = @{$challenges->{$id}};
+            if ($stage eq $first || $stage eq $second) {
+                $reply->{challenge} = {id => $id, role => $role, surface => 'gdm',
+                    check => $stage eq $first ? 'qualified' : 'rechecked'};
+                $reply->{challenge}{role} = 'parent' if $fault eq 'challenge-role'
+                    && $id eq 'native-child-login';
+                push @events, ['challenge', $stage, $reply->{challenge}];
+            }
+        }
+        return $reply;
+    }, $declared, $challenges); 1;
 };
 print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
-''', fault).stdout)
+''', fault, json.dumps(PLAN.challenges), json.dumps(PLAN.invocations)).stdout)
     events = result['events']
     assert bool(result['ok']) == (not fault), result['error']
+    assert 'synthetic-fixture-secret' not in result['error']
     if fault:
         assert ['finish'] not in events
         assert not any(event[0] == 'seen' and event[1].startswith('repeat-') for event in events)
         if fault == 'command':
             assert ['seen', 'first-opened'] not in events
         if fault == 'logout':
-            assert ['account', 'other-child'] not in events
+            assert ['seen', 'child-installed-greeter'] not in events
+        if fault.startswith('child-') or fault == 'challenge-role':
+            assert sum(event[0] == 'password' for event in events) == 1
+            assert ['seen', 'first-command'] not in events
     else:
         assert [event[1] for event in events if event[0] == 'seen'] == list(PLAN.screen_tags)
-        assert [event[1] for event in events if event[0] == 'account'] == ['parent', 'other-child']
+        assert sum(event[0] == 'password' for event in events) == 2
         assert events[-1] == ['finish']
         details = [{'title': event[1], 'result': 'ok'}
                    for event in events if event[0] == 'marker']
@@ -148,11 +165,23 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
             'operation': tag[3:] if tag.startswith('ui:') else tag[7:],
             'outcome': 'passed', 'interface': 'AT-SPI' if tag.startswith('ui:') else 'system session'}}
             for stage, tag in PLAN.screen_tags.items()]
+        proofs = {event[1]: event[2] for event in events if event[0] == 'challenge'}
+        for observation in observations:
+            if observation['stage'] in proofs:
+                observation['challenge'] = proofs[observation['stage']]
         results = tmp_path / 'testresults'
         results.mkdir()
         evidence = results / 'result-smoke.json'
         evidence.write_text(json.dumps({'result': 'ok', 'details': details}))
         assert [item['stage'] for item in matched_screens(tmp_path, PLAN, observations)] == list(PLAN.screen_tags)
+        for invalid_proof in (None, {**proofs['child-standard-recipient-rechecked'],
+                                    'id': 'parent-login'}):
+            invalid_observations = [
+                {**item, 'challenge': invalid_proof}
+                if item['stage'] == 'child-standard-recipient-rechecked' else item
+                for item in observations]
+            with pytest.raises(EvidenceError, match='challenge-evidence'):
+                matched_screens(tmp_path, PLAN, invalid_observations)
         for invalid in (details[:-1], details + [details[-1]],
                         [details[1], details[0], *details[2:]]):
             evidence.write_text(json.dumps({'result': 'ok', 'details': invalid}))

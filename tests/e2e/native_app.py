@@ -31,6 +31,13 @@ PLAN = JourneyPlan(
                if stage.startswith('repeat-') or stage in ('first-close', 'first-closed')}},
     advance_after={'first-submitted': 'step-2'},
     stage_actions={'installed-greeter': 'native-refuse', 'desktop': 'native-verify'},
+    invocations=tuple(stage for stage in SCREENS
+                      if stage in fresh_desktop('parent') or stage.startswith('child-')),
+    challenges={
+        'parent-login': ('parent', 'recipient-qualified', 'recipient-rechecked'),
+        'native-child-login': ('other-child', 'child-standard-recipient-qualified',
+                               'child-standard-recipient-rechecked'),
+    },
 )
 
 

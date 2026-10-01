@@ -24,12 +24,14 @@ package main;
 require onpc_text;
 require onpc_format;
 require onpc_feedback_states;
+require onpc_app_rows;
 my ($block, @arguments) = @ARGV;
 my $journey = onpc_journey->new(prefix => 'host-gui', review => 0, exchange => sub {
     push @events, ['observe', $_[0]];
     return {observed => $_[0]};
 });
 if ($block eq 'replace') { onpc_text::replace_text($journey, @arguments); }
+elsif ($block eq 'filter') { onpc_app_rows::filter($journey, @arguments); }
 elsif ($block eq 'scalar') { onpc_text::append_scalar($journey, @arguments); }
 elsif ($block eq 'bold') { onpc_format::apply_bold($journey, @arguments); }
 elsif ($block eq 'block') { onpc_format::apply_block($journey, @arguments); }
@@ -49,18 +51,18 @@ _KEYS = {
     'ctrl-shift-end': '<Control><Shift>End', 'ctrl-shift-u': '<Control><Shift>u',
     'ctrl-c': '<Control>c', 'ctrl-shift-v': '<Control><Shift>v',
     'right': 'Right', 'left': 'Left', 'shift-right': '<Shift>Right',
-    'backspace': 'BackSpace', 'ret': 'Return',
+    'backspace': 'BackSpace', 'ret': 'Return', 'esc': 'Escape',
 }
 
 
-def run_block(ui, block, *arguments):
+def run_block(ui, block, *arguments, child=None):
     """Execute once, stopping at the first failed observation or input.
 
     The short, waited Perl process only expands a named finite composite into
     memory. It reads shared modules without opening a display or socket. Real input still
     reacquires its public recipient; no precomputed observation is evidence.
     """
-    from tests.e2e.accessible_ui import TEXT_OPERATIONS, TEXT_VALUES
+    from tests.e2e.accessible_ui import TEXT_OPERATIONS, TEXT_VALUES, FILTER_OPERATIONS
 
     events = json.loads(run_perl(_TRACE, block, *arguments).stdout)
     if not isinstance(events, list) or not 0 < len(events) <= 4096:
@@ -84,9 +86,12 @@ def run_block(ui, block, *arguments):
                     identity = 'feedback-link-target'
                 elif stage.endswith('-focus'):
                     identity = 'feedback-editor-input'
-                observations[stage] = ui.run(stage, '')
+                elif stage in FILTER_OPERATIONS:
+                    identity = 'parent-window'
+                observations[stage] = ui.run(stage, '', **({'child': child} if child else {}))
             elif event[0] == 'key':
-                keyboard.key_combo(ui, identity, _KEYS[event[1]], state=ui.api.StateType.FOCUSED)
+                keyboard.key_combo(ui, identity, _KEYS[event[1]],
+                    state=ui.api.StateType.ACTIVE if event[1] == 'esc' else ui.api.StateType.FOCUSED)
             elif event[0] == 'text':
                 keyboard.type_text(ui, identity, event[1], interval=event[2] / 1000)
             else:

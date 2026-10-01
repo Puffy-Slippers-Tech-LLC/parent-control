@@ -79,6 +79,7 @@ import parent_toggle
 import app_row_observations
 import native_fixture_qualification
 import catalogue_search
+import catalogue
 import feedback_read
 import feedback_privacy
 import feedback_states
@@ -207,6 +208,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  repeated_operations.PLAN, challenges.PLAN, app_row_observations.PLAN,
                                  native_fixture_qualification.PLAN,
                                  catalogue_search.PLAN,
+                                 catalogue.PLAN,
                                  feedback_read.PLAN, feedback_privacy.PLAN, feedback_states.PLAN,
                                  trace_stable_state.PLAN, trace_transition.PLAN, compose_observation.PLAN,
                                  accessibility_input_trace.PLAN, named_child_custom_saves.PLAN,
@@ -233,7 +235,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'terminal-provider', 'license-viewer-provider', 'parent-website',
                               'parent-privacy', 'parent-support', 'parent-information', 'parent-links',
                               'repeated-operations',
-                              'challenges', 'app-rows', 'native-fixtures', 'catalogue-search', 'feedback-read', 'feedback-privacy', 'feedback-states',
+                              'challenges', 'app-rows', 'native-fixtures', 'catalogue-search', 'catalogue', 'feedback-read', 'feedback-privacy', 'feedback-states',
                               'trace-stable', 'trace-transition', 'compose-observation',
                               'accessibility-trace', 'named-child-custom-saves',
                               'format', 'block-semantics', 'feedback-formats', 'feedback-link',
@@ -380,20 +382,28 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 result['request'].update(approver='none', message='no-approver')
         if operation in accessible_ui.TOGGLE_OPERATIONS:
             result['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
+        if operation in accessible_ui.FILTER_OPERATIONS:
+            kind, mask, action = accessible_ui.FILTER_OPERATIONS[operation]
+            options = accessible_ui.FILTER_OPTIONS[kind]
+            result['filter'] = ({'opened' if action == 'open' else 'closed': kind}
+                if action in ('open', 'closed') else
+                {'filter': kind, 'selected': [option for index, option in enumerate(options)
+                                            if mask & (1 << index)]} if action == 'read' else
+                {'state': bool(mask & (1 << options.index(action))), 'activated': True})
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             result['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
         if plan is native_fixture_qualification.PLAN and operation in (
                 'existing-parent-app-rows', 'existing-parent-app-rows-reopened'):
             from native_fixtures import expected_rows
             result['apps'] = {'rows': [list(row) for row in expected_rows()]}
-        if plan is catalogue_search.PLAN and operation in accessible_ui.APP_ROW_OPERATIONS:
+        if plan in (catalogue_search.PLAN, catalogue.PLAN) and operation in accessible_ui.APP_ROW_OPERATIONS:
             from native_fixtures import expected_rows, search_rows
             if operation in accessible_ui.CATALOGUE_ROW_OPERATIONS:
                 binding = accessible_ui.CATALOGUE_ROW_OPERATIONS[operation]
                 rows = expected_rows() if binding == 'catalogue-clear' else search_rows(binding)
                 result['apps'] = {'rows': [list(row) for row in rows]}
             elif operation.endswith(('wrong-child', 'wrong-page')):
-                result['apps'] = {'refusal': operation.rsplit('rows-', 1)[1]}
+                result['apps'] = {'refusal': 'wrong-child' if operation.endswith('wrong-child') else 'wrong-page'}
             elif operation == 'catalogue-incomplete-refused':
                 result['apps'] = {'refusal': 'incomplete-result'}
             else:
@@ -531,7 +541,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         native_fixture_qualification.NativeFixtureJourney
                         if plan is native_fixture_qualification.PLAN else
                         catalogue_search.CatalogueSearchJourney
-                        if plan is catalogue_search.PLAN else journeys.InstalledJourney)
+                        if plan is catalogue_search.PLAN else
+                        catalogue.CatalogueJourney if plan is catalogue.PLAN else journeys.InstalledJourney)
         if failure:
             with pytest.raises((OSError, RuntimeError)):
                 journeys.record_installed_journey(recorder, context, plan, actions=actions,

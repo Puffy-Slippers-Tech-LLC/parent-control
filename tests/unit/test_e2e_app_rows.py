@@ -281,8 +281,10 @@ def test_catalogue_comparison_keeps_exact_rows_empty_expectations_and_clear_base
         journey.check_settings('cleared-rows', observed(()))
 
 
-def test_catalogue_worker_sequence_and_every_refusal_stop():
+@pytest.mark.parametrize('worker', ['catalogue_search', 'catalogue_filters'])
+def test_catalogue_worker_sequence_and_every_refusal_stop(worker):
     from catalogue_search import PLAN as search_plan
+    from catalogue import PLAN as filter_plan
     from tests.support.perl import run_perl
     program = r'''
 use strict; use warnings; use JSON::PP;
@@ -307,12 +309,157 @@ require onpc_app_rows;
 eval {onpc_app_rows::catalogue_search(sub {push @events,$_[0]; FAIL return {observed=>$_[0]};});};
 print encode_json(\@events);
 '''
-    expected = list(search_plan.screen_tags)
+    program = program.replace('onpc_app_rows::catalogue_search', 'onpc_app_rows::' + worker)
+    expected = list((search_plan if worker == 'catalogue_search' else filter_plan).screen_tags)
     for boundary in (None, *expected):
         stop = "die 'refused' if $_[0] eq '" + boundary + "';" if boundary else ''
         result = run_perl(program.replace('FAIL', stop))
         assert json.loads(result.stdout) == (expected[:expected.index(boundary) + 1]
                                             if boundary else expected + ['power'])
+
+
+def test_filter_leaves_use_owned_options_explicit_state_and_independent_selection():
+    ui, page, *_ = app_ui()
+    root = ui.find_id('parent-window')
+    root.states.add('active')
+    ui.find_id('parent-child-selector').children[0].role = 'label'
+    search = ui.find_id('parent-app-search')
+    search.states.add('editable')
+    options = [Node(identity='parent-filter-match-rule-' + option,
+                    states=('visible', 'showing', 'sensitive', 'checked'))
+               for option in accessible_ui.FILTER_OPTIONS['match-rule']]
+    choices = Node(identity='parent-filter-match-rule-choices', children=options)
+    choices.parent = root
+    def toggle(target):
+        if 'checked' in target.states:
+            target.states.remove('checked')
+        else:
+            target.states.add('checked')
+    ui._invoke_target = Mock(side_effect=toggle)
+    ui.activate_id = Mock(side_effect=lambda *_, **__: root.children.append(choices))
+    assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'open') == {'opened': 'match-rule'}
+    ui.activate_id.assert_called_once_with('parent-filter-match-rule', action_name='menu.popup')
+    assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'pattern') == {
+        'state': False, 'activated': True}
+    assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'precise') == {
+        'state': True, 'activated': False}
+    assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'read') == {
+        'filter': 'match-rule', 'selected': ['precise']}
+    ui._invoke_target.assert_called_once_with(options[0])
+    with pytest.raises(accessible_ui.UiError, match='wrong-child'):
+        ui.catalogue_filter(accessible_ui.EXISTING_CHILD, 'match-rule', 2, 'pattern')
+    options[1].states.remove('checked')
+    with pytest.raises(accessible_ui.UiError, match='filter-selection'):
+        ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'read')
+    root.children.remove(choices)
+    assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'closed') == {'closed': 'match-rule'}
+    with pytest.raises(accessible_ui.UiError):
+        ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'pattern')
+    ui._invoke_target.assert_called_once()
+
+
+def test_filter_composite_is_independently_reusable_and_refusal_stops_escape():
+    from journey_blocks import filter_screens
+    from tests.support.perl import run_perl
+    assert filter_screens('match-rule', 2, 'renamed') == {
+        f'renamed-{action}': f'ui:filter-match-rule-2-{action}'
+        for action in ('open', 'pattern', 'precise', 'read', 'closed')}
+    with pytest.raises(EvidenceError):
+        filter_screens('match-rule', 4, 'renamed')
+    program = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'}=1; }
+package testapi; sub record_info {} sub send_key {push @main::events, 'key:' . $_[0]}
+package main;
+require onpc_app_rows;
+my $journey = onpc_journey->new(prefix=>'independent', review=>0, exchange=>sub {
+    push @events, $_[0]; FAIL return {observed=>$_[0]}; });
+eval {onpc_app_rows::filter($journey, 'match-rule', 2, 'renamed');};
+print encode_json(\@events);
+'''
+    expected = ['renamed-open', 'renamed-pattern', 'renamed-precise', 'renamed-read',
+                'key:esc', 'renamed-closed']
+    for boundary in (None, *[stage for stage in expected if not stage.startswith('key:')]):
+        stop = "die 'refused' if $_[0] eq '" + boundary + "';" if boundary else ''
+        result = run_perl(program.replace('FAIL', stop))
+        assert json.loads(result.stdout) == (expected[:expected.index(boundary) + 1]
+                                            if boundary else expected)
+
+
+@pytest.mark.parametrize('operation', list(accessible_ui.FILTER_OPERATIONS))
+def test_filter_transport_checks_every_option_set_and_explicit_state(operation):
+    kind, mask, action = accessible_ui.FILTER_OPERATIONS[operation]
+    options = accessible_ui.FILTER_OPTIONS[kind]
+    value = ({'opened' if action == 'open' else 'closed': kind}
+        if action in ('open', 'closed') else {'filter': kind, 'selected': [
+            option for index, option in enumerate(options) if mask & (1 << index)]}
+        if action == 'read' else {'state': bool(mask & (1 << options.index(action))), 'activated': False})
+    result = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed', 'filter': value}
+    observer, *_ = collection_transport((json.dumps(result) + '\n').encode(), False)
+    assert observer.observe(operation) == result
+    result['filter'] = {'unexpected': True}
+    observer, *_ = collection_transport((json.dumps(result) + '\n').encode(), False)
+    with pytest.raises(EvidenceError, match='filter-response'):
+        observer.observe(operation)
+
+
+def test_independent_filter_caller_and_finite_oracle_retain_empty_results_and_policies():
+    from catalogue import CatalogueJourney, PLAN as filter_plan
+    from native_fixtures import expected_rows, catalogue_rows
+    from dataclasses import replace
+    # Rename every invocation; comparisons resolve through the registered operation.
+    screens = {'renamed-' + stage: operation for stage, operation in filter_plan.screen_tags.items()}
+    plan = replace(filter_plan, screen_tags=screens, phases={
+        'ready': 'setup', 'setup-detached': 'setup', **{stage: 'step-1' for stage in screens}},
+        advance_after={}, stage_actions={}, child_bindings={})
+    journey = CatalogueJourney(SimpleNamespace(), Mock(), plan, actions={})
+    def observed(rows):
+        return {'ui': {'apps': {'rows': [list(row) for row in rows]}}}
+    initial = observed(expected_rows())
+    journey.check_settings('renamed-initial-rows', initial)
+    initial['ui']['apps']['rows'].clear()
+    for stage in ('name-rows', 'filtered-rows', 'reopened-entry', 'independent-filtered-rows'):
+        rows = catalogue_rows('catalogue-name', expected_rows(), match_mask=2, access_mask=1)
+        journey.check_settings('renamed-' + stage, observed(rows))
+        with pytest.raises(EvidenceError, match='exact-results'):
+            journey.check_settings('renamed-' + stage, observed(()))
+    journey.check_settings('renamed-cleared-rows', observed(expected_rows()))
+    with pytest.raises(EvidenceError, match='catalogue:clear'):
+        journey.check_settings('renamed-cleared-rows', observed(()))
+    for binding in ('catalogue-name', 'catalogue-description', 'catalogue-identifier'):
+        assert catalogue_rows(binding, expected_rows()) == rows
+        assert catalogue_rows(binding, expected_rows(), match_mask=0) == ()
+        assert catalogue_rows(binding, expected_rows(), access_mask=0) == ()
+
+
+def test_catalogue_qualification_selects_its_fresh_plan_and_refuses_missing_native_entry(tmp_path, monkeypatch):
+    from catalogue import CatalogueJourney, PLAN as filter_plan
+    import parent_setup_qualification as qualification
+    import check_graphical_smoke as smoke
+    from owned_commands import CommandError
+    import runpy
+    from tests.support.paths import ROOT
+    from tools.test_storage import named_input
+    source = tmp_path / 'source'
+    (source / 'data').mkdir(parents=True)
+    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    monkeypatch.setattr(qualification.smoke, 'ROOT', source)
+    context = SimpleNamespace()
+    journey = qualification.CatalogueQualification.journey(context, Mock())
+    assert type(journey) is CatalogueJourney and journey.plan is filter_plan
+    assert context.installed_snapshot == 'onpc-v1.1'
+    with pytest.raises(CommandError, match='catalogue-filter-prerequisites'):
+        smoke.main(catalogue_filters=True)
+    execute = Mock(return_value=0)
+    monkeypatch.setattr(smoke, 'main', execute)
+    with pytest.raises(SystemExit) as exited:
+        runpy.run_path(str(ROOT / 'tests/integration/check_e2e_catalogue.py'), run_name='__main__')
+    assert exited.value.code == 0
+    assert execute.call_args.kwargs == {
+        'assets': named_input(fixture_source=True),
+        'provision_credentials': True, 'app_row_observations': True,
+        'native_fixtures': True, 'catalogue_filters': True}
 
 
 def test_catalogue_adapter_refuses_incomplete_result_and_observes_debounce():

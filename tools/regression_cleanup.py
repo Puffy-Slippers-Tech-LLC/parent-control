@@ -49,6 +49,9 @@ from pathlib import PurePosixPath
 # pytest files, process-local guest/SSH/GTK doubles and bounded waited Perl
 # children. No real ownership mutation, VM, bus, display, shared path or cache;
 # compatible overlap in cleanup and unit scheduling.
+# Catalogue filter recorder additions reuse that installed-journey private
+# evidence and process-local UI/worker doubles. No new cleanup resource or live
+# access is added; its compatible unit and cleanup classifications remain.
 
 from regression_ui import Bucket
 from regression_resources import HOST_WORKERS

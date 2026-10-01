@@ -23,6 +23,13 @@ class ScriptedParentBroker:
     def __init__(self):
         self._mode = os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO", "normal")
         self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
+        if self._mode == 'catalogue':
+            from tests.fixtures.native_assets import ASSETS, PREFIX, desktop_id
+            self._preferences[1002]['apps'] = {
+                desktop_id(role): {'state': {'H': 'permanent', 'S': 'conditional'}.get(role, 'allowed'),
+                    'targets': [PREFIX + '/' + filename],
+                    'patterns': [], 'user_saved_match_rule': False}
+                for role, filename, _name, _description, _match in ASSETS}
         if self._mode == "custom-limit":
             self._preferences[1001]["daily_time_limit_minutes"] = 73
         if self._mode in {"grant-only", "exact-hours"}:
@@ -71,6 +78,13 @@ class ScriptedParentBroker:
         self._record("list_apps")
         if self._mode == "loading":
             self._wait_for_loading_release()
+        if self._mode == 'catalogue':
+            from tests.fixtures.native_assets import ASSETS, PREFIX, desktop_id
+            return [{'id': desktop_id(role), 'name': name, 'description': description,
+                     'icon': 'applications-system', 'targets': [PREFIX + '/' + filename],
+                     'suggested_patterns': [PREFIX + '/Lunar Client-*.AppImage']
+                        if match == 'pattern' else []}
+                    for role, filename, name, description, match in ASSETS]
         return copy.deepcopy(PREVIEW_APPS)
 
     def get_time_status(self, _uid):

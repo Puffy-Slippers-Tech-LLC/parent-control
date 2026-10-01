@@ -1,6 +1,7 @@
 package onpc_app_rows;
 use strict;
 use warnings;
+use testapi ();
 use onpc_progress ();
 use onpc_gdm ();
 use onpc_journey ();
@@ -60,9 +61,27 @@ sub search {
     onpc_progress::operation('Replacing a declared search query and independently reading catalogue rows');
     my ($journey, $binding, $stage) = @_;
     die 'catalogue:arguments' unless @_ == 3 && ref($journey) eq 'onpc_journey'
-        && $binding =~ /\Acatalogue-(?:name|absent|clear)\z/
+        && $binding =~ /\Acatalogue-(?:name|description|identifier|absent|clear)\z/
         && $stage =~ /\A[a-z][a-z0-9-]*\z/;
     onpc_text::replace_text($journey, $binding);
+    return $journey->consume_observation($stage, $journey->seen($stage));
+}
+
+# PARENT11: caller-owned stages; no qualification lifecycle or hidden row read.
+sub filter {
+    onpc_progress::operation('Setting a catalogue filter and independently checking every option');
+    my ($journey, $kind, $mask, $prefix) = @_;
+    my %options = ('match-rule' => ['pattern', 'precise'],
+                   'access-rule' => ['allowed', 'conditional', 'permanent']);
+    die 'catalogue:filter' unless @_ == 4 && ref($journey) eq 'onpc_journey'
+        && exists($options{$kind}) && $mask =~ /\A[0-7]\z/
+        && $mask < (1 << @{$options{$kind}}) && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    for my $action ('open', @{$options{$kind}}, 'read') {
+        my $stage = "$prefix-$action";
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    testapi::send_key('esc');
+    my $stage = "$prefix-closed";
     return $journey->consume_observation($stage, $journey->seen($stage));
 }
 
@@ -81,6 +100,30 @@ sub catalogue_search {
     }
     search($journey, 'catalogue-absent', 'absent-rows');
     $journey->consume_observation('reopened-absent', $journey->seen('reopened-absent'));
+    search($journey, 'catalogue-clear', 'cleared-rows');
+    $journey->finish();
+}
+
+sub catalogue_filters {
+    onpc_progress::operation('Qualifying public catalogue filters and unchanged policy');
+    my ($exchange) = @_;
+    die 'catalogue:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'catalogue', review => 0);
+    native_entry($journey);
+    for my $stage ('apps-page', 'initial-rows', 'wrong-child', 'wrong-page', 'independent-entry') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    search($journey, 'catalogue-name', 'name-rows');
+    filter($journey, 'match-rule', 2, 'precise');
+    filter($journey, 'access-rule', 1, 'allowed');
+    for my $stage ('filtered-rows', 'reopened-entry') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    filter($journey, 'match-rule', 2, 'independent-precise');
+    filter($journey, 'access-rule', 1, 'independent-allowed');
+    $journey->consume_observation('independent-filtered-rows', $journey->seen('independent-filtered-rows'));
+    filter($journey, 'match-rule', 3, 'restore-match');
+    filter($journey, 'access-rule', 7, 'restore-access');
     search($journey, 'catalogue-clear', 'cleared-rows');
     $journey->finish();
 }

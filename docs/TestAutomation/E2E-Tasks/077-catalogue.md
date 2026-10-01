@@ -49,7 +49,15 @@ and Allowed filter, then clear. Observe the exact real catalogue rows and unchan
 policy. Preserve independent-entry and wrong-entry refusal qualification; the full
 query/filter cross-product runs in UI tests.
 
-Qualification selector (implement and register before use):
+Qualification composition: `CatalogueJourney` in
+[`catalogue.py`](../../../tests/e2e/catalogue.py) owns a fresh plan;
+`onpc_app_rows::filter` supplies reusable option setting and checked closure.
+`AccessibleUI.catalogue_filter` binds both public option sets to explicit child
+entry, and `native_fixtures.catalogue_rows` shares the finite exact oracle with
+`test_catalogue_complete_query_match_access_matrix`. Description and identifier
+queries use the same text input/readback as the installed name sample.
+
+Qualification selector (implemented and registered; live acceptance pending):
 
 ```sh
 tools/run-tests integration check_e2e_catalogue

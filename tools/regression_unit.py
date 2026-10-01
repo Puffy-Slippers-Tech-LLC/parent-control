@@ -95,6 +95,11 @@ Fedora snapshot regressions use private tmp_path archives/locks and process-loca
 RPM builder, guestfs, package-manager and transport doubles. They run no actual
 RPM build, VM, host package mutation, bus or display; artifact, system-runner,
 system-guest, provenance, package-content and snapshot modules stay compatible.
+
+Catalogue filter regressions reuse in-memory AT-SPI trees, finite transport
+values and bounded, synchronously reaped Perl workers. Recorder probes retain
+their private tmp_path evidence; no live VM, display, bus or shared state is
+added. App-row and installed-journey modules retain compatible unit scheduling.
 """
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,

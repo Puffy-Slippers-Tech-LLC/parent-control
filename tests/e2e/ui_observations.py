@@ -31,9 +31,13 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Setting and independently reading a declared catalogue filter'
+       for operation in accessible_ui.FILTER_OPERATIONS},
     **{operation: 'Checking the complete declared catalogue search result'
        for operation in accessible_ui.CATALOGUE_ROW_OPERATIONS},
     'catalogue-incomplete-refused': 'Refusing an incomplete catalogue result expectation',
+    'catalogue-filter-wrong-child': 'Refusing catalogue filtering for a different child',
+    'catalogue-filter-wrong-page': 'Refusing catalogue filtering outside App Limits',
     **{'existing-' + operation: 'Checking public App Limits rows for [Existing child]'
        for operation in accessible_ui.APP_ROW_OPERATIONS
        if operation.startswith('parent-app-rows')},
@@ -1118,6 +1122,23 @@ class UiObservations:
                     and result['toggle'] == accessible_ui.TOGGLE_OPERATIONS[operation],
                     'ui:toggle-response')
             expected['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
+        if operation in accessible_ui.FILTER_OPERATIONS:
+            kind, mask, action = accessible_ui.FILTER_OPERATIONS[operation]
+            value = result.get('filter')
+            if action in ('open', 'closed'):
+                projection = {'opened' if action == 'open' else 'closed': kind}
+                require(value == projection, 'ui:filter-response')
+            elif action == 'read':
+                projection = {'filter': kind, 'selected': [option for index, option in
+                    enumerate(accessible_ui.FILTER_OPTIONS[kind]) if mask & (1 << index)]}
+                require(value == projection, 'ui:filter-response')
+            else:
+                desired = bool(mask & (1 << accessible_ui.FILTER_OPTIONS[kind].index(action)))
+                require(type(value) is dict and set(value) == {'state', 'activated'}
+                        and value['state'] is desired and type(value['activated']) is bool,
+                        'ui:filter-response')
+            require(set(result) == {*expected, 'filter'}, 'ui:filter-response')
+            expected['filter'] = value
         if operation in accessible_ui.APP_ROW_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'apps'}, 'ui:response')
             apps = result['apps']

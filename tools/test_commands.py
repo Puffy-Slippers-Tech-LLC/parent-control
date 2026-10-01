@@ -349,6 +349,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_app_row_observations'], ['check_e2e_app_row_observations.py'],
             ['check_e2e_native_fixtures'], ['check_e2e_native_fixtures.py'],
             ['check_e2e_catalogue_search'], ['check_e2e_catalogue_search.py'],
+            ['check_e2e_catalogue'], ['check_e2e_catalogue.py'],
             ['check_e2e_feedback_read'], ['check_e2e_feedback_read.py'],
             ['check_e2e_feedback_reset'], ['check_e2e_feedback_reset.py'],
             ['check_e2e_feedback_privacy'], ['check_e2e_feedback_privacy.py'],
@@ -415,7 +416,8 @@ def qualification_artifact_command(root, category, args):
     from test_storage import named_input
     output = str(named_input(fixture_source=True) if args in (
         ['check_e2e_native_fixtures'], ['check_e2e_native_fixtures.py'],
-        ['check_e2e_catalogue_search'], ['check_e2e_catalogue_search.py']) else
+        ['check_e2e_catalogue_search'], ['check_e2e_catalogue_search.py'],
+        ['check_e2e_catalogue'], ['check_e2e_catalogue.py']) else
         named_input(package_source=True) if args in (
         ['check_e2e_allowance_boundaries'], ['check_e2e_allowance_boundaries.py'])
         else named_input())

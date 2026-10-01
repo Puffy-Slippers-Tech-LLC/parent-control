@@ -237,12 +237,15 @@ def resume(lease, *, stopping=False, recovery_instance=None):
     lease.view.run = state['run']
     lease.view.domain_id = state['domain_id']
     lease.snapshot_xml = lease.source.baseline()
-    if interrupted_off:
+    restored_off = False
+    if stopping and current_id == -1:
         active = lease.source.domain.XMLDesc(0)
         runner.require(active == lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE),
                        'vm-control:off-configuration-changed')
         if active == lease.original_xml:
             lease.view.run = None
+            lease.view.domain_id = None
+            restored_off = True
         elif ET.fromstring(active).findtext('description') != runner.TAG + state['run']:
             # An online memory restore can finish before its fresh run tag is
             # written. Its private saved record and isolation proof still bind
@@ -258,7 +261,7 @@ def resume(lease, *, stopping=False, recovery_instance=None):
         run = recover_identity(lease)
         lease.view.run = run
         lease.view.domain_id = recovery_instance
-    lease.guard()
+    lease.guard(off=stopping and current_id == -1)
     runner.require(lease.capture.verify_snapshot() == lease.capture.state['proof'], 'baseline:changed')
     lease.mutated = True
     if recovery_instance is not None:
@@ -266,6 +269,7 @@ def resume(lease, *, stopping=False, recovery_instance=None):
         lease.state['domain_id'] = recovery_instance
         save_owner(lease)
         lease.save('running')
+    return restored_off
 
 
 def recover_preparation(lease):
@@ -304,14 +308,28 @@ def _operate(lease, action, keys):
         else:
             lease.finish()
         return
-    resume(lease, stopping=action == 'stop',
-           recovery_instance=keys[0] if action == 'recover-online' else None)
-    lease.guard()
+    restored_off = resume(lease, stopping=action == 'stop',
+                          recovery_instance=keys[0] if action == 'recover-online' else None)
+    lease.guard(off=restored_off)
     if action == 'recover-online':
         lease.stop_by_restore()
         lease.finish()
     elif action == 'stop':
-        lease.finish()
+        if restored_off:
+            # The recorded instance is gone and its original configuration is
+            # already restored. Audit the guest before clearing the journal;
+            # no shutdown, snapshot revert or domain definition is authorized.
+            runner.require(lease.inspect(Path(lease.capture.state['source']['layout']['disk']),
+                lease.capture.state['script_digest']) == lease.capture.state['guest'],
+                'recovery:guest-changed')
+            lease.guard(off=True)
+            runner.require(lease.source.domain.ID() == -1 and
+                lease.source.domain.XMLDesc(0) == lease.original_xml and
+                lease.source.domain.XMLDesc(lease.source.api.VIR_DOMAIN_XML_INACTIVE) ==
+                lease.original_xml, 'vm-control:off-configuration-changed')
+            lease.save('complete')
+        else:
+            lease.finish()
     elif action == 'reboot':
         lease.source.domain.reboot(lease.source.api.VIR_DOMAIN_REBOOT_ACPI_POWER_BTN)
         lease.guard()

@@ -100,9 +100,9 @@ def test_unknown_values_never_enter_a_logrecord(caplog):
 @pytest.mark.parametrize("greeter", [False, True])
 def test_account_identity_mismatch_is_diagnosable_without_private_data(
         tmp_path, monkeypatch, caplog, stage, greeter):
-    """A single bad NSS candidate must still abort both public list methods."""
+    """A bad ordinary NSS candidate must still abort both public list methods."""
     accounts = AccountsService(object())
-    candidate_uid = 60583
+    candidate_uid = 60577
     monkeypatch.setattr("oh_no_parent_control.adapters.pwd.getpwall", lambda: [
         SimpleNamespace(pw_uid=candidate_uid, pw_shell="/bin/bash",
                         pw_name="gdm-greeter" if greeter else SECRET,
@@ -114,7 +114,7 @@ def test_account_identity_mismatch_is_diagnosable_without_private_data(
             # UID metadata in the second. Neither identity may enter logs.
             return GLib.Variant("(o)", (
                 "/org/freedesktop/Accounts/User42" if stage == "find-user"
-                else "/org/freedesktop/Accounts/User60583",))
+                else "/org/freedesktop/Accounts/User60577",))
         assert method == "GetAll"
         return GLib.Variant("(a{sv})", ({
             "Uid": GLib.Variant("t", 61234),
@@ -177,7 +177,7 @@ def test_account_identity_mismatch_is_diagnosable_without_private_data(
     assert "stage=" + stage in exported
     expected_candidate = "display-manager-greeter" if greeter else "other"
     assert "candidate=" + expected_candidate in exported
-    for private in (SECRET, "60583", "61234", "User42", "gdm-greeter"):
+    for private in (SECRET, "60577", "61234", "User42", "gdm-greeter"):
         assert private not in exported
         assert private not in caplog.text
 
@@ -214,6 +214,33 @@ def test_deleted_account_remains_skipped_with_safe_evidence(monkeypatch, caplog)
     assert value["event"] == "adapters.account-enumeration-skipped"
     assert value["fields"] == {"candidate": "other", "error_type": "Error"}
     assert SECRET not in caplog.text
+
+
+def test_greeter_exclusion_exports_role_only(tmp_path, monkeypatch, caplog):
+    accounts = AccountsService(object())
+    monkeypatch.setattr("oh_no_parent_control.adapters.pwd.getpwall", lambda: [
+        SimpleNamespace(pw_uid=60578, pw_shell="/bin/bash", pw_name=SECRET,
+                        pw_dir=SECRET, pw_gecos=SECRET)])
+    lookup = Mock(side_effect=AssertionError("Greeter lookup must not be reached"))
+    monkeypatch.setattr(accounts, "get_user", lookup)
+    caplog.set_level(logging.INFO)
+    assert accounts.list_users() == ()
+    lookup.assert_not_called()
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    assert [(value["event"], value["fields"]) for value in decoded] == [
+        ("adapters.greeter-candidates-excluded", {})]
+    writer = DailyLogWriter(tmp_path)
+    handler = BrokerFileHandler(writer)
+    for record in caplog.records:
+        handler.emit(record)
+    bundle = writer.snapshot()
+    validate_bundle(bundle)
+    with ZipFile(BytesIO(bundle)) as archive:
+        exported = "".join(archive.read(name).decode() for name in archive.namelist())
+    assert "reserved greeter UID range" in exported
+    for private in (SECRET, "60578", "gdm-greeter"):
+        assert private not in exported
+        assert private not in caplog.text
 
 
 @pytest.mark.parametrize("reply", [None, {}, {"Uid": "private"}, {"Uid": -1}])

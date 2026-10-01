@@ -173,8 +173,10 @@ greeter role. Matching greeter roles with contradictory UID relationships point
 to stale greeter identity metadata. This subsequent read is not an atomic
 snapshot; failures leave comparisons unknown and retain the original rejection.
 No names, UIDs, returned object paths, account properties, NSS rows or exception
-text enter the events. Enumeration order, skipped GIO failures, identity checks
-and public failure behavior are unchanged; this adds diagnostics only.
+text enter the events. `adapters.greeter-candidates-excluded` records that
+discovery excluded candidates in the reserved dynamic-greeter UID range before
+AccountsService lookup; it has no identity fields. Ordinary-account failures
+and all direct identity checks retain their rejection and diagnostic behavior.
 The broker loads these additions after `process-restart`; ship the additive
 catalogue with all frontend validators, and renew frontend processes before
 reading reports containing the new events. No saved-data migration is required.

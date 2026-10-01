@@ -9,6 +9,7 @@ from oh_no_parent_control.adapters import (
     TimerUsageError,
 )
 from oh_no_parent_control.core import UserAccount
+from tests.support.broker import make_broker
 
 
 class PolkitAdapterTests(unittest.TestCase):
@@ -68,6 +69,62 @@ class PolkitAdapterTests(unittest.TestCase):
                         mock.patch("oh_no_parent_control.adapters._call", return_value=reply):
                     user = accounts.get_user(1003)
                 self.assertEqual(user.is_interactive, shell in ("/bin/bash", "/bin/sh"))
+
+    def test_discovery_excludes_entire_reserved_greeter_range_only(self):
+        accounts = AccountsService(object())
+        ordinary = (1001, 1002, 60001, 60513, 60577, 60706, 70000)
+        entries = [SimpleNamespace(pw_uid=uid, pw_shell="/bin/bash",
+                                   pw_name="gdm-greeter") for uid in ordinary]
+        # Names are deliberately unrelated: the service UID range, not a name
+        # heuristic or a broad high-UID cutoff, owns candidate exclusion.
+        entries.extend(SimpleNamespace(pw_uid=uid, pw_shell="/bin/bash",
+                                       pw_name="private-service")
+                       for uid in range(60578, 60706))
+        entries.append(entries[0])
+        with mock.patch("oh_no_parent_control.adapters.pwd.getpwall", return_value=entries), \
+                mock.patch.object(accounts, "get_user", side_effect=lambda uid: uid) as lookup:
+            self.assertEqual(accounts.list_users(), ordinary)
+        self.assertEqual(lookup.call_args_list, [mock.call(uid) for uid in ordinary])
+
+    def test_greeter_identity_churn_preserves_lists_and_execution_policy(self):
+        policy = mock.Mock()
+        accounts = AccountsService(object(), policy)
+        entries = [SimpleNamespace(pw_uid=uid, pw_shell="/bin/bash", pw_name="private")
+                   for uid in (1001, 1003, 60578, 60705)]
+
+        def call(_connection, _name, path, _interface, method, parameters, _reply_type,
+                 **_kwargs):
+            if method == "FindUserById":
+                uid = parameters.unpack()[0]
+                # An obsolete object for either transient greeter must never
+                # be consulted by enumeration or aggregate policy sync.
+                observed = 60579 if uid in (60578, 60705) else uid
+                return GLib.Variant("(o)", (f"/org/freedesktop/Accounts/User{observed}",))
+            self.assertEqual(method, "GetAll")
+            uid = int(path.rsplit("User", 1)[1])
+            return GLib.Variant("(a{sv})", ({
+                "Uid": GLib.Variant("t", uid),
+                "UserName": GLib.Variant("s", "parent" if uid == 1003 else "child"),
+                "AccountType": GLib.Variant("i", 1 if uid == 1003 else 0),
+                "SystemAccount": GLib.Variant("b", False),
+                "LocalAccount": GLib.Variant("b", True),
+                "Locked": GLib.Variant("b", False),
+                "Shell": GLib.Variant("s", "/bin/bash"),
+            },))
+
+        broker = make_broker(accounts=accounts)
+        with mock.patch("oh_no_parent_control.adapters.pwd.getpwall", return_value=entries), \
+                mock.patch("oh_no_parent_control.adapters._call", side_effect=call), \
+                mock.patch.object(accounts, "get_filter", return_value=(False, ("/blocked/app",))):
+            self.assertEqual([user.uid for user in broker.list_managed_users(991)], [1001])
+            self.assertEqual([user.uid for user in broker.list_approvers(991)], [1003])
+            accounts.sync_execution_policy()
+            policy.reconcile.assert_called_once_with({
+                1001: ("/blocked/app",), 1003: ("/blocked/app",)})
+            # Exclusion is confined to discovery. Direct lookups still reject
+            # a wrong UID; they never return or authorize the obsolete object.
+            with self.assertRaisesRegex(RuntimeError, "unexpected user object"):
+                accounts.get_user(60578)
 
     def test_session_runtime_cap_is_cleared_only_for_the_child_user_session(self):
         accounts = AccountsService(object())

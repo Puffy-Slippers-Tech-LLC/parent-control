@@ -330,6 +330,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_fresh_child_allowed'], ['check_e2e_fresh_child_allowed.py'],
             ['check_e2e_countdown'], ['check_e2e_countdown.py'],
             ['check_e2e_unlock'], ['check_e2e_unlock.py'],
+            ['check_e2e_shell_panel'], ['check_e2e_shell_panel.py'],
             ['check_e2e_fresh_desktop'], ['check_e2e_fresh_desktop.py'],
             ['check_e2e_desktop_keyring'], ['check_e2e_desktop_keyring.py'],
             ['check_e2e_shell_search_results'], ['check_e2e_shell_search_results.py'],

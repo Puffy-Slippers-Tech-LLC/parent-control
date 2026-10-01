@@ -1027,7 +1027,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                          kiosk_no_approver, repeated_operations, challenges)))),
             'smoke:product-free-entry-prerequisites')
     require(challenge_profile in ('parent', 'fresh-child', 'fresh-child-denied',
-                                  'countdown-enabled', 'countdown-off') and
+                                  'countdown-enabled', 'countdown-off', 'shell-panel') and
             (challenge_profile == 'parent' or challenges is True), 'smoke:challenge-profile')
     require(type(challenges) is bool and (not challenges or (
             assets is not None and provision_credentials and fresh_desktop is None
@@ -1449,7 +1449,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 'fresh-child': 'installed-fresh-child-allowed-qualification',
                 'fresh-child-denied': 'installed-fresh-child-denied-qualification',
                 'countdown-enabled': 'installed-countdown-enabled-qualification',
-                'countdown-off': 'installed-countdown-off-qualification'}[challenge_profile]
+                'countdown-off': 'installed-countdown-off-qualification',
+                'shell-panel': 'installed-shell-panel-qualification'}[challenge_profile]
         if product_free_entry:
             result['scope'] = 'product-free-entry-qualification'
         if package_authority:
@@ -1577,12 +1578,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if challenges:
                     from parent_setup_qualification import (ChallengesQualification,
                         FreshChildAllowedQualification, FreshChildDeniedQualification,
-                        CountdownQualification, CountdownOffQualification)
+                        CountdownQualification, CountdownOffQualification, ShellPanelQualification)
                     qualification_class = {'parent': ChallengesQualification,
                         'fresh-child': FreshChildAllowedQualification,
                         'fresh-child-denied': FreshChildDeniedQualification,
                         'countdown-enabled': CountdownQualification,
-                        'countdown-off': CountdownOffQualification}[challenge_profile]
+                        'countdown-off': CountdownOffQualification,
+                        'shell-panel': ShellPanelQualification}[challenge_profile]
                 if gdm_product_free:
                     from parent_setup_qualification import GdmProductFreeQualification
                     qualification_class = GdmProductFreeQualification

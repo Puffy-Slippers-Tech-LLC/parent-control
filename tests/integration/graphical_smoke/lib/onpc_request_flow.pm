@@ -8,6 +8,18 @@ use onpc_text ();
 use onpc_journey ();
 use onpc_password ();
 
+# REQUEST02/13: one explicit input and independent REQUEST03 observation.
+# The caller owns entry, repeated customer inputs and subsequent exits.
+sub overlay_entry {
+    onpc_progress::operation('Opening and independently reading the child overlay');
+    my ($journey, $prefix, $route) = @_;
+    die 'request-flow:overlay-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /\A[a-z][a-z0-9-]*\z/ && ($route eq 'command' || $route eq 'panel');
+    $journey->invoke("$prefix-panel") if $route eq 'panel';
+    $journey->invoke("$prefix-launch");
+    return $journey->invoke("$prefix-form");
+}
+
 # FLOW04: finite, explicit choices. The caller prepares policy independently.
 sub prepare {
     onpc_progress::operation('Preparing the declared kiosk request without submitting');

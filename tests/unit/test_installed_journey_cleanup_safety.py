@@ -119,6 +119,7 @@ import challenges
 import fresh_child_allowed
 import fresh_child_denied
 import countdown_qualification
+import shell_panel
 import shell_search
 import accessible_ui
 import inventory
@@ -220,7 +221,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  parent_information.PLAN,
                                  repeated_operations.PLAN, challenges.PLAN, fresh_child_allowed.PLAN,
                                  fresh_child_denied.PLAN, countdown_qualification.PLAN,
-                                 countdown_qualification.OFF_PLAN, app_row_observations.PLAN,
+                                 countdown_qualification.OFF_PLAN, shell_panel.PLAN, app_row_observations.PLAN,
                                  native_fixture_qualification.PLAN,
                                  native_grid_usable.PLAN, native_app.PLAN,
                                  catalogue_search.PLAN,
@@ -260,7 +261,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'parent-privacy', 'parent-support', 'parent-information', 'parent-links',
                               'repeated-operations',
                               'challenges', 'fresh-child-allowed', 'fresh-child-denied',
-                              'countdown-enabled', 'countdown-off', 'app-rows', 'native-fixtures', 'native-grid-usable', 'native-app', 'catalogue-search', 'catalogue', 'policy-legend', 'match-save-cancel', 'match-editor', 'rejected-parent-rule', 'access-choices', 'policy', 'search-filters', 'feedback-read', 'feedback-privacy', 'feedback-states',
+                              'countdown-enabled', 'countdown-off', 'shell-panel', 'app-rows', 'native-fixtures', 'native-grid-usable', 'native-app', 'catalogue-search', 'catalogue', 'policy-legend', 'match-save-cancel', 'match-editor', 'rejected-parent-rule', 'access-choices', 'policy', 'search-filters', 'feedback-read', 'feedback-privacy', 'feedback-states',
                               'trace-stable', 'trace-transition', 'compose-observation',
                               'accessibility-trace', 'named-child-custom-saves',
                               'format', 'block-semantics', 'feedback-formats', 'feedback-link',
@@ -389,7 +390,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                                           allowance=list(expected.allowance))
         if (operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS
-                or operation in accessible_ui.KIOSK_DISABLED_REQUESTS):
+                or operation in accessible_ui.KIOSK_DISABLED_REQUESTS
+                or operation == 'overlay-request-form'):
             result['request'] = {
                 'surface': 'kiosk', 'form_count': 1, 'child': 'existing-fixture-child',
                 'approver': 'other-fixture-parent', 'duration_seconds': 1800,
@@ -411,6 +413,11 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 result['request'].update(child='none', message='no-child')
             if operation == 'kiosk-no-approver-form':
                 result['request'].update(approver='none', message='no-approver')
+            if operation == 'overlay-request-form':
+                result['request'].update(surface='child-overlay', child='fixture-child',
+                    approver='fixture-parent', child_selector_enabled=False,
+                    approver_selector_enabled=True, duration_enabled=True,
+                    soft_choice_enabled=True, request_enabled=True, message='')
         if operation in accessible_ui.TOGGLE_OPERATIONS:
             result['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
         if operation in accessible_ui.MATCH_OPERATIONS:
@@ -449,7 +456,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 'total': {'seconds': 1800, 'precision_seconds': 1},
                 'observed_monotonic_ns': len(boot_bindings)}
         if plan in (fresh_child_allowed.PLAN, fresh_child_denied.PLAN,
-                    countdown_qualification.PLAN, countdown_qualification.OFF_PLAN) and state['stage'] == 'allowance-configured':
+                    countdown_qualification.PLAN, countdown_qualification.OFF_PLAN,
+                    shell_panel.PLAN) and state['stage'] == 'allowance-configured':
             seconds = 0 if plan is fresh_child_denied.PLAN else 900
             text = '15 minutes' if seconds else '0 seconds'
             result['time_explanation'] = {
@@ -464,7 +472,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 'present': present, 'text': '00:14' if present else None,
                 'observed_monotonic_ns': len(boot_bindings) * 1_000_000_000,
                 'stable_ms': 0 if present else 2000}
-        if operation == 'child-countdown-wrong-account-refused':
+        if operation in ('child-countdown-wrong-account-refused', 'overlay-wrong-account-refused'):
             result['refused'] = True
         if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
             result['denial'] = {'recipient': 'fixture-child', 'reason': 'time-limit',
@@ -643,6 +651,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         if plan is fresh_child_allowed.PLAN else
                         countdown_qualification.CountdownJourney
                         if plan in (countdown_qualification.PLAN, countdown_qualification.OFF_PLAN) else
+                        shell_panel.ShellPanelJourney
+                        if plan is shell_panel.PLAN else
                         fresh_child_denied.FreshChildDeniedJourney
                         if plan is fresh_child_denied.PLAN else
                         real_interval_qualification.RealIntervalJourney

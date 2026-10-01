@@ -157,6 +157,12 @@ OPERATION_LABELS = {
     'parent-command-launch': 'Invoking the Parent command as [Parent user]',
     'standard-parent-command-launch': 'Invoking the Parent command as [Standard user]',
     'child-command-launch': 'Invoking the child overlay command as [Child user]',
+    'overlay-panel-ready': 'Checking the child panel request control',
+    'overlay-panel-launch': 'Activating the child panel request control once',
+    'overlay-request-form': 'Reading one overlay with the fixed child account',
+    'overlay-qualification-cancel': 'Closing the qualification overlay with Cancel',
+    'overlay-desktop': 'Checking the overlay closed and child desktop returned',
+    'overlay-wrong-account-refused': 'Refusing overlay entry from another account',
     'standard-parent-closed': 'Checking denial dismissal returns to the standard desktop',
     'parent-empty': 'Checking the explanation for no eligible children',
     'child-picker-opened': 'Expanding the child selector for [Child user]',
@@ -472,6 +478,15 @@ class RequestObservation:
                 and type(observation.message) is str and observation.mute is None,
                 'ui:request')
         valid = accessible_ui.KIOSK_VALID_REQUESTS.get(operation)
+        if operation == 'overlay-request-form':
+            require(observation == cls(
+                surface='child-overlay', form_count=1, child='fixture-child',
+                approver='fixture-parent', duration_seconds=1800, custom_text=None,
+                allow_soft=False, child_selector_enabled=False,
+                approver_selector_enabled=True, duration_enabled=True,
+                soft_choice_enabled=True, request_enabled=True, cancel_enabled=True,
+                message='', mute=None), 'ui:request')
+            return observation
         enabled = operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS or valid is not None or invalid is not None
         require(enabled or operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS, 'ui:request-operation')
@@ -958,7 +973,7 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'countdown'}, 'ui:response')
             expected['countdown'] = accessible_ui.validate_countdown(
                 result['countdown'], operation == 'child-countdown-present')
-        if operation == 'child-countdown-wrong-account-refused':
+        if operation in ('child-countdown-wrong-account-refused', 'overlay-wrong-account-refused'):
             require(type(result) is dict and set(result) == {*expected, 'refused'}
                     and result['refused'] is True, 'ui:countdown-refusal')
             expected['refused'] = True
@@ -1500,7 +1515,8 @@ class UiObservations:
             expected['valid_choice'] = value
         if (operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS
-                or operation in accessible_ui.KIOSK_DISABLED_REQUESTS):
+                or operation in accessible_ui.KIOSK_DISABLED_REQUESTS
+                or operation == 'overlay-request-form'):
             require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
             RequestObservation.from_request(result['request'], operation=operation)
             expected['request'] = result['request']

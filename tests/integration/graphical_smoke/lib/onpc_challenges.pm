@@ -7,6 +7,52 @@ use onpc_journey ();
 use onpc_gdm ();
 use onpc_desktop_session ();
 use onpc_parent ();
+use onpc_request_flow ();
+
+sub shell_panel {
+    onpc_progress::operation('Qualifying direct and normal panel overlay entry');
+    my ($exchange, $declared, $challenges) = @_;
+    my @stages = qw(installed-greeter parent-focused recipient-qualified recipient-rechecked desktop
+        fresh-installed-greeter fresh-child-focused fresh-child-recipient-qualified
+        fresh-child-recipient-rechecked fresh-desktop direct-launch direct-form direct-cancel
+        independent-desktop independent-launch independent-form independent-cancel
+        panel-desktop panel-panel panel-launch panel-form singleton-panel singleton-launch
+        singleton-form panel-cancel closed-desktop);
+    die 'shell-panel:plan' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && join('/', @$declared) eq join('/', @stages)
+        && ref($challenges) eq 'HASH' && keys(%$challenges) == 2
+        && ref($challenges->{'parent-login'}) eq 'ARRAY'
+        && join('/', @{$challenges->{'parent-login'}}) eq 'parent/recipient-qualified/recipient-rechecked'
+        && ref($challenges->{'child-login'}) eq 'ARRAY'
+        && join('/', @{$challenges->{'child-login'}}) eq
+            'child/fresh-child-recipient-qualified/fresh-child-recipient-rechecked';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'shell-panel', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    $journey->seen('wrong-account-refused');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    onpc_request_flow::overlay_entry($journey, 'direct', 'command');
+    $journey->invoke('direct-cancel');
+    $journey->invoke('independent-desktop');
+    onpc_request_flow::overlay_entry($journey, 'independent', 'command');
+    $journey->invoke('independent-cancel');
+    $journey->invoke('panel-desktop');
+    onpc_request_flow::overlay_entry($journey, 'panel', 'panel');
+    onpc_request_flow::overlay_entry($journey, 'singleton', 'panel');
+    $journey->invoke('panel-cancel');
+    $journey->invoke('closed-desktop');
+    $journey->finish();
+}
 
 sub countdown {
     onpc_progress::operation('Qualifying the child desktop countdown');

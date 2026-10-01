@@ -150,6 +150,18 @@ def parent_management():
     }
 
 
+def overlay_entry(prefix, route):
+    """REQUEST02/13 input followed by REQUEST03's independent fixed-child read."""
+    import re
+    require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix)
+            and route in ('command', 'panel'), 'journey:overlay-binding')
+    return {
+        **({prefix + '-panel': 'ui:overlay-panel-ready'} if route == 'panel' else {}),
+        prefix + '-launch': 'ui:child-command-launch' if route == 'command' else 'ui:overlay-panel-launch',
+        prefix + '-form': 'ui:overlay-request-form',
+    }
+
+
 def product_free_desktop():
     """Fresh administrator login and command context before installing the app."""
     stages = fresh_desktop('parent')

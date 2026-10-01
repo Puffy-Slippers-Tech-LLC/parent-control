@@ -156,6 +156,7 @@ def test_direct_parent_command_requires_safe_entry_and_never_replays(monkeypatch
 @pytest.mark.parametrize('fault', [None, 'session', 'desktop', 'prompt', 'submission'])
 def test_direct_child_command_requires_safe_entry_and_never_replays(monkeypatch, fault):
     ui = ui_for(Node())
+    ui.require_child_overlay_session = Mock()
     session = Mock(side_effect=UiError('session') if fault == 'session' else None)
     monkeypatch.setattr(accessible_ui, 'require_active_launch_session', session)
     ui.desktop_result = Mock(side_effect=UiError('desktop') if fault == 'desktop' else None)
@@ -179,7 +180,7 @@ def test_direct_child_command_requires_safe_entry_and_never_replays(monkeypatch,
     else:
         submit.assert_not_called()
     if fault != 'session':
-        ui.desktop_result.assert_called_once_with(accessible_ui.EXISTING_CHILD, 'success')
+        ui.desktop_result.assert_called_once_with(accessible_ui.CHILD, 'success')
 
 
 @pytest.mark.parametrize('fault', [None, 'root', 'wrong-euid', 'foreign-user', 'remote',

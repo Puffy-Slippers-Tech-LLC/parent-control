@@ -407,6 +407,18 @@ Case 48 uses `kiosk_escape.PLAN` / `onpc_kiosk_escape::run` and the shared
 `onpc_request_exit::escape` guard/input/return composition.
 Other exits and surfaces remain separate cases; runtime status is in the inventory.
 
+Overlay FLOW04 uses `request_flow.prepared_request(surface='overlay')` /
+`onpc_request_flow::prepare(..., 'overlay')`, composing the shared form leaves
+with a fixed child and no child-selection input. The declared Riley/Jamie,
+75-second, soft-included binding is qualified for an already-open default form
+and a new entry with remembered choices; see the
+[overlay qualification](E2E-Building-Blocks.md#overlay-flow04-invalid-submission-and-escape-qualification).
+`overlay_choices.PLAN` is the finite capability qualification, not a complete
+case wrapper. Cases 44/45 reuse `KioskRequestJourney`, shared declarations,
+`overlay_entry`, native activity endpoints and the normal installed-journey
+lifecycle, keeping their separate Cancel/Escape assertions. Mute and authenticated
+overlay outcomes remain outside that slice.
+
 Case 49 uses `kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved', ...)`, the shared
 `approved_request(exit='immediate')` declaration and
 `onpc_request_flow::approve` with the qualified immediate-success/exit leaf.

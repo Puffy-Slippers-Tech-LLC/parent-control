@@ -163,7 +163,9 @@ sub overlay_choices {
     prepare($journey, 'new', 'new', 'selected', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
     $journey->seen('exclude-soft');
     $journey->seen('excluded-read');
-    for my $binding ('empty', 'letters', 'negative', 'zero', 'below', 'over', 'comma') {
+    # The local seven-value matrix belongs to UI tests; installed qualification
+    # exercises the recipe's representative lower-bound rejection.
+    for my $binding ('below') {
         onpc_text::replace_text($journey, "overlay-invalid-$binding");
         $journey->seen("overlay-invalid-$binding-$_") for ('ready', 'submit', 'read');
     }

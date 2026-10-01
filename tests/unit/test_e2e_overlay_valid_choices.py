@@ -12,9 +12,13 @@ import pytest
 
 import accessible_ui as a
 import check_e2e_overlay_valid_choices as check
+import check_e2e_overlay_choices as choices_check
 from installed_journey import JourneyPlan, matched_screens
 from overlay_valid_choices import PLAN, OverlayValidChoicesJourney
+from overlay_choices import PLAN as CHOICES_PLAN, OverlayChoicesJourney
+from request_flow import prepared_request
 from parent_setup_qualification import OverlayValidChoicesQualification, KioskEntryQualification
+from parent_setup_qualification import OverlayChoicesQualification
 from private_artifacts import EvidenceError
 from tests.support.accessible_ui import Node, ui_for
 from tests.support.e2e_kiosk import accounts_form
@@ -22,19 +26,21 @@ from tests.support.perl import run_perl
 from ui_observations import UiObservations, RequestObservation, OPERATION_LABELS
 
 
-def test_real_recorder_startup_accepts_plan_and_actions(tmp_path, monkeypatch):
+@pytest.mark.parametrize('plan,journey_type', [(PLAN, OverlayValidChoicesJourney),
+                                            (CHOICES_PLAN, OverlayChoicesJourney)])
+def test_real_recorder_startup_accepts_plan_and_actions(tmp_path, monkeypatch, plan, journey_type):
     import installed_journey
     recorder = MagicMock()
     context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(), guestfs=Mock(),
         commands=Mock(), verified=SimpleNamespace(inputs={}))
     def worker(**kw):
-        assert kw['guarded_observe'].__self__.plan is PLAN
+        assert kw['guarded_observe'].__self__.plan is plan
         assert set(kw['guarded_observe'].__self__.actions) == {'native-refuse', 'native-verify'}
         return {'shutdown_verified': True, 'worker_stopped': True, 'callback_closed': True, 'outcome': 'passed'}
     context.run_worker = worker
-    monkeypatch.setattr(OverlayValidChoicesJourney, 'validate', lambda self: [])
-    installed_journey.record_installed_journey(recorder, context, PLAN,
-        journey_type=OverlayValidChoicesJourney)
+    monkeypatch.setattr(journey_type, 'validate', lambda self: [])
+    installed_journey.record_installed_journey(recorder, context, plan,
+        journey_type=journey_type)
     context.credentials.provision.assert_called_once()
 
 
@@ -219,8 +225,9 @@ def test_real_recorder_step_compares_renamed_activity_before_reply(tmp_path, fau
         assert journey.steps[-1]['comparison']['same_window'] is True
 
 
-@pytest.mark.parametrize('fault', ['', *list(PLAN.screen_tags)])
-def test_actual_worker_order_titles_and_failure_stop(tmp_path, fault):
+@pytest.mark.parametrize('plan,fault', [(plan, fault) for plan in (PLAN, CHOICES_PLAN)
+                                      for fault in ('', *plan.screen_tags)])
+def test_actual_worker_order_titles_and_failure_stop(tmp_path, plan, fault):
     program = r'''
 use strict; use warnings; use JSON::PP;
 our @events; our $fault = shift @ARGV;
@@ -254,9 +261,11 @@ my $ok = eval {
 };
 print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 '''
-    result = json.loads(run_perl(program, fault, json.dumps(PLAN.invocations), json.dumps(PLAN.challenges)).stdout)
+    program = program.replace('onpc_request_flow::overlay_valid_choices(',
+                              'onpc_request_flow::' + plan.worker_mode + '(')
+    result = json.loads(run_perl(program, fault, json.dumps(plan.invocations), json.dumps(plan.challenges)).stdout)
     stages = [event[1] for event in result['events'] if event[0] == 'seen']
-    expected = list(PLAN.screen_tags)
+    expected = list(plan.screen_tags)
     assert bool(result['ok']) == (not fault), result['error']
     assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
     if fault: assert ['finish'] not in result['events']
@@ -267,9 +276,147 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
             'operation': tag.split(':', 1)[1], 'outcome': 'passed',
             'interface': 'AT-SPI' if tag.startswith('ui:') else 'system session'},
             **({'challenge': proofs[stage]} if stage in proofs else {})}
-            for stage, tag in PLAN.screen_tags.items()]
+            for stage, tag in plan.screen_tags.items()]
         (tmp_path / 'testresults').mkdir()
         (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
-        assert len(matched_screens(tmp_path, PLAN, observations)) == len(expected)
+        assert len(matched_screens(tmp_path, plan, observations)) == len(expected)
         assert sum(event[0] == 'password' for event in result['events']) == 2
-        assert [event[1] for event in result['events'] if event[0] == 'text'] == ['1.25']
+        assert [event[1] for event in result['events'] if event[0] == 'text'] == (
+            ['1.25'] if plan is PLAN else ['1.25', '1.25', '0.09'])
+        if plan is CHOICES_PLAN:
+            assert sum(event == ['key', 'esc'] for event in result['events']) == 1
+
+
+@pytest.mark.parametrize('binding,value', a.KIOSK_INVALID_VALUES.items())
+def test_overlay_invalid_input_decodes_exact_preserved_form(monkeypatch, capsys, binding, value):
+    ui, _, _, status, custom = overlay(monkeypatch)
+    ui.run('overlay-valid-custom-open', '')
+    custom.value = value
+    submit = ui.find_id('kiosk-request-submit')
+    def validate(_):
+        status.name = 'Enter a number from 0.1 to 1440 minutes.'
+        return True
+    submit.action.do_action.side_effect = validate
+    for action in ('ready', 'submit', 'read'):
+        operation = f'overlay-invalid-{binding}-{action}'
+        result = ui.run(operation, '')
+        raw = capsys.readouterr().out.encode() + (json.dumps(result) + '\n').encode()
+        def call(*_args, on_output, **_kwargs):
+            for start in range(0, len(raw), 19): on_output(raw[start:start + 19])
+            return raw
+        observer = UiObservations(SimpleNamespace(call=call, commands=SimpleNamespace(progress=None)))
+        assert observer.observe(operation) == result
+        request = RequestObservation.from_request(result['invalid_choice']['request'], operation=operation)
+        assert request.surface == 'child-overlay' and request.child_selector_enabled is False
+        assert request.duration_seconds is None and request.custom_text == value
+        assert request.request_enabled and result['invalid_choice']['no_authentication'] is True
+    submit.action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['wrong-surface', 'wrong-child', 'unlocked-child', 'disabled',
+                                  'prompt', 'prompt-after', 'no-validation', 'changed-text', 'uncertain'])
+def test_overlay_invalid_submission_stops_without_replay(monkeypatch, fault):
+    ui, application, child, status, custom = overlay(monkeypatch)
+    ui.run('overlay-valid-custom-open', '')
+    custom.value = 'abc'
+    ui.timeout = .01
+    submit = ui.find_id('kiosk-request-submit')
+    if fault == 'wrong-surface': application.identity = a.KIOSK_APPLICATION
+    if fault == 'wrong-child': child.children[0].identity = 'kiosk-child-selected-9999'
+    if fault == 'unlocked-child': child.states.add('sensitive')
+    if fault == 'disabled': submit.states.discard('sensitive')
+    if fault == 'prompt': ui.system_prompt_kind = Mock(return_value='mate-polkit-agent')
+    def validate(_):
+        if fault == 'uncertain': raise RuntimeError('lost result')
+        if fault != 'no-validation': status.name = 'Enter a number from 0.1 to 1440 minutes.'
+        if fault == 'changed-text': custom.value = '0'
+        if fault == 'prompt-after': ui.system_prompt_kind = Mock(return_value='mate-polkit-agent')
+        return True
+    submit.action.do_action.side_effect = validate
+    with pytest.raises((a.UiError, RuntimeError)):
+        ui.run('overlay-invalid-letters-submit', '')
+    if fault != 'prompt':
+        with pytest.raises(a.UiError, match='uncertain-input'):
+            ui.kiosk_invalid_choice('overlay-invalid-letters-submit')
+    assert submit.action.do_action.call_count == (0 if fault in (
+        'wrong-surface', 'wrong-child', 'unlocked-child', 'disabled', 'prompt') else 1)
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-surface', 'prompt', 'focus-refused', 'stale-focus'])
+def test_overlay_escape_proves_recipient_without_activating_cancel(monkeypatch, fault):
+    ui, application, _, _, _ = overlay(monkeypatch)
+    cancel = ui.find_id('kiosk-request-cancel')
+    window = ui.find_id('kiosk-request-window')
+    def focus(_):
+        if fault != 'stale-focus': cancel.states.add('focused')
+        return fault != 'focus-refused'
+    window.action = SimpleNamespace(get_n_actions=lambda: 1,
+        get_action_name=lambda _: 'focus.kiosk-request-cancel', do_action=Mock(side_effect=focus))
+    ui.timeout = .01
+    if fault == 'wrong-surface': application.identity = a.KIOSK_APPLICATION
+    if fault == 'prompt': ui.system_prompt_kind = Mock(return_value='mate-polkit-agent')
+    if fault:
+        with pytest.raises(a.UiError): ui.run('overlay-request-escape-ready', '')
+    else:
+        ui.run('overlay-request-escape-ready', '')
+        assert 'focused' in cancel.states
+    cancel.action.do_action.assert_not_called()
+    assert window.action.do_action.call_count == (0 if fault in ('wrong-surface', 'prompt') else 1)
+
+
+def test_overlay_choices_registration_and_shared_open_new_bindings(monkeypatch):
+    calls = []
+    monkeypatch.setattr(choices_check, 'smoke', lambda **kw: calls.append(kw) or 0)
+    assert choices_check.main() == 0
+    assert calls[0]['challenge_profile'] == 'overlay-choices'
+    context = SimpleNamespace()
+    journey = OverlayChoicesQualification.journey(context, Mock())
+    assert journey.plan is CHOICES_PLAN and context.installed_snapshot.startswith('onpc-v')
+    assert OverlayChoicesQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
+    operations = {tag[3:] for tag in CHOICES_PLAN.screen_tags.values() if tag.startswith('ui:')}
+    assert operations <= a.OPERATIONS and operations <= OPERATION_LABELS.keys()
+    assert a.OVERLAY_INVALID_OPERATIONS.keys() <= a.CHILD_DESKTOP_OPERATIONS
+    assert not (a.OVERLAY_INVALID_OPERATIONS.keys() & a.KIOSK_SESSION_OPERATIONS)
+    choices = dict(child='fixture-child', approver='fixture-parent', duration_seconds=75,
+                   allow_soft=True, surface='overlay')
+    opened = prepared_request(prefix='open', entry='open', initial='default', **choices)
+    new = prepared_request(prefix='new', entry='new', initial='selected', **choices)
+    assert not any(operation == 'ui:child-command-launch' for operation in opened.values())
+    assert new['new-entry-launch'] == 'ui:child-command-launch'
+    assert new['new-entry-form'] == 'ui:overlay-valid-fraction-soft-read'
+    assert all('child-select' not in operation for operation in (*opened.values(), *new.values()))
+    assert set(CHOICES_PLAN.activity_checks) == {'activity-cancel', 'activity-escape'}
+
+
+@pytest.mark.parametrize('fault', [None, 'changed-choice', 'mutated-capture', 'replay'])
+def test_overlay_flow_compares_independent_preserved_choices(tmp_path, fault):
+    journey = OverlayChoicesJourney(SimpleNamespace(directory=tmp_path), Mock())
+    value = {'surface': 'child-overlay', 'child': 'fixture-child', 'approver': 'fixture-parent',
+             'duration_seconds': 75, 'custom_text': '1.25', 'allow_soft': True}
+    before = {'ui': {'valid_choice': {'request': value}}}
+    journey.check_preserved_request('open-estimate', before)
+    if fault == 'mutated-capture': value['allow_soft'] = False
+    after = deepcopy(before)
+    if fault == 'changed-choice': after['ui']['valid_choice']['request']['approver'] = 'other-fixture-parent'
+    if fault == 'replay': journey.check_preserved_request('new-estimate', after)
+    if fault:
+        with pytest.raises(EvidenceError): journey.check_preserved_request('new-estimate', after)
+    else:
+        journey.check_preserved_request('new-estimate', after)
+        assert after['comparison']['reproduced_choices'] is True
+
+
+@pytest.mark.parametrize('field,value', [('surface', 'kiosk'), ('child_selector_enabled', True),
+    ('child', 'existing-fixture-child'), ('duration_seconds', 75), ('custom_text', '1.25'),
+    ('request_enabled', False), ('allow_soft', True)])
+def test_overlay_invalid_decoder_refuses_wrong_projection(monkeypatch, capsys, field, value):
+    ui, _, _, _, custom = overlay(monkeypatch)
+    ui.run('overlay-valid-custom-open', '')
+    custom.value = '0.09'
+    operation = 'overlay-invalid-below-ready'
+    result = ui.run(operation, '')
+    capsys.readouterr()
+    result['invalid_choice']['request'][field] = value
+    observer = UiObservations(Mock())
+    observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+    with pytest.raises(EvidenceError): observer.observe(operation)

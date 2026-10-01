@@ -12,10 +12,11 @@ from tests.support.request_form import launch_request, calls, events
 pytestmark = pytest.mark.ui
 
 
+@pytest.mark.parametrize('exit_action', ('cancel', 'escape'))
 def test_shared_overlay_choice_adapter_and_fractional_text_on_native_gtk(
-        launch_ui, automation, wait_for_accessible_state, monkeypatch):
+        launch_ui, automation, wait_for_accessible_state, monkeypatch, exit_action):
     from gi.repository import GLib
-    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT, KIOSK_INVALID_VALUES
     from tests.e2e.ui_observations import RequestObservation
     from tests.support.gui_blocks import run_block
 
@@ -44,9 +45,22 @@ def test_shared_overlay_choice_adapter_and_fractional_text_on_native_gtk(
                       'overlay-valid-soft-select', 'overlay-valid-soft-read',
                       'overlay-valid-excluded-select', 'overlay-valid-excluded-read'):
         reader.run(operation, '')
-    reader.run('overlay-request-cancel', '')
+    reader.run('overlay-valid-custom-open', '')
+    for binding, value in KIOSK_INVALID_VALUES.items():
+        run_block(reader, 'replace', 'overlay-invalid-' + binding)
+        for action in ('ready', 'submit', 'read'):
+            operation = f'overlay-invalid-{binding}-{action}'
+            result = reader.run(operation, '')
+            request = RequestObservation.from_request(result['invalid_choice']['request'], operation=operation)
+            assert request.custom_text == value and request.request_enabled
+    if exit_action == 'escape':
+        from tests.support.keyboard import press_key
+        reader.run('overlay-request-escape-ready', '')
+        press_key(reader, 'kiosk-request-cancel', 'Escape', state=reader.api.StateType.FOCUSED)
+    else:
+        reader.run('overlay-request-cancel', '')
     wait_for_accessible_state(lambda: ui.find('kiosk-request-window') is None,
-                              'shared Cancel closed overlay')
+                              'shared exit closed overlay')
 
 
 @pytest.fixture

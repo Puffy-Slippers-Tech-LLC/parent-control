@@ -16,8 +16,8 @@ sub shell_panel {
         fresh-installed-greeter fresh-child-focused fresh-child-recipient-qualified
         fresh-child-recipient-rechecked fresh-desktop direct-launch direct-form direct-cancel
         independent-desktop independent-launch independent-form independent-cancel
-        panel-desktop panel-panel panel-launch panel-form singleton-panel singleton-launch
-        singleton-form panel-cancel closed-desktop);
+        panel-desktop panel-panel panel-launch panel-form singleton-reveal singleton-panel singleton-launch
+        singleton-overview singleton-form panel-cancel closed-desktop);
     die 'shell-panel:plan' unless @_ == 3 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && join('/', @$declared) eq join('/', @stages)
         && ref($challenges) eq 'HASH' && keys(%$challenges) == 2
@@ -48,7 +48,7 @@ sub shell_panel {
     $journey->invoke('independent-cancel');
     $journey->invoke('panel-desktop');
     onpc_request_flow::overlay_entry($journey, 'panel', 'panel');
-    onpc_request_flow::overlay_entry($journey, 'singleton', 'panel');
+    onpc_request_flow::overlay_entry($journey, 'singleton', 'panel-reopen');
     $journey->invoke('panel-cancel');
     $journey->invoke('closed-desktop');
     $journey->finish();

@@ -378,7 +378,8 @@ def test_shell_panel_actual_worker_order_and_refusal(fault, tmp_path):
             index = result['events'].index(launch)
             if fault != prefix + '-launch':
                 assert result['events'][index + 1] == ['key', 'ret']
-                assert result['events'][index + 2] == ['stage', prefix + '-form']
+                assert result['events'][index + 2] == ['stage', prefix + (
+                    '-overview' if prefix == 'singleton' else '-form')]
             else:
                 assert ['key', 'ret'] not in result['events'][index + 1:]
     if not fault:

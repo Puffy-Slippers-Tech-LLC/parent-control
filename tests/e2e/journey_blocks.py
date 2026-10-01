@@ -154,10 +154,12 @@ def overlay_entry(prefix, route):
     """REQUEST02/13 input followed by REQUEST03's independent fixed-child read."""
     import re
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix)
-            and route in ('command', 'panel'), 'journey:overlay-binding')
+            and route in ('command', 'panel', 'panel-reopen'), 'journey:overlay-binding')
     return {
-        **({prefix + '-panel': 'ui:overlay-panel-ready'} if route == 'panel' else {}),
+        **({prefix + '-reveal': 'ui:overlay-panel-reveal-ready'} if route == 'panel-reopen' else {}),
+        **({prefix + '-panel': 'ui:overlay-panel-ready'} if route != 'command' else {}),
         prefix + '-launch': 'ui:child-command-launch' if route == 'command' else 'ui:overlay-panel-launch',
+        **({prefix + '-overview': 'ui:overlay-panel-overview'} if route == 'panel-reopen' else {}),
         prefix + '-form': 'ui:overlay-request-form',
     }
 

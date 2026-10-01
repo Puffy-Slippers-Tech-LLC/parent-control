@@ -18,7 +18,7 @@ SCREENS = {
     'independent-cancel': 'ui:overlay-qualification-cancel',
     'panel-desktop': 'ui:overlay-desktop',
     **overlay_entry('panel', 'panel'),
-    **overlay_entry('singleton', 'panel'),
+    **overlay_entry('singleton', 'panel-reopen'),
     'panel-cancel': 'ui:overlay-qualification-cancel',
     'closed-desktop': 'ui:overlay-desktop',
 }

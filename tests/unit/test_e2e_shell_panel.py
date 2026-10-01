@@ -84,6 +84,41 @@ def test_panel_without_action_focuses_public_id_for_single_keyboard_activation(m
     button.component.grab_focus.assert_called_once()
 
 
+@pytest.mark.parametrize('fault', ['', 'wrong-child', 'overview-open', 'prompt'])
+def test_panel_reveal_requires_fixed_form_and_closed_prompt_free_overview(monkeypatch, fault):
+    ui, _, _, child = overlay(monkeypatch)
+    if fault == 'wrong-child': child.children[0].identity = 'kiosk-child-selected-1002'
+    field = Node('Search', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+    shell = Node('gnome-shell', 'application', children=[field] if fault == 'overview-open' else [])
+    root = Node(role='desktop frame', children=[shell])
+    # Form read uses the actual reader; the following complete snapshot is
+    # the independent provider guard immediately before the worker's key.
+    original = ui.shell_search_snapshot
+    def snapshot():
+        ui.api.get_desktop = lambda _: root
+        return original()
+    monkeypatch.setattr(ui, 'shell_search_snapshot', snapshot)
+    if fault == 'prompt': ui.handle_system_prompt = Mock(side_effect=a.UiError('ui:prompt'))
+    if fault:
+        with pytest.raises(a.UiError): ui.run('overlay-panel-reveal-ready', '')
+    else:
+        ui.run('overlay-panel-reveal-ready', '')
+    child.action.do_action.assert_not_called()
+
+
+def test_panel_return_requires_observed_overview_before_escape(monkeypatch):
+    ui, _, shell, button = panel(monkeypatch)
+    with pytest.raises(a.UiError): ui.run('overlay-panel-overview', '')
+    field = Node('Search', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
+    field.get_text_iface = lambda: SimpleNamespace(
+        get_character_count=lambda: 0, get_text=lambda *_: '')
+    ui.api.Text = SimpleNamespace(get_character_count=lambda text: text.get_character_count(),
+                                 get_text=lambda text, *args: text.get_text(*args))
+    shell.children.append(field)
+    ui.run('overlay-panel-overview', '')
+    button.component.grab_focus.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', ['unavailable', 'refused', 'unfocused', 'replaced', 'prompt'])
 def test_panel_focus_failure_never_releases_keyboard_input(monkeypatch, fault):
     ui, _, shell, button = panel(monkeypatch)
@@ -208,9 +243,13 @@ def test_real_controller_decoder_retains_strict_immutable_projection(monkeypatch
         assert immutable.child == 'fixture-child'
 
 
-def test_overlay_reader_diagnostics_pass_through_real_controller(monkeypatch, capsys):
+@pytest.mark.parametrize('operation', ['overlay-request-form', 'overlay-panel-reveal-ready'])
+def test_overlay_reader_diagnostics_pass_through_real_controller(monkeypatch, capsys, operation):
     ui, _, _, _ = overlay(monkeypatch)
     result = ui.run('overlay-request-form', '')
+    if operation == 'overlay-panel-reveal-ready':
+        result.pop('request')
+        result['operation'] = operation
     diagnostics = capsys.readouterr().out.encode()
     # Enough progress to reproduce the live reply-size failure, with arbitrary
     # transport chunks and no prompt callback to select the stream parser.
@@ -222,9 +261,12 @@ def test_overlay_reader_diagnostics_pass_through_real_controller(monkeypatch, ca
             on_output(raw[start:start + 17])
         return raw
     transport = SimpleNamespace(call=call, commands=SimpleNamespace(progress=None))
-    observed = UiObservations(transport).observe('overlay-request-form')
-    assert RequestObservation.from_request(observed['request'],
-        operation='overlay-request-form').child == 'fixture-child'
+    observed = UiObservations(transport).observe(operation)
+    if operation == 'overlay-request-form':
+        assert RequestObservation.from_request(observed['request'],
+            operation=operation).child == 'fixture-child'
+    else:
+        assert observed['operation'] == operation
     assert capsys.readouterr().err.encode() == diagnostics
     assert transport.commands.progress is None
 
@@ -271,8 +313,10 @@ def test_fixed_selector_registration_and_snapshot_envelope(monkeypatch):
     assert all(tag[3:] in a.OPERATIONS for tag in PLAN.screen_tags.values() if tag.startswith('ui:'))
 
 
-@pytest.mark.parametrize('route', ['command', 'panel'])
-@pytest.mark.parametrize('fault', ['', 'launch', 'form'])
+@pytest.mark.parametrize(('route', 'fault'), [
+    (route, fault) for route in ('command', 'panel', 'panel-reopen')
+    for fault in ('', 'launch', 'form', 'reveal', 'panel', 'overview')
+    if not fault or 'another-caller-' + fault in overlay_entry('another-caller', route)])
 def test_shared_overlay_fragment_independent_caller_and_failure_stop(route, fault):
     screens = overlay_entry('another-caller', route)
     program = r'''
@@ -294,6 +338,10 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages});
     result = json.loads(run_perl(program, fault, json.dumps(list(screens)), route).stdout)
     expected = list(screens)
     if fault: expected = expected[:expected.index('another-caller-' + fault) + 1]
-    if route == 'panel' and fault != 'launch':
+    if route != 'command' and 'another-caller-launch' in expected and fault != 'launch':
         expected.insert(expected.index('another-caller-launch') + 1, 'key:ret')
+    if route == 'panel-reopen':
+        if fault != 'reveal': expected.insert(1, 'key:super')
+        if 'another-caller-overview' in expected and fault != 'overview':
+            expected.insert(expected.index('another-caller-overview') + 1, 'key:esc')
     assert result['stages'] == expected and bool(result['ok']) == (not fault)

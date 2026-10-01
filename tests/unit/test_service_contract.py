@@ -21,6 +21,24 @@ def signatures(xml):
 
 
 class ServiceContractTests(unittest.TestCase):
+    def test_child_language_dispatch_passes_authenticated_caller_and_target(self):
+        service = Service.__new__(Service)
+        service.credentials = mock.Mock()
+        service.credentials.uid.return_value = 991
+        service.broker = mock.Mock()
+        service.broker.get_child_language.return_value = 'de'
+        service.broker.set_child_language.return_value = 'fr'
+        from oh_no_parent_control.service import GLib
+        invocation = mock.Mock()
+        service._method_call(None, ':1.42', None, None, 'GetChildLanguage',
+                            GLib.Variant('(u)', (1001,)), invocation)
+        service.broker.get_child_language.assert_called_once_with(991, 1001)
+        self.assertEqual(invocation.return_value.call_args.args[0].unpack(), ('de',))
+        service._method_call(None, ':1.42', None, None, 'SetChildLanguage',
+                            GLib.Variant('(us)', (1001, 'fr')), invocation)
+        service.broker.set_child_language.assert_called_once_with(991, 1001, 'fr')
+        self.assertEqual(invocation.return_value.call_args.args[0].unpack(), ('fr',))
+
     def test_language_contract_never_accepts_target_identity(self):
         self.assertEqual(signatures(INTROSPECTION_XML)["GetOwnLanguage"],
                          (("language", "s", "out"),))

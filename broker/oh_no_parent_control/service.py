@@ -47,6 +47,15 @@ INTROSPECTION_XML = f"""
     <method name="GetOwnLanguage">
       <arg name="language" type="s" direction="out"/>
     </method>
+    <method name="GetChildLanguage">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="language" type="s" direction="out"/>
+    </method>
+    <method name="SetChildLanguage">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="language" type="s" direction="in"/>
+      <arg name="saved_language" type="s" direction="out"/>
+    </method>
     <method name="SetOwnLanguage">
       <arg name="language" type="s" direction="in"/>
       <arg name="saved_language" type="s" direction="out"/>
@@ -384,6 +393,14 @@ class Service:
             elif method == "SetOwnLanguage":
                 language, = parameters.unpack()
                 saved = self.broker.set_own_language(caller_uid, language)
+                invocation.return_value(GLib.Variant("(s)", (saved,)))
+            elif method == "GetChildLanguage":
+                target_uid, = parameters.unpack()
+                language = self.broker.get_child_language(caller_uid, target_uid)
+                invocation.return_value(GLib.Variant("(s)", (language,)))
+            elif method == "SetChildLanguage":
+                target_uid, language = parameters.unpack()
+                saved = self.broker.set_child_language(caller_uid, target_uid, language)
                 invocation.return_value(GLib.Variant("(s)", (saved,)))
             elif method == "ListManagedUsers":
                 users = self.broker.list_managed_users(caller_uid)

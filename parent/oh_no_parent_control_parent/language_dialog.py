@@ -116,8 +116,10 @@ class LanguageDialog(Gtk.Window):
         self.destroy()
 
     def _success(self, language):
-        self._saved(language)
+        # Remove the chooser from the shared translation context before
+        # relabeling. Its final frame must not resize into the new language.
         self.destroy()
+        self._saved(language)
 
     def _failure(self, _error):
         self._saving = False

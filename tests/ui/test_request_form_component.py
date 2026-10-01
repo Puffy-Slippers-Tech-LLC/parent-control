@@ -68,8 +68,11 @@ def open_request(launch_ui, tmp_path, ui, wait, *, overlay, scenario="normal",
 
 
 def ready(ui, wait):
-    wait(lambda: ui.state("kiosk-request-submit", ui.api.StateType.SENSITIVE),
-         "request controls ready")
+    def request_is_ready():
+        button = ui.find("kiosk-request-submit")
+        return button is not None and button.get_state_set().contains(ui.api.StateType.SENSITIVE)
+
+    wait(request_is_ready, "request controls ready")
 
 
 def status(ui, wait, expected):

@@ -306,6 +306,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self.set_size_request(820, -1)
         self._client = client_factory()
         self._own_language = None
+        self._applied_language = None
         context_for(self)
         self._language_dialog = None
         self._language_loading = False
@@ -349,9 +350,11 @@ class ParentWindow(Adw.ApplicationWindow):
         self._account_refresh_id = 0
         self._toasts = Adw.ToastOverlay()
         overlay = Gtk.Overlay(child=self._toasts)
-        self._language_shade = Gtk.Box(
-            visible=False, can_target=False,
-            css_classes=["parent-language-shade"],
+        self._language_shade = Gtk.Revealer(
+            can_target=False,
+            transition_type=Gtk.RevealerTransitionType.CROSSFADE,
+            transition_duration=180,
+            child=Gtk.Box(css_classes=["parent-language-shade"]),
         )
         overlay.add_overlay(self._language_shade)
         self.set_content(overlay)
@@ -374,7 +377,7 @@ class ParentWindow(Adw.ApplicationWindow):
         return GLib.SOURCE_REMOVE
 
     def _language_dialog_mapped(self, dialog):
-        self._language_shade.set_visible(True)
+        self._language_shade.set_reveal_child(True)
         if self._content_built:
             return
         # Mapping alone precedes painting. Yield through the chooser's first
@@ -1193,20 +1196,20 @@ class ParentWindow(Adw.ApplicationWindow):
         self._own_language = language
         if not self._apply_language(language):
             self._finish_startup()
-            self._language_shade.set_visible(False)
+            self._language_shade.set_reveal_child(False)
             return
         if not language or self._language_requested:
             self._open_language_dialog()
         else:
             self._finish_startup()
-            self._language_shade.set_visible(False)
+            self._language_shade.set_reveal_child(False)
             set_automation_id(self._language_readiness, "parent-language-ready")
 
     def _language_failed(self, error):
         self._language_loading = False
         if not self._closed:
             self._finish_startup()
-            self._language_shade.set_visible(False)
+            self._language_shade.set_reveal_child(False)
             self._show_error(error, m.YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO)
 
     def _show_preferences(self, *_args):
@@ -1223,7 +1226,7 @@ class ParentWindow(Adw.ApplicationWindow):
             self._language_dialog.connect(
                 "map", self._language_dialog_mapped)
             self._language_dialog.connect(
-                "unmap", lambda *_args: self._language_shade.set_visible(False))
+                "unmap", lambda *_args: self._language_shade.set_reveal_child(False))
         self._language_dialog.present()
 
     def _language_cancelled(self):
@@ -1254,11 +1257,16 @@ class ParentWindow(Adw.ApplicationWindow):
         set_automation_id(self._language_readiness, "parent-language-ready")
 
     def _apply_language(self, language):
+        # Preferences refreshes storage on every visit. An unchanged language
+        # needs no relabeling of the existing management controls or dialogs.
+        if self._applied_language == language:
+            return True
         try:
             context_for(self).apply(language)
         except (OSError, ValueError) as error:
             self._show_error(error)
             return False
+        self._applied_language = language
         return True
 
     def _show_feedback(self, *_args):

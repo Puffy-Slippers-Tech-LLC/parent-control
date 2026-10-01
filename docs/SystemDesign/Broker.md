@@ -106,6 +106,8 @@ the broker resolves and revalidates it.
 | `GetOwnAccount` | own | - | - |
 | `GetOwnLanguage` | own | own | own |
 | `SetOwnLanguage` | own | own | own |
+| `GetChildLanguage` | - | selected child | - |
+| `SetChildLanguage` | - | selected child | - |
 | `GetPreferences` | own | selected child | selected child |
 | `GetPolicyWarnings` | own | selected child | selected child |
 | `ListApplications` | - | - | selected child |
@@ -129,7 +131,9 @@ component's log, and no D-Bus caller may write the broker component log.
 
 For the language methods, `own` means the caller's account for every role,
 including the kiosk and administrators, rather than a selected child. These
-methods persist only presentation intent; see the [language contract](State.md).
+methods persist only presentation intent. The child-language methods are kiosk-only
+and validate an eligible child target before accessing storage; see the
+[language contract](State.md).
 
 `ExportDiagnosticLogs` is a separate, read-only permission for all three product
 roles. It takes no arguments and returns the bounded ZIP of all four components

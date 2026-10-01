@@ -195,7 +195,9 @@ and requires no product installation, package activation or saved-data migration
 
 ## Personal language selection
 
-Parent, kiosk and child overlay read `GetOwnLanguage` asynchronously at startup.
+Parent and child overlay read `GetOwnLanguage` asynchronously at startup.
+Kiosk reads `GetChildLanguage` for the selected child at startup and on each
+child selection, applying that child's saved language or opening setup when unset.
 An empty value opens a modal language chooser. Parent retains its
 [own dialog UI](../../parent/oh_no_parent_control_parent/language_dialog.py);
 kiosk and child overlay use a separate
@@ -206,37 +208,42 @@ mapped by base language to the shared
 use English. Regional and script variants collapse to the product's one choice,
 including Portuguese to `pt-BR` and Chinese to `zh-Hans`.
 
-Parent shades its window only while the language chooser is mapped. For first-time
+Parent fades its window shade in when the language chooser maps and out when it
+unmaps, respecting GTK's animation setting. After a successful save, the chooser
+is destroyed before relabeling the existing management controls; reopening
+Preferences does not relabel an unchanged active language. For first-time
 setup, the chooser paints before the management interface is constructed in a
 later main-loop iteration behind it; account loading then runs asynchronously.
 A saved language is applied before constructing the management interface.
 
 The chooser lists native names in catalogue order and says “You can change it
 in preferences”. Both dialog UIs use the heading “Choose your language”. Save
-is the sole dismissal action during first-time setup in kiosk and overlay.
-Parent also offers Cancel on first-time setup, continuing management without
-saving or applying the candidate; an unset language prompts again next launch.
-When a saved language exists, all surfaces offer Cancel without saving or
-applying the candidate.
+and Cancel are available on all surfaces, including first-time setup.
+Cancel continues without saving or applying the candidate; an unset language
+prompts again next launch, or when that child is next selected in kiosk.
 Save persists the
-current user's selection through `SetOwnLanguage` before closing; failures keep
+current user's selection through `SetOwnLanguage`, or the selected child's
+selection through kiosk-only `SetChildLanguage`, before closing; failures keep
 the selection visible and permit retry. A nonempty saved value suppresses the
 startup dialog. The top-right menu's Preferences action opens the same chooser
 with the saved selection. Successful saves apply the new presentation context
 under the [translation lifecycle](Localization.md#translation-lifecycle-and-shared-ui),
 preserving in-progress work and operating-system locale settings.
 The overlay uses the child's personal setting; the kiosk
-uses the kiosk account's setting, independently of the selected child/approver.
+uses the selected child's setting, independently of the approver.
+Child changes discard superseded language replies. Relabeling updates existing
+widgets in one main-loop turn; unchanged languages skip relabeling, and child
+changes retain the visible form without sensitivity flashes or reconstruction.
 All dialogs reuse `selected_language` in the shared catalogue module for saved
 selection and session fallback. Request controls wait for startup language setup.
 
 Both dialog UIs publish `language-dialog`, `language-choice-<lowercase-id>`
-and `language-continue` (the Save action), plus `language-cancel` always in Parent
-and when a saved language exists in request forms, scoped to their owning
+and `language-continue` (the Save action), plus `language-cancel` on all surfaces,
+scoped to their owning
 application and window, with the
 shared public owner relation and control metadata. The main content publishes
 `parent-language-loading` or `kiosk-language-loading` until the initial
-choice is saved, Parent setup is cancelled or an existing selection is read,
+choice is saved, setup is cancelled or an existing selection is read,
 then the matching `*-language-ready`.
 The common host/E2E `complete_language_setup` helper waits for this
 startup result, clicks Save once if needed, and independently observes

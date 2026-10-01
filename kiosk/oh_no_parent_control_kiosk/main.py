@@ -937,11 +937,15 @@ class RequestWindow(Adw.ApplicationWindow):
         self._error_report = None
         self._applying_preferences = False
         self._own_language = None
+        self._applied_language = None
         context_for(self)
         self._language_dialog = None
         self._language_loading = False
         self._language_requested = False
         self._language_load_failed = False
+        self._language_target_uid = None
+        self._language_revision = 0
+        self._preview_languages = {}
         self._state = RequestState()
         self._estimate_revision = 0
         self._estimate_in_flight = False
@@ -1195,11 +1199,16 @@ class RequestWindow(Adw.ApplicationWindow):
     def _load_language(self):
         if self._language_loading or self._estimate_closed:
             return GLib.SOURCE_REMOVE
+        if not self._child_overlay and self._language_target_uid is None:
+            return GLib.SOURCE_REMOVE
+        revision = self._language_revision
         self._language_loading = True
         if self._preview and not self._interactive_preview:
             try:
-                path = os.environ.get("OH_NO_PARENT_CONTROL_PREVIEW_LANGUAGE_FILE")
-                language = self._own_language or ""
+                path = (os.environ.get("OH_NO_PARENT_CONTROL_PREVIEW_LANGUAGE_FILE")
+                        if self._child_overlay else None)
+                language = ((self._own_language or "") if self._child_overlay else
+                            self._preview_languages.get(self._language_target_uid, ""))
                 if path:
                     try:
                         language = Path(path).read_text(encoding="utf-8")
@@ -1210,12 +1219,19 @@ class RequestWindow(Adw.ApplicationWindow):
                 self._language_failed(error)
         else:
             try:
-                self._bus_call("GetOwnLanguage", None, "(s)", self._language_done)
+                method = "GetOwnLanguage" if self._child_overlay else "GetChildLanguage"
+                parameters = (None if self._child_overlay else
+                              GLib.Variant("(u)", (self._language_target_uid,)))
+                self._bus_call(method, parameters, "(s)",
+                               lambda connection, result: self._language_done(
+                                   connection, result, revision))
             except Exception as error:
                 self._language_failed(error)
         return GLib.SOURCE_REMOVE
 
-    def _language_done(self, connection, result):
+    def _language_done(self, connection, result, revision):
+        if revision != self._language_revision or self._estimate_closed:
+            return
         try:
             language, = connection.call_finish(result).unpack()
         except Exception as error:
@@ -1264,11 +1280,16 @@ class RequestWindow(Adw.ApplicationWindow):
     def _language_cancelled(self):
         self._language_dialog = None
         self._language_requested = False
+        self._stack.set_sensitive(True)
+        set_automation_id(self._language_readiness, "kiosk-language-ready")
 
     def _save_language(self, language, success, failure):
+        revision = self._language_revision
+        target_uid = self._language_target_uid
         if self._preview and not self._interactive_preview:
             try:
-                path = os.environ.get("OH_NO_PARENT_CONTROL_PREVIEW_LANGUAGE_FILE")
+                path = (os.environ.get("OH_NO_PARENT_CONTROL_PREVIEW_LANGUAGE_FILE")
+                        if self._child_overlay else None)
                 if path:
                     Gio.File.new_for_path(path).replace_contents(
                         language.encode("utf-8"), None, False,
@@ -1276,10 +1297,14 @@ class RequestWindow(Adw.ApplicationWindow):
             except Exception as error:
                 failure(error)
                 return
+            if not self._child_overlay:
+                self._preview_languages[target_uid] = language
             success(language)
             return
 
         def finished(connection, result):
+            if self._estimate_closed or revision != self._language_revision:
+                return
             try:
                 saved, = connection.call_finish(result).unpack()
             except Exception as error:
@@ -1290,7 +1315,10 @@ class RequestWindow(Adw.ApplicationWindow):
                     success(saved)
 
         try:
-            self._bus_call("SetOwnLanguage", GLib.Variant("(s)", (language,)), "(s)", finished)
+            method = "SetOwnLanguage" if self._child_overlay else "SetChildLanguage"
+            parameters = (GLib.Variant("(s)", (language,)) if self._child_overlay else
+                          GLib.Variant("(us)", (target_uid, language)))
+            self._bus_call(method, parameters, "(s)", finished)
         except Exception as error:
             if not self._estimate_closed:
                 failure(error)
@@ -1305,11 +1333,14 @@ class RequestWindow(Adw.ApplicationWindow):
         set_automation_id(self._language_readiness, "kiosk-language-ready")
 
     def _apply_language(self, language):
+        if language == self._applied_language:
+            return True
         try:
             context_for(self).apply(language)
         except (OSError, ValueError) as error:
             self._show_error(error)
             return False
+        self._applied_language = language
         return True
 
     def _menu_state_changed(self, menu_button, _property):
@@ -1494,6 +1525,9 @@ class RequestWindow(Adw.ApplicationWindow):
             users, = connection.call_finish(result).unpack()
             LOG.info("kiosk.016", count=len(users))
             self._request_content.set_accounts(users)
+            if not users:
+                self._stack.set_sensitive(True)
+                set_automation_id(self._language_readiness, "kiosk-language-ready")
         except Exception as error:
             LOG.warning("kiosk.017", error_type=error_code(error))
             self._show_error(error)
@@ -1509,6 +1543,8 @@ class RequestWindow(Adw.ApplicationWindow):
             self._show_error(error)
 
     def _load_preferences(self, target_uid):
+        if not self._child_overlay:
+            self._select_language_child(target_uid)
         self._queue_time_estimate()
         if self._preview and not self._interactive_preview:
             from .preview_data import PREVIEW_PREFERENCES
@@ -1531,6 +1567,20 @@ class RequestWindow(Adw.ApplicationWindow):
                 target_uid, connection, result,
             ),
         )
+
+    def _select_language_child(self, target_uid):
+        self._language_revision += 1
+        self._language_target_uid = target_uid
+        self._language_loading = False
+        self._language_requested = False
+        self._own_language = None
+        if self._language_dialog is not None:
+            self._language_dialog.destroy()
+            self._language_dialog = None
+        if self._applied_language is None:
+            self._stack.set_sensitive(False)
+        set_automation_id(self._language_readiness, "kiosk-language-loading")
+        self._load_language()
 
     def _preferences_done(self, target_uid, connection, result):
         try:

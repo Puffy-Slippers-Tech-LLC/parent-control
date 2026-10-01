@@ -217,6 +217,8 @@ TEXT_VALUES = {
        for units in (5000, 5001) for suffix, emoji in (('', '\U0001f600'), ('-base', ''))},
     **{'kiosk-invalid-' + key: ('kiosk-custom-duration', value)
        for key, value in KIOSK_INVALID_VALUES.items()},
+    **{'overlay-invalid-' + key: ('kiosk-custom-duration', value)
+       for key, value in KIOSK_INVALID_VALUES.items()},
     'kiosk-fraction': ('kiosk-custom-duration', '1.25'),
     'overlay-fraction': ('kiosk-custom-duration', '1.25'),
     'body-first': ('feedback-editor-input', 'Synthetic feedback first'),
@@ -323,7 +325,7 @@ TEXT_OPERATIONS = {
 }
 OPERATIONS |= frozenset(TEXT_OPERATIONS) | {'text-wrong-entry', 'text-disabled'}
 CHILD_DESKTOP_OPERATIONS |= frozenset(operation for operation, (binding, _) in TEXT_OPERATIONS.items()
-                                    if binding == 'overlay-fraction')
+                                    if binding.startswith('overlay-'))
 ALLOWANCE_OPERATIONS = frozenset({
     'allowance-wrong-child', 'allowance-disabled',
 }) | frozenset(f'allowance-{value}-{action}' for value in PRESETS
@@ -611,14 +613,25 @@ OVERLAY_VALID_REQUESTS = {
 }
 OVERLAY_VALID_REQUESTS['overlay-valid-approver-select'] = (1800, None, False)
 OVERLAY_VALID_REQUESTS['overlay-valid-approver-read'] = (1800, None, False)
+OVERLAY_VALID_REQUESTS['overlay-flow-approver-select'] = (75, '1.25', True)
+OVERLAY_VALID_REQUESTS['overlay-valid-fraction-excluded-select'] = (75, '1.25', False)
+OVERLAY_VALID_REQUESTS['overlay-valid-fraction-excluded-read'] = (75, '1.25', False)
 OVERLAY_VALID_OPERATIONS = frozenset(OVERLAY_VALID_REQUESTS) | {
-    'overlay-valid-custom-open', 'overlay-valid-refusals', 'overlay-request-cancel'}
+    'overlay-valid-custom-open', 'overlay-valid-refusals', 'overlay-request-cancel',
+    'overlay-request-escape-ready'}
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_VALID_OPERATIONS
 OPERATIONS |= OVERLAY_VALID_OPERATIONS
 KIOSK_INVALID_OPERATIONS = {
     f'kiosk-invalid-{key}-{action}': (key, action)
     for key in KIOSK_INVALID_VALUES for action in ('ready', 'submit', 'read')
 }
+OVERLAY_INVALID_OPERATIONS = {
+    operation.replace('kiosk-', 'overlay-', 1): binding
+    for operation, binding in KIOSK_INVALID_OPERATIONS.items()
+}
+INVALID_REQUEST_OPERATIONS = {**KIOSK_INVALID_OPERATIONS, **OVERLAY_INVALID_OPERATIONS}
+CHILD_DESKTOP_OPERATIONS |= frozenset(OVERLAY_INVALID_OPERATIONS)
+OPERATIONS |= frozenset(OVERLAY_INVALID_OPERATIONS)
 OPERATIONS |= frozenset(KIOSK_INVALID_OPERATIONS) | {'parent-kiosk-invalid-refused'}
 OPERATIONS |= KIOSK_VALID_OPERATIONS | {'parent-kiosk-valid-refused'}
 MATE_OPERATIONS = frozenset({'kiosk-mate-cancel', 'kiosk-mate-refusals-cancel'})
@@ -6998,8 +7011,9 @@ class AccessibleUI:
                       'kiosk-custom-open')
             return None
         seconds, custom, soft = (OVERLAY_VALID_REQUESTS if overlay else KIOSK_VALID_REQUESTS)[operation]
-        if operation == 'overlay-valid-approver-select':
-            self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT), overlay=True)
+        if operation in ('overlay-valid-approver-select', 'overlay-flow-approver-select'):
+            self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT),
+                duration_seconds=seconds, custom_text=custom, overlay=True)
         elif operation in ('kiosk-flow-child-select', 'kiosk-flow-approver-select'):
             field = operation.split('-')[2]
             self.select_kiosk_account(
@@ -7009,7 +7023,7 @@ class AccessibleUI:
         elif operation.endswith('-select'):
             identity = ('kiosk-soft-apps-toggle' if action in (
                 'kiosk-valid-soft-select', 'kiosk-valid-excluded-select',
-                'kiosk-valid-fraction-soft-select')
+                'kiosk-valid-fraction-soft-select', 'kiosk-valid-fraction-excluded-select')
                 else f'kiosk-duration-{seconds}')
             target = self.kiosk_valid_target(identity, overlay=overlay)
             if identity == 'kiosk-soft-apps-toggle':
@@ -7386,17 +7400,20 @@ class AccessibleUI:
     def kiosk_invalid_choice(self, operation):
         """Submit one finite invalid value; never authenticate or replay input."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(operation in KIOSK_INVALID_OPERATIONS, 'ui:kiosk-invalid-binding')
-        binding, action = KIOSK_INVALID_OPERATIONS[operation]
+        require(operation in INVALID_REQUEST_OPERATIONS, 'ui:kiosk-invalid-binding')
+        binding, action = INVALID_REQUEST_OPERATIONS[operation]
+        overlay = operation in OVERLAY_INVALID_OPERATIONS
 
         def read_form():
-            self.kiosk_valid_target('kiosk-custom-duration')
+            self.kiosk_valid_target('kiosk-custom-duration', overlay=overlay)
             request = self.kiosk_request_form(
-                enabled=True, expected_selection=('child', 'fixture-child'),
-                duration_seconds=None, custom_text=KIOSK_INVALID_VALUES[binding])
+                enabled=True, expected_selection=('approver', 'fixture-parent') if overlay
+                    else ('child', 'fixture-child'),
+                duration_seconds=None, custom_text=KIOSK_INVALID_VALUES[binding], overlay=overlay)
             require(request['approver'] == 'fixture-parent' and not request['allow_soft']
+                    and request['child_selector_enabled'] is (not overlay)
                     and all(request[key] for key in (
-                        'child_selector_enabled', 'approver_selector_enabled', 'duration_enabled',
+                        'approver_selector_enabled', 'duration_enabled',
                         'soft_choice_enabled', 'request_enabled', 'cancel_enabled')),
                     'ui:kiosk-invalid-form')
             return request
@@ -7404,7 +7421,7 @@ class AccessibleUI:
         try:
             before = read_form()
             if action == 'submit':
-                self._invoke_target(self.kiosk_valid_target('kiosk-request-submit'))
+                self._invoke_target(self.kiosk_valid_target('kiosk-request-submit', overlay=overlay))
                 self.invalidate_observation()
             if action != 'ready':
                 def validation():
@@ -7708,10 +7725,10 @@ class AccessibleUI:
             self.kiosk_request_form()
         return True
 
-    def focus_kiosk_escape_recipient(self):
+    def focus_kiosk_escape_recipient(self, *, overlay=False):
         """UI05: focus and freshly recheck the owned recipient before Escape."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        window, target = self.kiosk_exit_target(with_window=True)
+        window, target = self.kiosk_exit_target(with_window=True, overlay=overlay)
         identity = public_automation_id(target)
         require(self.has_state(window, self.api.StateType.SENSITIVE), 'ui:unusable-target')
         action = window.get_action_iface()
@@ -7727,7 +7744,7 @@ class AccessibleUI:
         require(self.api.Action.do_action(action, matches[0]), 'ui:action-refused')
 
         def focused():
-            current = self.kiosk_exit_target()
+            current = self.kiosk_exit_target(overlay=overlay)
             require(current == target, 'ui:kiosk-exit-stale-focus')
             return self.has_state(current, self.api.StateType.FOCUSED)
 
@@ -8950,7 +8967,7 @@ class AccessibleUI:
                 require(str(error) == 'ui:kiosk-valid-entry', 'ui:kiosk-valid-refusal')
             else:
                 raise UiError('ui:kiosk-valid-refusal-missing')
-        elif operation in KIOSK_INVALID_OPERATIONS:
+        elif operation in INVALID_REQUEST_OPERATIONS:
             result['invalid_choice'] = self.kiosk_invalid_choice(operation)
         elif operation in KIOSK_VALID_OPERATIONS:
             value = self.kiosk_valid_choice(operation)
@@ -8976,6 +8993,8 @@ class AccessibleUI:
         elif operation == 'overlay-request-cancel':
             self.require_child_overlay_session()
             self.cancel_kiosk_request(overlay=True)
+        elif operation == 'overlay-request-escape-ready':
+            self.focus_kiosk_escape_recipient(overlay=True)
         elif operation in KIOSK_RESTRICTION_OPERATIONS:
             prepared = operation.startswith('kiosk-restriction-prepared-')
             if operation.endswith('-ready'):

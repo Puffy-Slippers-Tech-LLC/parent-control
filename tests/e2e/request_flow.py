@@ -4,12 +4,13 @@ The enabled target and earlier public balance are supplied by the caller.
 This flow neither changes policy nor submits a request.
 """
 from installed_journey import JourneyPlan
-from journey_blocks import fresh_desktop, parent_management, station_entry
+from journey_blocks import fresh_desktop, parent_management, station_entry, overlay_entry
 from request_composition import KioskRequestJourney
 from private_artifacts import require
 
 
-def prepared_request(*, prefix, entry, initial, child, approver, duration_seconds, allow_soft):
+def prepared_request(*, prefix, entry, initial, child, approver, duration_seconds, allow_soft,
+                     surface='kiosk'):
     """Declare the qualified custom-duration binding with explicit entry state."""
     require(prefix in ('open', 'new'), 'request-flow:prefix')
     require(entry in ('open', 'new') and initial in ('default', 'selected'),
@@ -17,6 +18,22 @@ def prepared_request(*, prefix, entry, initial, child, approver, duration_second
     require(child == 'fixture-child' and approver == 'fixture-parent'
             and type(duration_seconds) is int and duration_seconds == 75
             and allow_soft is True, 'request-flow:choices')
+    require(surface in ('kiosk', 'overlay'), 'request-flow:surface')
+    if surface == 'overlay':
+        stages = overlay_entry(prefix + '-entry', 'command', form_operation=(
+            'overlay-request-form' if initial == 'default' else 'overlay-valid-fraction-soft-read')) if entry == 'new' else {}
+        stages.update({
+            prefix + '-form': 'ui:overlay-request-form' if initial == 'default' else 'ui:overlay-valid-fraction-soft-read',
+            prefix + '-approver': 'ui:overlay-valid-approver-select' if initial == 'default' else 'ui:overlay-flow-approver-select',
+            prefix + '-selections': 'ui:overlay-valid-approver-read' if initial == 'default' else 'ui:overlay-valid-fraction-soft-read',
+            prefix + '-duration': 'ui:overlay-valid-custom-open',
+            **{prefix + '-text-' + action: 'ui:text-overlay-fraction-' + action
+               for action in ('focus', 'selected', 'read')},
+            prefix + '-duration-read': 'ui:overlay-valid-fraction-read' if initial == 'default' else 'ui:overlay-valid-fraction-soft-read',
+            prefix + '-apps': 'ui:overlay-valid-fraction-soft-select',
+            prefix + '-estimate': 'ui:overlay-valid-fraction-soft-read',
+        })
+        return stages
     stages = station_entry('cancel-') if entry == 'new' else {}
     stages.update({
         prefix + '-form': 'ui:kiosk-request-form' if initial == 'default' else 'ui:kiosk-valid-fraction-soft-read',

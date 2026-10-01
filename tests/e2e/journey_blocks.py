@@ -176,7 +176,8 @@ def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
     import re
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix)
             and route in ('command', 'panel', 'panel-reopen'), 'journey:overlay-binding')
-    require(form_operation in ('overlay-request-form', 'overlay-valid-excluded-read'),
+    require(form_operation in ('overlay-request-form', 'overlay-valid-excluded-read',
+                               'overlay-valid-fraction-soft-read'),
             'journey:overlay-form-binding')
     return {
         **({prefix + '-reveal': 'ui:overlay-panel-reveal-ready'} if route == 'panel-reopen' else {}),

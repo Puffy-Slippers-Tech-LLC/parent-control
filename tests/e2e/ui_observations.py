@@ -97,6 +97,8 @@ OPERATION_LABELS = {
        for operation in accessible_ui.KIOSK_VALID_OPERATIONS},
     **{operation: 'Choosing and independently reading valid fixed-child overlay values'
        for operation in accessible_ui.OVERLAY_VALID_OPERATIONS},
+    **{operation: 'Checking invalid overlay text, preserved form and absence of authentication'
+       for operation in accessible_ui.OVERLAY_INVALID_OPERATIONS},
     **{operation: 'Observing usable child app activity around the request overlay'
        for operation in accessible_ui.OVERLAY_NATIVE_OPERATIONS},
     **{operation: 'Reading idle Revoke availability and zero remaining balances'
@@ -469,7 +471,7 @@ class RequestObservation:
         fields = tuple(cls.__dataclass_fields__)
         require(type(value) is dict and set(value) == set(fields), 'ui:request')
         observation = cls(**value)
-        invalid = accessible_ui.KIOSK_INVALID_OPERATIONS.get(operation)
+        invalid = accessible_ui.INVALID_REQUEST_OPERATIONS.get(operation)
         require(type(observation.surface) is str and type(observation.form_count) is int
                 and type(observation.child) is str and type(observation.approver) is str
                 and (type(observation.duration_seconds) is int or (
@@ -483,7 +485,8 @@ class RequestObservation:
                     'cancel_enabled'))
                 and type(observation.message) is str and observation.mute is None,
                 'ui:request')
-        overlay_valid = operation in accessible_ui.OVERLAY_VALID_REQUESTS
+        overlay_valid = (operation in accessible_ui.OVERLAY_VALID_REQUESTS
+                         or operation in accessible_ui.OVERLAY_INVALID_OPERATIONS)
         valid = {**accessible_ui.KIOSK_VALID_REQUESTS,
                  **accessible_ui.OVERLAY_VALID_REQUESTS}.get(operation)
         if operation == 'overlay-request-form':
@@ -761,6 +764,7 @@ class UiObservations:
         # the station, while retaining its separate child-session binding.
         form_diagnostics = (operation in accessible_ui.KIOSK_SESSION_OPERATIONS
                             or operation in accessible_ui.OVERLAY_VALID_OPERATIONS
+                            or operation in accessible_ui.OVERLAY_INVALID_OPERATIONS
                             or operation in ('overlay-request-form', 'overlay-panel-reveal-ready'))
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
@@ -1500,12 +1504,12 @@ class UiObservations:
                     'ui:challenge-replay')
             self.challenges.add(challenge_id)
             expected['mate'] = value
-        if operation in accessible_ui.KIOSK_INVALID_OPERATIONS:
+        if operation in accessible_ui.INVALID_REQUEST_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'invalid_choice'}, 'ui:response')
             value = result['invalid_choice']
             require(type(value) is dict and set(value) == {'request', 'validation', 'no_authentication'}
                     and value['no_authentication'] is True
-                    and value['validation'] is (accessible_ui.KIOSK_INVALID_OPERATIONS[operation][1] != 'ready'),
+                    and value['validation'] is (accessible_ui.INVALID_REQUEST_OPERATIONS[operation][1] != 'ready'),
                     'ui:kiosk-invalid-response')
             RequestObservation.from_request(value['request'], operation=operation)
             expected['invalid_choice'] = value

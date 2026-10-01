@@ -17,6 +17,11 @@ from common.oh_no_parent_control_ui.errors import ErrorReport
 from oh_no_parent_control.logs import DailyLogWriter, BrokerFileHandler
 from oh_no_parent_control.grant_diagnostics import GrantDiagnostics
 from oh_no_parent_control.extension_manager import _stderr_reason, ExtensionManager
+from oh_no_parent_control.adapters import AccountsService
+from oh_no_parent_control.service import Service, BUS_NAME
+from gi.repository import GLib
+from types import SimpleNamespace
+from unittest.mock import Mock
 from tests.support.broker import make_broker
 
 SECRET = "Child Name /home/private-user/private-file private@example.test secret-token"
@@ -89,6 +94,148 @@ def test_unknown_values_never_enter_a_logrecord(caplog):
     report = ErrorReport.capture("Parent App", PrivateError(), SECRET, SECRET)
     assert SECRET not in repr(report)
     assert "other" in report.message
+
+
+@pytest.mark.parametrize("stage", ["find-user", "get-all"])
+@pytest.mark.parametrize("greeter", [False, True])
+def test_account_identity_mismatch_is_diagnosable_without_private_data(
+        tmp_path, monkeypatch, caplog, stage, greeter):
+    """A single bad NSS candidate must still abort both public list methods."""
+    accounts = AccountsService(object())
+    candidate_uid = 60583
+    monkeypatch.setattr("oh_no_parent_control.adapters.pwd.getpwall", lambda: [
+        SimpleNamespace(pw_uid=candidate_uid, pw_shell="/bin/bash",
+                        pw_name="gdm-greeter" if greeter else SECRET,
+                        pw_dir=SECRET, pw_gecos=SECRET)])
+
+    def call(_connection, _name, _path, _interface, method, *_args, **_kwargs):
+        if method == "FindUserById":
+            # Return the wrong object in the first variant, or contradictory
+            # UID metadata in the second. Neither identity may enter logs.
+            return GLib.Variant("(o)", (
+                "/org/freedesktop/Accounts/User42" if stage == "find-user"
+                else "/org/freedesktop/Accounts/User60583",))
+        assert method == "GetAll"
+        return GLib.Variant("(a{sv})", ({
+            "Uid": GLib.Variant("t", 61234),
+            "UserName": GLib.Variant("s", "gdm-greeter" if greeter else SECRET),
+            "RealName": GLib.Variant("s", SECRET),
+            "IconFile": GLib.Variant("s", SECRET),
+        },))
+
+    monkeypatch.setattr("oh_no_parent_control.adapters._call", call)
+    service = Service.__new__(Service)
+    service.credentials = SimpleNamespace(uid=lambda _sender: 0)
+    service.broker = SimpleNamespace(
+        list_managed_users=lambda _uid: accounts.list_users(),
+        list_approvers=lambda _uid: accounts.list_users())
+    caplog.set_level(logging.INFO)
+    for method in ("ListManagedUsers", "ListApprovers"):
+        invocation = Mock()
+        service._method_call(None, SECRET, None, None, method, None, invocation)
+        invocation.return_value.assert_not_called()
+        invocation.return_dbus_error.assert_called_once_with(
+            BUS_NAME + ".Error.Failed", "service failure")
+
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    mismatches = [e for e in decoded if e["event"] == "adapters.account-object-mismatch"]
+    assert [e["fields"] for e in mismatches] == [{"stage": stage}] * 2
+    contexts = [e for e in decoded if e["event"] == "adapters.account-object-context"]
+    if stage == "find-user":
+        assert [e["fields"] for e in contexts] == [{
+            "object_shape": "uid-path", "requested_uid_match": "mismatch",
+            "object_uid_match": "mismatch",
+            "account_role": "display-manager-greeter" if greeter else "other"}] * 2
+    else:
+        assert contexts == []
+    failures = [e for e in decoded if e["event"] == "adapters.account-enumeration-failed"]
+    assert [e["fields"] for e in failures] == [{
+        "stage": "account-lookup", "error_type": "RuntimeError",
+        "candidate": "display-manager-greeter" if greeter else "other"}] * 2
+    faults = [e for e in decoded if e["event"] == "runtime.fault"]
+    assert all(e["fields"]["source"] == "adapters" and e["fields"]["line"] > 0
+               for e in faults)
+    assert len(faults) == 2
+    # Each failure shares its dispatch operation, without a person/session key.
+    for method in ("ListManagedUsers", "ListApprovers"):
+        dispatch = next(e for e in decoded if e["event"] == "service.006"
+                        and e["fields"]["method"] == method)
+        grouped = [e["event"] for e in decoded if e["operation"] == dispatch["operation"]]
+        assert "adapters.account-object-mismatch" in grouped
+        assert "adapters.account-enumeration-failed" in grouped
+        assert "runtime.fault" in grouped
+
+    writer = DailyLogWriter(tmp_path)
+    handler = BrokerFileHandler(writer)
+    for record in caplog.records:
+        handler.emit(record)
+    bundle = writer.snapshot()
+    validate_bundle(bundle)
+    with ZipFile(BytesIO(bundle)) as archive:
+        exported = "".join(archive.read(name).decode() for name in archive.namelist())
+    assert "object-path-uid-mismatch" in exported
+    assert "stage=" + stage in exported
+    expected_candidate = "display-manager-greeter" if greeter else "other"
+    assert "candidate=" + expected_candidate in exported
+    for private in (SECRET, "60583", "61234", "User42", "gdm-greeter"):
+        assert private not in exported
+        assert private not in caplog.text
+
+
+@pytest.mark.parametrize("stage", ["nss", "account-lookup"])
+def test_account_enumeration_never_formats_errors(monkeypatch, caplog, stage):
+    accounts = AccountsService(object())
+
+    def fail(*_args):
+        raise PrivateError(SECRET)
+
+    monkeypatch.setattr("oh_no_parent_control.adapters.pwd.getpwall", fail if stage == "nss"
+                        else lambda: [SimpleNamespace(pw_uid=1001, pw_shell="/bin/bash",
+                                                      pw_name=SECRET)])
+    monkeypatch.setattr(accounts, "get_user", fail)
+    with pytest.raises(PrivateError):
+        accounts.list_users()
+    value = events.decode(caplog.records[-1].onpc_payload)
+    assert value["fields"] == {"stage": stage, "candidate": "other", "error_type": "other"}
+    assert SECRET not in caplog.text
+
+
+def test_deleted_account_remains_skipped_with_safe_evidence(monkeypatch, caplog):
+    accounts = AccountsService(object())
+    monkeypatch.setattr("oh_no_parent_control.adapters.pwd.getpwall", lambda: [
+        SimpleNamespace(pw_uid=1001, pw_shell="/bin/bash", pw_name=SECRET)])
+
+    def deleted(_uid):
+        raise GLib.Error(SECRET)
+
+    monkeypatch.setattr(accounts, "get_user", deleted)
+    assert accounts.list_users() == ()
+    value = events.decode(caplog.records[-1].onpc_payload)
+    assert value["event"] == "adapters.account-enumeration-skipped"
+    assert value["fields"] == {"candidate": "other", "error_type": "Error"}
+    assert SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("reply", [None, {}, {"Uid": "private"}, {"Uid": -1}])
+def test_rejected_account_context_is_bounded_and_unknown_on_read_failure(
+        monkeypatch, caplog, reply):
+    accounts = AccountsService(object())
+    calls = []
+
+    def call(*_args, **kwargs):
+        calls.append(kwargs)
+        if reply is None:
+            raise PrivateError(SECRET)
+        return SimpleNamespace(unpack=lambda: (reply,))
+
+    monkeypatch.setattr("oh_no_parent_control.adapters._call", call)
+    accounts._log_account_object_context(1001, "/org/freedesktop/Accounts/private")
+    assert calls == [{"timeout": 1000}]
+    value = events.decode(caplog.records[-1].onpc_payload)
+    assert value["fields"] == {
+        "object_shape": "other", "requested_uid_match": "unknown",
+        "object_uid_match": "unknown", "account_role": "unknown"}
+    assert SECRET not in caplog.text
 
 
 @pytest.mark.parametrize("event_id,definition", list(events.CATALOG.items()))

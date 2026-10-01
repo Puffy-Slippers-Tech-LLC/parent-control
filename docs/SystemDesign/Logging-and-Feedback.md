@@ -155,6 +155,32 @@ Parent, child, and kiosk events record displayed calculation inputs, request
 and countdown transitions, session preparation, UI/resource failures, editor
 lifecycle, and feedback collection/delivery/retry outcomes.
 
+Account discovery records which AccountsService identity check failed:
+`adapters.account-object-mismatch` distinguishes a `FindUserById` object-path
+mismatch from a `GetAll` UID-property mismatch. Enumeration failures distinguish
+NSS enumeration from account lookup. A transient comparison with the fixed
+`gdm-greeter` service-account name supplies only the closed
+`display-manager-greeter` role; all other candidates are `other`. Skipped
+unavailable accounts are recorded without claiming that they were deleted.
+Unexpected D-Bus dispatch failures also retain the reviewed shipped module
+category and source line before conversion to the generic public error.
+These events share the dispatch's local operation number, so a report can link
+the failed list method, identity invariant, candidate role and failure location.
+After a rejected `FindUserById`, a best-effort, one-second `GetAll` read records
+`adapters.account-object-context`: numeric object-path shape, whether its UID
+property matches the request and object path, and the returned account's closed
+greeter role. Matching greeter roles with contradictory UID relationships point
+to stale greeter identity metadata. This subsequent read is not an atomic
+snapshot; failures leave comparisons unknown and retain the original rejection.
+No names, UIDs, returned object paths, account properties, NSS rows or exception
+text enter the events. Enumeration order, skipped GIO failures, identity checks
+and public failure behavior are unchanged; this adds diagnostics only.
+The broker loads these additions after `process-restart`; ship the additive
+catalogue with all frontend validators, and renew frontend processes before
+reading reports containing the new events. No saved-data migration is required.
+Privacy, failure-preservation and readable export checks live in
+[diagnostic privacy](../../tests/unit/test_diagnostic_privacy.py).
+
 The shared request form records valid duration snapshots when preferences are
 restored, form choices are edited, and a request is submitted. Each
 `kiosk.duration-selection` includes only a fixed stage, preset/custom/rest-of-day

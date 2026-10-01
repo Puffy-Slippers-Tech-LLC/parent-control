@@ -158,7 +158,7 @@ OPERATION_LABELS = {
     'standard-parent-command-launch': 'Invoking the Parent command as [Standard user]',
     'child-command-launch': 'Invoking the child overlay command as [Child user]',
     'overlay-panel-ready': 'Checking the child panel request control',
-    'overlay-panel-launch': 'Activating the child panel request control once',
+    'overlay-panel-launch': 'Qualifying focus for one child panel activation',
     'overlay-request-form': 'Reading one overlay with the fixed child account',
     'overlay-qualification-cancel': 'Closing the qualification overlay with Cancel',
     'overlay-desktop': 'Checking the overlay closed and child desktop returned',

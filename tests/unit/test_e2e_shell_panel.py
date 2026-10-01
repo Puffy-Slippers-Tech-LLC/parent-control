@@ -55,6 +55,42 @@ def panel(monkeypatch):
     return ui_for(root), root, shell, button
 
 
+def test_panel_without_action_focuses_public_id_for_single_keyboard_activation(monkeypatch):
+    ui, _, _, button = panel(monkeypatch)
+    # GNOME Shell 50 StButtonAccessible has Component, but no Action interface.
+    button.get_action_iface = Mock(return_value=None)
+    ui.run('overlay-panel-launch', '')
+    button.component.grab_focus.assert_called_once()
+    assert 'focused' in button.states
+    button.action.do_action.assert_not_called()
+    with pytest.raises(a.UiError, match='uncertain-input'):
+        ui.run('overlay-panel-launch', '')
+    button.component.grab_focus.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['unavailable', 'refused', 'unfocused', 'replaced', 'prompt'])
+def test_panel_focus_failure_never_releases_keyboard_input(monkeypatch, fault):
+    ui, _, shell, button = panel(monkeypatch)
+    if fault == 'unavailable': button.get_component_iface = Mock(return_value=None)
+    if fault == 'refused': button.component.grab_focus.side_effect = lambda: False
+    if fault == 'unfocused': button.component.grab_focus.side_effect = lambda: True
+    if fault in ('replaced', 'prompt'):
+        def focus():
+            button.states.add('focused')
+            if fault == 'replaced':
+                shell.children[1].children[:] = [Node(identity='child-request-button')]
+            else:
+                ui.system_prompt_kind = Mock(return_value='keyring')
+            return True
+        button.component.grab_focus.side_effect = focus
+    with pytest.raises(a.UiError): ui.run('overlay-panel-launch', '')
+    button.action.do_action.assert_not_called()
+    if fault != 'unavailable':
+        with pytest.raises(a.UiError, match='uncertain-input'):
+            ui.run('overlay-panel-launch', '')
+        button.component.grab_focus.assert_called_once()
+
+
 @pytest.mark.parametrize('fault', ['', 'unlocked', 'wrong-child', 'duplicate-form', 'foreign-form',
     'wrong-application', 'expanded', 'defunct', 'missing', 'wrong-duration', 'mute', 'incomplete'])
 def test_fixed_overlay_reader_refuses_unsafe_or_incomplete_forms(monkeypatch, fault):
@@ -98,18 +134,19 @@ def test_panel_launch_requires_owned_unlocked_child_and_never_replays(monkeypatc
     if fault == 'wrong-account': monkeypatch.setattr(a.os, 'getuid', lambda: 1002)
     if fault == 'defunct': button.states.add('defunct')
     if fault == 'incomplete': shell.children.append(None)
-    if fault == 'uncertain': button.action.do_action.side_effect = TimeoutError()
+    if fault == 'uncertain': button.component.grab_focus.side_effect = TimeoutError()
     if fault:
         with pytest.raises((a.UiError, TimeoutError)): ui.run('overlay-panel-launch', '')
-        assert button.action.do_action.call_count == (1 if fault == 'uncertain' else 0)
+        assert button.component.grab_focus.call_count == (1 if fault == 'uncertain' else 0)
     else:
         ui.run('overlay-panel-ready', '')
         button.action.do_action.assert_not_called()
         ui.run('overlay-panel-launch', '')
-        button.action.do_action.assert_called_once()
+        button.component.grab_focus.assert_called_once()
+        button.action.do_action.assert_not_called()
     if fault in ('', 'uncertain'):
         with pytest.raises(a.UiError, match='uncertain-input'): ui.run('overlay-panel-launch', '')
-        assert button.action.do_action.call_count == 1
+        assert button.component.grab_focus.call_count == 1
 
 
 @pytest.mark.parametrize('operation', ['child-command-launch', *sorted(a.OVERLAY_OPERATIONS)])
@@ -226,7 +263,7 @@ def test_shared_overlay_fragment_independent_caller_and_failure_stop(route, faul
 use strict; use warnings; use JSON::PP;
 our @stages; our $fault = shift @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
-package testapi; sub record_info { }
+package testapi; sub record_info { } sub send_key { push @main::stages, 'key:' . $_[0] }
 package main; require onpc_request_flow;
 my $declared = decode_json(shift @ARGV); my $route = shift @ARGV;
 my $j = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
@@ -241,4 +278,6 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages});
     result = json.loads(run_perl(program, fault, json.dumps(list(screens)), route).stdout)
     expected = list(screens)
     if fault: expected = expected[:expected.index('another-caller-' + fault) + 1]
+    if route == 'panel' and fault != 'launch':
+        expected.insert(expected.index('another-caller-launch') + 1, 'key:ret')
     assert result['stages'] == expected and bool(result['ok']) == (not fault)

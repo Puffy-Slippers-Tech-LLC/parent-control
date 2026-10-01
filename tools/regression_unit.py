@@ -176,6 +176,11 @@ from pathlib import PurePosixPath
 # Case 49's added request/countdown checks use private values, pytest trees and
 # bounded owned Perl doubles. Kiosk-valid-duration and installed-journey modules
 # retain compatible unit scheduling; no live display, bus, VM or shared cache.
+# Overlay form-stream checks reuse kiosk-entry's private command files and
+# process-local transport/clock doubles; shell-panel adds only bounded in-memory
+# JSON chunks. Both modules retain compatible scheduling and existing ownership.
+# Panel keyboard qualification uses the same private trees and process-local
+# Component focus doubles; actual key order is checked by the owned Perl double.
 from regression_cleanup import ESTIMATES as CLEANUP_ESTIMATES, work_units
 
 # Repair-budget/routing probes use finite synthetic agents, private tmp_path

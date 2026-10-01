@@ -6,6 +6,9 @@ import sys
 
 from private_artifacts import require
 from watch_activity import operation
+from installed_journey import InstalledJourney
+from journey_checks import check_balances
+from ui_observations import AppRowsObservation
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -150,3 +153,49 @@ def check_catalogue(rows):
               file=sys.stderr, flush=True)
     require(selected == expected, 'native:catalogue-defaults')
     return {'declared_launchers': 4, 'allowed_defaults': True, 'default_matches': True}
+
+
+class CataloguePolicyJourney(InstalledJourney):
+    """Caller-declared exact query intersections and unchanged-policy endpoints.
+
+    Row checks are 'initial', 'unchanged', or (query, match mask, access mask).
+    This owns comparisons only; the caller owns entry, order and fixture actions.
+    """
+    def __init__(self, context, progress, plan, *, row_checks, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        require(set(row_checks) <= set(plan.screen_tags)
+                and list(row_checks.values()).count('initial') == 1,
+                'catalogue:comparison-plan')
+        for check in row_checks.values():
+            require(check in ('initial', 'unchanged') or type(check) is tuple
+                    and len(check) == 3, 'catalogue:comparison-plan')
+            if type(check) is tuple:
+                catalogue_rows(check[0], (), match_mask=check[1], access_mask=check[2])
+        self.row_checks = dict(row_checks)
+        self.initial_rows = None
+        self.compared_rows = set()
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage in self.plan.balance_checks:
+            check_balances(self, observed, self.plan.balance_checks[stage])
+        if stage not in self.row_checks:
+            return
+        require(stage not in self.compared_rows, 'catalogue:comparison-replay')
+        rows = AppRowsObservation.from_rows(observed['ui']['apps']['rows'])
+        check = self.row_checks[stage]
+        if check == 'initial':
+            require(self.initial_rows is None, 'catalogue:initial-replay')
+            observed['comparison'] = check_catalogue(rows)
+            self.initial_rows = rows
+        else:
+            require(self.initial_rows is not None, 'catalogue:missing-initial')
+            expected = (self.initial_rows.rows if check == 'unchanged' else
+                        catalogue_rows(check[0], self.initial_rows.rows,
+                                       match_mask=check[1], access_mask=check[2]))
+            require(rows.rows == expected, 'catalogue:unchanged-policies' if
+                    check == 'unchanged' else 'catalogue:exact-results')
+            observed['comparison'] = ({'unchanged_access_and_match': True} if
+                check == 'unchanged' else {'exact_query_intersection': True})
+        observed['comparison']['row_count'] = len(rows.rows)
+        self.compared_rows.add(stage)

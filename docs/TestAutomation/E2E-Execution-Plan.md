@@ -19,15 +19,13 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **226 — [E2E-041: search-filters](E2E-Tasks/226-case-184.md)**.
+Next task: **078a — [Edit one match rule and Save or Cancel](E2E-Tasks/078a-match-save-cancel.md)**.
 
-Task 226 remains unchecked. Its Jordan-bound FLOW16 setup and public policy
-legend prerequisites are qualified by tasks 226a and 226b. The legend passed
-`check_e2e_policy_legend` in `20261001T051651Z-f6a0ab62`; required catalogue/toggle
-regressions passed in `20261001T051932Z-f4508577` and `20261001T052424Z-65757534`.
-All enabled VMs completed collection, owned cleanup and baseline restoration.
-Compose complete case 184 from the shared operations; no case 184 live attempt
-has been made, and capability qualification supplies no complete-case credit.
+Task 226 completed case 184 in `20261001T054514Z-f7691e2f` on every enabled VM.
+The shared row reader's native-fixture regression passed in
+`20261001T055119Z-f82bf7c3`; collection, owned cleanup and baseline restoration
+passed for both runs. Coverage is regenerated. Task 078a now owns the valid
+match-editor Save/Cancel slice; its planned selector must be implemented before use.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

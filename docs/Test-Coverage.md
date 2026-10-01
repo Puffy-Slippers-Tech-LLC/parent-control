@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">17605</span>/<span style="color: gray">0</span>/17605 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">17848</span>/<span style="color: gray">0</span>/17848 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks broker behavior through a private D-Bus without changing the host system. |
-| UI | <span style="color: green">175</span>/<span style="color: gray">0</span>/175 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
+| UI | <span style="color: green">182</span>/<span style="color: gray">0</span>/182 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">4</span>/<span style="color: gray">0</span>/4 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">106</span>/<span style="color: gray">0</span>/106 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">27</span>/<span style="color: gray">215</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">18313</span>/<span style="color: gray">215</span>/18528** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">110</span>/<span style="color: gray">0</span>/110 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">28</span>/<span style="color: gray">214</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">18568</span>/<span style="color: gray">214</span>/18782** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">26</span>/<span style="color: gray">215</span>/241 |
+| customer-journey | <span style="color: green">27</span>/<span style="color: gray">214</span>/241 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -58,6 +58,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [158](#scenario-158) | Choose allowances and save edits (flow: boundaries) | `E2E-035/boundaries` | ready |
 | [159](#scenario-159) | Choose allowances and save edits (flow: save order) | `E2E-035/save-order` | ready |
 | [161](#scenario-161) | Revoke when there is no active grant (balance: zero total) | `E2E-036/zero-total` | ready |
+| [184](#scenario-184) | Search the app list and edit match rules (flow: search filters) | `E2E-041/search-filters` | ready |
 | [190](#scenario-190) | Read Help, About and command usage on each surface (surface: parent links) | `E2E-042/parent-links` | ready |
 | [192](#scenario-192) | Read Help, About and command usage on each surface (surface: kiosk) | `E2E-042/kiosk` | ready |
 | [193](#scenario-193) | Read Help, About and command usage on each surface (surface: command help) | `E2E-042/command-help` | ready |
@@ -209,7 +210,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[181](#scenario-181)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: remove last child)</span> | <span style="color: gray">`E2E-040/remove-last-child`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[182](#scenario-182)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: ineligible approver)</span> | <span style="color: gray">`E2E-040/ineligible-approver`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[183](#scenario-183)</span> | <span style="color: gray">Refresh accounts and remembered selections after account changes (change: missing remembered child)</span> | <span style="color: gray">`E2E-040/missing-remembered-child`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[184](#scenario-184)</span> | <span style="color: gray">Search the app list and edit match rules (flow: search filters)</span> | <span style="color: gray">`E2E-041/search-filters`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[185](#scenario-185)</span> | <span style="color: gray">Search the app list and edit match rules (flow: match editor)</span> | <span style="color: gray">`E2E-041/match-editor`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[186](#scenario-186)</span> | <span style="color: gray">Search the app list and edit match rules (flow: match reopen)</span> | <span style="color: gray">`E2E-041/match-reopen`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[187](#scenario-187)</span> | <span style="color: gray">Search the app list and edit match rules (flow: shared launchers)</span> | <span style="color: gray">`E2E-041/shared-launchers`</span> | <span style="color: gray">pending</span> |
@@ -603,6 +603,20 @@ Variant: balance: zero total
 - For daily-positive, approve soft-app access, open the soft app, then toggle limits off and on with a positive allowance; read zero one-time time. For zero-total, set zero daily time with no grant.
 - Read Revoke availability in Parent. Daily-positive opens the warning, cancels and checks unchanged activity, then confirms. Zero-total observes the unavailable action with limits on and off.
 - With daily time left, revisit the child: the earlier soft app closes, blocked launches fail and allowed work remains usable. Daily time stays unchanged. For zero-total, read the saved zero allowance retained with limits off.
+
+### Scenario 184
+
+**Search the app list and edit match rules (flow: search filters)**
+
+Case: `E2E-041/search-filters` · Category: customer-journey · Status: **ready**
+
+Variant: flow: search filters
+
+**Steps:**
+
+- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
+- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests own full search/filter and local editor matrices. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
+- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 ### Scenario 190
 
@@ -3621,26 +3635,6 @@ Variant: change: missing remembered child
 - Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices.
 - Through shared system-account commands, add a spare standard child, remove the selected/last spare child, change the spare remembered approver to standard, or remove the spare remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts.
 - Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 184
-
-**Search the app list and edit match rules (flow: search filters)**
-
-Case: `E2E-041/search-filters` · Category: customer-journey · Status: **pending**
-
-Variant: flow: search filters
-
-**Steps:**
-
-- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests own full search/filter and local editor matrices. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
-- Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

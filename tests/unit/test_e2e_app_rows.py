@@ -780,6 +780,90 @@ print encode_json(\@events);
                                             if boundary else expected + ['power'])
 
 
+def test_search_filters_worker_matches_case_plan_and_stops_at_every_refusal():
+    from search_filters import PLAN as case_plan
+    from tests.support.perl import run_perl
+    program = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'}=1; $INC{'onpc_parent.pm'}=1; $INC{'onpc_gdm.pm'}=1; }
+package testapi; sub record_info {} sub send_key {} sub type_string {}
+sub power {push @main::events,'power'} sub check_shutdown {1} sub console {bless {},'Console'}
+package Console; sub disable {}
+package onpc_gdm; sub reattach_functional {}
+package onpc_parent;
+sub set_allowance {
+    my ($j,@args)=@_; die 'binding' unless join(',',@args) eq 'gdm,parent,fresh,new,existing,0,30,1';
+    for (ENTRY) {$j->consume_observation($_,$j->seen($_))}
+    return $j->seen('allowance-configured');
+}
+package main;
+require onpc_fresh_thirty_allowance;
+eval {onpc_fresh_thirty_allowance::search_filters(sub {push @events,$_[0]; FAIL return {observed=>$_[0]};});};
+print encode_json(\@events);
+'''
+    expected = list(case_plan.screen_tags)
+    entry = expected[:expected.index('allowance-configured')]
+    program = program.replace('ENTRY', ','.join("'" + stage + "'" for stage in entry))
+    for boundary in (None, *expected):
+        stop = "die 'refused' if $_[0] eq '" + boundary + "';" if boundary else ''
+        result = run_perl(program.replace('FAIL', stop))
+        assert json.loads(result.stdout) == (expected[:expected.index(boundary) + 1]
+                                            if boundary else expected + ['power'])
+
+
+@pytest.mark.parametrize('stage', ['name-rows', 'filtered-rows', 'cleared-rows'])
+@pytest.mark.parametrize('changed', [False, True])
+def test_case_catalogue_comparison_runs_through_real_step_before_reply(tmp_path, stage, changed):
+    from search_filters import PLAN as case_plan, SearchFiltersJourney
+    from native_fixtures import expected_rows, catalogue_rows
+    journey = SearchFiltersJourney(SimpleNamespace(directory=tmp_path), Mock(), case_plan,
+        actions={'native-refuse': Mock(), 'native-verify': Mock()})
+    baseline = [list(row) for row in expected_rows()]
+    journey.check_settings('initial-rows', {'ui': {'apps': {'rows': baseline}}})
+    baseline.clear()
+    check = journey.row_checks[stage]
+    rows = [list(row) for row in (expected_rows() if check == 'unchanged' else
+            catalogue_rows(check[0], expected_rows(), match_mask=check[1], access_mask=check[2]))]
+    if changed:
+        rows[0][1] = 'permanent'
+    journey.steps = [{'stage': s} for s in case_plan.stages[:case_plan.stages.index(stage)]]
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(return_value={
+        'operation': case_plan.screen_tags[stage][3:], 'apps': {'rows': rows}}))
+    journey.boot = 'b' * 64
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({
+        'stage': stage, 'screenshot': None}))
+    inherited = Mock(wraps=journey.check_settings)
+    journey.check_settings = inherited
+    if changed:
+        with pytest.raises(EvidenceError, match='unchanged-policies|exact-results'):
+            journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+        journey.progress.assert_not_called()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+        assert stage in journey.compared_rows
+        assert len(journey.initial_rows.rows) == 4
+        journey.progress.assert_called_once()
+    inherited.assert_called_once()
+
+
+def test_case_catalogue_comparison_preserves_empty_oracle_and_refuses_missing_baseline():
+    from installed_journey import JourneyPlan
+    from native_fixtures import CataloguePolicyJourney, expected_rows
+    plan = JourneyPlan('sample', 'sample', {'initial': 'ui:existing-parent-app-rows',
+                       'empty': 'ui:catalogue-absent-rows'}, {})
+    journey = CataloguePolicyJourney(SimpleNamespace(), Mock(), plan,
+        row_checks={'initial': 'initial', 'empty': ('catalogue-absent', 0, 0)})
+    with pytest.raises(EvidenceError, match='missing-initial'):
+        journey.check_settings('empty', {'ui': {'apps': {'rows': []}}})
+    journey.check_settings('initial', {'ui': {'apps': {'rows': [list(row) for row in expected_rows()]}}})
+    journey.check_settings('empty', {'ui': {'apps': {'rows': []}}})
+    with pytest.raises(EvidenceError, match='comparison-replay'):
+        journey.check_settings('empty', {'ui': {'apps': {'rows': []}}})
+
+
 @pytest.mark.parametrize('changed', [False, True])
 def test_legend_real_step_keeps_immutable_rows_and_checks_before_reply(tmp_path, changed):
     from policy_legend import PolicyLegendJourney, PLAN as legend_plan

@@ -5,6 +5,7 @@ use onpc_progress ();
 use onpc_gdm ();
 use onpc_journey ();
 use onpc_parent ();
+use onpc_app_rows ();
 
 sub run {
     onpc_progress::operation('Qualifying fresh thirty-minute daily allowance setup');
@@ -20,6 +21,29 @@ sub run {
     for my $stage ('balance-reread', 'wrong-child', 'wrong-state', 'wrong-window', 'final-settings') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
+    $journey->finish();
+}
+# Case composition: shared FLOW16, legend, query/filter and complete-row leaves.
+sub search_filters {
+    onpc_progress::operation('Searching Jordan catalogue and checking unchanged app policies');
+    my ($exchange) = @_;
+    die 'search-filters:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'search-filters', review => 0);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    for my $stage ('balance-reread', 'saved-settings', 'apps-page') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    onpc_app_rows::legend($journey, 'legend-expanded', 'legend-read');
+    onpc_app_rows::read_rows($journey, 'initial-rows');
+    onpc_app_rows::search($journey, 'catalogue-name', 'name-rows');
+    onpc_app_rows::filter($journey, 'match-rule', 2, 'precise');
+    onpc_app_rows::filter($journey, 'access-rule', 1, 'allowed');
+    onpc_app_rows::read_rows($journey, 'filtered-rows');
+    onpc_app_rows::filter($journey, 'match-rule', 3, 'restore-match');
+    onpc_app_rows::filter($journey, 'access-rule', 7, 'restore-access');
+    onpc_app_rows::search($journey, 'catalogue-clear', 'cleared-rows');
     $journey->finish();
 }
 1;

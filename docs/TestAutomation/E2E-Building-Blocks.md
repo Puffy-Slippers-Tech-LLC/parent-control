@@ -366,7 +366,12 @@ their own inputs and expectations before using that projection.
 `AppRowsObservation` in [ui_observations.py](../../tests/e2e/ui_observations.py)
 validates the bounded immutable values; app-row replies permit up to 32,768
 bytes while ordinary replies retain their existing bounds. Expected access
-choices belong to the caller. `AppRowJourney` in
+choices belong to the caller. `onpc_app_rows::read_rows(journey, stage)` reads
+one caller-owned stage; its one-argument form preserves the full qualification
+sequence. Complete case 184 qualified the single-stage form in
+`20261001T054514Z-f7691e2f`, and `check_e2e_native_fixtures` revalidated the
+full sequence in `20261001T055119Z-f82bf7c3`, on every enabled VM with collection,
+owned cleanup and baseline restoration. `AppRowJourney` in
 [app_row_observations.py](../../tests/e2e/app_row_observations.py) and
 `onpc_app_rows::run` compose the qualified fresh Parent entry, require nonempty
 initial Allowed rows, refuse wrong-child/page reads, and compare an independent
@@ -452,7 +457,13 @@ collection, owned cleanup and baseline restoration all passed.
 The full preview matrix is
 `test_preview_smoke.py::test_catalogue_complete_query_match_access_matrix`, with
 scripted hard/soft policies and a final complete row comparison plus no broker
-policy writes. Complete case 184 remains separate.
+policy writes. Complete case 184 has its own acceptance under task 226.
+
+`native_fixtures.CataloguePolicyJourney` owns reusable immutable row comparisons,
+with caller-declared initial/unchanged endpoints or finite query/match/access
+tuples. Callers supply their own plan and fixture actions; no qualification
+lifecycle is inherited. Case 184's independent composition is described in
+the [E2E-041 recipe](E2E-Scenario-Recipes.md#e2e-041).
 
 ### Public policy legend
 
@@ -483,7 +494,7 @@ policies. Affected `check_e2e_catalogue` / `check_e2e_toggle` regressions passed
 and baseline restoration passed for all three runs. Host guard/readiness,
 decoder, worker-order and recorder checks plus
 `test_preview_smoke.py::test_public_policy_legend_full_read_and_unchanged_choices`
-cover the shared mechanics. Complete case 184 remains separately pending.
+cover the shared mechanics. Complete case 184 has its own acceptance under task 226.
 
 ### Kiosk, child overlay and the shared request form
 

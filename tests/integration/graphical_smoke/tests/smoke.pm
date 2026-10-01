@@ -438,6 +438,12 @@ sub run {
         onpc_parent_toggle::run(\&exchange);
         return;
     }
+    if ($ready->{search_filters}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_fresh_thirty_allowance::search_filters(\&exchange);
+        return;
+    }
     if ($ready->{policy_legend}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

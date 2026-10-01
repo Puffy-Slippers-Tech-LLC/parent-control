@@ -822,7 +822,8 @@ Bindings: change = add-child / remove-selected / remove-last-child / ineligible-
 
 ### E2E-041
 
-Implementation status: All cases pending.
+Implementation context: The search/filter composition is implemented in
+[search_filters.py](../../tests/e2e/search_filters.py); other matching flows remain pending.
 
 **Search the app list and edit match rules.** Cases 184, 185, 186, 187, 188, 189.
 
@@ -831,7 +832,7 @@ Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers
 Native identities/defaults come from FIX06's [finite native declaration](E2E-Building-Blocks.md#native-fixture-preparation)
 and `tests/fixtures/native_assets.py`. Reuse `native_fixtures.fixture_actions()`
 for fresh baseline verification and `check_catalogue()` for the public initial defaults;
-preparation assigns no policy. Complete E2E-041 bindings remain pending.
+preparation assigns no policy. Other E2E-041 bindings remain pending.
 The native profile belongs to Jordan; bind selection, App Limits entry and
 public row operations to that same child as described in the native contract.
 Case 184 requires the fresh Jordan 30-minute FLOW16 binding
@@ -845,6 +846,15 @@ wrong-entry refusals and unchanged policies. Reuse caller-owned stages from the
 [public policy legend contract](E2E-Building-Blocks.md#public-policy-legend);
 `PolicyLegendJourney` owns qualification, not the complete case lifecycle.
 The native launchers are already Jordan-only per-user inputs.
+
+Case 184 owns `search_filters.PLAN` / `SearchFiltersJourney`, composing the
+shared operations through `onpc_fresh_thirty_allowance::search_filters`.
+`native_fixtures.CataloguePolicyJourney` compares caller-declared immutable row
+endpoints and exact query/match/access intersections before durable replies;
+the plan declares the initial, name, filtered and unchanged row checks, saved
+settings and independent 1800/0/1800-second balances. Complete installed acceptance
+passed in `20261001T054514Z-f7691e2f` on every enabled VM, including collection,
+owned cleanup and baseline restoration. This supplies no acceptance for other flows.
 
 1. FLOW16(ample daily) → PARENT04(App Limits) → UI04(legend) → UI03 → PARENT12(assets).
 2. Run the corresponding finite catalogue subrecipe below using PARENT10/11/13/15/16, UI16, shared FILE05 commands and LIFE01.

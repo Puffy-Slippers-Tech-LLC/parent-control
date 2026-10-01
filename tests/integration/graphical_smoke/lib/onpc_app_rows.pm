@@ -393,11 +393,38 @@ sub native_use_app {
     return $journey->seen('submitted');
 }
 
+# FLOW08: explicitly qualified native usable routes, no denial fallback.
+sub native_usable_app {
+    onpc_progress::operation('Launching and using the declared native app route');
+    my ($journey, $route, $desktop) = @_;
+    die 'native:usable-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && defined($route) && ($route eq 'command' || $route eq 'grid');
+    my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
+                                   : native_open_grid($journey, $desktop);
+    return native_use_app($journey, $opened);
+}
+
+# APP04: no hidden launch/input; the plan owns capture and compare endpoints.
+sub native_read_activity {
+    onpc_progress::operation('Independently reading the owned native activity');
+    my ($journey, $stage) = @_;
+    die 'native:activity-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($stage) && $stage =~ /\A[a-z][a-z0-9-]*\z/;
+    return $journey->consume_observation($stage, $journey->seen($stage));
+}
+
 sub native_close_app {
     onpc_progress::operation('Closing the owned native fixture and observing desktop return');
     my ($journey, $submitted) = @_;
     die 'native:close-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
     $journey->consume_observation('submitted', $submitted);
+    return native_finish_app($journey);
+}
+
+sub native_finish_app {
+    onpc_progress::operation('Reacquiring and normally closing the owned native app');
+    my ($journey) = @_;
+    die 'native:close-binding' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     $journey->seen('close');
     return $journey->seen('closed');
 }
@@ -432,13 +459,14 @@ sub native_grid_usable {
     $journey->finish();
 }
 
-sub native_app {
-    onpc_progress::operation('Qualifying guarded native command launch and ordinary use');
-    my ($exchange, $declared, $challenges) = @_;
+sub native_child_entry {
+    onpc_progress::operation('Entering the prepared native fixture child desktop');
+    my ($exchange, $declared, $challenges, $prefix) = @_;
     my @stages = qw(installed-greeter parent-focused recipient-qualified recipient-rechecked desktop
         child-installed-greeter child-standard-focused child-standard-recipient-qualified
         child-standard-recipient-rechecked child-desktop);
-    die 'native:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+    die 'native:arguments' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/
         && ref($declared) eq 'ARRAY' && join('/', @$declared) eq join('/', @stages)
         && ref($challenges) eq 'HASH' && keys(%$challenges) == 2
         && ref($challenges->{'parent-login'}) eq 'ARRAY'
@@ -446,7 +474,7 @@ sub native_app {
         && ref($challenges->{'native-child-login'}) eq 'ARRAY'
         && join('/', @{$challenges->{'native-child-login'}}) eq
             'other-child/child-standard-recipient-qualified/child-standard-recipient-rechecked';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'native-app', review => 0);
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => $prefix, review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -455,6 +483,14 @@ sub native_app {
     $journey->seen('logout');
     onpc_gdm::sign_in_challenge($journey, 'native-child-login',
         'child-installed-greeter', 'child-standard-focused', 'child-desktop');
+    return $journey;
+}
+
+sub native_app {
+    onpc_progress::operation('Qualifying guarded native command launch and ordinary use');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:arguments' unless @_ == 3;
+    my $journey = native_child_entry($exchange, $declared, $challenges, 'native-app');
     $journey->seen('wrong-entry');
     my $first = onpc_journey->new(
         exchange => sub { $exchange->('first-' . $_[0], $_[1]) },
@@ -471,6 +507,28 @@ sub native_app {
     $repeat->seen('refusals');
     $opened = native_open_command($repeat, $repeat->seen('desktop'));
     native_close_app($repeat, native_use_app($repeat, $opened));
+    $journey->finish();
+}
+
+sub app_activity {
+    onpc_progress::operation('Qualifying native usable flows and same-window activity comparisons');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:arguments' unless @_ == 3;
+    my $journey = native_child_entry($exchange, $declared, $challenges, 'app-activity');
+    $journey->seen('wrong-entry');
+    for my $route ('command', 'grid') {
+        $journey->seen('repeat-wrong-entry') if $route eq 'grid';
+        my $flow = onpc_journey->new(
+            exchange => sub { $exchange->($route . '-' . $_[0], $_[1]) },
+            prefix => 'app-activity-' . $route, review => 0);
+        native_usable_app($flow, $route, $flow->seen('desktop'));
+        native_read_activity($flow, 'replacement-refused') if $route eq 'grid';
+        native_read_activity($flow, 'capture');
+        native_read_activity($flow, 'reread');
+        # Reacquire the input precondition after observation, rather than
+        # reusing the stale submitted reply from before the activity reads.
+        native_finish_app($flow);
+    }
     $journey->finish();
 }
 

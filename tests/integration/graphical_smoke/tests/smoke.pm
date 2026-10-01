@@ -262,6 +262,12 @@ sub run {
         onpc_parent_search_launch::run(\&exchange);
         return;
     }
+    if ($ready->{app_activity}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::app_activity(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{native_app}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

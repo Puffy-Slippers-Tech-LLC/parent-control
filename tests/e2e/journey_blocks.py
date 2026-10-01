@@ -7,6 +7,22 @@ phase transitions. Each call returns a fresh mapping owned by its caller.
 from private_artifacts import require
 
 
+def native_usable_app(route):
+    """FLOW08 finite native usable scope; caller owns stages and later activity."""
+    require(route in ('command', 'grid'), 'journey:native-route')
+    return {
+        'desktop': 'ui:native-desktop',
+        **({'command': 'ui:native-command-launch'} if route == 'command' else {
+            'search-ready': 'ui:native-search-ready',
+            'search-focused': 'ui:native-search-focused',
+            'search-entered': 'ui:native-search-entered',
+            'app-grid': 'ui:native-grid'}),
+        'opened': 'ui:native-opened',
+        'submit': 'ui:native-submit',
+        'submitted': 'ui:native-submitted',
+    }
+
+
 def filter_screens(kind, mask, prefix):
     """PARENT11 finite option/closure stages with caller-owned invocation IDs."""
     import re

@@ -89,7 +89,8 @@ NATIVE_PRODUCT = 'ONPC Allowed Fixture'
 NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'desktop', 'search-ready', 'search-focused', 'search-entered', 'grid',
     'grid-refusals', 'command-launch', 'command-refusals', 'wrong-entry',
-    'opened', 'submit', 'submitted', 'close', 'closed'))
+    'opened', 'submit', 'submitted', 'close', 'closed',
+    'activity', 'activity-wrong-entry'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-absent'})
@@ -7735,7 +7736,7 @@ class AccessibleUI:
             '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
         ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
 
-    def native_app_snapshot(self, submitted, *, pending=False):
+    def native_app_snapshot(self, submitted, *, pending=False, with_window=False):
         """APP02/03: public owned window and finite independent activity projection."""
         require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
         scope = 'onpc-fixture-native-primary'
@@ -7758,6 +7759,15 @@ class AccessibleUI:
         if pending and value != expected:
             return None
         require(value == expected, 'ui:native-activity')
+        if with_window:
+            # Public accessible identity distinguishes replacement windows even
+            # when they expose identical fixture text and the same public ID.
+            pid, bus, path = root.get_process_id(), root.bus, root.path
+            require(type(pid) is int and pid > 0 and type(bus) is str
+                    and bus.startswith(':') and type(path) is str and path.startswith('/'),
+                    'ui:native-endpoint')
+            return {'binding': 'native-primary', 'pid': pid,
+                    'endpoint': [bus, path], 'state': value}
         return value
 
     def native_app_submit(self, instance='primary'):
@@ -7838,6 +7848,16 @@ class AccessibleUI:
         elif operation == 'native-submitted':
             return self.wait(lambda: self.native_app_snapshot('ONPC fixture draft', pending=True),
                              'native-submitted')
+        elif operation == 'native-activity':
+            return self.native_app_snapshot('ONPC fixture draft', with_window=True)
+        elif operation == 'native-activity-wrong-entry':
+            require(self.native_app_closed(), 'ui:native-wrong-entry')
+            try:
+                self.native_app_snapshot('ONPC fixture draft', with_window=True)
+            except UiError as error:
+                require(str(error) == 'ui:native-entry', 'ui:native-wrong-refusal')
+            else:
+                raise UiError('ui:native-refusal-missing')
         elif operation == 'native-close':
             self.native_app_snapshot('ONPC fixture draft')
             self.activate_id('onpc-fixture-native-primary-close')

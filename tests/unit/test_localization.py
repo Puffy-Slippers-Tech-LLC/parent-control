@@ -252,6 +252,26 @@ process.stdout.write(JSON.stringify(results));
                             input=json.dumps(lookups), capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == expected
+    # Run the same real MO vectors in the product's JavaScript runtime too.
+    vectors = production_catalogues / 'lookups.json'
+    vectors.write_text(json.dumps(lookups), encoding='utf-8')
+    gjs_script = production_catalogues / 'parity.mjs'
+    gjs_script.write_text('''
+import Gio from 'gi://Gio';
+import {Catalogue} from %s;
+const read = path => Gio.File.new_for_path(path).load_contents(null)[1];
+const cache = new Map();
+const results = JSON.parse(new TextDecoder().decode(read(ARGV[0]))).map(([path, forms, n]) => {
+    if (!cache.has(path)) cache.set(path, new Catalogue(read(path)));
+    const catalogue = cache.get(path);
+    return forms.length === 2 ? catalogue.ngettext(...forms, n) : catalogue.gettext(forms[0]);
+});
+print(JSON.stringify(results));
+''' % json.dumps((ROOT / 'child/gettext.mjs').as_uri()), encoding='utf-8')
+    result = subprocess.run(['gjs', '-m', str(gjs_script), str(vectors)], cwd=ROOT,
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == expected
 
 
 @pytest.mark.parametrize('language,expected', [('ru', '1.5 часа'), ('pl', '1.5 godziny')])

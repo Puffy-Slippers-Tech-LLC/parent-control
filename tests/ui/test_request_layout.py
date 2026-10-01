@@ -28,16 +28,22 @@ def test_translated_request_preserves_choices_and_custom_draft(
     assert ui.showing('kiosk-approver-selected-1010')
     assert ui.showing('kiosk-child-selected-1001')
     assert ui.state('kiosk-soft-apps-toggle', ui.api.StateType.CHECKED)
-    expected = {'de': 'Zugriff anfragen', 'fr': 'Demander un accès',
-                'ru': 'Запросить доступ', 'pl': 'Poproś o dostęp',
-                'ja': 'アクセスをリクエスト', 'zh-Hans': '请求访问权限'}
-    assert ui.text('kiosk-request-submit') == expected[language]
+    visible = {'de': 'ANFRAGEN', 'fr': 'DEMANDER', 'ru': 'ЗАПРОСИТЬ',
+               'pl': 'POPROŚ', 'ja': 'リクエスト', 'zh-Hans': '提交请求'}
+    assert ui.text('kiosk-request-submit') == visible[language]
     review_frame('request-' + language + ('-overlay' if overlay else '-kiosk'))
+    soft_label = ui.text('kiosk-soft-apps-label')
     ui.activate('kiosk-request-submit')
     method = 'RequestOwnAccess' if overlay else 'RequestAccess'
     wait(lambda: bool(calls(path, method)), 'translated request submits')
     assert calls(path, method)[0]['values'] == (
         [1010, 165, True] if overlay else [1001, 1010, 165, True])
+    soft = {'de': 'Vorübergehend freigebbare Apps erlauben',
+            'fr': 'Autoriser les applications pouvant être débloquées temporairement',
+            'ru': 'Разрешить приложения с временным доступом',
+            'pl': 'Zezwól na aplikacje z blokadą tymczasową',
+            'ja': '一時的に許可できるアプリを許可', 'zh-Hans': '允许使用需授权的应用'}
+    assert soft_label == soft[language]
 
 
 @pytest.mark.parametrize("overlay,dpi_scale", (

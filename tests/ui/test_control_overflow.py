@@ -21,6 +21,60 @@ def open_parent(launch_ui, ui, wait, *, environment=None):
          "Parent controls load")
 
 
+@pytest.mark.parametrize('language', ['de', 'ru', 'zh-Hans'])
+@pytest.mark.parametrize('dpi_scale', [1.25])
+def test_language_switch_preserves_parent_selection_numeric_draft_and_filters(
+        launch_ui, automation, wait_for_accessible_state, request_display_scale,
+        dpi_scale, language):
+    from tests.support.keyboard import key_combo, type_text, press_key
+    from tests.support.localization_review import switch_language, review_frame
+    ui, wait = automation, wait_for_accessible_state
+    open_parent(launch_ui, ui, wait)
+    ui.activate('parent-child-selector', action_name='menu.popup')
+    wait(lambda: ui.showing('parent-child-choice-1002'), 'child choices open')
+    ui.activate('parent-child-choice-1002')
+    wait(lambda: ui.showing('parent-child-selected-1002'), 'second child selected')
+    wait(lambda: ui.state('parent-screen-limit-toggle', ui.api.StateType.SENSITIVE),
+         'second child controls finish loading')
+    if not ui.state('parent-screen-limit-toggle', ui.api.StateType.CHECKED):
+        ui.activate('parent-screen-limit-toggle')
+    wait(lambda: ui.state('parent-daily-limit-selector', ui.api.StateType.SENSITIVE),
+         'second child preferences finish loading')
+    ui.activate('parent-daily-limit-selector')
+    wait(lambda: ui.showing('parent-daily-limit-custom'), 'custom choice opens')
+    ui.activate('parent-daily-limit-custom')
+    wait(lambda: ui.showing('parent-custom-daily-limit')
+         and ui.state('parent-custom-daily-limit', ui.api.StateType.FOCUSED), 'draft focused')
+    key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
+    key_combo(ui, 'parent-custom-daily-limit', 'BackSpace', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.content('parent-custom-daily-limit') == '', 'unsaved empty draft')
+    switch_language(ui, wait, 'parent', language)
+    assert ui.showing('parent-child-selected-1002')
+    assert ui.content('parent-custom-daily-limit') == ''
+    review_frame('parent-screen-' + language)
+    ui.activate('parent-page-app-limits')
+    wait(lambda: ui.find('parent-app-search') is not None
+         and ui.state('parent-app-search', ui.api.StateType.SENSITIVE), 'catalogue ready')
+    ui.focus('parent-app-search')
+    type_text(ui, 'parent-app-search', 'firefox')
+    ui.activate('parent-filter-match-rule')
+    choice = 'parent-filter-match-rule-precise'
+    wait(lambda: ui.showing(choice), 'filter opens')
+    before = ui.state(choice, ui.api.StateType.CHECKED)
+    ui.activate(choice, action_name='check.toggle')
+    wait(lambda: ui.state(choice, ui.api.StateType.CHECKED) != before, 'filter changes')
+    press_key(ui, choice, 'Escape', state=ui.api.StateType.FOCUSED)
+    # A second switch checks existing translated bindings without recreating data.
+    switch_language(ui, wait, 'parent', 'ja')
+    assert ui.showing('parent-child-selected-1002')
+    assert ui.content('parent-app-search') == 'firefox'
+    ui.activate('parent-filter-match-rule')
+    wait(lambda: ui.showing(choice), 'filter reopens')
+    assert ui.state(choice, ui.api.StateType.CHECKED) != before
+    press_key(ui, choice, 'Escape', state=ui.api.StateType.FOCUSED)
+    review_frame('parent-apps-' + language + '-to-ja')
+
+
 @pytest.mark.parametrize("dpi_scale", (1, 1.25))
 def test_parent_allowance_choices_remain_semantically_reachable(
         launch_ui, automation, wait_for_accessible_state, request_display_scale,

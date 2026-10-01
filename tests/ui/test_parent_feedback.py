@@ -17,7 +17,7 @@ pytestmark = pytest.mark.ui
 def test_language_switch_preserves_feedback_draft_reply_and_undo(
         launch_ui, automation, wait_for_accessible_state, language):
     from tests.support.keyboard import type_text, key_combo
-    from tests.support.localization_review import switch_language, review_frame
+    from tests.support.localization_review import switch_language, review_frame, public_label_names
     ui, wait = automation, wait_for_accessible_state
     editor, _log = open_feedback(launch_ui, ui, wait)
     type_feedback(ui, 'A retained draft', wait)
@@ -40,6 +40,11 @@ def test_language_switch_preserves_feedback_draft_reply_and_undo(
     wait(lambda: ui.content(editor).strip() == 'A retained draft!', 'draft remains editable')
     key_combo(ui, editor, '<Control>z', state=ui.api.StateType.FOCUSED)
     wait(lambda: ui.content(editor).strip() == 'A retained draft', 'undo survives switch')
+    files = {'de': 'Dateien hinzufügen', 'ja': 'ファイルを追加', 'zh-Hans': '添加文件'}
+    assert ui.text('feedback-add-files') == files[language]
+    headings = {'de': 'Die App gemeinsam verbessern', 'ja': 'アプリの改善にご協力ください',
+                'zh-Hans': '帮助我们改进应用'}
+    assert headings[language] in public_label_names(ui, 'feedback-content')
 
 
 def block_semantic_tree(node):

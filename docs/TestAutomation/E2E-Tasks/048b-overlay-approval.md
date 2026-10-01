@@ -1,7 +1,7 @@
 # 048b — Complete overlay exits and approval compositions
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -9,12 +9,8 @@ Estimate: 20–30 minutes.
 
 Add immediate approved exit to the same activity, then compose overlay FLOW05/07. Reuse 048f's rejection/Cancel and 048d's automatic return.
 
-Tasks **048f** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
-predecessor brief is an input to this session.
+Reuse the delivered scope of tasks **048f** under the
+[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -29,8 +25,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **048d** — AUTH02 overlay approval; REQUEST11/12 success and automatic child return.
 - **048f** — AUTH02 overlay rejection/Cancel and preserved-form readback.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Reuse task 048c's Shell recipient/Cancel binding, task 048d's sealed submission,
@@ -42,14 +36,8 @@ from those shared leaves; MATE proofs never authorize Shell input.
 
 In separate live overlay attempts, enter one declared wrong password and observe explicit rejection, Cancel and compare the usable unchanged form; separately Cancel a fresh challenge. Approve another declared request and take the offered immediate exit after reading success, returning to the same child activity. Keep valid automatic-return evidence from 048d and rerun it when changed code affects it. Refuse wrong provider/request, stale or reused proof and uncertain delivery; require sealed capture, collection and cleanup.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_overlay_approval
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

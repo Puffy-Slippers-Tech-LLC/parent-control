@@ -1,7 +1,7 @@
 # 141b — Remove the product and follow its reboot notice
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 40–60 minutes.
 
@@ -30,16 +30,8 @@ existing qualified operations.
 
 Remove through the shared administrator SSH package helper, read the real reboot notice, reboot normally and enter the child to use the fixture app. Pass applicable package cleanup checks; do not assert reinstall persistence yet.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_product_remove
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

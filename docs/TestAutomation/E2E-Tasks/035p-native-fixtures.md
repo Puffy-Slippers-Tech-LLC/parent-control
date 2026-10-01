@@ -1,21 +1,19 @@
 # 035p — Install the declared native app fixtures
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **FIX04 native assets and launcher preparation**. First scheduled consumer: [E2E-041, case 184](../E2E-Scenario-Recipes.md#e2e-041).
+Deliver **FIX06 native baseline verification and catalogue preparation**. First scheduled consumer: [E2E-041, case 184](../E2E-Scenario-Recipes.md#e2e-041).
 Read only the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope) and that consumer's selected recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **006** — existing guarded administrator SSH command route; its product package installation is not fixture preparation.
 - **077a** — PARENT12; UI13 complete public app-row observations.
-
-Use maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
@@ -62,16 +60,13 @@ Do not count a manifest entry or copied file as an observed catalogue row, or
 seed app policy. Missing supported assets or public catalogue identities block
 this consumer.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_native_fixtures
 ```
 
-## Close out
-
-### Remaining acceptance
+## Remaining acceptance
 
 `check_e2e_native_fixtures` failed at `native_fixtures.check_catalogue()`'s
 `native:catalogue-defaults` comparison in `20261001T013104Z-7f771800` on
@@ -102,9 +97,6 @@ or runs rotate them:
 - [Detailed runner output](../../../output/test-runs/host/exports/onpc-artifact-export-bduvt33l/category-001.log)
 - [Worker failure locations](../../../output/test-runs/host/exports/onpc-artifact-export-_6tx3fai/worker-result.json)
 
-Keep 035p unchecked, FIX04 native qualification pending and the pointer here.
+Keep 035p unchecked, FIX06 native qualification pending and the pointer here.
 Resume close-out only after catalogue/defaults, independent reopening and
 collection pass with owned cleanup and baseline restoration.
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

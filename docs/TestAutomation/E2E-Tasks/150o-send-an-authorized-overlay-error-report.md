@@ -1,7 +1,7 @@
 # 150o — Send an authorized overlay error report
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -17,8 +17,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **150** — FEED11, FEED09 sending/success and FEED14 Parent feedback; gate in brief.
 - **187o** — REQUEST09 cooldown and FEED15 overlay; gate in brief.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Bind one reviewed synthetic Send on the actual overlay error-report window. Reuse the qualified public cooldown-error prefix and shared submission operation; qualify the surface's confirmation and exit separately from ordinary Parent feedback.
@@ -27,14 +25,8 @@ Bind one reviewed synthetic Send on the actual overlay error-report window. Reus
 
 On the VM, produce the public error, review the report and Privacy, Send once, observe acceptance and keep thanks visible for five seconds. Dismiss normally and require report closure plus the child desktop. Opening or successful transport alone cannot satisfy exit behavior.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_send_an_authorized_overlay_error_report
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

@@ -52,6 +52,7 @@ layer's automation, including shared workers.
   account changes or offline use does not make GNOME's menus or Settings pages
   product features. Only an explicitly tested product integration, such as its
   app-grid entry, file chooser or external link, needs that GUI route.
+
 ## Product integrations
 
 - **Attachment handoff:** Treat the operating system's file chooser as an
@@ -77,31 +78,22 @@ layer's automation, including shared workers.
   submission remain separate product features.
   Rich-editor link formatting is a separate owned editing feature: its synthetic
   link values may be checked through public text attributes without navigation.
-- **Parent app launch:** Every case that needs Parent functionality without
-  testing app-grid discovery must reuse PARENT01
-  ([`onpc_parent::launch`](../../tests/integration/graphical_smoke/lib/onpc_parent.pm)),
-  directly or through FLOW01. It invokes the installed
-  `oh-no-parent-control-parent` command directly as the current desktop user,
-  without a terminal or app-grid search, then independently observes the
-  expected management window or access denial. Use this block for setup and
-  reopening; do not duplicate launch code. Returning to an already open window
-  does not require relaunching. Only cases explicitly testing app-grid discovery,
-  launch or unavailability may use the search blocks with the full query
-  `Oh No! Parent Control` and open a launchable result when expected. Declare
-  that exception in the case metadata and recipe. Preserve session identity,
-  prompt refusal, single-use execution and independent result checks.
-- **Child app launch:** Every case that needs the child overlay without testing
-  how to find or launch it through the graphical UI must reuse REQUEST02
-  (`AccessibleUI.launch_child_command`), directly or through a composite.
-  This block invokes the installed `oh-no-parent-control-child` command as the
-  active child desktop user, without a terminal, app-grid search or panel
-  navigation, then independently observes one usable overlay with the fixed
-  child identity. Use it for setup and reopening; do not duplicate launch code.
-  Returning to an already open overlay does not require relaunching. Only
-  cases explicitly testing graphical discovery or launch may use a UI entry
-  block. Declare that exception in the case metadata and recipe. Preserve
-  session identity, prompt refusal, single-use execution and independent
-  result checks.
+### Ordinary app entry
+
+Use the shared command block for setup and reopening. Both commands run as the
+bound active desktop user through guarded transport and independently observe
+their public result. Reusing an already open window needs no relaunch.
+
+| Surface | Required shared block | Independent result | Explicit GUI exception |
+| --- | --- | --- | --- |
+| Parent | [PARENT01](../TestAutomation/E2E-Building-Blocks.md#app-grid-search-and-parent-launch), directly or through FLOW01 | Expected management window or access denial | A case testing app-grid discovery, launch or unavailability uses the full query `Oh No! Parent Control` and opens a launchable result when expected. |
+| Child overlay | [REQUEST02](../TestAutomation/E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form), directly or through a composite | One usable overlay with the fixed child identity | A case testing graphical discovery/launch uses its qualified UI entry block. |
+
+Declare each graphical exception in case metadata and its recipe. Keep installed
+commands, source callables and qualified bindings in the catalogue. Do not copy
+launch code into cases. Session identity, prompt refusal, single-use execution
+and independent result checks apply to both routes.
+
 ## Target identity and provider exception
 
 - For GUI operations required by the feature under test, and unavoidable
@@ -136,6 +128,7 @@ layer's automation, including shared workers.
   the input/result guards below; refuse when these cannot be established. This
   exception never applies to repository-owned UI and overrides blanket external
   ID requirements in subordinate documents.
+
 ## Input and independent results
 
 - After ID lookup (or qualified external-provider resolution), names, roles,
@@ -143,7 +136,8 @@ layer's automation, including shared workers.
   Prefer invoking the ID-resolved control's public accessibility action directly,
   including when a scroll viewport clips or covers an otherwise available control.
   Do not add focus, scrolling or repeated tree traversals before such an action.
-  Avoid control looping such as find_all_ids whenever direct ID invocation is possible.
+  Resolve the target once per fresh input boundary; do not enumerate every ID or
+  repeat full traversals solely to obtain that same target.
   Prefer a provider's direct ID lookup where available; otherwise reuse one fresh,
   complete scoped snapshot for prompt, ownership and target checks at each input
   boundary. Never reuse a snapshot across input or session transitions. Preserve
@@ -157,3 +151,6 @@ layer's automation, including shared workers.
   required public state. Preserve ownership, secret-recipient, single-use input
   and uncertain-input guards; never replay an action whose effect is uncertain.
   Previously qualified automation has no exemption from this mandate.
+  Installed secret delivery follows the shared
+  [credential contract](../../tests/e2e/README.md#credential-staging-and-password-capture-boundary),
+  including fresh same-challenge recipient proofs and sealed capture.

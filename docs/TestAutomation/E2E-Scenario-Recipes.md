@@ -32,26 +32,19 @@ account names required on a customer's computer. Limits initially are off,
 allowances zero and app rules allowed. Prepare every tested policy through
 Parent and every grant through the real system approval prompt.
 
-Customer steps use the app's real controls and observe its public results.
-Routine Shell/GDM, account/file preparation, package commands, connectivity and
-lifecycle operations use shared SSH, shortcuts or supported system APIs.
-Cases 3, 4 and 179–183 use shared account helpers and independently observe the
-app's discovery, empty-state, eligibility and selector fallback behavior.
-No scenario tests GNOME Users settings, Quick Settings or Terminal entry merely
-to prepare those results. The shared sign-in helper goes directly to the intended
-account; wrong-account visits are separate harness safety qualification.
-Case 1 is explicitly not a customer journey. Retired IDs 140–150 are not UI
-cases; their engineering checks remain in system-test tasks 169–179.
+The [UI mandate](../Mandates/UI-Automation-Mandate.MD#route-selection) owns
+route selection. Cases 3, 4 and 179–183 use shared account helpers and independently
+observe the app's discovery, empty-state, eligibility and selector fallback.
+Case 1 is harness qualification. Retired IDs 140–150 remain engineering checks
+in system-test tasks 169–179.
 
 All recipes use the [bounded supporting-work contract](E2E-Building-Blocks.md#keep-supporting-work-bounded).
 Reuse verified local fixtures, direct supporting commands and existing helpers.
 Preparation ends when the declared prerequisite is established; the following
 product action and independent customer result supply acceptance.
 
-Every recipe inherits the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD),
-including its external-provider exception. Names, labels, roles, text and order
-below describe customer inputs/results; they do not define selectors. Provider
-selection belongs to the qualified adapter, repository-owned selection to public IDs.
+Names, labels, roles, text and order below describe inputs/results, not selectors.
+Use the catalogue's qualified binding under the UI mandate.
 
 Every ordinary Parent launch or reopening uses PARENT01's direct
 `oh-no-parent-control-parent` command, including launches inside FLOW01/P/P0
@@ -835,7 +828,7 @@ Implementation status: All cases pending.
 
 Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers / special-paths / pattern-files.
 
-Native identities/defaults come from FIX04's [finite native declaration](E2E-Building-Blocks.md#native-fixture-preparation)
+Native identities/defaults come from FIX06's [finite native declaration](E2E-Building-Blocks.md#native-fixture-preparation)
 and `tests/fixtures/native_assets.py`. Reuse `native_fixtures.fixture_actions()`
 for fresh baseline verification and `check_catalogue()` for the public initial defaults;
 preparation assigns no policy. Complete E2E-041 bindings remain pending.
@@ -1195,7 +1188,8 @@ saved rows and, when stated, using the app as the child.
 | 189 pattern-files | Save a same-directory version wildcard for the prepared AppImage. FILE05 adds the next matching version and a nonmatching file; FLOW08 matching denied and existing nonmatch usable. The new nonmatch may require the documented refresh: wait up to 60 seconds through TIME03/APP02 read-only observations, then perform one declared launch. A failed uncertain launch is not retried as if it never happened. A pattern unable to preserve existing nonmatches must report failure and retain the previous rule. |
 
 No screenshot geometry or file/process introspection supplies an app result.
-FIX04 stages declared assets only. At the declared journey checkpoints, FILE05
+FIX06 verifies reusable baseline sources; FIX04 transfers attempt inputs only.
+At the declared journey checkpoints, FILE05
 performs copies/renames and LIFE04 performs package changes through shared
 commands; Parent's UI performs rule changes. Supported asset identities and normal
 launch commands must be specified before implementation; absent assets or

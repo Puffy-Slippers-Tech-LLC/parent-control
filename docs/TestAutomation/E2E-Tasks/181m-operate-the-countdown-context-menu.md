@@ -1,7 +1,7 @@
 # 181m — Operate the countdown context menu
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -14,8 +14,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **181h** — DESK12 showing countdown binding; UI27 and PANEL03.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Implement one secondary click UI28 before PANEL01. Compose PANEL02 from UI17, Escape, menu absence and desktop observation. Bind only the public countdown-animation option.
@@ -24,14 +22,8 @@ Implement one secondary click UI28 before PANEL01. Compose PANEL02 from UI17, Es
 
 On the VM, read default off, set on, close the menu, reopen and read on; set off and verify again. Return to a usable child desktop after each close. Persistence across session boundaries belongs to cases 162–163.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_operate_the_countdown_context_menu
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

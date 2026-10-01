@@ -27,7 +27,9 @@
   unrelated changes.
 - Use the [test documentation map](docs/TestAutomation/README.md) to locate each
   rule's owner. Read the applicable contract before work; keep enduring rules in
-  that owner and link to them from task briefs instead of copying them.
+  that owner and link to them from task briefs instead of copying them. For
+  reconciliation, use its [working route](docs/TestAutomation/README.md#working-route);
+  updating a plan does not execute or close its tasks.
 - Reuse unchanged instructions/source in context, including injected AGENTS.md.
   After a new session or compaction, retrieve missing applicable requirements.
   Read complete relevant functions and necessary callers, callees and shared
@@ -61,11 +63,10 @@
   Obtain a missing behavior decision before accepting a mismatch. Repair proven
   mechanical defects and missing generated inputs through authorized routes.
 - For customer acceptance, use the installed product's public actions/results.
-  Keep internal probes and fault injection in engineering tests. Apply the
-  [UI/E2E allocation](docs/TestAutomation/UI-and-E2E-Coverage.md),
-  [bounded supporting work](docs/TestAutomation/E2E-Building-Blocks.md#keep-supporting-work-bounded)
-  and [composition preflight](docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight).
-  Cases own finite data/order/assertions; shared libraries own reusable mechanics.
+  Keep internal probes and fault injection in engineering tests. The
+  [shared task contract](docs/TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
+  routes implementation, UI/E2E allocation, bounded supporting work and composition
+  preflight. Cases own finite data/order/assertions; shared libraries own reusable mechanics.
 - For "Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md",
   follow the [plan](docs/TestAutomation/E2E-Execution-Plan.md): exactly the first
   unchecked active queue row, full acceptance and close-out, then pointer advance.
@@ -91,14 +92,9 @@ Read only the mandates triggered by the work:
 | VM operations, preparation or live tests | [VM mandate](docs/Mandates/VM-Mandate.MD): registered targets, unattended authorization, watch, leases and baseline lifetime |
 | Test/fixture/tool storage or cleanup changes | [Test storage mandate](docs/Mandates/Test-Storage-Mandate.md): shared allocation, retention, identity and screenshot exceptions |
 
-VM probes have standing authorization for every registered entry, including
-disabled test targets. Use `tools/test-vm --vm NAME_OR_ID exec -- COMMAND [ARG ...]`
-with its existing ownership, lease and observation guards. Agent preparation uses
-`tools/prepare-baseline --vm NAME --mode auto|manual --y` and
-`tools/prepare-appsnapshot --vm NAME --y`; manual baseline mode still needs the
-authorization described by the VM mandate. Reusable prerequisites belong in
-idempotent baseline preparation; attempts verify them and own only transient
-inputs and deliberate scenario mutations.
+The VM mandate owns standing probe authorization (including disabled registered
+targets), guarded guest commands and preparation modes. Read it before VM work;
+do not infer authorization or preparation lifetime from a task's example command.
 
 ## Reads, edits and evidence
 
@@ -123,11 +119,7 @@ inputs and deliberate scenario mutations.
 
 ## Setup
 
-`./setup.sh` is the sole public development setup entry point. Follow
-[one-time setup](docs/Approval-Tools.md#one-time-setup) for modes, prerequisites
-and activation. Refresh helpers with `./setup.sh --test-tools-only`, rules with
-`./setup.sh --codex-rules-only`, and restart Codex after rule changes. First install
-uses `./setup.sh --bootstrap-tools`. Do not refresh rules to repair bad quoting.
-Use the installed pinned default-deny setup helper; no direct sudo, generic
-privileged interpreter or authentication fallback. Tests/builds report missing
-prerequisites rather than installing them.
+`./setup.sh` is the sole public development setup entry point.
+[One-time setup](docs/Approval-Tools.md#one-time-setup) owns modes, prerequisites,
+helper/rule refresh and activation. Do not refresh rules to repair bad quoting.
+Tests/builds report missing prerequisites rather than installing them.

@@ -1,7 +1,7 @@
 # 116b — Launch and use Flatpak fixtures by command
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -12,7 +12,7 @@ complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **116p** — Flatpak baseline assets and verification; FIX04 transfer only.
+- **116p** — Flatpak baseline assets and FIX06 verification.
 - **079a** — APP02 and FLOW08 native grid/command policy results.
 
 ## Implementation
@@ -23,16 +23,8 @@ Reuse the qualified installed Flatpak profile and guarded SSH command binding. B
 
 Launch each declared Flatpak fixture, perform its normal action, capture S and open a distinguishable second instance while the earlier activity remains. Qualify independent guarded SSH command entry and wrong-scope/echo-only/uncertain-input refusal.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_flatpak_command_usable
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

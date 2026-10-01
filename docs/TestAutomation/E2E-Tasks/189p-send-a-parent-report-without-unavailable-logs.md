@@ -1,7 +1,7 @@
 # 189p — Send a Parent report without unavailable logs
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -17,8 +17,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **188p** — FEED09 Parent collection failure and usable controls; gate in brief.
 - **150** — FEED11, FEED09 sending/success and FEED14 Parent feedback; gate in brief.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Bind the explicit Send without logs action on Parent after observed collection failure and reviewed FEED03/FEED05 evidence. Qualify its actual acceptance and confirmation destination; use one input and no automatic retry by the test.
@@ -27,14 +25,8 @@ Bind the explicit Send without logs action on Parent after observed collection f
 
 With the reviewed sending authorization, reproduce the qualified public collection failure on the VM, submit the declared report once without logs, observe service acceptance, dismiss thanks and require the Parent-specific final destination. Missing logs alone is not acceptance.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_send_a_parent_report_without_unavailable_logs
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

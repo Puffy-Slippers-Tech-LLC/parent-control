@@ -1,7 +1,7 @@
 # 183a — Lock during pending overlay approval
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -18,8 +18,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **044** — DESK09; FLOW15 and FLOW01 retained scopes.
 - **052c** — TIME03.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Compose only the overlay lock branch with an already observed real AUTH01 prompt and explicit pre-request choices/balances. Use the normal lock shortcut, observe the lock challenge and unlock legitimately. Read REQUEST03 and require the old prompt absent; a later request must authenticate afresh.
@@ -28,14 +26,8 @@ Compose only the overlay lock branch with an already observed real AUTH01 prompt
 
 On the VM, publicly prepare usable time, capture choices/balances, start approval and perform the declared action while authentication is pending. Observe the destination and return, inspect cancellation and original balances before another request, then require a new prompt. Use TIME03 only for the actual cooldown.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_lock_during_pending_overlay_approval
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

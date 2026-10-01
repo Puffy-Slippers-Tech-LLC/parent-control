@@ -33,8 +33,9 @@ concurrent developer edits.
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
 | [Generated coverage](../Test-Coverage.md) | Generated view of the executable inventories | Authority over its source files |
 
-Use the narrowest owner. Expected customer behavior comes from the specification
-and system design, not from a currently observed result. A confirmed mismatch
+Use the narrowest owner. The specification owns expected customer behavior;
+system design owns implementation boundaries and documented limitations. Neither
+an observed result nor a task brief silently changes the specification. A mismatch
 follows the repository regression-failure contract rather than being reconciled
 as a documentation preference.
 
@@ -75,10 +76,24 @@ required.
 
 ## Working route
 
-For documentation reconciliation, inspect the affected owners and executable
-bindings, update unfinished consumers, then run link and metadata consistency
-checks. This work does not execute or close the next queue task. Changes confined
-to prose and metadata tests need no VM qualification or package build.
+For documentation reconciliation:
+
+1. Identify each rule's owner in the table above. Correct a conflicting copy and
+   replace repeated procedure with a scoped link; retain task-specific assertions,
+   authorization gates, blockers and valid evidence.
+2. Check source callables, inventory bindings and launcher help before describing
+   an interface as implemented. Distinguish planned selectors from registered ones.
+   Read the affected function and its necessary callers/callees, not just a search hit.
+3. Update every unfinished consumer of the changed rule, including deferred briefs.
+   Keep dependency order, case IDs, acceptance, session exceptions and the current
+   blocker intact. Reconcile stale task descriptions against delivered scope.
+4. Run `tools/read-only links` for changed Markdown and the host consistency
+   selection in [close-out](E2E-Execution-Contracts.md#completion-and-document-cleanup).
+   Refactored test code also needs its affected regressions and resource review.
+
+This work does not execute or close the next queue task. Changes confined to
+prose and metadata tests need no VM qualification or package build. Runtime,
+provider, ownership or preparation changes retain their normal validation gates.
 
 For test implementation, apply the [shared task contract](E2E-Execution-Contracts.md#task-brief-contract)
 and the selected brief. Use the existing shared operations in both qualification
@@ -97,17 +112,7 @@ requirements, external-provider gaps and their return conditions are maintained
 in [functional validation](E2E-Building-Blocks.md#functional-validation); keep
 them separate from customer scenario completion.
 
-All UI work inherits the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD),
-including its external-provider exception. The catalogue records implementation
-gaps and route qualification; it does not redefine that mandate.
-Apply its route-selection rule before creating UI work: routine Shell, GDM and
-other system operations use shared commands, SSH or shortcuts. Only tested app
-features and unavoidable graphical authentication need GUI adapters. Historical
-completed tasks cannot make an unrelated system UI a customer requirement.
-
-Provider work follows the same [execution plan](E2E-Execution-Plan.md#external-provider-work-within-the-sequence)
-and ordered queue as every customer capability. There is one next-task pointer;
-an incomplete row stays current. External IDs are optional conveniences and the
-approved provider exception remains available. Repository-owned UI retains its
-mandatory public-ID contract. Each provider capability includes its stated live
-qualification; a host implementation alone cannot complete it.
+Provider work follows the [UI mandate's route selection](../Mandates/UI-Automation-Mandate.MD#route-selection)
+and the same [execution plan](E2E-Execution-Plan.md#external-provider-work-within-the-sequence).
+The catalogue records qualification of exact bindings; historical tasks and
+host-only checks cannot qualify a new route.

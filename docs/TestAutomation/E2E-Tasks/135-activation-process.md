@@ -1,7 +1,7 @@
 # 135 — Follow a real process-activation update
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 30–50 minutes.
 
@@ -11,12 +11,8 @@ Session exception: Real update activation and the affected mechanical package ch
 
 Add the process-activation profile, notice and normal affected-app close/reopen sequence. Reuse 135a's fixed update/result infrastructure while retaining distinct live evidence for both profiles.
 
-Tasks **135a** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
-predecessor brief is an input to this session.
+Reuse the delivered scope of tasks **135a** under the
+[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -32,8 +28,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **048a** — Overlay REQUEST04/05/06/08, invalid REQUEST09, REQUEST11/12 Cancel/Escape and FLOW04.
 - **135a** — LIFE04 update and LIFE05 no-action notice.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Bind a verified old/new package profile requiring process activation. Extend LIFE04(update) and LIFE05 only for this route and the explicit no-action notice branch. Follow the displayed requirement for every named affected app/user; preserve all mechanical migration obligations.
@@ -42,14 +36,8 @@ Bind a verified old/new package profile requiring process activation. Extend LIF
 
 On the VM install the real process-activation update, read its requirement, perform the normal close/reopen sequence and read settings before edits. In an independent attempt, qualify the declared real no-action update profile: read its notice and observe unchanged usable app entry without adding an activation action. Both claimed LIFE05 branches require live results. Run the affected existing package activation checks separately.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_activation_process
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

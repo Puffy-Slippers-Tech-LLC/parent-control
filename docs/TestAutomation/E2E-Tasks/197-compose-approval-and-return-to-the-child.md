@@ -1,7 +1,7 @@
 # 197 — Compose overlay approval and return
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -16,8 +16,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **044** — DESK09; FLOW15 and FLOW01 retained scopes.
 - **052** — TIME01 child-desktop presence and limits-off absence.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Compose the overlay branches of FLOW04 and FLOW05, then TIME01/UI12 on the same child desktop. Accept explicit new/open form entry and earlier public balance observations. No hidden allowance, policy preparation or desktop transition. Keep the kiosk branch pending.
@@ -26,14 +24,8 @@ Compose the overlay branches of FLOW04 and FLOW05, then TIME01/UI12 on the same 
 
 In separate live attempts, supply a usable child desktop for new-form entry and an independently prepared overlay for open-form entry. Approve once, observe automatic form disappearance and the same usable child desktop, then compare countdown with the earlier public balance plus the requested interval and measured elapsed time. Missing, wrong-child or kiosk entry refuses without preparatory input.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_compose_approval_and_return_to_the_child
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

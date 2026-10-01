@@ -1,7 +1,7 @@
 # 036g — Place and launch a native desktop entry
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -14,7 +14,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
 - **079a** — APP02 and FLOW08 native grid/command policy results.
-- **035p** — FIX04 native assets; LIFE04 fixture installation.
+- **035p** — native baseline assets and launchers; guarded read-only verification.
 
 ## Implementation
 
@@ -33,16 +33,8 @@ usability action. Qualify independent desktop entry and wrong-icon/ambiguous-own
 refusal. A missing supported preparation API is a concrete prerequisite, not a
 reason to add a file-manager setup tour.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_native_desktop_usable
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

@@ -1,7 +1,7 @@
 # 048f — Observe overlay password rejection and Cancel
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -25,16 +25,8 @@ Reuse Shell recipient and sealed input from 048c/048d. Bind explicit wrong-passw
 
 In separate fresh attempts, submit one declared wrong password and observe rejection before Cancel; Cancel another fresh prompt without a secret. Compare preserved choices and require sealed capture/cleanup.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_overlay_rejection
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

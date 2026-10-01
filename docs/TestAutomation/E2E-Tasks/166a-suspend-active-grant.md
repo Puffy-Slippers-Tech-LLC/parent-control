@@ -1,7 +1,7 @@
 # 166a — Suspend and wake before a grant expires
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -30,16 +30,8 @@ wake; no power-settings UI, host suspend, RTC setup or wake-method matrix.
 
 Prepare a real active grant with zero daily allowance, suspend normally, wake before its deadline, independently observe the return surface and unlock successfully. Qualify independent valid entry, wrong-owner refusal and continuity of the existing activity.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_suspend_active_grant
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

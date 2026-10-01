@@ -1,7 +1,7 @@
 # 043b — Qualify a fresh child login with usable daily time
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -23,16 +23,8 @@ Bind the intended child's fresh GDM recipient and success using two fresh proofs
 
 Prepare positive daily time through Parent and observe saving, Switch User, log the child in correctly and independently observe the usable child desktop. Wrong-recipient and stale-proof tests must pass.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_fresh_child_allowed
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

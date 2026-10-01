@@ -1,7 +1,7 @@
 # 126 — Compose windowed gameplay through natural expiry
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -16,8 +16,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **062** — TIME04.
 - **065** — FLOW13 grant-only/combined; retained entry and explicit revoke preparation.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Reuse the qualified real-game launch, usability and activity callables. Prepare its declared windowed mode/level through shared supported launch options or keyboard shortcuts, then compose APP05's independent mode/level observation and APP03 gameplay input/effect. Bind any startup options before FLOW08 launches; never relaunch retained activity for preparation. Compose FLOW10 from game FLOW08, APP05, APP04 and TIME04. Preserve real gameplay and bounded public results; no settings-menu tour, fake game, timer or private state probe.
@@ -26,14 +24,8 @@ Reuse the qualified real-game launch, usability and activity callables. Prepare 
 
 On the VM actually play the declared real windowed level, observe input effects and a recognizable activity, then play a short grant to natural lock. Missing public locators remain a named prerequisite.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_game
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

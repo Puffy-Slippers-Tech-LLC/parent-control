@@ -1,7 +1,7 @@
 # 065a — Prepare grant-only time and explicit revoke-first entry
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -23,16 +23,8 @@ Compose real kiosk approval at daily=0 with retained Parent readback and final G
 
 Observe D=0/G>0 after real approval and finish at GDM. In a separate attempt, explicitly revoke first and independently read G=0 before preparing the grant; an unexpected undeclared existing grant refuses.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_grant_only_profile
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

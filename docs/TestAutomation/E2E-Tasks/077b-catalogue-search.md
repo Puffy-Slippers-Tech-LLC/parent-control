@@ -1,7 +1,7 @@
 # 077b — Search the public app catalogue
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -13,7 +13,7 @@ complete cases released directly by this slice in the canonical queue.
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **010** — UI17 Parent Screen time limit binding; installed qualification and owned cleanup passed.
-- **035p** — FIX04 finite native assets and launchers in baseline, with guarded SSH verification.
+- **035p** — FIX06 finite native assets and launchers in baseline, with guarded SSH verification.
 - **009** — UI16.
 - **077a** — PARENT12; UI13 complete public app-row observations.
 
@@ -31,16 +31,8 @@ and never relies on the preceding qualification's VM state.
 
 Search the prepared fixture name and a declared absent name, independently compare complete public rows and read the fixture's access/match values. Qualify independent App Limits entry and wrong-child/incomplete-result refusal.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_catalogue_search
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

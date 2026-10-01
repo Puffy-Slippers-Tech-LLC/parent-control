@@ -66,9 +66,7 @@ obligations under their maintained owners.
 
 ## Execute one task
 
-1. Follow repository AGENTS.md, start at [System-Design.md](../System-Design.md),
-   apply [Approval-Tools.md](../Approval-Tools.md), and inspect working-tree status.
-   Preserve unrelated edits and reuse existing session authorization.
+1. Apply [repository instructions](../../AGENTS.md) and inspect working-tree status.
 2. Verify that Next task is the first unchecked active queue row, and check
    its required capabilities and task-local prerequisites. Read only those rows.
    A checked historical task cannot override a currently pending provider route.
@@ -90,7 +88,7 @@ row at a time. There is no alternate provider queue, runtime eligibility search
 or automatic jump around a blocker. IDs and filenames are stable labels, not
 sort keys. A scenario never depends on another scenario's execution.
 
-If blocked, retain delivered scope and append only
+If blocked, retain delivered scope and append
 `Blocker: …; resume when: …`. Complete authorized preparation for that task,
 including concrete reviewable inputs when sending authorization is missing.
 Keep the row unchecked and the pointer on it; report the unresolved requirement.
@@ -148,7 +146,7 @@ stale references, uncertain behavior or failures; there is no token, file-count
 or reading-time cap that can excuse incomplete understanding or validation.
 A truncated result needs a narrower complete read, not a guessed conclusion.
 
-Keep the selected brief's **Read only this context** useful: document headings,
+Keep the selected brief's reading references useful: document headings,
 block/recipe IDs, source paths and symbols, relevant test files and exact live
 selectors. Identify planned selectors as unimplemented until verified. These
 are navigation hints, not copied contracts or cached readiness. Repair stale
@@ -184,8 +182,9 @@ Before implementation, read the
 [system](E2E-Execution-Contracts.md#system-acceptance) acceptance branch.
 They retain snapshot preparation, watch, isolated safety gates, affected
 regressions, public-result observation, collection and cleanup requirements.
-Host checks cannot complete live work. Task 192 remains the sole host-only
-exception; no new exception is introduced by scoped reading.
+Host checks cannot complete queued live work. Historical task 192 is the sole
+host-only queue exception. Documentation reconciliation follows the
+[separate working route](README.md#working-route) and closes no queue row.
 
 ## Completion and document cleanup
 

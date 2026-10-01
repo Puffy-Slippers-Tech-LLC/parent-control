@@ -1,7 +1,7 @@
 # 187o — Review an overlay cooldown report
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -9,12 +9,8 @@ Estimate: 20–30 minutes.
 
 Add review-report entry, Privacy and normal report-close destination. Reuse 187a's actual cooldown trigger and decline result; preserve independent attempts for both outcomes.
 
-Tasks **187a** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
-predecessor brief is an input to this session.
+Reuse the delivered scope of tasks **187a** under the
+[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -31,8 +27,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **030** — FEED05; FEED10 dialog persistence.
 - **187a** — REQUEST09 overlay cooldown and FEED15 decline branch; gate in brief.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Qualify the public reopen/Request route within the actual five-second cooldown, then report-review/decline bindings and their overlay destinations. Reuse selected-parent approval; never extend product timing.
@@ -41,14 +35,8 @@ Qualify the public reopen/Request route within the actual five-second cooldown, 
 
 On the VM, approve once, reopen and Request before five seconds from success, and read the actual too-soon result. In independent attempts review and decline reporting, checking form/report destinations and original balance before any new approval.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_read_overlay_cooldown_errors_and_report_choices
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

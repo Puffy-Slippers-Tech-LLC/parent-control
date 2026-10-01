@@ -1,7 +1,7 @@
 # 042a — Lock a desktop and observe its challenge surface
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -22,16 +22,8 @@ Reuse the shared DESK05 lock command or Super+L shortcut. The Shell lock adapter
 
 Lock an observed usable fixture desktop, independently identify the lock surface, reveal the challenge and observe its public identity. Qualify an independently supplied lock and reject wrong session/ambiguous surfaces.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_lock_surface
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

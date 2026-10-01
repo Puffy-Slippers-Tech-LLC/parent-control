@@ -1,7 +1,7 @@
 # 116 — Observe Flatpak command denial and closure
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -9,12 +9,8 @@ Estimate: 20–30 minutes.
 
 Add publicly configured Hard/Soft command denial and expected closure, preserving usable A. Reuse 116b's activity and new-window route; do not reimplement package installation.
 
-Tasks **116b** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
-predecessor brief is an input to this session.
+Reuse the delivered scope of tasks **116b** under the
+[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -23,11 +19,9 @@ Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-an
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **116p** — Flatpak baseline assets and verification; FIX04 transfer only.
+- **116p** — Flatpak baseline assets and FIX06 verification.
 - **079a** — APP02 and FLOW08 native grid/command policy results.
 - **116b** — APP01/02/03/04 and FLOW08 Flatpak command usable/new-window route.
-
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
@@ -41,14 +35,8 @@ qualified installation scope; do not add package installation to this slice.
 
 On the VM, use the declared Flatpak command to launch each required fixture and observe normal input effects. Capture S, open a distinguishable second instance and prove the earlier activity remains. Through Parent, apply Hard and Soft blocks and require explicit command denial and the expected closure, with A still usable. A missing supported asset, new-instance route or public observation blocks the affected consumer.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_flatpak
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

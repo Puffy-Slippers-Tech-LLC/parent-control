@@ -18,6 +18,23 @@ def switch_language(ui, wait, surface, language):
         'language chooser commits and closes')
 
 
+def public_label_names(ui, identity):
+    """Read anonymous label descendants of one public ID, with finite bounds."""
+    pending = [(ui.target(identity), 0)]
+    names = []
+    visited = 0
+    while pending:
+        node, depth = pending.pop()
+        visited += 1
+        assert visited <= 512 and depth <= 24
+        if node.get_role_name() == 'label':
+            names.append(node.get_name())
+        count = node.get_child_count()
+        assert 0 <= count <= 128
+        pending.extend((node.get_child_at_index(index), depth + 1) for index in range(count))
+    return names
+
+
 def review_frame(label):
     """Capture the existing spectator feed; pixels never decide test outcomes."""
     import cairo
@@ -25,14 +42,12 @@ def review_frame(label):
     from tools.ui_watch_transport import Feeds
 
     feeds = Feeds()
-    started = time.monotonic_ns()
     try:
         deadline = time.monotonic() + 4
         while time.monotonic() < deadline:
             for frame in feeds.poll().values():
                 meta = frame[1]
-                if (meta.get('worker') == os.getpid() and meta['state'] == 'live'
-                        and meta.get('captured_ns', 0) > started + 300_000_000):
+                if meta.get('worker') == os.getpid() and meta['state'] == 'live':
                     directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-localization-review-'))
                     path = directory / (label + '.png')
                     pixels = bytearray(frame[2])

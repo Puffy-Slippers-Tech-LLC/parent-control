@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **047 — [Record app activity and compose launch/use](E2E-Tasks/047-app-activity.md)**.
+Next task: **048 — [Qualify direct and panel entry to the child overlay](E2E-Tasks/048-shell-panel.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

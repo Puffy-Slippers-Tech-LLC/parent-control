@@ -389,6 +389,13 @@ Bindings: surface = child-overlay / kiosk; choice = predefined / custom / rest-o
 
 ### E2E-015
 
+Overlay consumers use `journey_blocks.native_usable_app` /
+`onpc_app_rows::native_usable_app` for FLOW08's qualified native usable route.
+APP04 uses the shared `native-activity` public reader and
+`JourneyPlan.activity_checks` to bind the later read to its earlier immutable
+window/activity capture before further edits. This supplies no complete overlay
+case or cross-user retention acceptance; those remain with their consumers.
+
 Implementation context: case 47 uses `kiosk_cancel.PLAN` / `onpc_kiosk_cancel::run`.
 Case 48 uses `kiosk_escape.PLAN` / `onpc_kiosk_escape::run` and the shared
 `onpc_request_exit::escape` guard/input/return composition.

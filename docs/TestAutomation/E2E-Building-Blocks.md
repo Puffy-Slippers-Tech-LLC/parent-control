@@ -941,7 +941,7 @@ these blocks, not copies of them.
 | APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | `onpc_app_rows::native_search/native_launch_grid/native_open_grid` qualify Jordan's exact Allowed fixture grid route under [native fixture preparation](#native-fixture-preparation). `native_open_command` / `AccessibleUI.native_launch_command` qualify the fixed native command as the bound active child desktop user over guarded SSH, with independent APP02 window readback. Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 without Terminal UI. Never substitute the tested route after failure. | native Allowed grid/command ready; other bindings pending |
 | APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | `AccessibleUI.native_app_snapshot/native_app_closed` independently observe the owned primary native window and exact initial activity, then complete absence with the recognized desktop after `onpc_app_rows::native_close_app`. UI01 → UI03 for presence; FILE06 for command denial; UI11 for hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. | native Allowed presence/normal closure ready; denial, hidden and other bindings pending |
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | `onpc_app_rows::native_use_app` composes guarded public Submit draft through `AccessibleUI.native_app_submit` and separate exact submitted-label readback. UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. | native primary draft submission ready; other actions/bindings pending |
-| APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | APP02(present) → UI03 → UI12 only for compare. A newly launched window cannot satisfy retained-activity expectations. No hidden process/window inspection. | pending |
+| APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | `AccessibleUI.native_app_snapshot(with_window=True)` / `native-activity` read the owned public window endpoint and exact submitted draft. `AppActivityObservation`, `compare_app_activity` and `InstalledJourney.check_activity` copy immutable captures and compare explicit `JourneyPlan.activity_checks` endpoints; `onpc_app_rows::native_read_activity` supplies caller-owned invocation IDs. APP02(present) → UI03 → UI12 only for compare; [native activity qualification](#native-fixture-preparation). A newly launched window cannot satisfy retained-activity expectations. No hidden process/window inspection. | native primary submitted-draft capture/same-window comparison ready; cross-user retention and other bindings pending |
 | APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. The selected game needs usable public observations; a menu or timer fixture is insufficient. | pending |
 | APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. Task 296 qualifies the Lunar/Minecraft and Shell tray provider bindings, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
 
@@ -1753,7 +1753,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW05 | C | Complete a real approval from a prepared form, observe confirmation and its declared automatic or immediate exit. | REQUEST09 → AUTH02(correct credential) → REQUEST11(success) → REQUEST12(automatic or immediate). `kiosk_approved_flow.approved_request` / `onpc_request_flow::approve`; see [approved kiosk flow qualification](#approved-kiosk-flow-qualification). | fixed kiosk 75-second/soft-included automatic and immediate bindings ready; other choices and overlay pending |
 | FLOW06 | C | Obtain time through kiosk from an existing GDM screen and return to GDM. | FLOW04(kiosk) → FLOW05. `kiosk_approved_flow.obtain_time` / `onpc_request_flow::obtain_time`; see [approved kiosk flow qualification](#approved-kiosk-flow-qualification). Child login/unlock is deliberately a later step. | fixed kiosk remembered-choice binding ready; other choices pending |
 | FLOW07 | C | Reject/cancel one request and compare its preserved choices. Return with that form open; do not retry yet. | REQUEST03(before) → REQUEST09 → AUTH02(wrong/cancel) → REQUEST11 → UI12. `approval_flow.rejected_request` / `onpc_request_flow::reject`; see [rejected kiosk flow qualification](#rejected-kiosk-flow-qualification). The recipe can inspect restrictions before invoking FLOW05 for a successful retry, avoiding a second implementation of approval. | fixed kiosk 75-second/soft-included rejection and Cancel binding ready; other choices and overlay pending |
-| FLOW08 | C | Exercise an app through its declared route and prove the expected usable/denied result. | APP01 → APP02 → APP03 only for expected usable access. | pending |
+| FLOW08 | C | Exercise an app through its declared route and prove the expected usable/denied result. | `journey_blocks.native_usable_app(route)` / `onpc_app_rows::native_usable_app(journey, route, desktop)` compose APP01 → APP02 → APP03 for the declared native `command` or `grid` usable route; [qualification](#native-fixture-preparation). No alternative launch after failure. APP03 runs only for expected usable access. | native Allowed command/grid usable scope ready; policy denial and other bindings pending |
 | FLOW09 | C | Visit an explicitly retained user and prove the same app/activity remains usable. Inputs include source surface and that user's earlier activity observation. | FLOW15(entry=retained) → APP04(compare) → APP03. | pending |
 | FLOW10 | C | Launch the prepared real game with its declared mode/level and play to natural lock. | FLOW08(game, usable, registered launch options) → APP05 → APP04(record activity) → TIME04. | pending |
 | FLOW11 | C | After a displayed lock, obtain legitimate replacement time, unlock and observe the expected retained app or closed blocked app. | DESK11 → FLOW06 → FLOW15(child, retained) → APP02 → APP04(compare) → APP03 when preservation is expected. Closed-app branch ends at APP02. | pending |
@@ -2154,6 +2154,34 @@ recorder/composition and challenge-safety regressions passed. The existing grid
 qualification and its provider tuple remain unchanged.
 Hidden/denied results, other fixture actions and complete scenarios remain
 pending under their own task bindings.
+
+`native_activity.PLAN` / `NativeActivityJourney` and
+`onpc_app_rows::app_activity` qualified APP04 and FLOW08's native usable slice in
+`check_e2e_app_activity`, run `20261001T175200Z-a1d92898`, on every enabled VM.
+The shared `native_usable_app` declaration/composition uses the command and grid
+launch/result/usability leaves above. Each independently supplied desktop entry
+launches once, submits the normal draft and reads its exact public effect before
+APP04 captures and independently rereads that activity. Wrong-entry reads refuse
+without input. The later grid window has identical text but a different public
+AT-SPI endpoint/PID, so its replacement check cannot prove the command window
+survived. Both windows close normally through `native_finish_app`.
+
+`AppActivityObservation.from_value` in
+[`ui_observations.py`](../../tests/e2e/ui_observations.py) copies the nested
+endpoint and state into frozen tuples. `JourneyPlan.activity_checks` declares
+each comparison's earlier capture and `same` result; `replaced` is a negative
+qualification binding requiring different window identity with identical text.
+`InstalledJourney.check_activity` compares before the durable worker reply and
+refuses missing/replayed capture or changed state/window. Renamed invocation IDs
+retain the same checks. Host regressions in `test_e2e_app_activity.py` cover the
+actual worker order, every refusal boundary, controller decoding, immutable
+captures and real recorder startup/replies. The native GTK preview independently
+read the same public identity twice. The affected `check_e2e_native_app` regression
+passed in `20261001T175724Z-8d97badf`; both live runs passed collection, worker
+shutdown, owned cleanup, baseline restoration and host/source preservation.
+The grid provider tuple remains `50.1-0ubuntu1.2`, `en_US.UTF-8`, keyboard
+`[["xkb", "us"]]`. Policy denial, cross-user retention and complete scenarios
+retain their separate task bindings.
 
 FIX03's multiple profile reuses the guarded installed snapshot's two canonical
 children and two approvers; it changes no account identities, roles or station

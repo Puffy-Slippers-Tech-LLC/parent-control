@@ -38,7 +38,8 @@ def snapshot(root, checkout, log):
     # Release notes are consumed to generate metadata, never shipped as docs.
     history = ((root / publish.HISTORY).read_text() if (root / publish.HISTORY).exists()
                else f'## v{current} ')
-    draft = re.fullmatch(r'## v([0-9]+\.[0-9]+)', history.partition('\n')[0].strip())
+    draft = re.fullmatch(r'## v([0-9]+\.[0-9]+)(?: (?:—|-))?',
+                         history.partition('\n')[0].strip())
     if draft and publish.parse_product_version(draft[1]) > publish.parse_product_version(current):
         # Local regression builds can run while the next release notes are a
         # draft. Keep the real package metadata; only actual publishing requires

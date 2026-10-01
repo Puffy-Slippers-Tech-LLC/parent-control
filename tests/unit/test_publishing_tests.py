@@ -12,7 +12,10 @@ from tools import publish
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.parametrize('release_date,expected_version', [(' — 2026-09-11', '1.1'), ('', '1.0')])
+@pytest.mark.parametrize('release_date,expected_version', [
+    (' — 2026-09-11', '1.1'), (' - 2026-09-11', '1.1'),
+    ('', '1.0'), (' -', '1.0'), (' —', '1.0'),
+])
 def test_snapshot_includes_working_changes_and_prepares_history_without_mutating_checkout(
         tmp_path, release_date, expected_version):
     root, copied = tmp_path / 'working', tmp_path / 'copy'
@@ -51,7 +54,7 @@ def test_snapshot_includes_working_changes_and_prepares_history_without_mutating
     assert not (copied / 'tests').exists()
     assert not (copied / 'tools').exists()
     assert json.loads((copied / 'data/app.json').read_text())['version'] == expected_version
-    if not release_date:
+    if expected_version == '1.0':
         assert (copied / 'debian/changelog').read_bytes() == (root / 'debian/changelog').read_bytes()
         with pytest.raises(ValueError, match='invalid VersionHistory.md heading'):
             publish.history_entry((root / 'docs/VersionHistory.md').read_text(), '1.0')

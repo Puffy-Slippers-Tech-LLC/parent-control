@@ -25,6 +25,7 @@ require onpc_text;
 require onpc_format;
 require onpc_feedback_states;
 require onpc_app_rows;
+require onpc_feedback_privacy;
 my ($block, @arguments) = @ARGV;
 my $journey = onpc_journey->new(prefix => 'host-gui', review => 0, exchange => sub {
     push @events, ['observe', $_[0]];
@@ -32,6 +33,15 @@ my $journey = onpc_journey->new(prefix => 'host-gui', review => 0, exchange => s
 });
 if ($block eq 'replace') { onpc_text::replace_text($journey, @arguments); }
 elsif ($block eq 'filter') { onpc_app_rows::filter($journey, @arguments); }
+elsif ($block eq 'match-editor') { onpc_app_rows::match_editor($journey, @arguments); }
+elsif ($block eq 'match-response') { onpc_app_rows::match_response($journey, @arguments); }
+elsif ($block eq 'report-review') { onpc_feedback_privacy::review_parent_report($journey, @arguments); }
+elsif ($block eq 'report-close') { onpc_feedback_privacy::close_parent_report($journey, @arguments); }
+elsif ($block eq 'access-choice') { onpc_app_rows::access_choice($journey, @arguments); }
+elsif ($block eq 'edit-policy') {
+    $arguments[-1] = decode_json($arguments[-1]);
+    onpc_app_rows::edit_policy($journey, @arguments);
+}
 elsif ($block eq 'scalar') { onpc_text::append_scalar($journey, @arguments); }
 elsif ($block eq 'bold') { onpc_format::apply_bold($journey, @arguments); }
 elsif ($block eq 'block') { onpc_format::apply_block($journey, @arguments); }
@@ -52,10 +62,11 @@ _KEYS = {
     'ctrl-c': '<Control>c', 'ctrl-shift-v': '<Control><Shift>v',
     'right': 'Right', 'left': 'Left', 'shift-right': '<Shift>Right',
     'backspace': 'BackSpace', 'ret': 'Return', 'esc': 'Escape',
+    'alt-f4': '<Alt>F4',
 }
 
 
-def run_block(ui, block, *arguments, child=None):
+def run_block(ui, block, *arguments, child=None, operations=None, child_bindings=None):
     """Execute once, stopping at the first failed observation or input.
 
     The short, waited Perl process only expands a named finite composite into
@@ -78,20 +89,26 @@ def run_block(ui, block, *arguments, child=None):
         for event in group:
             if event[0] == 'observe':
                 stage = event[1]
-                if stage in TEXT_OPERATIONS:
-                    binding, action = TEXT_OPERATIONS[stage]
+                operation = operations[stage].removeprefix('ui:') if operations is not None else stage
+                if operation in TEXT_OPERATIONS:
+                    binding, action = TEXT_OPERATIONS[operation]
                     identity = ('feedback-editor-input' if action == 'anchor'
                                 else TEXT_VALUES[binding][0])
-                elif stage.endswith('-link-target'):
+                elif operation.endswith('-link-target'):
                     identity = 'feedback-link-target'
-                elif stage.endswith('-focus'):
+                elif operation.endswith('-focus'):
                     identity = 'feedback-editor-input'
-                elif stage in FILTER_OPERATIONS:
+                elif operation in FILTER_OPERATIONS:
                     identity = 'parent-window'
-                observations[stage] = ui.run(stage, '', **({'child': child} if child else {}))
+                elif operation == 'feedback-privacy-open':
+                    identity = 'feedback-privacy-dialog'
+                elif operation in ('feedback-draft-reread', 'parent-report-read'):
+                    identity = 'feedback-dialog'
+                bound_child = child_bindings.get(stage) if child_bindings is not None else child
+                observations[stage] = ui.run(operation, '', **({'child': bound_child} if bound_child else {}))
             elif event[0] == 'key':
                 keyboard.key_combo(ui, identity, _KEYS[event[1]],
-                    state=ui.api.StateType.ACTIVE if event[1] == 'esc' else ui.api.StateType.FOCUSED)
+                    state=ui.api.StateType.ACTIVE if event[1] in ('esc', 'alt-f4') else ui.api.StateType.FOCUSED)
             elif event[0] == 'text':
                 keyboard.type_text(ui, identity, event[1], interval=event[2] / 1000)
             else:

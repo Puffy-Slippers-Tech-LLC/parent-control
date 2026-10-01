@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">17860</span>/<span style="color: gray">0</span>/17860 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">18352</span>/<span style="color: gray">0</span>/18352 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks broker behavior through a private D-Bus without changing the host system. |
-| UI | <span style="color: green">182</span>/<span style="color: gray">0</span>/182 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
+| UI | <span style="color: green">194</span>/<span style="color: gray">0</span>/194 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">4</span>/<span style="color: gray">0</span>/4 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">110</span>/<span style="color: gray">0</span>/110 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">28</span>/<span style="color: gray">214</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">18580</span>/<span style="color: gray">214</span>/18794** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">118</span>/<span style="color: gray">0</span>/118 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">30</span>/<span style="color: gray">212</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">19094</span>/<span style="color: gray">212</span>/19306** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">27</span>/<span style="color: gray">214</span>/241 |
+| customer-journey | <span style="color: green">29</span>/<span style="color: gray">212</span>/241 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -42,6 +42,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [6](#scenario-6) | Standard user cannot manage policy (launch: terminal) | `E2E-004/terminal` | ready |
 | [47](#scenario-47) | Request surface exit behavior (exit: cancel; surface: kiosk) | `E2E-015/kiosk-cancel` | ready |
 | [48](#scenario-48) | Request surface exit behavior (exit: escape; surface: kiosk) | `E2E-015/kiosk-escape` | ready |
+| [49](#scenario-49) | Request surface exit behavior (exit: approved; surface: kiosk) | `E2E-015/kiosk-approved` | ready |
 | [50](#scenario-50) | Restricted request station (request: approved) | `E2E-016/approved` | ready |
 | [51](#scenario-51) | Restricted request station (request: denied) | `E2E-016/denied` | ready |
 | [52](#scenario-52) | Restricted request station (request: cancelled) | `E2E-016/cancelled` | ready |
@@ -62,6 +63,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [190](#scenario-190) | Read Help, About and command usage on each surface (surface: parent links) | `E2E-042/parent-links` | ready |
 | [192](#scenario-192) | Read Help, About and command usage on each surface (surface: kiosk) | `E2E-042/kiosk` | ready |
 | [193](#scenario-193) | Read Help, About and command usage on each surface (surface: command help) | `E2E-042/command-help` | ready |
+| [205](#scenario-205) | Review or decline an error report (surface: parent) | `E2E-045/parent` | ready |
 | <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
@@ -102,7 +104,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[44](#scenario-44)</span> | <span style="color: gray">Request surface exit behavior (exit: cancel; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-cancel`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[45](#scenario-45)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-escape`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[46](#scenario-46)</span> | <span style="color: gray">Request surface exit behavior (exit: approved; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-approved`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[49](#scenario-49)</span> | <span style="color: gray">Request surface exit behavior (exit: approved; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-approved`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[58](#scenario-58)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: first; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-first`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[59](#scenario-59)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: second; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-second`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[60](#scenario-60)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: first; direction: kiosk to overlay)</span> | <span style="color: gray">`E2E-018/kiosk-to-overlay-first`</span> | <span style="color: gray">pending</span> |
@@ -227,7 +228,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[202](#scenario-202)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: fall back; time: daily reset)</span> | <span style="color: gray">`E2E-044/fall-back-daily-reset`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[203](#scenario-203)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: fall back; time: rest of day)</span> | <span style="color: gray">`E2E-044/fall-back-rest-of-day`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[204](#scenario-204)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: fall back; time: fixed grant)</span> | <span style="color: gray">`E2E-044/fall-back-fixed-grant`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[205](#scenario-205)</span> | <span style="color: gray">Review or decline an error report (surface: parent)</span> | <span style="color: gray">`E2E-045/parent`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[206](#scenario-206)</span> | <span style="color: gray">Review or decline an error report (surface: child overlay)</span> | <span style="color: gray">`E2E-045/child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[207](#scenario-207)</span> | <span style="color: gray">Review or decline an error report (surface: kiosk)</span> | <span style="color: gray">`E2E-045/kiosk`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[208](#scenario-208)</span> | <span style="color: gray">Recover unavailable diagnostic collection (choice: retry; surface: parent)</span> | <span style="color: gray">`E2E-046/parent-retry`</span> | <span style="color: gray">pending</span> |
@@ -379,6 +379,19 @@ Variant: exit: cancel; surface: kiosk
 Case: `E2E-015/kiosk-escape` · Category: customer-journey · Status: **ready**
 
 Variant: exit: escape; surface: kiosk
+
+**Steps:**
+
+- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
+- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
+
+### Scenario 49
+
+**Request surface exit behavior (exit: approved; surface: kiosk)**
+
+Case: `E2E-015/kiosk-approved` · Category: customer-journey · Status: **ready**
+
+Variant: exit: approved; surface: kiosk
 
 **Steps:**
 
@@ -659,6 +672,20 @@ Variant: surface: command help
 - For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, sign in as the parent and qualify the desktop.
 - For Parent/overlay, check Help, website, privacy, support, license and legal links are clickable without invoking them or inspecting their URIs or destinations. Read owned About information. Kiosk reads information without external actions. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
 - Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
+
+### Scenario 205
+
+**Review or decline an error report (surface: parent)**
+
+Case: `E2E-045/parent` · Category: customer-journey · Status: **ready**
+
+Variant: surface: parent
+
+**Steps:**
+
+- Open the declared surface and encounter its customer-reproducible error: a rejected Parent match pattern or actual too-soon request. Read the public failure and initially selected Report this error option where offered.
+- Review the report, edit synthetic text and read Privacy. Parent/overlay expose file and diagnostic-save controls; station hides them and external links. Close without sending and check the original flow's destination.
+- Repeat the error and decline reporting where offered, checking direct exit. Successful requests and cancelled authentication must not offer this error-report step.
 
 <div style="color: gray">
 
@@ -1453,25 +1480,6 @@ Pending: Customer recipe is documented; required public blocks and full installe
 Case: `E2E-015/child-overlay-approved` · Category: customer-journey · Status: **pending**
 
 Variant: exit: approved; surface: child overlay
-
-**Steps:**
-
-- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
-- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 49
-
-**Request surface exit behavior (exit: approved; surface: kiosk)**
-
-Case: `E2E-015/kiosk-approved` · Category: customer-journey · Status: **pending**
-
-Variant: exit: approved; surface: kiosk
 
 **Steps:**
 
@@ -3975,26 +3983,6 @@ Variant: calendar: fall back; time: fixed grant
 - Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval.
 - Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after.
 - Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 205
-
-**Review or decline an error report (surface: parent)**
-
-Case: `E2E-045/parent` · Category: customer-journey · Status: **pending**
-
-Variant: surface: parent
-
-**Steps:**
-
-- Open the declared surface and encounter its customer-reproducible error: a rejected Parent match pattern or actual too-soon request. Read the public failure and initially selected Report this error option where offered.
-- Review the report, edit synthetic text and read Privacy. Parent/overlay expose file and diagnostic-save controls; station hides them and external links. Close without sending and check the original flow's destination.
-- Repeat the error and decline reporting where offered, checking direct exit. Successful requests and cancelled authentication must not offer this error-report step.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

@@ -391,6 +391,16 @@ def test_session_workers_consume_fresh_desktop_proofs_once(block, fault):
     assert result['events'] == ([] if fault == 'stale' else expected)
 
 
+@pytest.mark.parametrize('fault', ['', 'stale', 'replay'])
+def test_switch_after_parent_work_consumes_the_new_desktop_proof(fault):
+    program = LEAF.replace("seen('desktop')", "seen('repeat-desktop')").replace(
+        'switch_user($journey, $desktop)', "switch_user($journey, $desktop, 'repeat-desktop')")
+    result = json.loads(run_perl(program, 'switch_user', fault).stdout)
+    assert result['ok'] == (not fault)
+    assert result['events'] == ([] if fault == 'stale' else
+        [['seen', 'switch-user'], ['seen', 'gdm-switched']])
+
+
 @pytest.mark.parametrize('action', ['logout', 'switch-user', 'lock'])
 def test_complete_worker_matches_the_selected_plan_and_powers_off(action):
     from desktop_session import LOGOUT_PLAN, SWITCH_PLAN

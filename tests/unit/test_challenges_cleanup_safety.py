@@ -9,11 +9,17 @@ import pytest
 
 import accessible_ui
 import check_e2e_challenges as check
+import check_e2e_fresh_child_allowed as child_check
+import check_e2e_unlock as denied_check
 import check_graphical_smoke as smoke
 from challenges import PLAN, CHALLENGES, INVOCATIONS, ChallengesJourney
+from fresh_child_allowed import PLAN as CHILD_PLAN, FreshChildAllowedJourney
+from fresh_child_denied import PLAN as DENIED_PLAN, FreshChildDeniedJourney
+from countdown_qualification import PLAN as COUNTDOWN_PLAN, OFF_PLAN
 from installed_journey import InstalledJourney, matched_screens
 from owned_commands import CommandError
-from parent_setup_qualification import ChallengesQualification, KioskEntryQualification
+from parent_setup_qualification import ChallengesQualification, KioskEntryQualification, FreshChildAllowedQualification
+from parent_setup_qualification import FreshChildDeniedQualification
 from private_artifacts import EvidenceError
 from tests.support.perl import run_perl
 from ui_observations import UiObservations
@@ -37,6 +43,66 @@ def test_fixed_dispatch_and_registered_operations(monkeypatch):
             smoke.main(challenges=True, **options)
 
 
+def test_fresh_child_dispatch_and_nondefault_identity(monkeypatch):
+    context = SimpleNamespace()
+    assert isinstance(FreshChildAllowedQualification.journey(context, Mock()), FreshChildAllowedJourney)
+    assert context.installed_snapshot.startswith('onpc-v')
+    calls = []
+    monkeypatch.setattr(child_check, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
+    assert child_check.main() == 0
+    assert calls == [{'assets': check.ASSETS, 'provision_credentials': True,
+                     'challenges': True, 'challenge_profile': 'fresh-child'}]
+    assert CHILD_PLAN.challenge_at('fresh-child-recipient-rechecked')['role'] == 'child'
+    for tag in CHILD_PLAN.screen_tags.values():
+        if tag.startswith('ui:'):
+            assert tag[3:] in accessible_ui.OPERATIONS
+    with pytest.raises(CommandError, match='challenge-profile'):
+        smoke.main(challenge_profile='fresh-child')
+    with pytest.raises(EvidenceError, match='challenge-plan'):
+        replace(CHILD_PLAN, challenges={**CHILD_PLAN.challenges,
+            'child-login': ('other-child', 'fresh-child-recipient-qualified', 'fresh-child-recipient-rechecked')})
+
+
+def test_denied_child_dispatch_and_declared_result(monkeypatch):
+    assert isinstance(FreshChildDeniedQualification.journey(SimpleNamespace(), Mock()),
+                      FreshChildDeniedJourney)
+    calls = []
+    monkeypatch.setattr(denied_check, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
+    assert denied_check.main() == 0
+    assert calls == [{'assets': check.ASSETS, 'provision_credentials': True,
+                     'challenges': True, 'challenge_profile': 'fresh-child-denied'}]
+    assert DENIED_PLAN.challenge_at('fresh-child-recipient-rechecked')['role'] == 'child'
+    for tag in DENIED_PLAN.screen_tags.values():
+        if tag.startswith('ui:'):
+            assert tag[3:] in accessible_ui.OPERATIONS
+
+
+@pytest.mark.parametrize('fault', ['', 'allowance-configured', 'switch-user', 'gdm-switched',
+    'fresh-child-recipient-qualified', 'fresh-child-recipient-rechecked', 'fresh-denied',
+    'denied-return-ready', 'denied-returned'])
+def test_actual_denied_child_worker_preserves_denial_and_stops_before_escape(fault):
+    program = (PERL.replace('onpc_challenges::run(', 'onpc_challenges::fresh_child_denied(')
+        .replace('(?:list|greeter|focused)', '(?:list|greeter|focused|opened)')
+        .replace('first-login', 'parent-login').replace('third-login', 'new-login'))
+    raw = run_perl(program, fault, json.dumps(DENIED_PLAN.invocations),
+                   json.dumps(DENIED_PLAN.challenges)).stdout
+    assert 'fixture-only-canary' not in raw
+    result = json.loads(raw)
+    assert bool(result['ok']) == (not fault), result
+    assert result['retry'] == result['captured'] == result['after_failure'] == 0
+    assert len(result['events']) == result['before']
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(DENIED_PLAN.screen_tags)
+    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
+    if fault in ('fresh-denied', 'denied-return-ready'):
+        assert result['events'][-1] == ['stage', fault]
+        assert result['events'].count(['key', 'esc']) == 1  # wrong-recipient harness only
+    if not fault:
+        assert result['events'].count(['password']) == 2
+        assert result['events'].count(['key', 'esc']) == 2
+        assert result['events'][-1] == ['off']
+
+
 @pytest.mark.parametrize('binding', [
     ('child', 'recipient-qualified', 'recipient-rechecked'),
     ('parent', 'recipient-rechecked', 'recipient-qualified'),
@@ -51,18 +117,22 @@ def test_challenge_plan_rejects_unbound_mixed_or_reordered_proofs(binding):
 
 @pytest.mark.parametrize('fault', ['', 'stale-id', 'role', 'surface', 'intervening', 'replay',
                                    'missing-first', 'transport'])
-def test_controller_challenge_checks_are_fresh_and_terminal(fault):
+@pytest.mark.parametrize('role', ['parent', 'child'])
+def test_controller_challenge_checks_are_fresh_and_terminal(fault, role):
     transport = SimpleNamespace(call=Mock())
     ui = UiObservations(transport)
 
     def observe(operation, context=None):
+        if role == 'child':
+            operation = operation.replace('gdm-parent-recipient', 'gdm-child-recipient')
+            operation = operation.replace('gdm-focused', 'gdm-child-focused')
         transport.call.return_value = json.dumps({
             'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}).encode()
         return ui.observe_challenge(operation, context) if context else ui.observe(operation)
 
     for identity in ('first-login', 'second-login'):
         observe('gdm-focused')
-        first = {'id': identity, 'role': 'parent', 'surface': 'gdm', 'check': 'qualified'}
+        first = {'id': identity, 'role': role, 'surface': 'gdm', 'check': 'qualified'}
         second = {**first, 'check': 'rechecked'}
         if identity == 'second-login' and fault == 'replay':
             first['id'] = 'first-login'
@@ -229,6 +299,61 @@ def test_actual_worker_two_authentications_and_terminal_refusal(fault):
     else:
         assert ['off'] not in result['events']
         assert result['events'].count(['password']) <= 1
+
+
+@pytest.mark.parametrize('fault', ['', 'stale', 'mixed', 'role', 'surface', 'missing', 'typing',
+    'allowance-configured', 'switch-user', 'gdm-switched', 'wrong-refused',
+    'fresh-child-recipient-qualified', 'fresh-child-recipient-rechecked', 'fresh-desktop'])
+def test_actual_fresh_child_worker_stops_at_failure_and_uses_child_secret(fault):
+    program = (PERL.replace('onpc_challenges::run(', 'onpc_challenges::fresh_child_allowed(')
+        .replace('(?:list|greeter|focused)', '(?:list|greeter|focused|opened)')
+        .replace('second-recipient-rechecked', 'fresh-child-recipient-rechecked')
+        .replace('first-login', 'parent-login').replace('third-login', 'new-login'))
+    raw = run_perl(program, fault, json.dumps(CHILD_PLAN.invocations),
+                   json.dumps(CHILD_PLAN.challenges)).stdout
+    assert 'fixture-only-canary' not in raw
+    result = json.loads(raw)
+    assert bool(result['ok']) == (not fault), result
+    assert result['retry'] == result['captured'] == result['after_failure'] == 0
+    assert len(result['events']) == result['before']
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    if not fault:
+        assert stages == list(CHILD_PLAN.screen_tags)
+        assert [event for event in result['events'] if event[0] == 'variable'] == [
+            ['variable', '_SECRET_ONPC_PARENT_PASSWORD'], ['variable', '_SECRET_ONPC_CHILD_PASSWORD']]
+        assert result['events'].count(['password']) == 2
+        assert result['events'][-1] == ['off']
+    else:
+        assert ['off'] not in result['events']
+        if fault in CHILD_PLAN.screen_tags:
+            assert stages == list(CHILD_PLAN.screen_tags)[:list(CHILD_PLAN.screen_tags).index(fault) + 1]
+        if fault != 'fresh-desktop':
+            assert result['events'].count(['password']) <= 1
+
+
+@pytest.mark.parametrize('present', [True, False])
+@pytest.mark.parametrize('fault', ['', 'allowance-configured', 'limits-disabled',
+    'wrong-account-refused', 'switch-user', 'fresh-child-recipient-rechecked',
+    'fresh-desktop', 'countdown', 'independent-countdown'])
+def test_countdown_worker_composes_fresh_child_then_independent_reads(present, fault):
+    if present and fault == 'limits-disabled': return
+    plan = COUNTDOWN_PLAN if present else OFF_PLAN
+    program = (PERL.replace('onpc_challenges::run(',
+        'onpc_challenges::countdown(' + ('1' if present else '0') + ', ')
+        .replace('(?:list|greeter|focused)', '(?:list|greeter|focused|opened)')
+        .replace('first-login', 'parent-login').replace('third-login', 'new-login'))
+    result = json.loads(run_perl(program, fault, json.dumps(plan.invocations),
+                                 json.dumps(plan.challenges)).stdout)
+    assert bool(result['ok']) == (not fault), result
+    assert not result['retry'] and not result['captured'] and not result['after_failure']
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(plan.screen_tags)
+    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
+    if not fault:
+        assert result['events'].count(['password']) == 2
+        assert result['events'][-1] == ['off']
+    else:
+        assert ['off'] not in result['events']
 
 
 @pytest.mark.parametrize('route', ['legacy', 'leaf', 'explicit-leaf'])

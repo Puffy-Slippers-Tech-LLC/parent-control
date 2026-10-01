@@ -11,6 +11,10 @@ from pathlib import PurePosixPath
 # Policy legend reads reuse preview_smoke's owned compositor/application and
 # private event files, with the shared AT-SPI adapter. No new shared display,
 # process, cache or service; the existing UI bucket classification applies.
+# Access-choice GTK checks reuse those private previews, event files and waited
+# Perl blocks; no new shared resource or cleanup lifetime is introduced.
+# Rejected-rule reports reuse the same private preview/display, synthetic local
+# broker/log collector and waited Perl blocks; the whole-module bucket applies.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e
@@ -42,6 +46,8 @@ GROUPS = (
     ('Request behavior', ('test_request_form_component.py',), 6),
     ('Layout and overflow', ('test_request_layout.py', 'test_control_overflow.py'), 6),
     ('Feedback', ('test_parent_feedback.py', 'test_error_feedback.py'), 6),
+    # Match invalid/Reset matrix shares the owned private preview/display and
+    # bounded keyboard workers of the valid matrix; keep this module together.
     ('Preview and About', ('test_preview_smoke.py', 'test_about_release.py'), 6),
     ('Screen fidelity', ('test_screen_preview.py',), 12),
     ('Nested Shell', ('test_child_shell_lifecycle.py',), 30),

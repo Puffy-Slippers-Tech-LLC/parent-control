@@ -71,6 +71,7 @@ def test_auth_prompt_qualification_reuses_owned_mate_envelope(selector, mode):
                         mode: 'True'}
 import kiosk_cancel
 import kiosk_escape
+import kiosk_approved
 import kiosk_no_child
 import kiosk_no_approver
 import request_choices
@@ -81,6 +82,11 @@ import native_fixture_qualification
 import catalogue_search
 import catalogue
 import policy_legend
+import match_save_cancel
+import rejected_parent_rule
+import access_choices
+import policy_qualification
+from match_rules import MatchRuleJourney
 import search_filters
 import feedback_read
 import feedback_privacy
@@ -108,6 +114,9 @@ import parent_terminal_provider
 import license_viewer_provider
 import repeated_operations
 import challenges
+import fresh_child_allowed
+import fresh_child_denied
+import countdown_qualification
 import shell_search
 import accessible_ui
 import inventory
@@ -207,11 +216,18 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  license_viewer_provider.SUPPORT_PLAN,
                                  license_viewer_provider.INFORMATION_PLAN,
                                  parent_information.PLAN,
-                                 repeated_operations.PLAN, challenges.PLAN, app_row_observations.PLAN,
+                                 repeated_operations.PLAN, challenges.PLAN, fresh_child_allowed.PLAN,
+                                 fresh_child_denied.PLAN, countdown_qualification.PLAN,
+                                 countdown_qualification.OFF_PLAN, app_row_observations.PLAN,
                                  native_fixture_qualification.PLAN,
                                  catalogue_search.PLAN,
                                  catalogue.PLAN,
                                  policy_legend.PLAN,
+                                 match_save_cancel.PLAN,
+                                 match_save_cancel.EDITOR_PLAN,
+                                 rejected_parent_rule.PLAN,
+                                 access_choices.PLAN,
+                                 policy_qualification.PLAN,
                                  search_filters.PLAN,
                                  feedback_read.PLAN, feedback_privacy.PLAN, feedback_states.PLAN,
                                  trace_stable_state.PLAN, trace_transition.PLAN, compose_observation.PLAN,
@@ -224,7 +240,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  text_qualification.PLAN, allowance_presets.PLAN,
                                  allowance.PLAN, time_explanation.PLAN, kiosk_valid_duration.PLAN,
                                  request_duration.PLAN, request_flow.PLAN, kiosk_cancel.PLAN,
-                                 kiosk_escape.PLAN, mate_prompt.PLAN, kiosk_approval.PLAN,
+                                 kiosk_escape.PLAN, kiosk_approved.PLAN, mate_prompt.PLAN, kiosk_approval.PLAN,
                                  kiosk_rejection.PLAN, auth_result.PLAN, kiosk_approved_flow.PLAN,
                                  restricted_station.PLAN, approval_flow.REJECTION_PLAN, approval_flow.CANCEL_PLAN,
                                  kiosk_multiple.PLAN, kiosk_multiple.CASE_PLAN,
@@ -240,14 +256,15 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'terminal-provider', 'license-viewer-provider', 'parent-website',
                               'parent-privacy', 'parent-support', 'parent-information', 'parent-links',
                               'repeated-operations',
-                              'challenges', 'app-rows', 'native-fixtures', 'catalogue-search', 'catalogue', 'policy-legend', 'search-filters', 'feedback-read', 'feedback-privacy', 'feedback-states',
+                              'challenges', 'fresh-child-allowed', 'fresh-child-denied',
+                              'countdown-enabled', 'countdown-off', 'app-rows', 'native-fixtures', 'catalogue-search', 'catalogue', 'policy-legend', 'match-save-cancel', 'match-editor', 'rejected-parent-rule', 'access-choices', 'policy', 'search-filters', 'feedback-read', 'feedback-privacy', 'feedback-states',
                               'trace-stable', 'trace-transition', 'compose-observation',
                               'accessibility-trace', 'named-child-custom-saves',
                               'format', 'block-semantics', 'feedback-formats', 'feedback-link',
                               'feedback-rejection', 'feedback-length', 'window-switch',
                               'text', 'allowance-presets',
                               'allowance', 'time-explanation', 'kiosk-valid-duration', 'request-duration',
-                              'request-flow', 'kiosk-cancel', 'kiosk-escape', 'mate-prompt', 'kiosk-approval',
+                              'request-flow', 'kiosk-cancel', 'kiosk-escape', 'kiosk-approved-case', 'mate-prompt', 'kiosk-approval',
                               'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',
                               'flow-rejection', 'flow-cancel', 'kiosk-multiple', 'multiple-case',
                               'ineligible-profile', 'ineligible-case', 'station-about', 'fresh-thirty-allowance',
@@ -284,6 +301,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-015/kiosk-cancel'
     if plan is kiosk_escape.PLAN:
         selector = 'E2E-015/kiosk-escape'
+    if plan is kiosk_approved.PLAN:
+        selector = 'E2E-015/kiosk-approved'
     if plan is restricted_station.PLAN:
         selector = 'E2E-016/approved'
     scenario_id, variant_id = selector.split('/', 1)
@@ -391,6 +410,33 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 result['request'].update(approver='none', message='no-approver')
         if operation in accessible_ui.TOGGLE_OPERATIONS:
             result['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
+        if operation in accessible_ui.MATCH_OPERATIONS:
+            action = operation.removeprefix('match-')
+            result['match'] = ({'closed': action} if action in ('save', 'cancel', 'reset') else
+                {'invalid': action.removeprefix('invalid-'),
+                 'message': accessible_ui.MATCH_INVALID[action.removeprefix('invalid-')]}
+                if action.startswith('invalid-') else
+                {'refusal': action} if action in ('wrong-app', 'ambiguous') else
+                {'app': accessible_ui.MATCH_APP, 'rule': accessible_ui.MATCH_RULES[
+                    1 if state['stage'] in ('saved-rule', 'independent-open', 'independent-read')
+                    and plan is match_save_cancel.EDITOR_PLAN or state['stage'] == 'saved-rule' else 0]})
+            if plan in (policy_qualification.PLAN, rejected_parent_rule.PLAN) and state['stage'] in plan.match_checks:
+                expected = plan.match_checks[state['stage']]
+                while expected not in accessible_ui.MATCH_RULES:
+                    expected = plan.match_checks[expected]
+                result['match'] = {'app': accessible_ui.MATCH_APP, 'rule': expected}
+        if plan is rejected_parent_rule.PLAN and operation in (
+                'parent-report-read', 'parent-report-actions', 'feedback-privacy-returned',
+                'feedback-draft-reread'):
+            result['feedback'] = {'draft': 'parent-rule-error' if operation == 'parent-report-read'
+                else 'synthetic-first', 'attachments': ['diagnostic-logs.zip'],
+                'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
+        if operation in accessible_ui.ACCESS_OPERATIONS:
+            action = operation.removeprefix('access-')
+            result['access'] = ({'app': accessible_ui.MATCH_APP,
+                                 'choice': plan.access_checks[state['stage']]}
+                if action == 'row' else {'page': 'screen'} if action == 'screen' else
+                {'refusal': action} if action in ('wrong-row', 'disabled') else {'chosen': action})
         if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN, policy_legend.PLAN, search_filters.PLAN) and state['stage'] in (
                 'allowance-configured', 'balance-reread'):
             result['time_explanation'] = {
@@ -399,6 +445,30 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 'one_time': {'seconds': 0, 'precision_seconds': 1},
                 'total': {'seconds': 1800, 'precision_seconds': 1},
                 'observed_monotonic_ns': len(boot_bindings)}
+        if plan in (fresh_child_allowed.PLAN, fresh_child_denied.PLAN,
+                    countdown_qualification.PLAN, countdown_qualification.OFF_PLAN) and state['stage'] == 'allowance-configured':
+            seconds = 0 if plan is fresh_child_denied.PLAN else 900
+            text = '15 minutes' if seconds else '0 seconds'
+            result['time_explanation'] = {
+                'child': 'fixture-child', 'expanded': True,
+                'daily': {'text': text, 'seconds': seconds, 'precision_seconds': 1},
+                'one_time': {'text': '0 seconds', 'seconds': 0, 'precision_seconds': 1},
+                'total': {'text': text, 'seconds': seconds, 'precision_seconds': 1},
+                'observed_monotonic_ns': len(boot_bindings)}
+        if operation in accessible_ui.COUNTDOWN_OPERATIONS:
+            present = operation == 'child-countdown-present'
+            result['countdown'] = {'child': 'fixture-child', 'surface': 'desktop',
+                'present': present, 'text': '00:14' if present else None,
+                'observed_monotonic_ns': len(boot_bindings) * 1_000_000_000,
+                'stable_ms': 0 if present else 2000}
+        if operation == 'child-countdown-wrong-account-refused':
+            result['refused'] = True
+        if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
+            result['denial'] = {'recipient': 'fixture-child', 'reason': 'time-limit',
+                                'desktop_access': False}
+        if operation in ('gdm-child-list', 'fresh-child-desktop'):
+            shell = {'version': '50.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
+            result['provider'] = {'shell': shell, 'gdm_version': '50.1'} if operation == 'gdm-child-list' else shell
         if operation in accessible_ui.FILTER_OPERATIONS:
             kind, mask, action = accessible_ui.FILTER_OPERATIONS[operation]
             options = accessible_ui.FILTER_OPTIONS[kind]
@@ -434,6 +504,19 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 result['feedback_state'] = state_value
             else:
                 result['samples'] = [{'elapsed_ms': 1, 'state': state_value}]
+        if plan is kiosk_approved.PLAN:
+            if operation == 'time-explanation-read':
+                result['time_explanation'] = {'child': 'fixture-child',
+                    'daily': {'seconds': 900, 'precision_seconds': 1},
+                    'one_time': {'seconds': 0, 'precision_seconds': 1},
+                    'total': {'seconds': 900, 'precision_seconds': 1},
+                    'observed_monotonic_ns': 1_000_000_000}
+            if operation.startswith('kiosk-valid-'):
+                result['valid_choice'] = {'request': {'duration_seconds': 75},
+                    'estimate': {'kind': 'fixed', 'seconds': 975},
+                    'observed_monotonic_ns': 2_000_000_000}
+            if operation == 'child-countdown-present':
+                result['countdown'].update(text='00:16', observed_monotonic_ns=12_000_000_000)
         return result
     def accessibility_input(operation, terminal, mode='checked', *, worker_input=None, child=None):
         if worker_input is None:
@@ -553,6 +636,12 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             actions = {'real-interval': real_interval.interval_action(5)}
         journey_type = (compose_observation.ComposeObservationJourney
                         if plan is compose_observation.PLAN else
+                        fresh_child_allowed.FreshChildAllowedJourney
+                        if plan is fresh_child_allowed.PLAN else
+                        countdown_qualification.CountdownJourney
+                        if plan in (countdown_qualification.PLAN, countdown_qualification.OFF_PLAN) else
+                        fresh_child_denied.FreshChildDeniedJourney
+                        if plan is fresh_child_denied.PLAN else
                         real_interval_qualification.RealIntervalJourney
                         if plan is INTERVAL_RECORDER_PLAN else
                         native_fixture_qualification.NativeFixtureJourney
@@ -561,9 +650,13 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         if plan is catalogue_search.PLAN else
                         catalogue.CatalogueJourney if plan is catalogue.PLAN else
                         policy_legend.PolicyLegendJourney if plan is policy_legend.PLAN else
+                        rejected_parent_rule.ParentReportJourney if plan is rejected_parent_rule.PLAN else
+                        MatchRuleJourney if plan in (match_save_cancel.PLAN, match_save_cancel.EDITOR_PLAN) else
+                        access_choices.AccessChoiceJourney if plan in (access_choices.PLAN, policy_qualification.PLAN) else
                         search_filters.CataloguePolicyJourney if plan is search_filters.PLAN else
                         fresh_thirty_allowance.FreshThirtyAllowanceJourney
                         if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN)
+                        else kiosk_approved.KioskRequestJourney if plan is kiosk_approved.PLAN
                         else journeys.InstalledJourney)
         if failure:
             with pytest.raises((OSError, RuntimeError)):

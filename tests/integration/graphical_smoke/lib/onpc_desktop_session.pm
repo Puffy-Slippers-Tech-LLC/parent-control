@@ -9,9 +9,11 @@ use onpc_parent ();
 # DESK03: shared system lock/switch command, then independent GDM observation.
 sub switch_user {
     onpc_progress::operation('Switching to the greeter');
-    my ($journey, $desktop) = @_;
-    die 'desk:switch-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
-    $journey->consume_observation('desktop', $desktop);
+    my ($journey, $desktop, $stage) = @_;
+    $stage //= 'desktop';
+    die 'desk:switch-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
+        && ($stage eq 'desktop' || $stage eq 'repeat-desktop');
+    $journey->consume_observation($stage, $desktop);
     $journey->seen('switch-user');
     return $journey->seen('gdm-switched');
 }

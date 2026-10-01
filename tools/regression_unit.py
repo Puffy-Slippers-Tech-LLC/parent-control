@@ -103,7 +103,26 @@ added. App-row and installed-journey modules retain compatible unit scheduling.
 Legend guards and worker-order tests use the same in-memory trees and bounded,
 waited Perl children; recorder tests use private tmp_path evidence. No new live
 VM, display, bus, socket or shared cache; both existing buckets remain compatible.
+Match Reset/invalid probes retain those memory doubles, finite decoder values
+and waited Perl workers. Their new recorder plan uses function-private files;
+unit and cleanup scheduling retain the existing compatible classifications.
+Response read-retry probes add only private in-memory trees and bounded waits;
+they introduce no shared resource or process ownership.
 """
+
+# TIME01 tests add only immutable synthetic trees, process-local account/session,
+# clock and transport doubles, and tiny private pytest reply files. Compatible
+# overlap; actual worker checks reuse bounded synchronously reaped Perl children
+# in challenges, and installed-journey keeps its existing private recorder trees.
+# Fresh child denial checks retain private pytest evidence, process-local public
+# UI/worker doubles and bounded waited Perl children. No live bus, VM, display
+# or shared paths; accessible_e2e_ui, challenges and installed-journey modules
+# retain their compatible classifications.
+
+# Parent rejected-report checks use existing process-local AT-SPI doubles,
+# private tmp_path recorder files and bounded, waited Perl children. No live
+# guest, display, bus, shared cache or new allocation lifetime; their reviewed
+# app-row/composition/launcher and installed-journey buckets stay compatible.
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,
 # bounded in-memory archives and mocked SSH. Feedback composition retains private
@@ -141,6 +160,9 @@ from pathlib import PurePosixPath
 # paths, sealed frame mappings and owned fixture processes with tmp_path logs.
 # They remain compatible with other unit modules; no live VM/display/bus is used.
 
+# Case 49's added request/countdown checks use private values, pytest trees and
+# bounded owned Perl doubles. Kiosk-valid-duration and installed-journey modules
+# retain compatible unit scheduling; no live display, bus, VM or shared cache.
 from regression_cleanup import ESTIMATES as CLEANUP_ESTIMATES, work_units
 
 # Repair-budget/routing probes use finite synthetic agents, private tmp_path
@@ -151,6 +173,8 @@ from regression_resources import HOST_WORKERS
 from regression_ui import Bucket
 
 
+# Access-choice adapter/recorder additions retain process-local doubles and
+# private tmp_path evidence; no new VM, socket, display or process ownership.
 REVIEWED = frozenset("""
 vm_internet_cleanup_safety baseline_fixtures_cleanup_safety
 about_dialog accessible_e2e_ui accessible_observation adapters app_policy app_termination appsnapshot_cleanup_safety apt_removal_notice
@@ -160,7 +184,7 @@ child_preview_cleanup_safety clean_install_cleanup_safety codex_test_rules confi
 dbus_harness_cleanup_safety desktop_session_cleanup_safety dev_privileges dev_tool_installation
 diagnostic_export diagnostic_privacy diagnostic_report diagnostics document_checks
 dynamic_account_fixture e2e_app_rows native_fixtures_cleanup_safety e2e_asset_transfer_cleanup_safety e2e_broker_startup_observations
-e2e_case_composition e2e_command_help e2e_controller_qualification_cleanup_safety e2e_desktop_keyring
+e2e_case_composition e2e_command_help e2e_countdown e2e_controller_qualification_cleanup_safety e2e_desktop_keyring
 e2e_desktop_session e2e_disabled_child e2e_evidence e2e_feedback_read e2e_fresh_desktop
 e2e_execution_cleanup_safety e2e_files_cleanup_safety e2e_fixture_credentials_cleanup_safety e2e_gdm_helper
 e2e_gdm_navigation e2e_gdm_pixels e2e_gdm_product_free e2e_gdm_recipient

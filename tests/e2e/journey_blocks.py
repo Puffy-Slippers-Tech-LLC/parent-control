@@ -73,12 +73,23 @@ def observed_text(entry, binding):
     }
 
 
-def fresh_desktop(account):
+def fresh_desktop(account, expected='success'):
     """Direct fixture entry, with fresh recipient proofs before secret input.
 
     Deliberate wrong-account visits belong to the separate harness qualification.
     """
-    require(account in ('parent', 'other-child'), 'journey:desktop-binding')
+    require(account in ('parent', 'other-child', 'child'), 'journey:desktop-binding')
+    require(expected in ('success', 'time-denied') and
+            (expected == 'success' or account == 'child'), 'journey:desktop-result')
+    if account == 'child':
+        return {
+            'installed-greeter': 'ui:gdm-child-list',
+            'child-focused': 'ui:gdm-child-focused',
+            'child-recipient-qualified': 'ui:gdm-child-recipient',
+            'child-recipient-rechecked': 'ui:gdm-child-recipient-rechecked',
+            ('desktop' if expected == 'success' else 'denied'):
+                ('ui:fresh-child-desktop' if expected == 'success' else 'ui:gdm-child-time-denied'),
+        }
     if account == 'other-child':
         return {
             'installed-greeter': 'ui:gdm-standard-list',
@@ -94,6 +105,12 @@ def fresh_desktop(account):
         'recipient-rechecked': 'ui:gdm-parent-recipient-rechecked',
         'desktop': 'ui:desktop',
     }
+
+
+def rejected_gdm_return():
+    """DESK11: reobserve the rejected child prompt before Escape and list readback."""
+    return {'denied-return-ready': 'ui:gdm-child-denied-return-ready',
+            'denied-returned': 'ui:gdm-child-denied-returned'}
 
 
 def station_entry(prefix=''):

@@ -1992,6 +1992,8 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         row.match_rule_button.set_child(value)
         row.match_rule_button.set_tooltip_text(match["label"])
+        describe_control(row.match_rule_button, f"{row.app['name']} match rule",
+                         f"Current match rule: {rule}")
 
     @staticmethod
     def _match_rule_image(match):
@@ -2018,6 +2020,7 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         dialog.set_default_response(Gtk.ResponseType.OK)
         content = dialog.get_content_area()
+        set_automation_id(content, f"parent-match-rule-app-{_app_automation_key(row.app['id'])}")
         content.set_spacing(12)
         content.set_margin_top(18)
         content.set_margin_bottom(18)
@@ -2035,14 +2038,21 @@ class ParentWindow(Adw.ApplicationWindow):
             automation_id="parent-match-rule-entry",
         )
         content.append(entry)
+        entry.connect("changed", lambda widget: describe_control(
+            widget, "Application match rule",
+            "Enter an exact execution path or a versioned filename pattern.",
+        ))
 
         def response(_dialog, response_id):
             if response_id == Gtk.ResponseType.OK:
                 rule = self._canonical_match_rule(row, entry.get_text())
                 if not rule:
+                    describe_control(entry, "Application match rule", "A match rule is required")
                     self._toast("A match rule is required")
                     return
                 if not self._is_pattern(rule) and rule not in row.app["targets"]:
+                    describe_control(entry, "Application match rule",
+                                     "A precise match must be this app's execution path")
                     self._toast("A precise match must be this app's execution path")
                     return
                 row.match_rule = rule

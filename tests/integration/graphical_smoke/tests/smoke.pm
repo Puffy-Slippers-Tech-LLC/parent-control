@@ -139,6 +139,25 @@ sub run {
         onpc_product_free_entry::run(\&exchange);
         return;
     }
+    if ($ready->{countdown_enabled} || $ready->{countdown_off}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::countdown($ready->{countdown_enabled} ? 1 : 0,
+            \&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{fresh_child_denied}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::fresh_child_denied(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{fresh_child_allowed}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::fresh_child_allowed(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{challenges}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
@@ -330,6 +349,12 @@ sub run {
         onpc_kiosk_escape::run(\&exchange);
         return;
     }
+    if ($ready->{kiosk_approved}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_cancel::run(\&exchange, 'approved', $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{kiosk_cancel}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
@@ -442,6 +467,42 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_fresh_thirty_allowance::search_filters(\&exchange);
+        return;
+    }
+    if ($ready->{match_save_cancel}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::match_save_cancel(\&exchange);
+        return;
+    }
+    if ($ready->{policy_edit}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::policy_edit(\&exchange);
+        return;
+    }
+    if ($ready->{access_choices}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::access_choices(\&exchange);
+        return;
+    }
+    if ($ready->{match_editor}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::match_editor_validation(\&exchange);
+        return;
+    }
+    if ($ready->{rejected_parent_rule}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::rejected_parent_rule(\&exchange);
+        return;
+    }
+    if ($ready->{parent_error_report}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_fresh_thirty_allowance::parent_error_report(\&exchange);
         return;
     }
     if ($ready->{policy_legend}) {

@@ -21,9 +21,10 @@ customer case. They do not create another queue or confer acceptance credit.
 | 158–159, daily allowance | `test_preview_smoke.py` and `test_control_overflow.py`: presets, custom boundaries and local commit paths | 158: preset 15, custom 1, invalid 1441; retain child switching, saved-value reload and restart. 159: real rapid saves, ordering and single-instance behavior |
 | 38–43, request forms | `test_request_form_component.py` plus tasks 070/070a: complete preset/custom validation on both surfaces | One 5-minute preset or one 1.25-minute custom request with 0.09 rejection per surface; retain real authorization, duplicate-submission protection and the distinct rest-of-day grant |
 | 184, application search/filter | `test_preview_smoke.py::test_catalogue_complete_query_match_access_matrix`: five queries × four match-mode subsets × eight access subsets, exact empty results, restored complete rows and no policy writes | One exact-name search, one combined precise/Allowed filter, then clear against the real catalogue |
-| 185–186, application matching | Tasks 078/078a: local empty/unrelated input, cancel/reset and display states in UI preview | Real saved custom rule, cross-directory broker rejection, reopen/restart persistence and actual launch/enforcement |
+| 185–186, application matching | `test_preview_smoke.py::test_match_editor_valid_save_cancel_matrix`: precise/wildcard × absolute/basename Save and Cancel through shared blocks; `test_match_editor_invalid_reset_matrix`: empty/whitespace/unrelated absolute/basename drafts × old precise/wildcard × Cancel/Reset, exact explanations, retained drafts, unchanged Cancel and immediate default save | Real saved custom rule, representative local refusal and immediate Reset, cross-directory broker rejection, reopen/restart persistence and actual launch/enforcement |
+| Application access choices, PARENT16 | `test_preview_smoke.py::test_app_access_choices_save_and_independent_readback`: all three choices, unchanged Allowed without another save, wrong-row/modal refusal and independent entry through the shared access composite | Native fixture A's Allowed/Hard/Soft autosaves and exact public row readback; actual enforcement and full match/access composition stay with their separate tasks |
 | 151, 190–193, Help/About | `test_about_release.py`, `test_preview_smoke.py`, `test_e2e_accessible_adapter.py`; Parent content/clickability is delivered by 185p; overlay coverage remains in 185o | Owned About information and external-link clickability only, unchanged app return, kiosk restrictions and installed command manuals; no link invocation, URI/destination inspection or external handlers |
-| 205–207, error reporting | `test_error_feedback.py`: local presentation and report callback permutations | Real public error routing, actual destination and required exit behavior |
+| 205–207, error reporting | `test_error_feedback.py`: local presentation and report callback permutations; `test_preview_smoke.py::test_rejected_parent_rule_report_review_and_confirmed_policy`: confirmed precise/wildcard restoration, automatic report, synthetic draft, Privacy and normal closure through shared blocks | Complete case 205 and request-surface error routing, destinations and exits |
 | 155–157, 208–222, diagnostics/transport | Local presentation is UI; existing feedback UI tests cover callback success/failure states | Preserve actual collection, cancellation, service/network failures, sanitization and transport/lifetime checks; these execute different code from a stubbed preview |
 | Layout, scaling and automation identity | Existing parent/child/kiosk/layout/accessibility UI tests | No repeated layout or scale matrix in E2E |
 
@@ -58,7 +59,8 @@ UI-watcher, E2E-watcher and fixture-GUI modules exercise the test harness itself
 they do not duplicate product E2E assertions. The live E2E spectator remains an
 explicit opt-in check. The catalogue query/filter matrix is executable through
 the shared installed worker composites and public-ID adapter. Outstanding request
-and match-editor matrices above remain TODO.
+matrices above remain TODO. The valid Save/Cancel and invalid/Reset match-editor
+matrices are executable through the shared editor and text blocks.
 
 ## Shared operations
 

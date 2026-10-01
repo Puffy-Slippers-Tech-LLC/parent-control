@@ -5,6 +5,9 @@ explicitly owned children/descriptors. test_environment disables shared caches
 and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
+# Fresh child denial recorder/worker coverage uses only existing private pytest
+# evidence and waited Perl doubles. No new cleanup resource or live access;
+# challenges and installed-journey remain compatible in cleanup and unit scopes.
 
 # Explicit VM-name forwarding retains private journals and process-local API
 # doubles; cleanup checks add no real guest, desktop, socket or shared cache.
@@ -57,6 +60,11 @@ from pathlib import PurePosixPath
 # cleanup and unit scheduling, with no new owned resource or live access.
 
 from regression_ui import Bucket
+# TIME01 worker and recorder additions in challenges/installed-journey use only
+# existing private pytest evidence and waited Perl children with mocked secrets.
+# No live VM/display/bus or new shared resource; both classifications stay compatible.
+# Access-choice recorder coverage keeps the installed-journey matrix's private
+# evidence and process-local doubles; unit and cleanup compatibility is unchanged.
 from regression_resources import HOST_WORKERS
 
 
@@ -156,6 +164,12 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Repair-budget additions run finite synthetic agents under the existing recorded
 # launcher owners and private tmp_path roots. They retain compatible unit/cleanup
 # scheduling, bounded waits and teardown; no real model or VM is invoked.
+# Parent rejected-report recorder cases reuse function-local tmp_path evidence,
+# UI/transport doubles and the existing durable-reply fault matrix. No guest,
+# display, process or shared state is added; the unit/cleanup split stays valid.
+# Case 49 adds only the existing private durable-recorder fixture and synthetic
+# worker startup. Installed-journey cleanup remains compatible with unit/cleanup
+# peers; no shared display, bus, VM, process group or allocation owner is added.
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_fix_tests_cleanup_safety.py': 38,
              'test_write_e2e_cleanup_safety.py': 54,
@@ -190,6 +204,8 @@ def work_units(path, ids, kind, estimate):
     """
     # Jordan FLOW16 uses the same private recorder files and VM/UI doubles as
     # Riley; its added parameters retain this unit/cleanup isolation review.
+    # Match Reset/invalid plan adds only function-private recorder/transport
+    # doubles and files; the same unit and cleanup partition remains compatible.
     matrix = path == 'tests/unit/test_installed_journey_cleanup_safety.py'
     if not matrix or len(ids) < 32:
         return [Bucket(path, (path,), tuple(ids), kind, estimate)]

@@ -279,6 +279,7 @@ def test_parent_information_case_uses_complete_shared_sequence_and_stops_on_refu
     ('management-denied', 'management-denied', 'denial-closed'),
     ('parent', 'close-ready', 'closed'),
     ('feedback', 'feedback-draft-reread', 'feedback-draft-closed'),
+    ('parent-report', 'report', 'feedback-draft-closed'),
     ('feedback-privacy', 'feedback-privacy-open', 'feedback-privacy-returned'),
     ('feedback-privacy-independent', 'privacy-independent', 'privacy-independent-returned'),
 ])

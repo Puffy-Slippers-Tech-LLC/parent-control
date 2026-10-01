@@ -11,18 +11,20 @@ def approved_request(*, child, approver, duration_seconds, allow_soft, exit):
                  allow_soft=allow_soft) == CHOICES
             and type(duration_seconds) is int and allow_soft is True,
             'approved-flow:choices')
-    require(exit == 'automatic', 'approved-flow:exit')
+    require(exit in ('automatic', 'immediate'), 'approved-flow:exit')
     return {
         'approval-open': 'ui:kiosk-mate-open',
         'approval-qualified': 'ui:kiosk-mate-qualified',
         'approval-rechecked': 'ui:kiosk-mate-rechecked',
-        'approval-success': 'ui:kiosk-mate-submit-success',
+        'approval-success': ('ui:kiosk-mate-submit-immediate' if exit == 'immediate'
+                             else 'ui:kiosk-mate-submit-success'),
         'new-returned': 'ui:gdm-station-returned',
     }
 
 
 def obtain_time(*, initial, child, approver, duration_seconds, allow_soft, exit):
     """FLOW06 starts at GDM; no policy setup or later child login is implicit."""
+    require(exit == 'automatic', 'approved-flow:exit')
     choices = dict(child=child, approver=approver, duration_seconds=duration_seconds,
                    allow_soft=allow_soft)
     approval = approved_request(**choices, exit=exit)

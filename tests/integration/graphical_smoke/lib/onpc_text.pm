@@ -8,6 +8,15 @@ use onpc_journey ();
 use onpc_parent ();
 
 my %values = (
+    'match-wildcard' => '/opt/onpc-test-fixtures/Applications/Exact*.AppImage',
+    'match-wildcard-basename' => 'Exact*.AppImage',
+    'match-wildcard-appimages' => '/opt/onpc-test-fixtures/Applications/*.AppImage',
+    'match-rejected-directory' => '/opt/onpc-test-fixtures/Rejected/*.AppImage',
+    'match-precise' => '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
+    'match-precise-basename' => 'Exact Fixture.AppImage',
+    'match-invalid-empty' => '', 'match-invalid-whitespace' => '   ',
+    'match-invalid-basename' => 'Unrelated.AppImage',
+    'match-invalid-absolute' => '/opt/onpc-test-fixtures/Applications/Unrelated.AppImage',
     'catalogue-name' => 'ONPC Allowed Fixture',
     'catalogue-description' => 'Exact native catalogue fixture',
     'catalogue-identifier' => 'com.puffyslippers.ONPCTest.A.desktop',

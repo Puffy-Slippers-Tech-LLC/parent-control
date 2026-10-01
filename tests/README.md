@@ -592,7 +592,8 @@ All three launchers use its two-pane terminal display and the same output-follow
 loop. The upper pane pins the controller journey: `run-tests` shows the selected
 category and position with overall progress; `fix-tests` adds the current round number and
 the running-tests/fixing-errors status; `write-e2e` shows the task ID/title and
-the session's implementation, recovery or numbered live-test phase. Category and
+the session's implementation, recovery or numbered live-test phase, followed by
+the model and reasoning effort selected for that session. Category and
 session transitions update immediately. Routine overall counts refresh at most
 once every five seconds, while detailed test progress and agent output continue
 in the lower pane. Child output cannot move the cursor into the upper pane.

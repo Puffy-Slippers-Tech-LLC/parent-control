@@ -62,7 +62,7 @@ sub declare_challenges {
         my $binding = $bindings->{$id};
         die 'journey:challenge-plan' unless $id =~ /\A[a-z][a-z0-9-]*\z/
             && ref($binding) eq 'ARRAY' && @$binding == 3
-            && ($binding->[0] eq 'parent' || $binding->[0] eq 'other-child');
+            && ($binding->[0] eq 'parent' || $binding->[0] eq 'other-child' || $binding->[0] eq 'child');
         my ($role, $first, $second) = @$binding;
         my @positions = grep { $self->{invocations}[$_] eq $first }
             0 .. $#{$self->{invocations}};

@@ -1537,6 +1537,55 @@ def test_gdm_nonsecret_adapter_rejects_wrong_or_ambiguous_ownership(fault):
     station.component.grab_focus.assert_not_called()
 
 
+@pytest.mark.parametrize('outcome', ['complete', 'persistent', 'duplicate-owner', 'wrong-child'])
+def test_gdm_transition_reacquires_complete_scope_without_input(monkeypatch, outcome):
+    field = Node('Password', 'password text')
+    field.get_child_count = Mock(side_effect=AssertionError('password traversed'))
+    field.get_text_iface = Mock(side_effect=AssertionError('password read'))
+    recipient = Node(accessible_ui.CHILD, 'label')
+    ui, shell = semantic_gdm_ui(recipient=recipient, field=field)
+    stale = Node('Old prompt', 'label', states=('defunct',))
+    message = Node('Your account was given a time limit that’s now passed.', 'label')
+    stale.parent = message.parent = shell
+    shell.children.extend((stale, message))
+    ui.timeout = 1
+    # Keep the real nested observation/wait path, with a finite deterministic
+    # clock. The retry removes only the obsolete node; no input is authorized.
+    ticks = iter(range(100))
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: next(ticks) / 10)
+    retries = []
+    def transition(_seconds):
+        retries.append(ui._observation_generation)
+        if outcome == 'persistent':
+            return
+        if stale in shell.children:
+            shell.children.remove(stale)
+        if outcome == 'duplicate-owner':
+            root = shell.parent
+            duplicate = Node('gnome-shell', 'application')
+            duplicate.parent = root
+            root.children.append(duplicate)
+        if outcome == 'wrong-child':
+            recipient.name = accessible_ui.EXISTING_CHILD
+    monkeypatch.setattr(accessible_ui.time, 'sleep', transition)
+    if outcome == 'complete':
+        assert ui.gdm_child_time_denied() == {
+            'recipient': 'fixture-child', 'reason': 'time-limit', 'desktop_access': False}
+    else:
+        expected = {'persistent': 'gdm-stale-tree', 'duplicate-owner': 'gdm-provider-owner',
+                    'wrong-child': 'gdm-denial-recipient'}[outcome]
+        with pytest.raises(UiError, match=expected):
+            ui.gdm_child_time_denied()
+    assert retries
+    assert ui.incomplete_observations[0]['checkpoint'] == 'gdm-provider-owner'
+    for node in (field, recipient, message, stale):
+        node.action.do_action.assert_not_called()
+        node.component.grab_focus.assert_not_called()
+    field.get_child_count.assert_not_called()
+    field.get_text_iface.assert_not_called()
+    ui.api.Text.get_text.assert_not_called()
+
+
 @pytest.mark.parametrize(('fault', 'category', 'matching_nodes', 'matching_rows',
                           'role', 'showing', 'hidden', 'provider_owner', 'other_owner'), [
     ('missing', 'ordinary', 0, 0, None, 0, 0, 0, 0),
@@ -1693,6 +1742,7 @@ def test_gdm_product_free_prompt_and_return_never_read_or_submit_a_secret():
 @pytest.mark.parametrize('operation', [
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
     'gdm-standard-recipient', 'gdm-standard-recipient-rechecked',
+    'gdm-child-recipient', 'gdm-child-recipient-rechecked',
 ])
 @pytest.mark.parametrize('fault', [
     None, 'wrong-recipient', 'duplicate-recipient', 'missing-field', 'duplicate-field',
@@ -1701,7 +1751,8 @@ def test_gdm_product_free_prompt_and_return_never_read_or_submit_a_secret():
 def test_semantic_gdm_recipient_requires_one_bound_identity_and_empty_masked_focus(
         operation, fault):
     expected = (accessible_ui.EXISTING_CHILD
-                if operation.startswith('gdm-standard-') else accessible_ui.PARENT)
+                if operation.startswith('gdm-standard-') else accessible_ui.CHILD
+                if operation.startswith('gdm-child-') else accessible_ui.PARENT)
     recipient = Node(
         'Casey (Parent)' if fault == 'wrong-recipient' else expected, 'label')
     field = Node('Password', 'text' if fault == 'unmasked' else 'password text',
@@ -1739,7 +1790,8 @@ def test_semantic_gdm_recipient_requires_one_bound_identity_and_empty_masked_foc
 
 
 @pytest.mark.parametrize('operation', [
-    'gdm-wrong-recipient-refused', 'gdm-standard-wrong-recipient-refused'])
+    'gdm-wrong-recipient-refused', 'gdm-standard-wrong-recipient-refused',
+    'gdm-child-wrong-recipient-refused'])
 def test_semantic_wrong_prompt_proves_other_parent_and_refuses_intended_account(operation):
     recipient = Node('Casey (Parent)', 'label')
     field = Node('Password', 'password text',
@@ -1754,6 +1806,119 @@ def test_semantic_wrong_prompt_proves_other_parent_and_refuses_intended_account(
     assert ui.run(operation, '')['outcome'] == 'passed'
     ui.api.Text.get_text.assert_not_called()
     field.get_child_count.assert_not_called()
+
+
+def test_child_desktop_observer_selects_the_intended_fixture_account(monkeypatch):
+    monkeypatch.setattr(accessible_ui.sys, 'argv', ['observer', 'fresh-child-desktop', '1.1'])
+    monkeypatch.setattr(accessible_ui.os, 'geteuid', lambda: 0)
+    lookup = Mock(side_effect=LookupError('stop before connecting'))
+    monkeypatch.setattr(accessible_ui.pwd, 'getpwnam', lookup)
+    with pytest.raises(LookupError, match='stop before connecting'):
+        accessible_ui.main()
+    lookup.assert_called_once_with(accessible_ui.CHILD_ACCOUNTS[accessible_ui.CHILD])
+
+
+@pytest.mark.parametrize('fault', ['', 'generic', 'wrong-child', 'duplicate', 'list', 'hidden'])
+def test_specific_child_time_denial_never_reads_secret_or_accepts_authentication_failure(fault):
+    field = Node('Password', 'password text')
+    field.get_child_count = Mock(side_effect=AssertionError('password traversed'))
+    field.get_text_iface = Mock(side_effect=AssertionError('password read'))
+    message = Node('Sorry, that didn’t work.' if fault == 'generic' else
+                   'Your account was given a time limit that’s now passed.', 'label')
+    if fault == 'hidden': message.states.remove('showing')
+    ui, shell = semantic_gdm_ui(recipient=Node(
+        accessible_ui.EXISTING_CHILD if fault == 'wrong-child' else accessible_ui.CHILD, 'label'),
+        field=field)
+    shell.children.append(message)
+    message.parent = shell
+    if fault == 'duplicate':
+        duplicate = Node(message.name, 'label')
+        duplicate.parent = shell
+        shell.children.append(duplicate)
+    if fault == 'list':
+        parent, station = semantic_gdm_rows()
+        parent.parent = station.parent = shell
+        shell.children.extend((parent, station))
+    # One finite host read models the maintained deadline without wall-clock waits.
+    def wait(predicate, code, **kwargs):
+        result = predicate()
+        if not result: raise UiError('ui:timeout:' + code)
+        return result
+    ui.wait = wait
+    if fault:
+        with pytest.raises(UiError): ui.run('gdm-child-time-denied', '')
+    else:
+        assert ui.run('gdm-child-time-denied', '')['denial'] == {
+            'recipient': 'fixture-child', 'reason': 'time-limit', 'desktop_access': False}
+    field.get_child_count.assert_not_called()
+    field.get_text_iface.assert_not_called()
+    ui.api.Text.get_text.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'generic', 'wrong-child', 'desktop', 'missing', 'order'])
+def test_time_denial_and_return_cross_the_real_controller_decoder(fault):
+    transport = SimpleNamespace(call=Mock())
+    ui = UiObservations(transport)
+    ui.last_operation = 'gdm-child-recipient-rechecked'
+    denial = {'recipient': 'fixture-child', 'reason': 'time-limit', 'desktop_access': False}
+    if fault == 'generic': denial['reason'] = 'authentication-failed'
+    if fault == 'wrong-child': denial['recipient'] = 'existing-fixture-child'
+    if fault == 'desktop': denial['desktop_access'] = True
+    if fault == 'order': ui.last_operation = 'gdm-child-focused'
+    result = {'operation': 'gdm-child-time-denied', 'outcome': 'passed', 'interface': 'AT-SPI',
+              'denial': denial}
+    if fault == 'missing': del result['denial']
+    transport.call.return_value = json.dumps(result).encode()
+    if fault:
+        with pytest.raises(EvidenceError): ui.observe('gdm-child-time-denied')
+    else:
+        assert ui.observe('gdm-child-time-denied') == result
+        for operation in ('gdm-child-denied-return-ready', 'gdm-child-denied-returned'):
+            result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+            if operation.endswith('ready'): result['denial'] = denial
+            transport.call.return_value = json.dumps(result).encode()
+            assert ui.observe(operation) == result
+
+
+@pytest.mark.parametrize('operation', ['gdm-child-list', 'fresh-child-desktop'])
+@pytest.mark.parametrize('fault', ['', 'missing-provider', 'invalid-layout', 'wrong-operation'])
+def test_child_provider_result_crosses_real_controller_decoder(operation, fault):
+    shell = {'version': '50.1-0ubuntu1.2', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+              'provider': {'shell': shell, 'gdm_version': '50.1-0ubuntu0.1'}
+                          if operation == 'gdm-child-list' else shell}
+    if operation == 'gdm-child-list': result['focused'] = True
+    if fault == 'missing-provider': del result['provider']
+    if fault == 'invalid-layout': shell['keyboard'] = []
+    if fault == 'wrong-operation': result['operation'] = 'desktop'
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+    ui = UiObservations(transport)
+    if fault:
+        with pytest.raises((EvidenceError, UiError)):
+            ui.observe(operation)
+    else:
+        assert ui.observe(operation) == result
+    transport.call.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong-focus', 'missing-child', 'duplicate-child'])
+def test_child_list_uses_the_shared_owned_account_adapter(monkeypatch, fault):
+    row = Node(accessible_ui.CHILD, 'push button', states=('showing', 'visible', 'sensitive', 'focused'))
+    if fault == 'wrong-focus': row.states.remove('focused')
+    rows = [*semantic_gdm_rows(), row]
+    if fault == 'missing-child': rows.remove(row)
+    if fault == 'duplicate-child': rows.append(Node(accessible_ui.CHILD, 'push button'))
+    ui, _shell = semantic_gdm_ui(rows=rows)
+    # Input-capable focus remains the existing provider adapter; exercise its
+    # already-focused independent entry and refusal without an action double.
+    if fault:
+        if fault == 'wrong-focus':
+            row.component.grab_focus = Mock(return_value=False)
+        with pytest.raises(UiError):
+            ui.gdm_nonsecret_navigation(accessible_ui.CHILD)
+    else:
+        assert ui.gdm_nonsecret_navigation(accessible_ui.CHILD) is True
+        row.component.grab_focus.assert_not_called()
 
 
 def test_semantic_standard_gdm_route_focuses_only_the_declared_account():
@@ -2427,12 +2592,14 @@ def test_fresh_parent_desktop_uses_bound_shell_and_refuses_a_keyring_modal():
         control.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('operation', ['fresh-parent-desktop', 'fresh-standard-desktop'])
+@pytest.mark.parametrize('operation', ['fresh-parent-desktop', 'fresh-standard-desktop', 'fresh-child-desktop'])
 def test_fresh_desktop_requires_sustained_positive_shell_without_a_prompt(monkeypatch, operation):
     from itertools import count
     panel = Node('Activities', 'toggle button')
     shell = Node('gnome-shell', 'application', children=[panel])
     ui = ui_for(Node(role='desktop frame', children=[shell]), qualify_prompts=False)
+    ui.shell_provider_metadata = Mock(return_value={
+        'version': '50.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]})
     ui.timeout = 10
     clock = count(0, 0.25)
     monkeypatch.setattr(accessible_ui, 'time', SimpleNamespace(

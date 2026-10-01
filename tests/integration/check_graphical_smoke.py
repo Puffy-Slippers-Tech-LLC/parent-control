@@ -655,9 +655,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          license_viewer_provider=False, information_link='license',
          kiosk_eligible_choices=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
-         challenges=False, product_free_entry=False, package_authority=False,
+         challenges=False, challenge_profile='parent', product_free_entry=False, package_authority=False,
          package_install=False, customer_reboot=False, app_row_observations=False, native_fixtures=False,
-         catalogue_search=False, catalogue_filters=False, policy_legend=False,
+         catalogue_search=False, catalogue_filters=False, policy_legend=False, match_save_cancel=False,
+         match_editor=False, access_choices=False, policy_edit=False, rejected_parent_rule=False,
          feedback_read=False, text_qualification=False, allowance_presets=False, allowance=False,
          time_explanation=False, set_allowance=False, app_restart=False,
          allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False,
@@ -675,6 +676,24 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False):
+    require(type(rejected_parent_rule) is bool and (not rejected_parent_rule or
+            (native_fixtures and not catalogue_search and not catalogue_filters
+             and not policy_legend and not match_save_cancel and not match_editor
+             and not access_choices and not policy_edit)), 'smoke:rejected-parent-rule-prerequisites')
+    require(type(policy_edit) is bool and (not policy_edit or
+            (native_fixtures and not catalogue_search and not catalogue_filters
+             and not policy_legend and not match_save_cancel and not match_editor
+             and not access_choices)), 'smoke:policy-prerequisites')
+    require(type(access_choices) is bool and (not access_choices or
+            (native_fixtures and not catalogue_search and not catalogue_filters
+             and not policy_legend and not match_save_cancel and not match_editor)),
+            'smoke:access-choices-prerequisites')
+    require(type(match_editor) is bool and (not match_editor or
+            (native_fixtures and not catalogue_search and not catalogue_filters
+             and not policy_legend and not match_save_cancel and not access_choices)), 'smoke:match-editor-prerequisites')
+    require(type(match_save_cancel) is bool and (not match_save_cancel or
+            (native_fixtures and not catalogue_search and not catalogue_filters and not policy_legend)),
+            'smoke:match-save-cancel-prerequisites')
     require(type(catalogue_search) is bool and (not catalogue_search or native_fixtures),
             'smoke:catalogue-search-prerequisites')
     require(type(catalogue_filters) is bool and (not catalogue_filters or
@@ -687,7 +706,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and fresh_desktop is None and approval_flow is None
         and not any(value for name, value in locals().items()
                     if name not in ('assets', 'provision_credentials', 'app_row_observations',
-                                    'native_fixtures', 'catalogue_search', 'catalogue_filters', 'policy_legend') and isinstance(value, bool)))),
+                                    'native_fixtures', 'catalogue_search', 'catalogue_filters', 'policy_legend', 'match_save_cancel', 'match_editor', 'access_choices', 'policy_edit', 'rejected_parent_rule') and isinstance(value, bool)))),
         'smoke:native-fixtures-prerequisites')
     require(type(public_connectivity_controls) is bool and (not public_connectivity_controls or (
         assets is not None and provision_credentials and parent_toggle
@@ -991,6 +1010,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                          kiosk_eligible_choices, request_choices, kiosk_no_child,
                          kiosk_no_approver, repeated_operations, challenges)))),
             'smoke:product-free-entry-prerequisites')
+    require(challenge_profile in ('parent', 'fresh-child', 'fresh-child-denied',
+                                  'countdown-enabled', 'countdown-off') and
+            (challenge_profile == 'parent' or challenges is True), 'smoke:challenge-profile')
     require(type(challenges) is bool and (not challenges or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1292,6 +1314,16 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-catalogue-filter-qualification'
         if policy_legend:
             result['scope'] = 'installed-policy-legend-qualification'
+        if match_save_cancel:
+            result['scope'] = 'installed-match-save-cancel-qualification'
+        if match_editor:
+            result['scope'] = 'installed-match-editor-qualification'
+        if rejected_parent_rule:
+            result['scope'] = 'installed-rejected-parent-rule-qualification'
+        if access_choices:
+            result['scope'] = 'installed-access-choices-qualification'
+        if policy_edit:
+            result['scope'] = 'installed-policy-qualification'
         if feedback_read:
             result['scope'] = 'installed-feedback-read-qualification'
         if file_chooser:
@@ -1391,7 +1423,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if repeated_operations:
             result['scope'] = 'installed-repeated-operations-qualification'
         if challenges:
-            result['scope'] = 'installed-challenges-qualification'
+            result['scope'] = {'parent': 'installed-challenges-qualification',
+                'fresh-child': 'installed-fresh-child-allowed-qualification',
+                'fresh-child-denied': 'installed-fresh-child-denied-qualification',
+                'countdown-enabled': 'installed-countdown-enabled-qualification',
+                'countdown-off': 'installed-countdown-off-qualification'}[challenge_profile]
         if product_free_entry:
             result['scope'] = 'product-free-entry-qualification'
         if package_authority:
@@ -1517,8 +1553,14 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import RepeatedOperationsQualification
                     qualification_class = RepeatedOperationsQualification
                 if challenges:
-                    from parent_setup_qualification import ChallengesQualification
-                    qualification_class = ChallengesQualification
+                    from parent_setup_qualification import (ChallengesQualification,
+                        FreshChildAllowedQualification, FreshChildDeniedQualification,
+                        CountdownQualification, CountdownOffQualification)
+                    qualification_class = {'parent': ChallengesQualification,
+                        'fresh-child': FreshChildAllowedQualification,
+                        'fresh-child-denied': FreshChildDeniedQualification,
+                        'countdown-enabled': CountdownQualification,
+                        'countdown-off': CountdownOffQualification}[challenge_profile]
                 if gdm_product_free:
                     from parent_setup_qualification import GdmProductFreeQualification
                     qualification_class = GdmProductFreeQualification
@@ -1573,6 +1615,21 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if policy_legend:
                     from parent_setup_qualification import PolicyLegendQualification
                     qualification_class = PolicyLegendQualification
+                if match_save_cancel:
+                    from parent_setup_qualification import MatchSaveCancelQualification
+                    qualification_class = MatchSaveCancelQualification
+                if match_editor:
+                    from parent_setup_qualification import MatchEditorQualification
+                    qualification_class = MatchEditorQualification
+                if rejected_parent_rule:
+                    from parent_setup_qualification import RejectedParentRuleQualification
+                    qualification_class = RejectedParentRuleQualification
+                if access_choices:
+                    from parent_setup_qualification import AccessChoicesQualification
+                    qualification_class = AccessChoicesQualification
+                if policy_edit:
+                    from parent_setup_qualification import PolicyQualification
+                    qualification_class = PolicyQualification
                 if feedback_read:
                     from parent_setup_qualification import FeedbackReadQualification
                     qualification_class = FeedbackReadQualification

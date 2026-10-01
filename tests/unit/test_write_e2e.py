@@ -175,7 +175,7 @@ def test_session_controller_reports_task_title_and_phase(tmp_path, phase, attemp
     state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts,
                  task_sessions=2)
     assert [Text.from_ansi(line).plain for line in workflow.session_progress(tmp_path, state, 5)] == [
-        'Task 001: First', f'Session [2]: {summary}']
+        'Task 001: First', f'Session [2]: {summary} (gpt-6.1-sol high)']
 
 
 def test_current_task_recap_refreshes_and_freezes_at_completion(tmp_path, monkeypatch):

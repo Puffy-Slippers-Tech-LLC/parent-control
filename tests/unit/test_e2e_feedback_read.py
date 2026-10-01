@@ -5151,6 +5151,37 @@ def test_initial_draft_snapshot_is_bounded_and_immutable_without_input():
         node.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', [None, 'absent', 'wrong-owner', 'duplicate',
+                                 'disabled', 'no-action', 'ambiguous-action', 'private-draft'])
+def test_parent_report_reads_exact_automatic_draft_and_action_availability_without_input(fault):
+    ui, parent, dialog, controls = feedback_ui()
+    privacy = Node(identity='feedback-privacy-link')
+    dialog.children.append(privacy); privacy.parent = dialog
+    body = accessible_ui.TEXT_VALUES['body-rule-error'][1]
+    editor = controls['feedback-editor-input']
+    editor.text.count = len(body)
+    ui.api.Text.get_text = Mock(return_value='private' if fault == 'private-draft' else body)
+    if fault == 'absent': parent.children.clear()
+    elif fault == 'wrong-owner': ui.api.get_desktop(0).identity = 'foreign.application'
+    elif fault == 'duplicate': dialog.children.append(Node(identity='feedback-privacy-link'))
+    elif fault == 'disabled': privacy.states.remove('sensitive')
+    elif fault == 'no-action': privacy.get_action_iface = lambda: None
+    elif fault == 'ambiguous-action': privacy.action.get_n_actions = lambda: 2
+    if fault:
+        with pytest.raises(accessible_ui.UiError): ui.parent_report_operation('parent-report-read')
+    else:
+        assert ui.parent_report_operation('parent-report-read')['draft'] == 'parent-rule-error'
+    for node in (*controls.values(), privacy):
+        node.action.do_action.assert_not_called()
+
+
+def test_parent_report_wrong_entry_refuses_close_and_never_opens_feedback():
+    ui, parent, dialog, controls = feedback_ui()
+    parent.children.clear(); parent.states.add('active')
+    assert ui.parent_report_operation('parent-report-refused') == {'refusal': 'absent'}
+    for node in controls.values(): node.action.do_action.assert_not_called()
+
+
 def test_feedback_ignores_reused_toolkit_ids_but_refuses_hidden_owned_duplicates():
     ui, _, dialog, _ = feedback_ui()
     dialog.children.extend(Node(identity=identity) for identity in ('box', 'box', 'title', 'title'))
@@ -5302,6 +5333,35 @@ def test_text_focus_is_public_and_independently_verified_with_failure_latch():
     with pytest.raises(accessible_ui.UiError, match='ui:uncertain-input'):
         ui.focus_text('feedback-editor-input')
     assert node.component.grab_focus.call_count == 2
+
+
+@pytest.mark.parametrize('anchor', [False, True])
+@pytest.mark.parametrize('fault', ['query', 'incomplete', 'persistent', 'disabled'])
+def test_text_focus_preflight_retries_reads_without_replaying_input(anchor, fault):
+    ui, _, _, controls = feedback_ui()
+    ui.timeout = .2
+    ui.query_errors = (LookupError,)
+    read = ui.text_recipient
+    calls = []
+    def recipient(identity, **kwargs):
+        calls.append(identity)
+        if len(calls) == 1 or fault == 'persistent':
+            if fault == 'disabled': raise accessible_ui.UiError('ui:text-disabled')
+            if fault == 'incomplete': raise accessible_ui.UiError('ui:incomplete-tree')
+            raise LookupError('transient public object')
+        return read(identity, **kwargs)
+    ui.text_recipient = recipient
+    operation = (lambda: ui.text_operation('text-reply-first-anchor')) if anchor else (
+        lambda: ui.focus_text('feedback-editor-input'))
+    focus = controls['feedback-editor-input'].component.grab_focus
+    if fault in ('persistent', 'disabled'):
+        with pytest.raises(accessible_ui.UiError, match='timeout:text-|text-disabled'):
+            operation()
+        focus.assert_not_called()
+    else:
+        operation()
+        focus.assert_called_once()
+    controls['feedback-reply-email'].component.grab_focus.assert_not_called()
 
 
 def test_live_text_refusals_perform_no_focus_or_text_read():

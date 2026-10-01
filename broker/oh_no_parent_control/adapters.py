@@ -26,6 +26,10 @@ ACCOUNTS_PATH = "/org/freedesktop/Accounts"
 ACCOUNTS_INTERFACE = "org.freedesktop.Accounts"
 NONINTERACTIVE_SHELLS = frozenset({"", "/bin/false", "/usr/bin/false",
                                   "/sbin/nologin", "/usr/sbin/nologin"})
+# systemd reserves this inclusive range for transient display-manager identities:
+# https://systemd.io/UIDS-GIDS/#special-systemd-uid-ranges
+# They are not persistent accounts eligible for child or approver discovery.
+GREETER_UIDS = range(60578, 60706)
 PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 SESSION_LIMITS_INTERFACE = "com.endlessm.ParentalControls.SessionLimits"
 APP_FILTER_INTERFACE = "com.endlessm.ParentalControls.AppFilter"
@@ -185,6 +189,13 @@ class AccountsService:
         uids = sorted({entry.pw_uid for entry in entries
                        if 1000 <= entry.pw_uid <= (1 << 32) - 1 and
                        getattr(entry, "pw_shell", "") not in NONINTERACTIVE_SHELLS})
+        # Greeter UIDs change between sessions, while AccountsService may retain
+        # an older object for the same service-account name. Exclude these NSS
+        # candidates before lookup; do not relax identity checks or swallow
+        # failures for ordinary accounts used by discovery and policy sync.
+        if any(uid in GREETER_UIDS for uid in uids):
+            LOG.info("adapters.greeter-candidates-excluded")
+            uids = [uid for uid in uids if uid not in GREETER_UIDS]
         # Compare a reviewed, fixed service-account name transiently. Emit only
         # its role; never retain NSS names, IDs, labels, homes or shells.
         greeter_uids = {entry.pw_uid for entry in entries

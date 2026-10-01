@@ -55,6 +55,16 @@ authority for UID, local/system status, account type, lock state, display name,
 and icon. The current AccountsService shell also determines interactive approver
 eligibility on direct UID selection and transaction revalidation.
 
+Discovery also excludes systemd's reserved dynamic-greeter UID range
+60578–60705 before AccountsService lookup, on both supported distributions.
+These transient display-manager identities are not persistent children or
+approvers. After a session transition, AccountsService can retain an older
+greeter object for the same name; querying it with the current NSS UID can
+otherwise abort discovery and execution-policy reconciliation. Ordinary accounts
+outside this range still use fresh NSS enumeration, including newly created and
+high-UID accounts, and all direct lookups retain the object-path/UID checks.
+See [systemd UID ranges](https://systemd.io/UIDS-GIDS/#special-systemd-uid-ranges).
+
 An eligible child is a local, non-system, non-administrator account with UID at
 least 1000, excluding the configured kiosk UID. An eligible approver is a local,
 non-system, unlocked, interactive administrator with UID at least 1000 and a username safe

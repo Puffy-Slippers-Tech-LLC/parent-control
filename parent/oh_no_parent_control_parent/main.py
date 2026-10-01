@@ -1188,12 +1188,17 @@ class ParentWindow(Adw.ApplicationWindow):
     def _open_language_dialog(self):
         if self._language_dialog is None:
             self._language_dialog = LanguageDialog(
-                self, self._own_language, self._save_language, self._language_saved)
+                self, self._own_language, self._save_language, self._language_saved,
+                self._language_cancelled)
             self._language_dialog.connect(
                 "map", lambda *_args: self._language_shade.set_visible(True))
             self._language_dialog.connect(
                 "unmap", lambda *_args: self._language_shade.set_visible(False))
         self._language_dialog.present()
+
+    def _language_cancelled(self):
+        self._language_dialog = None
+        self._language_requested = False
 
     def _save_language(self, language, success, failure):
         def saved(value):

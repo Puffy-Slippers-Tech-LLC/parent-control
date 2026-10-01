@@ -24,9 +24,11 @@ sub run {
 # PARENT12/UI13 shared finite complete-read, refusals and independent reread.
 sub read_rows {
     onpc_progress::operation('Reading complete public App Limits rows');
-    my ($journey) = @_;
-    die 'app-rows:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
-    for my $stage ('apps-page', 'app-rows', 'wrong-child', 'wrong-page', 'reopened-rows') {
+    my ($journey, $stage) = @_;
+    die 'app-rows:arguments' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
+        && (!defined($stage) || $stage =~ /\A[a-z][a-z0-9-]*\z/);
+    for my $stage (defined($stage) ? ($stage) :
+                   ('apps-page', 'app-rows', 'wrong-child', 'wrong-page', 'reopened-rows')) {
         my $result = $journey->seen($stage);
         $journey->consume_observation($stage, $result);
     }

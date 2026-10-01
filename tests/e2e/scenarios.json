@@ -2124,7 +2124,7 @@
         "rationale": "Six installed contracts; UI owns full query/filter and local editor matrices. E2E samples the real catalogue and retains saved rules, broker rejection, persistence and actual launches."
       },
       "variants": [
-        {"coverage_id": 184, "id": "search-filters", "owner": "continuous-journeys", "parameters": {"flow": "search-filters"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 184, "id": "search-filters", "owner": "continuous-journeys", "parameters": {"flow": "search-filters"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/search_filters.py", "test_id": "search-filters"}},
         {"coverage_id": 185, "id": "match-editor", "owner": "continuous-journeys", "parameters": {"flow": "match-editor"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 186, "id": "match-reopen", "owner": "continuous-journeys", "parameters": {"flow": "match-reopen"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 187, "id": "shared-launchers", "owner": "continuous-journeys", "parameters": {"flow": "shared-launchers"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},

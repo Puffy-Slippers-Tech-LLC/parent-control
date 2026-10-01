@@ -280,6 +280,8 @@ OPERATION_LABELS.update({
 
 OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret field value'
                          for operation in accessible_ui.TEXT_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Checking the native app grid and ordinary draft submission: ' + operation
+                         for operation in accessible_ui.NATIVE_APP_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Copying and doubling declared synthetic editor text'
                          for operation in accessible_ui.DUPLICATE_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Applying and independently reading synthetic range formatting'
@@ -855,7 +857,7 @@ class UiObservations:
             self.progress.operation(OPERATION_LABELS[operation])
         program = (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
         modules = 'import sys, types\n'
-        for name in ('public_atspi', 'block_semantics', 'feedback_formats', 'download_destination'):
+        for name in ('public_atspi', 'block_semantics', 'feedback_formats', 'download_destination', 'fixture_ui'):
             source = (system.ROOT / f'tests/e2e/{name}.py').read_text()
             modules += (f'{name} = types.ModuleType("{name}")\n'
                         f'sys.modules["{name}"] = {name}\n'
@@ -907,6 +909,12 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation in ('native-opened', 'native-submitted'):
+            expected['activity'] = {'draft': 'ONPC fixture draft',
+                'submitted': 'No submitted draft' if operation == 'native-opened' else 'ONPC fixture draft',
+                'score': 'Moves: 0; token: 0'}
+        if operation in ('native-grid', 'native-grid-refusals'):
+            expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
         if operation in accessible_ui.COUNTDOWN_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'countdown'}, 'ui:response')
             expected['countdown'] = accessible_ui.validate_countdown(

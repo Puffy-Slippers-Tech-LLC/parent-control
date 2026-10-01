@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **035c — [Launch and use a native fixture from the app grid](E2E-Tasks/035c-native-grid-usable.md)**.
+Next task: **035 — [Launch and use native fixtures by command](E2E-Tasks/035-native-app.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -21,6 +21,30 @@ def signatures(xml):
 
 
 class ServiceContractTests(unittest.TestCase):
+    def test_language_contract_never_accepts_target_identity(self):
+        self.assertEqual(signatures(INTROSPECTION_XML)["GetOwnLanguage"],
+                         (("language", "s", "out"),))
+        self.assertEqual(signatures(INTROSPECTION_XML)["SetOwnLanguage"],
+                         (("language", "s", "in"), ("saved_language", "s", "out")))
+
+    def test_language_dispatch_uses_bus_credentials(self):
+        service = Service.__new__(Service)
+        service.credentials = mock.Mock()
+        service.credentials.uid.return_value = 1001
+        service.broker = mock.Mock()
+        service.broker.get_own_language.return_value = "fr"
+        service.broker.set_own_language.return_value = "de"
+        from oh_no_parent_control.service import GLib
+        invocation = mock.Mock()
+        service._method_call(None, ":1.42", None, None, "GetOwnLanguage",
+                             GLib.Variant("()", ()), invocation)
+        service.broker.get_own_language.assert_called_once_with(1001)
+        self.assertEqual(invocation.return_value.call_args.args[0].unpack(), ("fr",))
+        service._method_call(None, ":1.42", None, None, "SetOwnLanguage",
+                             GLib.Variant("(s)", ("de",)), invocation)
+        service.broker.set_own_language.assert_called_once_with(1001, "de")
+        self.assertEqual(invocation.return_value.call_args.args[0].unpack(), ("de",))
+
     def test_export_collects_extension_evidence_before_snapshot_and_survives_failure(self):
         service = Service.__new__(Service)
         service.broker = mock.Mock()

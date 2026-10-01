@@ -31,6 +31,17 @@ APP02 usable-window observation and APP03 normal input/effect. Reuse 035c's
 qualified grid route and result readers. Special-path copies and versioned-path
 fixtures remain separate consumer assets.
 
+Shared source routes: `onpc_app_rows::native_search/native_launch_grid/native_open_grid`
+and `native_use_app/native_close_app` in
+[`onpc_app_rows.pm`](../../../tests/integration/graphical_smoke/lib/onpc_app_rows.pm);
+`AccessibleUI.native_app_operation/native_app_snapshot/native_app_submit/native_app_closed`
+in [`accessible_ui.py`](../../../tests/e2e/accessible_ui.py), with public projections
+in `FixtureUI` and exact controller decoding in `UiObservations`.
+The existing grid qualifier is `native_grid_usable.PLAN` / `NativeGridJourney` in
+[`native_grid_usable.py`](../../../tests/e2e/native_grid_usable.py).
+Ownership, worker-marker reconciliation and refusal regressions are in
+[`test_e2e_native_grid_usable.py`](../../../tests/unit/test_e2e_native_grid_usable.py).
+
 ## Live VM acceptance
 
 On the VM, launch the app through the shared direct-command route and perform

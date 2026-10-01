@@ -7,6 +7,13 @@ shared pytest/Hypothesis caches and aggregate retention in every unit worker.
 Unknown modules fail closed to exclusive execution; new modules must receive an
 isolation/resource review and classification before their work is complete.
 
+Unified preference/language tests use tiny private temporary records and
+process-local account/storage doubles. Their concurrency case owns two finite
+threads, releases its private gate in finally, and joins both before returning.
+Migration interruption and uninstall selection checks use those same private
+trees without real services, processes, sockets or privileged writes. Existing
+compatible preference, core, migration and uninstall classifications still apply.
+
 Guest-probe additions to VM-control, snapshot, configuration and transport tests
 use existing private pytest lease/scratch trees and process-local SSH/libvirt,
 stream and clock doubles. They add no live guest, socket, display, credentials,
@@ -192,7 +199,7 @@ e2e_install_helper e2e_install_password_observation e2e_installation_boundary
 e2e_installation_observations e2e_inventory e2e_keyring_fixture_cleanup_safety
 e2e_kiosk_eligible_choices e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_no_approver e2e_kiosk_no_child e2e_leased_recording_cleanup_safety
 e2e_license_viewer
-e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch
+e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch e2e_native_grid_usable
 e2e_plan e2e_pointer_helper e2e_progress e2e_real_interval
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner
 e2e_request_choices e2e_request_exit e2e_secret_variables e2e_serial_helper

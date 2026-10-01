@@ -20,7 +20,7 @@ STATE_DIRECTORY = Path("/var/lib/oh-no-parent-control")
 PREFERENCES_DIRECTORY = STATE_DIRECTORY / "preferences"
 MIGRATION_MARKER = STATE_DIRECTORY / "migration-in-progress"
 MIGRATION_LOCK = STATE_DIRECTORY / "data-migration.lock"
-UID_RECORD_RE = re.compile(r"^([1-9][0-9]*)\.json$")
+UID_RECORD_RE = re.compile(r"^(0|[1-9][0-9]*)\.json$")
 
 Migration = Callable[[dict[str, Any]], dict[str, Any]]
 Validator = Callable[[object], object]
@@ -54,9 +54,21 @@ def migrate_preferences_v2_to_v3(raw: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
+def migrate_preferences_v3_to_v4(raw: dict[str, Any]) -> dict[str, Any]:
+    """Add personal language without changing any policy or request choice."""
+    if set(raw) not in (
+            {"version", "parent_control_enabled", "apps", "request"},
+            {"version", "parent_control_enabled", "daily_time_limit_minutes", "apps", "request"}):
+        # A malformed policy record must never turn into a valid personal-only
+        # record merely because the current schema admits that new variant.
+        raise MigrationError("version-3 record has invalid policy keys")
+    return {**raw, "version": 4, "personal": {"language": ""}}
+
+
 PREFERENCE_MIGRATIONS: dict[int, Migration] = {
     1: migrate_preferences_v1_to_v2,
     2: migrate_preferences_v2_to_v3,
+    3: migrate_preferences_v3_to_v4,
 }
 
 

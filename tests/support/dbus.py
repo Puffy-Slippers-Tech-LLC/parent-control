@@ -133,6 +133,12 @@ class RecordingBroker:
             raise behavior
         return behavior(*args) if callable(behavior) else behavior
 
+    def get_own_language(self, uid):
+        return self._invoke("get_own_language", "fr", uid)
+
+    def set_own_language(self, uid, language):
+        return self._invoke("set_own_language", language, uid, language)
+
     def refresh_enabled_extensions(self):
         return self._invoke("refresh_enabled_extensions", (),)
 

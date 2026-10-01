@@ -1,5 +1,12 @@
 <node>
   <interface name="com.puffyslippers.OhNoParentControl1">
+    <method name="GetOwnLanguage">
+      <arg name="language" type="s" direction="out"/>
+    </method>
+    <method name="SetOwnLanguage">
+      <arg name="language" type="s" direction="in"/>
+      <arg name="saved_language" type="s" direction="out"/>
+    </method>
     <method name="ListManagedUsers">
       <arg name="users" type="a(uss)" direction="out"/>
     </method>

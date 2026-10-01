@@ -180,18 +180,20 @@ def test_preference_migrations_preserve_current_blocking_meaning(state, suffix):
     target = f"/tmp/onpc-migration/{suffix}.AppImage"
     legacy = default_preferences()
     legacy["version"] = 1
+    del legacy["personal"]
     legacy["apps"] = {
         f"{suffix}.desktop": {"state": state, "targets": [target]},
     }
 
     migrated, changed = migrate_document(
         legacy,
-        current_version=3,
+        current_version=4,
         migrations=PREFERENCE_MIGRATIONS,
         validator=validate_preferences,
     )
 
     assert changed
-    assert migrated["version"] == 3
+    assert migrated["version"] == 4
+    assert migrated["personal"] == {"language": ""}
     assert (target in blocked_targets(migrated, False)) == (state != "allowed")
     assert blocked_patterns(migrated, False) == ()

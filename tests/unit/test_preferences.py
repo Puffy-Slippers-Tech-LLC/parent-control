@@ -1,14 +1,156 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from oh_no_parent_control.preferences import (
     PreferenceStore, PreferencesError, blocked_patterns, blocked_targets, default_preferences,
-    validate_preferences,
+    validate_preferences, validate_language,
 )
 
 
 class PreferenceTests(unittest.TestCase):
+    def test_language_persists_per_user_and_reset_follows_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "preferences"
+            store = PreferenceStore(path)
+            self.assertEqual(store.load(1001)["personal"]["language"], "")
+            self.assertFalse(path.exists())
+            for uid, language in ((0, "en"), (991, "de"), (1001, "zh-Hans"),
+                                  (1003, "pt-BR")):
+                self.assertEqual(store.update_language(uid, language), language)
+                self.assertEqual(PreferenceStore(path).load(uid)["personal"]["language"], language)
+                self.assertEqual((path / f"{uid}.json").stat().st_mode & 0o777, 0o600)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(store.load(1002)["personal"]["language"], "")
+            store.update_language(1001, "")
+            self.assertEqual(PreferenceStore(path).load(1001)["personal"]["language"], "")
+            self.assertEqual(store.load(1003)["personal"]["language"], "pt-BR")
+
+    def test_language_rejects_invalid_inputs_before_writing(self):
+        for language in (None, True, 1, "../en", "en_US.UTF-8", "en:fr",
+                         " en", "en\n", "en--US", "e", "en-" + "a" * 64):
+            with self.subTest(language=language), self.assertRaises(PreferencesError):
+                validate_language(language)
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            for uid in (-1, True, "1001", 2 ** 32):
+                with self.subTest(uid=uid), self.assertRaises(PreferencesError):
+                    store.update_language(uid, "en")
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_language_corrupt_or_future_data_is_never_overwritten(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            path = Path(directory) / "1001.json"
+            from json import dumps
+            current = default_preferences()
+            invalid_language = {**current, "personal": {"language": "../fr"}}
+            for content in ('{', 'null', dumps({**current, "version": 5}),
+                            dumps({**current, "version": True}),
+                            dumps(current).replace('"language": ""', '"language": "en", "language": "fr"'),
+                            dumps(invalid_language), dumps({**current, "extra": True})):
+                path.write_text(content, encoding="utf-8")
+                with self.assertRaises(PreferencesError):
+                    store.load(1001)
+                with self.assertRaises(PreferencesError):
+                    store.update_language(1001, "en")
+                self.assertEqual(path.read_text(encoding="utf-8"), content)
+
+    def test_personal_only_records_normalize_defaults_without_claiming_policy(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            store.update_language(1001, "fr")
+            path = Path(directory) / "1001.json"
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")),
+                             {"version": 4, "personal": {"language": "fr"}})
+            self.assertEqual(store.load(1001),
+                             {**default_preferences(), "personal": {"language": "fr"}})
+            store.save(1001, default_preferences())
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            self.assertIn("parent_control_enabled", raw)
+            self.assertEqual(raw["personal"]["language"], "fr")
+
+    def test_language_failed_replace_keeps_prior_selection_and_cleans_temporary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            store.update_language(1001, "fr")
+            with mock.patch("oh_no_parent_control.preferences.os.replace",
+                            side_effect=OSError("write failed")):
+                with self.assertRaises(OSError):
+                    store.update_language(1001, "de")
+            self.assertEqual(store.load(1001)["personal"]["language"], "fr")
+            self.assertEqual([p.name for p in Path(directory).iterdir()], ["1001.json"])
+
+
+    def test_language_and_policy_share_record_and_stale_policy_preserves_personal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            policy = default_preferences()
+            policy["daily_time_limit_minutes"] = 37
+            policy["request"]["last_custom_minutes"] = 12.5
+            store.save(1001, policy)
+            stale = store.load(1001)
+            store.update_language(1001, "fr")
+            stale["daily_time_limit_minutes"] = 42
+            # This is the same common save path used by policy commits/rollback.
+            saved = store.save(1001, stale)
+            self.assertEqual(saved["personal"]["language"], "fr")
+            self.assertEqual(saved["daily_time_limit_minutes"], 42)
+            self.assertEqual(saved["request"]["last_custom_minutes"], 12.5)
+            store.update_request(1001, "custom", 20, True)
+            store.update_request_muted(1001, "child", False)
+            self.assertEqual(store.load(1001)["personal"]["language"], "fr")
+            self.assertEqual([p.name for p in Path(directory).iterdir()], ["1001.json"])
+
+    def test_language_read_modify_write_serializes_with_policy_save(self):
+        import threading
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            stale = store.load(1001)
+            stale["daily_time_limit_minutes"] = 42
+            entered, release, policy_started = (threading.Event() for _ in range(3))
+            original = store._write
+            errors = []
+
+            def write(uid, value):
+                if value["personal"]["language"] == "fr" and value.get("daily_time_limit_minutes", 0) == 0:
+                    entered.set()
+                    if not release.wait(5):
+                        raise RuntimeError("language write was not released")
+                return original(uid, value)
+
+            def run(operation):
+                try:
+                    operation()
+                except Exception as error:
+                    errors.append(error)
+
+            def save_policy():
+                policy_started.set()
+                store.save(1001, stale)
+
+            with mock.patch.object(store, "_write", side_effect=write):
+                language = threading.Thread(target=run, args=(lambda: store.update_language(1001, "fr"),))
+                policy = threading.Thread(target=run, args=(save_policy,))
+                language.start()
+                try:
+                    self.assertTrue(entered.wait(5))
+                    policy.start()
+                    self.assertTrue(policy_started.wait(5))
+                finally:
+                    release.set()
+                    language.join(5)
+                    if policy.ident is not None:
+                        policy.join(5)
+                self.assertFalse(language.is_alive())
+                self.assertFalse(policy.is_alive())
+            self.assertEqual(errors, [])
+            saved = store.load(1001)
+            self.assertEqual(saved["personal"]["language"], "fr")
+            self.assertEqual(saved["daily_time_limit_minutes"], 42)
+
     def test_store_round_trip_is_per_child(self):
         with tempfile.TemporaryDirectory() as directory:
             store = PreferenceStore(Path(directory))

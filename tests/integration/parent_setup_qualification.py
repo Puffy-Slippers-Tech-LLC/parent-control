@@ -1211,6 +1211,16 @@ class NativeFixtureQualification(KioskEntryQualification):
         return NativeFixtureJourney(context, progress)
 
 
+class NativeGridQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from native_grid_usable import NativeGridJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return NativeGridJourney(context, progress)
+
+
 class ParentToggleQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

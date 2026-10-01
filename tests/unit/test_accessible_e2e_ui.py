@@ -2456,22 +2456,23 @@ def test_parent_search_closure_requires_complete_absence(fault):
         assert ui.parent_search_closed() is (fault is None)
 
 
-def test_shell_search_launcher_requires_one_owned_exact_result():
-    launcher = Node('Oh No! Parent Control', 'button')
-    unrelated = Node('Oh No! Parent Control', 'button')
+@pytest.mark.parametrize('product', [accessible_ui.PRODUCT, accessible_ui.NATIVE_PRODUCT])
+def test_shell_search_launcher_requires_one_owned_exact_result(product):
+    launcher = Node(product, 'button')
+    unrelated = Node(product, 'button')
     shell = Node('gnome-shell', 'application', children=[launcher])
     other = Node('other application', 'application', children=[unrelated])
     root = Node(role='desktop frame', children=[shell, other])
     ui = ui_for(root)
-    assert ui.launchable_result(accessible_ui.PRODUCT) is launcher
+    assert ui.launchable_result(product) is launcher
     launcher.states.remove('showing')
-    assert ui.launchable_result(accessible_ui.PRODUCT) is None
+    assert ui.launchable_result(product) is None
     launcher.states.add('showing')
-    duplicate = Node('Oh No! Parent Control', 'button')
+    duplicate = Node(product, 'button')
     duplicate.parent = shell
     shell.children.append(duplicate)
     with pytest.raises(UiError, match='shell-result-ambiguous'):
-        ui.launchable_result(accessible_ui.PRODUCT)
+        ui.launchable_result(product)
     launcher.component.grab_focus.assert_not_called()
     unrelated.component.grab_focus.assert_not_called()
 

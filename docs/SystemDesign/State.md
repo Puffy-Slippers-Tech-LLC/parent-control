@@ -9,18 +9,19 @@ Implementation: [preferences.py](../../broker/oh_no_parent_control/preferences.p
 
 ## Persistent and derived state
 
-The single product preference source for child UID `N` is:
+The single product preference source for user UID `N` is:
 
 ```text
 /var/lib/oh-no-parent-control/preferences/N.json
 ```
 
 The preference directory is root-only and each mode-`0600` record is validated
-and atomically replaced. The current preference format is version 3 (`FORMAT_VERSION` in
+and atomically replaced. The current preference format is version 4 (`FORMAT_VERSION` in
 `preferences.py`); its logical schema is:
 
 ```text
 version
+personal = { language }
 parent_control_enabled
 daily_time_limit_minutes
 apps[desktop-id] = {
@@ -45,10 +46,56 @@ Machine configuration is separate at
 the kiosk UID, and the minimum successful-request interval; it does not
 duplicate child preferences.
 
+Language uses the same `PreferenceStore`, directory, per-user record,
+validation, atomic writer and package migration chain as policy and request
+settings. Version 4 adds a `personal` section containing `language`. The
+`3 -> 4` migration retains all policy and request choices and adds an empty
+language; direct upgrades from versions 1 and 2 run every intermediate step.
+
+A personal-only account's on-disk record contains `version` and `personal`,
+without policy fields. Reads normalize missing policy to the usual defaults.
+A policy save writes the full record and retains the latest personal settings.
+This distinction preserves policy ownership for migrated child records while
+excluding language-only accounts from uninstall enforcement cleanup. Root,
+administrator and kiosk language records use this same infrastructure; they
+do not require a separate settings directory or data family.
+
+The mode-`0700` directory and mode-`0600` records remain root-private. The
+shared writer flushes the file and directory before success. Missing records
+use defaults. Duplicate keys, invalid records and unsupported schema versions
+are rejected; language saves never replace them.
+
+`GetOwnLanguage()` returns a string; `SetOwnLanguage(language)` persists and
+returns that string. Both derive the account from bus credentials and accept no
+target UID. Administrators (including root), eligible children and the configured
+kiosk account may use them. The selection belongs to the user running the surface:
+the parent uses its administrator's selection, the child extension and overlay
+share the child's selection, and the kiosk uses its own account's selection,
+independent of its selected child or approver.
+
+An empty string means follow the frontend session's language; the broker does
+not resolve its root process locale. Explicit IDs contain a 2–8 ASCII-letter
+language followed by optional hyphen-separated 1–8 ASCII-alphanumeric subtags,
+with at most 63 characters in total (for example `en`, `pt-BR`, `zh-Hans`). IDs
+are preserved as supplied. POSIX locale strings, paths and colon-separated
+language lists are rejected. Storage validates syntax, not translation
+availability; future frontends own available choices, translation fallback and
+refresh. There is no change notification in this API.
+
+Language writes preserve policy and request settings. The store serializes
+language read/modify/write with policy commits; policy saves and rollback retain
+the current personal settings even when given a stale snapshot. `SetPreferences`
+cannot change a child's personal settings. Personal changes are excluded from
+approval-policy snapshot comparisons. Language writes do not alter
+AccountsService, OS locale settings or grants. Ordinary removal
+retains these records; purge removes them with the product state directory.
+GUI selectors and translation application are not implemented by this backend.
+
 The ownership of runtime state is deliberately split:
 
 | State | Authority | Purpose |
 | --- | --- | --- |
+| Personal language selection | Product preference record, `personal.language` | Per-user presentation intent |
 | Configured screen-time and app choices | Product preference record | Durable parent intent |
 | `AppFilter` | AccountsService | Live launcher/Flatpak blocklist derived from preferences |
 | `ActiveExtension` | AccountsService | Current one-time grant |

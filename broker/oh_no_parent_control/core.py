@@ -17,7 +17,7 @@ from typing import Callable, Protocol
 from .config import Configuration, ConfigurationError, UINT32_MAX
 from .preferences import (
     MAX_DAILY_LIMIT_MINUTES, MIN_DAILY_LIMIT_MINUTES, PreferencesError,
-    blocked_patterns, blocked_targets, validate_preferences,
+    blocked_patterns, blocked_targets, validate_preferences, validate_language,
 )
 
 LOG = get_logger("core")
@@ -104,6 +104,7 @@ class Preferences(Protocol):
     def update_request(self, uid: int, selected: str, custom: float,
                        allow_soft: bool, last_selected_approver_uid: int = 0) -> dict: ...
     def update_request_muted(self, uid: int, surface: str, muted: bool) -> dict: ...
+    def update_language(self, uid: int, language: object) -> str: ...
 
 
 class Extensions(Protocol):
@@ -574,6 +575,41 @@ class Broker:
                 return
         raise AccessDenied("caller cannot write this component log")
 
+    def _authorize_own_language(self, caller_uid: int) -> None:
+        config = self._load_config()
+        if type(caller_uid) is not int or not 0 <= caller_uid <= UINT32_MAX:
+            raise AccessDenied("invalid caller identity")
+        if self._can_manage_or_kiosk(config, caller_uid):
+            return
+        try:
+            user = self._accounts.get_user(caller_uid)
+        except Exception as error:
+            raise AccessDenied("caller cannot select a language") from error
+        if not self._eligible(config, user):
+            raise AccessDenied("caller cannot select a language")
+
+    def get_own_language(self, caller_uid: int) -> str:
+        self._authorize_own_language(caller_uid)
+        if self._preferences is None:
+            raise BackendFailure("user language store is unavailable")
+        try:
+            return self._preferences.load(caller_uid)["personal"]["language"]
+        except (PreferencesError, OSError) as error:
+            raise BackendFailure("user language is unavailable") from error
+
+    def set_own_language(self, caller_uid: int, language: object) -> str:
+        self._authorize_own_language(caller_uid)
+        try:
+            language = validate_language(language)
+        except PreferencesError as error:
+            raise InvalidRequest("invalid language selection") from error
+        if self._preferences is None:
+            raise BackendFailure("user language store is unavailable")
+        try:
+            return self._preferences.update_language(caller_uid, language)
+        except (PreferencesError, OSError) as error:
+            raise BackendFailure("could not save user language") from error
+
     def _target(self, config: Configuration, target_uid: int) -> UserAccount:
         if type(target_uid) is not int or not 0 <= target_uid <= UINT32_MAX:
             raise InvalidRequest("target UID is invalid")
@@ -668,6 +704,8 @@ class Broker:
             raise InvalidRequest(str(error)) from error
         # The dedicated toggle operation owns installation state.
         requested["parent_control_enabled"] = current["parent_control_enabled"]
+        # Personal choices belong to the child, not the policy editor.
+        requested["personal"] = current["personal"]
         # The parent window may have remained open while an application
         # self-updated and replaced its versioned executable. Resolve the
         # selected desktop IDs again at commit time so neither the saved
@@ -1158,7 +1196,9 @@ class Broker:
         if self._preferences is None:
             raise BackendFailure("preferences are unavailable")
         try:
-            return self._preferences.load(target_uid)
+            # Presentation changes cannot invalidate an in-flight approval.
+            return {key: value for key, value in self._preferences.load(target_uid).items()
+                    if key != "personal"}
         except (OSError, PreferencesError) as error:
             raise BackendFailure("preferences are unavailable") from error
 

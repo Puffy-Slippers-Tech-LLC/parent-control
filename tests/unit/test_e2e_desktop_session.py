@@ -249,14 +249,12 @@ def test_execute_checks_ownership_and_lock_state_again_after_dropping_privileges
     prepare.assert_not_called()
 
 
-@pytest.mark.parametrize('previous', [0, 300, 4294967295])
-def test_continuous_activity_disables_only_idle_blanking_and_reads_back(monkeypatch, previous):
-    call = Mock(side_effect=[f'uint32 {previous}\n', '', 'uint32 0\n'])
+def test_continuous_activity_only_verifies_baseline_and_reads_back(monkeypatch):
+    call = Mock(side_effect=['uint32 0\n', 'uint32 0\n'])
     monkeypatch.setattr(control, 'call', call)
-    assert control.prepare_continuous_activity() == previous
+    assert control.prepare_continuous_activity() == 0
     assert [item.args[0] for item in call.call_args_list] == [
         ['/usr/bin/gsettings', 'get', 'org.gnome.desktop.session', 'idle-delay'],
-        ['/usr/bin/gsettings', 'set', 'org.gnome.desktop.session', 'idle-delay', 'uint32 0'],
         ['/usr/bin/gsettings', 'get', 'org.gnome.desktop.session', 'idle-delay'],
     ]
 
@@ -264,8 +262,10 @@ def test_continuous_activity_disables_only_idle_blanking_and_reads_back(monkeypa
 @pytest.mark.parametrize('responses,calls,exception', [
     (['300'], 1, control.SessionError),
     (['uint32 4294967296'], 1, control.SessionError),
-    (['uint32 300', TimeoutError()], 2, TimeoutError),
-    (['uint32 300', '', 'uint32 300'], 3, control.SessionError),
+    (['uint32 300'], 1, control.SessionError),
+    (['uint32 4294967295'], 1, control.SessionError),
+    (['uint32 0', TimeoutError()], 2, TimeoutError),
+    (['uint32 0', 'uint32 300'], 2, control.SessionError),
 ])
 def test_continuous_activity_refuses_bad_values_and_never_replays(monkeypatch, responses, calls, exception):
     command = Mock(side_effect=responses)

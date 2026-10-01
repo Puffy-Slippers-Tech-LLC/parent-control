@@ -50,6 +50,8 @@ AREA_SOURCES = {
     'session': ROOT / 'tests/system/test_session_expiry.py',
 }
 COMMON_SELECTED_INPUTS = (
+    ('tests/fixtures/baseline_assets.py', 'baseline_assets.py'),
+    ('tests/fixtures/native_assets.py', 'native_assets.py'),
     ('tests/integration/system_guest.py', 'system_guest.py'),
     ('tests/integration/guest_test_dependencies.py', 'guest_test_dependencies.py'),
     ('tests/integration/owned_commands.py', 'owned_commands.py'),

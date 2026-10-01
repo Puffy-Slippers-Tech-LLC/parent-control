@@ -14,7 +14,9 @@ import stat
 import sys
 
 
-SEARCH = ('tests/integration', 'tests/integration/guest', 'tests/system')
+# Guest entry points use flat imports; reusable tests packages retain their
+# repository-relative package layout in the payload.
+SEARCH = ('tests/integration', 'tests/integration/guest', 'tests/system', '')
 EXTERNAL = frozenset(sys.stdlib_module_names) | {'pytest', 'gi', 'oh_no_parent_control'}
 
 
@@ -105,10 +107,10 @@ class Bundle:
             self.dependencies[caller].add(self.modules[name])
             return
         relative = name.replace('.', '/')
-        candidates = [(base + '/' + suffix, suffix)
+        candidates = [(str(Path(base) / suffix), suffix)
                       for base in SEARCH
                       for suffix in (relative + '.py', relative + '/__init__.py')
-                      if ((base + '/' + suffix in self.frozen) if self.frozen is not None
+                      if ((str(Path(base) / suffix) in self.frozen) if self.frozen is not None
                           else (self.root / base / suffix).exists())]
         if not candidates:
             if optional:

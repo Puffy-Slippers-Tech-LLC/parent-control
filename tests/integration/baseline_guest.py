@@ -90,12 +90,12 @@ def write(g, path, content):
     g.chmod(0o600, path)
 
 
-def label_preparation(g):
+def label_preparation(g, paths=None):
     release = prepare_vm.parse_os_release(g.read_file('/etc/os-release').decode('utf-8'))
     os_id, _ = prepare_vm.release_identity(release)
     if os_id == 'fedora':
         policy = prepare_vm.selinux_policy(g.read_file('/etc/selinux/config').decode('utf-8'))
-        paths = [STAGE, UNIT, LINK]
+        paths = [STAGE, UNIT, LINK] if paths is None else paths
         # Python API presence does not imply appliance support: Ubuntu's
         # appliance omits setfiles. Use Fedora's tool and libraries through the
         # mounted-guest command API when the appliance lacks that feature.
@@ -119,6 +119,8 @@ def prepare(capture, guestfs, password, *, mode='manual'):
     """Operate only on the off, journal-bound source selected by the controller."""
     require(mode in ('auto', 'manual'), 'guest:preparation-mode')
     with mounted(guestfs, capture) as g:
+        from baseline_console import reconcile as reconcile_console
+        reconcile_console(g)
         directory(g, STAGE)
         require(g.lstatns(STAGE)['st_mode'] & 0o077 == 0, 'guest:preparation-private')
         files = set(prepare_vm.SCRIPT_FILES) | set(prepare_vm.REQUIRED_CHECKOUT_ENTRIES)
@@ -184,6 +186,16 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         require(g.is_symlink(LINK) and g.readlink(LINK) == UNIT, 'guest:preparation-unit')
         g.rm(LINK)
         g.rm(UNIT)
+    from baseline_fixtures import build_payload, reconcile
+    with operation('Reconciling reusable baseline application fixtures'):
+        payload = build_payload()
+        with mounted(guestfs, capture) as g:
+            declared = reconcile(g, payload)
+            from baseline_fixtures import RECORD
+            # Offline-created files and their enclosing fixture directories need
+            # the distribution's standard contexts before enforcing SELinux boots.
+            paths = sorted(set(declared) | {str(Path(path).parent) for path in declared})
+            label_preparation(g, [RECORD, *paths])
 
 
 def configure_cpu(root):

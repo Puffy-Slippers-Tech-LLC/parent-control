@@ -392,6 +392,8 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
         'test_install_smoke.py', 'system_progress.py',
         'guest_test_dependencies.py',
         'guest_install_recipe.py',
+        'baseline_assets.py', 'native_assets.py', 'tests/__init__.py',
+        'tests/fixtures/__init__.py', 'tests/fixtures/native_assets.py',
     }
 
 

@@ -20,7 +20,7 @@ PLAN = JourneyPlan(
             **{stage: 'step-1' for stage in SCREENS}, 'installed-greeter': 'start',
             'wrong-child': 'step-2', 'wrong-page': 'step-2', 'reopened-rows': 'step-2'},
     advance_after={'app-rows': 'step-2'},
-    stage_actions={'installed-greeter': 'native-refuse', 'desktop': 'native-prepare'},
+    stage_actions={'installed-greeter': 'native-refuse', 'desktop': 'native-verify'},
 )
 
 

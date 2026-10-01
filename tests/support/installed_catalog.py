@@ -23,10 +23,12 @@ def installed_catalog_tree(monkeypatch, tmp_path):
         identities[uid] = SimpleNamespace(pw_uid=uid, pw_gid=uid, pw_dir=str(home))
     target = tmp_path / 'native/fixture'
     target.parent.mkdir()
+    target.parent.chmod(0o755)
     target.write_bytes(b'fixture')
     target.chmod(0o755)
     system = tmp_path / 'system'
     system.mkdir()
+    system.chmod(0o755)
     desktop = system / enforcement.DESKTOP_ID
     desktop.write_text(f'[Desktop Entry]\nType=Application\nName=System\nExec="{target}"\n')
     monkeypatch.setattr(enforcement, 'TARGET', target)
@@ -45,6 +47,18 @@ def installed_catalog_tree(monkeypatch, tmp_path):
     monkeypatch.setattr(enforcement, 'CATALOG_LOCAL_BIN', local_bin)
     monkeypatch.setattr(enforcement, 'CATALOG_SYSTEM_BIN', system_bin)
     monkeypatch.setattr(catalog, 'SYSTEM_EXECUTABLE_DIRS', (local_bin, system_bin))
+    payload = tmp_path / 'payload'
+    source = payload / 'fixtures/mechanical/onpc-test-application'
+    source.parent.mkdir(parents=True)
+    source.write_bytes(target.read_bytes())
+    monkeypatch.setattr(enforcement.guest, 'PAYLOAD', payload)
+    def prepare():
+        from tests.fixtures.baseline_assets import catalogue_files
+        from tests.support.baseline_native import install
+        selected = {role: identities[uid] for role, uid in accounts.items()}
+        declaration = catalogue_files(selected, root=target.parent / 'catalog',
+                                      system_dir=system, local_bin=local_bin, system_bin=system_bin)
+        install(declaration, source, root=tmp_path, monkeypatch=monkeypatch, identities=selected)
     calls = []
 
     def call(uid, method, signature='()', args=()):
@@ -58,4 +72,4 @@ def installed_catalog_tree(monkeypatch, tmp_path):
     monkeypatch.setattr(enforcement, 'call', call)
     return SimpleNamespace(accounts=accounts, identities=identities, target=target,
                            system=system, local_bin=local_bin, system_bin=system_bin,
-                           call=call, calls=calls, chown=chown)
+                           call=call, calls=calls, chown=chown, prepare=prepare)

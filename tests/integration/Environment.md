@@ -119,6 +119,40 @@ requires matching guest preparation before a new baseline can be accepted.
 This is development tooling: activation is the next invocation (installed UUID
 pinning is refreshed by host preparation); no product activation or data migration.
 
+## Reusable preparation ownership
+
+`tools/prepare-baseline` owns all reusable one-time guest preparation. Tests,
+qualification workers and app-snapshot preparation verify readiness and refuse
+missing or stale inputs with baseline-refresh guidance. They must not install,
+repair or recreate those inputs during an attempt. This applies to future native,
+Snap, Flatpak and game fixtures as well as current declarations.
+
+| Input | Owner and lifetime |
+| --- | --- |
+| Fixed accounts, guest dependencies, welcome/idle settings | Baseline account/tool reconciliation |
+| Serial getty and the 600-second console login window | [baseline_console.py](baseline_console.py); attempts only verify |
+| A/H/S/N GUI binaries, shared Python/GTK runtime and four child launchers | [baseline_assets.py](../fixtures/baseline_assets.py), installed by [baseline_fixtures.py](baseline_fixtures.py) |
+| Static native enforcement binaries and catalogue precedence/path witnesses | The same finite baseline declaration; engineering checks only verify |
+| Product package and installed app snapshot | Existing product-installation lifecycle; the baseline stays product-free |
+| Private SSH identity, worker transport and evidence | Per-attempt ownership and cleanup |
+| Synthetic attachment/copy/rename/save-error inputs, future binaries and launcher removal | Deliberate scenario mutations at their declared checkpoints; preserve independent-entry and cleanup checks |
+| Dynamic accounts, directory-service configuration, keyring challenges and fault injection | Scenario-owned state; reusable dependencies still belong in baseline |
+
+Fixture reconciliation verifies the entire declared set before writing. Matching
+files are reused; recorded owned files may be updated atomically. Foreign files,
+links, hardlinks, unsafe ancestors and changed ownership refuse. The root-owned
+fixture record binds bytes, modes and owners and records interrupted placement.
+An unchanged repeat performs no fixture writes; owned updates and interrupted
+retries have explicit regressions. Accounts/settings preserve unrelated state.
+All declaration, builder and runtime sources participate in the baseline digest,
+invalidating stale baselines and their derived app snapshots. Independent offline
+inspection verifies fixtures and console configuration before capture.
+
+Idempotence does not suppress auto-mode system updates or the documented snapshot
+replacement. It does not authorize adopting an unknown file or bypassing the
+lease, provenance, ownership or product-free gates. The governing rule is the
+[VM mandate](../../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
+
 ## Resources
 
 | Resource | Contract |

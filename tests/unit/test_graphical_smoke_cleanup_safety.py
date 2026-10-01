@@ -53,133 +53,77 @@ def login_window():
     return lease, verified, guestfs, g, info, contents
 
 
-def test_login_window_preserves_unrelated_bytes_and_metadata_and_closes(login_window):
+def test_login_window_verifies_without_writes_or_metadata_changes(login_window):
     lease, verified, guestfs, g, info, contents = login_window
-    original = contents[0]
-    metadata = dict(info)
-    result = fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
-    assert contents[0] == original.replace(b'\t60 #', b'\t600 #')
-    assert info == metadata
-    assert result == {'login_timeout_seconds': 600, 'configuration': 'login.defs',
-                      'readback_verified': True}
-    g.add_drive_opts.assert_called_once_with('/fixture/active.qcow2', format='qcow2', readonly=False)
-    g.set_network.assert_called_once_with(False)
-    g.sync.assert_called_once()
-    g.close.assert_called_once()
-    fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
-    assert g.write.call_count == 1  # Same prepared fixture is idempotent.
-
-
-def test_login_window_full_guard_runs_outside_appliance_disk_lock(login_window):
-    lease, verified, guestfs, g, _, _ = login_window
-    opened = False
-    guards = []
-
-    def launch():
-        nonlocal opened
-        opened = True
-
-    def close():
-        nonlocal opened
-        opened = False
-
-    def guard(*, off):
-        # Capture.inventory uses locking qemu-img info for a powered-off VM.
-        # Its disk cannot be reopened while the libguestfs writer holds it.
-        if opened:
-            raise RuntimeError('command:failed')
-        guards.append(off)
-
-    g.launch.side_effect = launch
-    g.close.side_effect = close
-    lease.guard.side_effect = guard
-    result = fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
-    assert result['readback_verified'] is True
-    assert guards == [True, True, True, True]
-    assert not opened
-    g.write.assert_called_once()
+    contents[0] = contents[0].replace(b'\t60 #', b'\t600 #')
+    original, metadata = contents[0], dict(info)
+    for _ in range(2):
+        result = fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
+        assert result == {'login_timeout_seconds': 600, 'configuration': 'login.defs',
+                          'readback_verified': True}
+    assert contents[0] == original and info == metadata
+    assert all(call.kwargs['readonly'] for call in g.add_drive_opts.call_args_list)
+    g.write.assert_not_called()
+    g.sync.assert_not_called()
+    assert g.close.call_count == 2
 
 
 @pytest.mark.parametrize('fault', ['unowned', 'running', 'booted', 'different-lease', 'guard'])
 def test_login_window_refuses_outside_held_offline_preparation(login_window, fault):
     lease, verified, guestfs, g, _, _ = login_window
-    if fault == 'unowned':
-        lease.fd = None
-    elif fault == 'running':
-        lease.state['phase'] = 'running'
-    elif fault == 'booted':
-        lease.state['domain_id'] = 7
-    elif fault == 'different-lease':
-        verified.lease = Mock()
-    else:
-        lease.guard.side_effect = RuntimeError('private-canary')
-    expected = ('credential:login-window-lease-failed' if fault == 'guard'
-                else 'credential:outside-provisioning')
-    with pytest.raises(smoke.EvidenceError, match='^' + expected + '$'):
+    if fault == 'unowned': lease.fd = None
+    elif fault == 'running': lease.state['phase'] = 'running'
+    elif fault == 'booted': lease.state['domain_id'] = 7
+    elif fault == 'different-lease': verified.lease = Mock()
+    else: lease.guard.side_effect = RuntimeError('private-canary')
+    with pytest.raises(smoke.EvidenceError) as error:
         fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
+    assert 'private-canary' not in str(error.value)
     guestfs.GuestFS.assert_not_called()
     g.write.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['symlink', 'owner', 'group', 'hardlink', 'writable',
     'special', 'missing', 'duplicate', 'malformed', 'unexpected-timeout', 'oversize', 'nul',
-    'late-guard', 'before-write-metadata', 'partial-write', 'metadata-changed',
-    'sync', 'close', 'interrupt'])
-def test_login_window_unsafe_or_partial_preparation_refuses_and_closes(login_window, fault):
+    'stale', 'late-guard', 'before-read-metadata', 'close', 'interrupt'])
+def test_login_window_unsafe_or_stale_baseline_refuses_without_repair(login_window, fault):
     lease, verified, guestfs, g, info, contents = login_window
-    if fault == 'symlink':
-        g.realpath.side_effect = lambda path: '/unexpected'
+    contents[0] = contents[0].replace(b'\t60 #', b'\t600 #')
+    if fault == 'symlink': g.realpath.side_effect = lambda path: '/unexpected'
     elif fault in ('owner', 'group', 'hardlink', 'writable', 'special'):
         key, value = {'owner': ('st_uid', 1000), 'group': ('st_gid', 1000),
                       'hardlink': ('st_nlink', 2), 'writable': ('st_mode', 0o100666),
                       'special': ('st_mode', 0o020644)}[fault]
         info[key] = value
-    elif fault in ('missing', 'duplicate', 'malformed', 'unexpected-timeout', 'oversize', 'nul'):
-        contents[0] = {'missing': b'OTHER 60\n', 'duplicate': b'LOGIN_TIMEOUT 60\nLOGIN_TIMEOUT 60\n',
-                       'malformed': b'LOGIN_TIMEOUT 60 junk\n', 'unexpected-timeout': b'LOGIN_TIMEOUT 0\n',
-                       'oversize': b'x' * 65537, 'nul': b'LOGIN_TIMEOUT 60\n\x00'}[fault]
+    elif fault in ('missing', 'duplicate', 'malformed', 'unexpected-timeout', 'oversize', 'nul', 'stale'):
+        contents[0] = {'missing': b'OTHER 60\n', 'duplicate': b'LOGIN_TIMEOUT 600\nLOGIN_TIMEOUT 600\n',
+                       'malformed': b'LOGIN_TIMEOUT 600 junk\n', 'unexpected-timeout': b'LOGIN_TIMEOUT 0\n',
+                       'oversize': b'x' * 65537, 'nul': b'LOGIN_TIMEOUT 600\n\x00',
+                       'stale': b'LOGIN_TIMEOUT 60\n'}[fault]
     elif fault == 'late-guard':
         lease.guard.side_effect = [None, None, RuntimeError('private-canary')]
-    elif fault == 'before-write-metadata':
-        changed = dict(info, st_ino=info['st_ino'] + 1)
-        g.lstatns.side_effect = [dict(info), changed]
-    elif fault == 'partial-write':
-        g.write.side_effect = lambda path, data: contents.__setitem__(0, data[:5])
-    elif fault == 'metadata-changed':
-        def changed(path, data):
-            contents[0] = data
-            info['st_ino'] += 1
-        g.write.side_effect = changed
-    elif fault == 'interrupt':
-        g.write.side_effect = KeyboardInterrupt('private-canary')
-    else:
-        getattr(g, fault).side_effect = RuntimeError('private-canary')
+    elif fault == 'before-read-metadata':
+        g.lstatns.side_effect = [dict(info), dict(info, st_ino=info['st_ino'] + 1)]
+    elif fault == 'interrupt': g.read_file.side_effect = KeyboardInterrupt('private-canary')
+    else: g.close.side_effect = RuntimeError('private-canary')
+    original = contents[0]
     with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else smoke.EvidenceError) as error:
         fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
     assert 'private-canary' not in str(error.value)
-    expected = {
-        'symlink': 'login-path', 'owner': 'login-file', 'group': 'login-file',
-        'hardlink': 'login-file', 'writable': 'login-file', 'special': 'login-file',
-        'missing': 'login-setting', 'duplicate': 'login-setting', 'malformed': 'login-setting',
-        'unexpected-timeout': 'login-setting', 'oversize': 'login-size', 'nul': 'login-content',
-        'late-guard': 'login-window-close-failed', 'before-write-metadata': 'login-file-changed',
-        'partial-write': 'login-write-failed',
-        'metadata-changed': 'login-write-failed', 'sync': 'login-window-close-failed',
-        'close': 'login-window-close-failed', 'interrupt': 'login-window-interrupted'}
-    assert str(error.value) == 'credential:' + expected[fault]
+    assert contents[0] == original
     g.close.assert_called_once()
-    if fault not in ('late-guard', 'partial-write', 'metadata-changed', 'sync', 'close', 'interrupt'):
-        g.write.assert_not_called()
+    g.write.assert_not_called()
 
 
-@pytest.mark.parametrize('method,boundary', [('launch', 'mount'), ('read_file', 'read'), ('write', 'write')])
-def test_login_window_api_failure_keeps_boundary_without_private_exception(login_window, method, boundary):
+@pytest.mark.parametrize('method', ['launch', 'read_file'])
+def test_login_window_api_failure_is_redacted(login_window, method):
     lease, verified, guestfs, g, _, _ = login_window
     getattr(g, method).side_effect = smoke.EvidenceError('private-canary')
-    with pytest.raises(smoke.EvidenceError) as error:
+    with pytest.raises(smoke.EvidenceError, match='login-window-verification-failed') as error:
         fixture_credentials.provision_vt6_login_window(lease, verified, guestfs)
-    assert str(error.value) == 'credential:login-window-' + boundary + '-failed'
+    assert 'private-canary' not in str(error.value)
     g.close.assert_called_once()
+    g.write.assert_not_called()
 
 
 @pytest.mark.parametrize('arguments,uid', [(['check', 'extra'], 0), (['check'], 1000)])

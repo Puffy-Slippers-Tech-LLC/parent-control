@@ -19,6 +19,12 @@
   identity, command transport, observation and cleanup contracts.
   Any tools / apps not owned by this app, if needed, must be triggered by most reliable,
   simplest non-GUI way, e.t., terminal is by keyboard, Text editor by the built-in command
+- **Preparation lifetime:** Reusable dependencies, fixed app fixtures/launchers
+  and persistent harness settings belong in idempotent `tools/prepare-baseline`
+  reconciliation. UI workers verify readiness and fail on missing/stale inputs;
+  they never install or repair them during a test. Shared commands may still own
+  deliberate scenario mutations, attempt credentials and evidence. Follow the
+  [baseline contract](VM-Mandate.MD#vm-host-setup-and-baseline).
 - **GDM and login:** Reuse one shared entry helper that goes straight to the
   intended account. Use only the minimal selection/keyboard authentication
   needed when a graphical login or unlock is required. Prefer direct public

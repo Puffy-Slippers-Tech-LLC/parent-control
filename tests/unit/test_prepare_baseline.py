@@ -20,6 +20,8 @@ import pytest
 from tests.support.paths import ROOT
 import prepare_baseline as host
 import prepare_vm as guest
+import baseline_fixtures
+import baseline_console
 
 from tests.support.vm_baseline import UUID, SCRIPT_DIGEST, Source, Images, xml, snapshot_xml, rig
 
@@ -990,6 +992,38 @@ def guest_fixture():
     g.exists.side_effect = lambda path: path in files
     g.is_symlink.return_value = False
     g.glob_expand.return_value = []
+    # Model accepted reusable inputs, so residue/identity tests still reach their
+    # intended guard through the real fixture and console readiness checks.
+    metadata = {}
+    fixture_accounts = baseline_fixtures.accounts(g)
+    declaration = baseline_fixtures.assets.files(fixture_accounts)
+    record = {'purpose': baseline_fixtures.PURPOSE, 'pending': None, 'files': {}}
+    for path, (source, mode, role) in declaration.items():
+        data = source if isinstance(source, bytes) else ('fixture-' + source).encode()
+        account = fixture_accounts[role]
+        files[path] = data
+        metadata[path] = {'st_mode': stat.S_IFREG | mode, 'st_uid': account.pw_uid,
+                          'st_gid': account.pw_gid, 'st_nlink': 1}
+        record['files'][path] = {'sha256': hashlib.sha256(data).hexdigest(),
+                                'mode': mode, 'uid': account.pw_uid, 'gid': account.pw_gid}
+        for parent in Path(path).parents:
+            metadata.setdefault(str(parent), {'st_mode': stat.S_IFDIR | 0o755,
+                                              'st_uid': 0, 'st_gid': 0, 'st_nlink': 1})
+    files[baseline_fixtures.RECORD] = json.dumps(record).encode()
+    files['/etc/login.defs'] = b'LOGIN_TIMEOUT 600\n'
+    metadata['/etc/login.defs'] = {'st_mode': stat.S_IFREG | 0o644, 'st_uid': 0,
+                                 'st_gid': 0, 'st_nlink': 1, 'st_dev': 1, 'st_ino': 1}
+    files[baseline_console.GETTY_TARGET] = b'stock getty'
+    g.exists.side_effect = lambda path: path in files or path in metadata
+    g.lstatns.side_effect = lambda path: metadata.get(path, g.lstatns.return_value)
+    g.lstatns.return_value['st_nlink'] = 1
+    g.realpath.side_effect = lambda path: (
+        baseline_console.GETTY_TARGET if path == baseline_console.GETTY_LINK else path)
+    g.checksum.side_effect = lambda algorithm, path: hashlib.sha256(files[path]).hexdigest()
+    g.filesize.side_effect = lambda path: len(files[path])
+    g.is_file.side_effect = lambda path: path in files
+    g.is_dir.side_effect = lambda path: path == str(Path(baseline_console.GETTY_LINK).parent)
+    g.is_symlink.side_effect = lambda path: path == baseline_console.GETTY_LINK
     return SimpleNamespace(g=g, files=files, marker=marker, module=SimpleNamespace(GuestFS=Mock(return_value=g)))
 
 
@@ -1000,6 +1034,24 @@ def test_offline_inspection_is_explicitly_readonly_and_preserves_only_safe_field
     assert fixture.g.mount_ro.call_count == 2
     fixture.g.close.assert_called_once()
     assert set(result) == {"preparation_record_sha256", "preparation_script_sha256", "ubuntu_version", "accounts"}
+    fixture.g.write.assert_not_called()
+    fixture.g.ln_s.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['fixture-bytes', 'login-timeout', 'getty'])
+def test_offline_inspection_refuses_stale_reusable_inputs_without_repair(fault):
+    fixture = guest_fixture()
+    if fault == 'fixture-bytes':
+        fixture.files[baseline_fixtures.assets.MECHANICAL] = b'changed'
+    elif fault == 'login-timeout':
+        fixture.files['/etc/login.defs'] = b'LOGIN_TIMEOUT 60\n'
+    else:
+        fixture.g.realpath.side_effect = lambda path: path
+    with pytest.raises(ValueError, match='baseline:'):
+        host.inspect_guest(fixture.module, Path('/images/top.qcow2'), SCRIPT_DIGEST)
+    fixture.g.close.assert_called_once()
+    fixture.g.write.assert_not_called()
+    fixture.g.ln_s.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'tools', 'role', 'variant', 'selinux', 'package', 'marker'])

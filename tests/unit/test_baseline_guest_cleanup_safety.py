@@ -2,7 +2,7 @@
 from tests.support.vm_registry import vm_name
 from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 import baseline_guest as guest
@@ -12,6 +12,12 @@ from tests.support.vm_baseline import rig
 
 @pytest.fixture
 def preparation(monkeypatch):
+    import baseline_fixtures
+    import baseline_console
+    monkeypatch.setattr(baseline_fixtures, 'build_payload', Mock(return_value={}))
+    monkeypatch.setattr(baseline_fixtures, 'reconcile', Mock(return_value={
+        '/opt/onpc-baseline-assets/test': ('mechanical', 0o755, 'system')}))
+    monkeypatch.setattr(baseline_console, 'reconcile', Mock())
     files, links = {}, {}
     files['/etc/os-release'] = b'ID=ubuntu\nVERSION_ID=26.04\n'
     files['/etc/shadow'] = ''.join(f'{account.username}:hash:20000:0:99999:7:::\n'
@@ -381,14 +387,17 @@ def test_fedora_staging_labels_owned_paths_without_weakening_selinux(preparation
     p.g.feature_available.return_value = appliance_support
     p.g.is_file.return_value = True
     guest.prepare(p.capture, Mock(), 'fixture-password')
-    p.g.feature_available.assert_called_once_with(['selinuxrelabel'])
+    assert p.g.feature_available.call_args_list == [call(['selinuxrelabel'])] * 2
+    policy = '/etc/selinux/targeted/contexts/files/file_contexts'
+    groups = [[guest.STAGE, guest.UNIT, guest.LINK],
+              ['/var/lib/onpc-baseline-fixtures.json', '/opt/onpc-baseline-assets',
+               '/opt/onpc-baseline-assets/test']]
     if appliance_support:
-        p.g.setfiles.assert_called_once_with('/etc/selinux/targeted/contexts/files/file_contexts',
-                                            [guest.STAGE, guest.UNIT, guest.LINK])
+        assert p.g.setfiles.call_args_list == [call(policy, paths) for paths in groups]
         p.g.command.assert_not_called()
     else:
-        p.g.command.assert_called_once_with(['/usr/sbin/setfiles', '-m',
-            '/etc/selinux/targeted/contexts/files/file_contexts', guest.STAGE, guest.UNIT, guest.LINK])
+        assert p.g.command.call_args_list == [
+            call(['/usr/sbin/setfiles', '-m', policy, *paths]) for paths in groups]
         p.g.setfiles.assert_not_called()
     assert p.files['/etc/selinux/config'] == b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
 

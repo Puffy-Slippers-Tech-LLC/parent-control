@@ -838,7 +838,7 @@ Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers
 
 Native identities/defaults come from FIX04's [finite native declaration](E2E-Building-Blocks.md#native-fixture-preparation)
 and `tests/fixtures/native_assets.py`. Reuse `native_fixtures.fixture_actions()`
-for fresh preparation and `check_catalogue()` for the public initial defaults;
+for fresh baseline verification and `check_catalogue()` for the public initial defaults;
 preparation assigns no policy. Complete E2E-041 bindings remain pending.
 
 1. FLOW16(ample daily) → PARENT04(App Limits) → UI04(legend) → UI03 → PARENT12(assets).

@@ -1077,15 +1077,6 @@ class AppRowQualification(KioskEntryQualification):
 
 
 class NativeFixtureQualification(KioskEntryQualification):
-    def execute(self, lease, guestfs):
-        self.guestfs = guestfs
-        super().execute(lease, guestfs)
-
-    def prepare_context(self, context):
-        self.transfer = smoke.AssetTransfer(self.verified)
-        self.result['asset_transfer'] = self.transfer.provision(context.lease, self.guestfs)
-        context.asset_transfer = self.transfer
-
     @staticmethod
     def journey(context, progress):
         from app_snapshot import snapshot_name

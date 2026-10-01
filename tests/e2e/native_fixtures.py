@@ -1,4 +1,4 @@
-"""FIX04 finite native fixture preparation and independent guarded readback."""
+"""Read-only verification of native fixtures prepared by prepare-baseline."""
 import hashlib
 import json
 from pathlib import Path
@@ -59,18 +59,18 @@ class NativeFixtures:
             require(self.command('refuse') == {'wrong_entry_refused': True}, 'native:wrong-refusal')
         return {'wrong_entry_refused': True}
 
-    def prepare(self):
+    def verify(self):
         require(not self.attempted and not self.failed, 'native:replay')
         self.attempted = self.failed = True
-        with operation('Preparing four declared native launchers for [Child user]'):
-            value = self.command('prepare')
+        with operation('Verifying four baseline native launchers for [Child user]'):
+            value = self.command('read')
             require(set(value) == {'files', 'launchers'} and set(value['files']) == set(sources())
                     and value['launchers'] == [desktop_id(asset[0]) for asset in ASSETS],
                     'native:receipt')
             require(self.command('read') == value, 'native:independent-readback')
             self.receipt = value
         self.failed = False
-        return {'prepared': 4, 'verified_files': len(value['files']), 'independent_readback': True}
+        return {'verified': 4, 'verified_files': len(value['files']), 'independent_readback': True}
 
 
 def fixture_actions():
@@ -84,11 +84,11 @@ def fixture_actions():
         guard()
         return controller(journey).refuse()
 
-    def prepare(journey, guard):
+    def verify(journey, guard):
         guard()
-        return controller(journey).prepare()
+        return controller(journey).verify()
 
-    return {'native-refuse': refuse, 'native-prepare': prepare}
+    return {'native-refuse': refuse, 'native-verify': verify}
 
 
 def expected_rows():

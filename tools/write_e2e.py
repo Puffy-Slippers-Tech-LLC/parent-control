@@ -20,10 +20,9 @@ from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_a
 
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
 QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
-SESSION_MODELS = {'implement': ('gpt-6.1-sol', 'medium'),
-                  'live': ('gpt-6.1-sol', 'medium'),
-                  'recover': ('gpt-6.1-sol', 'medium')}
-HIGH_AFTER_LIVE_ATTEMPTS = 2
+SESSION_MODELS = {'implement': ('gpt-6.1-sol', 'high'),
+                  'live': ('gpt-6.1-sol', 'high'),
+                  'recover': ('gpt-6.1-sol', 'high')}
 ADVISER_CONFIG = Path(__file__).resolve().with_name('write_e2e_adviser.toml')
 MAX_TASK_SESSIONS = 5
 INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md
@@ -181,12 +180,8 @@ def task_progress(run, steps):
 
 
 def session_model(phase, live_attempts=0):
-    model = SESSION_MODELS[phase]
-    # Retain higher reasoning effort for a stalled task, including after a
-    # restart. Preparation failures and session count alone do not escalate.
-    if phase != 'implement' and live_attempts >= HIGH_AFTER_LIVE_ATTEMPTS:
-        return 'gpt-6.1-sol', 'high'
-    return model
+    # Attempts remain acceptance history, not a proxy for reasoning difficulty.
+    return SESSION_MODELS[phase]
 
 
 def session_command(root, phase, run=None, *, live_attempts=0):
@@ -226,12 +221,18 @@ def session_prompt(state):
     label = f'GPT-6.1-Sol {effort.title()}'
     model_policy = f"""You are the {label} coordinator and implementer for this session.
 Own implementation, mechanical repairs, test execution and close-out.
-For unresolved root cause, security, concurrency, ownership or risky correctness
-questions, delegate one bounded diagnosis or review to the e2e_adviser agent
-using GPT-6-Astra High. Consult before implementing an unresolved risky
-design, including in the first session. Do not delegate routine work or the whole task.
+Investigate ordinary failures yourself at Sol High. Delegate one bounded diagnosis
+or review to the e2e_adviser agent using GPT-6-Astra High only when a High repair
+failed verification without improving the explanation, conflicting evidence prevents
+a defensible correction, or a consequential security, concurrency or ownership
+design question remains unresolved. Consult before implementing such an unresolved
+risky design, including in the first session; a failed attempt is not required.
+State the concrete escalation reason and what High already established.
+Missing prerequisites, permissions, preparation failures and live-attempt count
+alone do not justify Astra: use their maintained repair or blocker routes.
+Do not delegate routine work or the whole task. No Extra High step is required.
 Give it the exact question, relevant file/evidence paths, applicable contracts,
-user decisions and expected deliverable; use a fresh context rather than a full
+attempted corrections, user decisions and expected deliverable; use a fresh context rather than a full
 conversation fork. Request concise findings, evidence, a proposed correction,
 remaining uncertainty and required regressions. The adviser is read-only.
 No parallel agents or overlapping work: wait for the adviser, collect its result
@@ -239,12 +240,13 @@ and close it before resuming your work or starting another consultation. The
 adviser must not spawn agents, edit files, run tests, control the VM or close tasks.
 You alone implement the settled correction, run all validation, own cleanup,
 update the queue and return the structured result. Check advice against source
-and contracts; advice is not acceptance evidence. Escalate again only for a new
-unresolved question or review of a risky correction, not repeated routine work.
+and contracts; advice is not acceptance evidence. Consult once per unresolved
+question; another consultation requires materially new evidence or a distinct
+question. Cosmetic rewording, another session or another failed run is not new
+evidence. Carry the question, findings, attempted correction and remaining
+uncertainty in the handoff so a restart does not repeat the same consultation.
+Read-only access and sequential execution are not token budgets.
 """
-    if effort == 'high':
-        model_policy += ('This unfinished task has already used at least two live attempts. '
-                         'GPT-6.1-Sol High now owns recovery; resolve the cause before another attempt.\n')
     common = f"""
 Task {task}: follow AGENTS.md and {PLAN}, using its scoped reading routes.
 This tools/write-e2e session stops at the phase boundary below.
@@ -261,8 +263,8 @@ and wait for tests and owned cleanup before returning.
 {model_policy}
 Prefer GPT-6.1-Sol High over Astra Low.
 Ignore model recommendations in older handoffs that conflict with this policy.
-The launcher selects GPT-6.1-Sol Medium normally and GPT-6.1-Sol High after two
-live attempts on an unfinished task. Both have bounded Astra advice.
+The launcher selects GPT-6.1-Sol High from the first session through recovery
+and close-out, including new tasks. Astra provides exceptional bounded advice.
 Keep context focused: locate headings and symbols, then read complete relevant
 sections/functions and dependencies. Reuse unchanged context; avoid whole-file
 dumps and repeated broad scans. Use bounded diagnostic output and evidence paths.

@@ -12,6 +12,13 @@ retained evidence. Do not edit files, run tests/builds, control the VM, launch
 background work, spawn agents, stage changes or advance/close a task. Do not
 read prior Codex sessions, histories or memories. Prefer GPT-6.1 Sol High over
 Astra Low for implementation; this bounded diagnosis and review role uses Astra High.
+Require a concrete escalation reason: an unsuccessful High repair with no better
+explanation, conflicting evidence preventing a defensible correction, or an
+unresolved consequential security, concurrency or ownership design question.
+If the question only concerns routine investigation, missing prerequisites or
+permissions, return it to the coordinator's maintained repair or blocker route.
+Use the supplied prior findings and attempted corrections. Do not repeat a prior
+consultation without materially new evidence or a distinct unresolved question.
 Return concise findings with file/evidence references, the proposed correction,
 remaining uncertainty and required regressions. Distinguish a proven mechanical
 defect from a behavior mismatch requiring the developer's decision; never weaken

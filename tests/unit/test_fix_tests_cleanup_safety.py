@@ -439,6 +439,86 @@ def test_initial_override_preserves_requested_model_and_effort_standard(checkout
     assert 'service_tier="default"' in agent['args'] and 'features.fast_mode=false' in agent['args']
 
 
+@pytest.mark.parametrize('statuses,tests,expected', [
+    (['test_fixed'] + ['fixed'] * 4, ['case-A'] * 6, 1),
+    (['uncertain'] + ['fixed'] * 4, ['case-A'] * 5, 1),
+    (['test_fixed'] + ['fixed'] * 4, ['case-A'] * 5 + [None], 0),
+    (['test_fixed', 'fixed'] * 6,
+     [f'case-{index // 2}' for index in range(12)] + [None], 0),
+    (['test_fixed', 'fixed'] * 3,
+     [dict(category='e2e', case='case-A', vm=f'guest-{index // 2}')
+      for index in range(6)] + [None], 0),
+    (['test_fixed'] * 2 + ['fixed'] * 8,
+     [f'case-{index % 2}' for index in range(11)], 1),
+    (['uncertain', 'stalled'], ['case-A'], 1),
+])
+def test_repair_budget_is_per_case_and_stalled_diagnosis_stops_early(checkout, statuses, tests, expected):
+    root, spawned = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps({'agents': statuses, 'tests': tests}))
+    category = tests[0]['category'] if isinstance(tests[0], dict) else 'unit'
+    run, _ = fix_tests.select(root, categories=(category,))
+    spawned[-1].wait(timeout=20)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == expected
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    agents = [call for call in calls if call['kind'] == 'agent']
+    assert len(agents) == len(statuses)
+    assert len(calls) == len(statuses) + len(tests)
+    usage = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
+    turns = [row for row in usage if row['event'] == 'turn']
+    assert all(row['repair_session'] <= 5 for row in turns)
+    for row, agent in zip(turns, agents):
+        effort = 'medium' if row['repair_session'] == 1 else 'high'
+        assert f'model_reasoning_effort="{effort}"' in agent['args']
+    if expected and statuses[-1] != 'stalled':
+        assert 'repair session limit reached (5/5)' in output.getvalue()
+        assert usage[-1]['event'] == 'session_limit'
+        assert (run / 'last-test.log').exists() and (run / 'agent-result.json').exists()
+        stopped = json.loads((run / 'repair-stop.json').read_text())
+        assert stopped['reason'] == 'session_limit' and stopped['sessions'] == 5
+        assert stopped['failure'] == usage[-1]['failure']
+        last_case_session = max(index for index, row in enumerate(turns, 1)
+                                if row['failure'] == stopped['failure'])
+        assert stopped['result']['summary'] == f'fixture result {last_case_session}'
+    if statuses[-1] == 'stalled':
+        assert 'repair stalled' in output.getvalue()
+        assert json.loads((run / 'repair-stop.json').read_text())['reason'] == 'stalled'
+
+
+def test_answered_blockers_use_case_budget_and_do_not_ask_after_limit(checkout, monkeypatch):
+    from launcher_render import LauncherDisplay
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps({'agents': ['blocked'] * 5, 'tests': ['case-A']}))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    answers = []
+    def answer(display):
+        if display.question is not None and not display.question.sent:
+            answers.append(display.question.question['id'])
+            display.question.feed(b'\r')
+    monkeypatch.setattr(LauncherDisplay, 'poll_input', answer)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 1
+    assert len(set(answers)) == 4
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['kind'] for call in calls] == ['test'] + ['agent'] * 5
+    assert 'repair session limit reached (5/5)' in output.getvalue()
+
+
+def test_later_verification_round_does_not_reset_case_budget(checkout):
+    root, spawned = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps({'agents': ['test_fixed'] + ['fixed'] * 4,
+        'tests': ['case-A'] * 5 + [None, 'case-A']}))
+    run, _ = fix_tests.select(root, categories=('unit',), rounds=2)
+    spawned[-1].wait(timeout=20)
+    assert fix_tests.follow(run, io.StringIO()) == 1
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert len([call for call in calls if call['kind'] == 'agent']) == 5
+    assert len([call for call in calls if call['kind'] == 'test']) == 7
+
+
 @pytest.mark.parametrize('mode, classification', [
     ('agent-app', 'app_issue'), ('agent-uncertain', 'uncertain')])
 def test_app_or_uncertain_classification_starts_fresh_sol_high_agent(checkout, mode,

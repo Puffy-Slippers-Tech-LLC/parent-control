@@ -96,13 +96,13 @@ def test_first_session_success_closes_and_stages_without_another_session(checkou
     assert len(calls(root)) == 1
     invocation = calls(root)[0]
     assert invocation['args'][invocation['args'].index('--model') + 1] == 'gpt-6.1-sol'
-    assert 'model_reasoning_effort="medium"' in invocation['args']
+    assert 'model_reasoning_effort="high"' in invocation['args']
     assert 'features.multi_agent=true' in invocation['args']
     assert 'agents.enabled=true' in invocation['args']
     assert 'service_tier="default"' in invocation['args']
     usage = json.loads((run / 'agent-usage.jsonl').read_text())
     assert usage == {'session': 1, 'task_id': '001', 'phase': 'implement',
-                     'model': 'gpt-6.1-sol', 'reasoning_effort': 'medium',
+                     'model': 'gpt-6.1-sol', 'reasoning_effort': 'high',
                      'service_tier': 'default', 'reported_scope': 'cli_turn',
                      'usage': {'input_tokens': 100, 'cached_input_tokens': 80,
                                'output_tokens': 20, 'reasoning_output_tokens': 12}}
@@ -170,7 +170,7 @@ def test_prerequisite_repair_runs_before_consumer_and_survives_restart(checkout,
     assert len(recorded) == 3
     assert 'Task 000a:' in recorded[1]['prompt']
     assert 'Task 001:' in recorded[2]['prompt']
-    assert 'model_reasoning_effort="medium"' in recorded[2]['args']
+    assert 'model_reasoning_effort="high"' in recorded[2]['args']
     state = json.loads((final / 'checkpoint.json').read_text())
     assert state['task_id'] == '001' and state['task_sessions'] == 2
     assert workflow.queue_state(root) == ('002', {'000a': True, '001': True, '002': False})
@@ -218,7 +218,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
         assert '--ephemeral' in call['args']
         assert not {'resume', 'fork', '--last'} & set(call['args'])
         assert call['args'][call['args'].index('--model') + 1] == 'gpt-6.1-sol'
-        assert 'model_reasoning_effort="medium"' in call['args']
+        assert 'model_reasoning_effort="high"' in call['args']
         assert 'agents.max_concurrent_threads_per_session=1' in call['args']
         assert 'agents.max_depth=1' in call['args']
         assert 'features.multi_agent=true' in call['args']
@@ -232,7 +232,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     assert json.loads((second / 'result.json').read_text())['sessions'] == 1
 
 
-def test_repeated_live_attempts_escalate_across_restart_and_reset_for_next_task(checkout):
+def test_sol_high_survives_restart_and_new_task_with_attempt_history_intact(checkout):
     root, _ = checkout
     script(root, {'result': reply()}, {'result': reply()},
            {'result': reply('task_complete', 'passed'), 'close': True},
@@ -247,13 +247,13 @@ def test_repeated_live_attempts_escalate_across_restart_and_reset_for_next_task(
     invocations = calls(root)
     assert [call['args'][call['args'].index('--model') + 1] for call in invocations] == [
         'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol']
-    assert 'model_reasoning_effort="high"' in invocations[2]['args']
+    assert all('model_reasoning_effort="high"' in call['args'] for call in invocations)
     assert 'You are the GPT-6.1-Sol High coordinator' in invocations[2]['prompt']
-    assert 'You are the GPT-6.1-Sol Medium coordinator' in invocations[3]['prompt']
+    assert 'You are the GPT-6.1-Sol High coordinator' in invocations[3]['prompt']
     records = [json.loads(line) for line in (second / 'agent-usage.jsonl').read_text().splitlines()]
     assert [(row['session'], row['task_id'], row['model']) for row in records] == [
         (3, '001', 'gpt-6.1-sol'), (4, '002', 'gpt-6.1-sol')]
-    assert [row['reasoning_effort'] for row in records] == ['high', 'medium']
+    assert [row['reasoning_effort'] for row in records] == ['high', 'high']
     assert all(row['usage'] is None for row in records)  # Missing usage is never zero.
 
 
@@ -430,7 +430,7 @@ def test_first_limit_stops_after_accepted_completion(checkout, args, sessions, c
     assert len(calls(root)) == sessions
     for index, call in enumerate(calls(root)):
         assert call['args'][call['args'].index('--model') + 1] == 'gpt-6.1-sol'
-        assert 'model_reasoning_effort="medium"' in call['args']
+        assert 'model_reasoning_effort="high"' in call['args']
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 0, 'sessions': sessions, 'tasks': completed}
     assert reason in (run / 'handoff.txt').read_text()
@@ -784,7 +784,7 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(checkout, 
     invocations = calls(root)
     invocation = invocations[1]
     assert invocation['pid'] != invocations[0]['pid']
-    assert 'model_reasoning_effort="medium"' in invocation['args']
+    assert 'model_reasoning_effort="high"' in invocation['args']
     progress = json.loads((recovered / 'progress.json').read_text())
     assert progress['task_id'] == '001' and progress['phase'] == 'recover'
     prompt = ' '.join(invocation['prompt'].split())

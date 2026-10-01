@@ -537,6 +537,7 @@ def test_first_failure_cancels_and_finalizes_with_prompt(
     def execute(run):
         runs.append(run)
         item = run.categories[0]
+        item.retry_category = 'unit'
         execution = regression.Execution(run, item, events=events)
         if events:
             execution.output((regression.PREFIX + json.dumps(dict(
@@ -556,6 +557,25 @@ def test_first_failure_cancels_and_finalizes_with_prompt(
     assert run.report.stream.closed
     assert 'normal owned cleanup finished' in (run.report.directory / 'report.md').read_text()
     assert 'Copy this prompt into a new Codex session:' in capsys.readouterr().out
+    failure = json.loads((run.report.directory / 'failure.json').read_text())
+    assert failure['failures'] == [dict(category=run.categories[0].retry_category,
+                                      case='case' if events else '', vm='')]
+
+
+def test_failure_targets_keep_cases_stable_across_buckets_and_scope_vms():
+    items = [regression.Category('Unit branch 2', failures=2, retry_category='unit',
+                                 failed_nodeids=('test_a[variant]', 'test_b')),
+             regression.Category('Unit branch 4', failures=1, retry_category='unit',
+                                 failed_nodeids=('test_a[variant]',)),
+             regression.Category('E2E', failures=1, retry_category='e2e',
+                                 failed_nodeids=('E2E-004/terminal',)),
+             regression.Category('System preparation', state='Failed', retry_category='system'),
+             regression.Category('Interrupted companion', state='Interrupted', retry_category='ui')]
+    assert regression.failure_targets(items, vm='guest-a') == [
+        dict(category='unit', case='test_a[variant]', vm=''),
+        dict(category='unit', case='test_b', vm=''),
+        dict(category='e2e', case='E2E-004/terminal', vm='guest-a'),
+        dict(category='system', case='', vm='guest-a')]
 
 
 def test_partial_failure_is_durable_before_cancellation(report, tmp_path):

@@ -153,6 +153,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Preparation recovery additions use private journals and mocked lease/SSH
 # lifecycle only. App-snapshot, graphical and retention cleanup stay compatible;
 # neither host privileges nor a shared VM/display/storage root is touched.
+# Repair-budget additions run finite synthetic agents under the existing recorded
+# launcher owners and private tmp_path roots. They retain compatible unit/cleanup
+# scheduling, bounded waits and teardown; no real model or VM is invoked.
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_fix_tests_cleanup_safety.py': 38,
              'test_write_e2e_cleanup_safety.py': 54,

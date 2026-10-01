@@ -63,7 +63,7 @@ def test_selected_rounds_reverify_earlier_leaves_after_repairs():
         return result
 
     rounds = []
-    fix_tests.run_loop(['unit', 'ui'], test, prompts.append, lambda: None, selected=True,
+    fix_tests.run_loop(['unit', 'ui'], test, lambda prompt, **_: prompts.append(prompt), lambda: None, selected=True,
                        round_changed=rounds.append, rounds=2)
     assert rounds == [1, 2]
     assert list(pending) == []
@@ -201,7 +201,8 @@ def test_rounds_repair_only_failed_categories_with_latest_prompt(capsys):
         calls.append(category)
         return result
 
-    fix_tests.run_loop(['unit', 'ui', 'system', 'e2e'], test, prompts.append, lambda: None, rounds=2)
+    fix_tests.run_loop(['unit', 'ui', 'system', 'e2e'], test,
+                       lambda prompt, **_: prompts.append(prompt), lambda: None, rounds=2)
     assert list(pending) == []
     assert calls.count('system') == calls.count('e2e') == 1
     assert prompts == ['unit first', 'unit second', 'aggregate ui', 'ui only']
@@ -216,7 +217,7 @@ def test_multiple_aggregate_failures_recheck_companions_before_repair():
         calls.append(category)
         return next(pending)
 
-    fix_tests.run_loop(['unit', 'ui'], test, prompts.append, lambda: None, rounds=2)
+    fix_tests.run_loop(['unit', 'ui'], test, lambda prompt, **_: prompts.append(prompt), lambda: None, rounds=2)
     assert calls == ['unit', 'ui', 'all', 'unit', 'ui', 'all']
     assert prompts == ['both']
 
@@ -227,7 +228,7 @@ def test_cancellation_never_starts_an_agent_or_next_test():
     with pytest.raises(fix_tests.Stopped):
         fix_tests.run_loop(['unit', 'ui'], test, repair, lambda: None)
     test.assert_called_once_with('unit')
-    repair.assert_called_once_with('current')
+    repair.assert_called_once_with('current', failure_key=('unit', '', ''))
 
 
 def test_unmapped_aggregate_failure_is_not_a_fabricated_category_pass():
@@ -308,7 +309,8 @@ def test_failed_verification_carries_only_latest_repair_until_category_passes():
                      failure('three', 'unit'), None, failure('new', 'ui'), None, None])
     calls, verified = [], []
 
-    def repair(prompt, *, previous=None):
+    def repair(prompt, *, failure_key, previous=None):
+        assert failure_key[0] in ('unit', 'ui')
         calls.append((prompt, previous))
         return prompt + ' repair summary'
 
@@ -318,6 +320,29 @@ def test_failed_verification_carries_only_latest_repair_until_category_passes():
                      ('three', 'two repair summary'), ('new', None)]
     assert verified == [('one repair summary', False), ('two repair summary', False),
                         ('three repair summary', True), ('new repair summary', True)]
+
+
+def test_case_handoffs_do_not_cross_cases_or_vms_or_aggregate_companions():
+    def case(name, vm='guest-a'):
+        return dict(category='e2e', case=name, vm=vm)
+    identities = [case('A'), case('B'), case('A', 'guest-b'), case('A')]
+    pending = iter([dict(prompt=str(index), categories=['e2e'],
+                         failures=[dict(category='unit', case='unrelated', vm=''), identity])
+                    for index, identity in enumerate(identities)] + [None])
+    repairs = []
+    def repair(prompt, *, failure_key, previous=None):
+        repairs.append((failure_key, previous))
+        return prompt
+    fix_tests.run_loop(['e2e'], lambda _: next(pending), repair, lambda: None)
+    assert repairs == [(('e2e', 'A', 'guest-a'), None), (('e2e', 'B', 'guest-a'), None),
+                       (('e2e', 'A', 'guest-b'), None), (('e2e', 'A', 'guest-a'), '0')]
+
+
+@pytest.mark.parametrize('targets', [None, {}, [None], [{'category': 'unit', 'case': 4, 'vm': ''}],
+                                    [{'category': '', 'case': 'A', 'vm': ''}]])
+def test_invalid_runner_failure_ids_are_refused(targets):
+    with pytest.raises(ValueError, match='invalid failure identities'):
+        fix_tests.failure_target({'failures': targets}, 'unit')
 
 
 def test_usage_preserves_unknown_counters_and_never_interrupts_cleanup(tmp_path, capsys):

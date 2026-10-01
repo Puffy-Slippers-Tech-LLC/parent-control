@@ -22,7 +22,8 @@ export default class PreviewExtension extends OhNoParentControlExtension {
         return new RemainingTimeIndicator(
             () => this._showRequest(), 45 * 60, true, this._appName,
             previewGenerationMarker(), appLogoPath(this), this._settings,
-            error => this._errors.report(error));
+            error => this._errors.report(error), this._translations,
+            () => this._refreshLanguage());
     }
 
     _enable() {

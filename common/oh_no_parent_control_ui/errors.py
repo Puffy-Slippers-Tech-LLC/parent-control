@@ -1,5 +1,7 @@
 """Error reports contain fixed categories only, never exception messages."""
 
+from common.oh_no_parent_control_ui import messages as m
+
 from dataclasses import dataclass
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, ERROR_CODES
 from common.oh_no_parent_control_ui.diagnostic_events import record_exception
@@ -8,8 +10,8 @@ import threading
 
 LOG = get_logger("errors")
 COMPONENTS = frozenset(("Kiosk App", "Child App", "Parent App"))
-GENERIC_TITLE = "Something went wrong"
-GENERIC_DETAIL = "The operation could not be completed. Please try again later."
+GENERIC_TITLE = m.SOMETHING_WENT_WRONG
+GENERIC_DETAIL = m.THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
 
 
 def _bounded(text, limit):
@@ -72,6 +74,7 @@ class ErrorHandler:
         return self.present(self.capture(error, title, detail), on_close=on_close)
 
     def present(self, report, *, on_close=None):
+        from .translation_widgets import localized
         # Repeated polling failures must not overwrite an edited/in-flight draft
         # or create a modal window storm. A later error can open a fresh report
         # after this one is dismissed.
@@ -110,8 +113,8 @@ class ErrorHandler:
                 add_identified_window_controls,
                 set_automation_id,
             )
-            fallback = Gtk.Dialog(
-                title="Error report unavailable", transient_for=self.parent, modal=True,
+            fallback = localized(Gtk.Dialog, 
+                title=m.ERROR_REPORT_UNAVAILABLE, transient_for=self.parent, modal=True,
             )
             set_automation_id(fallback, "error-report-unavailable-dialog")
             header = Gtk.HeaderBar()
@@ -119,17 +122,17 @@ class ErrorHandler:
                 header, "error-report-unavailable-window-controls",
             )
             fallback.set_titlebar(header)
-            message = Gtk.Label(
-                label="The feedback dialog could not be opened. Please try again later.",
+            message = localized(Gtk.Label, 
+                label=m.THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER,
                 wrap=True, xalign=0,
                 margin_top=18, margin_bottom=18, margin_start=18, margin_end=18,
             )
             set_automation_id(message, "error-report-unavailable-message")
             fallback.get_content_area().append(message)
             add_dialog_button(
-                fallback, "Close", Gtk.ResponseType.CLOSE,
+                fallback, m.CLOSE, Gtk.ResponseType.CLOSE,
                 "error-report-unavailable-close",
-                description="Close the error report notice.",
+                description=m.CLOSE_THE_ERROR_REPORT_NOTICE,
             )
             fallback.set_default_response(Gtk.ResponseType.CLOSE)
             fallback.connect("response", lambda current, _response: current.destroy())
@@ -144,6 +147,7 @@ class ErrorHandler:
 def show_startup_error(application, component, error):
     """Show a reporting-only surface when management/request startup fails."""
     from gi.repository import Adw, Gtk
+    from .translation_widgets import localized
     from .accessibility import add_identified_window_controls, set_automation_id
     existing = getattr(application, "_startup_error_window", None)
     if existing is not None:
@@ -151,14 +155,14 @@ def show_startup_error(application, component, error):
         if existing._errors._dialog is not None:
             existing._errors._dialog.present()
         return existing
-    window = Adw.ApplicationWindow(application=application, title=GENERIC_TITLE,
+    window = localized(Adw.ApplicationWindow, application=application, title=GENERIC_TITLE,
                                    default_width=560, default_height=180)
     set_automation_id(window, "startup-error-window")
     toolbar = Adw.ToolbarView()
     header = Adw.HeaderBar()
     add_identified_window_controls(header, "startup-error-window-controls")
     toolbar.add_top_bar(header)
-    message = Gtk.Label(label=GENERIC_DETAIL, wrap=True,
+    message = localized(Gtk.Label, label=GENERIC_DETAIL, wrap=True,
                         margin_start=24, margin_end=24)
     set_automation_id(message, "startup-error-message")
     toolbar.set_content(message)

@@ -29,14 +29,13 @@ const SCREEN_SAVER_NAME = 'org.gnome.ScreenSaver';
 const SCREEN_SAVER_PATH = '/org/gnome/ScreenSaver';
 const SCREEN_SAVER_INTERFACE = 'org.gnome.ScreenSaver';
 const COUNTDOWN_ANIMATION_KEY = 'one-minute-countdown-animation';
-const COUNTDOWN_ANIMATION_LABEL = 'One minute count down animation';
 
 export const RemainingTimeIndicator = GObject.registerClass(
 class RemainingTimeIndicator extends PanelMenu.Button {
     _init(onRequest, approvedGrantRemaining = 0, preview = false,
-        appName = 'Parent Control', previewMarker = '', logoPath = '', settings = null,
-        onError = null) {
-        super._init(0.0, 'Screen Time Remaining');
+        appName = 'Oh No! Parent Control', previewMarker = '', logoPath = '', settings = null,
+        onError = null, translations = null, onLanguageRefresh = null) {
+        super._init(0.0, appName);
         setAutomationId(this, 'child-screen-time-indicator');
         // Drop the default panel menu. A second menu with this source actor
         // steals hover and press from the request popover, including the
@@ -45,6 +44,9 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         this._onRequest = onRequest;
         this._onError = onError;
+        this._translations = translations;
+        this._onLanguageRefresh = onLanguageRefresh;
+        this._appName = appName;
         this._preview = preview;
         this._previewMarker = preview ? previewMarker : '';
         this._settings = settings;
@@ -97,7 +99,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._requestButton,
             'child-request-button',
             appName,
-            'Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings.');
+            this._text('PANEL_DESCRIPTION'));
         this._requestButton.connect('clicked', () => this._activateRequest());
         content.add_child(this._requestButton);
         this.add_child(content);
@@ -151,7 +153,11 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             () => this._refreshEstimate());
         this._connect(Main.timeLimitsManager, 'notify::daily-limit-enabled',
             () => this._refreshEstimate());
-        this._connect(Main.sessionMode, 'updated', () => this._sync());
+        this._connect(Main.sessionMode, 'updated', () => {
+            this._sync();
+            if (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter)
+                this._onLanguageRefresh?.();
+        });
         this._connect(this.container, 'notify::width', () => this._queueLayoutSync());
         this._connect(this.container, 'notify::height', () => this._queueLayoutSync());
         // Panel extensions may rewrite nested BoxLayout orientations while
@@ -180,6 +186,22 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             if (active)
                 this._tooltip.hide();
         }
+    }
+
+    _text(key, values = {}) {
+        return this._translations?.text(key, values) ?? '';
+    }
+
+    refreshLanguage() {
+        if (this._destroyed) return;
+        describeControl(this._requestButton, 'child-request-button', this._appName,
+            this._text('PANEL_DESCRIPTION'));
+        if (this._countdownAnimationItem) {
+            this._countdownAnimationItem.label.text = this._text('COUNTDOWN_ANIMATION');
+            describeControl(this._countdownAnimationItem, 'child-countdown-animation-toggle',
+                this._text('COUNTDOWN_ANIMATION'), this._text('COUNTDOWN_ANIMATION_DESCRIPTION'));
+        }
+        this._sync();
     }
 
     _activateRequest() {
@@ -330,12 +352,12 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         });
 
         this._countdownAnimationItem = new PopupMenu.PopupSwitchMenuItem(
-            COUNTDOWN_ANIMATION_LABEL, this._countdownAnimationsEnabled);
+            this._text('COUNTDOWN_ANIMATION'), this._countdownAnimationsEnabled);
         describeControl(
             this._countdownAnimationItem,
             'child-countdown-animation-toggle',
-            COUNTDOWN_ANIMATION_LABEL,
-            'Enable or disable the visual countdown animation during the final minute.');
+            this._text('COUNTDOWN_ANIMATION'),
+            this._text('COUNTDOWN_ANIMATION_DESCRIPTION'));
         this._countdownAnimationItem.connect('toggled', (_item, enabled) => {
             if (!this._settings?.set_boolean(COUNTDOWN_ANIMATION_KEY, enabled)) {
                 logWarning('child.animation-save-failed');
@@ -386,6 +408,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             return;
         this._destroyed = true;
         this._onRequest = null;
+        this._onLanguageRefresh = null;
+        this._translations = null;
 
         for (const [object, id] of this._signals) {
             if (!id)
@@ -702,12 +726,15 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         const compact = this._syncOrientation();
         this._label.text = formatRemainingTime(remainingSecs, compact);
+        if (compact && remainingSecs > 60) {
+            const minutes = Math.floor(remainingSecs / 60);
+            this._label.text = this._text(minutes >= 60 ? 'COMPACT_HOURS' : 'COMPACT_MINUTES',
+                {count: minutes >= 60 ? Math.floor(minutes / 60) : minutes});
+        }
         const time = remainingSecs > 60
             ? formatRemainingTime(remainingSecs, false)
-            : `${remainingSecs} ${remainingSecs === 1 ? 'second' : 'seconds'}`;
-        this._tooltip.text = `• Time remaining: ${time}\n` +
-            '• Click to request more time for this session.\n' +
-            '• Right-click for more options.';
+            : this._text('SECOND_COUNT', {count: remainingSecs});
+        this._tooltip.text = this._text('PANEL_TOOLTIP', {time});
         if (this._tooltip.visible)
             this._syncTooltip();
 
@@ -719,7 +746,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._updateRequestIcon(remainingSecs);
         const marker = this._previewMarker ? `, ${this._previewMarker}` : '';
         this._requestButton.accessible_name =
-            `Request time, ${this._label.text}${marker}`;
+            this._text('PANEL_REQUEST_TIME', {time: this._label.text}) + marker;
     }
 
     _updateRequestIcon(remainingSecs) {

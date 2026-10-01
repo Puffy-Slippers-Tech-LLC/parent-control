@@ -6,6 +6,7 @@ schemas/gschemas.compiled
 __pycache__/
 *.py[cod]
 /common/oh_no_parent_control_ui/locale/
+/common/oh_no_parent_control_ui/messages.json
 .coverage
 .hypothesis/
 .pytest_cache/

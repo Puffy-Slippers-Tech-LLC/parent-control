@@ -6,6 +6,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, Gtk
+from .translation_widgets import accessible_text, set_text
 
 from common.oh_no_parent_control_ui.gtk_automation import (
     add_identified_window_controls,
@@ -200,7 +201,7 @@ def describe_control(widget, label: str, description: str, *, automation_id=None
     are separate from the explicit automation identity used by UI tests.
     """
 
-    widget.update_property(
+    accessible_text(widget,
         [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
         [label, description],
     )
@@ -212,6 +213,7 @@ def add_dialog_button(dialog, label: str, response_id, automation_id: str, *,
                       description: str | None = None, css_class: str | None = None):
     """Add one ID-addressable Gtk.Dialog response with accessible metadata."""
     button = dialog.add_button(label, response_id)
+    set_text(button, 'label', label)
     describe_control(
         button,
         label,

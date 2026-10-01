@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from common.oh_no_parent_control_ui import messages as m
+from common.oh_no_parent_control_ui.translation_widgets import (
+    localized, set_text, accessible_text, context_for,
+)
+
 from dataclasses import replace
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import hashlib
@@ -74,9 +79,10 @@ class FeedbackDialog(Adw.Window):
     """Keep drafts and immutable retries in memory for this app session."""
 
     def __init__(self, parent, *, kiosk_session=False, report=None, on_close=None):
-        super().__init__(title="Send Feedback", transient_for=parent, modal=True,
+        super().__init__(title=m.SEND_FEEDBACK, transient_for=parent, modal=True,
                          destroy_with_parent=True, default_width=660,
                          default_height=840, css_classes=["feedback-dialog"])
+        set_text(self, 'title', m.SEND_FEEDBACK)
         set_automation_id(self, "feedback-dialog")
         self._kiosk_session = kiosk_session
         self._report = report
@@ -106,7 +112,7 @@ class FeedbackDialog(Adw.Window):
             application.connect("shutdown", lambda *_: self._cancelled.set())
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar(
-            title_widget=Adw.WindowTitle(title="Send Feedback"),
+            title_widget=localized(Adw.WindowTitle, title=m.SEND_FEEDBACK),
             css_classes=["feedback-header"],
         )
         add_identified_window_controls(header, "feedback-window-controls")
@@ -121,11 +127,11 @@ class FeedbackDialog(Adw.Window):
         introduction.append(hero_icon)
         heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
                           valign=Gtk.Align.CENTER, hexpand=True)
-        heading.append(Gtk.Label(label="Help us make things better", xalign=0,
+        heading.append(localized(Gtk.Label, label=m.HELP_US_MAKE_THINGS_BETTER, xalign=0,
                                  wrap=True, css_classes=["feedback-title"]))
-        heading.append(Gtk.Label(
-            label=("Review the error details below before sending."
-                   if report else "Share a problem, suggestion, or idea."),
+        heading.append(localized(Gtk.Label, 
+            label=(m.REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+                   if report else m.SHARE_A_PROBLEM_SUGGESTION_OR_IDEA),
             xalign=0, wrap=True, css_classes=["feedback-subtitle"],
         ))
         introduction.append(heading)
@@ -143,17 +149,17 @@ class FeedbackDialog(Adw.Window):
 
         reply_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
                               css_classes=["feedback-reply"])
-        reply = Gtk.Entry(placeholder_text="you@example.com", hexpand=True,
+        reply = localized(Gtk.Entry, placeholder_text="you@example.com", hexpand=True,
                           has_frame=False)
         reply_header = Gtk.Box(spacing=12)
-        reply_header.append(Gtk.Label(
-            label="Reply email (optional)", xalign=0, hexpand=True,
+        reply_header.append(localized(Gtk.Label, 
+            label=m.REPLY_EMAIL_OPTIONAL, xalign=0, hexpand=True,
             mnemonic_widget=reply, css_classes=["feedback-section-title"],
         ))
         anonymous = Gtk.Box(spacing=8, valign=Gtk.Align.CENTER,
                             css_classes=["feedback-anonymous-badge"])
         anonymous.append(_feedback_icon("privacy", 18, "#8866ff"))
-        anonymous.append(Gtk.Label(label="Anonymous by default"))
+        anonymous.append(localized(Gtk.Label, label=m.ANONYMOUS_BY_DEFAULT))
         reply_header.append(anonymous)
         reply_group.append(reply_header)
         reply_field = Gtk.Box(spacing=16, css_classes=["feedback-reply-field"])
@@ -161,21 +167,21 @@ class FeedbackDialog(Adw.Window):
         reply_field.append(reply)
         self._reply = reply
         reply.set_input_purpose(Gtk.InputPurpose.EMAIL)
-        describe_control(reply, "Reply email (optional)",
-                         "Add your email address if you would like a reply.",
+        describe_control(reply, m.REPLY_EMAIL_OPTIONAL,
+                         m.ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY,
                          automation_id="feedback-reply-email")
         reply_group.append(reply_field)
-        reply_group.append(Gtk.Label(
-            label="Add your email if you’d like a reply. Otherwise, your feedback is anonymous.",
+        reply_group.append(localized(Gtk.Label, 
+            label=m.ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS,
             xalign=0, wrap=True, css_classes=["feedback-reply-hint"],
         ))
         content.append(reply_group)
 
-        attachments = Adw.PreferencesGroup(title="Attachments (optional)",
+        attachments = localized(Adw.PreferencesGroup, title=m.ATTACHMENTS_OPTIONAL,
                                            css_classes=["feedback-attachments"])
         self._attachments_group = attachments
-        self._collection_row = Adw.ActionRow(
-            title="Collecting diagnostic information...", visible=False,
+        self._collection_row = localized(Adw.ActionRow, 
+            title=m.COLLECTING_DIAGNOSTIC_INFORMATION, visible=False,
         )
         set_automation_id(self._collection_row, "feedback-collection-status")
         # Adw.Spinner keeps essential progress moving when desktop animations
@@ -186,50 +192,50 @@ class FeedbackDialog(Adw.Window):
         )
         self._collection_row.add_prefix(self._collection_spinner)
         attachments.add(self._collection_row)
-        self._add_attachment_button = Gtk.Button(
+        self._add_attachment_button = localized(Gtk.Button, 
             valign=Gtk.Align.CENTER, css_classes=["feedback-add-files"],
         )
         add_files_content = Gtk.Box(spacing=10, halign=Gtk.Align.CENTER)
         add_files_content.append(_feedback_icon("attachment", 20))
-        add_files_content.append(Gtk.Label(label="Add files"))
+        add_files_content.append(localized(Gtk.Label, label=m.ADD_FILES))
         self._add_attachment_button.set_child(add_files_content)
-        describe_control(self._add_attachment_button, "Add files",
-                         "Attach up to 5 files to your feedback.",
+        describe_control(self._add_attachment_button, m.ADD_FILES,
+                         m.ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK,
                          automation_id=_non_kiosk_automation_id(
                              kiosk_session, "feedback-add-files"))
         self._add_attachment_button.connect("clicked", self._choose_attachments)
         attachments.set_header_suffix(self._add_attachment_button)
         self._add_attachment_button.set_visible(not kiosk_session)
-        self._attachment = Adw.ActionRow(
+        self._attachment = localized(Adw.ActionRow, 
             title="diagnostic-logs.zip",
-            subtitle="Latest 3 log dates · ZIP archive",
+            subtitle=m.LATEST_3_LOG_DATES_ZIP_ARCHIVE,
         )
         set_automation_id(self._attachment, "feedback-logs-row")
         self._attachment.add_prefix(_feedback_icon("archive", 26))
-        self._attachment_button = Gtk.Button(
-            child=_feedback_icon("trash", 22, "#7650ff"), tooltip_text="Remove logs",
+        self._attachment_button = localized(Gtk.Button, 
+            child=_feedback_icon("trash", 22, "#7650ff"), tooltip_text=m.REMOVE_LOGS,
             valign=Gtk.Align.CENTER,
             css_classes=["flat", "feedback-attachment-button"],
         )
         self._include_logs = True
         self._attachment_button.connect("clicked", self._toggle_attachment)
         attachment_actions = Gtk.Box(spacing=4, valign=Gtk.Align.CENTER)
-        self._retry_logs = Gtk.Button(label="Retry collection", visible=False,
+        self._retry_logs = localized(Gtk.Button, label=m.RETRY_COLLECTION, visible=False,
                                      valign=Gtk.Align.CENTER)
         describe_control(
-            self._retry_logs, "Retry diagnostic collection",
-            "Try collecting the diagnostic attachment again.",
+            self._retry_logs, m.RETRY_DIAGNOSTIC_COLLECTION,
+            m.TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN,
             automation_id="feedback-retry-logs",
         )
         self._retry_logs.connect("clicked", self._start_collection)
         attachment_actions.append(self._retry_logs)
-        self._download_button = Gtk.Button(
+        self._download_button = localized(Gtk.Button, 
             child=_feedback_icon("download", 22, "#7650ff"),
             css_classes=["flat", "feedback-attachment-button"],
-            tooltip_text="Save compressed logs to examine them before sending",
+            tooltip_text=m.SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING,
         )
-        describe_control(self._download_button, "Download",
-                         "Save a ZIP containing a readable diagnostic report and validated technical events.",
+        describe_control(self._download_button, m.DOWNLOAD,
+                         m.SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED,
                          automation_id=_non_kiosk_automation_id(
                              kiosk_session, "feedback-download-logs"))
         self._download_button.connect("clicked", self._download_logs)
@@ -247,24 +253,24 @@ class FeedbackDialog(Adw.Window):
             orientation=Gtk.Orientation.VERTICAL, spacing=6,
             hexpand=True, valign=Gtk.Align.CENTER,
         )
-        privacy_link = Gtk.LinkButton(
+        privacy_link = localized(Gtk.LinkButton, 
             uri=PRIVACY_URL, halign=Gtk.Align.START,
             css_classes=["feedback-privacy-link"],
         )
         privacy_content = Gtk.Box(spacing=6)
         privacy_content.append(_feedback_icon("privacy", 18, "#7650ff"))
-        privacy_content.append(Gtk.Label(label="Privacy", use_underline=False))
+        privacy_content.append(localized(Gtk.Label, label=m.PRIVACY, use_underline=False))
         privacy_link.set_child(privacy_content)
         describe_control(
             privacy_link,
-            "Privacy",
-            "Show privacy information about feedback and attachments.",
+            m.PRIVACY,
+            m.SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS,
             automation_id="feedback-privacy-link",
         )
         privacy_link.connect("activate-link", self._show_log_privacy)
         privacy_notice.append(privacy_link)
         footer.append(privacy_notice)
-        self._status = Gtk.Label(
+        self._status = localized(Gtk.Label, 
             xalign=0, wrap=True, selectable=True, visible=False,
         )
         set_automation_id(self._status, "feedback-status")
@@ -273,31 +279,31 @@ class FeedbackDialog(Adw.Window):
             lambda label, _property: label.set_visible(bool(label.get_label())),
         )
         content.append(self._status)
-        self._without_logs = Gtk.Button(label="Send without logs", visible=False)
+        self._without_logs = localized(Gtk.Button, label=m.SEND_WITHOUT_LOGS, visible=False)
         describe_control(
-            self._without_logs, "Send without logs",
-            "Send the feedback without the diagnostic attachment.",
+            self._without_logs, m.SEND_WITHOUT_LOGS,
+            m.SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT,
             automation_id="feedback-send-without-logs",
         )
         self._without_logs.connect("clicked", self._send_without_logs)
         content.append(self._without_logs)
         actions = Gtk.Box(spacing=10, halign=Gtk.Align.END, valign=Gtk.Align.CENTER)
-        cancel = Gtk.Button(label="Close", css_classes=["feedback-close"])
+        cancel = localized(Gtk.Button, label=m.CLOSE, css_classes=["feedback-close"])
         describe_control(
-            cancel, "Close",
-            "Close the feedback form while preserving the draft in this app.",
+            cancel, m.CLOSE,
+            m.CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP,
             automation_id="feedback-close",
         )
         self._close_button = cancel
         cancel.connect("clicked", lambda *_: self.close())
         actions.append(cancel)
-        self._send_button = Gtk.Button(
-            label="Send Feedback", sensitive=transport.SENDING_ENABLED,
+        self._send_button = localized(Gtk.Button, 
+            label=m.SEND_FEEDBACK, sensitive=transport.SENDING_ENABLED,
             css_classes=["suggested-action", "feedback-send"],
         )
         describe_control(
-            self._send_button, "Send Feedback",
-            "Submit the feedback and selected attachments.",
+            self._send_button, m.SEND_FEEDBACK,
+            m.SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS,
             automation_id="feedback-send",
         )
         self._send_button.connect("clicked", self._send)
@@ -364,28 +370,19 @@ class FeedbackDialog(Adw.Window):
         self._render_attachment()
         self._set_busy(self._busy)
         if data is None:
-            self._status.set_label(
-                "Logs could not be prepared. You can send this feedback without the attachment.",
+            set_text(self._status, 'label', m.LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH,
             )
         else:
-            self._status.set_label("")
+            set_text(self._status, 'label', "")
             LOG.info("feedback.collection-ready", bytes=len(data))
         return GLib.SOURCE_REMOVE
 
     def _show_log_privacy(self, *_args):
         privacy_text = (
-            transport.RETENTION_DISCLOSURE + "\n\nDiagnostic logs do not collect "
-            "account names, email addresses, file contents, raw system journals, or "
-            "exception messages. Automatic diagnostics contain validated technical "
-            "events, health checks, and system information: OS and dependency versions, "
-            "timezone, session type, and aggregate account counts. Names and custom "
-            "version text are omitted or irreversibly replaced; identities are never hashed. "
-            "Your own feedback, reply email, and selected "
-            "files are separate and may contain personal information. Review them "
-            "before sending."
+            transport.RETENTION_DISCLOSURE + m.DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
         )
-        dialog = Gtk.Dialog(
-            title="Feedback privacy", transient_for=self, modal=True,
+        dialog = localized(Gtk.Dialog, 
+            title=m.FEEDBACK_PRIVACY, transient_for=self, modal=True,
         )
         set_automation_id(dialog, "feedback-privacy-dialog")
         header = Gtk.HeaderBar()
@@ -397,20 +394,20 @@ class FeedbackDialog(Adw.Window):
         )
         # Wrapping alone leaves the natural width at the longest paragraph.
         # Bound the preferred width so the dialog requests a readable text column.
-        privacy_body = Gtk.Label(
+        privacy_body = localized(Gtk.Label, 
             label=privacy_text, wrap=True, max_width_chars=64, xalign=0,
         )
         set_automation_id(privacy_body, "feedback-privacy-text")
         privacy_content.append(privacy_body)
-        portal_link = Gtk.LinkButton(
+        portal_link = localized(Gtk.LinkButton, 
             uri=PRIVACY_URL,
-            label="View full privacy notice",
+            label=m.VIEW_FULL_PRIVACY_NOTICE,
             halign=Gtk.Align.CENTER,
         )
         describe_control(
             portal_link,
-            "View full privacy notice",
-            "Open the Oh No! Parent Control privacy notice in your browser.",
+            m.VIEW_FULL_PRIVACY_NOTICE,
+            m.OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER,
             automation_id=_non_kiosk_automation_id(
                 self._kiosk_session, "feedback-full-privacy-link"),
         )
@@ -418,8 +415,8 @@ class FeedbackDialog(Adw.Window):
         dialog.get_content_area().append(privacy_content)
         portal_link.set_visible(not self._kiosk_session)
         add_dialog_button(
-            dialog, "Close", Gtk.ResponseType.CLOSE, "feedback-privacy-close",
-            description="Close the feedback privacy information.",
+            dialog, m.CLOSE, Gtk.ResponseType.CLOSE, "feedback-privacy-close",
+            description=m.CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION,
         )
         dialog.set_default_response(Gtk.ResponseType.CLOSE)
         dialog.connect("response", lambda current, _response: current.destroy())
@@ -447,15 +444,15 @@ class FeedbackDialog(Adw.Window):
     def _set_busy(self, busy):
         self._busy = busy
         close_label = (
-            "Stop sending and close"
-            if busy and self._on_close is not None else "Close"
+            m.STOP_SENDING_AND_CLOSE
+            if busy and self._on_close is not None else m.CLOSE
         )
-        self._close_button.set_label(close_label)
+        set_text(self._close_button, 'label', close_label)
         describe_control(
             self._close_button, close_label,
-            "Stop the pending report and close it."
+            m.STOP_THE_PENDING_REPORT_AND_CLOSE_IT
             if busy and self._on_close is not None
-            else "Close the feedback form while preserving the draft in this app.",
+            else m.CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP,
         )
         for widget in (self._message, self._reply, *self._attachment_rows):
             widget.set_sensitive(not busy)
@@ -478,7 +475,7 @@ class FeedbackDialog(Adw.Window):
         error = transport.validation_error(message, reply, version, message_html)
         error = error or transport.attachments_error(self._user_attachments)
         if error:
-            self._status.set_label(error)
+            set_text(self._status, 'label', error)
             return
         # A new key is generated only in response to this explicit Send action.
         self._submission = transport.Submission.create(
@@ -487,12 +484,12 @@ class FeedbackDialog(Adw.Window):
         )
         self._without_logs.set_visible(False)
         self._set_busy(True)
-        self._send_button.set_label("Send Feedback")
+        set_text(self._send_button, 'label', m.SEND_FEEDBACK)
         describe_control(
-            self._send_button, "Send Feedback",
-            "Submit the feedback and selected attachments.",
+            self._send_button, m.SEND_FEEDBACK,
+            m.SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS,
         )
-        self._status.set_label("Preparing feedback… " + self._sending_hint())
+        set_text(self._status, 'label', m.PREPARING_FEEDBACK % {'hint': self._sending_hint()})
         include_logs = self._include_logs
         submission = self._submission
         cached_logs = self._logs
@@ -500,7 +497,7 @@ class FeedbackDialog(Adw.Window):
             logs = cached_logs
             frozen = replace(submission, logs=logs if include_logs else None)
             GLib.idle_add(self._submission_progress,
-                          "Sending feedback… " + self._sending_hint())
+                          m.SENDING_FEEDBACK % {'hint': self._sending_hint()})
             result = transport.submit(
                 frozen, self._cancelled,
                 lambda text: GLib.idle_add(self._submission_progress, text),
@@ -511,11 +508,11 @@ class FeedbackDialog(Adw.Window):
 
     def _sending_hint(self):
         if self._on_close is not None:
-            return "You can stop sending and close this report."
-        return "You may close this dialog; retries continue while the app is open."
+            return m.YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+        return m.YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
 
     def _submission_progress(self, text):
-        self._status.set_label(text)
+        set_text(self._status, 'label', text)
         return GLib.SOURCE_REMOVE
 
     def _submission_done(self, result, submission):
@@ -525,26 +522,26 @@ class FeedbackDialog(Adw.Window):
         self._set_busy(False)
         LOG.info("feedback.002", outcome=result.kind)
         messages = {
-            "success": "Feedback submitted.",
-            "expired": "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate.",
-            "oversized": "The attachments are too large. Remove files or logs and try again.",
-            "logs_unavailable": "Logs could not be prepared. You can send this feedback without the attachment.",
-            "failed": "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again.",
-            "cancelled": "Submission stopped. Your draft is preserved. The previous attempt may have succeeded.",
-            "disabled": "Sending is not available yet. Your draft is preserved.",
+            "success": m.FEEDBACK_SUBMITTED,
+            "expired": m.THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW,
+            "oversized": m.THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN,
+            "logs_unavailable": m.LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH,
+            "failed": m.FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE,
+            "cancelled": m.SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT,
+            "disabled": m.SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED,
         }
-        self._status.set_label(messages[result.kind])
+        set_text(self._status, 'label', messages[result.kind])
         self._without_logs.set_visible(result.kind in ("oversized", "logs_unavailable") and self._include_logs)
         if result.kind in ("expired", "cancelled"):
-            self._send_button.set_label("Submit again (may duplicate)")
+            set_text(self._send_button, 'label', m.SUBMIT_AGAIN_MAY_DUPLICATE)
             describe_control(
-                self._send_button, "Submit again (may duplicate)",
-                "Submit the preserved feedback again when the earlier result is uncertain.",
+                self._send_button, m.SUBMIT_AGAIN_MAY_DUPLICATE,
+                m.SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U,
             )
         if result.kind == "success":
             self._receipt_id = result.receipt_id
             self._message.clear()
-            self._reply.set_text("")
+            set_text(self._reply, 'text', "")
             self._clear_user_attachments()
             self._submission = None
             self._logs = None
@@ -555,23 +552,21 @@ class FeedbackDialog(Adw.Window):
     def _show_success_dialog(self, *, has_reply_email):
         self._clear_success_dialog()
         body = (
-            "Your feedback was sent successfully. We appreciate your help making "
-            "the app better."
+            m.YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
         )
         if has_reply_email:
             body += (
-                "\n\nWe may contact you at the email address you provided "
-                "if we have any follow-up questions."
+                m.WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
             )
-        dialog = Gtk.Dialog(
-            title="Thank you for your feedback!",
+        dialog = localized(Gtk.Dialog, 
+            title=m.THANK_YOU_FOR_YOUR_FEEDBACK,
             transient_for=self.get_transient_for(), modal=True,
         )
         set_automation_id(dialog, "feedback-success-dialog")
         header = Gtk.HeaderBar()
         add_identified_window_controls(header, "feedback-success-window-controls")
         dialog.set_titlebar(header)
-        body_label = Gtk.Label(
+        body_label = localized(Gtk.Label, 
             label=body, wrap=True, xalign=0,
             margin_top=18, margin_bottom=18, margin_start=18, margin_end=18,
         )
@@ -579,8 +574,8 @@ class FeedbackDialog(Adw.Window):
         dialog.get_content_area().append(body_label)
         self._success_dialog = dialog
         add_dialog_button(
-            dialog, "Close", Gtk.ResponseType.CLOSE, "feedback-success-close",
-            description="Close the feedback confirmation.",
+            dialog, m.CLOSE, Gtk.ResponseType.CLOSE, "feedback-success-close",
+            description=m.CLOSE_THE_FEEDBACK_CONFIRMATION,
             css_class="suggested-action",
         )
         dialog.set_default_response(Gtk.ResponseType.CLOSE)
@@ -617,20 +612,18 @@ class FeedbackDialog(Adw.Window):
 
     def _render_attachment(self):
         failed = self._include_logs and self._collection_failed
-        self._attachment.set_title(
-            "Diagnostics unavailable" if failed else
-            "diagnostic-logs.zip" if self._include_logs else "No logs attached",
+        set_text(self._attachment, 'title', m.DIAGNOSTICS_UNAVAILABLE if failed else
+            "diagnostic-logs.zip" if self._include_logs else m.NO_LOGS_ATTACHED,
         )
-        self._attachment.set_subtitle(
-            "Retry collection or send without diagnostics." if failed else
-            "Latest 3 log dates · System information · ZIP archive"
-            if self._include_logs else "Your feedback can be sent without logs.",
+        set_text(self._attachment, 'subtitle', m.RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS if failed else
+            m.LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+            if self._include_logs else m.YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS,
         )
         if self._include_logs:
             self._attachment_button.set_child(_feedback_icon("trash", 22, "#7650ff"))
         else:
-            self._attachment_button.set_label("Add logs")
-        self._attachment_button.set_tooltip_text("Remove logs" if self._include_logs else "Add logs")
+            set_text(self._attachment_button, 'label', m.ADD_LOGS)
+        set_text(self._attachment_button, 'tooltip-text', m.REMOVE_LOGS if self._include_logs else m.ADD_LOGS)
         self._download_button.set_visible(self._include_logs and not failed and not self._kiosk_session)
         self._retry_logs.set_visible(failed)
         self._without_logs.set_visible(failed)
@@ -639,15 +632,15 @@ class FeedbackDialog(Adw.Window):
     def _update_attachment_accessibility(self):
         describe_control(
             self._attachment_button,
-            "Remove" if self._include_logs else "Add logs",
-            "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report.",
+            m.REMOVE if self._include_logs else m.ADD_LOGS,
+            m.INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND,
             automation_id="feedback-toggle-logs",
         )
 
     def _choose_attachments(self, _button=None):
         if self._busy or self._collecting or self._kiosk_session:
             return
-        chooser = Gtk.FileDialog(title="Add feedback attachments")
+        chooser = localized(Gtk.FileDialog, title=m.ADD_FEEDBACK_ATTACHMENTS, translation_owner=self)
         chooser.open_multiple(self, None, self._attachments_selected)
 
     def _attachments_selected(self, chooser, result):
@@ -656,18 +649,17 @@ class FeedbackDialog(Adw.Window):
         except GLib.Error as error:
             if not error.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED):
                 LOG.warning("feedback.003", error_type=error_code(error))
-                self._status.set_label("Could not choose attachments. Try again.")
+                set_text(self._status, 'label', m.COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN)
             return
         files = [selected.get_item(index) for index in range(selected.get_n_items())]
         if not files:
             return
         if len(self._user_attachments) + len(files) > transport.MAX_ATTACHMENT_COUNT:
-            self._status.set_label(
-                f"Attach at most {transport.MAX_ATTACHMENT_COUNT} files.",
+            set_text(self._status, 'label', m.ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES % {'transport_MAX_ATTACHMENT_COUNT': transport.MAX_ATTACHMENT_COUNT},
             )
             return
         self._set_busy(True)
-        self._status.set_label("Reading attachments…")
+        set_text(self._status, 'label', m.READING_ATTACHMENTS)
         LOG.info("feedback.004", file_count=len(files))
 
         def load():
@@ -679,7 +671,7 @@ class FeedbackDialog(Adw.Window):
                         Gio.FileQueryInfoFlags.NONE, None,
                     )
                     if info.get_size() > transport.MAX_ATTACHMENT_BYTES:
-                        raise ValueError("Each attachment must be 5 MB or smaller.")
+                        raise ValueError(m.EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER)
                     content, _etag = selected_file.load_bytes(None)
                     content_type = info.get_content_type()
                     loaded.append(transport.Attachment.create(
@@ -694,12 +686,12 @@ class FeedbackDialog(Adw.Window):
                 if error:
                     raise ValueError(error)
             except ValueError as error:
-                GLib.idle_add(self._attachments_loaded, None, str(error))
+                GLib.idle_add(self._attachments_loaded, None, error.args[0])
             except (GLib.Error, OSError) as error:
                 LOG.warning("feedback.005", error_type=error_code(error))
                 GLib.idle_add(
                     self._attachments_loaded, None,
-                    "Could not read one or more attachments. Try different files.",
+                    m.COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES,
                 )
             else:
                 GLib.idle_add(self._attachments_loaded, loaded, None)
@@ -710,7 +702,7 @@ class FeedbackDialog(Adw.Window):
         self._set_busy(False)
         if error:
             LOG.warning("feedback.006")
-            self._status.set_label(error)
+            set_text(self._status, 'label', error)
             return GLib.SOURCE_REMOVE
         for attachment in attachments:
             self._user_attachments.append(attachment)
@@ -718,7 +710,7 @@ class FeedbackDialog(Adw.Window):
                 attachment,
                 {row.automation_key for row in self._attachment_rows},
             )
-            row = Adw.ActionRow(
+            row = localized(Adw.ActionRow, 
                 title=attachment.name,
                 subtitle=self._format_size(len(attachment.data)),
             )
@@ -726,18 +718,18 @@ class FeedbackDialog(Adw.Window):
             set_automation_id(row, f"feedback-attachment-{attachment_key}")
             icon = Gtk.Image(icon_name="mail-attachment-symbolic")
             describe_control(
-                icon, "Preview is not available", "File attachment",
+                icon, m.PREVIEW_IS_NOT_AVAILABLE, m.FILE_ATTACHMENT,
                 automation_id=f"feedback-preview-availability-{attachment_key}",
             )
             row.add_prefix(icon)
-            remove = Gtk.Button(
-                icon_name="user-trash-symbolic", tooltip_text="Remove attachment",
+            remove = localized(Gtk.Button, 
+                icon_name="user-trash-symbolic", tooltip_text=m.REMOVE_ATTACHMENT,
                 valign=Gtk.Align.CENTER,
                 css_classes=["flat", "feedback-attachment-button"],
             )
             describe_control(
-                remove, f"Remove {attachment.name}",
-                "Remove this file from the feedback.",
+                remove, m.REMOVE_ATTACHMENT_NAME_S % {'attachment_name': attachment.name},
+                m.REMOVE_THIS_FILE_FROM_THE_FEEDBACK,
                 automation_id=f"feedback-remove-attachment-{attachment_key}",
             )
             remove.connect("clicked", self._remove_user_attachment, attachment, row)
@@ -749,9 +741,7 @@ class FeedbackDialog(Adw.Window):
             added_count=len(attachments),
             total_count=len(self._user_attachments),
         )
-        self._status.set_label(
-            f"{len(self._user_attachments)} file attachment"
-            f"{'s' if len(self._user_attachments) != 1 else ''} ready.",
+        set_text(self._status, 'label', m.attachments_ready(len(self._user_attachments)),
         )
         return GLib.SOURCE_REMOVE
 
@@ -770,7 +760,7 @@ class FeedbackDialog(Adw.Window):
     @staticmethod
     def _format_size(size):
         if size < 1024:
-            return f"{size} bytes"
+            return m.byte_count(size)
         if size < 1024 * 1024:
             return f"{size / 1024:.1f} KB"
         return f"{size / (1024 * 1024):.1f} MB"
@@ -785,10 +775,10 @@ class FeedbackDialog(Adw.Window):
     def _choose_download(self, data):
         self._logs = data
         if not self.get_visible():
-            self._download_done("Logs ready to review")
+            self._download_done(m.LOGS_READY_TO_REVIEW)
             return GLib.SOURCE_REMOVE
-        chooser = Gtk.FileDialog(title="Download diagnostic logs",
-                                 initial_name="diagnostic-logs.zip")
+        chooser = localized(Gtk.FileDialog, title=m.DOWNLOAD_DIAGNOSTIC_LOGS,
+                                 initial_name="diagnostic-logs.zip", translation_owner=self)
         chooser.save(self, None, self._download_selected, data)
         return GLib.SOURCE_REMOVE
 
@@ -797,10 +787,10 @@ class FeedbackDialog(Adw.Window):
             destination = chooser.save_finish(result)
         except GLib.Error as error:
             if error.matches(Gtk.dialog_error_quark(), Gtk.DialogError.DISMISSED):
-                self._download_done("Latest 3 log dates · ZIP archive")
+                self._download_done(m.LATEST_3_LOG_DATES_ZIP_ARCHIVE)
             else:
                 LOG.warning("feedback.011", error_type=error_code(error))
-                self._download_done("Could not choose a download location. Try again.")
+                self._download_done(m.COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN)
             return
         destination.replace_contents_bytes_async(
             GLib.Bytes.new(data), None, False,
@@ -813,14 +803,14 @@ class FeedbackDialog(Adw.Window):
             destination.replace_contents_finish(result)
         except GLib.Error as error:
             LOG.warning("feedback.012", error_type=error_code(error))
-            self._download_done("Could not save logs. Try another location.")
+            self._download_done(m.COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION)
         else:
             LOG.info("feedback.013")
-            self._download_done("Downloaded · Ready to examine")
+            self._download_done(m.DOWNLOADED_READY_TO_EXAMINE)
 
     def _download_done(self, subtitle):
         self._set_busy(False)
-        self._attachment.set_subtitle(subtitle)
+        set_text(self._attachment, 'subtitle', subtitle)
         return GLib.SOURCE_REMOVE
 
     def _key_pressed(self, _controller, keyval, _keycode, _state):

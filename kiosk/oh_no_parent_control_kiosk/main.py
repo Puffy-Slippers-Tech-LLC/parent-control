@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from common.oh_no_parent_control_ui import messages as m
+from common.oh_no_parent_control_ui.translation_widgets import (
+    localized, set_text, accessible_text, context_for,
+)
+
 import argparse
 import cairo
 import logging
@@ -58,8 +63,8 @@ REQUEST_TIMEOUT_MS = GLib.MAXINT
 # closing the child overlay. Fade any remaining thunder over this interval.
 SUCCESS_LOGOUT_DELAY_MS = 3_000
 SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000
-CHILD_SUCCESS_TITLE = "Time granted"
-CHILD_SUCCESS_COPY = "Time granted, Close"
+CHILD_SUCCESS_TITLE = m.TIME_GRANTED
+CHILD_SUCCESS_COPY = m.TIME_GRANTED_CLOSE
 GATEWAY_EFFECT_FRAME_MS = 33
 # Temporarily disable the shared sound/lightning feature; retain its controls
 # and saved preferences so it can be restored in a future release.
@@ -518,8 +523,8 @@ class GatewayAlignedRequest(Gtk.Widget):
         )
         describe_control(
             self._scrollbar,
-            f"{automation_namespace.title()} screen scroll",
-            f"Scroll the {automation_namespace} screen when its content overflows.",
+            m.REQUEST_SCREEN_SCROLL,
+            m.REQUEST_SCREEN_SCROLL_DESCRIPTION,
             automation_id=f"kiosk-{automation_namespace}-scrollbar",
         )
         self._scrollbar.set_parent(self)
@@ -905,7 +910,7 @@ def configure_logging(preview=False, component="kiosk"):
 
 
 def _time_estimate_label(seconds):
-    return f"Estimated time remaining if approved: {format_duration(seconds)}"
+    return m.ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S % {'format_duration_seconds': format_duration(seconds)}
 
 
 class RequestWindow(Adw.ApplicationWindow):
@@ -932,6 +937,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._error_report = None
         self._applying_preferences = False
         self._own_language = None
+        context_for(self)
         self._language_dialog = None
         self._language_loading = False
         self._language_requested = False
@@ -1007,27 +1013,27 @@ class RequestWindow(Adw.ApplicationWindow):
         menu_actions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         set_automation_id(menu_actions, "kiosk-help-actions")
         menu_actions.add_css_class("oh-no-parent-control-hud-menu-actions")
-        preferences_item = self._hud_menu_item("PREFERENCES", MENU, identity="preferences")
-        describe_control(preferences_item, "Preferences", "Choose your language.")
+        preferences_item = self._hud_menu_item(m.PREFERENCES_2, MENU, identity="preferences")
+        describe_control(preferences_item, m.PREFERENCES, m.CHOOSE_YOUR_LANGUAGE_2)
         preferences_item.connect("clicked", lambda *_args: self._activate_help_menu(
             help_popover, self._show_preferences,
         ))
         menu_actions.append(preferences_item)
         if self._child_overlay:
-            help_item = self._hud_menu_item("HELP", HELP, identity="help")
+            help_item = self._hud_menu_item(m.HELP_2, HELP, identity="help")
             describe_control(
-                help_item, "Help",
-                "Open the product website in the browser.",
+                help_item, m.HELP,
+                m.OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER,
             )
             help_item.connect(
                 "clicked",
                 lambda *_args: self._activate_help_menu(help_popover, open_help),
             )
             menu_actions.append(help_item)
-        about_item = self._hud_menu_item("ABOUT", ABOUT, identity="about")
+        about_item = self._hud_menu_item(m.ABOUT_2, ABOUT, identity="about")
         describe_control(
-            about_item, "About",
-            "Show product name, version, and legal information.",
+            about_item, m.ABOUT,
+            m.SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION,
         )
         about_item.connect(
             "clicked",
@@ -1048,12 +1054,12 @@ class RequestWindow(Adw.ApplicationWindow):
         set_automation_id(self._mute_icon, "kiosk-mute-icon")
         self._mute_icon.set_halign(Gtk.Align.CENTER)
         self._mute_icon.set_valign(Gtk.Align.CENTER)
-        self._mute_button = ArmoredButton(
-            armor_kind="hud", tooltip_text="Mute sound and lightning",
+        self._mute_button = localized(ArmoredButton, 
+            armor_kind="hud", tooltip_text=m.MUTE_SOUND_AND_LIGHTNING,
         )
         describe_control(
-            self._mute_button, "Mute request-screen sound",
-            "Turn lightning and its thunder sound on or off.",
+            self._mute_button, m.MUTE_REQUEST_SCREEN_SOUND,
+            m.TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF,
             automation_id="kiosk-mute-button",
         )
         self._mute_button.set_child(self._mute_icon)
@@ -1065,15 +1071,15 @@ class RequestWindow(Adw.ApplicationWindow):
         set_automation_id(menu_icon, "kiosk-menu-icon")
         menu_icon.set_halign(Gtk.Align.CENTER)
         menu_icon.set_valign(Gtk.Align.CENTER)
-        menu_button = ArmoredMenuButton(
+        menu_button = localized(ArmoredMenuButton, 
             armor_kind="hud",
-            tooltip_text="Menu",
+            tooltip_text=m.MENU,
             always_show_arrow=False,
             popover=help_popover,
         )
         describe_control(
-            menu_button, "Request-screen menu",
-            "Open preferences, help and product information for this request screen.",
+            menu_button, m.REQUEST_SCREEN_MENU,
+            m.OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S,
             automation_id="kiosk-menu-button",
         )
         menu_button.set_child(menu_icon)
@@ -1117,19 +1123,19 @@ class RequestWindow(Adw.ApplicationWindow):
 
         self._result_view = self._page()
         set_automation_id(self._result_view, "kiosk-result-page")
-        self._result_title = Gtk.Label(css_classes=["oh-no-parent-control-page-title"])
+        self._result_title = localized(Gtk.Label, css_classes=["oh-no-parent-control-page-title"])
         set_automation_id(self._result_title, "kiosk-result-title")
-        self._result_detail = Gtk.Label(wrap=True, justify=Gtk.Justification.CENTER)
+        self._result_detail = localized(Gtk.Label, wrap=True, justify=Gtk.Justification.CENTER)
         set_automation_id(self._result_detail, "kiosk-result-detail")
         self._result_view.append(self._result_title)
         self._result_view.append(self._result_detail)
-        result_action_label = "Close" if self._child_overlay else "Return to Login"
-        self._result_action = ArmoredButton(
+        result_action_label = m.CLOSE if self._child_overlay else m.RETURN_TO_LOGIN
+        self._result_action = localized(ArmoredButton, 
             label=result_action_label, hexpand=True, armor_kind="request",
         )
         describe_control(
             self._result_action, result_action_label,
-            "Close the result screen or return to the sign-in screen.",
+            m.CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN,
             automation_id="kiosk-result-action",
         )
         self._result_action.add_css_class("oh-no-parent-control-request-button")
@@ -1137,26 +1143,26 @@ class RequestWindow(Adw.ApplicationWindow):
         self._result_action.set_margin_end(10)
         self._result_action.connect("clicked", self._result_dismissed)
         self._result_view.append(self._result_action)
-        self._report_row = Gtk.Button(
+        self._report_row = localized(Gtk.Button, 
             hexpand=True, visible=False, margin_start=10, margin_end=10,
             css_classes=["oh-no-parent-control-app-filter-toggle"],
         )
         report_content = Gtk.Box(spacing=12)
-        report_label = Gtk.Label(
-            label="Report this error", xalign=0, hexpand=True, wrap=True,
+        report_label = localized(Gtk.Label, 
+            label=m.REPORT_THIS_ERROR, xalign=0, hexpand=True, wrap=True,
             css_classes=["oh-no-parent-control-app-filter-label"],
         )
         set_automation_id(report_label, "kiosk-report-label")
         self._report_error = Gtk.Switch(active=True, valign=Gtk.Align.CENTER)
         self._report_error.set_can_target(False)
         report_label.set_mnemonic_widget(self._report_error)
-        description = "Review an error report before closing or returning to login."
+        description = m.REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
         describe_control(
-            self._report_row, "Report this error", description,
+            self._report_row, m.REPORT_THIS_ERROR, description,
             automation_id="kiosk-report-row",
         )
         describe_control(
-            self._report_error, "Report this error", description,
+            self._report_error, m.REPORT_THIS_ERROR, description,
             automation_id="kiosk-report-toggle",
         )
         report_content.append(report_label)
@@ -1212,11 +1218,13 @@ class RequestWindow(Adw.ApplicationWindow):
         if self._estimate_closed:
             return
         self._own_language = language
+        if not self._apply_language(language):
+            return
         if self._language_load_failed:
             self._language_load_failed = False
             self._stack.set_visible_child_name("request")
         if not language or self._language_requested:
-            self._show_preferences()
+            self._open_language_dialog()
         else:
             self._language_saved(language)
 
@@ -1227,17 +1235,16 @@ class RequestWindow(Adw.ApplicationWindow):
             self._stack.set_sensitive(True)
             set_automation_id(self._language_readiness, "kiosk-language-load-error")
             self._show_error(error)
-            self._result_detail.set_text(
-                "Your language preference could not be loaded. Open Preferences to try again.")
+            set_text(self._result_detail, 'label', m.YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO)
             self._result_detail.set_visible(True)
 
     def _show_preferences(self, *_args):
         if self._estimate_closed:
             return
         self._language_requested = True
-        if self._own_language is None:
-            self._load_language()
-            return
+        self._load_language()
+
+    def _open_language_dialog(self):
         if self._language_dialog is None:
             self._language_dialog = LanguageDialog(
                 self, self._own_language, self._save_language, self._language_saved)
@@ -1268,15 +1275,25 @@ class RequestWindow(Adw.ApplicationWindow):
         self._own_language = language
         self._language_dialog = None
         self._language_requested = False
+        if not self._apply_language(language):
+            return
         self._stack.set_sensitive(True)
         set_automation_id(self._language_readiness, "kiosk-language-ready")
+
+    def _apply_language(self, language):
+        try:
+            context_for(self).apply(language)
+        except (OSError, ValueError) as error:
+            self._show_error(error)
+            return False
+        return True
 
     def _menu_state_changed(self, menu_button, _property):
         LOG.info("kiosk.007", expanded=menu_button.get_active(), overlay=self._child_overlay)
 
     @staticmethod
     def _hud_menu_item(label, icon_pixels, *, identity):
-        item = ArmoredButton(hexpand=True, armor_kind="hud-menu-item")
+        item = localized(ArmoredButton, hexpand=True, armor_kind="hud-menu-item")
         set_automation_id(item, "kiosk-menu-item-" + identity)
         item.add_css_class("oh-no-parent-control-hud-menu-item")
         content = Gtk.Box(spacing=18, valign=Gtk.Align.CENTER)
@@ -1284,7 +1301,7 @@ class RequestWindow(Adw.ApplicationWindow):
         icon = HudIconFrame(icon_pixels)
         set_automation_id(icon, "kiosk-menu-icon-" + identity)
         content.append(icon)
-        menu_label = Gtk.Label(label=label, xalign=0, hexpand=True)
+        menu_label = localized(Gtk.Label, label=label, xalign=0, hexpand=True)
         set_automation_id(menu_label, "kiosk-menu-label-" + identity)
         content.append(menu_label)
         item.set_child(content)
@@ -1304,13 +1321,12 @@ class RequestWindow(Adw.ApplicationWindow):
         self._thunder.set_muted(muted)
         self._background.set_lightning_enabled(not muted)
         self._mute_icon.set_pixels(SPEAKER_MUTED if muted else SPEAKER)
-        self._mute_button.set_tooltip_text(
-            "Unmute sound and lightning" if muted else "Mute sound and lightning"
+        set_text(self._mute_button, 'tooltip-text', m.UNMUTE_SOUND_AND_LIGHTNING if muted else m.MUTE_SOUND_AND_LIGHTNING
         )
         describe_control(
             self._mute_button,
-            "Unmute request-screen sound" if muted else "Mute request-screen sound",
-            "Turn lightning and its thunder sound on or off.",
+            m.UNMUTE_REQUEST_SCREEN_SOUND if muted else m.MUTE_REQUEST_SCREEN_SOUND,
+            m.TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF,
         )
         if muted:
             self._mute_button.add_css_class("oh-no-parent-control-hud-muted")
@@ -1378,15 +1394,14 @@ class RequestWindow(Adw.ApplicationWindow):
         return GLib.SOURCE_REMOVE
 
     def _success_countdown_label(self, remaining):
-        return f"{self._success_action_label} ({remaining})"
+        return m.COUNTDOWN_ACTION % {'action': self._success_action_label, 'count': remaining}
 
     def _tick_success_countdown(self):
         self._success_countdown_remaining -= 1
         if self._success_countdown_remaining <= 0:
             self._success_logout_source_id = None
             return self._dismiss_after_success()
-        self._result_action.set_label(
-            self._success_countdown_label(self._success_countdown_remaining),
+        set_text(self._result_action, 'label', self._success_countdown_label(self._success_countdown_remaining),
         )
         return GLib.SOURCE_CONTINUE
 
@@ -1394,7 +1409,7 @@ class RequestWindow(Adw.ApplicationWindow):
         if self._thunder is not None:
             self._thunder.cancel_fade(restore=False)
         if self._success_action_label is not None:
-            self._result_action.set_label(self._success_action_label)
+            set_text(self._result_action, 'label', self._success_action_label)
             self._success_action_label = None
         self._success_countdown_remaining = None
         if self._success_logout_source_id is None:
@@ -1404,10 +1419,9 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _schedule_success_logout(self):
         self._cancel_success_dismiss()
-        self._success_action_label = self._result_action.get_label()
+        self._success_action_label = (CHILD_SUCCESS_COPY if self._child_overlay else m.RETURN_TO_LOGIN)
         self._success_countdown_remaining = SUCCESS_COUNTDOWN_SECONDS
-        self._result_action.set_label(
-            self._success_countdown_label(SUCCESS_COUNTDOWN_SECONDS),
+        set_text(self._result_action, 'label', self._success_countdown_label(SUCCESS_COUNTDOWN_SECONDS),
         )
         if self._thunder is not None:
             self._thunder.fade_out(SUCCESS_LOGOUT_DELAY_MS)
@@ -1539,7 +1553,7 @@ class RequestWindow(Adw.ApplicationWindow):
     def _queue_time_estimate(self):
         # Invalidate replies immediately, including when the form becomes invalid.
         self._estimate_revision += 1
-        self._request_content.set_time_estimate("Calculating time estimate…")
+        self._request_content.set_time_estimate(m.CALCULATING_TIME_ESTIMATE)
         if self._estimate_debounce_id:
             GLib.source_remove(self._estimate_debounce_id)
         self._estimate_debounce_id = GLib.timeout_add(250, self._time_estimate_debounced)
@@ -1560,7 +1574,7 @@ class RequestWindow(Adw.ApplicationWindow):
             return GLib.SOURCE_CONTINUE
         uid, seconds = selection
         if seconds == 0:
-            self._request_content.set_time_estimate("If approved, access until midnight.")
+            self._request_content.set_time_estimate(m.IF_APPROVED_ACCESS_UNTIL_MIDNIGHT)
             return GLib.SOURCE_CONTINUE
         if self._estimate_in_flight:
             return GLib.SOURCE_CONTINUE
@@ -1602,9 +1616,9 @@ class RequestWindow(Adw.ApplicationWindow):
             return
         if error is not None:
             LOG.warning("kiosk.023", error_type=error_code(error))
-            self._request_content.set_time_estimate("Time estimate unavailable")
-            self._errors.handle(error, "Time estimate unavailable",
-                                "The estimated remaining time could not be loaded.")
+            self._request_content.set_time_estimate(m.TIME_ESTIMATE_UNAVAILABLE)
+            self._errors.handle(error, m.TIME_ESTIMATE_UNAVAILABLE,
+                                m.THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED)
         else:
             LOG.debug("kiosk.024", seconds=seconds)
             self._request_content.set_time_estimate(_time_estimate_label(seconds))
@@ -1636,8 +1650,8 @@ class RequestWindow(Adw.ApplicationWindow):
             )
         except Exception as error:
             LOG.warning("kiosk.025", error_type=error_code(error))
-            self._errors.handle(error, "Settings could not be saved",
-                                "Your request choices could not be saved. Please try again later.")
+            self._errors.handle(error, m.SETTINGS_COULD_NOT_BE_SAVED,
+                                m.YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER)
 
     def _persist_muted(self, muted):
         if (self._preview and not self._interactive_preview) or self._applying_preferences:
@@ -1654,23 +1668,23 @@ class RequestWindow(Adw.ApplicationWindow):
             )
         except Exception as error:
             LOG.warning("kiosk.026", error_type=error_code(error))
-            self._errors.handle(error, "Settings could not be saved",
-                                "Your sound preference could not be saved. Please try again later.")
+            self._errors.handle(error, m.SETTINGS_COULD_NOT_BE_SAVED,
+                                m.YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER)
 
     def _preferences_save_done(self, connection, result):
         try:
             connection.call_finish(result)
         except Exception as error:
             LOG.warning("kiosk.027", error_type=error_code(error))
-            self._errors.handle(error, "Settings could not be saved",
-                                "Your request preferences could not be saved. Please try again later.")
+            self._errors.handle(error, m.SETTINGS_COULD_NOT_BE_SAVED,
+                                m.YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT)
 
     def _request_access(self, *_args):
         if self._preview and not self._interactive_preview:
             try:
                 self._request_content.selected()
             except ValueError as error:
-                self._request_content.show_validation_error(str(error))
+                self._request_content.show_validation_error(error.args[0])
                 return
             if self._child_overlay:
                 self._show_child_success()
@@ -1688,7 +1702,7 @@ class RequestWindow(Adw.ApplicationWindow):
             selected, custom, allow_soft = self._request_content.selected_preferences()
         except ValueError as error:
             self._state.finish()
-            self._request_content.show_validation_error(str(error))
+            self._request_content.show_validation_error(error.args[0])
             return
         self._set_request_controls(False)
         self._log_duration_selection("submitted")
@@ -1751,7 +1765,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 if self._child_overlay:
                     self._show_child_success()
                 else:
-                    self._show_result("Request approved", "")
+                    self._show_result(m.REQUEST_APPROVED, "")
                     self._schedule_success_logout()
             elif outcome == "cancelled":
                 # Cancellation is not an error or a session transition.  The
@@ -1763,7 +1777,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 # A completed authorization attempt that was not approved
                 # (for example, an incorrect password) is actionable, so keep
                 # the request choices visible and show the error in place.
-                self._request_content.show_validation_error("Request denied")
+                self._request_content.show_validation_error(m.REQUEST_DENIED)
                 self._stack.set_visible_child_name("request")
         except Exception as error:
             self._request_failed(error)
@@ -1784,22 +1798,22 @@ class RequestWindow(Adw.ApplicationWindow):
     def _show_error(self, error):
         title, detail = public_error(error, child_overlay=self._child_overlay)
         if self._child_overlay:
-            self._result_action.set_label("Close")
+            set_text(self._result_action, 'label', m.CLOSE)
         self._show_result(title, detail)
         self._error_report = self._errors.capture(error, title, detail)
         self._report_error.set_active(True)
         self._report_row.set_visible(True)
 
     def _show_child_success(self):
-        self._result_action.set_label(CHILD_SUCCESS_COPY)
+        set_text(self._result_action, 'label', CHILD_SUCCESS_COPY)
         self._show_result(CHILD_SUCCESS_TITLE, "")
         self._schedule_success_logout()
 
     def _show_result(self, title, detail):
         self._error_report = None
         self._report_row.set_visible(False)
-        self._result_title.set_text(title)
-        self._result_detail.set_text(detail)
+        set_text(self._result_title, 'label', title)
+        set_text(self._result_detail, 'label', detail)
         self._result_detail.set_visible(bool(detail))
         if detail:
             self._result_view.remove_css_class(

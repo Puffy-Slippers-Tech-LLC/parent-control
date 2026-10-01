@@ -1,5 +1,7 @@
 """Immutable feedback submissions and bounded retries; no persistent queue."""
 
+from common.oh_no_parent_control_ui import messages as m
+
 from dataclasses import dataclass
 from html import escape
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
@@ -18,10 +20,7 @@ ENDPOINT = "https://tech.puffyslippers.com/api/oh-no-parent-control/feedback"
 # Production activation authorized after backend deployment.
 SENDING_ENABLED = True
 RETENTION_DISCLOSURE = (
-    "Feedback, reply email addresses, attachments, and diagnostic logs are emailed "
-    "to support. Retention depends on our support mailbox and service providers, "
-    "including their backup policies. We do not currently guarantee deletion "
-    "within a fixed period."
+    m.FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
 )
 MAX_LOG_BYTES = 2_097_152
 MAX_MESSAGE_UTF16 = 5_000
@@ -39,23 +38,23 @@ def title_error(title):
     if (not isinstance(title, str) or not title.strip()
             or len(title.encode("utf-16-le", errors="surrogatepass")) // 2 > MAX_TITLE_UTF16
             or re.search(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]", title)):
-        return "Enter a single-line feedback title of at most 200 characters."
+        return m.ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
     return None
 
 
 def validation_error(message, reply_email, version, message_html=""):
     if not message.strip():
-        return "Please enter your feedback."
+        return m.PLEASE_ENTER_YOUR_FEEDBACK
     if any(character in message for character in ("\0", "\x01")):
-        return "Your feedback contains an unsupported hidden character. Please retype it and try again."
+        return m.YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
     if len(message.encode("utf-16-le", errors="surrogatepass")) // 2 > MAX_MESSAGE_UTF16:
-        return "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+        return m.FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
     if "\0" in message_html or len(message_html.encode("utf-16-le", errors="surrogatepass")) // 2 > MAX_HTML_UTF16:
-        return "The formatted feedback is too complex. Remove some formatting and try again."
+        return m.THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
     if reply_email and ("\0" in reply_email or len(reply_email) > 254 or not re.fullmatch(r"[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+", reply_email)):
-        return "Enter a bare reply email address, or leave it blank."
+        return m.ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
     if len(version) > 64 or any(c in version for c in "\r\n\0"):
-        return "The app version is invalid. Please update the application."
+        return m.THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
     return None
 
 
@@ -70,7 +69,7 @@ class Attachment:
     @classmethod
     def create(cls, name, data, content_type=None):
         if not isinstance(name, str):
-            raise ValueError("Choose an attachment with a valid filename.")
+            raise ValueError(m.FEEDBACK_FILENAME)
         # File.name is normally already a basename. Normalize both path
         # separators defensively so a path can never leave the client.
         safe_name = name.replace("\\", "/").rsplit("/", 1)[-1].strip()
@@ -78,7 +77,7 @@ class Attachment:
                           for char in safe_name)
         if (not safe_name or safe_name in (".", "..") or has_control
                 or len(safe_name) > 180):
-            raise ValueError("Choose an attachment with a shorter valid filename.")
+            raise ValueError(m.FEEDBACK_SHORT_FILENAME)
         if not isinstance(data, bytes):
             data = bytes(data)
         guessed = mimetypes.guess_type(safe_name)[0]
@@ -91,9 +90,9 @@ class Attachment:
 
 def attachments_error(attachments, logs=None):
     if len(attachments) > MAX_ATTACHMENT_COUNT:
-        return f"Attach at most {MAX_ATTACHMENT_COUNT} files."
+        return m.ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES % {'MAX_ATTACHMENT_COUNT': MAX_ATTACHMENT_COUNT}
     if any(not isinstance(item, Attachment) for item in attachments):
-        return "One or more attachments are invalid."
+        return m.ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
     for item in attachments:
         invalid_name = (
             not isinstance(item.name, str) or not item.name or item.name in (".", "..")
@@ -104,12 +103,12 @@ def attachments_error(attachments, logs=None):
             r"[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+", item.content_type,
         )
         if invalid_name or invalid_type or not isinstance(item.data, bytes):
-            return "One or more attachments are invalid."
+            return m.ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
     if any(len(item.data) > MAX_ATTACHMENT_BYTES for item in attachments):
-        return "Each attachment must be 5 MB or smaller."
+        return m.EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
     total = sum(len(item.data) for item in attachments) + (len(logs) if logs else 0)
     if total > MAX_TOTAL_ATTACHMENT_BYTES:
-        return "Attachments and diagnostic logs must total 8 MB or less."
+        return m.ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
     return None
 
 
@@ -250,7 +249,7 @@ def submit(submission, cancelled, progress, *, send=send_once, now=time.time, ji
         if delay >= remaining:
             return Result("expired")
         LOG.info("feedback-transport.004", attempt=attempt, delay_seconds=int(delay))
-        progress(f"Could not confirm submission. Retrying in {int(delay) + 1} seconds…")
+        progress(m.retry_seconds(int(delay) + 1))
         if cancelled.wait(delay):
             break
     return Result("cancelled")

@@ -6,6 +6,7 @@ import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
 import {ChildErrorHandler} from './errorHandler.js';
 import {logInfo, logWarning} from './logger.js';
 import {canOpenRequest, requestCompletionState} from './indicatorLogic.mjs';
+import {TranslationContext} from './localization.js';
 
 const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
 const SETTINGS_SCHEMA = 'com.puffyslippers.oh-no-parent-control.child';
@@ -33,7 +34,14 @@ export default class OhNoParentControlExtension extends Extension {
         this._settings = this.getSettings(SETTINGS_SCHEMA);
         this._requestProcess = null;
         this._openingRequest = false;
+        this._translations = new TranslationContext(this.path);
         this._indicator = this._createIndicator();
+        this._refreshLanguage();
+    }
+
+    _refreshLanguage() {
+        this._translations?.refresh(() => this._indicator?.refreshLanguage(),
+            error => this._errors?.report(error));
     }
 
     _createIndicator() {
@@ -45,10 +53,13 @@ export default class OhNoParentControlExtension extends Extension {
             '',
             appLogoPath(this),
             this._settings,
-            error => this._errors.report(error));
+            error => this._errors.report(error), this._translations,
+            () => this._refreshLanguage());
     }
 
     disable() {
+        if (this._translations) this._translations.closed = true;
+        this._translations = null;
         this._errors?.close();
         this._stopRequest();
         this._indicator?.destroy();
@@ -79,6 +90,7 @@ export default class OhNoParentControlExtension extends Extension {
                 this._indicator?.setRequestActive(completion.requestActive);
                 if (completion.refreshEstimate)
                     this._indicator?.refreshEstimate();
+                this._refreshLanguage();
             });
         } catch (error) {
             this._errors.report(error);

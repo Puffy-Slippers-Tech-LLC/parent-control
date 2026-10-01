@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from common.oh_no_parent_control_ui import messages as m
+from common.oh_no_parent_control_ui.translation_widgets import (
+    localized, set_text, accessible_text, context_for,
+)
+
 import json
 import math
 import re
@@ -33,7 +38,16 @@ def _load_options():
 
 
 OPTIONS = _load_options()
-DURATIONS = tuple((item["label"], item["seconds"]) for item in OPTIONS["durations"])
+def _duration_label(seconds):
+    if seconds is None:
+        return m.CUSTOM_VALUE
+    if seconds == 0:
+        return m.REST_OF_DAY
+    return m.hour_count(seconds / 3600) if seconds >= 3600 else m.minute_count(seconds // 60)
+
+
+DURATIONS = tuple((_duration_label(item["seconds"]), item["seconds"])
+                  for item in OPTIONS["durations"])
 DEFAULT_DURATION_SECONDS = OPTIONS["default_duration_seconds"]
 MIN_CUSTOM_MINUTES = OPTIONS["minimum_custom_minutes"]
 MAX_CUSTOM_MINUTES = OPTIONS["maximum_custom_minutes"]
@@ -57,7 +71,7 @@ class GatewayDropDown(Gtk.Box):
         if (type(automation_namespace) is not str
                 or not re.fullmatch(r"[a-z][a-z0-9-]*", automation_namespace)):
             raise ValueError("invalid account selector automation namespace")
-        if type(automation_label) is not str or not automation_label:
+        if not isinstance(automation_label, str) or not automation_label:
             raise ValueError("account selector accessibility label is required")
         self._automation_namespace = automation_namespace
         self._automation_label = automation_label
@@ -67,7 +81,7 @@ class GatewayDropDown(Gtk.Box):
         self._choice_buttons = []
         self._scroll_offset = 0
 
-        self._trigger = Gtk.Button()
+        self._trigger = localized(Gtk.Button, )
         self._describe_trigger()
         self._trigger.add_css_class("oh-no-parent-control-account-selector")
         trigger_content = Gtk.Box(spacing=8)
@@ -77,7 +91,7 @@ class GatewayDropDown(Gtk.Box):
         self._selected_icon.add_css_class("oh-no-parent-control-account-avatar")
         apply_gtk_user_icon(self._selected_icon, "")
         trigger_content.append(self._selected_icon)
-        self._selected_label = Gtk.Label(
+        self._selected_label = localized(Gtk.Label, 
             xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
             max_width_chars=22,
         )
@@ -105,11 +119,11 @@ class GatewayDropDown(Gtk.Box):
         self._choices.add_controller(wheel)
 
     def _scroll_button(self, icon_name, delta):
-        button = Gtk.Button(halign=Gtk.Align.FILL)
+        button = localized(Gtk.Button, halign=Gtk.Align.FILL)
         direction = "up" if delta < 0 else "down"
         describe_control(
-            button, f"Show more {self._automation_label.casefold()} choices {direction}",
-            f"Reveal the previous or next {self._automation_label.casefold()} choices.",
+            button, m.MORE_ACCOUNT_CHOICES,
+            m.MORE_ACCOUNT_CHOICES_DESCRIPTION,
             automation_id=self._automation_id(f"scroll-{direction}"),
         )
         button.add_css_class("oh-no-parent-control-account-choice")
@@ -126,7 +140,7 @@ class GatewayDropDown(Gtk.Box):
             raise ValueError("selector requires one unique identity per account")
         self._selected = Gtk.INVALID_LIST_POSITION
         self._scroll_offset = 0
-        self._selected_label.set_text("")
+        set_text(self._selected_label, 'label', "")
         set_automation_id(self._selected_label, self._automation_id("selected-none"))
         self._describe_trigger()
         apply_gtk_user_icon(self._selected_icon, "")
@@ -135,10 +149,10 @@ class GatewayDropDown(Gtk.Box):
         while child := self._choice_list.get_first_child():
             self._choice_list.remove(child)
         for index, (label, icon_file) in enumerate(self._items):
-            choice = Gtk.Button(halign=Gtk.Align.FILL)
+            choice = localized(Gtk.Button, halign=Gtk.Align.FILL)
             describe_control(
-                choice, f"{self._automation_label}: {label}",
-                f"Select {label} as the {self._automation_label.casefold()}.",
+                choice, m.ABOUT_DETAIL_LABEL % {'label': self._automation_label, 'value': label},
+                m.SELECT_ACCOUNT_NAME % {'name': label},
                 automation_id=self._automation_id(
                     f"choice-{self._item_identities[index]}"
                 ),
@@ -149,7 +163,7 @@ class GatewayDropDown(Gtk.Box):
             icon.add_css_class("oh-no-parent-control-account-avatar")
             apply_gtk_user_icon(icon, icon_file)
             content.append(icon)
-            content.append(Gtk.Label(
+            content.append(localized(Gtk.Label, 
                 label=label, xalign=0, hexpand=True,
                 ellipsize=Pango.EllipsizeMode.END, max_width_chars=22,
             ))
@@ -164,8 +178,8 @@ class GatewayDropDown(Gtk.Box):
 
     def _describe_trigger(self, selected_label=None):
         description = (
-            f"Selected {self._automation_label.casefold()}: {selected_label}."
-            if selected_label else f"Choose the {self._automation_label.casefold()}."
+            m.SELECTED_ACCOUNT % {'name': selected_label}
+            if selected_label else m.CHOOSE_ACCOUNT
         )
         describe_control(
             self._trigger, self._automation_label, description,
@@ -179,7 +193,7 @@ class GatewayDropDown(Gtk.Box):
             return
         self._selected = index
         label, icon_file = self._items[index]
-        self._selected_label.set_text(label)
+        set_text(self._selected_label, 'label', label)
         set_automation_id(self._selected_label, self._automation_id(
             f"selected-{self._item_identities[index]}"))
         self._describe_trigger(label)
@@ -285,7 +299,7 @@ class RequestContent(MetalBoard):
         self._ready = False
         self._controls_enabled = True
         self._screen_time_limit_enabled = None
-        self._time_estimate = "Calculating time estimate…"
+        self._time_estimate = m.CALCULATING_TIME_ESTIMATE
         self._validation_error = None
         self._lock_child_selector = lock_child_selector
         self._selection_store = selection_store
@@ -297,8 +311,8 @@ class RequestContent(MetalBoard):
         self._child_muted = True
 
         self.append(self._header())
-        self._status = Gtk.Label(
-            label="Loading request details…",
+        self._status = localized(Gtk.Label, 
+            label=m.LOADING_REQUEST_DETAILS,
             wrap=True,
             hexpand=True,
             xalign=0,
@@ -314,10 +328,10 @@ class RequestContent(MetalBoard):
         self._status.add_css_class("oh-no-parent-control-status")
 
         self._accounts = GatewayDropDown(
-            "child", "Child account", self._account_changed,
+            "child", m.CHILD_ACCOUNT, self._account_changed,
         )
         self._accounts.set_hexpand(True)
-        child_selector = self._account_row("Child", self._accounts, identity="child")
+        child_selector = self._account_row(m.CHILD, self._accounts, identity="child")
         self.append(child_selector)
 
         self._request_form = Gtk.Box(
@@ -325,11 +339,11 @@ class RequestContent(MetalBoard):
         )
         set_automation_id(self._request_form, "kiosk-request-options")
         self._approvers = GatewayDropDown(
-            "approver", "Approving parent", self._approver_changed,
+            "approver", m.APPROVING_PARENT, self._approver_changed,
         )
         self._approvers.set_hexpand(True)
         approver_selector = self._account_row(
-            "Approver", self._approvers, identity="approver",
+            m.APPROVER, self._approvers, identity="approver",
         )
         self._request_form.append(approver_selector)
 
@@ -363,28 +377,28 @@ class RequestContent(MetalBoard):
         self._custom_row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
         set_automation_id(self._custom_row, "kiosk-custom-duration-row")
         self._custom_row.add_css_class("oh-no-parent-control-custom-row")
-        self._custom_entry = Gtk.Entry(
+        self._custom_entry = localized(Gtk.Entry, 
             text=str(MIN_CUSTOM_MINUTES),
             input_purpose=Gtk.InputPurpose.NUMBER,
             width_chars=5,
         )
         describe_control(
-            self._custom_entry, "Custom duration in minutes",
-            "Enter a requested duration from 0.1 through 1440 minutes.",
+            self._custom_entry, m.CUSTOM_DURATION_IN_MINUTES,
+            m.ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES,
             automation_id="kiosk-custom-duration",
         )
         self._custom_entry.add_css_class("oh-no-parent-control-custom-entry")
         self._custom_row.append(self._custom_entry)
-        minutes = Gtk.Label(label="minutes")
+        minutes = localized(Gtk.Label, label=m.MINUTES)
         set_automation_id(minutes, "kiosk-custom-duration-units")
         self._custom_row.append(minutes)
         self._custom_row.set_visible(False)
         self._request_form.append(self._custom_row)
 
-        filter_row = Gtk.Button(hexpand=True)
+        filter_row = localized(Gtk.Button, hexpand=True)
         describe_control(
-            filter_row, "Allow soft blocked apps",
-            "Choose whether this request temporarily allows soft blocked apps.",
+            filter_row, m.ALLOW_SOFT_BLOCKED_APPS,
+            m.CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS,
             automation_id="kiosk-soft-apps-row",
         )
         filter_row.add_css_class("oh-no-parent-control-app-filter-toggle")
@@ -398,8 +412,8 @@ class RequestContent(MetalBoard):
         set_automation_id(filter_icon, "kiosk-soft-apps-icon")
         filter_icon.add_css_class("oh-no-parent-control-filter-icon")
         filter_inner.append(filter_icon)
-        filter_label = Gtk.Label(
-            label="Allow soft blocked apps", xalign=0, hexpand=True,
+        filter_label = localized(Gtk.Label, 
+            label=m.ALLOW_SOFT_BLOCKED_APPS, xalign=0, hexpand=True,
             valign=Gtk.Align.CENTER, wrap=True, max_width_chars=24,
         )
         set_automation_id(filter_label, "kiosk-soft-apps-label")
@@ -407,8 +421,8 @@ class RequestContent(MetalBoard):
         filter_inner.append(filter_label)
         self._allow_soft = Gtk.Switch(valign=Gtk.Align.CENTER)
         describe_control(
-            self._allow_soft, "Allow soft blocked apps",
-            "Choose whether this request temporarily allows soft blocked apps.",
+            self._allow_soft, m.ALLOW_SOFT_BLOCKED_APPS,
+            m.CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS,
             automation_id="kiosk-soft-apps-toggle",
         )
         self._allow_soft.set_can_target(False)
@@ -423,12 +437,12 @@ class RequestContent(MetalBoard):
         actions = Gtk.Box(spacing=10, homogeneous=True)
         set_automation_id(actions, "kiosk-request-actions")
         actions.add_css_class("oh-no-parent-control-actions")
-        self._request = ArmoredButton(
-            label="REQUEST", hexpand=True, armor_kind="request",
+        self._request = localized(ArmoredButton, 
+            label=m.REQUEST, hexpand=True, armor_kind="request",
         )
         describe_control(
-            self._request, "Request access",
-            "Submit the selected duration and app access choice for approval.",
+            self._request, m.REQUEST_ACCESS,
+            m.SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL,
             automation_id="kiosk-request-submit",
         )
         self._request.add_css_class("oh-no-parent-control-request-button")
@@ -441,8 +455,8 @@ class RequestContent(MetalBoard):
         self._screen_limit_overlay = Gtk.Overlay()
         set_automation_id(self._screen_limit_overlay, "kiosk-screen-limit-overlay")
         self._screen_limit_overlay.set_child(self._request_form)
-        self._screen_limit_notice = Gtk.Label(
-            label="Screen limit is not enabled in Parent App",
+        self._screen_limit_notice = localized(Gtk.Label, 
+            label=m.SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP,
             wrap=True,
             justify=Gtk.Justification.CENTER,
             halign=Gtk.Align.FILL,
@@ -453,12 +467,12 @@ class RequestContent(MetalBoard):
         self._screen_limit_overlay.add_overlay(self._screen_limit_notice)
         self.append(self._screen_limit_overlay)
 
-        self._cancel = ArmoredButton(
-            label="CANCEL", hexpand=True, armor_kind="cancel",
+        self._cancel = localized(ArmoredButton, 
+            label=m.CANCEL_2, hexpand=True, armor_kind="cancel",
         )
         describe_control(
-            self._cancel, "Cancel request",
-            "Close this request screen without requesting additional time.",
+            self._cancel, m.CANCEL_REQUEST,
+            m.CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME,
             automation_id="kiosk-request-cancel",
         )
         self._cancel.add_css_class("oh-no-parent-control-cancel-button")
@@ -522,7 +536,7 @@ class RequestContent(MetalBoard):
         set_automation_id(copy, "kiosk-request-title")
         copy.add_css_class("oh-no-parent-control-header-copy")
         for line in RequestContent._title_lines(app_name()):
-            title = Gtk.Label(
+            title = localized(Gtk.Label, 
                 label=line,
                 xalign=0.5,
                 wrap=True,
@@ -567,7 +581,7 @@ class RequestContent(MetalBoard):
         )
         set_automation_id(detail, f"kiosk-{identity}-account-detail")
         detail.set_valign(Gtk.Align.CENTER)
-        label = Gtk.Label(label=caption, xalign=0)
+        label = localized(Gtk.Label, label=caption, xalign=0)
         set_automation_id(label, f"kiosk-{identity}-account-caption")
         label.add_css_class("oh-no-parent-control-account-caption")
         label.set_valign(Gtk.Align.CENTER)
@@ -604,11 +618,11 @@ class RequestContent(MetalBoard):
         group = None
         for label, seconds in DURATIONS:
             identity = "custom" if seconds is None else str(seconds)
-            button = Gtk.ToggleButton(hexpand=True)
+            button = localized(Gtk.ToggleButton, hexpand=True)
             button.duration_seconds = seconds
             describe_control(
-                button, f"Request {label}",
-                f"Select {label} as the requested extra screen time duration.",
+                button, m.REQUEST_LABEL_S % {'label': label},
+                m.SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION % {'label': label},
                 automation_id=f"kiosk-duration-{identity}",
             )
             button.add_css_class("oh-no-parent-control-choice")
@@ -616,8 +630,8 @@ class RequestContent(MetalBoard):
             # The selected pointer reaches the longest caption. A display-only
             # space gives Custom value a small gap without moving other rows or
             # changing the label used by accessibility and request state.
-            display_label = f" {label}" if seconds is None else label
-            option_label = Gtk.Label(
+            display_label = " " + label if seconds is None else label
+            option_label = localized(Gtk.Label, 
                 label=display_label, hexpand=True, wrap=True, max_width_chars=12,
                 justify=Gtk.Justification.CENTER,
             )
@@ -649,7 +663,7 @@ class RequestContent(MetalBoard):
         self._screen_time_limit_enabled = None
         self._update_controls()
         self._validation_error = None
-        self._time_estimate = "Calculating time estimate…"
+        self._time_estimate = m.CALCULATING_TIME_ESTIMATE
         self._update_status()
 
     def set_accounts(self, users):
@@ -693,27 +707,27 @@ class RequestContent(MetalBoard):
 
     def _update_status(self):
         if not self._accounts_loaded or not self._approvers_loaded:
-            message = "Loading accounts…"
+            message = m.LOADING_ACCOUNTS
         elif not self._account_uids:
-            message = "No local standard accounts are available. Create one, then reopen this screen."
+            message = m.NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
         elif not self._approver_uids:
-            message = "No local interactive administrator accounts are available."
+            message = m.NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
         elif self._screen_time_limit_enabled is None:
-            message = "Loading request details…"
+            message = m.LOADING_REQUEST_DETAILS
         elif self._screen_time_limit_enabled is False:
-            message = "Screen limit is not enabled in Parent App"
+            message = m.SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
         elif not self._controls_enabled:
-            message = "Waiting for approval…"
+            message = m.WAITING_FOR_APPROVAL
         elif self._validation_error:
             message = self._validation_error
         else:
             try:
                 self.selected()
             except ValueError as error:
-                message = str(error)
+                message = error.args[0]
             else:
                 message = self._time_estimate
-        self._status.set_text(message)
+        set_text(self._status, 'label', message)
         if self._validation_error and message == self._validation_error:
             self._status.add_css_class("oh-no-parent-control-error")
         else:
@@ -742,7 +756,7 @@ class RequestContent(MetalBoard):
                 self._on_account_selected is not None):
             self._screen_time_limit_enabled = None
             self._validation_error = None
-            self._time_estimate = "Calculating time estimate…"
+            self._time_estimate = m.CALCULATING_TIME_ESTIMATE
             self._update_ready()
             self._on_account_selected(self._account_uids[index])
 
@@ -809,7 +823,7 @@ class RequestContent(MetalBoard):
             selected.set_active(True)
             self._custom_row.set_visible(selected.duration_seconds is None)
             custom = request.get("last_custom_minutes", MIN_CUSTOM_MINUTES)
-            self._custom_entry.set_text(str(custom))
+            set_text(self._custom_entry, 'text', str(custom))
             self._allow_soft.set_active(bool(request.get("allow_soft_blocked_apps", False)))
             self._pending_approver_uid = request.get("last_selected_approver_uid", 0)
             self._kiosk_muted = bool(request.get("kiosk_muted", True))
@@ -841,23 +855,22 @@ class RequestContent(MetalBoard):
     def selected(self):
         account_index = self._accounts.get_selected()
         if not self._ready or account_index >= len(self._account_uids):
-            raise ValueError("Select an account to manage")
+            raise ValueError(m.SELECT_ACCOUNT)
         approver_index = self._approvers.get_selected()
         if approver_index >= len(self._approver_uids):
-            raise ValueError("Select an approving administrator")
+            raise ValueError(m.SELECT_ADMINISTRATOR)
         selected = next(
             (button for button in self._duration_buttons if button.get_active()), None
         )
         if selected is None:
-            raise ValueError("no duration selected")
+            raise ValueError(m.SELECT_DURATION)
         seconds = selected.duration_seconds
         if seconds is None:
             text = self._custom_entry.get_text().strip()
             minutes = float(text) if NUMBER_RE.fullmatch(text) else math.nan
             if not math.isfinite(minutes) or not MIN_CUSTOM_MINUTES <= minutes <= MAX_CUSTOM_MINUTES:
                 raise ValueError(
-                    f"Enter a number from {MIN_CUSTOM_MINUTES} to "
-                    f"{MAX_CUSTOM_MINUTES} minutes."
+                    m.INVALID_REQUEST_MINUTES % {'minimum': MIN_CUSTOM_MINUTES, 'maximum': MAX_CUSTOM_MINUTES}
                 )
             seconds = round(minutes * 60)
         return (
@@ -871,7 +884,7 @@ class RequestContent(MetalBoard):
             (button for button in self._duration_buttons if button.get_active()), None
         )
         if selected is None:
-            raise ValueError("no duration selected")
+            raise ValueError(m.SELECT_DURATION)
         selected_value = "custom" if selected.duration_seconds is None else str(
             selected.duration_seconds
         )

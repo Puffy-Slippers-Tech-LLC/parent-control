@@ -1,4 +1,4 @@
-# English source-language catalogue; intentionally empty until string migration.
+# English uses the complete shared source messages as its catalogue fallback.
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
 msgid ""

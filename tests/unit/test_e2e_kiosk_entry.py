@@ -305,7 +305,8 @@ def test_station_partial_public_read_never_proves_missing_ids(fault, capsys):
     assert diagnostic['incomplete_reads'] + diagnostic['query_errors'] == 1
 
 
-def test_station_diagnostic_survives_owned_transport_timeout(monkeypatch, tmp_path, capsys):
+@pytest.mark.parametrize('operation', ['kiosk-request-form', 'overlay-request-form'])
+def test_station_diagnostic_survives_owned_transport_timeout(monkeypatch, tmp_path, capsys, operation):
     import os
     from types import SimpleNamespace
     from unittest.mock import Mock
@@ -337,7 +338,7 @@ def test_station_diagnostic_survives_owned_transport_timeout(monkeypatch, tmp_pa
     transport = vm_transport.Transport({'directory': str(tmp_path), 'hostname': 'fixture.invalid',
         'run': 'a' * 32, 'domain_uuid': 'b' * 32}, commands, guard=Mock())
     with pytest.raises(owned_commands.subprocess.TimeoutExpired):
-        UiObservations(transport).call(['fixed-program'], 'kiosk-request-form')
+        UiObservations(transport).call(['fixed-program'], operation)
     assert capsys.readouterr().err.encode() == raw
     assert (tmp_path / 'command-0001.txt').read_bytes() == raw
     assert commands.progress is previous
@@ -370,7 +371,8 @@ def test_station_controller_rejects_untrusted_diagnostics_before_retaining(fault
 
 
 @pytest.mark.parametrize('fault', [None, 'missing-result', 'partial', 'replay', 'late-diagnostic', 'flood'])
-def test_station_stream_requires_one_final_result_separate_from_diagnostics(fault, capsys):
+@pytest.mark.parametrize('operation', ['kiosk-request-form', 'overlay-request-form'])
+def test_station_stream_requires_one_final_result_separate_from_diagnostics(fault, capsys, operation):
     from types import SimpleNamespace
     import accessible_ui
     from ui_observations import UiObservations
@@ -398,9 +400,9 @@ def test_station_stream_requires_one_final_result_separate_from_diagnostics(faul
     observer = UiObservations(transport)
     if fault:
         with pytest.raises(EvidenceError):
-            observer.call(['fixed-program'], 'kiosk-request-form')
+            observer.call(['fixed-program'], operation)
     else:
-        assert observer.call(['fixed-program'], 'kiosk-request-form') == (result.rstrip(), [])
+        assert observer.call(['fixed-program'], operation) == (result.rstrip(), [])
         assert capsys.readouterr().err.encode() == diagnostic
     assert transport.commands.progress is None
 

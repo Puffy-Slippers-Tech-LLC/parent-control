@@ -21,6 +21,15 @@ changing runtime readiness on the strength of documentation alone.
 
 Next task: **048 — [Qualify direct and panel entry to the child overlay](E2E-Tasks/048-shell-panel.md)**.
 
+Task 048 recovery: the stale app snapshot was rebuilt, and 2081 scoped host
+checks passed. Live `check_e2e_shell_panel` run `20261001T184419Z-4be29aa0`
+passed Parent setup and fresh child entry, then failed after `direct-launch`,
+before `direct-form`, with `e2e:worker-execution-failed` (`EvidenceError`).
+The worker stopped and callback closed; normal shutdown verification was false.
+Owned cleanup and baseline restoration passed. Diagnose this new failure in
+the next session, then pass qualification and both affected kiosk-readback
+regressions on every enabled VM before close-out. See the brief for evidence.
+
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
 pointer; record its exact remaining work and return condition here and in its

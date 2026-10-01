@@ -749,16 +749,19 @@ class UiObservations:
         watch_activity.event(line)
 
     def call(self, argv, operation, *, input=None):
+        # Overlay readback uses the same form reader and diagnostic stream as
+        # the station, while retaining its separate child-session binding.
+        form_diagnostics = (operation in accessible_ui.KIOSK_SESSION_OPERATIONS
+                            or operation == 'overlay-request-form')
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
         # Kiosk waits only for the public form, with transport margin.
         timeout = 390 if (operation in accessible_ui.GREETER_OPERATIONS
                           or operation in accessible_ui.STATION_BRANCH_OPERATIONS) else (
-            120 if operation in accessible_ui.KIOSK_SESSION_OPERATIONS else 90)
-        kiosk = operation in accessible_ui.KIOSK_SESSION_OPERATIONS
+            120 if form_diagnostics else 90)
         event_trace = operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',
                                     'feedback-collection-events')
-        if (self.system_prompt is None and not kiosk and not event_trace
+        if (self.system_prompt is None and not form_diagnostics and not event_trace
                 and self.accessibility_trace is None):
             return self.transport.call(argv, input=input, timeout=timeout), []
         commands = self.transport.commands
@@ -771,7 +774,7 @@ class UiObservations:
         def output(data):
             nonlocal received, diagnostic_count
             received += len(data)
-            limit = 131072 if kiosk else 16384 if event_trace else 8192
+            limit = 131072 if form_diagnostics else 16384 if event_trace else 8192
             if operation in accessible_ui.APP_ROW_OPERATIONS:
                 limit = max(limit, RESPONSE_BYTE_LIMITS.get(operation, 2048))
             require(received <= limit, 'ui:response-size')
@@ -785,7 +788,7 @@ class UiObservations:
                     self.accessibility_ready(value)
                 elif type(value) is dict and value.get('event') == 'kiosk-form-observation':
                     diagnostic_count += 1
-                    require(kiosk and not results and diagnostic_count <= 128,
+                    require(form_diagnostics and not results and diagnostic_count <= 128,
                             'ui:diagnostic-order')
                     require(bytes(line) == json.dumps(value, sort_keys=True).encode(),
                             'ui:diagnostic')

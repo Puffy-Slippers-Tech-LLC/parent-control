@@ -978,12 +978,11 @@ def mate_form(binding=None):
         child, approver = accessible_ui.MULTIPLE_MATE_BINDINGS[binding]
         ui.find_id('kiosk-duration-1800').action.do_action(0)
         ui.find_id('kiosk-soft-apps-toggle').states.discard('checked')
-        for field_name, name, label in (('child', child, 'child account'),
-                                        ('approver', approver, 'approving parent')):
+        for field_name, name in (('child', child), ('approver', approver)):
             selector = ui.find_id(f'kiosk-{field_name}-selector')
             selector.children[0].identity = f'kiosk-{field_name}-selected-{ui.fixture_uids[name]}'
             selector.children[0].name = name
-            selector.description = f'Selected {label}: {name}.'
+            selector.description = f'Selected account: {name}.'
         message.name = f'Grant {child} 30 minutes?'
         recipient.name = 'Password for ' + accessible_ui.APPROVER_ACCOUNTS[approver] + ':'
     return ui, desktop, agent, dialog, field, cancel, submit, message, recipient

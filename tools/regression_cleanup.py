@@ -8,6 +8,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Fresh child denial recorder/worker coverage uses only existing private pytest
 # evidence and waited Perl doubles. No new cleanup resource or live access;
 # challenges and installed-journey remain compatible in cleanup and unit scopes.
+# Panel focus/Enter order checks reuse challenges' same waited Perl API double
+# and private evidence; no new process, display, bus or shared cleanup resource.
 
 # Explicit VM-name forwarding retains private journals and process-local API
 # doubles; cleanup checks add no real guest, desktop, socket or shared cache.

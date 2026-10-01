@@ -372,6 +372,15 @@ def test_shell_panel_actual_worker_order_and_refusal(fault, tmp_path):
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
     expected = list(SHELL_PANEL_PLAN.screen_tags)
     assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
+    for prefix in ('panel', 'singleton'):
+        launch = ['stage', prefix + '-launch']
+        if launch in result['events']:
+            index = result['events'].index(launch)
+            if fault != prefix + '-launch':
+                assert result['events'][index + 1] == ['key', 'ret']
+                assert result['events'][index + 2] == ['stage', prefix + '-form']
+            else:
+                assert ['key', 'ret'] not in result['events'][index + 1:]
     if not fault:
         assert result['events'].count(['password']) == 2
         assert result['events'][-1] == ['off']

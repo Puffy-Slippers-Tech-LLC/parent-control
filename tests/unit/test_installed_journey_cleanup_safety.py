@@ -561,7 +561,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         if plan is catalogue_search.PLAN else
                         catalogue.CatalogueJourney if plan is catalogue.PLAN else
                         policy_legend.PolicyLegendJourney if plan is policy_legend.PLAN else
-                        search_filters.SearchFiltersJourney if plan is search_filters.PLAN else
+                        search_filters.CataloguePolicyJourney if plan is search_filters.PLAN else
                         fresh_thirty_allowance.FreshThirtyAllowanceJourney
                         if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN)
                         else journeys.InstalledJourney)

@@ -1,9 +1,7 @@
 """226b public legend qualification; complete case 184 remains separate."""
 from installed_journey import JourneyPlan
-from fresh_thirty_allowance import FreshThirtyAllowanceJourney, JORDAN_PLAN
-from native_fixtures import fixture_actions, check_catalogue
-from private_artifacts import require
-from ui_observations import AppRowsObservation
+from fresh_thirty_allowance import JORDAN_PLAN
+from native_fixtures import CataloguePolicyJourney, fixture_actions
 
 
 SCREENS = {
@@ -28,28 +26,12 @@ PLAN = JourneyPlan(
     settings_checks={'parent-selected': JORDAN_PLAN.settings_checks['parent-selected']},
     child_bindings={stage: 'existing' for stage in ('allowance-configured', 'balance-reread')},
     stage_actions={'installed-greeter': 'native-refuse', 'desktop': 'native-verify'},
+    balance_checks={'allowance-configured': 1800, 'balance-reread': 1800},
+    catalogue_checks={'initial-rows': 'initial', 'final-rows': 'unchanged'},
 )
 
 
-class PolicyLegendJourney(FreshThirtyAllowanceJourney):
+class PolicyLegendJourney(CataloguePolicyJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan,
                          actions=fixture_actions() if actions is None else actions)
-        self.initial_rows = None
-        self.final_rows = None
-
-    def check_settings(self, stage, observed):
-        super().check_settings(stage, observed)
-        if stage not in ('initial-rows', 'final-rows'):
-            return
-        rows = AppRowsObservation.from_rows(observed['ui']['apps']['rows'])
-        if stage == 'initial-rows':
-            require(self.initial_rows is None, 'legend:initial-replay')
-            observed['comparison'] = check_catalogue(rows)
-            self.initial_rows = rows
-        else:
-            require(self.final_rows is None and self.initial_rows is not None
-                    and rows == self.initial_rows, 'legend:unchanged-policies')
-            self.final_rows = rows
-            observed['comparison'] = {'unchanged_access_and_match': True,
-                                      'row_count': len(rows.rows)}

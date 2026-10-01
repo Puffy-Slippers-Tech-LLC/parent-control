@@ -158,11 +158,13 @@ def check_catalogue(rows):
 class CataloguePolicyJourney(InstalledJourney):
     """Caller-declared exact query intersections and unchanged-policy endpoints.
 
-    Row checks are 'initial', 'unchanged', or (query, match mask, access mask).
+    JourneyPlan.catalogue_checks values are 'initial', 'unchanged', or
+    (query, match mask, access mask).
     This owns comparisons only; the caller owns entry, order and fixture actions.
     """
-    def __init__(self, context, progress, plan, *, row_checks, actions=None):
+    def __init__(self, context, progress, plan, *, actions=None):
         super().__init__(context, progress, plan, actions=actions)
+        row_checks = plan.catalogue_checks
         require(set(row_checks) <= set(plan.screen_tags)
                 and list(row_checks.values()).count('initial') == 1,
                 'catalogue:comparison-plan')
@@ -171,6 +173,10 @@ class CataloguePolicyJourney(InstalledJourney):
                     and len(check) == 3, 'catalogue:comparison-plan')
             if type(check) is tuple:
                 catalogue_rows(check[0], (), match_mask=check[1], access_mask=check[2])
+        stages = list(plan.screen_tags)
+        initial = next(stage for stage, check in row_checks.items() if check == 'initial')
+        require(all(stage == initial or stages.index(initial) < stages.index(stage)
+                    for stage in row_checks), 'catalogue:comparison-order')
         self.row_checks = dict(row_checks)
         self.initial_rows = None
         self.compared_rows = set()
@@ -198,4 +204,5 @@ class CataloguePolicyJourney(InstalledJourney):
             observed['comparison'] = ({'unchanged_access_and_match': True} if
                 check == 'unchanged' else {'exact_query_intersection': True})
         observed['comparison']['row_count'] = len(rows.rows)
+        observed['comparison']['complete_catalogue_result'] = True
         self.compared_rows.add(stage)

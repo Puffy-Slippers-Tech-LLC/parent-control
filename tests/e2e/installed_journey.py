@@ -51,6 +51,7 @@ class JourneyPlan:
     child_bindings: dict = field(default_factory=dict)
     request_checks: dict = field(default_factory=dict)
     balance_checks: dict = field(default_factory=dict)
+    catalogue_checks: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Invocation IDs are filenames and immutable observation identities,

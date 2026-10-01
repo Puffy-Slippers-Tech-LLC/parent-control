@@ -59,19 +59,14 @@ PLAN = JourneyPlan(
         *{f'text-catalogue-{binding}-{action}': None
           for binding in ('name', 'clear') for action in ('focus', 'selected', 'read')})},
     stage_actions={'installed-greeter': 'native-refuse', 'desktop': 'native-verify'},
+    catalogue_checks={'initial-rows': 'initial', 'name-rows': ('catalogue-name', 3, 7),
+                      'filtered-rows': ('catalogue-name', 2, 1), 'cleared-rows': 'unchanged'},
 )
-ROW_CHECKS = {'initial-rows': 'initial', 'name-rows': ('catalogue-name', 3, 7),
-              'filtered-rows': ('catalogue-name', 2, 1), 'cleared-rows': 'unchanged'}
-
-
-class SearchFiltersJourney(CataloguePolicyJourney):
-    def __init__(self, context, progress, plan, *, actions=None):
-        super().__init__(context, progress, plan, row_checks=ROW_CHECKS, actions=actions)
 
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=1800,
-                             journey_type=SearchFiltersJourney, actions=fixture_actions())
+                             journey_type=CataloguePolicyJourney, actions=fixture_actions())
 
 
 E2E_CASES = {'search-filters': execute}

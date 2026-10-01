@@ -8,6 +8,23 @@ from tests.support.request_form import calls, launch_request
 pytestmark = pytest.mark.ui
 
 
+def test_child_preview_language_survives_overlay_cancel_and_reopen(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from tests.support.localization_review import switch_language
+    ui, wait = automation, wait_for_accessible_state
+    language_file = tmp_path / 'language'
+    environment = {'OH_NO_PARENT_CONTROL_PREVIEW_LANGUAGE_FILE': str(language_file)}
+    process, _log = launch_ui('child_overlay_preview', environment_overrides=environment)
+    switch_language(ui, wait, 'kiosk', 'de')
+    assert language_file.read_text(encoding='utf-8') == 'de'
+    ui.activate('kiosk-request-cancel')
+    process.wait(timeout=10)
+    assert language_file.read_text(encoding='utf-8') == 'de'
+    launch_ui('child_overlay_preview', environment_overrides=environment)
+    wait(lambda: ui.text('kiosk-request-submit') == 'ANFRAGEN',
+         'reopened overlay reads the shared preview language')
+
+
 @pytest.mark.parametrize('overlay,dpi_scale', [(False, 1), (True, 1.25)])
 @pytest.mark.parametrize('language', ['de', 'fr', 'ru', 'pl', 'ja', 'zh-Hans'])
 def test_translated_request_preserves_choices_and_custom_draft(

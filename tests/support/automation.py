@@ -52,9 +52,15 @@ class Automation:
                                      snapshot=snapshot, identities=identities)
 
     def complete_parent_language_setup(self):
+        self.complete_language_setup('parent')
+
+    def complete_request_language_setup(self):
+        self.complete_language_setup('kiosk')
+
+    def complete_language_setup(self, surface):
         """Use the installed worker's guarded first-run Continue helper."""
         try:
-            self.reader.complete_parent_language_setup()
+            self.reader.complete_language_setup(surface)
         except UiError as error:
             raise AutomationError(str(error).replace("ui:", "automation:")) from error
 

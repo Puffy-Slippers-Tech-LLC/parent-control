@@ -2703,42 +2703,90 @@ def test_empty_parent_requires_readable_explanation_and_no_selected_child(fault,
     picker.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('save_result', ['saved', 'failed', 'uncertain'])
-def test_first_run_language_helper_clicks_once_and_requires_public_completion(save_result):
-    button = Node(identity='parent-language-continue')
-    dialog = Node(identity='parent-language-dialog', children=[button])
-    window = Node(identity='parent-window', children=[dialog])
+@pytest.mark.parametrize('save_result', [
+    'saved', 'failed', 'uncertain', 'still-open', 'hidden', 'defunct', 'incomplete',
+])
+@pytest.mark.parametrize('surface', ['parent', 'kiosk'])
+def test_first_run_language_helper_clicks_once_and_requires_public_completion(save_result, surface):
+    button = Node(identity='language-continue')
+    dialog = Node(identity='language-dialog', children=[button])
+    window = Node(identity='parent-window' if surface == 'parent' else 'kiosk-request-window',
+                  children=[dialog])
     ui = ui_for(window)
 
     def save(_index):
         if save_result == 'uncertain':
             return False
-        if save_result == 'saved':
-            ready = Node(identity='parent-language-ready')
+        if save_result not in ('failed', 'uncertain'):
+            ready = Node(identity=f'{surface}-language-ready')
             ready.parent = window
             window.children = [ready]
+            if save_result in ('still-open', 'hidden', 'defunct'):
+                window.children.append(dialog)
+            if save_result == 'hidden':
+                dialog.states.remove('showing')
+            if save_result == 'defunct':
+                dialog.states.add('defunct')
+            if save_result == 'incomplete':
+                window.children.append(None)
         return True
 
     button.action.do_action.side_effect = save
-    if save_result == 'saved':
-        ui.complete_parent_language_setup()
+    if save_result in ('saved', 'hidden'):
+        ui.complete_language_setup(surface)
         assert not ui.input_uncertain
-        ui.complete_parent_language_setup()
+        ui.complete_language_setup(surface)
     else:
         with pytest.raises(UiError):
-            ui.complete_parent_language_setup()
+            ui.complete_language_setup(surface)
         assert ui.input_uncertain
-        with pytest.raises(UiError, match='uncertain-input'):
-            ui.complete_parent_language_setup()
+        if save_result in ('failed', 'uncertain'):
+            with pytest.raises(UiError, match='uncertain-input'):
+                ui.complete_language_setup(surface)
+        else:
+            # An incomplete tree refuses before the guarded input boundary.
+            with pytest.raises(UiError, match=(
+                    'incomplete-tree|timeout' if save_result == 'incomplete'
+                    else 'uncertain-input')):
+                ui.activate_id('language-continue')
     button.action.do_action.assert_called_once_with(0)
 
 
-def test_language_helper_leaves_preferences_open_after_startup():
-    button = Node(identity='parent-language-continue')
-    dialog = Node(identity='parent-language-dialog', children=[button])
-    ui = ui_for(Node(identity='parent-window', children=[
-        Node(identity='parent-language-ready'), dialog]))
-    ui.complete_parent_language_setup()
+@pytest.mark.parametrize('surface', ['parent', 'kiosk'])
+def test_language_completion_is_scoped_to_its_application(surface):
+    button = Node(identity='language-continue')
+    window = Node(identity='parent-window' if surface == 'parent' else 'kiosk-request-window',
+                  children=[Node(identity='language-dialog', children=[button])])
+    other_button = Node(identity='language-continue')
+    other_window = Node(identity='kiosk-request-window' if surface == 'parent' else 'parent-window',
+                        children=[Node(identity='language-dialog', children=[other_button])])
+    applications = (accessible_ui.PARENT_APPLICATION, accessible_ui.KIOSK_APPLICATION)
+    if surface == 'kiosk':
+        applications = applications[::-1]
+    ui = ui_for(Node(children=[Node(identity=applications[0], children=[window]),
+                              Node(identity=applications[1], children=[other_window])]))
+
+    def save(_index):
+        ready = Node(identity=f'{surface}-language-ready')
+        ready.parent = window
+        window.children = [ready]
+        return True
+
+    button.action.do_action.side_effect = save
+    ui.complete_language_setup(surface)
+    assert not ui.input_uncertain
+    assert ui.application_ids is None
+    button.action.do_action.assert_called_once_with(0)
+    other_button.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('surface', ['parent', 'kiosk'])
+def test_language_helper_leaves_preferences_open_after_startup(surface):
+    button = Node(identity='language-continue')
+    dialog = Node(identity='language-dialog', children=[button])
+    ui = ui_for(Node(identity='parent-window' if surface == 'parent' else 'kiosk-request-window',
+                     children=[Node(identity=f'{surface}-language-ready'), dialog]))
+    ui.complete_language_setup(surface)
     button.action.do_action.assert_not_called()
 
 

@@ -849,7 +849,7 @@ def owned_surface_id(identity):
         ('parent-access-denied-', 'parent-access-denied-window'),
         ('parent-revoke-', 'parent-revoke-dialog'),
         ('parent-match-rule-', 'parent-match-rule-dialog'),
-        ('parent-language-', 'parent-language-dialog'),
+        ('language-', 'language-dialog'),
         ('feedback-full-privacy-', 'feedback-privacy-dialog'),
         ('feedback-privacy-', 'feedback-privacy-dialog'),
         ('feedback-success-', 'feedback-success-dialog'),
@@ -899,7 +899,7 @@ def owned_applications(identity):
         return (KIOSK_APPLICATION, CHILD_APPLICATION)
     if identity.startswith('preview-viewer-'):
         return ('com.puffyslippers.ScreenPreview',)
-    if identity.startswith(('about-', 'feedback-', 'startup-error-', 'error-report-')):
+    if identity.startswith(('language-', 'about-', 'feedback-', 'startup-error-', 'error-report-')):
         return PRODUCT_APPLICATIONS
     return ()
 
@@ -1639,8 +1639,8 @@ class AccessibleUI:
         if identity in primary:
             return
         expected = (('feedback-dialog',) if identity == 'feedback-privacy-dialog' else
-                    ('parent-window',) if identity in ('parent-revoke-dialog', 'parent-match-rule-dialog',
-                                                       'parent-language-dialog') else
+                    ('parent-window',) if identity in ('parent-revoke-dialog', 'parent-match-rule-dialog') else
+                    ('parent-window', 'kiosk-request-window') if identity == 'language-dialog' else
                     ('kiosk-request-window',) if identity == 'preview-screen-dialog' else
                     tuple(value for value in primary if value != 'parent-access-denied-window'))
         if nodes is None or snapshot is None:
@@ -2026,33 +2026,79 @@ class AccessibleUI:
         return self.id_target('parent-window')
 
     def complete_parent_language_setup(self):
+        self.complete_language_setup('parent')
+
+    def complete_request_language_setup(self):
+        self.complete_language_setup('kiosk')
+
+    def complete_language_setup(self, surface):
+        """Scope shared language IDs to the requested frontend application."""
+        require(surface in ('parent', 'kiosk'), 'ui:language-surface')
+        original = self.application_ids
+        requested = original() if callable(original) else original
+        allowed = ((PARENT_APPLICATION,) if surface == 'parent'
+                   else (KIOSK_APPLICATION, CHILD_APPLICATION))
+        self.application_ids = tuple(value for value in allowed
+                                     if requested is None or value in requested)
+        try:
+            self._complete_language_setup(surface)
+        finally:
+            self.application_ids = original
+
+    def _complete_language_setup(self, surface):
         """Accept the first-run default once, using the same host/E2E public IDs.
 
         Readiness distinguishes an asynchronous initial read from no dialog.
         A Preferences dialog opened after startup is deliberately left alone.
         """
+        require(surface in ('parent', 'kiosk'), 'ui:language-surface')
+        window_id = 'parent-window' if surface == 'parent' else 'kiosk-request-window'
+        ready_id = f'{surface}-language-ready'
+
         def entry():
             observation = self.read_snapshot()
-            for identity in ('parent-language-ready', 'parent-language-dialog',
+            for identity in (ready_id, 'language-dialog', f'{surface}-language-load-error',
                              'parent-access-denied-window', 'startup-error-window'):
-                if self.snapshot_owned_target(identity, check_prompt=True,
-                                              observation=observation) is not None:
+                target = self.snapshot_owned_target(identity, check_prompt=True,
+                                                    observation=observation)
+                if target is not None:
+                    if identity == 'language-dialog':
+                        window = self.snapshot_owned_target(window_id, observation=observation)
+                        nodes, edges, identities, _facts = observation
+                        require(window is not None and any(
+                            identities[node] in self.owned_applications(window_id)
+                            and window in self.snapshot_scope(nodes, edges, node)
+                            and target in self.snapshot_scope(nodes, edges, node)
+                            for node in nodes), 'ui:language-owner')
                     return identity
             return None
 
-        state = self.wait(entry, 'parent-language-entry', prompt_in_predicate=True)
-        if state != 'parent-language-dialog':
+        state = self.wait(entry, f'{surface}-language-entry', prompt_in_predicate=True)
+        require(state != f'{surface}-language-load-error', 'ui:language-load-failed')
+        if state != 'language-dialog':
             return
-        self.activate_id('parent-language-continue')
+        self.activate_id('language-continue')
         # Keep input uncertain until a fresh public result confirms completion.
         # A save error or timeout must not replay Continue.
         self.input_uncertain = True
 
         def completed():
-            return (self.snapshot_owned_target('parent-language-ready', check_prompt=True) is not None
-                    and self.absent_id('parent-language-dialog', within='parent-window'))
+            # Observe readiness and closure in one complete, app-scoped read.
+            # Another frontend may still show its own language-dialog; shared
+            # IDs are unique within the owning application, not the desktop.
+            observation = self.read_snapshot()
+            if any(self.has_state(node, self.api.StateType.DEFUNCT)
+                   for node in observation[0]):
+                return False
+            if self.snapshot_owned_target(
+                    ready_id, check_prompt=True, observation=observation) is None:
+                return False
+            dialog = self.snapshot_owned_target(
+                'language-dialog', showing=False, observation=observation,
+                allow_unmapped_surface=True)
+            return dialog is None or not self.showing(dialog)
 
-        self.wait(completed, 'parent-language-saved', prompt_in_predicate=True)
+        self.wait(completed, f'{surface}-language-saved', prompt_in_predicate=True)
         self.input_uncertain = False
 
     def parent_window_count(self):
@@ -6568,6 +6614,11 @@ class AccessibleUI:
                 return None
             self.validate_owned_surface(window, application)
             window_nodes = self.snapshot_scope(public_nodes, snapshot, window)
+            if lookup('kiosk-language-ready', window_nodes, identity_by_node, emit=False) is None:
+                self.complete_request_language_setup()
+                # The helper may have entered input. Discard this observation
+                # and independently read the usable form on the next pass.
+                return None
             form = lookup('kiosk-request-form', window_nodes, identity_by_node)
             if form is None:
                 diagnostic.emit(status='missing')

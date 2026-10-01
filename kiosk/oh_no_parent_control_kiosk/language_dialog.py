@@ -1,4 +1,4 @@
-"""Personal language selection; translations are applied in future work."""
+"""The request screens' language chooser, with their own metal-board UI."""
 
 import gi
 
@@ -6,68 +6,67 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk
 
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
-from common.oh_no_parent_control_ui.languages import (
-    SUPPORTED_LANGUAGES, selected_language,
-)
+from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES, selected_language
+from .chrome import ArmoredButton, MetalBoard
 
 
 class LanguageDialog(Gtk.Window):
     def __init__(self, parent, language, save, saved):
         super().__init__(title="Language", transient_for=parent, modal=True,
-                         destroy_with_parent=True, deletable=False)
+                         destroy_with_parent=True, deletable=False, decorated=False)
         set_automation_id(self, "language-dialog")
-        self.set_default_size(440, 620)
-        self._save = save
-        self._saved = saved
-        selected = selected_language(language, GLib.get_language_names())
-        self._selected = selected
+        self.add_css_class("oh-no-parent-control-language-dialog")
+        self.set_default_size(400, 540)
+        self._save, self._saved = save, saved
+        self._selected = selected_language(language, GLib.get_language_names())
         self._saving = False
-        header = Gtk.HeaderBar(show_title_buttons=False)
-        self.set_titlebar(header)
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16,
-                          margin_start=28, margin_end=28, margin_top=20, margin_bottom=24)
-        content.append(Gtk.Image(icon_name="preferences-desktop-locale-symbolic", pixel_size=40))
-        title = Gtk.Label(label="Choose your language", css_classes=["title-1"])
+
+        board = MetalBoard(orientation=Gtk.Orientation.VERTICAL)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                          margin_start=24, margin_end=24, margin_top=24, margin_bottom=24)
+        content.append(Gtk.Label(label="🌍", css_classes=["title-1"]))
+        title = Gtk.Label(label="Select Language", css_classes=["title-1"])
         set_automation_id(title, "language-title")
         content.append(title)
-        subtitle = Gtk.Label(label="You can change it later in preferences", wrap=True,
-                             justify=Gtk.Justification.CENTER, css_classes=["dim-label"])
-        set_automation_id(subtitle, "language-description")
-        content.append(subtitle)
-        self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2,
-                                css_classes=["card"])
+        description = Gtk.Label(label="You can change it in preferences later.",
+                                wrap=True, justify=Gtk.Justification.CENTER)
+        set_automation_id(description, "language-description")
+        content.append(description)
+
+        self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         first = None
         for identity, name in SUPPORTED_LANGUAGES:
-            button = Gtk.CheckButton(label=name, margin_start=16, margin_end=16,
-                                     margin_top=7, margin_bottom=7)
+            choice = Gtk.CheckButton(label=name)
             if first is None:
-                first = button
+                first = choice
             else:
-                button.set_group(first)
-            describe_control(button, name, f"Select {name}.",
+                choice.set_group(first)
+            describe_control(choice, name, f"Select {name}.",
                              automation_id=f"language-choice-{identity.lower()}")
-            button.set_active(identity == selected)
-            button.connect("toggled", self._choose, identity)
-            self._choices.append(button)
+            choice.set_active(identity == self._selected)
+            choice.connect("toggled", self._choose, identity)
+            self._choices.append(choice)
         scroller = Gtk.ScrolledWindow(child=self._choices, vexpand=True,
                                       hscrollbar_policy=Gtk.PolicyType.NEVER,
-                                      min_content_height=180)
+                                      min_content_height=150)
         set_automation_id(scroller, "language-list")
         content.append(scroller)
         self._error = Gtk.Label(wrap=True, visible=False, css_classes=["error"])
         set_automation_id(self._error, "language-error")
         content.append(self._error)
-        self._continue = Gtk.Button(label="Continue", css_classes=["suggested-action", "pill"])
+        self._continue = ArmoredButton(label="Continue",
+                                       css_classes=["oh-no-parent-control-request-button"])
         describe_control(self._continue, "Continue", "Save your language preference.",
                          automation_id="language-continue")
         self._continue.connect("clicked", self._submit)
         content.append(self._continue)
-        self.set_child(content)
+        board.append(content)
+        self.set_child(board)
         self.set_default_widget(self._continue)
         self.connect("close-request", lambda *_args: True)
 
-    def _choose(self, button, identity):
-        if button.get_active():
+    def _choose(self, choice, identity):
+        if choice.get_active():
             self._selected = identity
 
     def _submit(self, _button):

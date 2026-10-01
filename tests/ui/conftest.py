@@ -230,7 +230,8 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
     with preview_applications(hermetic_ui_session, directory) as launch:
         def launch_ready(name, **kwargs):
             result = launch(name, **kwargs)
-            if name in ("parent_preview", "parent_component_preview"):
+            if name in ("parent_preview", "parent_component_preview", "kiosk_preview",
+                        "child_overlay_preview", "request_component_preview"):
                 import gi
                 gi.require_version("Atspi", "2.0")
                 from gi.repository import Atspi, GLib
@@ -246,7 +247,10 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
                                     complete_read_wait=wait_for_accessible_state)
                     ui.reader.timeout = UI_TIMEOUT_SECONDS
                     ui.reader.dispatch = lambda: GLib.MainContext.default().iteration(False)
-                    ui.complete_parent_language_setup()
+                    if name in ("parent_preview", "parent_component_preview"):
+                        ui.complete_parent_language_setup()
+                    else:
+                        ui.complete_request_language_setup()
                 finally:
                     api.reset()
             return result

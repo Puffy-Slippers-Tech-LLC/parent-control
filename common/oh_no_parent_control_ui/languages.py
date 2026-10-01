@@ -29,3 +29,9 @@ def session_language(language_names) -> str:
     An unsupported primary language falls back to English, not another locale.
     """
     return supported_language(next(iter(language_names), "en"))
+
+
+def selected_language(saved_language: str, language_names) -> str:
+    """Resolve a chooser's saved value or session default for every frontend."""
+    return (supported_language(saved_language) if saved_language
+            else session_language(language_names))

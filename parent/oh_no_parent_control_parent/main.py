@@ -28,7 +28,6 @@ from common.oh_no_parent_control_ui.accessibility import (
     set_automation_id,
 )
 from common.oh_no_parent_control_ui.duration import format_duration
-from common.oh_no_parent_control_ui.languages import session_language, supported_language
 from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui.feedback import FeedbackDialog
 from common.oh_no_parent_control_ui.errors import (
@@ -1177,10 +1176,8 @@ class ParentWindow(Adw.ApplicationWindow):
             self._load_language()
             return
         if self._language_dialog is None:
-            selected = (supported_language(self._own_language) if self._own_language
-                        else session_language(GLib.get_language_names()))
             self._language_dialog = LanguageDialog(
-                self, selected, self._save_language, self._language_saved)
+                self, self._own_language, self._save_language, self._language_saved)
         self._language_dialog.present()
 
     def _save_language(self, language, success, failure):

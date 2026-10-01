@@ -587,6 +587,25 @@ button.oh-no-parent-control-request-button:disabled {
   box-shadow: none;
 }
 
+.oh-no-parent-control-language-dialog {
+  background: #202123;
+  color: #f4f4f4;
+}
+
+.oh-no-parent-control-language-dialog checkbutton {
+  padding: 5px 8px;
+  border-radius: 4px;
+}
+
+.oh-no-parent-control-language-dialog checkbutton:checked {
+  background: #267b2e;
+  box-shadow: inset 0 0 0 1px #79bf67;
+}
+
+.oh-no-parent-control-language-dialog button {
+  min-height: 36px;
+}
+
 .oh-no-parent-control-secondary-page {
   min-height: 240px;
 }

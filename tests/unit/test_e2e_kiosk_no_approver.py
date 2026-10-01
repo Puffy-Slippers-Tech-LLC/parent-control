@@ -163,6 +163,9 @@ def test_every_conflicting_mode_refuses_before_vm_access(monkeypatch):
             {'license_viewer_provider': True, 'information_link': value}
             for value in ('license', 'website', 'privacy')],
         'approval_flow': [{'approval_flow': value} for value in ('rejection', 'cancel')],
+        'challenge_profile': [{'challenges': True, 'challenge_profile': value}
+                              for value in ('parent', 'fresh-child', 'fresh-child-denied',
+                                            'countdown-enabled', 'countdown-off')],
     }
     for name in inspect.signature(smoke.main).parameters:
         if name in ('assets', 'provision_credentials', 'kiosk_no_approver'):

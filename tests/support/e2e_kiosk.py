@@ -68,7 +68,8 @@ def request_form(*, fault=None):
     elif fault == 'duplicate-form':
         children.append(Node(identity='kiosk-request-form'))
     form = Node(PRODUCT, 'frame', children=children, identity='kiosk-request-form')
-    return ui_for(Node(identity='kiosk-request-window', children=[form])), tuple(durations)
+    return ui_for(Node(identity='kiosk-request-window', children=[
+        Node(identity='kiosk-language-ready'), form])), tuple(durations)
 
 
 def accounts_form(field='child'):

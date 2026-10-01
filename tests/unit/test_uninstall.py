@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
+from oh_no_parent_control.preferences import PreferenceStore
 
 from oh_no_parent_control.uninstall import (
     UninstallCleaner, UninstallCleanupError, managed_uids,
@@ -92,6 +93,21 @@ class Preferences:
 
 
 class UninstallTests(unittest.TestCase):
+    def test_personal_only_accounts_are_not_enforcement_cleanup_targets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            store = PreferenceStore(directory)
+            for uid in (0, 991, 1001, 1003):
+                store.update_language(uid, "fr")
+            # A real policy save claims policy ownership even with defaults.
+            store.save(1001, store.load(1001))
+            before = {path.name: path.read_bytes() for path in directory.iterdir()}
+            lookup = mock.Mock(side_effect=lambda uid: SimpleNamespace(pw_uid=uid))
+            self.assertEqual(managed_uids(directory, required_owner=os.getuid(),
+                                          account_lookup=lookup), (1001,))
+            lookup.assert_called_once_with(1001)
+            self.assertEqual({path.name: path.read_bytes() for path in directory.iterdir()}, before)
+
     def test_discovers_only_secure_extant_uid_records(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

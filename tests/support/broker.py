@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from oh_no_parent_control.config import validate
 from oh_no_parent_control.core import Broker, UserAccount
-from oh_no_parent_control.preferences import default_preferences, validate_preferences
+from oh_no_parent_control.preferences import default_preferences, validate_preferences, validate_language
 from tests.support.configuration import valid_config
 
 class Authorizer:
@@ -114,8 +114,17 @@ class Preferences:
         return validate_preferences(self.values.get(uid, default_preferences()))
 
     def save(self, uid, value):
-        self.values[uid] = validate_preferences(value)
+        normalized = validate_preferences(value)
+        normalized["personal"] = self.load(uid)["personal"]
+        self.values[uid] = normalized
         return self.load(uid)
+
+    def update_language(self, uid, language):
+        language = validate_language(language)
+        value = self.load(uid)
+        value["personal"]["language"] = language
+        self.values[uid] = value
+        return language
 
     def update_request(self, uid, selected, custom, allow_soft,
                        last_selected_approver_uid=0):

@@ -1,4 +1,4 @@
-"""Root-owned, per-child preferences with strict validation and atomic writes."""
+"""Root-owned child policy and personal language with validated atomic writes."""
 
 from __future__ import annotations
 
@@ -8,12 +8,13 @@ import math
 import os
 import re
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import threading
 from pathlib import Path
 
 from .config import UINT32_MAX, validate_target
 
-FORMAT_VERSION = 3
+FORMAT_VERSION = 4
 VALID_APP_STATES = {"allowed", "permanent", "conditional"}
 MIN_DAILY_LIMIT_MINUTES = 0
 MAX_DAILY_LIMIT_MINUTES = 24 * 60
@@ -35,9 +36,25 @@ class PreferencesError(ValueError):
     """A preference record is malformed or could not be stored safely."""
 
 
+LANGUAGE_RE = re.compile(r"[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*")
+
+
+def validate_language(value: object) -> str:
+    """Validate a portable language ID; empty means follow the session locale.
+
+    This stores intent, independently of which translations are installed.
+    Locale environment strings, paths and gettext search lists are not IDs.
+    """
+    if not isinstance(value, str) or len(value) > 63 or (
+            value and not LANGUAGE_RE.fullmatch(value)):
+        raise PreferencesError("language must be empty or a hyphen-separated language ID")
+    return value
+
+
 def default_preferences() -> dict:
     return {
         "version": FORMAT_VERSION,
+        "personal": {"language": ""},
         "parent_control_enabled": False,
         "daily_time_limit_minutes": MIN_DAILY_LIMIT_MINUTES,
         "apps": {},
@@ -53,20 +70,27 @@ def default_preferences() -> dict:
 
 
 def validate_preferences(raw: object) -> dict:
+    # Personal-only accounts share the same schema/store without claiming that
+    # the product ever installed policy for them. Readers see policy defaults.
+    if isinstance(raw, dict) and set(raw) == {"version", "personal"}:
+        raw = {**default_preferences(), **raw}
     if not isinstance(raw, dict) or set(raw) not in ({
-        "version", "parent_control_enabled", "apps", "request",
+        "version", "personal", "parent_control_enabled", "apps", "request",
     }, {
         "version", "parent_control_enabled", "daily_time_limit_minutes",
-        "apps", "request",
+        "apps", "request", "personal",
     }):
         raise PreferencesError("preference record has invalid keys")
     if raw["version"] != FORMAT_VERSION or type(raw["version"]) is not int:
         raise PreferencesError("unsupported preference version")
+    personal = raw["personal"]
+    if not isinstance(personal, dict) or set(personal) != {"language"}:
+        raise PreferencesError("invalid personal preferences")
+    language = validate_language(personal["language"])
     if type(raw["parent_control_enabled"]) is not bool:
         raise PreferencesError("parent-control state must be boolean")
-    # This field was added without changing FORMAT_VERSION. Records carrying
-    # that same current version must therefore normalize its omission to the
-    # grant-only default instead of becoming unreadable.
+    # Legacy v3 records could omit this field. Keep its grant-only default
+    # when those records are migrated into the current schema.
     daily_limit = raw.get("daily_time_limit_minutes", MIN_DAILY_LIMIT_MINUTES)
     if (type(daily_limit) is not int or not
             MIN_DAILY_LIMIT_MINUTES <= daily_limit <= MAX_DAILY_LIMIT_MINUTES):
@@ -119,9 +143,8 @@ def validate_preferences(raw: object) -> dict:
         raise PreferencesError("invalid custom duration")
     if type(request["allow_soft_blocked_apps"]) is not bool:
         raise PreferencesError("allow-soft state must be boolean")
-    # These request-form fields were added without changing FORMAT_VERSION.
-    # Older current-version records omit them and must use the current visible
-    # defaults: first approver, and muted sound on both request surfaces.
+    # Migrated legacy records can omit these optional request-form fields.
+    # Preserve their defaults: first approver, and both request surfaces muted.
     approver_uid = request.get("last_selected_approver_uid", 0)
     if type(approver_uid) is not int or not 0 <= approver_uid <= UINT32_MAX:
         raise PreferencesError("invalid selected approver")
@@ -133,6 +156,7 @@ def validate_preferences(raw: object) -> dict:
     return {
         "version": FORMAT_VERSION,
         "parent_control_enabled": raw["parent_control_enabled"],
+        "personal": {"language": language},
         "daily_time_limit_minutes": daily_limit,
         "apps": apps,
         "request": {
@@ -185,34 +209,71 @@ def blocked_patterns(preferences: dict, allow_soft: bool) -> tuple[str, ...]:
     return tuple(sorted(set(patterns)))
 
 
+def _unique_preference_keys(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise PreferencesError("duplicate preference key")
+        value[key] = item
+    return value
+
+
+def decode_preferences(text: str) -> object:
+    """Decode one record without silently accepting duplicate settings."""
+    return json.loads(text, object_pairs_hook=_unique_preference_keys)
+
+
 @dataclass
 class PreferenceStore:
     directory: Path = Path("/var/lib/oh-no-parent-control/preferences")
+    _write_lock: threading.RLock = field(default_factory=threading.RLock,
+                                        init=False, repr=False, compare=False)
 
     def _path(self, uid: int) -> Path:
-        if type(uid) is not int or not 0 < uid <= UINT32_MAX:
+        if type(uid) is not int or not 0 <= uid <= UINT32_MAX:
             raise PreferencesError("invalid preference UID")
         return self.directory / f"{uid}.json"
 
     def load(self, uid: int) -> dict:
-        path = self._path(uid)
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            LOG.info("preferences.001")
-            return default_preferences()
-        except (OSError, UnicodeError, json.JSONDecodeError) as error:
-            LOG.warning("preferences.002", error_type=error_code(error))
-            raise PreferencesError("could not read preferences") from error
+        raw = self._load_record(uid)
         try:
             return validate_preferences(raw)
         except PreferencesError as error:
             LOG.warning("preferences.003", error_type=error_code(error))
             raise
 
+    def _load_record(self, uid: int) -> object:
+        path = self._path(uid)
+        try:
+            raw = decode_preferences(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            LOG.info("preferences.001")
+            return {"version": FORMAT_VERSION, "personal": {"language": ""}}
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            LOG.warning("preferences.002", error_type=error_code(error))
+            raise PreferencesError("could not read preferences") from error
+        return raw
+
     def save(self, uid: int, preferences: object) -> dict:
         normalized = validate_preferences(preferences)
-        LOG.info("preferences.004", app_policy_count=len(normalized["apps"]))
+        with self._write_lock:
+            # Policy/request writes, including rollback, never overwrite a
+            # newer personal selection from a stale frontend snapshot.
+            normalized["personal"] = self.load(uid)["personal"]
+            return self._write(uid, normalized)
+
+    def update_language(self, uid: int, language: object) -> str:
+        language = validate_language(language)
+        with self._write_lock:
+            raw = self._load_record(uid)
+            current = validate_preferences(raw)
+            current["personal"] = {**current["personal"], "language": language}
+            if set(raw) == {"version", "personal"}:
+                current = {"version": FORMAT_VERSION, "personal": current["personal"]}
+            return self._write(uid, current)["personal"]["language"]
+
+    def _write(self, uid: int, normalized: dict) -> dict:
+        LOG.info("preferences.004", app_policy_count=len(normalized.get("apps", {})))
         path = self._path(uid)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.directory, 0o700)
@@ -225,6 +286,11 @@ class PreferenceStore:
                 os.fsync(stream.fileno())
             os.chmod(temporary, 0o600)
             os.replace(temporary, path)
+            directory_fd = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
         except OSError as error:
             LOG.error("preferences.005", error_type=error_code(error))
             raise

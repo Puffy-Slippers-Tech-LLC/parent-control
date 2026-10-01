@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from oh_no_parent_control.data_migration import (
     MigrationError,
@@ -9,11 +10,103 @@ from oh_no_parent_control.data_migration import (
     migrate_all_state,
     migrate_document,
     migrate_preferences,
+    migrate_preferences_v3_to_v4,
 )
-from oh_no_parent_control.preferences import default_preferences, validate_preferences
+from oh_no_parent_control.preferences import FORMAT_VERSION, PreferenceStore, default_preferences, validate_preferences
 
 
 class DataMigrationTests(unittest.TestCase):
+    def test_v3_to_v4_preserves_every_existing_choice_and_is_pure(self):
+        legacy = default_preferences()
+        legacy["version"] = 3
+        del legacy["personal"]
+        legacy["parent_control_enabled"] = True
+        legacy["daily_time_limit_minutes"] = 1440
+        legacy["request"].update({
+            "last_selected_duration": "custom", "last_custom_minutes": 12.5,
+            "allow_soft_blocked_apps": True, "last_selected_approver_uid": 1003,
+            "child_muted": False, "kiosk_muted": False,
+        })
+        legacy["apps"] = {
+            "game.desktop": {"state": "permanent", "targets": ["/usr/bin/game"],
+                             "patterns": [], "user_saved_match_rule": True},
+        }
+        before = json.dumps(legacy, sort_keys=True)
+        migrated = migrate_preferences_v3_to_v4(legacy)
+        self.assertEqual(migrated, {**legacy, "version": 4, "personal": {"language": ""}})
+        self.assertEqual(validate_preferences(migrated), migrated)
+        self.assertEqual(json.dumps(legacy, sort_keys=True), before)
+
+    def test_v3_missing_optional_fields_uses_existing_defaults_after_upgrade(self):
+        legacy = default_preferences()
+        legacy["version"] = 3
+        del legacy["personal"]
+        del legacy["daily_time_limit_minutes"]
+        for key in ("last_selected_approver_uid", "kiosk_muted", "child_muted"):
+            del legacy["request"][key]
+        migrated, changed = migrate_document(
+            legacy, current_version=FORMAT_VERSION, migrations=PREFERENCE_MIGRATIONS,
+            validator=validate_preferences,
+        )
+        self.assertTrue(changed)
+        self.assertEqual(migrated, default_preferences())
+
+    def test_unified_upgrade_retries_after_interruption_and_includes_root_uid(self):
+        from oh_no_parent_control import data_migration
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "preferences"
+            directory.mkdir(mode=0o700)
+            legacy = default_preferences()
+            legacy["version"] = 3
+            del legacy["personal"]
+            for uid in (0, 1001):
+                path = directory / f"{uid}.json"
+                path.write_text(json.dumps(legacy), encoding="utf-8")
+                path.chmod(0o600)
+            original = data_migration._atomic_write
+
+            def interrupt_second(path, value, file_stat):
+                if path.name == "1001.json":
+                    raise MigrationError("interrupted second record")
+                original(path, value, file_stat)
+
+            with mock.patch.object(data_migration, "_atomic_write", side_effect=interrupt_second):
+                with self.assertRaises(MigrationError):
+                    migrate_preferences(directory)
+            first_bytes = (directory / "0.json").read_bytes()
+            self.assertEqual(json.loads(first_bytes)["version"], 4)
+            self.assertEqual(json.loads((directory / "1001.json").read_bytes()), legacy)
+            self.assertEqual(migrate_preferences(directory), 1)
+            self.assertEqual((directory / "0.json").read_bytes(), first_bytes)
+            store = PreferenceStore(directory)
+            store.update_language(0, "en")
+            store.update_language(1001, "fr")
+            saved_bytes = (directory / "1001.json").read_bytes()
+            self.assertEqual(migrate_preferences(directory), 0)
+            self.assertEqual((directory / "1001.json").read_bytes(), saved_bytes)
+
+    def test_invalid_v3_or_future_data_is_preserved_on_upgrade_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "preferences"
+            directory.mkdir(mode=0o700)
+            legacy = default_preferences()
+            legacy["version"] = 3
+            del legacy["personal"]
+            invalid = (
+                {"version": 3},
+                {**legacy, "daily_time_limit_minutes": 1441},
+                {**legacy, "personal": {"language": "fr"}},
+                {**legacy, "version": 5},
+            )
+            path = directory / "1001.json"
+            for value in invalid:
+                path.write_text(json.dumps(value), encoding="utf-8")
+                path.chmod(0o600)
+                before = path.read_bytes()
+                with self.assertRaises(MigrationError):
+                    migrate_preferences(directory)
+                self.assertEqual(path.read_bytes(), before)
+
     def test_document_migrations_run_in_order(self):
         calls = []
 
@@ -122,6 +215,7 @@ class DataMigrationTests(unittest.TestCase):
             record = directory / "1001.json"
             value = default_preferences()
             value["version"] = 1
+            del value["personal"]
             value["apps"] = {
                 "lunar.desktop": {
                     "state": "conditional",
@@ -133,13 +227,15 @@ class DataMigrationTests(unittest.TestCase):
 
             self.assertEqual(migrate_preferences(directory), 1)
             migrated = json.loads(record.read_text(encoding="utf-8"))
-        self.assertEqual(migrated["version"], 3)
+        self.assertEqual(migrated["version"], FORMAT_VERSION)
+        self.assertEqual(migrated["personal"], {"language": ""})
         self.assertEqual(migrated["apps"]["lunar.desktop"]["patterns"], [])
         self.assertFalse(migrated["apps"]["lunar.desktop"]["user_saved_match_rule"])
 
     def test_v2_pattern_is_migrated_as_a_user_saved_match_rule(self):
         value = default_preferences()
         value["version"] = 2
+        del value["personal"]
         value["apps"] = {
             "lunar.desktop": {
                 "state": "conditional",
@@ -149,7 +245,7 @@ class DataMigrationTests(unittest.TestCase):
         }
 
         migrated, changed = migrate_document(
-            value, current_version=3, migrations=PREFERENCE_MIGRATIONS,
+            value, current_version=FORMAT_VERSION, migrations=PREFERENCE_MIGRATIONS,
             validator=validate_preferences,
         )
 

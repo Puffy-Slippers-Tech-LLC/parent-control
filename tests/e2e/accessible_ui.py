@@ -85,6 +85,12 @@ STANDARD_OPERATIONS |= frozenset({'standard-parent-command-launch', 'standard-pa
 STANDARD_OPERATIONS |= frozenset({'child-command-launch'})
 OPERATIONS |= frozenset({'standard-search-qualified'})
 STANDARD_OPERATIONS |= frozenset({'standard-search-qualified'})
+NATIVE_PRODUCT = 'ONPC Allowed Fixture'
+NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
+    'desktop', 'search-ready', 'search-focused', 'search-entered', 'grid',
+    'grid-refusals', 'wrong-entry', 'opened', 'submit', 'submitted', 'close', 'closed'))
+OPERATIONS |= NATIVE_APP_OPERATIONS
+STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-absent'})
 CHILD_DESKTOP_OPERATIONS = frozenset({'fresh-child-desktop'}) | COUNTDOWN_OPERATIONS
 CHILD_GREETER_OPERATIONS = frozenset({
@@ -5512,7 +5518,7 @@ class AccessibleUI:
 
     def launchable_result(self, product):
         """SEARCH04's owned Shell launcher branch, without input."""
-        require(product == PRODUCT, 'ui:search-binding')
+        require(product in (PRODUCT, NATIVE_PRODUCT), 'ui:search-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             owner, nodes, snapshot, facts = self.shell_search_snapshot()
             if owner is None:
@@ -5531,6 +5537,7 @@ class AccessibleUI:
                     candidates.append(node)
             require(len(candidates) <= 1, 'ui:shell-result-ambiguous')
             return candidates[0] if candidates else None
+        require(product == PRODUCT, 'ui:search-provider-binding')
         surface, registered = self.provider_surface(
             'gnome-shell', 'app-grid', ('result::parent',))
         if surface is None:
@@ -7490,7 +7497,7 @@ class AccessibleUI:
 
     def search_query(self, expected):
         """Read only the overview's public search field; never arbitrary text."""
-        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal'), 'ui:search-binding')
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT), 'ui:search-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             field = self.shell_search_field()
             if field is None:
@@ -7514,7 +7521,7 @@ class AccessibleUI:
 
     def shell_query_matches(self, field, expected):
         """Read the field from the caller's fresh scoped Shell observation."""
-        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal'), 'ui:search-binding')
+        require(expected in ('', PRODUCT[:1], PRODUCT, 'Terminal', NATIVE_PRODUCT), 'ui:search-binding')
         text = field.get_text_iface()
         require(text is not None, 'ui:search-text-unavailable')
         count = self.api.Text.get_character_count(text)
@@ -7603,12 +7610,13 @@ class AccessibleUI:
         self.wait(focused, 'standard-search-focus')
         self.input_uncertain = False
 
-    def focus_search_result(self):
+    def focus_search_result(self, product=PRODUCT):
         """Qualify the exact launcher recipient before the worker sends Enter."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        self.wait(lambda: self.search_query(PRODUCT), 'parent-search-query')
-        target = self.wait(lambda: self.launchable_result(PRODUCT), 'parent-search-result')
-        target = (self.launchable_result(PRODUCT)
+        require(product in (PRODUCT, NATIVE_PRODUCT), 'ui:search-binding')
+        self.wait(lambda: self.search_query(product), 'parent-search-query')
+        target = self.wait(lambda: self.launchable_result(product), 'parent-search-result')
+        target = (self.launchable_result(product)
                   if not self.provider_contracts['gnome-shell']['application_id'] else
                   self.fresh_owned_target(target))
         require(target is not None, 'ui:search-result-stale')
@@ -7617,10 +7625,100 @@ class AccessibleUI:
         self.input_uncertain = True
         require(component.grab_focus(), 'ui:search-focus-refused')
         def focused():
-            current = self.launchable_result(PRODUCT)
+            current = self.launchable_result(product)
             return current is not None and self.has_state(current, self.api.StateType.FOCUSED)
         self.wait(focused, 'parent-result-focus')
         self.input_uncertain = False
+
+    def native_app_snapshot(self, submitted, *, pending=False):
+        """APP02/03: public owned window and finite independent activity projection."""
+        require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
+        scope = 'onpc-fixture-native-primary'
+        root = self.snapshot_owned_target(scope, check_prompt=True)
+        if pending and (root is None or not self.has_state(root, self.api.StateType.ACTIVE)):
+            return None
+        require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+                'ui:native-entry')
+        try:
+            from fixture_ui import FixtureUI
+        except ModuleNotFoundError as error:
+            if error.name != 'fixture_ui':
+                raise
+            from tests.e2e.fixture_ui import FixtureUI
+        fixture = FixtureUI(self, 'native', require=require)
+        require(fixture.text('status') == 'Ready', 'ui:native-status')
+        value = fixture.snapshot()
+        expected = {'draft': 'ONPC fixture draft', 'submitted': submitted,
+                    'score': 'Moves: 0; token: 0'}
+        if pending and value != expected:
+            return None
+        require(value == expected, 'ui:native-activity')
+        return value
+
+    def native_app_submit(self, instance='primary'):
+        """One normal public action; no replay after uncertain delivery."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require(instance == 'primary', 'ui:native-binding')
+        self.native_app_snapshot('No submitted draft')
+        self.activate_id('onpc-fixture-native-primary-submit')
+
+    def native_app_closed(self):
+        """Complete owned absence with the independently recognized Shell desktop."""
+        self.standard_shell_desktop(no_prompt=True)
+        node = self.snapshot_owned_target('onpc-fixture-native-primary', showing=False,
+                                          check_prompt=True)
+        return node is None or not self.showing(node)
+
+    def native_app_operation(self, operation):
+        require(operation in NATIVE_APP_OPERATIONS, 'ui:native-operation')
+        if operation in ('native-desktop', 'native-closed'):
+            self.wait(self.native_app_closed, 'native-closed')
+        elif operation == 'native-search-ready':
+            self.search_ready('overview')
+        elif operation == 'native-search-focused':
+            self.focus_search_field()
+            self.search_ready('overview', focused=True)
+        elif operation == 'native-search-entered':
+            self.wait_search(lambda: self.search_query(NATIVE_PRODUCT), 'native-search-query')
+        elif operation in ('native-grid', 'native-grid-refusals'):
+            self.focus_search_result(NATIVE_PRODUCT)
+            if operation == 'native-grid-refusals':
+                for instance, uncertain, expected in (
+                        ('secondary', False, 'ui:native-binding'),
+                        ('primary', True, 'ui:uncertain-input')):
+                    self.input_uncertain = uncertain
+                    try:
+                        self.native_app_submit(instance)
+                    except UiError as error:
+                        require(str(error) == expected, 'ui:native-wrong-refusal')
+                    else:
+                        raise UiError('ui:native-refusal-missing')
+                    finally:
+                        self.input_uncertain = False
+                # Neither refusal may change the independently supplied grid entry.
+                require(self.search_query(NATIVE_PRODUCT), 'ui:native-refusal-query')
+                node = self.launchable_result(NATIVE_PRODUCT)
+                require(node is not None and self.has_state(node, self.api.StateType.FOCUSED),
+                        'ui:native-refusal-focus')
+        elif operation == 'native-wrong-entry':
+            require(self.native_app_closed(), 'ui:native-wrong-entry')
+            try:
+                self.native_app_submit()
+            except UiError as error:
+                require(str(error) == 'ui:native-entry', 'ui:native-wrong-refusal')
+            else:
+                raise UiError('ui:native-refusal-missing')
+        elif operation == 'native-opened':
+            return self.wait(lambda: self.native_app_snapshot('No submitted draft', pending=True),
+                             'native-opened')
+        elif operation == 'native-submit':
+            self.native_app_submit()
+        elif operation == 'native-submitted':
+            return self.wait(lambda: self.native_app_snapshot('ONPC fixture draft', pending=True),
+                             'native-submitted')
+        elif operation == 'native-close':
+            self.native_app_snapshot('ONPC fixture draft')
+            self.activate_id('onpc-fixture-native-primary-close')
 
     def search_absence(self, product, *, stable_seconds):
         """Positive query/result witnesses plus fresh, complete absence reads.
@@ -7977,7 +8075,15 @@ class AccessibleUI:
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation == 'station-entry-branch':
+        if operation in NATIVE_APP_OPERATIONS:
+            value = self.native_app_operation(operation)
+            if value is not None:
+                result['activity'] = value
+            if operation in ('native-grid', 'native-grid-refusals'):
+                owner, _nodes, _snapshot, _facts = self.shell_search_snapshot()
+                require(owner is not None, 'ui:shell-provider-owner')
+                result['provider'] = self._shell_provider_metadata(owner)
+        elif operation == 'station-entry-branch':
             result['branch'] = self.station_entry_branch(self.branch_owner)
         elif operation == 'station-default-entry':
             result['entry'] = self.station_default_entry(self.branch_owner)

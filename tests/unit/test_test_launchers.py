@@ -231,7 +231,8 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
                                      'check_e2e_save_chooser', 'check_e2e_save_chooser.py',
                                      'check_e2e_match_editor', 'check_e2e_match_editor.py',
                                      'check_e2e_policy', 'check_e2e_policy.py',
-                                     'check_e2e_native_fixtures', 'check_e2e_native_fixtures.py'])
+                                     'check_e2e_native_fixtures', 'check_e2e_native_fixtures.py',
+                                     'check_e2e_native_grid_usable', 'check_e2e_native_grid_usable.py'])
 def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, selector):
     import test_storage
     output = ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-current'
@@ -242,7 +243,8 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) == (
         commands.python_file(ROOT, 'tools/build_test_artifacts.py', '--output', str(output)))
-    if selector.startswith(('check_e2e_native_fixtures', 'check_e2e_match_editor', 'check_e2e_policy')):
+    if selector.startswith(('check_e2e_native_fixtures', 'check_e2e_native_grid_usable',
+                            'check_e2e_match_editor', 'check_e2e_policy')):
         named.assert_called_once_with(fixture_source=True)
     elif selector.startswith('check_e2e_save_chooser'):
         named.assert_called_once_with()

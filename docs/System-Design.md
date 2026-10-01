@@ -82,9 +82,10 @@ offline session bus for SELinux AVC monitoring), not Internet sockets.
 
 ## State ownership and shared constraints
 
-Root-owned per-child preferences hold durable parent choices; missing records
-use defaults. AccountsService holds the live app blocklist, limit type, daily
-limit and one-time grant. Malcontent owns measured usage. The broker derives
+Root-owned per-user preferences hold personal settings and durable parent choices
+for children; missing records use defaults. AccountsService holds the live app
+blocklist, limit type, daily limit and one-time grant. Malcontent owns measured
+usage. The broker derives
 UID-scoped fapolicyd execution rules from live filters and saved patterns, and
 controls per-account activation of the packaged GNOME extension. Runtime grants,
 usage, and generated rules are never imported into preferences.
@@ -98,6 +99,14 @@ animation preference is a separate per-user GSettings value, defaults to false,
 and has no policy authority. Feedback drafts, attachment bytes and retry
 submissions live only in frontend memory. Removal/purge do not reset ordinary
 users' selector files or countdown-animation setting.
+
+The broker stores language in the personal section of the same per-user record
+and infrastructure as policy and request choices. The extension and overlay
+share the child's selection; parent and kiosk use their own account's selection.
+Empty means follow the frontend
+session language. Persistence and the caller-scoped D-Bus API are implemented;
+GUI selection and translation application remain separate work. See
+[State](SystemDesign/State.md) for the storage and API contract.
 
 - Screen-time control and saved app policy are independent. Temporary approval
   can relax soft blocks while preserving hard blocks.

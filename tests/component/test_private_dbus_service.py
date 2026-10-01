@@ -52,6 +52,8 @@ def test_every_public_method_uses_real_dbus_signatures_and_serialization(private
     client = private_service.client
     preferences_json = json.dumps(default_preferences())
     cases = (
+        ("GetOwnLanguage", None, "(s)", ("fr",)),
+        ("SetOwnLanguage", GLib.Variant("(s)", ("de",)), "(s)", ("de",)),
         ("ListManagedUsers", None, "(a(uss))", ([(1100, "[Child user]", "/icon.png")],)),
         ("ListApprovers", None, "(a(uss))", ([(1200, "[Administrator]", "/admin.png")],)),
         ("GetOwnAccount", None, "(uss)", (1100, "[Child user]", "/icon.png")),

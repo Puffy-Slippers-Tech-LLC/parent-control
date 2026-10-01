@@ -343,4 +343,83 @@ sub policy_edit {
     $journey->finish();
 }
 
+# APP01's graphical exception: one declared query, then one launch commit.
+sub native_search {
+    onpc_progress::operation('Finding the declared native fixture in public app search');
+    my ($journey, $desktop, $result_stage) = @_;
+    $result_stage //= 'app-grid';
+    die 'native:search-binding' unless (@_ == 2 || @_ == 3)
+        && ref($journey) eq 'onpc_journey'
+        && ($result_stage eq 'app-grid' || $result_stage eq 'refusals');
+    return onpc_parent::search_whole_query(
+        $journey, $desktop, 'ONPC Allowed Fixture', $result_stage);
+}
+
+sub native_launch_grid {
+    onpc_progress::operation('Launching the declared native fixture from the app grid');
+    my ($journey, $entry) = @_;
+    die 'native:launch-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    $journey->consume_observation('app-grid', $entry);
+    testapi::send_key('ret');
+    return $journey->seen('opened');
+}
+
+sub native_open_grid {
+    onpc_progress::operation('Finding and launching the native fixture from the app grid');
+    my ($journey, $desktop) = @_;
+    die 'native:launch-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    return native_launch_grid($journey, native_search($journey, $desktop));
+}
+
+# APP03: caller holds a fresh owned-window proof. Controller performs the
+# public Submit action; a separate observation reads its customer-visible effect.
+sub native_use_app {
+    onpc_progress::operation('Submitting the native fixture draft and reading its public result');
+    my ($journey, $opened) = @_;
+    die 'native:use-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    $journey->consume_observation('opened', $opened);
+    $journey->seen('submit');
+    return $journey->seen('submitted');
+}
+
+sub native_close_app {
+    onpc_progress::operation('Closing the owned native fixture and observing desktop return');
+    my ($journey, $submitted) = @_;
+    die 'native:close-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    $journey->consume_observation('submitted', $submitted);
+    $journey->seen('close');
+    return $journey->seen('closed');
+}
+
+sub native_grid_usable {
+    onpc_progress::operation('Qualifying native app-grid launch and ordinary use');
+    my ($exchange) = @_;
+    die 'native:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'native-grid-usable', review => 0);
+    onpc_gdm::reattach_functional();
+    onpc_parent::sign_in($journey, 'other-child', 'success');
+    $journey->seen('wrong-entry');
+    my $first = onpc_journey->new(
+        exchange => sub { $exchange->('first-' . $_[0], $_[1]) },
+        prefix => 'native-grid-usable-first', review => 0);
+    my $opened = native_open_grid($first, $first->seen('desktop'));
+    native_close_app($first, native_use_app($first, $opened));
+
+    my $repeat = onpc_journey->new(
+        exchange => sub { $exchange->('repeat-' . $_[0], $_[1]) },
+        prefix => 'native-grid-usable-repeat', review => 0);
+    my $wrong = $repeat->seen('wrong-entry');
+    my $accepted = eval { native_launch_grid($repeat, $wrong); 1; };
+    die 'native:wrong-entry-accepted' if $accepted;
+    die 'native:wrong-refusal' unless $@ =~ /journey:stale-observation/;
+    native_search($repeat, $repeat->seen('desktop'), 'refusals');
+    # The refusal checkpoint is followed by a fresh supplied grid proof,
+    # under the original operation's single-use observation identity.
+    my $grid = $repeat->seen('app-grid');
+    $opened = native_launch_grid($repeat, $grid);
+    native_close_app($repeat, native_use_app($repeat, $opened));
+    $journey->finish();
+}
+
+
 1;

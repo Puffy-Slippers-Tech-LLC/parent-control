@@ -79,6 +79,7 @@ import request_exit
 import parent_toggle
 import app_row_observations
 import native_fixture_qualification
+import native_grid_usable
 import catalogue_search
 import catalogue
 import policy_legend
@@ -220,6 +221,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  fresh_child_denied.PLAN, countdown_qualification.PLAN,
                                  countdown_qualification.OFF_PLAN, app_row_observations.PLAN,
                                  native_fixture_qualification.PLAN,
+                                 native_grid_usable.PLAN,
                                  catalogue_search.PLAN,
                                  catalogue.PLAN,
                                  policy_legend.PLAN,
@@ -257,7 +259,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'parent-privacy', 'parent-support', 'parent-information', 'parent-links',
                               'repeated-operations',
                               'challenges', 'fresh-child-allowed', 'fresh-child-denied',
-                              'countdown-enabled', 'countdown-off', 'app-rows', 'native-fixtures', 'catalogue-search', 'catalogue', 'policy-legend', 'match-save-cancel', 'match-editor', 'rejected-parent-rule', 'access-choices', 'policy', 'search-filters', 'feedback-read', 'feedback-privacy', 'feedback-states',
+                              'countdown-enabled', 'countdown-off', 'app-rows', 'native-fixtures', 'native-grid-usable', 'catalogue-search', 'catalogue', 'policy-legend', 'match-save-cancel', 'match-editor', 'rejected-parent-rule', 'access-choices', 'policy', 'search-filters', 'feedback-read', 'feedback-privacy', 'feedback-states',
                               'trace-stable', 'trace-transition', 'compose-observation',
                               'accessibility-trace', 'named-child-custom-saves',
                               'format', 'block-semantics', 'feedback-formats', 'feedback-link',
@@ -646,6 +648,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         if plan is INTERVAL_RECORDER_PLAN else
                         native_fixture_qualification.NativeFixtureJourney
                         if plan is native_fixture_qualification.PLAN else
+                        native_grid_usable.NativeGridJourney
+                        if plan is native_grid_usable.PLAN else
                         catalogue_search.CatalogueSearchJourney
                         if plan is catalogue_search.PLAN else
                         catalogue.CatalogueJourney if plan is catalogue.PLAN else

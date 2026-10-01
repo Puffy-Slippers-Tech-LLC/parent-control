@@ -938,9 +938,9 @@ these blocks, not copies of them.
 | FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). `save_destination_actions` adds fixed `save` preparation, exact output readback and owned cleanup for the diagnostic Save binding below. Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text and diagnostic Save destination bindings ready; other profiles pending |
 | FILE08 | C | Inspect a declared synthetic or customer-exported text/ZIP artifact with bounded read-only filesystem/archive APIs over guarded SSH. Bind exact file identity and compare actual contents. For explicitly tested retained work, directly open its document in the registered work app and observe real activity instead. | `read_declared_text` / `read_declared_zip` in [synthetic_files.py](../../tests/e2e/synthetic_files.py) and fixed `open-text` / `open-zip` in [synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py) qualify synthetic text/ZIP and the fixed `diagnostic-export` Save receipt binding; see [artifact-read boundary](#customer-artifact-read-boundary). Work uses APP01/03/04; file reads cannot prove usable or retained activity. No Files/editor/archive-viewer GUI for export inspection and no private product files. | synthetic text/ZIP and named Parent diagnostic-export bindings ready; retained-work and other exported artifacts pending |
 | FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | `change_attachment_source` / `SyntheticFiles.call('change-source')`; [qualified source binding](#synthetic-source-change). UI16/Ctrl-S/public saved state only for work observed by an enforcement/retention case. | standard/single synthetic source preparation ready; product snapshot/re-add belongs to the attachment UI matrix; retained-work binding pending |
-| APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 over SSH as the child desktop user without Terminal UI. Never substitute the tested route after failure. | pending |
-| APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | UI01 → UI03 for presence; FILE06 for command denial; UI11 for hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. | pending |
-| APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. | pending |
+| APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | `onpc_app_rows::native_search/native_launch_grid/native_open_grid` qualify Jordan's exact Allowed fixture grid route under [native fixture preparation](#native-fixture-preparation). Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 over SSH as the child desktop user without Terminal UI. Never substitute the tested route after failure. | native Allowed grid ready; command and other bindings pending |
+| APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | `AccessibleUI.native_app_snapshot/native_app_closed` independently observe the owned primary native window and exact initial activity, then complete absence with the recognized desktop after `onpc_app_rows::native_close_app`. UI01 → UI03 for presence; FILE06 for command denial; UI11 for hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. | native Allowed presence/normal closure ready; denial, hidden and other bindings pending |
+| APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | `onpc_app_rows::native_use_app` composes guarded public Submit draft through `AccessibleUI.native_app_submit` and separate exact submitted-label readback. UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. | native primary draft submission ready; other actions/bindings pending |
 | APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | APP02(present) → UI03 → UI12 only for compare. A newly launched window cannot satisfy retained-activity expectations. No hidden process/window inspection. | pending |
 | APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. The selected game needs usable public observations; a menu or timer fixture is insufficient. | pending |
 | APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. Task 296 qualifies the Lunar/Minecraft and Shell tray provider bindings, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
@@ -2115,6 +2115,27 @@ in `test_baseline_fixtures_cleanup_safety.py`; recorder and worker distribution 
 use the existing shared safety inventories. Source-keyed `named_input(fixture_source=True)`
 prepares absent inputs through the maintained artifact builder and preserves
 existing frozen inputs.
+
+`native_grid_usable.PLAN` / `NativeGridJourney` and
+`onpc_app_rows::native_grid_usable` qualify APP01/02/03 for Jordan's
+`ONPC Allowed Fixture` search result and `onpc-fixture-native-primary` window.
+The shared `native_search` uses `onpc_parent::search_whole_query` with that finite
+query; `native_launch_grid` consumes a fresh grid observation before one Enter.
+`native_use_app` submits the initial `ONPC fixture draft` through the public
+Submit draft ID, then independently reads that exact submitted label with
+unchanged draft and `Moves: 0; token: 0`. `native_close_app` closes normally and
+independently requires complete owned window absence with the recognized desktop.
+Two separately supplied valid entries and wrong-entry, wrong-instance and
+uncertain-input refusals passed `check_e2e_native_grid_usable` in
+`20261001T162654Z-8a3c8079` on every enabled VM. The affected Parent search-launch
+regression passed in `20261001T163039Z-3076ff7a`; both runs passed collection,
+owned cleanup and baseline restoration. The observed Shell provider tuple was
+`50.1-0ubuntu1.2`, `en_US.UTF-8`, keyboard `[["xkb", "us"]]`.
+Host checks in `test_e2e_native_grid_usable.py` reconcile actual worker marker
+titles and fresh ordered public observations; the shared ownership/recorder and
+native GTK preview checks preserve input/refusal and exact activity assertions.
+Command launch, hidden/denied results, other fixture actions and complete
+scenarios remain pending under their own task bindings.
 
 FIX03's multiple profile reuses the guarded installed snapshot's two canonical
 children and two approvers; it changes no account identities, roles or station
@@ -3829,6 +3850,9 @@ Before the first live attempt, check the changed boundary end to end on the host
    a renamed stage alone does not prove the input targets the intended child.
 2. Exercise the actual worker sequence against the plan and inject refusal at
    the changed boundary. Check that no later input or successful reply occurs.
+   Reconcile the worker's actual recorded titles through `matched_screens`;
+   generating titles from the plan can hide mismatched nested worker prefixes
+   even when every observation callback ran in order.
    For a custom journey class, also call the real recorder entry point through
    worker startup: its constructor must accept and forward `plan` and keyword
    `actions`. Direct class tests and a mocked recorder do not cover this boundary.

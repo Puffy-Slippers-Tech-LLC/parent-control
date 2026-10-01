@@ -62,6 +62,12 @@ def test_payload_gui_preserves_independent_activity(hermetic_ui_session, gui_pay
                         env=environment, stdout=log, stderr=subprocess.STDOUT))
                     view = FixtureUI(ui, kind, instance)
                     view.ready()
+                    if kind == 'native' and instance == 'primary':
+                        before_activity = ui.native_app_operation('native-opened')
+                        ui.native_app_operation('native-submit')
+                        after_activity = ui.native_app_operation('native-submitted')
+                        assert before_activity['submitted'] == 'No submitted draft'
+                        assert after_activity == {**before_activity, 'submitted': 'ONPC fixture draft'}
                     ui.wait(lambda: audit_owned_controls(
                                 ui, view.scope, root=ui.id_target(view.scope)),
                             'complete fixture ID inventory')

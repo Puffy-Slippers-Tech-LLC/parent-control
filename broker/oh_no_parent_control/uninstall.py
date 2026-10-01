@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 
 from .config import UINT32_MAX
+from .preferences import FORMAT_VERSION, PreferencesError, decode_preferences, validate_preferences
 
 
 LOG = get_logger("uninstall")
@@ -146,6 +147,15 @@ def managed_uids(
                 record_status.st_uid != required_owner or
                 stat.S_IMODE(record_status.st_mode) != 0o600):
             raise UninstallCleanupError("preference record ownership is unsafe")
+        try:
+            record = decode_preferences(path.read_text(encoding="utf-8"))
+            if isinstance(record, dict) and record.get("version") == FORMAT_VERSION:
+                validate_preferences(record)
+                if set(record) == {"version", "personal"}:
+                    # A language-only record is not product policy ownership.
+                    continue
+        except (OSError, UnicodeError, json.JSONDecodeError, PreferencesError) as error:
+            raise UninstallCleanupError("could not read preference record") from error
         try:
             account_lookup(uid)
         except KeyError:

@@ -56,6 +56,13 @@ satisfies Malcontent's requirement that an active grant has an enabled limit.
 The snapshot is removed after either a successful rollback or successful
 package removal.
 
+Version-4 personal-only preference records contain no policy ownership. The
+removal helper excludes those records, so saving a language for an administrator,
+kiosk or otherwise unmanaged child does not cause enforcement cleanup for that
+account. Migrated records and explicit policy saves retain their policy fields
+and remain cleanup targets even when control is disabled. Both record variants
+are retained on ordinary remove and deleted on purge.
+
 ## PAM and kiosk ownership
 
 Installation uses `pam-auth-update` to enable the product profiles and disable

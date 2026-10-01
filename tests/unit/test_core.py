@@ -1,5 +1,7 @@
 import threading
+import tempfile
 import unittest
+from pathlib import Path
 from datetime import datetime
 from unittest import mock
 from zoneinfo import ZoneInfo
@@ -10,7 +12,7 @@ from oh_no_parent_control.core import (
     seconds_until_local_midnight,
 )
 from oh_no_parent_control.preferences import (
-    PreferencesError, default_preferences, validate_preferences,
+    PreferencesError, default_preferences, validate_preferences, PreferenceStore, FORMAT_VERSION,
 )
 from oh_no_parent_control.execution_policy import ExecutionPolicyError
 
@@ -21,6 +23,94 @@ from tests.support.broker import (
 
 
 class CoreTests(unittest.TestCase):
+    def test_own_language_is_shared_by_uid_and_independent_of_policy(self):
+        accounts, authorizer = Accounts(), Authorizer()
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            broker = Broker(make_broker()._config_loader, authorizer, accounts, store)
+            before = store.load(1001)
+            for uid, language in ((0, "en"), (991, "de"), (1001, "fr"), (1003, "es")):
+                self.assertEqual(broker.get_own_language(uid), "")
+                self.assertEqual(broker.set_own_language(uid, language), language)
+            restarted = Broker(broker._config_loader, authorizer, accounts,
+                               PreferenceStore(Path(directory)))
+            self.assertEqual(restarted.get_own_language(1001), "fr")
+            self.assertEqual(restarted.get_own_language(991), "de")
+            self.assertEqual(restarted.get_own_language(1003), "es")
+            expected = {**before, "personal": {"language": "fr"}}
+            self.assertEqual(store.load(1001), expected)
+            self.assertEqual(accounts.events, [])
+            self.assertEqual(authorizer.calls, [])
+
+    def test_own_language_authorizes_before_access_and_validates_before_save(self):
+        store = mock.Mock()
+        broker = Broker(make_broker()._config_loader, Authorizer(), Accounts(), store)
+        for uid in (1004, 1005, 12345, -1, True):
+            with self.subTest(uid=uid):
+                with self.assertRaises(AccessDenied):
+                    broker.get_own_language(uid)
+                with self.assertRaises(AccessDenied):
+                    broker.set_own_language(uid, "fr")
+        store.load.assert_not_called()
+        store.update_language.assert_not_called()
+        with self.assertRaises(InvalidRequest):
+            broker.set_own_language(1001, "../en")
+        store.update_language.assert_not_called()
+        for error in (PreferencesError("future version"), OSError("unavailable")):
+            store.load.side_effect = store.update_language.side_effect = error
+            with self.assertRaises(BackendFailure):
+                broker.get_own_language(1001)
+            with self.assertRaises(BackendFailure):
+                broker.set_own_language(1001, "fr")
+        unavailable = Broker(broker._config_loader, Authorizer(), Accounts())
+        with self.assertRaises(BackendFailure):
+            unavailable.get_own_language(1001)
+
+    def test_policy_editor_cannot_replace_child_personal_preferences(self):
+        preferences = Preferences()
+        preferences.update_language(1001, "fr")
+        stale = preferences.load(1001)
+        stale["personal"]["language"] = "de"
+        saved = make_broker(preferences=preferences).set_preferences(1003, 1001, stale)
+        self.assertEqual(saved["personal"]["language"], "fr")
+
+    def test_language_change_during_authorization_does_not_invalidate_approval(self):
+        preferences = Preferences()
+        preferences.values[1001]["parent_control_enabled"] = True
+        broker = None
+
+        def change_language():
+            broker.set_own_language(1001, "fr")
+
+        broker = make_broker(Authorizer(callback=change_language), preferences=preferences)
+        _correlation, result, _duration = broker.request_own_access(1001, ":1.42", 1003, 300, True)
+        self.assertEqual(result, "approved")
+        self.assertEqual(broker.get_own_language(1001), "fr")
+
+    def test_failed_policy_commit_keeps_language_changed_after_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            preferences = PreferenceStore(Path(directory))
+            accounts = Accounts()
+            broker = make_broker(accounts=accounts, preferences=preferences)
+            before = preferences.load(1001)
+            requested = preferences.load(1001)
+            requested["daily_time_limit_minutes"] = 42
+            original = accounts.set_filter
+            calls = []
+
+            def fail_commit(uid, value):
+                calls.append(value)
+                if len(calls) == 1:
+                    broker.set_own_language(1001, "fr")
+                    raise RuntimeError("filter write failed")
+                original(uid, value)
+
+            accounts.set_filter = fail_commit
+            with self.assertRaises(BackendFailure):
+                broker.set_preferences(1003, 1001, requested)
+            self.assertEqual(preferences.load(1001),
+                             {**before, "personal": {"language": "fr"}})
+
     def test_extension_diagnostic_collection_targets_only_eligible_children(self):
         extensions = mock.Mock()
         broker = make_broker(extensions=extensions)
@@ -229,9 +319,9 @@ class CoreTests(unittest.TestCase):
 
     def test_preferences_are_scoped_by_role(self):
         broker = make_broker()
-        self.assertEqual(broker.get_preferences(1001, 1001)["version"], 3)
-        self.assertEqual(broker.get_preferences(991, 1001)["version"], 3)
-        self.assertEqual(broker.get_preferences(1003, 1001)["version"], 3)
+        self.assertEqual(broker.get_preferences(1001, 1001)["version"], FORMAT_VERSION)
+        self.assertEqual(broker.get_preferences(991, 1001)["version"], FORMAT_VERSION)
+        self.assertEqual(broker.get_preferences(1003, 1001)["version"], FORMAT_VERSION)
         with self.assertRaises(AccessDenied):
             broker.get_preferences(1002, 1001)
 

@@ -44,6 +44,13 @@ CONFIG_PATH = os.environ.get("OH_NO_PARENT_CONTROL_CONFIG", "/etc/oh-no-parent-c
 INTROSPECTION_XML = f"""
 <node>
   <interface name="{INTERFACE}">
+    <method name="GetOwnLanguage">
+      <arg name="language" type="s" direction="out"/>
+    </method>
+    <method name="SetOwnLanguage">
+      <arg name="language" type="s" direction="in"/>
+      <arg name="saved_language" type="s" direction="out"/>
+    </method>
     <method name="ListManagedUsers">
       <arg name="users" type="a(uss)" direction="out"/>
     </method>
@@ -371,7 +378,14 @@ class Service:
             deferred_reply = False
             if method not in ("LogEvent", "CalculateOwnRemainingTime"):
                 LOG.info("service.006", method=method)
-            if method == "ListManagedUsers":
+            if method == "GetOwnLanguage":
+                language = self.broker.get_own_language(caller_uid)
+                invocation.return_value(GLib.Variant("(s)", (language,)))
+            elif method == "SetOwnLanguage":
+                language, = parameters.unpack()
+                saved = self.broker.set_own_language(caller_uid, language)
+                invocation.return_value(GLib.Variant("(s)", (saved,)))
+            elif method == "ListManagedUsers":
                 users = self.broker.list_managed_users(caller_uid)
                 invocation.return_value(GLib.Variant(
                     "(a(uss))",

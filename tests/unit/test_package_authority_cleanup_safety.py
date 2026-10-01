@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -32,7 +33,7 @@ def test_package_install_allows_dependencies_on_product_free_baseline(monkeypatc
     from guest_install_recipe import install
     monkeypatch.setenv('DEBIAN_FRONTEND', 'noninteractive')
     run = Mock()
-    install(run, Mock(), command.ARGV[-1])
+    install(run, Mock(), Path(command.ARGV[-1]))
     expected = run.call_args_list[-1].args[0]
     assert command.ARGV[0] == '/usr/bin/' + expected[0]
     assert command.ARGV[1:] == tuple(expected[1:])

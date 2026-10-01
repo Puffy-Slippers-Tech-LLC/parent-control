@@ -481,7 +481,7 @@ class RequestObservation:
         if operation == 'overlay-request-form':
             require(observation == cls(
                 surface='child-overlay', form_count=1, child='fixture-child',
-                approver='fixture-parent', duration_seconds=1800, custom_text=None,
+                approver='other-fixture-parent', duration_seconds=1800, custom_text=None,
                 allow_soft=False, child_selector_enabled=False,
                 approver_selector_enabled=True, duration_enabled=True,
                 soft_choice_enabled=True, request_enabled=True, cancel_enabled=True,

@@ -415,7 +415,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 result['request'].update(approver='none', message='no-approver')
             if operation == 'overlay-request-form':
                 result['request'].update(surface='child-overlay', child='fixture-child',
-                    approver='fixture-parent', child_selector_enabled=False,
+                    approver='other-fixture-parent', child_selector_enabled=False,
                     approver_selector_enabled=True, duration_enabled=True,
                     soft_choice_enabled=True, request_enabled=True, message='')
         if operation in accessible_ui.TOGGLE_OPERATIONS:

@@ -35,6 +35,7 @@ changing approval or commit behavior. A preference schema change needs
 | --- | --- | --- |
 | Identity, D-Bus, authorization | [Broker](SystemDesign/Broker.md) | [Accounts](SystemDesign/Broker.md#accounts-and-roles), [method permissions](SystemDesign/Broker.md#broker-interface-and-roles), [approval/revocation](SystemDesign/Broker.md#authorization-and-grant-transactions) |
 | Preferences and configuration | [State](SystemDesign/State.md) | [Schemas, defaults, and authorities](SystemDesign/State.md#persistent-and-derived-state) |
+| Localization and personal language | [Localization](SystemDesign/Localization.md) | [Infrastructure](SystemDesign/Localization.md#localization-infrastructure), [settings backend](SystemDesign/Localization.md#language-user-settings-backend), [settings GUI](SystemDesign/Localization.md#language-user-settings-gui), [translation lifecycle](SystemDesign/Localization.md#translation-lifecycle-and-shared-ui) |
 | Saved-data compatibility and upgrades | [Data migration](SystemDesign/Data-Migration.md) | [Package ordering and retries](SystemDesign/Data-Migration.md#package-lifecycle), [adding migrations](SystemDesign/Data-Migration.md#adding-a-preference-migration), [safety](SystemDesign/Data-Migration.md#safety-contract) |
 | Time limits and child sessions | [Screen time](SystemDesign/Screen-Time.md) | [Enablement](SystemDesign/Screen-Time.md#screen-time-model), [calculations and usage](SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities), [countdown/lock/PAM](SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement) |
 | Application enforcement | [Application policy](SystemDesign/Applications.md) | [Catalog](SystemDesign/Applications.md#application-policy-and-enforcement), [process matching](SystemDesign/Applications.md#running-application-identity), [execution rules](SystemDesign/Applications.md#live-filter-and-execution-rules), [session reconciliation](SystemDesign/Applications.md#session-entry-reconciliation) |
@@ -107,12 +108,12 @@ Empty means follow the frontend
 session language. Each GTK frontend prompts when this field is empty and saves
 it through the caller-scoped D-Bus API; its Preferences menu reopens the chooser.
 Parent and request screens have separate dialog UIs, sharing catalogue and locale
-resolution. The shared catalogue supplies native language names. A shared
-[GNU gettext foundation](SystemDesign/Frontends.md#localization-infrastructure)
-provides per-user translation objects and packaged message catalogues. Migrating
-presentation strings and applying translations in the frontends remain separate
-work; logs are never localized. See
-[State](SystemDesign/State.md) for the storage and API contract.
+resolution. The shared catalogue supplies native language names.
+[Localization](SystemDesign/Localization.md) defines per-user GNU gettext
+contexts, language application across GTK and Shell, shared-dialog inheritance,
+formatting, accessibility and packaged message catalogues. Language changes
+preserve policy and in-progress user work; logs and protocol values remain
+stable. See [State](SystemDesign/State.md) for the storage and API contract.
 
 - Screen-time control and saved app policy are independent. Temporary approval
   can relax soft blocks while preserving hard blocks.

@@ -92,10 +92,9 @@ cannot change a child's personal settings. Personal changes are excluded from
 approval-policy snapshot comparisons. Language writes do not alter
 AccountsService, OS locale settings or grants. Ordinary removal
 retains these records; purge removes them with the product state directory.
-The [Parent selector](Frontends.md#personal-language-selection) uses this API;
-translation application remains outside the implemented language setting.
-The [localization foundation](Frontends.md#localization-infrastructure) consumes
-the existing value without changing persistence, authorization or the schema.
+The [language selectors](Frontends.md#personal-language-selection) use this API.
+[Localization](Localization.md) defines translation contexts and language
+application without changing persistence, authorization or policy ownership.
 
 The ownership of runtime state is deliberately split:
 

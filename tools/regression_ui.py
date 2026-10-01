@@ -70,6 +70,10 @@ GROUPS = (
 # builds its payload and Flatpak installation below its private pytest root;
 # both use the worker's private compositor, accessibility bus and runtime.
 # Keep pairing identities separate even when buckets have the same reservation.
+# The catalogue matrix uses the existing private Parent preview and event log,
+# with finite scripted native rows. Its waited Perl children expand input only;
+# no VM, system catalogue, network or shared settings are touched. Preview and
+# About retains its compatible private-display reservation.
 # Feedback replacement uses the adapter bucket's private preview, compositor and
 # accessibility bus; keyboard input and app cleanup stay inside that fixture.
 # Synthetic duplication uses that same editor's clipboard on the private

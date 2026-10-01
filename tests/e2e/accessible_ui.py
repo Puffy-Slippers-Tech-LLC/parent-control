@@ -172,6 +172,8 @@ KIOSK_INVALID_VALUES = {
 }
 TEXT_VALUES = {
     'catalogue-name': ('parent-app-search', 'ONPC Allowed Fixture'),
+    'catalogue-description': ('parent-app-search', 'Exact native catalogue fixture'),
+    'catalogue-identifier': ('parent-app-search', 'com.puffyslippers.ONPCTest.A.desktop'),
     'catalogue-absent': ('parent-app-search', 'ONPC Absent Catalogue Fixture 077b'),
     'catalogue-clear': ('parent-app-search', ''),
     **{f'body-ascii-{units}': ('feedback-editor-input', 'x' * units)
@@ -367,12 +369,23 @@ APP_ROW_OPERATIONS = frozenset({
 })
 APP_ROW_OPERATIONS |= frozenset('existing-' + operation for operation in APP_ROW_OPERATIONS)
 APP_ROW_OPERATIONS |= {'catalogue-incomplete-refused'}
+APP_ROW_OPERATIONS |= {'catalogue-filter-wrong-child', 'catalogue-filter-wrong-page'}
 CATALOGUE_ROW_OPERATIONS = {
     'catalogue-name-rows': 'catalogue-name', 'catalogue-name-reopened': 'catalogue-name',
     'catalogue-absent-rows': 'catalogue-absent', 'catalogue-absent-reopened': 'catalogue-absent',
     'catalogue-clear-rows': 'catalogue-clear',
+    'catalogue-description-rows': 'catalogue-description',
+    'catalogue-identifier-rows': 'catalogue-identifier',
 }
 APP_ROW_OPERATIONS |= frozenset(CATALOGUE_ROW_OPERATIONS)
+FILTER_OPTIONS = {'match-rule': ('pattern', 'precise'),
+                  'access-rule': ('allowed', 'conditional', 'permanent')}
+FILTER_OPERATIONS = {
+    f'filter-{kind}-{mask}-{action}': (kind, mask, action)
+    for kind, options in FILTER_OPTIONS.items() for mask in range(1 << len(options))
+    for action in ('open', *options, 'read', 'closed')
+}
+OPERATIONS |= frozenset(FILTER_OPERATIONS)
 OPERATIONS |= APP_ROW_OPERATIONS
 TOGGLE_OPERATIONS = {
     'multiple-other-enable': {'state': True, 'activated': True},
@@ -395,7 +408,7 @@ NAMED_CUSTOM_OPERATIONS = frozenset(
     operation for operation, (_, action) in CUSTOM_ALLOWANCE_OPERATIONS.items()
     if action in ('open', 'saved', 'reopen')) | frozenset(
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
-    if binding in ('daily-6', 'daily-7', 'catalogue-name', 'catalogue-absent', 'catalogue-clear')) | {
+    if binding in ('daily-6', 'daily-7') or binding.startswith('catalogue-')) | frozenset(FILTER_OPERATIONS) | {
         'parent-custom-events', 'parent-custom-trace-focus',
         'parent-custom-trace-disabled-refused', 'named-custom-setup',
         'named-custom-wrong-child-refused', 'parent-trace-wrong-surface-refused',
@@ -3984,7 +3997,9 @@ class AccessibleUI:
 
     def set_toggle(self, identity, desired, *, root):
         """UI17: set a registered owned switch to an explicit state."""
-        require(identity in ('parent-screen-limit-toggle', 'kiosk-soft-apps-toggle')
+        require(identity in ('parent-screen-limit-toggle', 'kiosk-soft-apps-toggle',
+                *(f'parent-filter-{kind}-{option}' for kind, options in FILTER_OPTIONS.items()
+                  for option in options))
                 and type(desired) is bool,
                 'ui:toggle-binding')
         # A complete lookup may legitimately omit a hidden GTK stack page.
@@ -4970,8 +4985,59 @@ class AccessibleUI:
         check_deadline()
         return result
 
+    def catalogue_filter(self, child, kind, mask, action):
+        """PARENT11 leaves: owned entry, UI17 options, exact read and closure.
+
+        The caller sends Escape only after the independently checked selection.
+        Each input reacquires its child/page/owner and public option identity.
+        """
+        require(kind in FILTER_OPTIONS and type(mask) is int
+                and 0 <= mask < (1 << len(FILTER_OPTIONS[kind]))
+                and action in ('open', *FILTER_OPTIONS[kind], 'read', 'closed'),
+                'ui:filter-binding')
+        self.text_recipient('parent-app-search', child=child)
+        root = self.parent()
+        choices_id = f'parent-filter-{kind}-choices'
+        if action == 'closed':
+            self.wait(lambda: self.absent_id(choices_id, within='parent-window'),
+                      'filter-closed')
+            return {'closed': kind}
+        if action == 'open':
+            require(self.absent_id(choices_id, within='parent-window'), 'ui:filter-already-open')
+            self.activate_id(f'parent-filter-{kind}', action_name='menu.popup')
+        choices = self.id_target(choices_id, root=root, sensitive=True)
+        if action in FILTER_OPTIONS[kind]:
+            desired = bool(mask & (1 << FILTER_OPTIONS[kind].index(action)))
+            return self.set_toggle(f'parent-filter-{kind}-{action}', desired, root=choices)
+        selected = []
+        # Read every declared option independently, including unselected values.
+        for option in FILTER_OPTIONS[kind]:
+            target = self.id_target(f'parent-filter-{kind}-{option}', root=choices, sensitive=True)
+            if self.has_state(target, self.api.StateType.CHECKED):
+                selected.append(option)
+        if action == 'open':
+            return {'opened': kind}
+        expected = [option for index, option in enumerate(FILTER_OPTIONS[kind])
+                    if mask & (1 << index)]
+        require(selected == expected, 'ui:filter-selection')
+        return {'selected': selected, 'filter': kind}
+
     def app_row_operation(self, operation):
         require(operation in APP_ROW_OPERATIONS, 'ui:app-row-operation')
+        if operation in ('catalogue-filter-wrong-child', 'catalogue-filter-wrong-page'):
+            wrong_child = operation.endswith('wrong-child')
+            if not wrong_child:
+                self.parent_page(EXISTING_CHILD, 'Screen Limits')
+            try:
+                self.catalogue_filter(CHILD if wrong_child else EXISTING_CHILD,
+                                      'match-rule', 2, 'open')
+            except UiError as error:
+                require(str(error) in (('ui:wrong-child',) if wrong_child else
+                        ('ui:text-entry', 'ui:text-disabled', 'ui:app-row-page')),
+                        'ui:filter-wrong-refusal')
+            else:
+                raise UiError('ui:filter-wrong-accepted')
+            return {'refusal': 'wrong-child' if wrong_child else 'wrong-page'}
         if operation in CATALOGUE_ROW_OPERATIONS:
             binding = CATALOGUE_ROW_OPERATIONS[operation]
             if operation.endswith('reopened'):
@@ -7604,6 +7670,9 @@ class AccessibleUI:
                     else self.parent_checked_events(operation))
         elif operation in TOGGLE_OPERATIONS:
             result['toggle'] = self.parent_toggle_operation(operation)
+        elif operation in FILTER_OPERATIONS:
+            kind, mask, action = FILTER_OPERATIONS[operation]
+            result['filter'] = self.catalogue_filter(child, kind, mask, action)
         elif operation in APP_ROW_OPERATIONS:
             result['apps'] = self.app_row_operation(operation)
         elif operation in PARENT_SAVE_OPERATIONS:

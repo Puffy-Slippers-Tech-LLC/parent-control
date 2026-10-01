@@ -473,6 +473,58 @@ def test_catalogue_text_binding_focus_replacement_clear_and_wrong_child(
         reader.focus_text('parent-app-search', child=CHILD)
 
 
+@pytest.mark.parametrize('binding', ('catalogue-name', 'catalogue-description',
+    'catalogue-identifier', 'catalogue-clear', 'catalogue-absent'))
+def test_catalogue_complete_query_match_access_matrix(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, binding):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, UiError
+    from tests.e2e.native_fixtures import expected_rows, catalogue_rows
+    from tests.support.gui_blocks import run_block
+    events = tmp_path / 'catalogue-events.jsonl'
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario='catalogue', events_path=events)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.activate('parent-child-selector', action_name='menu.popup')
+    ui.activate('parent-child-choice-1002')
+    wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
+    reader = AccessibleUI(ui.api, timeout=20, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    reader.parent_page(EXISTING_CHILD, 'App Limits')
+    initial = tuple((identity, {'H': 'permanent', 'S': 'conditional'}.get(role, access), match)
+        for identity, access, match in expected_rows()
+        for role in ('A', 'H', 'S', 'N')
+        if identity == 'parent-app-' + hashlib.sha256(
+            f'com.puffyslippers.ONPCTest.{role}.desktop'.encode()).hexdigest()[:16])
+    assert reader.app_rows(EXISTING_CHILD) == initial
+    with pytest.raises(UiError, match='wrong-child'):
+        reader.catalogue_filter(CHILD, 'match-rule', 2, 'open')
+    run_block(reader, 'replace', binding, child='existing')
+    for match_mask in range(4):
+        run_block(reader, 'filter', 'match-rule', str(match_mask),
+                  f'filter-match-rule-{match_mask}', child='existing')
+        for access_mask in range(8):
+            run_block(reader, 'filter', 'access-rule', str(access_mask),
+                      f'filter-access-rule-{access_mask}', child='existing')
+            expected = catalogue_rows(binding, initial, match_mask=match_mask, access_mask=access_mask)
+            wait_for_accessible_state(lambda: reader.app_rows(EXISTING_CHILD) == expected,
+                                      'exact query/filter intersection including empty results')
+    for kind, mask in (('match-rule', 3), ('access-rule', 7)):
+        run_block(reader, 'filter', kind, str(mask), f'filter-{kind}-{mask}', child='existing')
+    run_block(reader, 'replace', 'catalogue-clear', child='existing')
+    wait_for_accessible_state(lambda: reader.app_rows(EXISTING_CHILD) == initial,
+                              'complete unchanged policies after clear')
+    assert not any(record['event'] in ('set_preferences', 'set_parent_control')
+                   for record in read_events(events))
+    reader.parent_page(EXISTING_CHILD, 'Screen Limits')
+    with pytest.raises(UiError, match='text-entry|text-disabled|app-row-page'):
+        reader.catalogue_filter(EXISTING_CHILD, 'match-rule', 2, 'open')
+
+
 def test_parent_app_search_rule_edit_and_revocation_confirmation(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     from tests.support.keyboard import key_combo, type_text

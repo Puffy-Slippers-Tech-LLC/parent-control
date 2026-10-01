@@ -99,6 +99,8 @@ def expected_rows():
 # Finite public search inputs; expected identities are independent of UI output.
 CATALOGUE_QUERIES = {
     'catalogue-name': ASSETS[0][2],
+    'catalogue-description': ASSETS[0][3],
+    'catalogue-identifier': desktop_id('A'),
     'catalogue-absent': 'ONPC Absent Catalogue Fixture 077b',
     'catalogue-clear': '',
 }
@@ -110,6 +112,20 @@ def search_rows(binding):
     return (() if binding == 'catalogue-absent' else
             tuple(row for row in expected_rows() if row[0] == 'parent-app-' +
                   hashlib.sha256(desktop_id('A').encode()).hexdigest()[:16]))
+
+
+def catalogue_rows(binding, rows, *, match_mask=3, access_mask=7):
+    """Finite independent oracle shared by the host matrix and installed sample."""
+    require(binding in CATALOGUE_QUERIES and type(match_mask) is int
+            and 0 <= match_mask < 4 and type(access_mask) is int
+            and 0 <= access_mask < 8, 'catalogue:binding')
+    matches = tuple(value for index, value in enumerate(('pattern', 'precise'))
+                    if match_mask & (1 << index))
+    accesses = tuple(value for index, value in enumerate(('allowed', 'conditional', 'permanent'))
+                     if access_mask & (1 << index))
+    query_ids = {row[0] for row in search_rows(binding)} if binding != 'catalogue-clear' else None
+    return tuple(row for row in rows if (query_ids is None or row[0] in query_ids)
+                 and row[1] in accesses and row[2] in matches)
 
 
 def check_catalogue(rows):

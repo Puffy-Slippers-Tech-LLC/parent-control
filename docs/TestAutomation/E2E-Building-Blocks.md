@@ -343,7 +343,7 @@ DESK10 needs no Shell switcher GUI adapter.
 | PARENT09 | C | Reach the selected child's remaining-time explanation, expanding it only if currently collapsed, then read its balances. | `AccessibleUI.reach_time_explanation(child)` requires the selected child's Screen Limits surface, expands only a proven collapsed section with its public row action, then uses PARENT20. Repeated reads perform no collapse. `check_e2e_time_explanation` qualified independent collapsed/expanded entry, wrong-child refusal and repeated positive/zero reads in run `20260925T062949Z-49d65b22`, including collection, owned cleanup and baseline restoration. Use PARENT20 for read-only observation; neither block visits another desktop. | ready |
 | PARENT12 | C | Read a displayed app row's identity, access choice and match choice. | `AccessibleUI.app_rows(child, maximum=256, expected_ids=None)` returns immutable public ID/access/match triples; `AppRowsObservation.from_rows` validates the controller projection. UI01 → UI02 → UI03, without installed-catalogue or executable probes. Fresh selected-child defaults, independent App Limits reread and wrong-child/page refusals qualified by `check_e2e_app_row_observations`; [scope](#app-row-observations). Declared native [search](#catalogue-search) results are qualified; filtering and policy edits retain their separate pending consumers. | ready for selected-child row observations |
 | PARENT10 | C | Search the App Limits catalogue by name, description or launcher identifier and observe the matching displayed rows, including an explicitly expected empty set. | `onpc_app_rows::search` composes UI16 replacement with caller-named UI13 row read and independent controller comparison. Exact native name, absent-name and clear bindings passed `check_e2e_catalogue_search`; see [catalogue search](#catalogue-search). Row details use PARENT12 separately. | ready for declared native name/absent/clear bindings; description/identifier and filter combinations pending |
-| PARENT11 | C | Set one named App Limits filter's explicit selection set and observe the exact displayed result set. Both access-rule and match-rule popovers use independently checked options. | UI01 → UI04(open) → UI17 for each declared option → UI05(Escape) → UI11(popover) → UI13(rows) → UI12(expected set). Same implementation for both filters. | pending |
+| PARENT11 | C | Set one named App Limits filter's explicit selection set and observe the exact displayed result set. Both access-rule and match-rule popovers use independently checked options. | `onpc_app_rows::filter` composes public popup entry, UI17 for every declared option, exact selection readback, Escape and checked closure. Caller-owned UI13/UI12 stages compare the complete rows through `native_fixtures.catalogue_rows`; see [catalogue filters](#catalogue-filters). Same implementation for both filters. | pending live qualification |
 | PARENT13 | C | Open a named app's Edit Match Rule dialog and read its current rule. | UI01 → UI04 → UI01 → UI03. | pending |
 | PARENT15 | C | Apply Save, Cancel or Reset to the open match editor and observe the explicitly expected result. Empty/unrelated precise text stays in the editor; a rejected wildcard closes it and opens a failure report. Do not close that report implicitly. | UI04(response) → PARENT08; saved/cancelled: UI11(editor) → PARENT12 → UI12; invalid draft: UI03 → UI02(editor); failed save: UI11(editor) → UI01(report) → UI03(public error). Caller uses FEED15 or UI18 for report review/close before reading restored rows. | pending |
 | PARENT16 | C | Choose Allowed, Hard blocked or Soft blocked for one displayed app; observe save and displayed choice. | UI15(access choice group) → PARENT08 → PARENT12. | pending |
@@ -418,6 +418,37 @@ stop boundaries and real recorder startup/comparison. The preview checks real
 focus, replacement, clear and wrong-child/page refusal. This qualifies only the
 declared search slice; task 077 retains the full query/filter UI matrix and
 installed combined-filter sample, and case 184 retains its complete acceptance.
+
+### Catalogue filters
+
+`AccessibleUI.catalogue_filter(child, kind, mask, action)` in
+[accessible_ui.py](../../tests/e2e/accessible_ui.py) binds `match-rule` to
+`pattern/precise` and `access-rule` to `allowed/conditional/permanent`.
+Bitmasks select each option explicitly, including none and all. Before each
+input it checks the owned active Parent, selected child and usable App Limits
+page. Public `parent-filter-<kind>` popup actions and identified choice controls
+use UI17's one-use action and independent state readback. The complete selection
+is checked before Escape; a fresh complete public read proves popup closure.
+Wrong-child/page entry, missing/duplicate options and uncertain input refuse.
+
+`onpc_app_rows::filter(journey, kind, mask, prefix)` in
+[onpc_app_rows.pm](../../tests/integration/graphical_smoke/lib/onpc_app_rows.pm)
+uses caller-owned stage names. `journey_blocks.filter_screens` declares their
+finite operations. The caller separately observes complete rows through UI13
+and supplies its exact expected result, without inheriting a qualification's
+fixture lifecycle. `native_fixtures.catalogue_rows` supplies the shared finite
+oracle for name, description, identifier, empty and absent queries, each combined
+with four match subsets and eight access subsets. Empty expected results remain
+explicit; observations use no installed-catalogue backend.
+
+[catalogue.py](../../tests/e2e/catalogue.py) owns the qualification's fresh native
+verification, Jordan entry, precise/Allowed installed sample, independent entry,
+wrong-entry refusals, and full clear/unchanged-policy comparison. Its selector is
+`tools/run-tests integration check_e2e_catalogue`; live qualification is pending.
+The full preview matrix is
+`test_preview_smoke.py::test_catalogue_complete_query_match_access_matrix`, with
+scripted hard/soft policies and a final complete row comparison plus no broker
+policy writes. Complete case 184 remains separate.
 
 ### Kiosk, child overlay and the shared request form
 

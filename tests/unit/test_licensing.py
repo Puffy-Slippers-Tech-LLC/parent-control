@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 
+from common.oh_no_parent_control_ui import messages as m
 from tests.support.paths import ROOT
 
 
@@ -25,7 +26,9 @@ class LicensingTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('notices_path = _data_dir() / "NOTICE"', source)
-        self.assertIn('"Legal notices"', source)
+        self.assertIn('_detail_row("dialog-information-symbolic", m.LEGAL_NOTICES,', source)
+        self.assertEqual(m.LEGAL_NOTICES.source, "Legal notices")
+        self.assertIn('notices_path.as_uri(), links_enabled=links_enabled', source)
         self.assertNotIn("All rights reserved.", source)
 
     def test_installation_ships_legal_notices_without_developer_documentation(self):

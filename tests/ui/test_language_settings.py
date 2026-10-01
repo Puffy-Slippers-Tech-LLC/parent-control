@@ -3,7 +3,7 @@
 import pytest
 
 from tests.support.events import read_events
-from tests.support.feedback import dismiss_feedback_dialog, feedback_editor
+from tests.support.feedback import feedback_editor
 from tests.support.localization_review import public_label_names
 
 
@@ -50,11 +50,14 @@ def committed(path):
             if event['event'] == 'language-committed']
 
 
-def assert_no_policy_or_request_writes(path):
+def assert_no_policy_or_request_writes(path, *, expected_results=0):
     records = read_events(path)
     assert not [event for event in records if event['event'] in (
         'set_preferences', 'set_parent_control', 'revoke_one_time_grant',
-        'result', 'feedback', 'logout', 'close_overlay')]
+        'feedback', 'logout', 'close_overlay')]
+    # Results are presentation events, not broker writes. Only the declared
+    # startup-error scenario may produce one without submitting a request.
+    assert len([event for event in records if event['event'] == 'result']) == expected_results
     assert not [event for event in records if event.get('method') in (
         'RequestOwnAccess', 'RequestAccess', 'UpdateRequestPreferences', 'SetRequestMuted')]
 
@@ -175,10 +178,19 @@ def test_failed_startup_read_is_reported_and_preferences_retries(
     if surface == 'parent':
         wait(lambda: ui.showing('feedback-dialog'), 'read failure opens the error report')
         editor = feedback_editor(ui, wait)
-        wait(lambda: explanation in ui.content(editor), 'read failure explanation is visible')
-        dismiss_feedback_dialog(ui, wait, 'feedback-dialog', within='parent-window')
+        # Error reports seed only fixed public text and closed categories;
+        # caller-provided explanations must not enter the editable draft.
+        wait(lambda: 'Error categories: RuntimeError' in ui.content(editor),
+             'read failure report is populated')
+        assert ui.content(editor).rstrip('\n') == (
+            'Something went wrong\n'
+            'The operation could not be completed. Please try again later.\n\n'
+            'Error categories: RuntimeError')
+        ui.activate('feedback-close')
+        wait(lambda: ui.absent('feedback-dialog', within='parent-window'), 'error report closes')
     else:
         wait(lambda: ui.showing('kiosk-language-load-error'), 'read failure is distinct from setup')
+        assert ui.text('kiosk-result-title') == LANGUAGES['en'][7]
         assert ui.text('kiosk-result-detail') == explanation
     window = 'parent-window' if surface == 'parent' else 'kiosk-request-window'
     assert ui.absent('language-dialog', within=window)
@@ -187,7 +199,7 @@ def test_failed_startup_read_is_reported_and_preferences_retries(
     assert ui.state('language-choice-de', ui.api.StateType.CHECKED)
     ui.reader.save_language(frontend(surface))
     assert_surface_language(ui, wait, surface, 'de')
-    assert_no_policy_or_request_writes(path)
+    assert_no_policy_or_request_writes(path, expected_results=0 if surface == 'parent' else 1)
 
 
 @pytest.mark.parametrize('surface', ('kiosk', 'overlay'))
@@ -202,7 +214,8 @@ def test_request_error_result_uses_current_language(
     ui.reader.save_language('kiosk')
     wait(lambda: ui.state('kiosk-request-submit', ui.api.StateType.SENSITIVE), 'request ready')
     ui.activate('kiosk-request-submit')
-    wait(lambda: ui.text('kiosk-result-title') == LANGUAGES[language][7],
+    wait(lambda: ui.showing('kiosk-result-title')
+         and ui.text('kiosk-result-title') == LANGUAGES[language][7],
          'late error data is rendered in the current language')
     assert 'org.example.Secret' not in ui.text('kiosk-result-detail')
     assert '/private/path' not in ui.text('kiosk-result-detail')

@@ -21,6 +21,14 @@ changing runtime readiness on the strength of documentation alone.
 
 Next task: **035 — [Launch and use native fixtures by command](E2E-Tasks/035-native-app.md)**.
 
+Task 035 recovery: host validation passed; its first live
+`check_e2e_native_app` attempt failed in the worker after
+`child-standard-focused`, before native launch, in report
+`20261001T164907Z-5a798333`. Owned cleanup and baseline restoration passed.
+Diagnose that preserved failure in the next session, repair and revalidate,
+then complete the command qualification before close-out. No live retry or
+product-behavior conclusion was made in this session.
+
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
 pointer; record its exact remaining work and return condition here and in its

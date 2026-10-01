@@ -280,7 +280,7 @@ OPERATION_LABELS.update({
 
 OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret field value'
                          for operation in accessible_ui.TEXT_OPERATIONS})
-OPERATION_LABELS.update({operation: 'Checking the native app grid and ordinary draft submission: ' + operation
+OPERATION_LABELS.update({operation: 'Checking native app launch and ordinary draft submission: ' + operation
                          for operation in accessible_ui.NATIVE_APP_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Copying and doubling declared synthetic editor text'
                          for operation in accessible_ui.DUPLICATE_OPERATIONS})

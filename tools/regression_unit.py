@@ -130,6 +130,9 @@ they introduce no shared resource or process ownership.
 # private tmp_path recorder files and bounded, waited Perl children. No live
 # guest, display, bus, shared cache or new allocation lifetime; their reviewed
 # app-row/composition/launcher and installed-journey buckets stay compatible.
+# Native command checks use process-local session/command doubles, tiny private
+# recorder files and bounded waited Perl workers; no live guest/display/cache.
+# The new e2e_native_app module and existing recorder/launcher buckets overlap.
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,
 # bounded in-memory archives and mocked SSH. Feedback composition retains private
@@ -199,7 +202,7 @@ e2e_install_helper e2e_install_password_observation e2e_installation_boundary
 e2e_installation_observations e2e_inventory e2e_keyring_fixture_cleanup_safety
 e2e_kiosk_eligible_choices e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_no_approver e2e_kiosk_no_child e2e_leased_recording_cleanup_safety
 e2e_license_viewer
-e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch e2e_native_grid_usable
+e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch e2e_native_grid_usable e2e_native_app
 e2e_plan e2e_pointer_helper e2e_progress e2e_real_interval
 e2e_provenance e2e_recording_cleanup_safety e2e_recording_credentials e2e_runner
 e2e_request_choices e2e_request_exit e2e_secret_variables e2e_serial_helper

@@ -352,6 +352,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_app_row_observations'], ['check_e2e_app_row_observations.py'],
             ['check_e2e_native_fixtures'], ['check_e2e_native_fixtures.py'],
             ['check_e2e_native_grid_usable'], ['check_e2e_native_grid_usable.py'],
+            ['check_e2e_native_app'], ['check_e2e_native_app.py'],
             ['check_e2e_catalogue_search'], ['check_e2e_catalogue_search.py'],
             ['check_e2e_catalogue'], ['check_e2e_catalogue.py'],
             ['check_e2e_match_save_cancel'], ['check_e2e_match_save_cancel.py'],
@@ -430,6 +431,7 @@ def qualification_artifact_command(root, category, args):
     output = str(named_input(fixture_source=True) if args in (
         ['check_e2e_native_fixtures'], ['check_e2e_native_fixtures.py'],
         ['check_e2e_native_grid_usable'], ['check_e2e_native_grid_usable.py'],
+        ['check_e2e_native_app'], ['check_e2e_native_app.py'],
         ['check_e2e_catalogue_search'], ['check_e2e_catalogue_search.py'],
         ['check_e2e_catalogue'], ['check_e2e_catalogue.py'],
         ['check_e2e_match_save_cancel'], ['check_e2e_match_save_cancel.py'],

@@ -15,7 +15,7 @@ customer case. They do not create another queue or confer acceptance credit.
 
 | Cases / area | Full GUI owner | Installed E2E scope |
 | --- | --- | --- |
-| 152, feedback formatting | `test_parent_feedback.py`: all block and inline formats, links, clear/reapply, undo/redo, Unicode and retained draft | Type text, bold one selection, append an emoji; retain reply, one real attachment, external-window return, dialog preservation and app-exit reset |
+| 152, feedback formatting | `test_parent_feedback.py`: all block and inline formats, links, clear/reapply, undo/redo, Unicode and retained draft | Type text, bold one selection, append an emoji; retain reply, one real attachment, return from a directly launched supporting window, dialog preservation and app-exit reset. This does not activate a product link. |
 | 153, feedback validation | `test_parent_feedback.py` and `test_e2e_accessible_adapter.py`: local states, 5000/5001 ASCII and emoji, hidden characters, excessive formatting, rejected-send preservation | Reject one empty send, edit body/reply, reopen and observe recovery; never send valid feedback |
 | 154, attachments | `test_parent_feedback.py`: count, individual/total size, filename and atomic-rejection boundaries; real file reads and frozen attachment snapshot after source mutation | Real chooser Open with two files, Cancel preservation, remove one attachment and read the remaining file |
 | 158–159, daily allowance | `test_preview_smoke.py` and `test_control_overflow.py`: presets, custom boundaries and local commit paths | 158: preset 15, custom 1, invalid 1441; retain child switching, saved-value reload and restart. 159: real rapid saves, ordering and single-instance behavior |

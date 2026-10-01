@@ -1,14 +1,9 @@
 # 048 — Qualify direct and panel entry to the child overlay
 
-Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and the task-specific scope and acceptance below.
 
-## Read only this context
-
-Use the [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
-Read only the named block rows/callables, this recipe's selected cases and
-applicable finite-data rows. Prerequisite IDs are completion checks; do not open
-their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
+Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
@@ -30,28 +25,14 @@ Qualify normal unlocked-child panel routing (DESK12). For ordinary overlay entry
 
 On the VM with publicly prepared usable child time and fresh child entry, directly invoke the child command and observe exactly one form with the intended fixed child and readable controls. Cancel and repeat from an independently reached child desktop. In a separate entry, activate the panel request control twice deliberately and observe exactly one form with the same fixed child. Use normal Cancel solely to end qualification; this does not qualify the reusable exit binding. Never select another overlay child.
 
-Run affected safety/adapter checks, then implement and register the fixed slice
-qualification below in the existing guarded envelope. Run this slice here;
-its complete scenario remains a separate queue task:
+Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
+Run the fixed qualification below once implemented and registered:
 
 ```sh
 tools/run-tests integration check_e2e_shell_panel
 ```
 
-This selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract)
-before invocation. Require every stated result, independent valid entry, wrong-entry
-refusal and owned cleanup on the live VM. Host tests and a diagnostic slice do not
-establish complete scenario coverage.
-
 ## Close out
 
-After this slice's live qualification and cleanup, follow the
-[master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
-its composition changes. Runtime status belongs in the inventory; leave
-unfinished scope pending.
-Check **048** in the [master's queue](../E2E-Task-Queue.md), update the master's
-**Next task** pointer, then delete this brief once its enduring context is maintained
-in source/contracts. Validate changed Markdown. Keep normal runner artifacts;
-no task archive, evidence document or accumulated history.
+Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
+after this task's acceptance and owned cleanup pass.

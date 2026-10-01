@@ -1,7 +1,9 @@
 # 296b — Prove the denied Lunar login interval
 
-Estimate: 40–60 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and the task-specific scope and acceptance below.
+
+Estimate: 40–60 minutes.
 
 Session exception: The complete denied login interval, same-route denial control and shared recorder/secret regressions remain required.
 
@@ -59,8 +61,5 @@ tools/run-tests integration check_e2e_lunar_login_observer
 
 ## Close out
 
-Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Record the callable and exact qualified scope in the
-[catalogue](../E2E-Building-Blocks.md), check **296b** only after acceptance and
-cleanup, advance to the following unchecked row, and delete this brief after
-enduring context is maintained. The complete scenario stays in its own task.
+Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
+after this task's acceptance and owned cleanup pass.

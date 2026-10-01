@@ -70,6 +70,8 @@ evidence without clearing or rotating the unfinished VM journal.
 
 Changes to allocation or cleanup must cover the affected lifetime, interruption,
 identity/refusal and retention boundaries through the maintained test launchers.
-Pass applicable cleanup-safety regressions before protected host operations.
+Run applicable cleanup-safety regressions as explicit validation before exercising
+changed protected operations. Cleanup itself runs no regression tests; it only
+recovers recorded owned resources under the [cleanup contract](../../tests/README.md#cleanup-safety-prerequisites).
 This mandate changes test tooling only; it grants no product installation,
 unrelated deletion or VM-operation authority.

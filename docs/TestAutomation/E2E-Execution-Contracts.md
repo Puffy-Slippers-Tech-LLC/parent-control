@@ -8,6 +8,37 @@ Read it and the selected acceptance branch before implementation, and read
 completion before close-out. Planning and provider sections have their own
 triggers in the master.
 
+## Task brief contract
+
+Every unfinished brief inherits this contract. Read its task-specific scope,
+prerequisites, implementation and acceptance alongside these applicable owners:
+
+| Trigger | Required owner and execution rule |
+| --- | --- |
+| Selecting or resuming work | [Plan reading routes](E2E-Execution-Plan.md#load-only-the-selected-context); the first unchecked active queue row is authoritative. Prerequisite task IDs select delivered scope, not predecessor briefs or saved VM state. |
+| Any implementation | [Shared support guide](../../tests/support/README.md), [bounded supporting work](E2E-Building-Blocks.md#keep-supporting-work-bounded) and [composition preflight](E2E-Building-Blocks.md#composition-preflight). Cases and qualifications call the same shared operations; callers retain their distinct assertions. |
+| UI work | [UI mandate](../Mandates/UI-Automation-Mandate.MD) and [UI/E2E allocation](UI-and-E2E-Coverage.md). Use public IDs for owned controls; qualify necessary external GUI adapters. Supporting system operations use shared commands/APIs. |
+| Reusable guest inputs | [Baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline). Add declared fixtures/dependencies to idempotent baseline preparation; attempts and app-snapshot preparation verify them. Deliberate package/account/file mutations under test remain in the journey. |
+| Host checks | [Suite selection](../../tests/README.md#all-established-regressions) and [parallelism review](../../tests/README.md#host-test-parallelism-review); use selected `tools/run-tests unit`/`ui` scopes. Direct launchers remain available for narrow diagnosis. |
+| Storage or cleanup changes | [Storage mandate](../Mandates/Test-Storage-Mandate.md) and the affected ownership/cleanup regressions. Use shared allocation and recorded identities. |
+| Live work | [Shared live verification](#live-verification-contract) plus the capability, scenario or system branch below. The [VM mandate](../Mandates/VM-Mandate.MD) owns watch, target selection and preparation flags. |
+| Failure or missing prerequisite | [Failure handling](../../tests/README.md#handling-test-failures); retain expected/actual evidence and the current blocker. Repair proven mechanical defects within the bounded supporting-work contract. |
+| Completion | [Close-out](#completion-and-document-cleanup), only after the selected task's complete acceptance and owned cleanup. |
+
+Briefs contain task-specific deltas: the required product result, exact bindings,
+finite input/recipe references, source entry points, planned or implemented
+selectors, exceptional prerequisites and remaining acceptance. Link to shared
+rules instead of copying them. Keep one complete case per scenario task and
+independent-entry/refusal checks in capability qualification.
+
+VM test commands without `--vm` use every enabled registry entry under the launcher's
+configured concurrency. An explicit `--vm NAME` narrows diagnosis to that entry;
+report that limit and do not claim acceptance on other targets. Preparation and
+maintenance always select an explicit registered VM in agent sessions. A listed
+qualification name is planned until its executable and registration exist;
+implement and cleanup-test it before invoking it. A real case command must select
+its inventory `coverage_id`, not the task ID.
+
 ## Task size and order
 
 The customer-first selection principle is applied when maintaining this fixed
@@ -141,21 +172,17 @@ Former separate host/VM adapter rows are combined into a bounded live slice or
 split into smaller independently qualified operations. Host checks alone cannot
 complete any new capability.
 
-Follow [functional validation](E2E-Building-Blocks.md#functional-validation).
-Apply [environment preparation and customer interaction](E2E-Building-Blocks.md#environment-preparation-and-customer-interaction)
-to every step: use the most reliable and efficient supported invocation for
-supporting tools and all non-app system operations; use real graphical customer
-actions for the app features being tested. Product behavior across a system
-transition requires the real transition and public app result, not GNOME menu
-navigation. Put reusable system operations in shared harness libraries.
+Follow [functional validation](E2E-Building-Blocks.md#functional-validation)
+and the [UI mandate](../Mandates/UI-Automation-Mandate.MD) for route selection.
 Use public accessibility, normal customer input and independent observations
 of required results. Backend product probes, synthetic grants, clock changes,
 internal faults and cosmetic/screenshot comparisons cannot pass customer cases.
 Reuse the existing [consumer path](E2E-Building-Blocks.md#add-a-consumer):
 `InstalledJourney/JourneyPlan`, `UiObservations`, `AccessibleUI` and the shared
 worker/dispatch. Locate only the relevant callables through the catalogue.
-Publish nonsecret operation/progress labels and open `tools/watch` as the
-desktop user for VM work.
+Use shared watch observation and nonsecret intentions under the
+[VM observation mandate](../Mandates/VM-Mandate.MD#vm-observation-mandate).
+The viewer may attach independently; its lifetime never gates the operation.
 
 Each attempt starts with fresh declared state and its own session/window ledger.
 For post-installation work, run `./tools/prepare-appsnapshot --vm NAME --y --overwrite false`
@@ -170,10 +197,12 @@ preparation/restoration. Package
 lifecycle cases use their declared product-free start and real customer install.
 Never use manual snapshots, resets or prior task state as a journey step.
 
-Run affected cleanup/ownership safety regressions in isolation before host
-integration. Use `tools/run-unit-tests` and relevant
-`tools/run-ui-tests --timeout <duration>` selections. Under the user's current
-direction, complete retained cases other than case 6 are validated in tasks
+Run affected cleanup/ownership safety regressions as an explicit scoped
+validation before live integration; cleanup itself runs no tests. Use
+`tools/run-tests unit` and relevant `tools/run-tests ui --timeout <duration>`
+selections under the [scheduling contract](../../tests/README.md#all-established-regressions).
+The recorded retained-case direction is a specific regression-scope exception:
+complete retained cases other than case 6 are validated in tasks
 specifically about those cases. Shared GDM, secret, routing, recorder or cleanup
 changes in capability tasks still require affected host safety checks and the
 task-local live qualification, without running cases **1, 3, 4, 5, 151** merely
@@ -181,16 +210,12 @@ as regressions. Do not claim complete-case validation from a capability slice.
 Shared Parent launch changes retain case **6** when directly affected; case **193** remains
 for its own validation task.
 
-The initial provider migration has explicit regression rows **001r, 003r, 004r,
-005r, 002r, 235r and 151r** in this same sequence. Earlier capability rows can
-close only their stated live slice; overall shared migration close-out remains
-pending until those complete cases pass. Preserve valid unchanged results, and
-rerun any earlier case affected by a later change before migration close-out.
-This staged migration gate does not exempt subsequent shared changes from the
-normal regression requirement or add scenario-to-scenario dependencies.
-The initial gate's completed acceptance and the developer's explicit direction
-to reuse their seven separate passing validations are recorded in the
-[current scope](E2E-Execution-Plan.md#current-scope).
+The initial provider migration's regression rows **001r, 003r, 004r, 005r,
+002r, 235r and 151r** are historical delivered scope. Its gate is closed under
+the recorded [acceptance decision](E2E-Execution-Plan.md#current-scope).
+Preserve valid unchanged results. Later changes require affected checks and
+qualification within the regression scope above; the historical decision is
+not acceptance for newly changed code or additional registered cases.
 
 Staged artifacts, evidence and VM ownership must remain valid. Checkout edits
 during a run follow the [documentation map's contract](README.md); they do not
@@ -223,7 +248,8 @@ can execute it. Keep the task unchecked until acceptance and close-out pass.
 `ready` records registration, not a passing result; `pending` has no executable
 and cannot be used for the acceptance run. Preserve any failed attempt and its
 remaining work on the current task under the failure contract.
-Run each exact `tools/run-tests e2e --vm NAME --id '<case>'` separately. Registration is
+Run each exact `tools/run-tests e2e --id '<case>'` separately on the required
+targets; use `--vm NAME` only for an explicitly narrowed run. Registration is
 not acceptance. Require public results, reconciliation, collection and cleanup.
 Refresh coverage after **each** successful case, including retained regressions,
 before advancing the task pointer.
@@ -254,6 +280,9 @@ After the guard is released and cleanup succeeds:
 3. Check the completed task `[x]` in its canonical [queue](E2E-Task-Queue.md)
    row only after all acceptance and close-out
    pass. Keep ID, delivered scope and prerequisites; remove resolved blockers.
+   Preserve the machine-readable scope prefix (`Cases N;`, `Retained regression N;`
+   or `System obligation N`) when recording results. Close-out prose must not
+   turn a scenario row into an apparent capability or lose its inventory mapping.
    Close only the selected row. A capability slice supplies no complete-scenario
    acceptance credit.
 4. Replace **Next task** with the following unchecked active queue row. Delete the
@@ -268,15 +297,16 @@ After the guard is released and cleanup succeeds:
    matching brief/queue prerequisites, dependency order, immediate scenario
    placement, the first-unchecked pointer, ordinary estimates of at most 30
    minutes or an explained session exception, and unchanged case assignment.
-   Retained regression rows separately revisit the seven existing bindings.
+   Retained regression rows preserve the original migration bindings.
    Splitting former paired rows changes task granularity, never case IDs, finite
    matrices or assertions. Planning repairs leave Lunar case 253 pending; its
    scenario task follows the registration and acceptance sequence above. Retain system
    obligations formerly numbered 140–150 outside the UI inventory and preserve
-   all seven retained ready case implementations and bindings. Their shared
+   all current ready case implementations and bindings. Their shared
    provider routes still require qualification under the current mandate.
 
-Run the maintained host consistency check after a queue repair:
+Run the maintained host consistency check after queue, pointer, brief or inventory
+changes, including ordinary close-out:
 
 ```sh
 tools/run-tests unit 'tests/unit/test_e2e_plan.py' 'tests/unit/test_e2e_inventory.py' 'tests/unit/test_coverage_generation.py'

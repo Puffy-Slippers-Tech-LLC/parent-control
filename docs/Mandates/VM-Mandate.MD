@@ -1,5 +1,12 @@
 # VM mandate
 
+This mandate owns VM target selection, observation, leases and preparation
+lifetime. [Approval tools](../Approval-Tools.md) owns command grants;
+[test maintenance](../../tests/README.md#all-established-regressions) owns runner
+scheduling and [E2E execution](../TestAutomation/E2E-Execution-Contracts.md#live-verification-contract)
+owns task acceptance. A documentation-only reconciliation performs no VM work
+and supplies no live qualification.
+
 ## Authority and operation
 
 - Apply the repository-wide [approval contract](../Approval-Tools.md) to all VM
@@ -81,6 +88,11 @@
   Attempt-specific SSH identities, evidence/transport state, product packages
   under test and deliberate scenario mutations remain attempt-owned. Do not
   preseed product policy, grants, usage or a scenario's expected result.
+  This includes reusable native, Snap, Flatpak and offline-game fixtures once
+  implemented. Their pending capability tasks must add preparation and read-only
+  verification to the shared routes before consumers can use them. A package
+  change explicitly exercised by a catalogue/update/removal case remains a
+  scenario mutation; it is not an on-the-fly prerequisite repair.
 - Preparation is an idempotent reconciliation of a finite declared inventory.
   Reuse matching state without rewriting it, update only proven owned inputs,
   preserve unrelated files/accounts/settings, and safely resume partial work.

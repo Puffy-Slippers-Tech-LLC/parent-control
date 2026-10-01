@@ -1,7 +1,9 @@
 # 185oa — Read overlay About and check its license link
 
-Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and the task-specific scope and acceptance below.
+
+Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
@@ -14,14 +16,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **044a** — DESK10 same-desktop window switching.
 - **185p** — INFO01 Parent.
 - **185l** — Retained ABOUT02/03 entry/return helpers; use the current link-only contract.
-
-## Read only this context
-
-Read only the delivered block rows and their named callables in the
-[catalogue](../E2E-Building-Blocks.md), the selected consumer's recipe clauses,
-and the affected safety/adapter tests. Follow the
-[scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
-Use delivered prerequisite scopes; do not open predecessor briefs.
 
 ## Implementation
 
@@ -41,11 +35,7 @@ On a live overlay, capture choices, read product/version, check license link
 clickability without invoking it, close About and compare unchanged choices.
 Qualify independent entry and missing/disabled/nonactionable/wrong-owner refusal.
 
-Use a fresh guarded VM attempt through shared watch intent, display and
-command transport. Pass affected cleanup/ownership regressions in isolation
-first. Require independent valid entry, wrong-entry refusal, public results,
-sanitized collection and owned cleanup. Secret and shared infrastructure changes
-retain all applicable regression requirements from the master.
+Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Implement and register this fixed argument-free qualification, with its cleanup
 coverage, before invoking it:
@@ -54,14 +44,7 @@ coverage, before invoking it:
 tools/run-tests integration check_e2e_overlay_license
 ```
 
-The selector is planned, not currently qualified. Host checks alone cannot
-complete this slice, and it supplies no complete-scenario acceptance credit.
-
 ## Close out
 
-Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Record only the actual callable and qualified slice in the catalogue. After
-acceptance and cleanup pass, check **185oa**, advance the sole pointer to the
-following unchecked row and delete this brief after enduring context is in
-source/contracts. Keep any unmet gate and its return condition on this task;
-do not advance around it.
+Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
+after this task's acceptance and owned cleanup pass.

@@ -1,7 +1,9 @@
 # 295 — Validate the manually prepared Lunar VM profile
 
-Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and the task-specific scope and acceptance below.
+
+Estimate: 20–30 minutes.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
@@ -20,9 +22,11 @@ versions/digests, the original space-containing AppImage path, integrated
 launcher, enabled child autostart/tray settings and private credential references.
 No product policy/grant setup and no host installation are part of this task.
 
-Establish repeatable availability after the existing runner restore using its
-maintained preparation/provisioning path. Do not invent another snapshot,
-overwrite the baseline, skip restore or add an automatic installer to FIX05.
+Establish repeatable availability after the existing runner restore through
+the authorized `tools/prepare-baseline` route and its finite owned inventory,
+under the [baseline mandate](../../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
+Do not create alternate snapshots, overwrite baseline state outside that route,
+skip restore or add an automatic installer to FIX05.
 Keep FIX04's transfer-only boundary. Missing assets, expired sign-in, mandatory
 updates or unresolved restored-state ownership leave this task blocked.
 

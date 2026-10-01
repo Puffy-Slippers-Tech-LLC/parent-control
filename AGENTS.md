@@ -2,235 +2,132 @@
 
 ## Environment and communication
 
-- Treat this computer as the development host. The product is not installed and
-  must not be installed unless the task explicitly requires an installed-system
-  workflow. Development previews and the maintained test viewers are allowed.
-- When asked for "handoff time" or a similar phrase, stop at the earliest clean boundary without interrupting important ongoing work and return
-  a concise continuation prompt. Include only the remaining work and recommend a
-  model and effort; do not save the prompt in the repository.
-- In all sessions, including runner-launched sessions, wait silently while tools,
-  commands, runners, tests or their cleanup are running. Do not narrate polling,
-  intermediate phases, passed branches or pending results. After completion,
-  report success or failure concisely, with actionable failure details when needed.
-- Keep progress updates and final responses concise and focused on meaningful
-  results and the next intended action. Omit routine prerequisites, procedural
-  narration and test counts unless they affect a decision or explain a problem.
-  Perform required checks without narrating each step. Preserve important
-  updates: blockers, unexpected findings, behavior mismatches, material risks,
-  validation limits and decisions requiring user input. Describe the next goal
-  accurately without implying that its prerequisites are already complete.
-  Example: "All scoped tests now pass. Next I'll run the live qualification."
+- This computer is the development host. Do not install the product here unless
+  the task explicitly requires an installed-system workflow. Development previews
+  and maintained test viewers are allowed.
+- For "handoff time", stop at the earliest clean boundary without interrupting
+  important work. Return a concise continuation prompt with remaining work and a
+  recommended model/effort; do not save it in the repository.
+- Keep updates concise: meaningful results, blockers, behavior mismatches,
+  validation limits and the next goal. Do not narrate polling or routine test
+  phases. Let running commands and owned cleanup finish before reporting their
+  result; retain actionable failure details.
 
-## Authority and unattended work
+## Authority and reading routes
 
-- Start product work at [System design](docs/System-Design.md). It owns component,
-  trust, state and lifecycle boundaries. The specification owns expected customer
-  behavior. Use the design's overview/module map to locate the affected boundary;
-  read the applicable sections, following related modules when that boundary is
-  crossed. A link to a contract does not require loading its entire document.
-- Apply the repository-wide [approval contract](docs/Approval-Tools.md) to all
-  reads, edits, builds, tests, diagnostics, setup and publishing. Run
-  authorized work unattended through its existing grants and validated tools.
-- Reuse session and category-wide authorization. Do not request Codex or Polkit
-  prompts, add duplicate rules, broaden shell/interpreter/Git/Make grants,
-  or use authentication fallbacks after denial. A missing prerequisite or grant
-  that cannot be resolved through existing authorized routes is a blocker to
-  report, not a control to bypass. Automatically prepare missing generated test
-  inputs and repair proven mechanical preparation defects; do not ask the
-  developer to choose whether to perform these routine repairs.
-- Executable project `tools/` launchers are preapproved only within the requested
-  task. Invoke them directly. Use their scoped out-of-sandbox routes when sockets,
-  Polkit or real ownership metadata require them.
-- Probing any VM registered in `config/test-vm.json` has standing authorization,
-  including entries disabled for test scheduling. Use direct
-  `tools/test-vm --vm NAME_OR_ID exec -- COMMAND [ARG ...]` for guest commands;
-  guest shells and interpreters share the existing launcher grant. Do not ask
-  for command approval, developer confirmation or Polkit authentication.
-  Preserve the pinned identity, ownership, lease and observation checks; a
-  missing grant fails noninteractively through the existing approval contract.
-- Authorized baseline preparation from launchers or sessions uses
-  `tools/prepare-baseline --vm NAME --mode auto|manual --y` to suppress y/n
-  confirmation. Manual work omits `--y`. The flag preserves every safety check
-  and does not grant authorization; follow the [VM mandate](docs/Mandates/VM-Mandate.MD).
-- App-snapshot preparation in any automation or agent session always includes
-  `tools/prepare-appsnapshot --vm NAME --y`. Manual work omits `--y` to retain
-  confirmation; omitting `--vm` also opens the shared baseline VM picker.
-  `--y` without `--vm` is refused before any work.
+- Start product work at [System design](docs/System-Design.md): use its module map
+  to read the affected component, trust, state and lifecycle boundaries. The
+  specification owns expected customer behavior. Follow related modules when a
+  change crosses their boundary; a link does not require reading a whole document.
+- Apply [Approval tools](docs/Approval-Tools.md) to reads, edits, builds, tests,
+  diagnostics, setup and publishing. Reuse existing session/category authorization
+  and validated direct launchers. Missing grants are blockers; do not broaden
+  rules, retry authentication after denial or bypass ownership checks.
 - Preserve all pre-existing work. Do not reset, discard, unstage or overwrite
   unrelated changes.
+- Use the [test documentation map](docs/TestAutomation/README.md) to locate each
+  rule's owner. Read the applicable contract before work; keep enduring rules in
+  that owner and link to them from task briefs instead of copying them.
+- Reuse unchanged instructions/source in context, including injected AGENTS.md.
+  After a new session or compaction, retrieve missing applicable requirements.
+  Read complete relevant functions and necessary callers, callees and shared
+  state. Expand for ambiguity, stale references, shared changes or failures;
+  truncated output and remembered summaries cannot replace a contract.
 
 ## Product boundaries
 
-- Fix root causes reproducibly on clean computers with supported, maintained
-  public APIs. Preserve the shared child-form/kiosk contract and log useful
-  diagnostics without PII; role labels such as `[Child user]` are acceptable.
-- Read [Do-Not-Touch-Portal-Mandate](docs/Mandates/Do-Not-Touch-Portal-Mandate.md) only when touching
-  feedback API-related application code.
-- Choose the implementation model by the current slice: GPT-6.1 Sol Medium for
-  settled work; GPT-6.1 Sol High for unresolved security, concurrency, ownership,
-  difficult diagnosis or broad correctness review. Prefer GPT-6.1 Sol High over
-  Astra Low. Use bounded Astra High advice where an applicable workflow requires
-  it. Prefer quality, then weekly allowance.
+- Fix root causes reproducibly on clean supported computers using maintained
+  public APIs. Preserve the shared child-form/kiosk contract and useful diagnostics
+  without PII; role labels such as `[Child user]` are acceptable.
+- For distro/DE-specific work, determine whether the cause is generic. Fix generic
+  causes in shared code; isolate platform-specific behavior and check affected
+  supported platforms.
+- Read [Do Not Touch Portal](docs/Mandates/Do-Not-Touch-Portal-Mandate.md) when
+  touching feedback API-related application code.
+- Choose GPT-6.1 Sol Medium for settled implementation and GPT-6.1 Sol High for
+  unresolved security, concurrency, ownership, difficult diagnosis or broad
+  correctness review. Prefer Sol High over Astra Low; use bounded Astra High
+  advice when an applicable workflow requires it. Prefer quality, then allowance.
 
-## Compatibility Matrix
-- When making change to a specific distro / DE, classify if it's generic across distros/DEs; If yes, 
-- fix it in a generic way; otherwise ensure the targeted change does not break other
+## Tests and acceptance
 
-## Test and customer acceptance
+- Select the lowest effective validation scope using
+  [test maintenance](tests/README.md#all-established-regressions),
+  `tools/run-tests --help` and `tools/run-tests --list`. Use the maintained launcher
+  and its parallel scheduling within that scope; do not expand unit/UI work to
+  `host` or `all` merely for parallelism. Preserve selectors and explicit timeouts.
+- Follow [failure handling](tests/README.md#handling-test-failures). Preserve and
+  report expected versus actual behavior; do not weaken checks to match the app.
+  Obtain a missing behavior decision before accepting a mismatch. Repair proven
+  mechanical defects and missing generated inputs through authorized routes.
+- For customer acceptance, use the installed product's public actions/results.
+  Keep internal probes and fault injection in engineering tests. Apply the
+  [UI/E2E allocation](docs/TestAutomation/UI-and-E2E-Coverage.md),
+  [bounded supporting work](docs/TestAutomation/E2E-Building-Blocks.md#keep-supporting-work-bounded)
+  and [composition preflight](docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight).
+  Cases own finite data/order/assertions; shared libraries own reusable mechanics.
+- For "Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md",
+  follow the [plan](docs/TestAutomation/E2E-Execution-Plan.md): exactly the first
+  unchecked active queue row, full acceptance and close-out, then pointer advance.
+  Do not skip a blocker, absorb a later scenario into capability work, or treat
+  inventory registration/document reconciliation as live acceptance.
+- Review new host modules and resource-affecting test changes under the
+  [parallelism contract](tests/README.md#host-test-parallelism-review). Classify
+  applicable unit, cleanup and UI inventories; unreviewed fallback is not final
+  classification. Cleanup modules need both unit and cleanup review.
+- Run `make build` for changes that can affect building/packaging, after the final
+  such edit. Use `PACKAGE_SOURCE_FILES` and build-tool dependencies in `Makefile`
+  to assess scope. Tests do not replace this check. Documentation/test-only work
+  that cannot affect the build needs no build; report missing prerequisites or a
+  failed build as unresolved validation.
 
-- Follow the [test-automation documentation map](docs/TestAutomation/README.md)
-  and the [executable inventory](tests/e2e/scenarios.json). Customer acceptance
-  operates the installed product through public interfaces and observes customer
-  results; backend probes and internal fault injection remain engineering tests.
-- Keep non-product prerequisites bounded by the
-  [supporting-work contract](docs/TestAutomation/E2E-Building-Blocks.md#keep-supporting-work-bounded).
-  Use the simplest reliable maintained route, repair only the immediate proven
-  preparation defect, verify readiness and return to the product assertion.
-  If repair requires deeper dependency investigation or new infrastructure,
-  stop that branch and report the blocker; do not recursively expand the task.
-  Product installation or enforcement failures remain potential product defects,
-  even when discovered during preparation; preserve their evidence and guards.
-- Use the documentation map's ownership and status terms when reconciling E2E
-  records: the plan selects the next task from its canonical queue, briefs define
-  unfinished task scope, and inventory `coverage_id` values select runnable cases.
-  Task IDs and scenario IDs are separate namespaces. Inventory `ready` means
-  registered for execution; task completion requires its acceptance and close-out.
-  Reconciliation alone supplies no live acceptance or task-completion credit.
-- Keep ready E2E cases as compositions of shared blocks: case code owns finite
-  values, order and expected results; libraries own input, transport, fixtures,
-  evidence and reusable comparisons. Audit both Python bindings and dispatched
-  workers, including imported helpers. Qualification and case workers must call
-  the same shared sequence instead of copying it. Follow the
-  [composition preflight](docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight)
-  before the first live attempt; preserve independent-entry/refusal checks in
-  qualification and complete customer assertions in the case.
-- For “Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md”,
-  implement exactly its first unchecked active queue row. Table order is final;
-  task IDs are labels, and prerequisites name earlier tasks' delivered scopes.
-  Finish that row's acceptance and close-out before advancing the sole pointer.
-  Do not select alternative work, complete a later scenario inside a capability
-  task, or skip a blocker. Keep each complete E2E case in its own task. Maintain
-  the queue consistency checks when splitting or repairing the plan.
-- Tests must catch regressions. On a behavior mismatch, preserve the evidence and
-  report expected versus actual behavior. Obtain developer confirmation before
-  accepting the change or altering expectations unless that exact behavior change
-  is already authorized. Never weaken, skip or delete a check to match the app.
-  Proven mechanical defects in tests, fixtures or harnesses may be fixed while
-  preserving the intended assertion. See [failure handling](tests/README.md#handling-test-failures).
+## Conditional mandates
 
-## UI automation mandate
+Read only the mandates triggered by the work:
 
-Read the [UI automation mandate](docs/Mandates/UI-Automation-Mandate.MD) only when doing UI automation work.
+| Work | Owner |
+| --- | --- |
+| UI automation, including previews and test adapters | [UI automation mandate](docs/Mandates/UI-Automation-Mandate.MD): route selection, public IDs, provider exception, input/result guards |
+| VM operations, preparation or live tests | [VM mandate](docs/Mandates/VM-Mandate.MD): registered targets, unattended authorization, watch, leases and baseline lifetime |
+| Test/fixture/tool storage or cleanup changes | [Test storage mandate](docs/Mandates/Test-Storage-Mandate.md): shared allocation, retention, identity and screenshot exceptions |
 
-## VM mandate
-
-Read the [VM mandate](docs/Mandates/VM-Mandate.MD) only when doing VM operations or tests.
+VM probes have standing authorization for every registered entry, including
+disabled test targets. Use `tools/test-vm --vm NAME_OR_ID exec -- COMMAND [ARG ...]`
+with its existing ownership, lease and observation guards. Agent preparation uses
+`tools/prepare-baseline --vm NAME --mode auto|manual --y` and
+`tools/prepare-appsnapshot --vm NAME --y`; manual baseline mode still needs the
+authorization described by the VM mandate. Reusable prerequisites belong in
+idempotent baseline preparation; attempts verify them and own only transient
+inputs and deliberate scenario mutations.
 
 ## Reads, edits and evidence
 
-- Reuse unchanged instructions and source already available in the current
-  context, including injected AGENTS.md. In a fresh session or after compaction,
-  retrieve missing applicable requirements; do not treat a remembered summary as
-  their replacement. Read linked documents by task-relevant heading/row and code
-  by complete relevant function plus necessary callers, callees and shared state.
-  Expand for ambiguity, stale references, shared changes or failures. Token
-  savings never justify missing a contract, weakening checks or guessing at
-  truncated output. For repeated E2E work, use the execution plan's
-  [reading routes](docs/TestAutomation/E2E-Execution-Plan.md#load-only-the-selected-context).
-- Quote every path, pattern and URL. Inspect operands before execution. Run
-  direct reads in the intended working directory; do not wrap them in shells,
-  substitutions, assignments or redirections.
-- Use `rg -n` only with literal paths and quoted ripgrep `--glob` filters. Use
-  `tools/read-only files|search --path-glob ...` when filename expansion is
-  required. Use `tools/read-only` for untrusted arguments and the other bounded
-  read/filter/fetch operations documented by the approval contract.
-- Public read-only research and log inspection are authorized. Use the maintained
-  diagnostics and artifact readers for privileged data; never modify logs.
-- Edit text with native `apply_patch`. Validate changed Markdown with
-  `tools/read-only links` and use `tools/read-only words` when counts matter.
-- Keep routine failure/fix/verification details in the conversation or existing
-  runner artifacts. Update current contracts and active handoffs, not historical
-  incident narratives. Create a new evidence document only when explicitly asked
-  or when an active acceptance/recovery need has no existing artifact.
-
-## Tests and artifacts
-
-- Review every added host test module, and resource-affecting changes to existing
-  tests, for parallel execution before marking the work complete. Check mutable
-  paths, caches, processes, sockets/buses/displays, fixtures and resource demand.
-  Classify qualified work in the applicable unit, cleanup and UI schedulers;
-  cleanup modules need both unit and cleanup review. Use build resource admission
-  for heavy fixture construction. Record a concrete shared-resource reason for
-  any necessary exclusive classification. The unreviewed fallback is a runtime
-  safeguard, not an acceptable final classification. Maintain the host inventory
-  review regression and validate the affected scheduling scope; see the
-  [parallelism review contract](tests/README.md#host-test-parallelism-review).
-- Read the [test storage mandate](docs/Mandates/Test-Storage-Mandate.md) when
-  creating or changing test storage. Use its shared allocation helpers; tests
-  must not choose `/tmp` or hardcode their own temporary storage root.
-- Discover suites and their exact routes with `tools/run-tests --list` and
-  `tools/run-tests --help`. Choose coverage from the change and its regression
-  risk first, then use `tools/run-tests` for the selected scope: `ui` for UI-only
-  validation, `unit` for unit-only validation, or the required categories and
-  quoted file/case selectors. Prefer the launcher's existing parallel scheduling
-  wherever supported within that scope. Never expand UI-only or unit-only
-  validation to `host` or `all` merely to obtain parallelism; test-file count
-  alone does not justify unrelated checks or package builds. Direct
-  `tools/run-unit-tests` and `tools/run-ui-tests` remain appropriate for narrow
-  iteration or diagnosis. Preserve
-  selectors and explicit UI timeouts; avoid `-x` or positive `--maxfail` for broad
-  unit/UI passes because those diagnostic options retain serial execution. See the
-  [scheduling contract](tests/README.md#all-established-regressions).
-- Run `make build` when a change that could affect building or packaging the app
-  is ready for validation, and again after further build-affecting edits. This
-  includes product source and assets, package metadata, build/install recipes,
-  and tools or generated inputs used by those recipes. Use `Makefile`'s
-  `PACKAGE_SOURCE_FILES` and build rules to assess the scope, including build-tool
-  dependencies that are not shipped. Run the relevant tests separately; a passing
-  unit or UI suite does not establish that the package builds. Report a failed
-  build or missing build prerequisite as unresolved validation. Changes confined
-  to documentation or tests that cannot affect the build do not need this check.
-- Use `tools/run-tests host` only when all host coverage is justified, and
-  `tools/run-tests all --vm NAME` only when the entire established regression set is
-  justified. Combine complete categories when each is required, sharing their
-  report and package inputs. Use plain approved Make targets only as documented in
-  the [approval contract](docs/Approval-Tools.md). Do not replace the launcher
-  routes with generic pytest, interpreter or Make invocations, and do not start
-  competing launchers against the aggregate's checkout lock.
-- Quote test patterns and parametrized IDs. New privileged integration checks are
-  argument-free `tests/integration/check_[a-z][a-z0-9_]*.py` files with applicable
-  cleanup-safety coverage.
-- Signal only explicitly spawned, identity-recorded processes. Cleanup is a
-  lightweight serial ownership/recovery operation before parallel scheduling;
-  never launch regression tests as cleanup prerequisites. Validate changed
-  cleanup implementations with scoped explicit regressions during development.
-- Use only the documented artifact readers/exporters. Export graphical PNGs with
-  `onpc-export-screenshot` and clean only explicit caller-owned `/tmp/onpc-*.png`
-  files through `tools/cleanup-screenshots`.
+- Quote every path, pattern and URL. Inspect operands and run direct reads from
+  the intended working directory. Use `rg -n` with literal paths and quoted
+  `--glob` filters; use `tools/read-only files|search --path-glob ...` for filename
+  expansion and the validated reader for untrusted arguments.
+- Public read-only research and log inspection are authorized. Use maintained
+  diagnostics/artifact readers for privileged data; never modify logs.
+- Edit text with native `apply_patch`. Check changed Markdown with
+  `tools/read-only links`; use `tools/read-only words` when counts matter.
+- Keep routine failure/fix/verification details in conversation or existing
+  runner artifacts. Update current contracts and active handoffs. Create a new
+  evidence document only when requested or an active acceptance/recovery need
+  has no existing artifact.
+- Signal only explicitly spawned, identity-recorded processes. Follow the
+  [cleanup contract](tests/README.md#cleanup-safety-prerequisites); cleanup is
+  serial ownership/recovery, never a regression-test prerequisite run.
+- Use documented artifact readers/exporters. PNG exports use
+  `onpc-export-screenshot`; only explicit caller-owned `/tmp/onpc-*.png` exports
+  may be cleaned through `tools/cleanup-screenshots`.
 
 ## Setup
 
-- Reusable, one-time guest preparation belongs in `tools/prepare-baseline`,
-  including test dependencies, fixed app fixtures/launchers and persistent
-  harness configuration. Tests and app-snapshot preparation verify these inputs;
-  they must not install, repair or recreate them on the fly. A missing or stale
-  input requires explicit baseline preparation through the existing grant.
-  Keep attempt credentials, transport/evidence state, product installation and
-  scenario-specific mutations in their existing lifetime owners.
-- Baseline preparation must be idempotent: verify and reuse matching files,
-  accounts and settings; reconcile only declared owned inputs; preserve unrelated
-  state; safely retry partial preparation; reject unsafe ownership or collisions.
-  Source changes invalidate the preparation identity and derived app snapshots.
-  Test first preparation, unchanged repetition, owned updates and interrupted
-  retries. Auto-mode package updates and snapshot replacement retain their
-  documented semantics; idempotence does not bypass validation or ownership.
-- `./setup.sh` is the sole public development setup entry point. Modes
-  must be retryable, preserve unrelated configuration and fail on missing
-  prerequisites. Tests and builds report missing prerequisites; they do not
-  install them.
-- Refresh helpers with `./setup.sh --test-tools-only` and rules alone with
-  `./setup.sh --codex-rules-only`; restart Codex after rule changes. First install
-  uses `./setup.sh --bootstrap-tools`. Do not refresh rules to fix bad quoting.
-- Routine privileged setup uses the installed, pinned, default-deny `onpc-setup`
-  helper. Do not use direct sudo, generic privileged interpreters, installer
-  shortcuts or weakened ownership/policy checks.
+`./setup.sh` is the sole public development setup entry point. Follow
+[one-time setup](docs/Approval-Tools.md#one-time-setup) for modes, prerequisites
+and activation. Refresh helpers with `./setup.sh --test-tools-only`, rules with
+`./setup.sh --codex-rules-only`, and restart Codex after rule changes. First install
+uses `./setup.sh --bootstrap-tools`. Do not refresh rules to repair bad quoting.
+Use the installed pinned default-deny setup helper; no direct sudo, generic
+privileged interpreter or authentication fallback. Tests/builds report missing
+prerequisites rather than installing them.

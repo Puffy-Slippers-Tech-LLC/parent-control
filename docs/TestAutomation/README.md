@@ -1,8 +1,8 @@
 # Test automation documentation
 
 This directory defines customer-facing E2E composition and its implementation
-queue. Repository-wide safety, authorization and UI identity rules remain in
-[AGENTS.md](../../AGENTS.md); product behavior remains in the
+queue. [AGENTS.md](../../AGENTS.md) is the repository entry point; the contracts
+below own their detailed rules. Product behavior remains in the
 [specification](../Specification.md) and [system design](../System-Design.md).
 When documents disagree, use the ownership table below instead of combining the
 strongest-looking fragments.
@@ -17,11 +17,17 @@ concurrent developer edits.
 
 | Source | Owns | Does not establish |
 | --- | --- | --- |
+| [Approval tools](../Approval-Tools.md) | Authorized command routes, setup and unattended execution | Permission for work outside the requested scope |
+| [UI automation mandate](../Mandates/UI-Automation-Mandate.MD) | GUI versus supporting-command selection, public IDs, external-provider exception and input/result guards | Qualification of an adapter merely because its technique is permitted |
+| [VM mandate](../Mandates/VM-Mandate.MD) | Target selection, leases, observation and baseline preparation lifetime | A passing product result or permission to use the development host as an installed target |
+| [Test storage mandate](../Mandates/Test-Storage-Mandate.md) | Shared allocation, retention and cleanup boundaries | Permission to delete unowned artifacts |
+| [Test maintenance](../../tests/README.md) | Suite selection/scheduling, parallelism review, failure handling and runner operation | Customer acceptance from a host test |
+| [Shared support guide](../../tests/support/README.md) | Reusable fixture and harness implementation routes | Scenario data or a second implementation of shared mechanics |
 | [`tests/e2e/scenarios.json`](../../tests/e2e/scenarios.json) | Persistent scenario IDs, customer steps, runtime status and executable binding | A pass merely because a declaration exists |
 | [E2E building blocks](E2E-Building-Blocks.md) | Atomic/composite operation contracts, callables, scoped qualification and provider gaps | Scenario readiness or task order |
 | [Scenario recipes](E2E-Scenario-Recipes.md) | Exact scenario composition, finite inputs and expected public results | Current runner status or scheduling |
 | [UI and E2E coverage](UI-and-E2E-Coverage.md) | GUI matrix ownership, duplicate review and minimal installed checks | A test pass, task completion or another task queue |
-| [Execution plan](E2E-Execution-Plan.md) | Sole entry point, fixed task sequence, implementation workflow and scoped reading routes | Product behavior or reusable block semantics |
+| [Execution plan](E2E-Execution-Plan.md) | Sole next-task pointer, implementation workflow and scoped reading routes | Product behavior, reusable block semantics or a second copy of the queue |
 | [Execution contracts](E2E-Execution-Contracts.md) | Detailed sizing, provider qualification, live verification and close-out rules delegated by the execution plan | A second task queue, alternate selection or optional acceptance |
 | [Task queue](E2E-Task-Queue.md) | Single ordered checklist, including provider prerequisites and retained regressions, and delivered task scope | Current block or scenario readiness |
 | `E2E-Tasks/` | Temporary brief for one unfinished queue item | Enduring policy or history after the task closes |
@@ -31,6 +37,12 @@ Use the narrowest owner. Expected customer behavior comes from the specification
 and system design, not from a currently observed result. A confirmed mismatch
 follows the repository regression-failure contract rather than being reconciled
 as a documentation preference.
+
+When reconciling documents, correct the conflicting copy and link to the owner.
+Do not weaken an assertion or infer a new authorization from stale prose.
+Mandates constrain implementation; briefs add the selected task's finite scope
+and acceptance, and cannot override a mandate. Preserve historical evidence as
+historical, with current readiness in its inventory/catalogue owner.
 
 ## Status vocabulary
 
@@ -63,6 +75,15 @@ required.
 
 ## Working route
 
+For documentation reconciliation, inspect the affected owners and executable
+bindings, update unfinished consumers, then run link and metadata consistency
+checks. This work does not execute or close the next queue task. Changes confined
+to prose and metadata tests need no VM qualification or package build.
+
+For test implementation, apply the [shared task contract](E2E-Execution-Contracts.md#task-brief-contract)
+and the selected brief. Use the existing shared operations in both qualification
+and cases; validate at the lowest effective layer before a required live attempt.
+
 For queue work, read the [entry plan](E2E-Execution-Plan.md), its **Next task**
 brief, then follow its [reading routes](E2E-Execution-Plan.md#load-only-the-selected-context).
 Read the shared live contract and applicable acceptance branch before
@@ -76,7 +97,7 @@ requirements, external-provider gaps and their return conditions are maintained
 in [functional validation](E2E-Building-Blocks.md#functional-validation); keep
 them separate from customer scenario completion.
 
-All live UI work inherits the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD),
+All UI work inherits the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD),
 including its external-provider exception. The catalogue records implementation
 gaps and route qualification; it does not redefine that mandate.
 Apply its route-selection rule before creating UI work: routine Shell, GDM and

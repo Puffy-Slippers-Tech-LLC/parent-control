@@ -1,14 +1,9 @@
 # 126a — Launch and observe the prepared offline game
 
-Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and the task-specific scope and acceptance below.
 
-## Read only this context
-
-Use the [scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
-Read only the named block rows/callables, this recipe's selected cases and
-applicable finite-data rows. Prerequisite IDs are completion checks; do not open
-their task briefs. Do not load the full queue, catalogue, recipe book or inventory.
+Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
@@ -17,7 +12,7 @@ Read only the named [block contracts](../E2E-Building-Blocks.md#customer-termina
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **126p** — FIX04 game asset; LIFE04 fixed game installation profile.
+- **126p** — Offline-game baseline assets and verification; FIX04 transfer only.
 - **047** — APP04; FLOW08 native usable-app scope.
 
 Use maintained callables and a fresh attempt, never prior task/VM state.
@@ -31,11 +26,10 @@ Keep installation, mode/level composition and natural expiry in their own tasks.
 
 ## Live VM acceptance
 
-On the live VM, install the declared game if needed, enter a child with ample publicly prepared time, and launch the fixed game/level through shared supported commands or shortcuts. Perform a real gameplay input, independently observe its effect, capture recognizable progress and compare a fresh observation of the same window. An independently opened game at the declared level is also a valid entry. Wrong-window or missing prior-activity input refuses. Do not wait for expiry, substitute a timer/mock game or use private state. Reuse 126p's existing offline game and one fixed level; this task does not choose another game or repeat installation qualification. One ordinary play action and its visible effect establish usability; do not add level completion, score targets, game-mechanics coverage or an automated gameplay strategy.
+On the live VM, verify the declared baseline game without repair, enter a child with ample publicly prepared time, and launch the fixed game/level through shared supported commands or shortcuts. Perform a real gameplay input, independently observe its effect, capture recognizable progress and compare a fresh observation of the same window. An independently opened game at the declared level is also a valid entry. Wrong-window or missing prior-activity input refuses. Do not wait for expiry, substitute a timer/mock game or use private state. Reuse 126p's existing offline game and one fixed level; this task does not choose another game or repeat installation qualification. One ordinary play action and its visible effect establish usability; do not add level completion, score targets, game-mechanics coverage or an automated gameplay strategy.
 
-Run affected safety/adapter checks, then implement and register the fixed slice
-qualification below in the existing guarded envelope. Run this slice here;
-its complete scenario remains a separate queue task:
+Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
+Run the fixed qualification below once implemented and registered:
 
 ```sh
 tools/run-tests integration check_e2e_game_activity
@@ -47,13 +41,5 @@ Host checks and a diagnostic slice do not establish complete scenario coverage.
 
 ## Close out
 
-After this slice's live qualification and cleanup, follow the
-[master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Update the relevant callable/scope/status in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and update the selected recipe only when
-its composition changes. Runtime status belongs in the inventory; leave
-unfinished scope pending.
-Check **126a** in the [master's queue](../E2E-Task-Queue.md), update the master's
-**Next task** pointer, then delete this brief once its enduring context is maintained
-in source/contracts. Validate changed Markdown. Keep normal runner artifacts;
-no task archive, evidence document or accumulated history.
+Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
+after this task's acceptance and owned cleanup pass.

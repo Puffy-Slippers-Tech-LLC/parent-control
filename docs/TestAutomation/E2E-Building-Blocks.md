@@ -14,8 +14,8 @@ composition. Read only the rows required by the selected task.
 
 Every row below records an implementation status. Existing behavior that still
 needs extraction, migration or qualification is `pending`, even when an older
-scenario run passed. Cases 1, 3, 4, 5, 6, 151 and 193 retain implementations,
-behavioral evidence and ready inventory bindings. Retain their helper
+scenario run passed. Current ready inventory bindings retain implementations,
+behavioral evidence and customer assertions. Retain their helper
 regressions while migrating them. Retired E2E IDs 140–150 remain engineering
 system-test obligations and cannot be selected by the E2E runner. Current scenario counts come from
 `tests/e2e/scenarios.json` and the generated coverage report, not this catalogue.
@@ -49,16 +49,15 @@ Shell/GDM navigation, login preparation, logout, user switching, explicit locks,
 reboot/suspend, network changes, clock reads, account/file preparation and
 supporting-tool launch. Completed queue tasks and retained code have no exemption.
 
-The shared installed envelope prepares each observed fixture Parent desktop for
-accessibility input, including idle prevention and independent readback, before
+The shared installed envelope verifies each observed fixture Parent desktop's
+prepared accessibility and idle settings through independent readback before
 acknowledging entry. Cases must not add idle-prevention stages. See the
 [shared entry contract](../../tests/e2e/README.md#shared-system-and-account-entry-helpers)
 for ownership, cleanup and the unchanged child-session policies.
-Case 158 requalified this shared preparation at fresh and reopened Parent entry
-in `20260926T034552Z-b0849af0`, with product, infrastructure, collection, cleanup
-and baseline restoration passed. Its PARENT05/06 preset composition now samples
-0/60/90/1410; the adapters retain all supported preset bindings. The full custom
-validation table and Parent reopen persistence remain in the case.
+Case 158 samples preset 15, accepted custom 1 and rejected 1441, with child
+switching and Parent reopen persistence. The full local matrix belongs to UI
+tests under the [allocation](UI-and-E2E-Coverage.md); adapter qualification keeps
+its independent-entry and refusal checks.
 
 Routine login goes directly to the intended account through the shared entry
 helper. Where real graphical login or unlock is necessary, keep the minimal
@@ -74,7 +73,8 @@ logout-confirmation adapter is needed.
 
 Use real GUI input for the product controls and integrations explicitly tested:
 app fields and choices, approval prompts, product panel controls, app-grid
-discovery, specific enforcement launch routes, file choosers and external links.
+discovery, specific enforcement launch routes and file choosers. Offered
+external links require public clickability only under the UI mandate.
 A lifecycle or offline scenario tests the product across a system transition;
 it does not turn GNOME's controls into features under test. Supporting windows
 may be activated or opened directly.
@@ -168,8 +168,9 @@ integration assertions. Simplify their setup without replacing their results.
 
 Every implementation records its source callable and qualification reference
 in its row. Repository-owned selectors use public `automation-id` values scoped
-to their application and surface. External providers follow the exception in
-AGENTS.md; catalogue ID bindings describe the current implementation, not a ban
+to their application and surface. External providers follow the exception in the
+[UI mandate](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception);
+catalogue ID bindings describe the current implementation, not a ban
 on qualifying an adapter. Scenario labels and expected text are recipe data,
 not selector definitions. Use explicit fixture identities; do not
 expose arbitrary commands, arbitrary UI-tree dumps or private account names in
@@ -1629,7 +1630,7 @@ authentication outcome or app behavior being tested.
 
 | ID | Kind | Supporting operation and boundary | Existing source | Status |
 | --- | --- | --- | --- | --- |
-| FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt; stage finite synthetic files through guarded SSH. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); [transfer safety](../../tests/unit/test_e2e_asset_transfer_cleanup_safety.py), case 1 qualification. `SyntheticFiles.call('stage')` supplies the [synthetic text files](#synthetic-file-commands); its six finite `profile` values supply the qualified [attachment boundaries](#attachment-rejection-boundaries), with exact receipt/readback and cleanup. Game/Snap/Flatpak profiles still need preparation with their consumers. | existing transfer, synthetic-text and six attachment-boundary profiles ready |
+| FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt; stage finite synthetic files through guarded SSH. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); [transfer safety](../../tests/unit/test_e2e_asset_transfer_cleanup_safety.py), case 1 qualification. `SyntheticFiles.call('stage')` supplies the [synthetic text files](#synthetic-file-commands); its six finite `profile` values supply the qualified [attachment boundaries](#attachment-rejection-boundaries), with exact receipt/readback and cleanup. Game/Snap/Flatpak profiles remain pending baseline preparation and read-only verification in tasks 126p/109p/116p; attempts never install these prerequisites. | existing transfer, synthetic-text and six attachment-boundary profiles ready |
 | FIX03 | A | Prepare one declared account-eligibility profile before a kiosk journey: multiple, no child, no approver or ineligible approver. Do not generalize FIX02 into arbitrary account mutation. | `EmptyAccountFixture.prepare` / `e2e_dynamic_account.prepare_empty` changes only the two canonical children's account type, preserving identities, existing administrators and the station; outer lease cleanup restores the profile. `kiosk_no_child.PLAN` / `onpc_kiosk_no_child::run` qualified this profile through `check_e2e_kiosk_no_child` in run `20260924T064646Z-19f2aad6`, with shared station navigation requalified in run `20260924T173643Z-8d742069`. `AccessibleUI.kiosk_request_form(no_child=True)` and `RequestObservation.from_request` independently require the exact empty child set and no-child explanation, disabled Request/duration/soft-app/approver controls and no authentication prompt. Valid station entry, wrong-entry refusal, repeated public readback, sanitized collection, owned cleanup and baseline restoration passed without product-policy mutation. Complete case 54 separately passed via `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run` and `tools/run-tests e2e --id '54'`, adding public Cancel/GDM return; wrong-entry refusal remains qualification-only. The no-approver callables and independent case 55 acceptance below supply the second ready profile. `kiosk_multiple.PLAN` / `onpc_kiosk_multiple::run` supply the qualified multiple profile below. `kiosk_multiple.INELIGIBLE_PLAN` / `KioskIneligibleJourney` supplies the locked-administrator exclusion profile qualified below. | ready; multiple/no-child/no-approver/locked-approver profiles |
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
@@ -1832,8 +1833,10 @@ An interrupted creation leaves an unmarked snapshot, which preparation refreshes
 The installed-state fingerprint deliberately excludes test code, guest helper
 logging, scenario selections, fixture delivery payloads, documentation and run
 outputs. These are refreshed as a separately verified test payload before each
-attempt; they do not reinstall the app. The current recipe installs only the app;
-future persistent fixture installation must belong to that recipe and its identity.
+attempt; they do not reinstall the app. Reusable fixture sources instead belong
+to the baseline preparation identity; changes invalidate the baseline and its
+derived app snapshots. App-snapshot preparation installs the product and verifies
+the declared baseline inputs. It never installs persistent test prerequisites.
 The [guest input resolver](../../tests/integration/guest_inputs.py) follows local
 Python imports recursively from declared entry points, including imports inside
 functions, and rejects missing or ambiguous dependencies before staging. Dynamic
@@ -2661,7 +2664,7 @@ restoring those generic routes.
 
 Register mappings and adapter selectors in
 [accessible_ui.py](../../tests/e2e/accessible_ui.py), with affected consumers and
-installed qualification in the rows below. Prefer the routes in AGENTS.md's
+installed qualification in the rows below. Follow the UI mandate's provider
 exception. Missing IDs are an implementation gap, not a requirement to wait for
 an upstream change. Qualification is limited to the exact scope recorded in a
 row; retained ready scenario bindings do not broaden it.
@@ -2710,7 +2713,7 @@ claims or an alternate execution order:
 | Shared system lifecycle helpers and required unlock observations | 005/006 package commands, 007 reboot command, 042/043a necessary lock/unlock observation, 044a shared window activation, 193 network command, 166 suspend command |
 | DING desktop fixture launch | 036b |
 | System account and clock helpers | 184/184b/184c shared account operations; 191 read-only clock/timezone commands |
-| Snap, Flatpak and game fixture installation before launch | 109p → 109/109a; 116p → 116/116a; 126p → 126a |
+| Snap, Flatpak and game baseline preparation and restored-input verification | 109p → 109/109a; 116p → 116/116a; 126p → 126a |
 | Reviewed external feedback submissions | 150a profile/authorization → 150 and its surface/result consumers |
 | Lunar, Minecraft and login observation | 295 → 296 → 296a → 296b → case 253 in 297 |
 

@@ -1,22 +1,26 @@
-# 109p — Install the declared Snap fixtures
+# 109p — Prepare the declared Snap fixtures in the baseline
 
-Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and the task-specific scope and acceptance below.
+
+Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **FIX04 Snap assets; LIFE04 fixed Snap installation profile**.
+Deliver **Snap baseline assets and verification; FIX04 transfer only**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **006** — LIFE04 install only.
+- **006** — shared guarded administrator package-command transport.
 - **077a** — PARENT12; UI13 complete public app-row observations.
 
 ## Implementation
 
 Reuse the maintained repository-owned Snap payloads, fixture builder/artifact
-cache and pinned A/H/S manifest. FIX04 transfers bytes only. Bind the supported
-local installation command in the shared administrator SSH package helper,
+cache and pinned A/H/S manifest. FIX04 transfers bytes only. Implement the finite
+reusable declaration in `tools/prepare-baseline`, using the shared package helper
+for the supported local installation command and required Snap base. Reconcile
+matching state without reinstalling it and bind fixture sources to baseline identity,
 preserving manifest/digest verification, any supplied signatures, the fixture's
 declared trust, confinement and package-manager checks.
 No Snap Store account, publishing/signing service, channel matrix or online
@@ -25,9 +29,12 @@ app-grid behavior belong to their following tasks.
 
 ## Live VM acceptance
 
-In a fresh guarded attempt, stage and install the declared Snap fixtures and
-independently read real bounded command completion and their public Parent catalogue
-identities/default rules. Refuse wrong manifests, recipient or failed installation.
+Qualify first preparation, unchanged repetition, owned updates and interrupted
+retry through the baseline route. After ordinary restore in a fresh guarded
+attempt, verify installed digests, confinement, scope and launcher identities
+without installing or repairing anything. Independently observe public Parent
+catalogue identities/default rules. Refuse wrong manifests, recipient, stale
+baseline or failed installation, with baseline-refresh guidance.
 An unpacked launcher or host Snap smoke is not installed Snap qualification.
 
 Implement and register the following fixed qualification in the existing guarded
@@ -42,8 +49,5 @@ tools/run-tests integration check_e2e_snap_fixtures
 
 ## Close out
 
-Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Record the callable and exact qualified scope in the
-[catalogue](../E2E-Building-Blocks.md), check **109p** only after acceptance and
-cleanup, advance to the following unchecked row, and delete this brief after
-enduring context is maintained. The complete scenario stays in its own task.
+Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
+after this task's acceptance and owned cleanup pass.

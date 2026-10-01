@@ -1,5 +1,13 @@
 # UI automation mandate
 
+This mandate owns UI route selection and target/input safety for host previews,
+qualifications and installed cases. The [catalogue](../TestAutomation/E2E-Building-Blocks.md)
+owns callables and qualified scopes; the [coverage allocation](../TestAutomation/UI-and-E2E-Coverage.md)
+owns which layer exercises each matrix. Read this mandate when changing either
+layer's automation, including shared workers.
+
+## Route selection
+
 - **Choose the route by the feature under test:** Real GUI operations are for
   the product features the case exercises, such as its dropdowns, toggles,
   textboxes, approval prompts and explicitly tested launch routes. All other
@@ -17,8 +25,8 @@
   and validate the route before input; never try a second
   route after an uncertain command. Preserve the owned VM, fixture/session
   identity, command transport, observation and cleanup contracts.
-  Any tools / apps not owned by this app, if needed, must be triggered by most reliable,
-  simplest non-GUI way, e.t., terminal is by keyboard, Text editor by the built-in command
+  Launch supporting tools through their supported command or fixed shortcut.
+  Do not open a terminal merely to type a command that guarded SSH can execute.
 - **Preparation lifetime:** Reusable dependencies, fixed app fixtures/launchers
   and persistent harness settings belong in idempotent `tools/prepare-baseline`
   reconciliation. UI workers verify readiness and fail on missing/stale inputs;
@@ -44,6 +52,8 @@
   account changes or offline use does not make GNOME's menus or Settings pages
   product features. Only an explicitly tested product integration, such as its
   app-grid entry, file chooser or external link, needs that GUI route.
+## Product integrations
+
 - **Attachment handoff:** Treat the operating system's file chooser as an
   external tool. Prepare declared synthetic files through shared commands; use
   supported public APIs and the minimum necessary shortcuts in one shared
@@ -65,6 +75,8 @@
   the current user's system default handler. In-app About and Privacy disclosure
   checks, kiosk external-action restrictions and explicitly authorized feedback
   submission remain separate product features.
+  Rich-editor link formatting is a separate owned editing feature: its synthetic
+  link values may be checked through public text attributes without navigation.
 - **Parent app launch:** Every case that needs Parent functionality without
   testing app-grid discovery must reuse PARENT01
   ([`onpc_parent::launch`](../../tests/integration/graphical_smoke/lib/onpc_parent.pm)),
@@ -90,6 +102,8 @@
   block. Declare that exception in the case metadata and recipe. Preserve
   session identity, prompt refusal, single-use execution and independent
   result checks.
+## Target identity and provider exception
+
 - For GUI operations required by the feature under test, and unavoidable
   graphical authentication, except for the external-provider exception below,
   every automated UI target
@@ -122,6 +136,8 @@
   the input/result guards below; refuse when these cannot be established. This
   exception never applies to repository-owned UI and overrides blanket external
   ID requirements in subordinate documents.
+## Input and independent results
+
 - After ID lookup (or qualified external-provider resolution), names, roles,
   text and states may verify meaning and results.
   Prefer invoking the ID-resolved control's public accessibility action directly,

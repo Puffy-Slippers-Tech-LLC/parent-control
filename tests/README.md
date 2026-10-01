@@ -1,17 +1,19 @@
 # Test maintenance
 
-Start with the [E2E building blocks](../docs/TestAutomation/E2E-Building-Blocks.md) for customer validation design. This document describes how to select and maintain tests;
+Start with the [documentation map](../docs/TestAutomation/README.md) for ownership
+and customer validation design. This document describes how to select and maintain tests;
 it does not repeat completed setup tasks or historical acceptance results.
 
 Use the [shared support guide](support/README.md) before adding fixture code.
 It maps existing broker, D-Bus, preview, package, VM and E2E helpers to their
 contracts. Reusable code belongs in support modules, not collected case files.
 
-For unfinished implementation, follow the
-[E2E building blocks](../docs/TestAutomation/E2E-Building-Blocks.md): read the
-active problem and relevant code, prove one real helper path, then batch its
-cases. Report results and retain runner artifacts before moving to a different
-problem. A fresh chat does not require rerunning unaffected tests.
+For queued E2E implementation, follow the
+[execution plan](../docs/TestAutomation/E2E-Execution-Plan.md) and its first
+unchecked active row. The [building blocks](../docs/TestAutomation/E2E-Building-Blocks.md)
+own reusable operations, not task selection. Each complete scenario remains its
+own task and independent attempt. A fresh chat does not require rerunning
+unaffected tests.
 
 ## All established regressions
 
@@ -1508,7 +1510,7 @@ classifying the test as broken.
    environment and safety prerequisites. Add them to the authoritative suite
    inventory when implemented; they must not be silently absent from `test-all`.
 3. Maintain stable `ONPC-...` IDs and `requirements.json`. Run
-   `python3 tools/verify_test_traceability.py --mode stage` after specification
+   `tools/run-tests traceability stage` after specification
    or mapping changes. Current file-existence validation is structural; only
    actual executable evidence justifies `covered`. Supporting contracts cannot
    satisfy a required runtime layer.

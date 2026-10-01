@@ -1,5 +1,8 @@
 # 191 — Read local date, time and timezone through SSH
 
+Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and the task-specific scope and acceptance below.
+
 Estimate: 20–30 minutes. Follow the
 [session contract](../E2E-Execution-Plan.md#task-size-and-order).
 
@@ -37,8 +40,5 @@ qualify a live route or complete a customer scenario.
 
 ## Close out
 
-Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Record the proven callable/scope and existing artifact, check **191** only after
-acceptance and cleanup, and advance the sole pointer in queue order. Keep an
-unmet requirement pending with its return condition. Delete this brief after
-its enduring contract is recorded in the catalogue/source.
+Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
+after this task's acceptance and owned cleanup pass.

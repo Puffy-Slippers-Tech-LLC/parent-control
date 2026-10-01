@@ -1,7 +1,9 @@
 # 048c — Qualify the overlay Shell prompt and Cancel
 
-Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and the task-specific scope and acceptance below.
+
+Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
@@ -41,8 +43,5 @@ argument-free launcher and cleanup coverage. Host tests alone cannot close this 
 
 ## Close out
 
-Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Record only the proven callable/scope and existing artifact pointer, check
-**048c** after its acceptance and cleanup, and advance the master's sole
-pointer to the following unchecked row. An unmet requirement keeps this task
-current. Delete this brief after enduring context is in the catalogue/source.
+Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
+after this task's acceptance and owned cleanup pass.

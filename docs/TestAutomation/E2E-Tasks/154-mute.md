@@ -1,5 +1,8 @@
 # 154 — Deferred qualification of restored mute
 
+Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and the task-specific scope and acceptance below.
+
 This is future-feature scope, outside current-release completion. No active
 task depends on it. Reconsider only after a real product release restores the
 public mute control; current absence cannot qualify interaction.

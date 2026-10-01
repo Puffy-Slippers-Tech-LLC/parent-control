@@ -65,6 +65,21 @@ def variants():
             for family in inventory['scenarios'] for variant in family['variants']}
 
 
+@pytest.fixture(scope='module')
+def briefs(rows):
+    """Read each unfinished brief once; keep queue and document ownership explicit."""
+    result = {}
+    for row in rows:
+        links = re.findall(r'\]\((E2E-Tasks/[^)]+\.md)\)', row['title'])
+        if row['done']:
+            assert not links, row['id']
+            continue
+        assert len(links) == 1, row['id']
+        path = DOCS / links[0]
+        result[row['id']] = (path, path.read_text())
+    return result
+
+
 def test_dependencies_are_unique_earlier_tasks_and_never_scenario_results(rows):
     by_id = {row['id']: row for row in rows}
     assert len(by_id) == len(rows), 'duplicate task ID'
@@ -93,18 +108,14 @@ def test_next_pointer_is_exactly_the_first_unfinished_active_brief(rows):
     assert f']({path})' in pending[0]['title']
 
 
-def test_every_unfinished_task_has_one_matching_brief_and_prerequisites(rows):
+def test_every_unfinished_task_has_one_matching_brief_and_prerequisites(rows, briefs):
     linked = set()
     for row in rows:
-        links = re.findall(r'\]\((E2E-Tasks/[^)]+\.md)\)', row['title'])
         if row['done']:
-            assert not links, row['id']
             continue
-        assert len(links) == 1, row['id']
-        path = DOCS / links[0]
+        path, brief = briefs[row['id']]
         assert path not in linked, row['id']
         linked.add(path)
-        brief = path.read_text()
         assert brief.startswith(f"# {row['id']} — "), row['id']
         heading = ('Required tasks (queue IDs; use delivered scope, '
                    'not predecessor briefs):')
@@ -122,12 +133,20 @@ def test_every_unfinished_task_has_one_matching_brief_and_prerequisites(rows):
     assert linked == set((DOCS / 'E2E-Tasks').glob('*.md')), 'orphan/missing brief'
 
 
+def test_unfinished_briefs_inherit_the_shared_execution_contract(briefs):
+    contract = DOCS / 'E2E-Execution-Contracts.md'
+    assert '\n## Task brief contract\n' in contract.read_text()
+    for identity, (_, brief) in briefs.items():
+        assert '(../E2E-Execution-Contracts.md#task-brief-contract)' in brief, identity
+
+
 def test_case_assignments_preserve_inventory_and_one_case_per_task(rows, variants):
     assignments = Counter(case for row in rows for case in row['cases'])
     assert all(count == 1 for count in assignments.values()), assignments
     assert all(len(row['cases']) <= 1 for row in rows), 'split paired case tasks'
     regressions = [row['regression'] for row in rows if row['regression'] is not None]
     assert Counter(regressions) == Counter(RETAINED_CASES)
+    assert set(assignments) | RETAINED_CASES == set(variants), 'unqueued/unknown case'
     assert set(variants).isdisjoint(range(140, 151))
     for number, (_, variant) in variants.items():
         if number in RETAINED_CASES:
@@ -142,13 +161,12 @@ def test_case_assignments_preserve_inventory_and_one_case_per_task(rows, variant
     assert Counter(obligations) == Counter(range(140, 151))
 
 
-def test_scenario_brief_bindings_match_inventory(rows, variants):
+def test_scenario_brief_bindings_match_inventory(rows, variants, briefs):
     errors = []
     for row in rows:
         if row['done'] or not row['cases']:
             continue
-        path = re.search(r'\]\((E2E-Tasks/[^)]+\.md)\)', row['title'])[1]
-        brief = (DOCS / path).read_text()
+        _, brief = briefs[row['id']]
         bindings = re.findall(r'^- \*\*(\d+) — ([^:]+):\*\* (.+)\.$', brief, re.M)
         # Some dedicated briefs select their case solely through the live command.
         for number, name, values in bindings:
@@ -161,7 +179,7 @@ def test_scenario_brief_bindings_match_inventory(rows, variants):
     assert not errors, errors
 
 
-def test_brief_consumer_hints_follow_queue_and_inventory(rows, variants):
+def test_brief_consumer_hints_follow_queue_and_inventory(rows, variants, briefs):
     dependencies = {}
     for row in rows:
         dependencies[row['id']] = set(row['requires'])
@@ -171,8 +189,7 @@ def test_brief_consumer_hints_follow_queue_and_inventory(rows, variants):
     for row in rows:
         if row['done']:
             continue
-        path = re.search(r'\]\((E2E-Tasks/[^)]+\.md)\)', row['title'])[1]
-        brief = (DOCS / path).read_text()
+        _, brief = briefs[row['id']]
         hint = re.search(r'First scheduled consumer: \[(E2E-\d+), case (\d+)\]', brief)
         if hint is None:
             continue
@@ -207,12 +224,11 @@ def test_delivered_block_names_resolve_to_unique_catalogue_contracts(rows):
         assert declared <= set(ids), row['id']
 
 
-def test_active_task_estimates_fit_one_session_or_explain_the_exception(rows):
+def test_active_task_estimates_fit_one_session_or_explain_the_exception(rows, briefs):
     for row in rows:
         if row['done'] or row['deferred']:
             continue
-        path = re.search(r'\]\((E2E-Tasks/[^)]+\.md)\)', row['title'])[1]
-        brief = (DOCS / path).read_text()
+        _, brief = briefs[row['id']]
         reasons = re.findall(r'^Session exception: (.+)$', brief, re.M)
         if row['minutes'].endswith(' (exception)'):
             assert len(reasons) == 1 and len(reasons[0].split()) >= 8, row['id']

@@ -1,7 +1,9 @@
 # 296 — Observe Lunar command denial
 
-Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and the task-specific scope and acceptance below.
+
+Estimate: 20–30 minutes.
 
 ## Session boundary
 

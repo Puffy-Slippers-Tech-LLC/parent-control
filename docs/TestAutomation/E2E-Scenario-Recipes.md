@@ -9,9 +9,8 @@ read only the selected family's branches, applicable finite-data rows and common
 entry/time rules.
 
 E2E-028, E2E-029 and E2E-034 are retired; their former coverage IDs 140–150
-remain system-test obligations outside the UI inventory. Cases 1, 3, 4, 5, 6,
-151 and 193 retain implementations, earlier evidence and ready inventory
-bindings. Each family below records
+remain system-test obligations outside the UI inventory. Preserve all current
+ready inventory bindings and their assertions. Each family below records
 current implementation context, not an independent readiness authority. Follow
 the [execution plan](E2E-Execution-Plan.md#completion-and-document-cleanup) after
 a complete scenario pass. A block qualification alone leaves its scenario

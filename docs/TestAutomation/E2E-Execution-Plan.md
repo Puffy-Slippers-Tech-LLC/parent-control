@@ -6,7 +6,7 @@ Start each new session with:
 
 Read this entry plan and the **Next task** brief, then use the reading routes
 below. The [documentation map](README.md) defines ownership and status terms.
-This master owns selection, execution and completion, with detailed procedures
+This entry point owns selection and reading routes, with execution and completion procedures
 in [execution contracts](E2E-Execution-Contracts.md). Its canonical
 [queue](E2E-Task-Queue.md) is one fixed sequence, including provider qualification
 and retained regressions. Briefs never select a different task.
@@ -28,14 +28,6 @@ run. All five affected enforcement cases passed. Resume when the declared
 catalogue identities/defaults, independent reopening and collection pass with
 owned cleanup and baseline restoration; retain the brief's exported failure evidence.
 
-Task 193 qualified LIFE06's Parent control composition in
-`20260930T233245Z-9d68a23f` on every enabled VM: same-window enable/disable and
-independent saved results while offline, followed by independent Internet
-recovery. The shared UI17 worker now uses qualified sign-in and PARENT01 launch;
-its affected toggle qualification passed in `20260930T233540Z-66f7eb21`.
-Both passed collection, owned cleanup and baseline restoration. Complete
-offline scenarios remain in their separate tasks.
-
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
 pointer; record its exact remaining work and return condition here and in its
@@ -51,19 +43,14 @@ The allocation review does not advance the pointer or replace live acceptance.
 
 Current scenario status and counts come from `tests/e2e/scenarios.json`; block
 status comes from the catalogue. The initial provider migration gate is closed.
-On 2026-09-23 the developer confirmed separately validating all seven ready
+On 2026-09-23 the developer confirmed separately validating the seven then-ready
 cases—1, 3, 4, 5, 6, 151 and 193—and explicitly directed that they need not be
 rerun. This confirmation supplies the shared regression gate's acceptance;
 no runner artifact was supplied for that complete set.
 
-Task 151r separately passed the complete guarded About/license/return case in
-run `20260923T202401Z-9e9a5886`, including unchanged child/settings, capture
-reconciliation, product, infrastructure, collection, owned cleanup and baseline
-restoration. Before the developer's direction, the shared-change audit also
-started fresh case 1 and 3 runs; both passed with collection and cleanup
-(`20260923T202714Z-fc680b74` and `20260923T202932Z-38973041`). Coverage was
-regenerated after each successful case. Cases 4, 5, 6 and 193 were not rerun
-during this close-out.
+That historical set is not the current runnable inventory. Delivered scopes and
+their evidence stay in the queue/catalogue; future shared changes follow the
+[live regression policy](E2E-Execution-Contracts.md#live-verification-contract).
 
 Preserve the customer assertions and registered bindings; supporting routes
 follow the current mandate. A checked queue task records its delivered scope;
@@ -90,20 +77,11 @@ obligations under their maintained owners.
    scope, not predecessor documents or saved VM state. Verify the exact surface,
    route and branch in maintained
    callables; a ready block ID does not qualify every binding.
-4. Implement that slice, its meaningful supporting checks and stated acceptance.
-   Use the [composition preflight](E2E-Building-Blocks.md#composition-preflight)
-   to catch integration mistakes before spending a live attempt.
-   Implement leaves before composites, including within a small task. Bind
-   entry, finite inputs, expected public results, precision and deadlines first.
-   Apply the [UI automation mandate](../Mandates/UI-Automation-Mandate.MD) and
-   [functional validation](E2E-Building-Blocks.md#functional-validation) to every
-   required operation. Use shared shortcuts, SSH or system commands for Shell,
-   GDM preparation and other supporting work. GUI adapters are for tested product
-   features and unavoidable graphical authentication; qualify those remaining
-   routes and fix missing owned IDs before their consumers.
-   Apply the [bounded supporting-work contract](E2E-Building-Blocks.md#keep-supporting-work-bounded):
-   establish each non-product prerequisite with one shared supported route, then
-   proceed to the app assertion. Dependency setup is not another coverage matrix.
+4. Apply the [shared task contract](E2E-Execution-Contracts.md#task-brief-contract)
+   and implement the selected slice, supporting checks and stated acceptance.
+   Bind entry, finite inputs, expected public results, precision and deadlines;
+   implement leaves before composites and complete composition preflight before
+   the first live attempt.
 5. Finish live verification, cleanup and close-out. Report the task ID, result
    and next task. The next identical prompt repeats this workflow.
 

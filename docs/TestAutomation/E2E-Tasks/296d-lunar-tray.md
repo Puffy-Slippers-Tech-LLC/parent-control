@@ -1,7 +1,9 @@
 # 296d — Close Lunar to its tray and restore it
 
-Estimate: 20–30 minutes. Aim for one session; this is not a stop timer.
-Follow the [session contract](../E2E-Execution-Plan.md#task-size-and-order).
+Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and the task-specific scope and acceptance below.
+
+Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
@@ -12,32 +14,15 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **296c** — APP01/02/03/UI18 Lunar original-AppImage usable launch and Quit.
 
-## Read only this context
-
-Read only the delivered block rows and their named callables in the
-[catalogue](../E2E-Building-Blocks.md), the selected consumer's recipe clauses,
-and the affected safety/adapter tests. Follow the
-[scoped reading rules](../E2E-Execution-Plan.md#load-only-the-selected-context).
-Use delivered prerequisite scopes; do not open predecessor briefs.
-
 ## Implementation
 
 Extend the qualified Lunar adapter with the actual tray owner/entry and independent surrounding-desktop snapshots. Keep window close distinct from genuine Quit.
-
-Keep repository-owned targets addressed by public automation IDs. External
-provider bindings use the approved scoped adapter and its ownership, ambiguity,
-freshness and uncertain-input guards. Reuse the existing attempt envelope,
-observer and worker; add no independent runner or fixture framework.
 
 ## Live VM acceptance
 
 Launch Lunar, close to tray, observe the tray with the main window absent, restore the same Lunar surface, then Quit through the qualified operation. Wrong tray owner, incomplete absence and uncertain input refuse.
 
-Use a fresh guarded VM attempt through shared watch intent, display and
-command transport. Pass affected cleanup/ownership regressions in isolation
-first. Require independent valid entry, wrong-entry refusal, public results,
-sanitized collection and owned cleanup. Secret and shared infrastructure changes
-retain all applicable regression requirements from the master.
+Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Implement and register this fixed argument-free qualification, with its cleanup
 coverage, before invoking it:
@@ -46,14 +31,7 @@ coverage, before invoking it:
 tools/run-tests integration check_e2e_lunar_tray
 ```
 
-The selector is planned, not currently qualified. Host checks alone cannot
-complete this slice, and it supplies no complete-scenario acceptance credit.
-
 ## Close out
 
-Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Record only the actual callable and qualified slice in the catalogue. After
-acceptance and cleanup pass, check **296d**, advance the sole pointer to the
-following unchecked row and delete this brief after enduring context is in
-source/contracts. Keep any unmet gate and its return condition on this task;
-do not advance around it.
+Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
+after this task's acceptance and owned cleanup pass.

@@ -36,11 +36,11 @@ def arguments(argv=None):
 
 
 def confirm_preparation(args):
-    print(f'prepare-appsnapshot: prepare the current app snapshot on {args.vm} '
+    print(f'\033[31mprepare-appsnapshot: prepare the current app snapshot on {args.vm} '
           f'(mode={args.mode}, overwrite={args.overwrite}). '
           'Preparation may restore the baseline, install the app and replace the version snapshot. '
           + ('Online mode leaves an owned running guest.' if args.mode == 'online' else
-             'Offline mode leaves the guest powered off.'), flush=True)
+             'Offline mode leaves the guest powered off.') + '\033[0m', flush=True)
     if args.y:
         return True
     while True:

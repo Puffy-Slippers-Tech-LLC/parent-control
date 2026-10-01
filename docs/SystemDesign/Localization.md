@@ -223,8 +223,8 @@ Parent and child overlay read their own language asynchronously at startup.
 Kiosk reads the selected child's language at startup and each child selection.
 A nonempty saved value bypasses the chooser. An empty value opens a modal chooser
 with the resolved primary session language selected. The chooser displays native
-language names in catalogue order and explains that Preferences can change the
-selection, using the same neutral wording for initial setup and subsequent visits.
+language names in catalogue order, using the same heading for initial setup and
+subsequent visits.
 
 Parent uses its native GTK dialog; the kiosk and overlay share their separate
 metal-board dialog. Both share catalogue and resolution logic. Save commits the
@@ -234,15 +234,17 @@ always offers Cancel, including first-time setup; it continues startup without
 writing or applying the candidate, leaving the chooser to appear on the next
 launch while the preference remains empty. Kiosk and overlay also always offer
 Cancel; kiosk prompts again when that child is next selected while unset.
-Cancel never writes or applies the candidate.
+Cancel never writes the candidate or applies it to the owning frontend.
 Saving disables the choices, Save and Cancel to
 prevent duplicate submissions. A failure retains the choice, displays an error
 and enables retry.
 
 The top-right Preferences action reopens the chooser with the account's saved
-selection. Opening it does not write a default. Selecting a language changes only
-the dialog's candidate value; Save commits it. The candidate does not preview
-translations or replace the active context before persistence succeeds.
+selection. Opening it does not write a default. Selecting a language immediately
+translates the chooser's visible and accessible text in its private context.
+Existing controls are relabeled in one main-loop turn without hiding, remapping
+or rebuilding the dialog. Native language names remain unchanged. The owning
+frontend keeps its active context until Save commits the candidate successfully.
 
 The empty storage value supplies the first-run default; the chooser's Save
 action makes the selection explicit. The chooser exposes explicit product

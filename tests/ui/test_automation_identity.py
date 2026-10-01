@@ -8,6 +8,104 @@ from tests.support.automation_ids import audit_product_controls
 pytestmark = pytest.mark.ui
 
 
+@pytest.mark.parametrize('frontend', ['parent', 'kiosk'])
+def test_language_chooser_previews_without_remapping_or_changing_owner(
+        hermetic_ui_session, frontend):
+    """Engineering check: live text changes preserve the mapped widget tree."""
+    import subprocess
+    import sys
+    from tests.support.paths import ROOT
+
+    script = '''
+import gi
+gi.require_version('Gtk', '4.0')
+from gi.repository import Gio, GLib, Gtk
+from common.oh_no_parent_control_ui import messages as m
+from common.oh_no_parent_control_ui.translation_widgets import context_for, localized
+from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES
+from common.oh_no_parent_control_ui.localization import load_translations
+from FRONTEND.oh_no_parent_control_FRONTEND.language_dialog import LanguageDialog
+
+Gtk.init()
+application = Gtk.Application(application_id='com.puffyslippers.LanguageModalTest',
+                              flags=Gio.ApplicationFlags.NON_UNIQUE)
+application.register(None)
+parent = Gtk.ApplicationWindow(application=application)
+label = localized(Gtk.Label, label=m.CHOOSE_YOUR_LANGUAGE)
+parent.set_child(label)
+context_for(parent).apply('en')
+parent.present()
+if 'FRONTEND' == 'kiosk':
+    parent.fullscreen()
+saves, cancellations, events = [], [], []
+options = {'account': (1001, 'Zoë', '')} if 'FRONTEND' == 'kiosk' else {}
+dialog = LanguageDialog(parent, 'en', lambda *args: saves.append(args),
+                        None, lambda: cancellations.append(True), **options)
+dialog.connect('map', lambda *_: events.append('map'))
+dialog.connect('unmap', lambda *_: events.append('unmap'))
+dialog.present()
+loop = GLib.MainContext.default()
+def drain():
+    while loop.pending():
+        loop.iteration(False)
+drain()
+assert dialog.get_application() is application
+assert dialog.get_transient_for() is parent and dialog.get_modal()
+assert dialog.get_group() == parent.get_group()
+assert dialog.get_surface().get_property('modal')
+assert dialog.get_surface().get_property('transient-for') == parent.get_surface()
+
+# Exercise the activation that an outside click requests from the compositor.
+# This is an engineering focus/lifecycle check, not native pointer acceptance.
+parent.present()
+settled = GLib.MainLoop()
+GLib.timeout_add(250, lambda: (settled.quit(), GLib.SOURCE_REMOVE)[1])
+settled.run()
+assert dialog.is_active(), 'parent activation stole modal focus'
+dialog.close()
+drain()
+assert dialog.get_mapped() and events == ['map'], events
+assert not saves and not cancellations
+
+def controls(widget):
+    result = {}
+    identity = Gtk.Buildable.get_buildable_id(widget)
+    if identity and identity.startswith('language-'):
+        result[identity] = widget
+    child = widget.get_first_child()
+    while child is not None:
+        result.update(controls(child))
+        child = child.get_next_sibling()
+    return result
+
+original = controls(dialog)
+dialog._failure(None)
+for language, native_name in SUPPORTED_LANGUAGES:
+    choice = original['language-choice-' + language.lower()]
+    choice.set_active(True)
+    drain()
+    translations = load_translations(language)
+    assert original['language-title'].get_label() == translations.gettext('Choose your language')
+    assert 'language-description' not in controls(dialog)
+    assert original['language-continue'].get_label() == translations.gettext('Save')
+    assert original['language-cancel'].get_label() == translations.gettext('Cancel')
+    assert original['language-error'].get_label() == translations.gettext('Your language could not be saved. Please try again.')
+    assert choice.get_child().get_label() == native_name
+    assert choice.get_active() and dialog._selected == language
+    assert controls(dialog) == original, 'translation rebuilt controls'
+    assert dialog.get_mapped() and events == ['map'], events
+    assert label.get_label() == 'Choose your language', 'candidate escaped into owner'
+    assert not saves and not cancellations
+dialog._dismiss(None)
+assert cancellations == [True] and not saves
+assert label.get_label() == 'Choose your language'
+parent.destroy()
+'''.replace('FRONTEND', frontend)
+    result = subprocess.run([sys.executable, '-c', script], cwd=ROOT,
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_parent_language_chooser_unmaps_before_relabeling(hermetic_ui_session):
     """Engineering check: the outgoing native window never paints new text."""
     import subprocess

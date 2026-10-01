@@ -194,8 +194,13 @@ def test_saved_language_bypasses_setup_and_cancel_discards_candidate(
     assert ui.state('language-choice-' + language.lower(), ui.api.StateType.CHECKED)
     candidate = 'de' if language != 'de' else 'zh-Hans'
     ui.reader.choose_language(scope, candidate)
-    assert ui.text('language-title') == LANGUAGES[language][2]
-    assert ui.text('language-continue') == LANGUAGES[language][3]
+    wait(lambda: ui.text('language-title') == LANGUAGES[candidate][2],
+         'candidate immediately translates the chooser')
+    assert ui.text('language-continue') == LANGUAGES[candidate][3]
+    assert ui.target('language-continue').get_description() == LANGUAGES[candidate][4]
+    if surface != 'parent':
+        account = {'de': 'Für Alex Morgan', 'zh-Hans': '为 Alex Morgan'}[candidate]
+        assert ui.text('language-account') == account
     assert not committed(path)
     ui.reader.cancel_language(scope)
     assert_surface_language(ui, wait, surface, language)
@@ -222,11 +227,11 @@ def test_failed_save_retains_candidate_and_active_language_then_retries(
     ui.reader.choose_language(scope, 'de')
     ui.activate('language-continue')
     wait(lambda: ui.showing('language-error'), 'save failure is visible')
-    assert ui.text('language-error') == 'Your language could not be saved. Please try again.'
+    assert ui.text('language-error') == 'Die Sprache konnte nicht gespeichert werden. Bitte erneut versuchen.'
     assert ui.state('language-choice-de', ui.api.StateType.CHECKED)
     assert ui.state('language-choice-de', ui.api.StateType.SENSITIVE)
     assert ui.state('language-continue', ui.api.StateType.SENSITIVE)
-    assert ui.text('language-title') == LANGUAGES['en'][2]
+    assert ui.text('language-title') == LANGUAGES['de'][2]
     assert not committed(path)
     assert ui.state('language-cancel', ui.api.StateType.SENSITIVE)
     ui.reader.save_language(scope)

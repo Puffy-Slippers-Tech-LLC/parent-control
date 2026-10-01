@@ -60,6 +60,10 @@ def context_for(widget):
     root = widget.get_root() if isinstance(widget, Gtk.Widget) else None
     if root is not None and root is not widget:
         return context_for(root)
+    # A language chooser previews its candidate in a private window context.
+    # Ordinary shared dialogs still inherit their transient parent's context.
+    if hasattr(widget, '_translation_context'):
+        return widget._translation_context
     if isinstance(widget, Gtk.Window) and widget.get_transient_for() is not None:
         return context_for(widget.get_transient_for())
     if not hasattr(widget, '_translation_context'):

@@ -2,7 +2,7 @@
 
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.translation_widgets import (
-    localized, set_text, accessible_text, context_for,
+    localized, set_text, accessible_text, context_for, TranslationContext,
 )
 
 import gi
@@ -19,8 +19,11 @@ from .chrome import ArmoredButton, MetalBoard
 
 class LanguageDialog(Gtk.Window):
     def __init__(self, parent, language, save, saved, cancelled, *, account=None):
-        super().__init__(title=m.LANGUAGE, transient_for=parent, modal=True,
+        super().__init__(application=parent.get_application(),
+                         title=m.LANGUAGE, transient_for=parent, modal=True,
                          destroy_with_parent=True, deletable=False, decorated=False)
+        self._selected = selected_language(language, GLib.get_language_names())
+        self._translation_context = TranslationContext(self._selected)
         set_text(self, 'title', m.LANGUAGE)
         set_automation_id(self, "language-dialog")
         self.add_css_class("oh-no-parent-control-language-dialog")
@@ -28,7 +31,6 @@ class LanguageDialog(Gtk.Window):
         self.connect("map", self._size_to_gateway)
         self._save, self._saved = save, saved
         self._cancelled = cancelled
-        self._selected = selected_language(language, GLib.get_language_names())
         self._saving = False
 
         board = MetalBoard(orientation=Gtk.Orientation.VERTICAL)
@@ -59,11 +61,6 @@ class LanguageDialog(Gtk.Window):
         self._heading.append(self._account_row)
         header.append(self._heading)
         content.append(header)
-        description = localized(Gtk.Label, label=m.YOU_CAN_CHANGE_IT_IN_PREFERENCES,
-                                wrap=True, xalign=0,
-                                css_classes=["oh-no-parent-control-language-description"])
-        set_automation_id(description, "language-description")
-        content.append(description)
 
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         first = None
@@ -110,7 +107,14 @@ class LanguageDialog(Gtk.Window):
         self.set_account(account)
         self.set_default_widget(self._continue)
         self.connect("close-request", lambda *_args: True)
+        parent.connect_object("notify::is-active", LanguageDialog._parent_activated, self)
         self._size_to_gateway(self)
+
+    def _parent_activated(self, *_args):
+        # Fullscreen preview compositors may raise the parent on an outside
+        # click. Restore modal focus without hiding or recreating the chooser.
+        if self.get_visible() and self.get_transient_for().is_active():
+            self.present()
 
     def set_account(self, account):
         if account is not None:
@@ -152,7 +156,12 @@ class LanguageDialog(Gtk.Window):
 
     def _choose(self, choice, identity):
         if choice.get_active():
+            # Keep the mapped window and controls; GTK paints the translated
+            # text and adjusted measurements together on the next frame.
+            context_for(self).apply(identity)
             self._selected = identity
+            self._logo.set_pixel_size(self._heading.measure(Gtk.Orientation.VERTICAL, -1)[1])
+            self._size_to_gateway(self)
 
     def _submit(self, _button):
         if self._saving:

@@ -9,6 +9,31 @@ from tests.support.request_form import launch_request, events
 pytestmark = pytest.mark.ui
 
 
+@pytest.mark.parametrize('language,heading,categories', [
+    ('de', 'Ein Fehler ist aufgetreten', 'Fehlerkategorien'),
+    ('ru', 'Произошла ошибка', 'Категории ошибок'),
+])
+def test_error_report_initial_explanation_uses_request_language(
+        launch_ui, automation, wait_for_accessible_state, tmp_path,
+        language, heading, categories):
+    from tests.support.localization_review import switch_language
+    ui, wait = automation, wait_for_accessible_state
+    launch_request(launch_ui, tmp_path, overlay=True, scenario='service-failure',
+                   wait_for_application=False)
+    wait(lambda: ui.state('kiosk-request-submit', ui.api.StateType.SENSITIVE), 'ready')
+    switch_language(ui, wait, 'kiosk', language)
+    ui.activate('kiosk-request-submit')
+    wait(lambda: ui.showing('kiosk-report-toggle'), 'error result opens')
+    ui.activate('kiosk-result-action')
+    wait(lambda: ui.showing('feedback-dialog'), 'error report opens')
+    editor = feedback_editor(ui, wait)
+    wait(lambda: ui.content(editor).startswith(heading + '\n'), 'localized explanation loads')
+    draft = ui.content(editor)
+    assert categories + ': RuntimeError' in draft
+    assert 'The operation could not be completed' not in draft
+    assert 'org.example.Secret' not in draft and '/private/path' not in draft
+
+
 def wait_for_error_draft(ui, wait):
     editor = feedback_editor(ui, wait)
     wait(lambda: "Error categories: RuntimeError" in ui.content(editor),

@@ -6,6 +6,7 @@ from unittest import mock
 from types import SimpleNamespace
 
 from common.oh_no_parent_control_ui.languages import selected_language, session_language, supported_language
+from common.oh_no_parent_control_ui import messages as m
 
 from parent.oh_no_parent_control_parent.main import (
     ACCOUNT_REFRESH_SECONDS, APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, STATES, ParentAccountSelector, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _minutes_label,
@@ -85,6 +86,14 @@ class ParentWindowHarness:
 
 
 class ParentWindowTests(unittest.TestCase):
+    def setUp(self):
+        from tests.support.objects import set_plain_text, plain_accessible_text
+        for name, replacement in [('set_text', set_plain_text),
+                                  ('accessible_text', plain_accessible_text)]:
+            patch = mock.patch('parent.oh_no_parent_control_parent.main.' + name, replacement)
+            patch.start()
+            self.addCleanup(patch.stop)
+
     def test_session_language_collapses_variants_and_falls_back_to_english(self):
         for locale, expected in (
             ("en_GB.UTF-8", "en"), ("en-AU", "en"), ("de_DE@euro", "de"),
@@ -496,7 +505,7 @@ class ParentWindowTests(unittest.TestCase):
         build = inspect.getsource(ParentWindow._build)
 
         self.assertIn("Gtk.Popover(", source)
-        self.assertIn("Gtk.CheckButton(", source)
+        self.assertIn("localized(Gtk.CheckButton,", source)
         self.assertIn("trigger.set_popover(popover)", source)
         self.assertIn("icon_factory(item)", source)
         self.assertIn('css_classes=["app-policy-filter-item-label"]', source)
@@ -574,15 +583,17 @@ class ParentWindowTests(unittest.TestCase):
         account_picker = source.index("account_actions.append(self._account)")
         view_stack = source.index("pages = Adw.ViewStack")
         screen_tab = source.index(
-            'screen_limits_page, "screen-limits", "Screen Limits", "alarm-symbolic"'
+            'screen_limits_page, "screen-limits", m.SCREEN_LIMITS, "alarm-symbolic"'
         )
         app_tab = source.index(
-            'app_limits_page, "app-limits", "App Limits", "view-grid-symbolic"'
+            'app_limits_page, "app-limits", m.APP_LIMITS, "view-grid-symbolic"'
         )
 
         self.assertLess(account_picker, view_stack)
         self.assertLess(view_stack, screen_tab)
         self.assertLess(screen_tab, app_tab)
+        self.assertEqual(m.SCREEN_LIMITS.source, 'Screen Limits')
+        self.assertEqual(m.APP_LIMITS.source, 'App Limits')
         self.assertIn("screen_limits_page.set_child(Adw.Clamp(", source)
         self.assertIn("screen_limits.append(screen_limit_rows)", source)
         self.assertIn("app_limits.append(self._legend_card())", source)
@@ -603,7 +614,7 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('automation_id=f"parent-child-choice-{uid}"', selector)
         self.assertNotIn("Gtk.DropDown", selector)
         self.assertNotIn("👦🏻", selector)
-        self.assertIn('self._time_status = Adw.ExpanderRow(', source)
+        self.assertIn('self._time_status = localized(Adw.ExpanderRow,', source)
         self.assertIn('self._time_status.add_suffix(self._time_status_value)', source)
         self.assertIn('self._time_status.add_row(self._time_calculation_panel())', source)
         self.assertEqual(source.count("maximum_size=CONTENT_MAX_WIDTH"), 4)
@@ -667,12 +678,13 @@ class ParentWindowTests(unittest.TestCase):
             "self.set_default_size(DEFAULT_WINDOW_WIDTH, 1168)", initializer,
         )
         self.assertIn('css_classes=["app-limits-card"]', source)
-        self.assertNotIn('label="App Limits", xalign=0', source)
+        self.assertNotIn('label=m.APP_LIMITS, xalign=0', source)
         self.assertIn('css_classes=["apps-section"]', source)
         self.assertIn('css_classes=["apps-panel"]', source)
         self.assertIn('css_classes=["apps-table-overlay"]', source)
         self.assertIn('css_classes=["apps-loading-mask"]', source)
-        self.assertIn('label="Loading installed apps…"', source)
+        self.assertIn('label=m.LOADING_INSTALLED_APPS', source)
+        self.assertEqual(m.LOADING_INSTALLED_APPS.source, 'Loading installed apps…')
         self.assertNotIn(".app-limits-card-header {", stylesheet)
         self.assertIn(".apps-section {\n  margin: 16px 29px 16px;", stylesheet)
         self.assertIn(".apps-loading-mask {", stylesheet)
@@ -681,7 +693,7 @@ class ParentWindowTests(unittest.TestCase):
     def test_match_rule_legend_uses_normal_visual_state(self):
         source = inspect.getsource(ParentWindow._legend_section)
 
-        self.assertIn("icon = Gtk.Button(", source)
+        self.assertIn("icon = localized(Gtk.Button,", source)
         self.assertIn("can_focus=False, can_target=False", source)
         self.assertNotIn("sensitive=False", source)
 
@@ -713,14 +725,17 @@ class ParentWindowTests(unittest.TestCase):
             / "parent/oh_no_parent_control_parent/style.css"
         ).read_text(encoding="utf-8")
 
-        self.assertIn('label="Legend"', source)
+        self.assertIn('label=m.LEGEND', source)
+        self.assertEqual(m.LEGEND.source, 'Legend')
         self.assertIn('active=False', source)
         self.assertIn('reveal_child=False', source)
         self.assertIn(
             'set_automation_id(sections, "parent-legend-content")', source,
         )
-        self.assertIn('"App Access (What happens)", APP_LIST_STATES', source)
-        self.assertIn('"Match Rule (How apps are matched)", MATCH_RULES', source)
+        self.assertIn('m.APP_ACCESS_WHAT_HAPPENS, APP_LIST_STATES', source)
+        self.assertIn('m.MATCH_RULE_HOW_APPS_ARE_MATCHED, MATCH_RULES', source)
+        self.assertEqual(m.APP_ACCESS_WHAT_HAPPENS.source, 'App Access (What happens)')
+        self.assertEqual(m.MATCH_RULE_HOW_APPS_ARE_MATCHED.source, 'Match Rule (How apps are matched)')
         self.assertIn('orientation=Gtk.Orientation.VERTICAL', source)
         self.assertIn('card.add_css_class("expanded")', toggled)
         self.assertIn('.policy-legend.expanded {', stylesheet)
@@ -765,8 +780,10 @@ class ParentWindowTests(unittest.TestCase):
     def test_revoke_confirmation_discloses_that_the_child_is_locked(self):
         source = inspect.getsource(ParentWindow._confirm_revoke)
 
-        self.assertIn("close their running blocked apps", source)
-        self.assertIn("lock their desktop when no time remains", source)
+        self.assertIn('m.THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED', source)
+        warning = m.THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED.source
+        self.assertIn("close their running blocked apps", warning)
+        self.assertIn("lock their desktop when no time remains", warning)
 
     def test_revoke_confirmation_constrains_and_word_wraps_its_warning(self):
         source = inspect.getsource(ParentWindow._confirm_revoke)

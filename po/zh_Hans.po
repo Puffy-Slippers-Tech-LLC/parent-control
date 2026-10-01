@@ -1403,6 +1403,31 @@ msgstr "打开链接预览"
 msgid "Save link"
 msgstr "保存链接"
 
+msgid "Edit link"
+msgstr "编辑链接"
+
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "错误类别：%(categories)s"
+
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#, python-format
+#. Translators: Fractional hours, independent of integer plural rules.
+msgid "%(count)g hours"
+msgstr "%(count)g 小时"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g 小时"
+
 #. Shared message: REMOVE_LINK
 msgid "Remove link"
 msgstr "移除链接"

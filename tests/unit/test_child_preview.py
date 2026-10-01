@@ -373,7 +373,8 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn("'child-request-tooltip'", indicator)
         self.assertIn("'child-countdown-menu'", indicator)
         self.assertIn("'child-countdown-animation-toggle'", indicator)
-        self.assertIn("super._init(0.0, 'Screen Time Remaining');", indicator)
+        self.assertIn("super._init(0.0, appName);", indicator)
+        self.assertIn("appName = 'Oh No! Parent Control'", indicator)
         self.assertIn('this.setMenu(null);', indicator)
         self.assertNotIn('view-more-symbolic', indicator)
         self.assertIn("refreshEstimate()", indicator)
@@ -469,7 +470,9 @@ class ChildPreviewTests(unittest.TestCase):
             "event.get_button() !== Clutter.BUTTON_SECONDARY", indicator
         )
         self.assertIn("PopupMenu.PopupSwitchMenuItem", indicator)
-        self.assertIn("One minute count down animation", indicator)
+        self.assertIn("this._text('COUNTDOWN_ANIMATION')", indicator)
+        from common.oh_no_parent_control_ui import messages as m
+        self.assertEqual(m.COUNTDOWN_ANIMATION.source, 'One minute count down animation')
         self.assertIn("set_boolean(COUNTDOWN_ANIMATION_KEY, enabled)", indicator)
         self.assertIn("getSettings(SETTINGS_SCHEMA)", extension)
         self.assertIn('<default>false</default>', schema)

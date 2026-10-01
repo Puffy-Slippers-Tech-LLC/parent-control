@@ -85,10 +85,22 @@ test('failed extension startup remains failed with a public exception and a priv
 
 test('production extension uses live state while the separate preview supplies fixtures', () => {
     const indicators = [];
+    const contexts = [];
     const context = vm.createContext({
         Extension: class { getSettings() { return {}; } },
         ChildErrorHandler: class { report(error) { throw error; } },
-        RemainingTimeIndicator: class { constructor(...args) { indicators.push(args); } },
+        TranslationContext: class {
+            constructor(directory) {
+                this.directory = directory;
+                this.refreshes = 0;
+                contexts.push(this);
+            }
+            refresh(changed) { this.refreshes++; changed(); }
+        },
+        RemainingTimeIndicator: class {
+            constructor(...args) { indicators.push(args); this.languageRefreshes = 0; }
+            refreshLanguage() { this.languageRefreshes++; }
+        },
         appName: () => 'Parent Control',
         appLogoPath: () => '/product-logo.png',
         logInfo() {},
@@ -106,6 +118,9 @@ test('production extension uses live state while the separate preview supplies f
     assert.equal(indicators[0][1], 0);
     assert.equal(indicators[0][2], false);
     assert.equal(indicators[0][4], '');
+    assert.equal(indicators[0][8], contexts[0]);
+    assert.equal(contexts[0].refreshes, 1);
+    assert.equal(production._indicator.languageRefreshes, 1);
 
     context.GLib = {getenv: () => 'preview-app', shell_parse_argv: () => [true, ['preview-app']]};
     context.previewStartsWithRequestOpen = () => false;
@@ -120,4 +135,8 @@ test('production extension uses live state while the separate preview supplies f
     assert.equal(indicators[1][1], 45 * 60);
     assert.equal(indicators[1][2], true);
     assert.equal(indicators[1][4], 'generation-one');
+    assert.equal(indicators[1][8], contexts[1]);
+    assert.notEqual(contexts[0], contexts[1]);
+    assert.equal(contexts[1].refreshes, 1);
+    assert.equal(preview._indicator.languageRefreshes, 1);
 });

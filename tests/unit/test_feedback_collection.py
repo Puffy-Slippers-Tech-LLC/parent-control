@@ -11,6 +11,10 @@ from common.oh_no_parent_control_ui.feedback_transport import Attachment
 
 @pytest.fixture
 def dialog(monkeypatch):
+    from tests.support.objects import set_plain_text, plain_accessible_text
+    from common.oh_no_parent_control_ui import accessibility
+    monkeypatch.setattr(feedback, 'set_text', set_plain_text)
+    monkeypatch.setattr(accessibility, 'accessible_text', plain_accessible_text)
     jobs, callbacks = [], []
     # Exercise the lifecycle with widget doubles even in a displayless build.
     monkeypatch.setattr(feedback, "_feedback_icon", Mock())

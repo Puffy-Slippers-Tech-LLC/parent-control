@@ -1,7 +1,5 @@
 """Explicit GTK text bindings; relabel without rebuilding controls or drafts."""
 
-import weakref
-
 import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import GLib, Gtk
@@ -13,14 +11,46 @@ from .message import Message, JoinedMessage, render
 class TranslationContext:
     def __init__(self, language=''):
         self.translations = load_translations(language, GLib.get_language_names())
-        self.members = weakref.WeakSet()
+        self.members = set()
 
     def apply(self, language):
         # Load first: a package error keeps the last usable context intact.
         translations = load_translations(language, GLib.get_language_names())
         self.translations = translations
-        for widget in list(self.members):
-            _refresh(widget)
+        for bindings in list(self.members):
+            widget = bindings.widget()
+            if widget is not None:
+                _refresh(widget, bindings=bindings)
+
+
+class _Bindings:
+    """Keep source bindings for the native object's lifetime, not its wrapper."""
+
+    def __init__(self, widget):
+        self.values = {}
+        self.callback = None
+        self.context = None
+        self.widget = widget.weak_ref(self.release)
+        if isinstance(widget, Gtk.Widget):
+            # Signal user data survives recreation of a PyGObject wrapper.
+            widget.connect('notify::root', _refresh, self)
+
+    def release(self):
+        if self.context is not None:
+            self.context.members.discard(self)
+            self.context = None
+
+    def join(self, context):
+        if self.context is not context:
+            self.release()
+            self.context = context
+            context.members.add(self)
+
+
+def _bindings_for(widget):
+    if not hasattr(widget, '_message_bindings'):
+        widget._message_bindings = _Bindings(widget)
+    return widget._message_bindings
 
 
 def context_for(widget):
@@ -37,32 +67,31 @@ def context_for(widget):
     return widget._translation_context
 
 
-def _refresh(widget, *_args):
+def _refresh(widget, _property=None, bindings=None):
+    bindings = bindings or _bindings_for(widget)
+    widget._message_bindings = bindings
     context = context_for(widget)
-    context.members.add(widget)
-    for (kind, key), value in getattr(widget, '_message_bindings', {}).items():
+    bindings.join(context)
+    for (kind, key), value in bindings.values.items():
         text = render(value, context.translations)
         if kind == 'property':
             widget.set_property(key, text)
         else:
             widget.update_property([key], [text])
-    callback = getattr(widget, '_retranslate', None)
+    callback = bindings.callback
     if callback is not None:
         callback(context.translations)
 
 
 def _bind(widget, kind, key, value):
-    if not hasattr(widget, '_message_bindings'):
-        widget._message_bindings = {}
-        if isinstance(widget, Gtk.Widget):
-            widget.connect('notify::root', _refresh)
+    bindings = _bindings_for(widget)
     identity = (kind, key)
     if isinstance(value, (Message, JoinedMessage)):
-        widget._message_bindings[identity] = value
+        bindings.values[identity] = value
     else:
-        widget._message_bindings.pop(identity, None)
+        bindings.values.pop(identity, None)
     context = context_for(widget)
-    context.members.add(widget)
+    bindings.join(context)
     return render(value, context.translations)
 
 
@@ -88,8 +117,12 @@ def accessible_text(widget, properties, values):
 
 
 def register_retranslation(widget, callback):
-    widget._retranslate = callback
-    if not hasattr(widget, '_message_bindings'):
-        widget._message_bindings = {}
-        widget.connect('notify::root', _refresh)
+    bindings = _bindings_for(widget)
+    if getattr(callback, '__self__', None) is widget:
+        # A bound method would keep the native widget alive through its context.
+        # Resolve its receiver through the same native weak reference instead.
+        function = callback.__func__
+        bindings.callback = lambda translations: function(bindings.widget(), translations)
+    else:
+        bindings.callback = callback
     _refresh(widget)

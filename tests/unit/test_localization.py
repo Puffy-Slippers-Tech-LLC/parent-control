@@ -1,4 +1,4 @@
-"""Real gettext catalogues in private scratch; no GTK, bus or installed app."""
+"""Real gettext catalogues in private scratch; no GTK construction or installed app."""
 
 import builtins
 import gettext
@@ -237,14 +237,22 @@ def test_all_shipped_messages_preserve_operands_and_python_shell_plural_parity(p
                 assert isinstance(translated % values, str), (language, key)
                 lookups.append([str(path), forms, count])
                 expected.append(translated)
+        context, source = 'fractional hours below two', '%(count)g hours'
+        assert translations._catalog.get(context + '\x04' + source), language
+        translated = translations.pgettext(context, source)
+        assert placeholder.findall(translated) == [('count', 'g')]
+        assert isinstance(translated % {'count': 1.5}, str)
+        lookups.append([str(path), [source], 1, context])
+        expected.append(translated)
     script = '''
 import {readFileSync} from 'node:fs';
 import {Catalogue} from './child/gettext.mjs';
 const cache = new Map();
-const results = JSON.parse(readFileSync(0, 'utf8')).map(([path, forms, n]) => {
+const results = JSON.parse(readFileSync(0, 'utf8')).map(([path, forms, n, context]) => {
     if (!cache.has(path)) cache.set(path, new Catalogue(readFileSync(path)));
     const catalogue = cache.get(path);
-    return forms.length === 2 ? catalogue.ngettext(...forms, n) : catalogue.gettext(forms[0]);
+    return context ? catalogue.pgettext(context, forms[0])
+        : forms.length === 2 ? catalogue.ngettext(...forms, n) : catalogue.gettext(forms[0]);
 });
 process.stdout.write(JSON.stringify(results));
 '''
@@ -261,10 +269,11 @@ import Gio from 'gi://Gio';
 import {Catalogue} from %s;
 const read = path => Gio.File.new_for_path(path).load_contents(null)[1];
 const cache = new Map();
-const results = JSON.parse(new TextDecoder().decode(read(ARGV[0]))).map(([path, forms, n]) => {
+const results = JSON.parse(new TextDecoder().decode(read(ARGV[0]))).map(([path, forms, n, context]) => {
     if (!cache.has(path)) cache.set(path, new Catalogue(read(path)));
     const catalogue = cache.get(path);
-    return forms.length === 2 ? catalogue.ngettext(...forms, n) : catalogue.gettext(forms[0]);
+    return context ? catalogue.pgettext(context, forms[0])
+        : forms.length === 2 ? catalogue.ngettext(...forms, n) : catalogue.gettext(forms[0]);
 });
 print(JSON.stringify(results));
 ''' % json.dumps((ROOT / 'child/gettext.mjs').as_uri()), encoding='utf-8')
@@ -274,7 +283,67 @@ print(JSON.stringify(results));
     assert json.loads(result.stdout) == expected
 
 
-@pytest.mark.parametrize('language,expected', [('ru', '1.5 часа'), ('pl', '1.5 godziny')])
-def test_fractional_hours_use_native_wording(production_catalogues, language, expected):
+@pytest.mark.parametrize('language,unit', [
+    ('ru', 'часа'), ('pl', 'godziny'), ('en', 'hours'), ('de', 'Stunden'),
+    ('es', 'horas'), ('it', 'ore'), ('ja', '時間'), ('zh-Hans', '小时'),
+])
+@pytest.mark.parametrize('count', [0.5, 1.5, 2.5, 5.5, 21.5])
+def test_fractional_hours_use_native_wording(production_catalogues, language, unit, count):
     from common.oh_no_parent_control_ui.messages import hour_count
-    assert hour_count(1.5).render(load_translations(language, localedir=production_catalogues)) == expected
+    assert hour_count(count).render(load_translations(language, localedir=production_catalogues)) == f'{count} {unit}'
+
+
+@pytest.mark.parametrize('language,singular,plural', [('fr', 'heure', 'heures'), ('pt-BR', 'hora', 'horas')])
+@pytest.mark.parametrize('count', [0.5, 1.5, 2.5, 5.5, 21.5])
+def test_fractional_hours_below_two_retain_singular(
+        production_catalogues, language, singular, plural, count):
+    from common.oh_no_parent_control_ui.messages import hour_count
+    translations = load_translations(language, localedir=production_catalogues)
+    assert hour_count(count).render(translations) == f'{count} {singular if count < 2 else plural}'
+
+
+def test_deferred_context_survives_named_formatting_and_english_fallback(catalogues):
+    from common.oh_no_parent_control_ui.message import pgettext
+    message = pgettext('verb', 'Open')
+    assert message.render(load_translations('fr', localedir=catalogues)) == 'Ouvrir'
+    formatted = pgettext('fractional hours below two', '%(count)g hours') % {'count': 1.5}
+    assert formatted.context == 'fractional hours below two'
+    assert formatted.render(gettext.NullTranslations()) == '1.5 hours'
+
+
+@pytest.mark.parametrize('language,expected', [
+    ('ru', ['0 часов', '1 час', '2 часа', '5 часов', '21 час']),
+    ('pl', ['0 godzin', '1 godzina', '2 godziny', '5 godzin', '21 godzin']),
+])
+def test_integer_hours_retain_catalogue_plurals(production_catalogues, language, expected):
+    from common.oh_no_parent_control_ui.messages import hour_count
+    translations = load_translations(language, localedir=production_catalogues)
+    assert [hour_count(count).render(translations) for count in (0, 1, 2, 5, 21)] == expected
+
+
+@pytest.mark.parametrize('language,heading,categories', [
+    ('de', 'Ein Fehler ist aufgetreten', 'Fehlerkategorien'),
+    ('ru', 'Произошла ошибка', 'Категории ошибок'),
+    ('pl', 'Wystąpił błąd', 'Kategorie błędów'),
+])
+def test_error_explanations_render_in_destination_language(
+        production_catalogues, language, heading, categories):
+    from common.oh_no_parent_control_ui.errors import ErrorReport
+    from common.oh_no_parent_control_ui.message import render
+    report = ErrorReport.capture('Parent App', RuntimeError('private-content'))
+    text = render(report.message, load_translations(language, localedir=production_catalogues))
+    assert text.startswith(heading + '\n')
+    assert categories + ': RuntimeError' in text
+    assert 'The operation could not be completed' not in text
+    assert 'private-content' not in text
+
+
+@pytest.mark.parametrize('language,units', [('fr', ('Ko', 'Mo')), ('ru', ('КБ', 'МБ'))])
+def test_attachment_sizes_use_localized_units(production_catalogues, language, units):
+    from common.oh_no_parent_control_ui.feedback import FeedbackDialog
+    from common.oh_no_parent_control_ui.message import render
+    translations = load_translations(language, localedir=production_catalogues)
+    assert render(FeedbackDialog._format_size(1536), translations) == '1.5 ' + units[0]
+    assert render(FeedbackDialog._format_size(1572864), translations) == '1.5 ' + units[1]
+    assert render(FeedbackDialog._format_size(1023), translations) == translations.ngettext(
+        '%(count)d byte', '%(count)d bytes', 1023) % {'count': 1023}

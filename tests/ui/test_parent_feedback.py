@@ -90,6 +90,43 @@ def test_feedback_restored_link_semantics(launch_ui, automation, wait_for_access
     assert formats.read(automation.reader, require, 'linked-kept-reopen') == formats.expected('linked-kept-reopen')
 
 
+def test_link_action_labels_follow_editing_mode_and_language(
+        launch_ui, automation, wait_for_accessible_state):
+    from tests.e2e import feedback_formats as formats
+    from tests.e2e.accessible_ui import require
+    from tests.support.keyboard import key_combo
+    from tests.support.localization_review import switch_language
+    ui, wait = automation, wait_for_accessible_state
+    editor, _ = open_feedback(launch_ui, ui, wait, scenario='feedback-restored-link')
+    # The public WebKit text projection may include Quill's final newline.
+    original = ui.content(editor).rstrip('\n')
+    ui.activate('feedback-close')
+    wait(lambda: ui.absent('feedback-dialog', within='parent-window'), 'draft closes')
+    switch_language(ui, wait, 'parent', 'de')
+    ui.activate('parent-feedback-button')
+    feedback_editor(ui, wait)
+    ui.focus(editor)
+    key_combo(ui, editor, '<Control>End', state=ui.api.StateType.FOCUSED)
+    key_combo(ui, editor, 'Home', state=ui.api.StateType.FOCUSED)
+    key_combo(ui, editor, 'Right', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.showing('feedback-link-save'), 'existing link action appears')
+    assert ui.text('feedback-link-save') == 'Link bearbeiten'
+    ui.activate('feedback-link-save')
+    wait(lambda: ui.state('feedback-link-target', ui.api.StateType.FOCUSED), 'link editing begins')
+    assert ui.text('feedback-link-save') == 'Link speichern'
+    ui.activate('feedback-link-save')
+    # Saving closes Quill's tooltip; moving the caret back inside the existing
+    # link opens its preview action again.
+    ui.focus(editor)
+    key_combo(ui, editor, '<Control>End', state=ui.api.StateType.FOCUSED)
+    key_combo(ui, editor, 'Home', state=ui.api.StateType.FOCUSED)
+    key_combo(ui, editor, 'Right', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.showing('feedback-link-save'), 'saved link preview opens')
+    wait(lambda: ui.text('feedback-link-save') == 'Link bearbeiten', 'link preview returns')
+    assert ui.content(editor).rstrip('\n') == original
+    assert formats.read(ui.reader, require, 'linked-kept-reopen') == formats.expected('linked-kept-reopen')
+
+
 def test_feedback_block_semantics(
         launch_ui, automation, wait_for_accessible_state):
     """Real product semantics, shared reader, independent reopen and removal."""

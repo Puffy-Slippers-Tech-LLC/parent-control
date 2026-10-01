@@ -4935,7 +4935,8 @@ def test_privacy_reads_actual_disclosure_and_never_follows_external_link(missing
     tree = ast.parse((ROOT / 'common/oh_no_parent_control_ui/feedback.py').read_text())
     method = next(node for node in ast.walk(tree)
                   if isinstance(node, ast.FunctionDef) and node.name == '_show_log_privacy')
-    suffix = method.body[0].value.right.value
+    from common.oh_no_parent_control_ui import messages
+    suffix = getattr(messages, method.body[0].value.right.attr).source
     disclosure = ('Feedback, reply email addresses, attachments, and diagnostic logs are emailed '
                   'to support. Retention depends on our support mailbox and service providers, '
                   'including their backup policies. We do not currently guarantee deletion '

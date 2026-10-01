@@ -63,7 +63,7 @@ Test/tool/documentation changes do not affect package/build inputs.
 
 Maintained snapshot preparation reused `onpc-v1.2` with `--overwrite false`;
 both recorded maintenance stops completed successfully. Live qualification on
-every enabled VM (currently `onpc-Ubuntu26.04`) failed in
+every enabled VM (the enabled Ubuntu target at the time) failed in
 `output/test-runs/host/reports/20261001T191702Z-cab9c288/report.md` after
 `direct-launch`, before `direct-form`, with `e2e:worker-execution-failed`
 (`CommandError`, `step-2`; terminal category `command:failed:ssh`). Parent setup,

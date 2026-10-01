@@ -8,6 +8,70 @@ from tests.support.automation_ids import audit_product_controls
 pytestmark = pytest.mark.ui
 
 
+def test_translation_bindings_follow_native_lifetime_and_reparenting(hermetic_ui_session):
+    """Engineering lifecycle check on the existing private GTK display/bus."""
+    import subprocess
+    import sys
+    from tests.support.paths import ROOT
+
+    # The AT-SPI observer loads GTK 3. Isolate GTK 4 in one waited child on the
+    # same private session; no separate compositor or desktop is started.
+    script = '''
+import gc
+import gi
+gi.require_version('Gtk', '4.0')
+from gi.repository import Gtk
+from common.oh_no_parent_control_ui import messages as m
+from common.oh_no_parent_control_ui.translation_widgets import context_for, localized, register_retranslation
+
+Gtk.init()
+first, second = Gtk.Window(), Gtk.Window()
+left, right = Gtk.Box(), Gtk.Box()
+first.set_child(left)
+second.set_child(right)
+english, german = context_for(first), context_for(second)
+german.apply('de')
+label = localized(Gtk.Label, label=m.SAVE_LINK)
+left.append(label)
+native = label.weak_ref()
+del label
+gc.collect()
+english.apply('ru')
+assert left.get_first_child().get_label() == 'Сохранить ссылку'
+label = left.get_first_child()
+left.remove(label)
+right.append(label)
+assert label.get_label() == 'Link speichern'
+english.apply('pl')
+assert label.get_label() == 'Link speichern'
+right.remove(label)
+del label
+gc.collect()
+assert native() is None
+assert not english.members and not german.members
+
+class CallbackBox(Gtk.Box):
+    def retranslate(self, translations):
+        self.text = translations.gettext('Save link')
+
+box = CallbackBox()
+register_retranslation(box, box.retranslate)
+left.append(box)
+assert box.text == 'Zapisz łącze'
+callback_native = box.weak_ref()
+left.remove(box)
+del box
+gc.collect()
+assert callback_native() is None
+assert not english.members
+first.destroy()
+second.destroy()
+'''
+    result = subprocess.run([sys.executable, '-c', script], cwd=ROOT,
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 @pytest.mark.parametrize("launcher", ["kiosk_preview", "child_overlay_preview"])
 def test_request_ids_are_public_and_unique(
         launch_ui, automation, wait_for_accessible_state, launcher):

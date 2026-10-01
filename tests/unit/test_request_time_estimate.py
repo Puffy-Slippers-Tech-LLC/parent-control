@@ -12,6 +12,13 @@ from oh_no_parent_control_kiosk.request_content import RequestContent
 from tests.support.objects import bind_methods
 
 
+@pytest.fixture(autouse=True)
+def plain_presentation(monkeypatch):
+    from tests.support.objects import set_plain_text
+    monkeypatch.setattr('oh_no_parent_control_kiosk.main.set_text', set_plain_text)
+    monkeypatch.setattr('oh_no_parent_control_kiosk.request_content.set_text', set_plain_text)
+
+
 def estimate_window():
     form = SimpleNamespace(
         time_estimate_selection=Mock(return_value=(1001, 300)),
@@ -36,11 +43,13 @@ def test_language_startup_uses_caller_preference_and_only_prompts_when_needed(
         language, requested, prompt):
     window = SimpleNamespace(
         _estimate_closed=False, _language_load_failed=False,
-        _language_requested=requested, _show_preferences=Mock(), _language_saved=Mock())
+        _language_requested=requested, _open_language_dialog=Mock(), _language_saved=Mock(),
+        _apply_language=Mock(return_value=True))
     RequestWindow._language_loaded(window, language)
     assert window._own_language == language
     assert not window._language_loading
-    assert window._show_preferences.called == prompt
+    assert window._open_language_dialog.called == prompt
+    window._apply_language.assert_called_once_with(language)
     assert window._language_saved.called == (not prompt)
 
 
@@ -67,7 +76,7 @@ def test_language_read_coalesces_preferences_requests_and_retries_after_failure(
         _estimate_closed=False, _language_loading=False, _preview=False,
         _bus_call=Mock(), _show_error=Mock(), _stack=Mock(), _result_detail=Mock(),
         _language_readiness=Mock(), _language_requested=True, _language_load_failed=False,
-        _show_preferences=Mock(),
+        _open_language_dialog=Mock(), _apply_language=Mock(return_value=True),
     ), RequestWindow, ("_load_language", "_language_done", "_language_failed", "_language_loaded"))
     window._load_language()
     window._load_language()
@@ -84,7 +93,7 @@ def test_language_read_coalesces_preferences_requests_and_retries_after_failure(
     assert window._bus_call.call_count == 2
     assert not window._language_load_failed
     window._stack.set_visible_child_name.assert_called_once_with("request")
-    window._show_preferences.assert_called_once_with()
+    window._open_language_dialog.assert_called_once_with()
 
 
 def reply(window, seconds=1200, error=None):
@@ -187,7 +196,7 @@ def test_estimate_refresh_preserves_higher_priority_footer_messages(state, expec
     for key, value in state.items():
         setattr(form, key, value)
     form.set_time_estimate("Estimated time remaining if approved: 35m")
-    form._status.set_text.assert_called_once_with(expected)
+    form._status.set_label.assert_called_once_with(expected)
 
 
 @pytest.mark.parametrize("seconds, expected", (

@@ -6,21 +6,27 @@ strings (user data, paths, protocol values and diagnostics) are never translated
 """
 
 class Message(str):
-    def __new__(cls, source, values=None, *, plural=None, count=None):
+    def __new__(cls, source, values=None, *, plural=None, count=None, context=None):
         fallback = plural if plural is not None and count != 1 else source
         obj = super().__new__(cls, fallback % values if values is not None else fallback)
         obj.source, obj.values = source, values
         obj.plural, obj.count = plural, count
+        obj.context = context
         return obj
 
     def __mod__(self, values):
         if not isinstance(values, dict):
             raise TypeError("presentation messages require named operands")
-        return Message(self.source, values, plural=self.plural, count=self.count)
+        return Message(self.source, values, plural=self.plural, count=self.count,
+                       context=self.context)
 
     def render(self, translations):
-        source = (translations.ngettext(self.source, self.plural, self.count)
-                  if self.plural is not None else translations.gettext(self.source))
+        if self.context is not None:
+            source = (translations.npgettext(self.context, self.source, self.plural, self.count)
+                      if self.plural is not None else translations.pgettext(self.context, self.source))
+        else:
+            source = (translations.ngettext(self.source, self.plural, self.count)
+                      if self.plural is not None else translations.gettext(self.source))
         if self.values is None:
             return source
         values = {key: render(value, translations) for key, value in self.values.items()}
@@ -55,6 +61,10 @@ def gettext(source):
 
 def ngettext(singular, plural, count):
     return Message(singular, plural=plural, count=count)
+
+
+def pgettext(context, source):
+    return Message(source, context=context)
 
 
 def render(value, translations):

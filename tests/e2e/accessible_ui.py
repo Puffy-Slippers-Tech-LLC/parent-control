@@ -1057,7 +1057,7 @@ OPERATIONS |= BOUNDARY_OPERATIONS
 
 def attachment_size(data):
     size = len(data)
-    return (f'{size} bytes' if size < 1024 else f'{size / 1024:.1f} KB' if size < 1024 * 1024
+    return ('1 byte' if size == 1 else f'{size} bytes' if size < 1024 else f'{size / 1024:.1f} KB' if size < 1024 * 1024
             else f'{size / (1024 * 1024):.1f} MB')
 
 

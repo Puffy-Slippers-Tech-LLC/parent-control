@@ -1197,7 +1197,17 @@ class RequestWindow(Adw.ApplicationWindow):
             return GLib.SOURCE_REMOVE
         self._language_loading = True
         if self._preview and not self._interactive_preview:
-            self._language_loaded(self._own_language or "")
+            try:
+                path = os.environ.get("OH_NO_PARENT_CONTROL_PREVIEW_LANGUAGE_FILE")
+                language = self._own_language or ""
+                if path:
+                    try:
+                        language = Path(path).read_text(encoding="utf-8")
+                    except FileNotFoundError:
+                        language = ""
+                self._language_loaded(language)
+            except (OSError, ValueError) as error:
+                self._language_failed(error)
         else:
             try:
                 self._bus_call("GetOwnLanguage", None, "(s)", self._language_done)
@@ -1257,6 +1267,15 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _save_language(self, language, success, failure):
         if self._preview and not self._interactive_preview:
+            try:
+                path = os.environ.get("OH_NO_PARENT_CONTROL_PREVIEW_LANGUAGE_FILE")
+                if path:
+                    Gio.File.new_for_path(path).replace_contents(
+                        language.encode("utf-8"), None, False,
+                        Gio.FileCreateFlags.PRIVATE, None)
+            except Exception as error:
+                failure(error)
+                return
             success(language)
             return
 

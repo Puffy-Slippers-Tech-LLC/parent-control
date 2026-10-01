@@ -86,6 +86,9 @@ test('failed extension startup remains failed with a public exception and a priv
 test('production extension uses live state while the separate preview supplies fixtures', () => {
     const indicators = [];
     const contexts = [];
+    let language = 'en';
+    let previewLanguage = 'de';
+    let requestDone;
     const context = vm.createContext({
         Extension: class { getSettings() { return {}; } },
         ChildErrorHandler: class { report(error) { throw error; } },
@@ -95,15 +98,24 @@ test('production extension uses live state while the separate preview supplies f
                 this.refreshes = 0;
                 contexts.push(this);
             }
-            refresh(changed) { this.refreshes++; changed(); }
+            apply(saved) { this.language = saved; }
+            refresh(changed) { this.refreshes++; this.apply(language); changed(); }
         },
         RemainingTimeIndicator: class {
             constructor(...args) { indicators.push(args); this.languageRefreshes = 0; }
             refreshLanguage() { this.languageRefreshes++; }
+            setRequestActive(active) { this.active = active; }
+            refreshEstimate() {}
         },
         appName: () => 'Parent Control',
         appLogoPath: () => '/product-logo.png',
         logInfo() {},
+        canOpenRequest: () => true,
+        requestCompletionState: () => ({requestActive: false, refreshEstimate: true}),
+        Gio: {SubprocessFlags: {NONE: 0}, Subprocess: {new() {
+            return {wait_async(_cancel, done) { requestDone = () => done(this, {}); },
+                wait_finish() {}};
+        }}},
         GLib: {getenv() { throw new Error('Production must not read preview overrides'); }},
     });
     const source = readFileSync(new URL('../../child/extension.js', import.meta.url), 'utf8')
@@ -121,8 +133,17 @@ test('production extension uses live state while the separate preview supplies f
     assert.equal(indicators[0][8], contexts[0]);
     assert.equal(contexts[0].refreshes, 1);
     assert.equal(production._indicator.languageRefreshes, 1);
+    production._showRequest();
+    language = 'fr';
+    requestDone();
+    assert.equal(contexts[0].language, 'fr');
+    assert.equal(production._indicator.languageRefreshes, 2);
+    assert.equal(production._indicator.active, false);
 
     context.GLib = {getenv: () => 'preview-app', shell_parse_argv: () => [true, ['preview-app']]};
+    context.TextDecoder = TextDecoder;
+    context.Gio.File = {new_for_path: () => ({load_contents: () =>
+        [true, new TextEncoder().encode(previewLanguage)]})};
     context.previewStartsWithRequestOpen = () => false;
     context.previewGenerationMarker = () => 'generation-one';
     const previewSource = readFileSync(new URL('../../child/previewExtension.js', import.meta.url), 'utf8')
@@ -137,6 +158,13 @@ test('production extension uses live state while the separate preview supplies f
     assert.equal(indicators[1][4], 'generation-one');
     assert.equal(indicators[1][8], contexts[1]);
     assert.notEqual(contexts[0], contexts[1]);
-    assert.equal(contexts[1].refreshes, 1);
+    assert.equal(contexts[1].refreshes, 0);
+    assert.equal(contexts[1].language, 'de');
     assert.equal(preview._indicator.languageRefreshes, 1);
+    preview._showRequest();
+    previewLanguage = 'ja';
+    requestDone();
+    assert.equal(contexts[1].language, 'ja');
+    assert.equal(preview._indicator.languageRefreshes, 2);
+    assert.equal(preview._indicator.active, false);
 });

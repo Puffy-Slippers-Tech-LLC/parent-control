@@ -206,10 +206,18 @@ mapped by base language to the shared
 use English. Regional and script variants collapse to the product's one choice,
 including Portuguese to `pt-BR` and Chinese to `zh-Hans`.
 
+Parent shades its window only while the language chooser is mapped. For first-time
+setup, the chooser paints before the management interface is constructed in a
+later main-loop iteration behind it; account loading then runs asynchronously.
+A saved language is applied before constructing the management interface.
+
 The chooser lists native names in catalogue order and says “You can change it
 in preferences”. Both dialog UIs use the heading “Choose your language”. Save
-is the sole dismissal action during first-time setup. When a saved language
-exists, Cancel closes the chooser without saving or applying the candidate.
+is the sole dismissal action during first-time setup in kiosk and overlay.
+Parent also offers Cancel on first-time setup, continuing management without
+saving or applying the candidate; an unset language prompts again next launch.
+When a saved language exists, all surfaces offer Cancel without saving or
+applying the candidate.
 Save persists the
 current user's selection through `SetOwnLanguage` before closing; failures keep
 the selection visible and permit retry. A nonempty saved value suppresses the
@@ -223,11 +231,13 @@ All dialogs reuse `selected_language` in the shared catalogue module for saved
 selection and session fallback. Request controls wait for startup language setup.
 
 Both dialog UIs publish `language-dialog`, `language-choice-<lowercase-id>`
-and `language-continue` (the Save action), plus `language-cancel` when a saved
-language exists, scoped to their owning application and window, with the
+and `language-continue` (the Save action), plus `language-cancel` always in Parent
+and when a saved language exists in request forms, scoped to their owning
+application and window, with the
 shared public owner relation and control metadata. The main content publishes
 `parent-language-loading` or `kiosk-language-loading` until the initial
-choice is saved or an existing selection is read, then the matching `*-language-ready`.
+choice is saved, Parent setup is cancelled or an existing selection is read,
+then the matching `*-language-ready`.
 The common host/E2E `complete_language_setup` helper waits for this
 startup result, clicks Save once if needed, and independently observes
 closure and readiness. It leaves a subsequently opened Preferences dialog alone.

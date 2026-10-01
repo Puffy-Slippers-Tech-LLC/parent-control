@@ -20,7 +20,8 @@ from parent_needles import semantic_tag
 import system_runner as system
 from vm_transport import Transport
 from ui_observations import (
-    RequestObservation, SettingsObservation, UiObservations, compare_settings,
+    AppActivityObservation, RequestObservation, SettingsObservation, UiObservations,
+    compare_app_activity, compare_settings,
 )
 
 
@@ -55,6 +56,7 @@ class JourneyPlan:
     catalogue_checks: dict = field(default_factory=dict)
     match_checks: dict = field(default_factory=dict)
     access_checks: dict = field(default_factory=dict)
+    activity_checks: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Invocation IDs are filenames and immutable observation identities,
@@ -75,6 +77,13 @@ class JourneyPlan:
                 self.prefix + ':assertion-plan')
         used = set()
         stages = list(self.screen_tags)
+        require(all(stage in stages and self.screen_tags[stage] == 'ui:native-activity'
+                    and type(binding) is tuple and len(binding) == 2
+                    and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
+                    and self.screen_tags[binding[0]] == 'ui:native-activity'
+                    and binding[1] in ('same', 'replaced')
+                    for stage, binding in self.activity_checks.items()),
+                self.prefix + ':activity-plan')
         require(all(stage in stages and type(seconds) is int and seconds >= 0
                     for stage, seconds in self.balance_checks.items()),
                 self.prefix + ':balance-plan')
@@ -271,6 +280,7 @@ class InstalledJourney:
         self.prompt_counts = {}
         self.settings_observations = {}
         self.request_observations = {}
+        self.activity_observations = {}
         for stage, expected in plan.settings_checks.items():
             require(stage in plan.screen_tags and
                     (type(expected) is SettingsObservation or
@@ -303,6 +313,20 @@ class InstalledJourney:
         require(stage not in self.request_observations, 'ui:request-replay')
         self.request_observations[stage] = RequestObservation.from_request(
             value, operation=observed.get('ui', {}).get('operation', 'kiosk-request-form'))
+
+    def check_activity(self, stage, observed):
+        """Capture/compare before the worker can receive a durable reply."""
+        if self.plan.screen_tags.get(stage) != 'ui:native-activity':
+            return
+        require(stage not in self.activity_observations, 'ui:app-activity-replay')
+        current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'))
+        binding = self.plan.activity_checks.get(stage)
+        if binding is not None:
+            earlier, result = binding
+            require(earlier in self.activity_observations, 'ui:missing-app-activity')
+            observed['comparison'] = compare_app_activity(
+                current, self.activity_observations[earlier], result=result)
+        self.activity_observations[stage] = current
 
     def dismiss_system_prompt(self, stage, point, guard):
         """Retired coordinate rendezvous; the guest adapter owns semantic Cancel."""
@@ -520,6 +544,7 @@ class InstalledJourney:
                 reply['ui_focused'] = True
         self.check_settings(stage, observed)
         self.check_request(stage, observed)
+        self.check_activity(stage, observed)
         if plan.reboot_transition and stage == plan.reboot_transition[0]:
             observed['reboot'] = self.submit_reboot(guard)
         if stage in plan.assertions_after:

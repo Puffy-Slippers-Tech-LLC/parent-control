@@ -13,6 +13,7 @@ from tests.e2e.fixture_ui import FixtureUI
 from tests.fixtures import build_test_applications as fixtures
 from tests.support.automation_ids import audit_owned_controls
 from tests.support.private_dbus import private_bus
+from ui_observations import AppActivityObservation, compare_app_activity
 
 pytestmark = pytest.mark.ui
 
@@ -68,6 +69,11 @@ def test_payload_gui_preserves_independent_activity(hermetic_ui_session, gui_pay
                         after_activity = ui.native_app_operation('native-submitted')
                         assert before_activity['submitted'] == 'No submitted draft'
                         assert after_activity == {**before_activity, 'submitted': 'ONPC fixture draft'}
+                        captured = AppActivityObservation.from_value(
+                            ui.native_app_operation('native-activity'))
+                        reread = AppActivityObservation.from_value(
+                            ui.native_app_operation('native-activity'))
+                        assert compare_app_activity(reread, captured)['same_window'] is True
                     ui.wait(lambda: audit_owned_controls(
                                 ui, view.scope, root=ui.id_target(view.scope)),
                             'complete fixture ID inventory')

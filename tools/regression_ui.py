@@ -18,6 +18,9 @@ from pathlib import PurePosixPath
 # Parent first-run dismissal reuses each preview's private accessibility bus
 # and recorded owner. The temporary reader is reset before launch returns; no
 # new process, shared setting, file or cleanup lifetime is introduced.
+# Native activity identity/readback adds only immutable public values to the
+# existing fixture GUI's private display and owned payload processes; retain
+# its whole-module fixture build reservation and compatible classification.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

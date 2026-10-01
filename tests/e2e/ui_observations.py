@@ -376,6 +376,41 @@ class AppRowsObservation:
 
 
 @dataclass(frozen=True)
+class AppActivityObservation:
+    """APP04 immutable public window identity and recognizable native activity."""
+
+    binding: str
+    pid: int
+    endpoint: tuple
+    state: tuple
+
+    @classmethod
+    def from_value(cls, value):
+        require(type(value) is dict and set(value) == {'binding', 'pid', 'endpoint', 'state'}
+                and value['binding'] == 'native-primary'
+                and type(value['pid']) is int and value['pid'] > 0
+                and type(value['endpoint']) is list and len(value['endpoint']) == 2
+                and all(type(part) is str and 0 < len(part) <= 256 for part in value['endpoint'])
+                and value['endpoint'][0].startswith(':') and value['endpoint'][1].startswith('/')
+                and type(value['state']) is dict and value['state'] == {
+                    'draft': 'ONPC fixture draft', 'submitted': 'ONPC fixture draft',
+                    'score': 'Moves: 0; token: 0'}, 'ui:app-activity')
+        return cls(value['binding'], value['pid'], tuple(value['endpoint']),
+                   tuple(value['state'][key] for key in ('draft', 'submitted', 'score')))
+
+
+def compare_app_activity(observed, expected, *, result='same'):
+    """UI12: compare explicit observations; replacement never proves retention."""
+    require(type(observed) is AppActivityObservation and type(expected) is AppActivityObservation
+            and result in ('same', 'replaced'), 'ui:app-comparison-binding')
+    same_window = (observed.binding, observed.pid, observed.endpoint) == (
+        expected.binding, expected.pid, expected.endpoint)
+    require(same_window if result == 'same' else not same_window, 'ui:app-window-changed')
+    require(observed.state == expected.state, 'ui:app-activity-changed')
+    return {'same_window': same_window, 'activity_unchanged': True, 'outcome': 'passed'}
+
+
+@dataclass(frozen=True)
 class SettingsObservation:
     """Immutable, sanitized UI values owned explicitly by a scenario."""
 
@@ -913,6 +948,10 @@ class UiObservations:
             expected['activity'] = {'draft': 'ONPC fixture draft',
                 'submitted': 'No submitted draft' if operation == 'native-opened' else 'ONPC fixture draft',
                 'score': 'Moves: 0; token: 0'}
+        if operation == 'native-activity':
+            require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
+            AppActivityObservation.from_value(result['activity'])
+            expected['activity'] = result['activity']
         if operation in ('native-grid', 'native-grid-refusals'):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
         if operation in accessible_ui.COUNTDOWN_OPERATIONS:

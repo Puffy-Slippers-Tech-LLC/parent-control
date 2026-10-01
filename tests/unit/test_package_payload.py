@@ -1,6 +1,7 @@
 """Exercise the production install map without a checkout on the import path."""
 
 import configparser
+import gettext
 import hashlib
 import json
 import os
@@ -97,6 +98,21 @@ def test_packaged_extension_has_all_local_imports(production_payload):
             continue
         for target in re.findall(r"from ['\"](\./[^'\"]+)['\"]", source.read_text()):
             assert (source.parent / target).is_file(), (source.name, target)
+
+
+def test_packaged_localization_is_loadable_and_covered_by_activation(production_payload):
+    relative = "usr/lib/oh-no-parent-control/common/oh_no_parent_control_ui"
+    catalogue = f"{relative}/locale/en/LC_MESSAGES/oh-no-parent-control.mo"
+    with (production_payload / catalogue).open("rb") as source:
+        translations = gettext.GNUTranslations(source)
+    assert translations.info()["language"] == "en"
+    assert translations.gettext("Untranslated") == "Untranslated"
+    manifest = json.loads((production_payload / (
+        "usr/share/oh-no-parent-control/package-activation.json")).read_text())
+    entries = {entry["path"]: entry for entry in manifest["files"]}
+    # This foundation has no live consumers yet; adding it needs no restart.
+    assert entries[catalogue]["activation"] == "none"
+    assert entries[f"{relative}/localization.py"]["activation"] == "none"
 
 
 def test_native_probe_payload_and_activation_are_complete(production_payload):
@@ -227,6 +243,10 @@ for name in ('common.oh_no_parent_control_ui', 'oh_no_parent_control',
         module = importlib.import_module(info.name)
         assert Path(module.__file__).is_relative_to(root), info.name
 assert not any('preview' in name or 'test_identities' in name for name in sys.modules)
+from common.oh_no_parent_control_ui.localization import LOCALE_DIR, load_translations
+assert LOCALE_DIR.is_relative_to(root)
+assert load_translations('en').info()['language'] == 'en'
+assert load_translations('fr').gettext('Untranslated') == 'Untranslated'
 for name in ('oh_no_parent_control_parent.main', 'oh_no_parent_control_kiosk.main'):
     module = importlib.import_module(name)
     help_output = StringIO()

@@ -61,7 +61,7 @@ endif
 CHILD_DIR := child
 EXTENSION_SOURCES := accessibility.js branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
 # Explicit production modules prevent preview/test helpers from entering the package.
-COMMON_SOURCES := __init__.py about.py accessibility.py gtk_automation.py app_policy.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py languages.py languages.json
+COMMON_SOURCES := __init__.py about.py accessibility.py gtk_automation.py app_policy.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py languages.py languages.json localization.py
 KIOSK_SOURCES := __init__.py chrome.py floating_islands.py language_dialog.py lava.py lightning.py main.py model.py request_content.py selection_store.py snowflakes.py thunder.py
 PARENT_SOURCES := __init__.py client.py main.py language_dialog.py
 BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py execution_probe.py extension_manager.py grant_diagnostics.py logs.py preferences.py probe_channel.py probe_generation.py service.py uninstall.py
@@ -80,9 +80,20 @@ EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
 MANPAGES := oh-no-parent-control.1 oh-no-parent-control-parent.1
 
+# GNU gettext catalogues use canonical locale names (pt_BR, zh_Hans).
+# Compilation during package staging writes only into that private DESTDIR.
+GETTEXT_DOMAIN := oh-no-parent-control
+POFILES := $(wildcard po/*.po)
+LOCALE_OUTPUT ?= common/oh_no_parent_control_ui/locale
+MOFILES = $(patsubst po/%.po,$(LOCALE_OUTPUT)/%/LC_MESSAGES/$(GETTEXT_DOMAIN).mo,$(POFILES))
+I18N_PYTHON_SOURCES = $(filter %.py,$(addprefix common/oh_no_parent_control_ui/,$(COMMON_SOURCES)) $(addprefix parent/oh_no_parent_control_parent/,$(PARENT_SOURCES)) $(addprefix kiosk/oh_no_parent_control_kiosk/,$(KIOSK_SOURCES)))
+I18N_JS_SOURCES = child/extension.js $(addprefix child/,$(EXTENSION_SOURCES))
+POTFILE ?= po/$(GETTEXT_DOMAIN).pot
+
 # Source uploads and isolated binary builds share this product/build allowlist.
 # Development docs, tests, previews and operator tools are not package inputs.
 PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
+	$(POFILES) \
 	$(addprefix packaging/man/,$(MANPAGES)) \
 	$(addprefix debian/,changelog control copyright rules preinst postinst prerm postrm package_activation.py check_package.py oh-no-parent-control.lintian-overrides source/format source/options) \
 	$(addprefix tools/,bump_version.py render_polkit_policy.py package_notice oh-no-parent-control-login-check execution_policy_ready.py execution_policy_probe execution_probe_gate.c execution_probe_witness.c execution_probe_protocol.h session_limit_check.py pam_oh_no_parent_control.c provision.py) \
@@ -382,6 +393,31 @@ preview-child:
 	# A nested Shell loads the checkout by temporary symlink; host settings stay untouched.
 	$(CHILD_DIR)/preview
 
+.PHONY: translations check-translations update-pot
+translations: $(MOFILES)
+
+$(LOCALE_OUTPUT)/%/LC_MESSAGES/$(GETTEXT_DOMAIN).mo: po/%.po
+	@mkdir -p "$(@D)"
+	@set -e; trap 'rm -f "$@.tmp"' EXIT; \
+		msgfmt --check --check-format -o "$@.tmp" "$<"; \
+		chmod 0644 "$@.tmp"; mv "$@.tmp" "$@"
+
+check-translations:
+	@set -e; for po in $(POFILES); do msgfmt --check --check-format -o /dev/null "$$po"; done
+
+# Extract only explicitly marked presentation strings. Logs are never localized.
+# The second pass shares the same domain while respecting JavaScript syntax.
+update-pot:
+	xgettext --language=Python --from-code=UTF-8 --force-po --sort-output \
+		--add-comments=Translators: --keyword=_ --keyword=gettext --keyword=ngettext:1,2 \
+		--keyword=pgettext:1c,2 --keyword=npgettext:1c,2,3 \
+		--package-name=$(GETTEXT_DOMAIN) --msgid-bugs-address=support@puffyslippers.com \
+		--output="$(POTFILE)" $(I18N_PYTHON_SOURCES)
+	xgettext --language=JavaScript --from-code=UTF-8 --join-existing --sort-output \
+		--add-comments=Translators: --keyword=_ --keyword=gettext --keyword=ngettext:1,2 \
+		--keyword=pgettext:1c,2 --keyword=npgettext:1c,2,3 \
+		--output="$(POTFILE)" $(I18N_JS_SOURCES)
+
 pack-extension:
 	gnome-extensions pack "$(CHILD_DIR)" --force --out-dir=. --schema="$(EXTENSION_SCHEMA)" $(EXTENSION_SOURCES:%=--extra-source=%) $(EXTENSION_PACK_ASSETS:%=--extra-source=%)
 
@@ -402,6 +438,7 @@ _install-development-extension:
 # Internal target used by both distribution package wrappers. Keep product-file
 # installation declarative so the package has one authoritative payload map.
 _install-product-files:
+	$(MAKE) translations LOCALE_OUTPUT="$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/locale"
 	install -d "$(DESTDIR)$(PREFIX)/bin" "$(DESTDIR)$(LIBEXECDIR)" "$(DESTDIR)$(PAM_MODULE_DIR)"
 	install -m 0755 kiosk/oh-no-parent-control "$(DESTDIR)$(PREFIX)/bin/"
 	install -m 0755 kiosk/oh-no-parent-control "$(DESTDIR)$(PREFIX)/bin/oh-no-parent-control-child"

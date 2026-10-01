@@ -295,6 +295,25 @@ def prepare_child_trust_backend(
     return 'changed' if current != after else 'none'
 
 
+class ChildTrustDeadline(TimeoutError):
+    def __init__(self, missing):
+        self.modules = tuple(sorted(Path(record[0]).name for record in missing))
+        super().__init__('packaged child trust update did not complete')
+
+
+def child_trust_failure(error) -> str:
+    """Describe readiness failure without exposing unrelated database records."""
+    if isinstance(error, ChildTrustDeadline):
+        return 'deadline modules=' + ','.join(error.modules)
+    if isinstance(error, subprocess.TimeoutExpired):
+        return 'cli-timeout'
+    if isinstance(error, subprocess.CalledProcessError):
+        return f'cli-exit status={error.returncode}'
+    if isinstance(error, UnicodeError):
+        return 'output-decoding'
+    return 'manifest-or-read'
+
+
 def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH) -> None:
     """Wait for the asynchronous trust update to publish our exact records.
 
@@ -315,10 +334,11 @@ def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH) -> None:
     if not expected:
         raise ValueError('missing packaged child trust records')
     deadline = time.monotonic() + 120
+    present = set()
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            raise TimeoutError('packaged child trust update did not complete')
+            raise ChildTrustDeadline(expected - present)
         result = subprocess.run(['/usr/sbin/fapolicyd-cli', '--dump-db'],
                                 stdin=subprocess.DEVNULL, capture_output=True,
                                 text=True, check=True, timeout=remaining,
@@ -361,8 +381,9 @@ def main() -> None:
     else:
         try:
             wait_child_trust()
-        except (OSError, ValueError, subprocess.SubprocessError):
-            raise SystemExit('oh-no-parent-control: child trust database is not ready') from None
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            raise SystemExit('oh-no-parent-control: child trust database is not ready '
+                             f'({child_trust_failure(error)})') from None
 
 
 if __name__ == "__main__":

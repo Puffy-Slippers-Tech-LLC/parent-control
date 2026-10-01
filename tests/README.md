@@ -1036,6 +1036,17 @@ release-acceptance roadmap.
 
 ## Test layers
 
+Reusable one-time guest setup belongs in `tools/prepare-baseline`, including
+fixed app fixtures, launchers, dependencies and persistent harness settings.
+Tests and app-snapshot preparation verify those inputs; missing/stale state
+requires a separate authorized baseline refresh, never an in-test installer or
+repair fallback. Keep attempt credentials/transport/evidence, product installation
+and deliberate scenario mutations in their existing lifetime owners. New fixture
+work must declare its lifetime and include first-run, unchanged-repeat, owned-update
+and interrupted-retry checks for baseline reconciliation. See the
+[preparation inventory](integration/Environment.md#reusable-preparation-ownership)
+and [VM mandate](../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
+
 Full GUI-only matrices belong in preview UI tests. Installed E2E retains a small
 component check plus distinct backend, persistence and OS integration results.
 Both layers reuse shared GUI operations and public readers; see the

@@ -14,6 +14,8 @@ REMOTE_PACKAGES = (
 )
 PACKAGES = (
     'openssh-server=1:10.2p1-2ubuntu3.6', 'python3-pytest=9.0.2-4',
+    # Native GUI fixtures use the distribution's maintained GTK 4 bindings.
+    'python3-gi=0', 'gir1.2-gtk-4.0=0',
     *REMOTE_PACKAGES,
 )
 VERSIONS = dict(package.split('=', 1) for package in PACKAGES)
@@ -21,7 +23,8 @@ VERSIONS = dict(package.split('=', 1) for package in PACKAGES)
 DORMANT_PATHS = ('/etc/ldap/slapd.d', '/etc/ldap/slapd.conf', '/etc/sssd/sssd.conf')
 # Fedora preparation supports local-account qualification. The Ubuntu LDAP
 # fixture is not a Fedora runtime recipe and is deliberately not installed.
-FEDORA_VERSIONS = {'openssh-server': '10.2p1', 'python3-pytest': '8.4.2'}
+FEDORA_VERSIONS = {'openssh-server': '10.2p1', 'python3-pytest': '8.4.2',
+                   'python3-gobject': '0', 'gtk4': '0'}
 
 
 def versions(os_id):
@@ -35,7 +38,7 @@ def versions(os_id):
 def verify_fedora_packages(packages):
     """Compare stable upstream versions, independently of RPM release counters.
 
-    These two projects use numeric releases (OpenSSH also uses pN). Refuse
+    These projects use numeric releases (OpenSSH also uses pN). Refuse
     prerelease/unknown formats rather than guessing their RPM ordering.
     """
     def stable_version(value):

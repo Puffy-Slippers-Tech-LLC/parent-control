@@ -444,6 +444,10 @@ def inspect_guest(guestfs, disk, script_digest):
             fields = dict(line.split(": ", 1) for line in block.splitlines() if ": " in line and not line.startswith(" "))
             require(fields.get("Package") not in ("oh-no-parent-control", "oh-no-parent-control-dbgsym"),
                     "guest:residue:package")
+        from baseline_fixtures import verify as verify_fixtures
+        from baseline_console import verify as verify_console
+        verify_fixtures(g)
+        verify_console(g)
         for category, paths in guest_contract.RESIDUE_PATHS.items():
             require(not any(g.exists(path) or g.is_symlink(path) for path in paths), f"guest:residue:{category}")
         for path in guest_contract.PAM_FILES_TO_SCAN:

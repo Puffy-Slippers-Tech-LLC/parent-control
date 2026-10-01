@@ -31,7 +31,7 @@ sub read_rows {
 }
 
 sub native_fixtures {
-    onpc_progress::operation('Preparing native fixtures and observing their public catalogue rows');
+    onpc_progress::operation('Verifying baseline native fixtures and observing their public catalogue rows');
     my ($exchange) = @_;
     die 'native:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'native-fixtures', review => 0);

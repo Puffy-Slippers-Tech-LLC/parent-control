@@ -367,58 +367,40 @@ def test_catalog_guest_refusal_precedes_account_or_file_access(monkeypatch):
                                  'system-ancestor-file', 'fallback-shadow'])
 def test_catalog_collision_preserves_existing_files(installed_catalog_tree, tmp_path, fault):
     tree = installed_catalog_tree
+    tree.prepare()
     home = tmp_path / 'child'
     preserved = tmp_path / 'preserved'
     preserved.mkdir()
     sentinel = preserved / 'sentinel'
     sentinel.write_text('unchanged')
-    if fault in ('launcher', 'dangling-launcher'):
-        directory = home / '.local/share/applications'
-        directory.mkdir(parents=True)
-        path = directory / (enforcement.CATALOG_PREFIX + 'ChildOnly.desktop')
-        if fault == 'launcher':
-            path.write_text('existing launcher')
+    targets = {
+        'launcher': home / '.local/share/applications' / (enforcement.CATALOG_PREFIX + 'ChildOnly.desktop'),
+        'binary': tmp_path / 'parent/.local/bin' / enforcement.CATALOG_PARENT_COMMAND,
+        'system-binary': tree.system_bin / enforcement.CATALOG_FALLBACK_COMMAND,
+        'ancestor': home / '.local',
+        'binary-ancestor': home / 'bin',
+        'system-ancestor': tree.system_bin,
+        'target-directory': tree.target.parent / 'catalog',
+        'fallback-shadow': tree.local_bin / enforcement.CATALOG_FALLBACK_COMMAND,
+    }
+    key = fault.removeprefix('dangling-').removesuffix('-symlink').removesuffix('-file')
+    path = targets[key]
+    if fault == 'fallback-shadow':
+        path.write_bytes(b'foreign shadow')
+    elif 'ancestor' in fault or fault == 'target-directory':
+        path.rename(preserved / 'original')
+        if fault.endswith('-file'):
+            path.write_bytes(b'foreign')
         else:
-            path.symlink_to(preserved / 'missing')
-    elif fault == 'ancestor-symlink':
-        (home / '.local').symlink_to(preserved, target_is_directory=True)
-    elif fault == 'ancestor-file':
-        (home / '.local').write_text('existing file')
-    elif fault in ('binary', 'dangling-binary'):
-        # Use a later planned command to prove complete preflight, including
-        # account binaries, occurs before earlier launchers/targets are written.
-        directory = tmp_path / 'parent/.local/bin'
-        directory.mkdir(parents=True)
-        path = directory / enforcement.CATALOG_PARENT_COMMAND
-        if fault == 'binary':
-            path.write_text('existing binary')
-        else:
-            path.symlink_to(preserved / 'missing')
-    elif fault == 'binary-ancestor-symlink':
-        (home / 'bin').symlink_to(preserved, target_is_directory=True)
-    elif fault == 'binary-ancestor-file':
-        (home / 'bin').write_text('existing file')
-    elif fault in ('system-binary', 'dangling-system-binary', 'fallback-shadow'):
-        directory = tree.local_bin if fault == 'fallback-shadow' else tree.system_bin
-        directory.mkdir()
-        path = directory / enforcement.CATALOG_FALLBACK_COMMAND
-        if fault == 'dangling-system-binary':
-            path.symlink_to(preserved / 'missing')
-        else:
-            path.write_text('existing binary')
-    elif fault == 'system-ancestor-symlink':
-        tree.system_bin.symlink_to(preserved, target_is_directory=True)
-    elif fault == 'system-ancestor-file':
-        tree.system_bin.write_text('existing file')
+            path.symlink_to(preserved, target_is_directory=True)
+    elif fault.startswith('dangling-'):
+        path.unlink()
+        path.symlink_to(preserved / 'missing')
     else:
-        (tree.target.parent / 'catalog').symlink_to(preserved, target_is_directory=True)
-    before = sorted(str(path.relative_to(tmp_path)) for path in tmp_path.rglob('*'))
-    with pytest.raises(enforcement.guest.GuestError, match='catalog:(fixture-collision|unsafe-directory)'):
+        path.write_bytes(b'foreign bytes')
+    before = {str(path): path.lstat() for path in tmp_path.rglob('*')}
+    with pytest.raises((enforcement.guest.GuestError, OSError)):
         enforcement.provision_catalog(tree.accounts)
-    assert sorted(str(path.relative_to(tmp_path)) for path in tmp_path.rglob('*')) == before
+    assert {str(path): path.lstat() for path in tmp_path.rglob('*')} == before
     assert sentinel.read_text() == 'unchanged'
-    if fault == 'launcher':
-        assert path.read_text() == 'existing launcher'
-    if fault in ('binary', 'system-binary', 'fallback-shadow'):
-        assert path.read_text() == 'existing binary'
     tree.chown.assert_not_called()

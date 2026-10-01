@@ -250,18 +250,13 @@ def maintenance_logout(uid, identity):
 
 
 def prepare_continuous_activity():
-    """Prepare the fixture Parent desktop for accessibility-driven journeys.
-
-    Accessibility actions do not reset GNOME's hardware-input idle timer.
-    This fixture-user setting is restored by the attempt's snapshot cleanup;
-    child sessions, manual locking and product expiry retain their policies.
-    """
+    """Verify persistent baseline idle prevention without changing the session."""
     command = ['/usr/bin/gsettings', 'get', 'org.gnome.desktop.session', 'idle-delay']
     previous = call(command).strip()
     require(re.fullmatch(r'uint32 [0-9]+', previous) is not None, 'idle-delay-value')
     seconds = int(previous.split()[1])
     require(0 <= seconds <= 4294967295, 'idle-delay-value')
-    call(['/usr/bin/gsettings', 'set', 'org.gnome.desktop.session', 'idle-delay', 'uint32 0'])
+    require(seconds == 0, 'idle-delay-baseline-stale; run tools/prepare-baseline')
     require(call(command).strip() == 'uint32 0', 'idle-delay-readback')
     return seconds
 

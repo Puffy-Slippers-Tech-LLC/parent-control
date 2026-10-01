@@ -87,11 +87,40 @@ or replace graphical PAM denial/retained unlock with an SSH login.
 
 ### Keep supporting work bounded
 
+Reusable one-time guest setup is owned by `tools/prepare-baseline`, as required
+by the [VM mandate](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
+Fixed fixture apps/launchers, prerequisite packages and persistent harness
+settings must be prepared there idempotently and verified by consumers.
+Tests must not repair missing baseline inputs on the fly. Attempt-specific
+credentials, transport, evidence, product installation and deliberate scenario
+mutations retain their own lifetimes. A fresh attempt restores the prepared
+baseline; it does not reinstall its reusable fixtures.
+
 For every remaining task, name the product assertion first, then choose one
 supported way to establish each unrelated prerequisite. Reuse the qualified
 helper and stop preparation as soon as that prerequisite is independently
 observed. Qualify ownership, reversal and the result needed by the consumer;
 do not turn a dependency into another feature matrix or framework.
+
+When preparation fails, inspect the direct failure evidence and distinguish an
+environment/fixture defect from a potential product defect. For non-product
+work, use the simplest reliable maintained recovery route or a small repair of
+the immediate proven mechanical defect. Verify the prerequisite and return to
+the product test as soon as it is ready. If that requires recursively repairing
+dependencies, investigating their internals, or creating new infrastructure,
+stop that branch and report the exact blocker, evidence and minimum external
+action needed to resume. Do not add prerequisite tasks merely to continue that
+detour. A bounded adviser review, when required, answers the immediate question;
+it does not expand the authorized scope. This stopping rule preserves routine
+automatic preparation and does not permit bypassing guards or weakening checks.
+
+Product installation and enforcement are product boundaries even when their
+failures occur during snapshot or fixture preparation. For example, a child trust
+database readiness failure during product package installation is a potential
+product defect until classified from evidence, not grounds to seed private state
+or disable a readiness gate. Preserve the failure and apply the repository
+[failure contract](../../tests/README.md#handling-test-failures); keep any product
+repair focused on the failing boundary and required regression coverage.
 
 The existing [fixture builder](../../tests/fixtures/build_test_applications.py)
 and [GUI fixture](../../tests/fixtures/gui_application.py) are the starting point
@@ -100,7 +129,7 @@ required by the recipe; their existence does not qualify an unimplemented route.
 
 | Supporting work | Minimal route and stopping point |
 | --- | --- |
-| App and game assets | Reuse the maintained fixture builder, verified manifests and artifact cache for native, Snap, Flatpak, versioned-path and offline-game inputs. Place repository-built native executables, shared GUI files and launchers with finite shared file operations over guarded SSH; no native fixture package or product installer is required. Independently controlled native roles need distinct executable content where content-based enforcement applies. Use the shared package helper only for inputs that actually require package/runtime installation. Bind the required public identity and one ordinary usable action in its consuming slice. No store browsing, vendor account creation, third-party repository setup, updater exercise or new packaging framework. Real package format, confinement, enforcement and retained activity assertions still apply where declared. Lunar's explicitly real-app profile uses FIX05 instead. |
+| App and game assets | Reuse the maintained fixture builder, verified manifests and artifact cache for native, Snap, Flatpak, versioned-path and offline-game inputs. Reconcile reusable native executables, shared GUI files and launchers through `tools/prepare-baseline`; attempts independently verify them over guarded SSH. Deliberate scenario file mutations use shared file operations. No native fixture package or product installer is required. Independently controlled native roles need distinct executable content where content-based enforcement applies. Use the shared package helper only for inputs that actually require package/runtime installation. Bind the required public identity and one ordinary usable action in its consuming slice. No store browsing, vendor account creation, third-party repository setup, updater exercise or new packaging framework. Real package format, confinement, enforcement and retained activity assertions still apply where declared. Lunar's explicitly real-app profile uses FIX05 instead. |
 | Files and desktop entries | Use shared exact-path copy/rename and supported per-user commands/APIs for launcher placement, permissions and trust metadata. Open Files directly at the prepared directory only when its launch route is tested; the actual Files/DING activation remains graphical. No folder tours, Properties-dialog preparation or alternate launch after failure. Product downloads use the bound user's `~/Downloads` and the existing destination helper. |
 | Sessions and power | Reuse direct entry, logout, lock/greeter and reboot helpers. Suspend uses one supported guest command and one supported owned-VM wake operation, followed by the actual public return/unlock result. Do not add power-settings, screensaver, RTC, hardware or wake-method matrices. Ordinary overlay reopening uses REQUEST02. |
 | Offline and recovery | Every consumer uses LIFE06's same VM Internet-isolation/recovery helper, including from a child desktop or GDM. Restoring Internet access needs no visit to Parent, network settings or another session. Preserve the current product surface and independently observe the app's retry, stop or local-operation result. |
@@ -1621,32 +1650,37 @@ The four executables share adjacent `onpc-test-gui.py` and `gtk_automation.py`.
 | S | `S.desktop` | `Lunar Client-3.7.17.AppImage` | ONPC Soft Fixture | Versioned native catalogue fixture | pattern (`Lunar Client-*.AppImage`) |
 | N | `N.desktop` | `PrismLauncher.AppImage` | ONPC Nonmatching Fixture | Unrelated native catalogue fixture | precise |
 
-[NativeFixtures](../../tests/e2e/native_fixtures.py) uses the existing guarded
-administrator SSH transport after independent graphical entry. FIX04 transfers
-and independently observes the complete verified assets before placement.
-`fixture_actions()` supplies separate wrong-entry refusal and preparation
-actions to a caller's attempt; `prepare()` verifies ten declared source digests,
-checks dependencies and collisions before mutation, then independently reopens
-the prepared files. [The fixed guest helper](../../tests/e2e/native_fixtures_guest.py)
-uses [shared descriptor-pinned file operations](../../tests/e2e/guest_files.py),
-resolves the selected child's home through `pwd`, and places only four binaries,
-two GUI files and four desktop entries. New directories/binaries are `0755`,
-GUI/desktop files `0644`, all explicitly child-owned; existing XDG parents and
-unrelated entries are preserved. Links, hardlinks, unsafe parents, corrupt
-sources, collisions, replacement and replay refuse. An exclusive root marker
-outside the immutable transfer tree consumes placement before mutation; outer
-owned baseline restoration removes successful or partial preparation.
-No package manager, product policy, grant, reboot or fixture launch is involved.
+`tools/prepare-baseline` installs this finite declaration through
+[baseline_fixtures.py](../../tests/integration/baseline_fixtures.py), with the
+static engineering fixtures declared in
+[baseline_assets.py](../../tests/fixtures/baseline_assets.py). Reconciliation
+reuses matching files, updates only recorded owned files, preserves unrelated
+entries and supports interrupted retry. New directories/binaries are `0755`,
+GUI/desktop files `0644`, with explicit selected-child ownership. Baseline
+inspection verifies bytes, modes, owners and launchers before snapshot capture;
+fixture sources participate in its preparation digest.
+
+[NativeFixtures](../../tests/e2e/native_fixtures.py) uses guarded administrator
+SSH after independent graphical entry solely for readback. `fixture_actions()`
+supplies wrong-entry refusal and `native-verify`; `verify()` independently reads
+the ten declared files twice against the source-keyed artifact digests.
+[The fixed guest helper](../../tests/e2e/native_fixtures_guest.py) uses
+[descriptor-pinned reads](../../tests/e2e/guest_files.py), resolves the child's
+home through `pwd`, and refuses missing files, links, hardlinks, unsafe parents,
+corruption, ownership/mode changes and replacement. It never copies or repairs
+files. Missing/stale fixtures require a separate baseline refresh. No product
+policy, grant or fixture launch is part of preparation/readiness verification.
 
 `native_fixture_qualification.PLAN` / `NativeFixtureJourney` and
-`onpc_app_rows::native_fixtures` compose fresh guarded entry, preparation,
+`onpc_app_rows::native_fixtures` compose fresh guarded entry, baseline verification,
 PARENT12/UI13 public Allowed/default-match observations for all four identities,
 wrong-child/page refusals and independent reopening. `check_catalogue()` is a
 shared caller-owned comparison; stock rows are retained in the full reread.
 The argument-free selector is `tools/run-tests integration check_e2e_native_fixtures`;
 live qualification remains pending. Launch/usability and complete scenarios
-remain separate tasks. Host refusal/placement checks live in
-`test_native_fixtures_cleanup_safety.py`; recorder and worker distribution checks
+remain separate tasks. Host readback/refusal checks live in
+`test_native_fixtures_cleanup_safety.py`; idempotent placement/retry checks live
+in `test_baseline_fixtures_cleanup_safety.py`; recorder and worker distribution checks
 use the existing shared safety inventories. Source-keyed `named_input(fixture_source=True)`
 prepares absent inputs through the maintained artifact builder and preserves
 existing frozen inputs.
@@ -1949,8 +1983,8 @@ still use the guarded ownership interfaces.
 ### Lunar Client preparation and observation gate
 
 Case 253 is a planned real-application regression, not an extension of the native
-fixture's qualified scope. Manual preparation of the guarded VM is permitted
-before the attempt: install a pinned Lunar Client AppImage and AppImageLauncher,
+fixture's qualified scope. Its reusable prerequisites must be declared and
+reconciled by baseline preparation before the attempt: install a pinned Lunar Client AppImage and AppImageLauncher,
 integrate the original AppImage through the provider's normal route, enable
 Lunar's child-login autostart and tray behavior, and prepare Minecraft with a
 legitimately usable test account, downloaded runtime/assets and a disposable local
@@ -1962,10 +1996,10 @@ existing secret API for any required authentication; no new account purchase or
 external account creation is implied.
 
 Task 295/FIX05 must first establish how these inputs are present **after** the
-runner's ordinary installed-snapshot restore. Use the established guarded
-preparation/provisioning lifecycle; do not add snapshots, replace the baseline,
-skip restoration or rely on earlier manual VM state. FIX04 still only transfers
-verified assets. The manual prerequisite does not grant FIX05 an installer or
+runner's ordinary installed-snapshot restore. Use the authorized baseline route
+and its finite idempotent inventory; do not add alternate snapshots, skip
+restoration or rely on earlier manual VM state. FIX04 transfers attempt inputs
+and verifies reusable baseline assets. This prerequisite does not grant FIX05 an installer or
 unattended vendor sign-in. Missing integration, invalid sign-in, mandatory update,
 network dependence or unavailable assets blocks this profile until resolved in
 preparation. Pin a profile that runs the declared local activity without downloads
@@ -3310,7 +3344,7 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | Adding a qualification breaks an older conflict test even though both routes refuse safely | Assert refusal before credentials, storage and VM work. Do not couple a multi-invalid-input test to whichever validator happens to run first. Keep exact diagnostic checks for a single invalid condition. |
 | Later cases escape an earlier composition audit | Discover cases and workers from ready inventory bindings. Review helper methods and subclasses as well as callbacks; moving I/O into a case-local helper is still case-owned mechanics. The [composition guard](../../tests/unit/test_e2e_case_composition.py) enforces this boundary. |
 | Qualified sequences are copied into a complete case | The prepared-request and approval tasks demonstrate reusable composites feeding several complete cases. Apply that pattern to feedback's edit-state and UTF-16 matrices too: expose one declaration/execution pair in a shared module and call it from qualification and cases. Save and fresh Cancel are separate fragments, so a consumer can select either without inheriting the qualification journey. Keep different terminal results and independent-entry checks in the callers. |
-| A long accessibility-driven Parent journey reaches the desktop idle timeout | The allowance case's resolution belongs in the shared desktop-entry envelope: prepare the verified Parent for continuous activity after every qualified entry, including reopening/reboot paths. Never add per-case keepalive input or alter the child's tested expiry behavior. See [shared entry helpers](../../tests/e2e/README.md#shared-system-and-account-entry-helpers). |
+| A long accessibility-driven Parent journey reaches the desktop idle timeout | Baseline owns the persistent idle setting. The shared desktop-entry envelope verifies it after every qualified entry, including reopening/reboot paths, and refuses stale state. Never add per-case settings writes/keepalive input or alter the child's tested expiry behavior. See [shared entry helpers](../../tests/e2e/README.md#shared-system-and-account-entry-helpers). |
 | Attachment metadata is visible but GTK's Description property is empty (038a) | Qualify the real public relation before designing the projection: read the owned row's `DESCRIBED_BY` target, retain exact order/name/size, and regress absent, foreign and ambiguous targets. Put toolkit representation in the adapter, not each case. |
 | A Remove action returns before GTK updates the list (038a/038) | Submit once; while waiting permit only the exact valid pre-action state, then require the exact expected result. Regress delayed success and wrong-item removal without replay. Reuse guarded fixture actions and immutable list comparisons across attachment profiles. |
 | A generic row activation looks like a preview (038b) | Prove the app's offered capability through its public availability and action contract first. Record an explicit inapplicable result and an independently unchanged list when no preview is offered; do not invent an external-editor route or claim offered-preview coverage. |

@@ -53,6 +53,27 @@ def test_relative_packages_and_from_submodule_imports(tmp_path):
                                          'helpers/child.py', 'helpers/sibling.py'}
 
 
+def test_repository_fixture_packages_import_from_frozen_payload(tmp_path):
+    write(tmp_path, 'entry.py', 'from tests.fixtures import asset\n')
+    for name, content in (
+            ('tests/__init__.py', ''), ('tests/fixtures/__init__.py', ''),
+            ('tests/fixtures/asset.py', 'from . import native\n'),
+            ('tests/fixtures/native.py', 'answer = 42\n')):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+    payload = tmp_path / 'payload'
+    original = bundle(tmp_path)
+    files = original.stage(payload)
+    import json
+    (payload / 'selected-inputs.json').write_text(json.dumps({'files': files}))
+    assert Bundle.from_staged(tmp_path, payload).files == original.files
+    result = subprocess.run([sys.executable, '-I', '-B', '-c',
+        'import sys; sys.path.insert(0, sys.argv[1]); import entry; '
+        'assert entry.asset.native.answer == 42', str(payload)], capture_output=True)
+    assert result.returncode == 0, result.stderr
+
+
 @pytest.mark.parametrize('fault', ['missing', 'ambiguous', 'symlink'])
 def test_invalid_dependency_refuses_before_any_payload_is_written(tmp_path, fault):
     write(tmp_path, 'entry.py', 'import helper\n')

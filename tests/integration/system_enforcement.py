@@ -46,16 +46,50 @@ CATALOG_SYSTEM_BIN = Path('/usr/bin')
 def catalog_entries():
     # A shared ID has distinct targets at every scope. The hidden child entry
     # must mask the system entry, while changing child must restore visibility.
-    return (
-        ('system', 'Shared', False), ('child', 'Shared', False),
-        ('parent', 'Shared', False), ('child', 'ChildOnly', False),
-        ('other', 'OtherOnly', False), ('parent', 'ParentOnly', False),
-        ('system', 'Masked', False), ('child', 'Masked', True),
-    )
+    try:
+        from baseline_assets import CATALOG_ENTRIES
+    except ImportError:
+        from tests.fixtures.baseline_assets import CATALOG_ENTRIES
+    return CATALOG_ENTRIES
+
+
+def fixture_metadata(path):
+    return path.lstat()
+
+
+def verify_fixture_files(declaration, identities, *, root=Path('/')):
+    """Read-only baseline check; tests never repair reusable assets."""
+    source = guest.PAYLOAD / 'fixtures/mechanical/onpc-test-application'
+    guest.require(source.is_file() and not source.is_symlink(), 'enforcement:fixture-missing')
+    for filename, (content, mode, role) in declaration.items():
+        path = Path(filename)
+        guest.require(path.is_relative_to(root), 'enforcement:baseline-fixture-root')
+        account = identities[role] if role != 'system' else None
+        uid, gid = (account.pw_uid, account.pw_gid) if account else (0, 0)
+        info = fixture_metadata(path)
+        guest.require(path.resolve() == path and stat.S_ISREG(info.st_mode)
+                      and info.st_nlink == 1 and stat.S_IMODE(info.st_mode) == mode
+                      and (info.st_uid, info.st_gid) == (uid, gid),
+                      'enforcement:baseline-fixture-metadata; run tools/prepare-baseline')
+        for parent in path.parents:
+            if not parent.is_relative_to(root):
+                break
+            data = fixture_metadata(parent)
+            guest.require(data.st_uid in (0, uid) and not data.st_mode & 0o022,
+                          'enforcement:baseline-fixture-parent')
+        if isinstance(content, bytes):
+            guest.require(path.read_bytes() == content, 'enforcement:baseline-launcher')
+        else:
+            guest.require(content == 'mechanical' and guest.sha(path) == guest.sha(source),
+                          'enforcement:baseline-fixture-digest; run tools/prepare-baseline')
 
 
 def provision_catalog(accounts):
-    """Install isolated launchers; the outer guest baseline owns file cleanup."""
+    """Verify the catalogue fixture captured by prepare-baseline."""
+    try:
+        from baseline_assets import catalogue_files
+    except ImportError:
+        from tests.fixtures.baseline_assets import catalogue_files
     guest.guard()
     guest.enable_diagnostics()
     identities = {role: pwd.getpwuid(uid) for role, uid in accounts.items()}
@@ -63,86 +97,11 @@ def provision_catalog(accounts):
                   len(set(accounts.values())) == 3 and
                   all(entry.pw_uid == accounts[role] and entry.pw_uid > 0
                       for role, entry in identities.items()), 'catalog:fixture-identities')
-    directories = {'system': DESKTOP.parent}
-    for role, entry in identities.items():
-        home = Path(entry.pw_dir)
-        guest.require(home.is_absolute() and home != Path('/') and home.is_dir(),
-                      'catalog:fixture-home')
-        directories[role] = home / '.local/share/applications'
-    root = TARGET.parent / 'catalog'
-    guest.require(TARGET.is_file() and not TARGET.is_symlink(), 'catalog:fixture-missing')
-    guest.require(not root.exists() and not root.is_symlink(), 'catalog:fixture-collision')
-    launchers = [(role, name, hidden, str(root / f'{role}-{name}'), None)
-                 for role, name, hidden in catalog_entries()]
-    targets = [('system', root / f'{role}-{name}')
-               for role, name, _ in catalog_entries()]
-    # A single system launcher must resolve to a different account's binary
-    # when selection changes. The child's bin copy is a lower-priority decoy.
-    for role, directory, command in (
-            ('child', '.local/bin', CATALOG_COMMAND),
-            ('child', 'bin', CATALOG_COMMAND),
-            ('other', 'bin', CATALOG_COMMAND),
-            ('parent', '.local/bin', CATALOG_COMMAND),
-            ('parent', '.local/bin', CATALOG_PARENT_COMMAND),
-            ('parent', '.local/bin', CATALOG_SYSTEM_COMMAND),
-            ('parent', '.local/bin', CATALOG_FALLBACK_COMMAND)):
-        targets.append((role, Path(identities[role].pw_dir) / directory / command))
-    # Path must beat both children's binaries, which in turn beat the fixed
-    # system search. Separate commands witness system precedence and fallback.
-    desktop_path = root / 'desktop path'
-    targets.extend((('system', desktop_path / CATALOG_COMMAND),
-                    ('system', CATALOG_LOCAL_BIN / CATALOG_COMMAND),
-                    ('system', CATALOG_LOCAL_BIN / CATALOG_SYSTEM_COMMAND),
-                    ('system', CATALOG_SYSTEM_BIN / CATALOG_SYSTEM_COMMAND),
-                    ('system', CATALOG_SYSTEM_BIN / CATALOG_FALLBACK_COMMAND)))
-    launchers.extend((('system', 'Relative', False, CATALOG_COMMAND, None),
-                      ('system', 'RelativeUnavailable', False, CATALOG_PARENT_COMMAND, None),
-                      ('system', 'DesktopPath', False, CATALOG_COMMAND, desktop_path),
-                      ('system', 'SystemPreferred', False, CATALOG_SYSTEM_COMMAND, None),
-                      ('system', 'SystemFallback', False, CATALOG_FALLBACK_COMMAND, None)))
-    owned_directories = [*directories.items(),
-                         *((role, target.parent) for role, target in targets)]
-    # Refuse existing symlinks, non-directories and collisions before any write.
-    # Never chmod/chown an existing account directory or overwrite a launcher.
-    for _, directory in owned_directories:
-        for ancestor in (directory, *directory.parents):
-            guest.require(not ancestor.is_symlink() and
-                          (not ancestor.exists() or ancestor.is_dir()), 'catalog:unsafe-directory')
-    for role, name, _, _, _ in launchers:
-        path = directories[role] / f'{CATALOG_PREFIX}{name}.desktop'
-        guest.require(not path.exists() and not path.is_symlink(), 'catalog:fixture-collision')
-    for _, target in targets:
-        guest.require(not target.exists() and not target.is_symlink(), 'catalog:fixture-collision')
-    # The fallback witness needs this higher-priority candidate to stay absent.
-    absent = CATALOG_LOCAL_BIN / CATALOG_FALLBACK_COMMAND
-    guest.require(not absent.exists() and not absent.is_symlink(), 'catalog:fixture-collision')
-    for role, directory in owned_directories:
-        for path in reversed((directory, *directory.parents)):
-            if not path.exists():
-                path.mkdir(mode=0o755)
-                path.chmod(0o755)
-                if role != 'system':
-                    entry = identities[role]
-                    os.chown(path, entry.pw_uid, entry.pw_gid)
-    for role, target in targets:
-        with TARGET.open('rb') as source, target.open('xb') as destination:
-            shutil.copyfileobj(source, destination)
-        target.chmod(0o755)
-        guest.require(guest.sha(target) == guest.sha(TARGET), 'catalog:fixture-copy-digest')
-        if role != 'system':
-            entry = identities[role]
-            os.chown(target, entry.pw_uid, entry.pw_gid)
-    for role, name, hidden, command, working_directory in launchers:
-        path = directories[role] / f'{CATALOG_PREFIX}{name}.desktop'
-        with path.open('x', encoding='utf-8') as stream:
-            stream.write('[Desktop Entry]\nType=Application\n'
-                         f'Name=ONPC {role} {name}\nExec="{command}"\nTerminal=false\n'
-                         + (f'Path={working_directory}\n' if working_directory else '')
-                         + ('Hidden=true\n' if hidden else ''))
-        path.chmod(0o644)
-        if role != 'system':
-            entry = identities[role]
-            os.chown(path, entry.pw_uid, entry.pw_gid)
+    verify_fixture_files(catalogue_files(identities, root=TARGET.parent / 'catalog',
+                        system_dir=DESKTOP.parent, local_bin=CATALOG_LOCAL_BIN,
+                        system_bin=CATALOG_SYSTEM_BIN), identities)
+    guest.require(not (CATALOG_LOCAL_BIN / CATALOG_FALLBACK_COMMAND).exists(),
+                  'catalog:fixture-collision')
     print('onpc-system: stage=native-catalog-fixture outcome=ready', flush=True)
 
 
@@ -206,37 +165,21 @@ def native_paths(variant):
 
 
 def provision_native(variant='command'):
+    """Verify fixed native witnesses; installation belongs to prepare-baseline."""
     guest.guard()
     target, desktop, _ = native_paths(variant)
     guest.require(variant in ('command', 'whitespace', 'pattern', 'retention'),
                   'enforcement:fixture-variant')
     guest.enable_diagnostics()
-    guest.require(not target.parent.exists() and not target.parent.is_symlink() and
-                  not desktop.exists() and not desktop.is_symlink(),
-                  'enforcement:fixture-collision')
-    # Mechanical exec-policy witnesses remain one-shot and display-independent.
-    # GUI fixtures have a separate payload and never replace this assertion.
-    source = guest.PAYLOAD / 'fixtures/mechanical/onpc-test-application'
-    guest.require(source.is_file() and not source.is_symlink(), 'enforcement:fixture-missing')
-    # The input guard verifies the transferred source. Never copy the fixture
-    # image's placeholder home directory onto an actual account.
-    # The guarded controller uses a private umask. Set traversability explicitly
-    # on this newly owned directory so Unix DAC does not mimic policy denial.
-    target.parent.mkdir(mode=0o755)
-    target.parent.chmod(0o755)
-    shutil.copyfile(source, target)
-    target.chmod(0o755)
-    desktop.write_text('[Desktop Entry]\nType=Application\nName=ONPC Native Fixture\n'
-                       f'Exec="{target}"\nTerminal=false\n')
-    desktop.chmod(0o644)
-    guest.require(guest.sha(target) == guest.sha(source), 'enforcement:fixture-copy-digest')
+    declaration = {
+        str(target): ('mechanical', 0o755, 'system'),
+        str(desktop): (('[Desktop Entry]\nType=Application\nName=ONPC Native Fixture\n'
+                       f'Exec="{target}"\nTerminal=false\n').encode(), 0o644, 'system'),
+    }
     if variant == 'pattern':
         unrelated, _, _ = native_paths('pattern-unrelated')
-        shutil.copyfile(source, unrelated)
-        unrelated.chmod(0o755)
-        guest.require(guest.sha(unrelated) == guest.sha(source),
-                      'enforcement:fixture-copy-digest')
-    # Existing baseline accounts; no account lifecycle work is part of this case.
+        declaration[str(unrelated)] = ('mechanical', 0o755, 'system')
+    verify_fixture_files(declaration, {})
     accounts = {role: pwd.getpwnam(name).pw_uid for role, name in (
         ('child', 'onpc-child-riley'), ('other', 'onpc-child-jordan'),
         ('parent', 'onpc-parent-jamie'))}

@@ -73,6 +73,23 @@
 
 ## VM-host setup and baseline
 
+- All reusable, one-time guest prerequisites belong to `tools/prepare-baseline`:
+  dependencies, fixed fixture applications and launchers, and persistent harness
+  settings. Runners, cases and app-snapshot preparation only verify them. Missing
+  or stale prerequisites fail with baseline-refresh guidance; no on-the-fly
+  installation, repair or alternate preparation route is permitted in tests.
+  Attempt-specific SSH identities, evidence/transport state, product packages
+  under test and deliberate scenario mutations remain attempt-owned. Do not
+  preseed product policy, grants, usage or a scenario's expected result.
+- Preparation is an idempotent reconciliation of a finite declared inventory.
+  Reuse matching state without rewriting it, update only proven owned inputs,
+  preserve unrelated files/accounts/settings, and safely resume partial work.
+  Refuse links, foreign ownership, ambiguous state and unexpected collisions.
+  Verify bytes, modes, owners, launchers and configuration before capture; bind
+  fixture sources to the baseline identity so stale baselines and derived app
+  snapshots cannot pass. Cover first run, repeat, update and interrupted retry.
+  Auto mode still applies available system updates and replaces snapshots as
+  documented; idempotence never weakens the lease, provenance or product-free gate.
 - `./setup.sh` is the sole public VM-host setup entry point. Modes must be
   retryable, preserve unrelated configuration and fail on missing prerequisites.
   Tests and builds report missing prerequisites; they do not install them.

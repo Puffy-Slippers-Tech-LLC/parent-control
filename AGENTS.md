@@ -82,6 +82,14 @@
   and the [executable inventory](tests/e2e/scenarios.json). Customer acceptance
   operates the installed product through public interfaces and observes customer
   results; backend probes and internal fault injection remain engineering tests.
+- Keep non-product prerequisites bounded by the
+  [supporting-work contract](docs/TestAutomation/E2E-Building-Blocks.md#keep-supporting-work-bounded).
+  Use the simplest reliable maintained route, repair only the immediate proven
+  preparation defect, verify readiness and return to the product assertion.
+  If repair requires deeper dependency investigation or new infrastructure,
+  stop that branch and report the blocker; do not recursively expand the task.
+  Product installation or enforcement failures remain potential product defects,
+  even when discovered during preparation; preserve their evidence and guards.
 - Use the documentation map's ownership and status terms when reconciling E2E
   records: the plan selects the next task from its canonical queue, briefs define
   unfinished task scope, and inventory `coverage_id` values select runnable cases.
@@ -202,6 +210,20 @@ Read the [VM mandate](docs/Mandates/VM-Mandate.MD) only when doing VM operations
 
 ## Setup
 
+- Reusable, one-time guest preparation belongs in `tools/prepare-baseline`,
+  including test dependencies, fixed app fixtures/launchers and persistent
+  harness configuration. Tests and app-snapshot preparation verify these inputs;
+  they must not install, repair or recreate them on the fly. A missing or stale
+  input requires explicit baseline preparation through the existing grant.
+  Keep attempt credentials, transport/evidence state, product installation and
+  scenario-specific mutations in their existing lifetime owners.
+- Baseline preparation must be idempotent: verify and reuse matching files,
+  accounts and settings; reconcile only declared owned inputs; preserve unrelated
+  state; safely retry partial preparation; reject unsafe ownership or collisions.
+  Source changes invalidate the preparation identity and derived app snapshots.
+  Test first preparation, unchanged repetition, owned updates and interrupted
+  retries. Auto-mode package updates and snapshot replacement retain their
+  documented semantics; idempotence does not bypass validation or ownership.
 - `./setup.sh` is the sole public development setup entry point. Modes
   must be retryable, preserve unrelated configuration and fail on missing
   prerequisites. Tests and builds report missing prerequisites; they do not

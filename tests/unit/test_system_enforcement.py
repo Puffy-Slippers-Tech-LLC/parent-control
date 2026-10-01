@@ -13,6 +13,7 @@ from unittest.mock import Mock
 import pytest
 
 import system_enforcement as enforcement
+from tests.support.baseline_native import native as baseline_native
 
 
 @pytest.mark.parametrize('scenario', ['success', 'refusal', 'bad-witness', 'interrupted', 'unsettled'])
@@ -478,9 +479,10 @@ def test_provision_keeps_fixture_executable_through_private_umask(monkeypatch, t
     prefix = {'command': '', 'whitespace': 'SPACE_', 'retention': 'RETENTION_'}[variant]
     monkeypatch.setattr(enforcement, prefix + 'TARGET', target)
     monkeypatch.setattr(enforcement, prefix + 'DESKTOP', desktop)
-    accounts = iter((SimpleNamespace(pw_uid=1001), SimpleNamespace(pw_uid=1002),
-                     SimpleNamespace(pw_uid=1003)))
-    monkeypatch.setattr(enforcement.pwd, 'getpwnam', lambda name: next(accounts))
+    identities = dict(zip(('onpc-child-riley', 'onpc-child-jordan', 'onpc-parent-jamie'),
+                          (SimpleNamespace(pw_uid=uid) for uid in (1001, 1002, 1003))))
+    monkeypatch.setattr(enforcement.pwd, 'getpwnam', identities.__getitem__)
+    baseline_native(target, desktop, source, root=tmp_path, monkeypatch=monkeypatch)
     old_umask = os.umask(0o077)
     try:
         assert enforcement.provision_native(variant) == {'child': 1001, 'other': 1002, 'parent': 1003}
@@ -490,13 +492,14 @@ def test_provision_keeps_fixture_executable_through_private_umask(monkeypatch, t
     assert target.stat().st_mode & 0o777 == 0o755
     assert target.parent.stat().st_mode & 0o777 == 0o755
     assert desktop.stat().st_mode & 0o777 == 0o644
+    before = target.stat()
+    enforcement.provision_native(variant)
+    assert target.stat() == before
     monkeypatch.setattr(catalog, 'SYSTEM_APPLICATION_DIRS', (tmp_path,))
     monkeypatch.setattr(catalog.pwd, 'getpwnam', lambda name: SimpleNamespace(
         pw_uid=1001, pw_dir=str(tmp_path / 'home')))
     apps = catalog.list_apps(UserAccount(1001, 'child', 'child', False, False, True))
     assert [app['targets'] for app in apps if app['id'] == desktop_id] == [(str(target),)]
-    with pytest.raises(enforcement.guest.GuestError, match='fixture-collision'):
-        enforcement.provision_native(variant)
     assert target.read_bytes() == source.read_bytes()
 
 
@@ -523,6 +526,7 @@ def retention_tree(monkeypatch, tmp_path):
     monkeypatch.setattr(enforcement.guest, 'enable_diagnostics', Mock())
     monkeypatch.setattr(enforcement.pwd, 'getpwnam', Mock(side_effect=[
         SimpleNamespace(pw_uid=uid) for uid in (1001, 1002, 1003)]))
+    baseline_native(target, desktop, source, root=tmp_path, monkeypatch=monkeypatch)
     accounts = enforcement.provision_native('retention')
     return SimpleNamespace(target=target, desktop=desktop, source=source, accounts=accounts)
 
@@ -640,6 +644,7 @@ def pattern_tree(monkeypatch, tmp_path):
     monkeypatch.setattr(enforcement.guest, 'enable_diagnostics', Mock())
     monkeypatch.setattr(enforcement.pwd, 'getpwnam', Mock(side_effect=[
         SimpleNamespace(pw_uid=uid) for uid in (1001, 1002, 1003)]))
+    baseline_native(target, desktop, source, root=tmp_path, monkeypatch=monkeypatch, unrelated=True)
     old = os.umask(0o077)
     try:
         accounts = enforcement.provision_native('pattern')
@@ -667,8 +672,8 @@ def test_pattern_fixture_catalog_and_future_creation(monkeypatch, tmp_path, patt
     enforcement.provision_future()
     assert future.read_bytes() == tree.source.read_bytes()
     assert future.stat().st_mode & 0o777 == 0o755
-    with pytest.raises(enforcement.guest.GuestError, match='fixture-collision'):
-        enforcement.provision_native('pattern')
+    with pytest.raises(enforcement.guest.GuestError, match='future-fixture-collision'):
+        enforcement.provision_future()
 
 
 @pytest.mark.parametrize('fault', [None, 'future-allowed', 'unrelated-denied', 'other-denied',
@@ -835,6 +840,7 @@ def test_catalog_fixture_and_broker_assertions_with_real_discovery(installed_cat
     tree = installed_catalog_tree
     old_umask = os.umask(0o077)
     try:
+        tree.prepare()
         enforcement.provision_catalog(tree.accounts)
     finally:
         os.umask(old_umask)
@@ -858,14 +864,14 @@ def test_catalog_fixture_and_broker_assertions_with_real_discovery(installed_cat
         assert (home / '.local/share/applications').stat().st_mode & 0o777 == 0o755
         for path in (home / '.local/share/applications').iterdir():
             assert path.stat().st_mode & 0o777 == 0o644
-            tree.chown.assert_any_call(path, role, role)
+            assert path.stat().st_uid == os.getuid()
         for directory in (home / '.local/bin', home / 'bin'):
             if directory.exists():
                 assert directory.stat().st_mode & 0o777 == 0o755
                 for path in directory.iterdir():
                     assert path.stat().st_mode & 0o777 == 0o755
                     assert path.read_bytes() == tree.target.read_bytes()
-                    tree.chown.assert_any_call(path, role, role)
+                    assert path.stat().st_uid == os.getuid()
         assert all(call.args[0] != home for call in tree.chown.call_args_list)
 
 
@@ -873,6 +879,7 @@ def test_catalog_fixture_and_broker_assertions_with_real_discovery(installed_cat
                                  'duplicate', 'wrong-name', 'stale-child', 'missing-system'])
 def test_catalog_assertions_reject_scope_and_target_faults(monkeypatch, installed_catalog_tree, fault):
     tree = installed_catalog_tree
+    tree.prepare()
     enforcement.provision_catalog(tree.accounts)
 
     def call(uid, method, signature='()', args=()):
@@ -906,6 +913,7 @@ def test_catalog_assertions_reject_scope_and_target_faults(monkeypatch, installe
                                  'parent-only-visible'])
 def test_catalog_assertions_reject_relative_lookup_faults(monkeypatch, installed_catalog_tree, fault):
     tree = installed_catalog_tree
+    tree.prepare()
     enforcement.provision_catalog(tree.accounts)
 
     def call(uid, method, signature='()', args=()):
@@ -939,10 +947,14 @@ def test_catalog_provision_preserves_existing_binary_directory(installed_catalog
     tree = installed_catalog_tree
     home = Path(tree.identities[1001].pw_dir)
     directory = home / '.local/bin' if scope == 'child' else tree.system_bin
+    if scope == 'child':
+        directory.parent.mkdir(mode=0o755)
+        directory.parent.chmod(0o755)
     directory.mkdir(parents=True, mode=0o700)
     sentinel = directory / 'unrelated-command'
     sentinel.write_bytes(b'preserved')
     sentinel.chmod(0o700)
+    tree.prepare()
     enforcement.provision_catalog(tree.accounts)
     assert directory.stat().st_mode & 0o777 == 0o700
     assert sentinel.read_bytes() == b'preserved'
@@ -958,6 +970,7 @@ def test_catalog_assertions_reject_path_and_system_lookup_faults(
     from oh_no_parent_control import catalog
 
     tree = installed_catalog_tree
+    tree.prepare()
     enforcement.provision_catalog(tree.accounts)
     if fault in ('missing-path', 'relative-path'):
         desktop = tree.system / (enforcement.CATALOG_PREFIX + 'DesktopPath.desktop')

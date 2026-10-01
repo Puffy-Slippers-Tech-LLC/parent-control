@@ -37,9 +37,10 @@ Use one preparation route:
    copies one binary under several names; a whitespace-path block uses content
    matching and could therefore block the unrelated control too. Identical copies
    belong only to a later case that explicitly tests that behavior.
-3. Use FIX04 to transfer the verified payload, then one fixed preparation helper
-   over the existing guarded administrator SSH transport to copy only the declared
-   executables, shared GUI files and desktop entries to their guest destinations.
+3. Install the finite reusable declaration only through `tools/prepare-baseline`.
+   Reconcile the declared executables, shared GUI files and desktop entries to
+   their guest destinations idempotently; reuse matching files, update proven
+   owned files and safely retry interrupted preparation.
    Set executable modes and selected-child ownership explicitly, and read back
    file digests, modes and launcher targets. Reuse shared file operations; keep
    the source/destination set finite. Do not copy the whole image-root or its
@@ -48,16 +49,18 @@ Use one preparation route:
 Native fixture preparation is ordinary file/launcher placement, not an APT/DNF
 installation. Do not add a fixture package, package-manager completion notice,
 reboot, new installer framework, vendor download or store UI. Reuse available
-guest Python/GTK prerequisites and report any missing dependency. Keep fixtures
-outside the shipped app, prepare them afresh in each owned attempt and let the
-existing baseline restoration remove them. Stop at catalogue identities/default
+guest Python/GTK prerequisites through baseline and report missing dependencies.
+Keep fixtures outside the shipped app. Attempts independently verify baseline
+files through guarded SSH and never install or repair them. Baseline restoration
+restores the accepted reusable set. Stop at catalogue identities/default
 rules; launch and usability belong to their following slices.
 
 ## Live VM acceptance
 
-In a fresh guarded installed VM attempt, stage the declared assets and prepare
-the finite native files/launchers through the shared guarded SSH route. Require
-successful preparation/readback before opening Parent's App Limits, then
+First prepare the baseline and verify unchanged repetition, owned updates and
+interrupted retries with scoped safety regressions. In a fresh guarded installed
+VM attempt, independently verify the native files/launchers through the shared
+guarded SSH route. Require successful readback before opening Parent's App Limits, then
 independently observe each declared launcher and its default access/match fields
 through PARENT12/UI13. Reopening the catalogue must show the same fixture set.
 Do not count a manifest entry or copied file as an observed catalogue row, or
@@ -77,6 +80,41 @@ Require independent valid entry, wrong-entry refusal and owned live VM cleanup.
 Host checks and a diagnostic slice do not establish complete scenario coverage.
 
 ## Close out
+
+### Remaining acceptance
+
+`check_e2e_native_fixtures` failed at `native_fixtures.check_catalogue()`'s
+`native:catalogue-defaults` comparison in `20261001T013104Z-7f771800` on
+`onpc-Ubuntu26.04`. Expected: the four declared public IDs, all Allowed, with
+precise A/H/N and pattern S match defaults. Actual: the complete Allowed row
+projection did not match that declaration; the failing row values were not
+persisted. Diagnose missing identities versus differing match defaults without
+changing expectations. Guarded readback of ten native files, independent readback,
+wrong-entry refusal, worker shutdown, owned cleanup and baseline restoration
+passed. Reopening/refusal checks after the initial rows and collection did not run.
+
+All five affected enforcement selectors passed independently on the same VM:
+`test_native_command_policy_is_uid_scoped` (`20261001T012425Z-6fe43b31`),
+`test_native_whitespace_policy_is_uid_scoped` (`20261001T012528Z-7d3ebc75`),
+`test_native_future_pattern_is_uid_scoped` (`20261001T012631Z-39fb526c`),
+`test_native_missing_launcher_retains_policy` (`20261001T012740Z-95877d40`) and
+`test_native_catalog_is_selected_child_scoped` (`20261001T012844Z-b9cc122c`).
+Their launchers returned success after collection, owned cleanup and restoration.
+Focused system execution required explicit `--artifacts`; the verified shared
+input was `output/test-runs/host/allocations/onpc-test-artifacts-qfs995fx`.
+
+The first failed attempt and early enforcement reports expired under the
+launcher's three-run retention. The repeated qualification reproduced the same
+comparison failure; preserve its separate bounded exports before further exports
+or runs rotate them:
+
+- [Failure report](../../../output/test-runs/host/exports/onpc-artifact-export-_nccy_yt/report.md)
+- [Detailed runner output](../../../output/test-runs/host/exports/onpc-artifact-export-bduvt33l/category-001.log)
+- [Worker failure locations](../../../output/test-runs/host/exports/onpc-artifact-export-_6tx3fai/worker-result.json)
+
+Keep 035p unchecked, FIX04 native qualification pending and the pointer here.
+Resume close-out only after catalogue/defaults, independent reopening and
+collection pass with owned cleanup and baseline restoration.
 
 After this slice's live qualification and cleanup, follow the
 [master completion contract](../E2E-Execution-Plan.md#completion-and-document-cleanup).

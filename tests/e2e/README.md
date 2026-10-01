@@ -88,15 +88,16 @@ observation supplies the required public result. No Quick Settings, confirmation
 dialog or fallback after uncertain submission is involved.
 
 After a successful `desktop` or `fresh-parent-desktop` observation and boot
-continuity check, `InstalledJourney` automatically prepares the fixture Parent
+continuity check, `InstalledJourney` automatically verifies the fixture Parent
 for continuous accessibility input through `session_control`'s
 `parent-continuous-activity` binding. This covers fresh, reopened and post-reboot
 entry without a case-specific stage. The helper validates the active unlocked
-Parent, drops privileges, sets only that user's GNOME `idle-delay` to zero and
-reads it back. Accessibility actions do not reset the hardware idle timer.
-The envelope records the preparation result before acknowledging the desktop;
-failure stops the attempt without replay. Owned snapshot cleanup restores the
-setting. Child desktop idle/expiry policy and explicit locking are unaffected.
+Parent, drops privileges and independently reads that user's GNOME `idle-delay`
+twice, requiring the zero value prepared by baseline. Accessibility actions do
+not reset the hardware idle timer. The envelope records readiness before
+acknowledging the desktop; stale configuration stops the attempt with baseline
+refresh required. There is no runtime settings write. Child desktop idle/expiry
+policy and explicit locking retain their scenario assertions.
 
 [`journey_blocks.py`](journey_blocks.py) and the shared `onpc_parent::sign_in` /
 `onpc_gdm::enter_station` workers go straight to the intended account. Customer
@@ -1196,13 +1197,13 @@ cover durable diagnostics without authorization and checkpoint refusal.
 
 **Finite fixture login window — preparation and password readiness qualified:**
 `fixture_credentials.provision_vt6_login_window` now reuses the existing
-held-lease/offline `system_runner.mounted_guest` path to change only the attempt
-disk's existing `LOGIN_TIMEOUT=60` to 600 (an already prepared 600 is idempotent).
-It validates root-owned, singly linked regular-file metadata, preserves
-unrelated bytes and identity/mode, and verifies readback before allowing the
-worker. Missing, duplicate, malformed or unexpected settings refuse. Outer
-restoration preserves the accepted baseline and host configuration even after
-partial preparation. `run_backend` selects its existing finite 960-second
+held-lease/offline `system_runner.mounted_guest` path for read-only verification
+of `LOGIN_TIMEOUT=600`. Only `baseline_console.login_window(prepare=True)` changes
+the stock 60 during baseline preparation; unchanged repeats perform no write.
+Both routes validate root-owned, singly linked regular-file metadata and preserve
+unrelated bytes and identity/mode. Missing, duplicate, malformed or unexpected
+settings refuse; stale runtime state requires baseline refresh. `run_backend`
+selects its existing finite 960-second
 worker limit for VT6 auth; other modes are unchanged. No authentication, retry,
 provenance, recipient or capture guard is relaxed. The
 [login manual](https://raw.githubusercontent.com/util-linux/util-linux/v2.41/login-utils/login.1.adoc)
@@ -1554,9 +1555,9 @@ two private, inode-checked FIFOs; the maintained public `virtio-terminal`
 console uses these through `add_console`. The generalhw SOL grabber remains
 disabled. Initial off-state assertions preserve prepared pipes; final restoration,
 ownership loss and callback cleanup close the serial resources. No extra
-process or host listener is introduced. Offline preparation enables only the
-stock password-authenticated getty in this attempt, then outer restoration
-removes that preparation along with the fixture passwords.
+process or host listener is introduced. Baseline preparation enables the stock
+password-authenticated getty; attempts verify its exact link through a read-only
+mount and refuse missing or changed configuration.
 
 `onpc_serial::run` is currently a fixed qualification flow, not an arbitrary
 command/password interface. It requires the selected fixture's exact terminal

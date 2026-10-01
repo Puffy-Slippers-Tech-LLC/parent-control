@@ -11,7 +11,7 @@ complete cases released directly by this slice in the canonical queue.
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **010** — UI17 Parent Screen time limit binding; installed qualification and owned cleanup passed.
-- **035p** — FIX04 finite native assets and launchers through guarded SSH.
+- **035p** — FIX04 finite native assets and launchers in baseline, with guarded SSH verification.
 - **009** — UI16.
 - **077a** — PARENT12; UI13 complete public app-row observations.
 
@@ -29,8 +29,9 @@ Reuse PARENT12/UI13 and the installed native fixture identities. Bind public sea
 
 Use [the finite native declaration](../E2E-Building-Blocks.md#native-fixture-preparation),
 `tests/fixtures/native_assets.py`, `native_fixtures.fixture_actions()` and
-`native_fixtures.check_catalogue()`. Each owned attempt prepares its own fixture
-files before opening Parent; never rely on the preceding qualification's VM state.
+`native_fixtures.check_catalogue()`. Each owned attempt verifies the accepted
+baseline's fixture files before opening Parent; it never installs or repairs them
+and never relies on the preceding qualification's VM state.
 
 Keep repository-owned targets addressed by public automation IDs. External
 provider bindings use the approved scoped adapter and its ownership, ambiguity,

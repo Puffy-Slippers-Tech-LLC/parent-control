@@ -107,6 +107,19 @@ def test_child_trust_wait_refuses_missing_or_unscoped_manifest(tmp_path, monkeyp
     run.assert_not_called()
 
 
+@pytest.mark.parametrize('error,expected', [
+    (ValueError('private manifest text'), 'manifest-or-read'),
+    (OSError('private path'), 'manifest-or-read'),
+    (subprocess.CalledProcessError(7, ['private'], stderr='private database'), 'cli-exit status=7'),
+    (subprocess.TimeoutExpired(['private'], 30), 'cli-timeout'),
+    (UnicodeDecodeError('utf8', b'\xff', 0, 1, 'private'), 'output-decoding'),
+    (_activation['ChildTrustDeadline']({('/owned/indicatorLogic.mjs', '12', 'a' * 64)}),
+     'deadline modules=indicatorLogic.mjs'),
+])
+def test_child_trust_failure_diagnostics_are_bounded(error, expected):
+    assert _activation['child_trust_failure'](error) == expected
+
+
 def test_child_trust_contains_only_packaged_modules_and_refreshes_final_hashes(tmp_path):
     import hashlib
     extension = tmp_path / _activation['EXTENSION_PATH']

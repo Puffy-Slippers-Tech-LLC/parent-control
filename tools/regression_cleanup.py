@@ -50,7 +50,7 @@ from regression_resources import HOST_WORKERS
 
 
 REVIEWED = frozenset('''
-vm_internet native_fixtures
+vm_internet native_fixtures baseline_fixtures
 appsnapshot backing_verification baseline_guest challenges child_preview clean_install customer_reboot dbus_harness e2e_asset_transfer
 e2e_controller_qualification e2e_execution e2e_files e2e_fixture_credentials
 e2e_keyring_fixture e2e_leased_recording e2e_recording e2e_startup_cache e2e_suite

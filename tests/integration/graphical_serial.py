@@ -163,21 +163,12 @@ class SerialConsole:
 
 
 def provision_getty(lease, guestfs):
-    """Enable the stock password-authenticated getty only in offline preparation."""
+    """Verify the stock baseline getty; never enable it during a test."""
     from system_runner import mounted_guest
+    from baseline_console import getty
     require(lease.fd is not None and lease.state['phase'] == 'isolated'
             and lease.state['domain_id'] is None, 'serial:outside-provisioning')
     lease.guard(off=True)
-    with mounted_guest(guestfs, lease) as g:
-        target = '/usr/lib/systemd/system/serial-getty@.service'
-        require(g.is_file(target) and g.realpath(target) == target, 'serial:getty-prerequisite')
-        wants = '/etc/systemd/system/getty.target.wants'
-        require(g.is_dir(wants) and g.realpath(wants) == wants, 'serial:getty-directory')
-        path = wants + '/serial-getty@ttyS0.service'
-        if g.is_symlink(path):
-            require(g.realpath(path) == target, 'serial:getty-conflict')
-        else:
-            require(not g.exists(path), 'serial:getty-conflict')
-            g.ln_s(target, path)
-        require(g.realpath(path) == target, 'serial:getty-enable-failed')
+    with mounted_guest(guestfs, lease, readonly=True) as g:
+        getty(g)
     lease.guard(off=True)

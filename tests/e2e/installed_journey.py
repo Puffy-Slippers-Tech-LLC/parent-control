@@ -529,7 +529,7 @@ class InstalledJourney:
                     else 'Waiting the declared real interval under the attempt guard'
                     if plan.stage_actions[stage] == 'real-interval'
                     else 'Preparing declared native application fixtures'
-                    if plan.stage_actions[stage] in ('native-refuse', 'native-prepare')
+                    if plan.stage_actions[stage] in ('native-refuse', 'native-verify')
                     else 'Preparing the declared child-account fixture')
             action = self.actions[plan.stage_actions[stage]]
             observed['fixture'] = action(self, guard)

@@ -106,8 +106,38 @@ class AccountsService:
         )
         path = reply.unpack()[0]
         if path != f"/org/freedesktop/Accounts/User{uid}":
+            LOG.error("adapters.account-object-mismatch", stage="find-user")
+            self._log_account_object_context(uid, path)
             raise RuntimeError("AccountsService returned an unexpected user object")
         return path
+
+    def _log_account_object_context(self, requested_uid: int, path: str) -> None:
+        """Observe rejected identity metadata without changing its rejection.
+
+        The additional read has a one-second budget and cannot replace the
+        original failure. Only equality results, shape and a fixed role survive.
+        """
+        shape = "uid-path" if re.fullmatch(r"/org/freedesktop/Accounts/User[0-9]+", path) else "other"
+        requested_match = object_match = role = "unknown"
+        try:
+            properties = _call(
+                self.connection, ACCOUNTS_NAME, path, PROPERTIES_INTERFACE,
+                "GetAll", GLib.Variant("(s)", (ACCOUNTS_INTERFACE + ".User",)),
+                "(a{sv})", timeout=1000,
+            ).unpack()[0]
+            observed_uid = properties.get("Uid")
+            if type(observed_uid) is int and 0 <= observed_uid <= (1 << 32) - 1:
+                requested_match = "match" if observed_uid == requested_uid else "mismatch"
+                object_match = "match" if path == f"/org/freedesktop/Accounts/User{observed_uid}" else "mismatch"
+            name = properties.get("UserName")
+            if type(name) is str:
+                role = "display-manager-greeter" if name == "gdm-greeter" else "other"
+        except Exception:
+            # Read failure says nothing about the rejected object's identity.
+            pass
+        LOG.error("adapters.account-object-context", object_shape=shape,
+                  requested_uid_match=requested_match, object_uid_match=object_match,
+                  account_role=role)
 
     def _get(self, uid: int, interface: str, prop: str):
         reply = _call(
@@ -125,6 +155,7 @@ class AccountsService:
         uid = properties["Uid"]
         expected_path = f"/org/freedesktop/Accounts/User{uid}"
         if path != expected_path:
+            LOG.error("adapters.account-object-mismatch", stage="get-all")
             raise RuntimeError("AccountsService returned an unexpected user object")
         username = properties.get("UserName", "")
         real_name = " ".join(properties.get("RealName", "").split())[:120]
@@ -145,16 +176,34 @@ class AccountsService:
         # ListCachedUsers is explicitly non-exhaustive. Enumerate current NSS
         # identities so a newly created local account appears before first
         # login, then use AccountsService as the authority for account type.
-        uids = sorted({entry.pw_uid for entry in pwd.getpwall()
+        try:
+            entries = pwd.getpwall()
+        except Exception as error:
+            LOG.error("adapters.account-enumeration-failed", stage="nss",
+                      candidate="other", error_type=error_code(error))
+            raise
+        uids = sorted({entry.pw_uid for entry in entries
                        if 1000 <= entry.pw_uid <= (1 << 32) - 1 and
                        getattr(entry, "pw_shell", "") not in NONINTERACTIVE_SHELLS})
+        # Compare a reviewed, fixed service-account name transiently. Emit only
+        # its role; never retain NSS names, IDs, labels, homes or shells.
+        greeter_uids = {entry.pw_uid for entry in entries
+                        if getattr(entry, "pw_name", "") == "gdm-greeter"}
         users = []
         for uid in uids:
             try:
                 users.append(self.get_user(uid))
-            except GLib.Error:
+            except GLib.Error as error:
                 # The account may have been deleted during enumeration.
+                LOG.warning("adapters.account-enumeration-skipped",
+                            candidate="display-manager-greeter" if uid in greeter_uids else "other",
+                            error_type=error_code(error))
                 continue
+            except Exception as error:
+                LOG.error("adapters.account-enumeration-failed", stage="account-lookup",
+                          candidate="display-manager-greeter" if uid in greeter_uids else "other",
+                          error_type=error_code(error))
+                raise
         return tuple(users)
 
     def get_user(self, uid: int) -> UserAccount:

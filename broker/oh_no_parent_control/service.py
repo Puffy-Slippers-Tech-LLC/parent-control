@@ -521,6 +521,7 @@ class Service:
             invocation.return_dbus_error(error.dbus_name, str(error))
         except Exception as error:
             LOG.error("service.010", method=method, error_type=error_code(error))
+            record_exception(error)
             invocation.return_dbus_error(f"{BUS_NAME}.Error.Failed", "service failure")
 
     def _export_logs_worker(self, invocation, caller_uid):

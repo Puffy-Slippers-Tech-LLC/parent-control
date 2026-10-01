@@ -69,6 +69,33 @@ sub review_privacy {
     return $returned;
 }
 
+# FEED15 Parent: explicit already-open report entry, ordinary synthetic input,
+# FEED05 disclosure, fresh close proof and independently observed Parent return.
+sub review_parent_report {
+    onpc_progress::operation('Reviewing and closing an automatic Parent error report without sending');
+    my ($journey, $prefix) = @_;
+    die 'report:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    $journey->consume_observation("$prefix-report", $journey->seen("$prefix-report"));
+    onpc_text::replace_text($journey, 'body-first', "$prefix-body");
+    onpc_text::replace_text($journey, 'reply-first', "$prefix-reply");
+    $journey->consume_observation("$prefix-actions", $journey->seen("$prefix-actions"));
+    review_privacy($journey, "$prefix-");
+    my $closed = onpc_window::close($journey, 'feedback',
+        $journey->seen("$prefix-feedback-draft-reread"), "$prefix-");
+    return $journey->consume_observation("$prefix-feedback-draft-closed", $closed);
+}
+
+sub close_parent_report {
+    onpc_progress::operation('Closing an automatic Parent error report without sending');
+    my ($journey, $prefix) = @_;
+    die 'report:arguments' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    my $closed = onpc_window::close($journey, 'parent-report',
+        $journey->seen("$prefix-report"), "$prefix-");
+    return $journey->consume_observation("$prefix-feedback-draft-closed", $closed);
+}
+
 sub run {
     onpc_progress::operation('Reviewing local feedback through the declared composition');
     my ($exchange, $flow) = @_;

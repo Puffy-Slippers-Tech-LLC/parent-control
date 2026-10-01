@@ -142,6 +142,10 @@ suffixes. The current match value publishes `parent-app-<launcher hash>-match-pa
 or `-match-precise` beneath its match button. These public IDs allow complete
 bounded policy observations without inspecting saved preferences. They activate
 with the next Parent process (`none`) and do not change stored policy.
+The match button's public description includes `Current match rule: <rule>`.
+The editor content publishes `parent-match-rule-app-<launcher hash>` so an
+independently opened dialog can be bound to its app before input. Its entry
+retains the shared `parent-match-rule-entry` ID and public native focus action.
 
 Request account choices use their account UID within separate child and
 approver namespaces, independently of list order. Each selector keeps its ID
@@ -245,7 +249,9 @@ the controls from the last confirmed preferences using the restoration path
 described below. An irreversible termination failure may already have retained
 stricter broker preferences; reopening reloads the actual state.
 An empty or unrelated precise rule is rejected locally and leaves the editor
-open. A wildcard rule reaches broker validation after the dialog closes, so a
+open. The entry's public accessibility description carries the exact rejection
+explanation and returns to its input guidance when edited. A wildcard rule
+reaches broker validation after the dialog closes, so a
 rejected pattern uses the normal failed-save/report path. A basename without
 slashes is expanded against the app's sole native target directory. Save of
 the detected default and Reset to Default both clear the override; Reset saves

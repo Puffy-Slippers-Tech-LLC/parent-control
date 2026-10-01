@@ -51,7 +51,10 @@ class JourneyPlan:
     child_bindings: dict = field(default_factory=dict)
     request_checks: dict = field(default_factory=dict)
     balance_checks: dict = field(default_factory=dict)
+    countdown_checks: dict = field(default_factory=dict)
     catalogue_checks: dict = field(default_factory=dict)
+    match_checks: dict = field(default_factory=dict)
+    access_checks: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Invocation IDs are filenames and immutable observation identities,
@@ -75,6 +78,15 @@ class JourneyPlan:
         require(all(stage in stages and type(seconds) is int and seconds >= 0
                     for stage, seconds in self.balance_checks.items()),
                 self.prefix + ':balance-plan')
+        require(all(stage in stages and self.screen_tags[stage] == 'ui:child-countdown-present'
+                    and type(binding) is tuple and len(binding) == 4
+                    and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
+                    and self.screen_tags[binding[0]] == 'ui:kiosk-valid-fraction-soft-read'
+                    and type(binding[1]) is int and 0 < binding[1] < 86400
+                    and type(binding[2]) is int and 1 <= binding[2] <= 60
+                    and type(binding[3]) is int and 0 < binding[3] <= 300
+                    for stage, binding in self.countdown_checks.items()),
+                self.prefix + ':countdown-plan')
         require(all(stage in stages and type(binding) is tuple and len(binding) == 3
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
                     and all(type(value) is str and value for value in binding)
@@ -145,12 +157,14 @@ class JourneyPlan:
                     and type(binding) is tuple and len(binding) == 3,
                     self.prefix + ':challenge-plan')
             role, first, second = binding
-            require(role in ('parent', 'other-child') and first in self.invocations
+            require(role in ('parent', 'other-child', 'child') and first in self.invocations
                     and second in self.invocations and not {first, second} & used
                     and stages.index(second) == stages.index(first) + 1,
                     self.prefix + ':challenge-plan')
-            recipient = 'gdm-parent-recipient' if role == 'parent' else 'gdm-standard-recipient'
-            focus = 'gdm-focused' if role == 'parent' else 'gdm-standard-focused'
+            recipient = ('gdm-parent-recipient' if role == 'parent' else
+                         'gdm-child-recipient' if role == 'child' else 'gdm-standard-recipient')
+            focus = ('gdm-focused' if role == 'parent' else
+                     'gdm-child-focused' if role == 'child' else 'gdm-standard-focused')
             require(stages.index(first) > 0
                     and self.screen_tags[stages[stages.index(first) - 1]] == 'ui:' + focus
                     and self.screen_tags[first] == 'ui:' + recipient

@@ -167,7 +167,8 @@ sub type_fixture_secret {
     $authentication_started = 1;
     $functional_input_started = 1 unless defined($challenge);
     my $ok = eval {
-        die "secret:arguments\n" unless (@_ == 3 || @_ == 4) && ($role eq 'parent' || $role eq 'other-child')
+        die "secret:arguments\n" unless (@_ == 3 || @_ == 4)
+            && ($role eq 'parent' || $role eq 'other-child' || ($role eq 'child' && defined($challenge)))
             && ref($journey) eq 'onpc_journey' && !$journey->{review};
         my $stage;
         my $wrong = 0;

@@ -23,7 +23,7 @@ class ScriptedParentBroker:
     def __init__(self):
         self._mode = os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO", "normal")
         self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
-        if self._mode == 'catalogue':
+        if self._mode in ('catalogue', 'rejected-rule'):
             from tests.fixtures.native_assets import ASSETS, PREFIX, desktop_id
             self._preferences[1002]['apps'] = {
                 desktop_id(role): {'state': {'H': 'permanent', 'S': 'conditional'}.get(role, 'allowed'),
@@ -78,7 +78,7 @@ class ScriptedParentBroker:
         self._record("list_apps")
         if self._mode == "loading":
             self._wait_for_loading_release()
-        if self._mode == 'catalogue':
+        if self._mode in ('catalogue', 'rejected-rule'):
             from tests.fixtures.native_assets import ASSETS, PREFIX, desktop_id
             return [{'id': desktop_id(role), 'name': name, 'description': description,
                      'icon': 'applications-system', 'targets': [PREFIX + '/' + filename],
@@ -105,6 +105,11 @@ class ScriptedParentBroker:
 
     def set_preferences(self, uid, value):
         self._record("set_preferences", uid=uid)
+        if self._mode == 'rejected-rule' and any(
+                pattern.startswith('/opt/onpc-test-fixtures/Rejected/')
+                for policy in value['apps'].values() for pattern in policy.get('patterns', [])):
+            from gi.repository import GLib
+            raise GLib.Error('synthetic rejected pattern')
         if self._mode == "save-fails":
             raise RuntimeError("save rejected")
         self._preferences[uid] = copy.deepcopy(value)

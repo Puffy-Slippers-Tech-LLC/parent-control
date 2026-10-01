@@ -85,6 +85,15 @@ STANDARD_OPERATIONS |= frozenset({'standard-parent-command-launch', 'standard-pa
 STANDARD_OPERATIONS |= frozenset({'child-command-launch'})
 OPERATIONS |= frozenset({'standard-search-qualified'})
 STANDARD_OPERATIONS |= frozenset({'standard-search-qualified'})
+COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-absent'})
+CHILD_DESKTOP_OPERATIONS = frozenset({'fresh-child-desktop'}) | COUNTDOWN_OPERATIONS
+CHILD_GREETER_OPERATIONS = frozenset({
+    'gdm-child-list', 'gdm-child-focused', 'gdm-child-wrong-recipient-refused',
+    'gdm-child-recipient', 'gdm-child-recipient-rechecked',
+    'gdm-child-time-denied', 'gdm-child-denied-return-ready', 'gdm-child-denied-returned',
+})
+OPERATIONS |= CHILD_DESKTOP_OPERATIONS | CHILD_GREETER_OPERATIONS
+OPERATIONS |= frozenset({'child-countdown-wrong-account-refused'})
 OPERATIONS |= frozenset({'help-desktop-clear'})
 OPERATIONS |= frozenset({'gdm-product-free-provider', 'parent-desktop-provider'})
 PRODUCT = 'Oh No! Parent Control'
@@ -104,6 +113,7 @@ FEEDBACK_PROJECTIONS = {
     **{f'length-{family}-{units}': (f'body-{family}-{units}', 'reply-clear')
        for family in ('ascii', 'mixed') for units in (5000, 5001)},
     'initial-empty': ('body-clear', 'reply-clear'),
+    'parent-rule-error': ('body-rule-error', 'reply-clear'),
     'trace-prefix': ('body-first', 'reply-clear'),
     'synthetic-first': ('body-first', 'reply-first'),
     'formatted': ('body-smoke', 'reply-first'),
@@ -171,6 +181,16 @@ KIOSK_INVALID_VALUES = {
     'below': '0.09', 'over': '1440.1', 'comma': '1,5',
 }
 TEXT_VALUES = {
+    'match-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Exact*.AppImage'),
+    'match-wildcard-basename': ('parent-match-rule-entry', 'Exact*.AppImage'),
+    'match-wildcard-appimages': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/*.AppImage'),
+    'match-rejected-directory': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Rejected/*.AppImage'),
+    'match-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage'),
+    'match-precise-basename': ('parent-match-rule-entry', 'Exact Fixture.AppImage'),
+    'match-invalid-empty': ('parent-match-rule-entry', ''),
+    'match-invalid-whitespace': ('parent-match-rule-entry', '   '),
+    'match-invalid-basename': ('parent-match-rule-entry', 'Unrelated.AppImage'),
+    'match-invalid-absolute': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Unrelated.AppImage'),
     'catalogue-name': ('parent-app-search', 'ONPC Allowed Fixture'),
     'catalogue-description': ('parent-app-search', 'Exact native catalogue fixture'),
     'catalogue-identifier': ('parent-app-search', 'com.puffyslippers.ONPCTest.A.desktop'),
@@ -387,6 +407,28 @@ FILTER_OPERATIONS = {
 }
 OPERATIONS |= frozenset(FILTER_OPERATIONS)
 OPERATIONS |= APP_ROW_OPERATIONS
+MATCH_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.A.desktop').hexdigest()[:16]
+MATCH_OTHER_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.N.desktop').hexdigest()[:16]
+MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
+               '/opt/onpc-test-fixtures/Applications/Exact*.AppImage',
+               '/opt/onpc-test-fixtures/Applications/*.AppImage')
+MATCH_OPERATIONS = frozenset('match-' + action for action in
+    ('open', 'read', 'row', 'save', 'cancel', 'reset', 'rejected', 'wrong-app', 'ambiguous'))
+MATCH_INVALID = {key: ('A match rule is required' if key in ('empty', 'whitespace') else
+                      "A precise match must be this app's execution path")
+                 for key in ('empty', 'whitespace', 'basename', 'absolute')}
+MATCH_OPERATIONS |= frozenset('match-invalid-' + key for key in MATCH_INVALID)
+OPERATIONS |= MATCH_OPERATIONS
+PARENT_REPORT_OPERATIONS = frozenset({'parent-report-refused', 'parent-report-read',
+                                      'parent-report-actions'})
+OPERATIONS |= PARENT_REPORT_OPERATIONS
+TEXT_VALUES['body-rule-error'] = ('feedback-editor-input',
+    'Something went wrong\nThe operation could not be completed. Please try again later.'
+    '\n\nError categories: Error')
+ACCESS_CHOICES = ('allowed', 'permanent', 'conditional')
+ACCESS_OPERATIONS = frozenset('access-' + action for action in
+    (*ACCESS_CHOICES, 'row', 'screen', 'wrong-row', 'disabled'))
+OPERATIONS |= ACCESS_OPERATIONS
 LEGEND_HEADINGS = ('App Access (What happens)', 'Match Rule (How apps are matched)')
 LEGEND_RULES = (
     ('allowed', 'Always Allowed', 'App can always be used'),
@@ -419,7 +461,7 @@ NAMED_CUSTOM_OPERATIONS = frozenset(
     operation for operation, (_, action) in CUSTOM_ALLOWANCE_OPERATIONS.items()
     if action in ('open', 'saved', 'reopen')) | frozenset(
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
-    if binding in ('daily-6', 'daily-7') or binding.startswith('catalogue-')) | frozenset(FILTER_OPERATIONS) | {
+    if binding in ('daily-6', 'daily-7') or binding.startswith(('catalogue-', 'match-'))) | frozenset(FILTER_OPERATIONS) | MATCH_OPERATIONS | ACCESS_OPERATIONS | {
         'parent-custom-events', 'parent-custom-trace-focus',
         'parent-custom-trace-disabled-refused', 'named-custom-setup',
         'named-custom-wrong-child-refused', 'parent-trace-wrong-surface-refused',
@@ -482,6 +524,8 @@ GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent',
 GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list',
                                 'gdm-station-list', 'gdm-product-free-list'})
 GREETER_OPERATIONS |= frozenset({'gdm-product-free-provider', 'gdm-installed-accounts'})
+GREETER_OPERATIONS |= CHILD_GREETER_OPERATIONS
+GREETER_NAVIGATION |= frozenset({'gdm-child-list'})
 GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-other-list', 'gdm-other-focused',
     'gdm-standard-list', 'gdm-standard-focused',
@@ -491,6 +535,7 @@ GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-station-list', 'gdm-station-focused', 'gdm-station-returned',
 })
 GDM_SEMANTIC_APPLICATION_NAMES = frozenset({'gnome-shell', 'gnome shell'})
+GDM_NONSECRET_OPERATIONS |= frozenset({'gdm-child-list', 'gdm-child-focused'})
 GDM_ACCOUNT_ROLES = frozenset({'button', 'push button'})
 GDM_DIAGNOSTIC_ROLES = frozenset({
     'application', 'button', 'push button', 'label', 'password text',
@@ -1625,16 +1670,28 @@ class AccessibleUI:
             parent, application, visited=(*visited, identity),
             nodes=nodes, snapshot=snapshot, identities=identities)
 
-    def absent_id(self, identity, *, within):
-        """Fresh complete negative observation with a positive surrounding ID."""
+    def absent_id(self, identity, *, within, incomplete_raises=False):
+        """Complete negative proof; optionally distinguish unknown from present.
+
+        The default retains False for unavailable proof. Input preconditions
+        can opt in to read retries while refusing a positively showing target.
+        """
+        require(type(incomplete_raises) is bool, 'ui:absence-mode')
+        def indeterminate(reason, cause=None):
+            if not incomplete_raises:
+                return False
+            error = UiError('ui:incomplete-tree')
+            error.add_note('ui:absence-read:' + reason)
+            raise error from cause
         try:
             snapshot = {}
             identities = {}
             nodes = list(self.nodes(
                 strict=True, snapshot=snapshot, identities=identities))
-            if not nodes or any(self.has_state(node, self.api.StateType.DEFUNCT)
-                                for node in nodes):
-                return False
+            if not nodes:
+                return indeterminate('empty-tree')
+            if any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes):
+                return indeterminate('defunct-tree')
             observation = (nodes, snapshot, identities, None)
             anchor = (self.snapshot_owned_target(
                 within, observation=observation)
@@ -1643,7 +1700,7 @@ class AccessibleUI:
                     within, nodes, showing=True, show=self.showing,
                     identities=identities))
             if anchor is None:
-                return False
+                return indeterminate('missing-anchor')
             matches = [node for node in nodes if identities[node] == identity]
             require(len(matches) <= 1, 'ui:ambiguous-automation-id')
             if matches:
@@ -1667,15 +1724,17 @@ class AccessibleUI:
                         for pid in history.get(application, ())
                     }
                     if expected and matches[0].get_process_id() in known_pids:
-                        return False
+                        return indeterminate('stale-owner')
                     raise UiError('ui:wrong-absence-owner')
                 if self.showing(target):
                     return False
             return True
-        except self.query_errors:
-            return False  # An incomplete read never proves absence.
+        except self.query_errors as error:
+            return indeterminate('query', error)
         except UiError as error:
             if str(error) == 'ui:incomplete-tree':
+                if incomplete_raises:
+                    raise  # Preserve the original complete-read notes/cause.
                 return False
             raise
 
@@ -1788,13 +1847,15 @@ class AccessibleUI:
                     self.kiosk_diagnostic.emit(status='query-error')
             except UiError as error:
                 if str(error) not in (
-                        'ui:incomplete-tree', 'ui:stale-picker',
+                        'ui:incomplete-tree', 'ui:stale-picker', 'ui:gdm-stale-tree',
                         'ui:system-prompt-observation-failed'):
                     raise
                 # Discard the entire observation. A child can disappear between
                 # ChildCount and GetChildAtIndex during a public UI transition.
                 # GTK can likewise leave a defunct picker node in one AT-SPI
-                # snapshot while removing a closed popover. Prompt scans can
+                # snapshot while removing a closed popover. GDM can leave a
+                # defunct node while replacing its authentication prompt.
+                # Prompt scans can
                 # encounter the same disappearing objects; a failed scan never
                 # authorizes the predicate or any input.
                 # Only a later complete read may satisfy the predicate; no
@@ -1812,7 +1873,8 @@ class AccessibleUI:
             self.invalidate_observation()
             if time.monotonic() >= deadline:
                 if incomplete is not None and str(incomplete) in (
-                        'ui:stale-picker', 'ui:system-prompt-observation-failed'):
+                        'ui:stale-picker', 'ui:gdm-stale-tree',
+                        'ui:system-prompt-observation-failed'):
                     raise incomplete
                 raise UiError('ui:timeout:' + code) from incomplete
             time.sleep(.2)
@@ -3133,7 +3195,8 @@ class AccessibleUI:
         require(identity in {item[0] for item in TEXT_VALUES.values()}, 'ui:text-binding')
         require(node.get_role_name() != 'password text'
                 and self.has_state(node, self.api.StateType.EDITABLE), 'ui:text-editor')
-        surface = ('kiosk-request-window' if identity == 'kiosk-custom-duration' else
+        surface = ('parent-match-rule-dialog' if identity == 'parent-match-rule-entry' else
+                   'kiosk-request-window' if identity == 'kiosk-custom-duration' else
                    'parent-window' if identity in ('parent-custom-daily-limit', 'parent-app-search')
                    else 'feedback-dialog')
         root = self.snapshot_owned_target(surface, check_prompt=True)
@@ -3153,14 +3216,19 @@ class AccessibleUI:
                     'ui:app-row-page')
         if identity == 'kiosk-custom-duration':
             self.kiosk_valid_target(identity)
+        if identity == 'parent-match-rule-entry':
+            self.match_entry(child, MATCH_APP, editor=True)
         require(not focused or self.has_state(node, self.api.StateType.FOCUSED),
                 'ui:text-focus')
         return node
 
     def focus_text(self, identity, *, child=CHILD):
-        node = self.text_recipient(identity, child=child)
-        if identity in ('parent-custom-daily-limit', 'parent-app-search', 'kiosk-custom-duration'):
-            surface = 'kiosk-request-window' if identity == 'kiosk-custom-duration' else 'parent-window'
+        # Retry only the complete read before dispatch, never the focus action.
+        node = self.wait(lambda: self.text_recipient(identity, child=child),
+                         'text-focus-entry')
+        if identity in ('parent-custom-daily-limit', 'parent-app-search', 'kiosk-custom-duration', 'parent-match-rule-entry'):
+            surface = ('parent-match-rule-dialog' if identity == 'parent-match-rule-entry' else
+                       'kiosk-request-window' if identity == 'kiosk-custom-duration' else 'parent-window')
             self.activate_id(surface, action_name='focus.' + identity)
             self.wait(lambda: self.has_state(self.text_recipient(identity, child=child),
                                             self.api.StateType.FOCUSED), 'text-focus')
@@ -3212,7 +3280,7 @@ class AccessibleUI:
         binding, action = TEXT_OPERATIONS[operation]
         identity, _ = TEXT_VALUES[binding]
         if action == 'anchor':
-            self.text_recipient(identity)
+            self.wait(lambda: self.text_recipient(identity), 'text-anchor-entry')
             self.focus_text('feedback-editor-input')
         elif action == 'focus' and identity == 'feedback-reply-email':
             def focused():
@@ -3222,7 +3290,10 @@ class AccessibleUI:
         elif action == 'focus':
             self.focus_text(identity, child=child)
         elif action == 'selected':
-            self.text_recipient(identity, focused=True, child=child)
+            # A toast or animation may disappear after Ctrl+A. Reacquire the
+            # complete focused-recipient proof; never repeat the keyboard input.
+            self.wait(lambda: self.text_recipient(identity, focused=True, child=child),
+                      'text-selected')
         else:
             if identity == 'parent-custom-daily-limit':
                 # Debounce/Return/Tab may already have started an asynchronous
@@ -3541,6 +3612,44 @@ class AccessibleUI:
             'Review them before sending.',
         ):
             require(fragment in text, 'ui:feedback-privacy-disclosure')
+
+    def parent_report_operation(self, operation):
+        """FEED15 Parent: read an automatic report; never open or send it."""
+        require(operation in PARENT_REPORT_OPERATIONS, 'ui:parent-report-binding')
+        if operation == 'parent-report-refused':
+            require(self.absent_id('feedback-dialog', within='parent-window',
+                                   incomplete_raises=True), 'ui:parent-report-present')
+            try:
+                self.window_ready_to_close('feedback')
+            except UiError as error:
+                require(str(error) == 'ui:feedback-entry', 'ui:parent-report-refusal')
+                return {'refusal': 'absent'}
+            raise UiError('ui:parent-report-wrong-entry-accepted')
+        projection = ('parent-rule-error' if operation == 'parent-report-read'
+                      else 'synthetic-first')
+        def ready():
+            try:
+                value = self.feedback_snapshot(projection)
+            except UiError as error:
+                if str(error) in ('ui:feedback-collection', 'ui:feedback-target'):
+                    return None
+                raise
+            root = self.id_target('feedback-dialog')
+            for identity in ('feedback-close', 'feedback-send', 'feedback-add-files',
+                             'feedback-download-logs', 'feedback-toggle-logs',
+                             'feedback-privacy-link'):
+                node = self.id_target(identity, root=root, sensitive=True, showing=False)
+                require(self.has_state(node, self.api.StateType.VISIBLE)
+                        and not self.has_state(node, self.api.StateType.DEFUNCT),
+                        'ui:parent-report-control')
+                action = node.get_action_iface()
+                require(action is not None and sum(
+                    not public_action_name(self.api, action, index).startswith('focus.')
+                    for index in range(self.api.Action.get_n_actions(action))) == 1,
+                    'ui:parent-report-action')
+            self.window_ready_to_close('feedback')
+            return value
+        return self.wait(ready, 'parent-report')
 
     def feedback_privacy_operation(self, operation, *, projection='synthetic-first'):
         require(operation in FEEDBACK_PRIVACY_OPERATIONS, 'ui:feedback-operation')
@@ -5009,6 +5118,202 @@ class AccessibleUI:
         check_deadline()
         return result
 
+    def match_entry(self, child, app, *, editor=False, access=None):
+        """Fresh complete child/page/app and transient-owner proof before input."""
+        require(child in CHILD_IDENTITIES and app in (MATCH_APP, MATCH_OTHER_APP), 'ui:match-binding')
+        require(access is None or (access in ACCESS_CHOICES and not editor), 'ui:access-binding')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        observation = self.read_snapshot()
+        nodes, edges, identities, facts = observation
+        root = self.snapshot_owned_target('parent-window', check_prompt=True, observation=observation)
+        require(root is not None, 'ui:match-window')
+        def target(identity, scope=root):
+            node = self.snapshot_owned_target(identity, root=scope, showing=False, observation=observation)
+            require(node is not None and self.has_state(node, self.api.StateType.VISIBLE)
+                    and not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:match-target')
+            return node
+        picker = target('parent-child-selector')
+        uid = (self.fixture_uids[child] if self.fixture_uids is not None
+               else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
+        require(self.snapshot_owned_target('parent-child-selected-' + str(uid), root=picker,
+                    observation=observation) is not None, 'ui:match-child')
+        page = target('parent-app-limits-page')
+        search = target('parent-app-search', page)
+        require(self.has_state(search, self.api.StateType.SENSITIVE), 'ui:match-loading')
+        row = target(app, target('parent-app-rows', page))
+        button = target(app + ('-match-rule' if access is None else '-access-' + access), row)
+        if not editor:
+            require(self.has_state(root, self.api.StateType.ACTIVE)
+                    and self.has_state(button, self.api.StateType.SENSITIVE), 'ui:match-inactive')
+            return button
+        dialog = self.snapshot_owned_target('parent-match-rule-dialog', check_prompt=True,
+                                           observation=observation)
+        require(dialog is not None and self.has_state(dialog, self.api.StateType.ACTIVE), 'ui:match-editor')
+        marker = self.snapshot_owned_target('parent-match-rule-app-' + app.removeprefix('parent-app-'),
+            root=dialog, showing=False, observation=observation)
+        require(marker is not None, 'ui:match-wrong-app')
+        entry = target('parent-match-rule-entry', marker)
+        require(self.has_state(entry, self.api.StateType.SENSITIVE)
+                and self.has_state(entry, self.api.StateType.EDITABLE), 'ui:match-entry')
+        return dialog, entry
+
+    def choose_app_access(self, child, app, control):
+        """UI15 → PARENT08; one ID-scoped action, never replay uncertain input."""
+        require(type(control) is str and control in
+                tuple(app + '-access-' + choice for choice in ACCESS_CHOICES),
+                'ui:access-wrong-row')
+        choice = control.rsplit('-access-', 1)[1]
+        target = self.wait(lambda: self.match_entry(child, app, access=choice),
+                           'access-entry')
+        self._invoke_target(target)
+        self.invalidate_observation()
+        self.parent_app_save_snapshot(child, app)
+        return {'chosen': choice}
+
+    def read_app_access(self, child, app):
+        """PARENT12 independent read; caller owns the expected saved choice."""
+        require(app in (MATCH_APP, MATCH_OTHER_APP), 'ui:access-binding')
+        def read():
+            rows = self.app_rows(child)
+            values = [access for identity, access, _ in rows if identity == app]
+            require(len(values) == 1, 'ui:access-row')
+            return {'app': app, 'choice': values[0]}
+        return self.wait(read, 'access-row')
+
+    def access_operation(self, operation, *, child=EXISTING_CHILD):
+        require(operation in ACCESS_OPERATIONS, 'ui:access-operation')
+        action = operation.removeprefix('access-')
+        if action == 'screen':
+            self.parent_page(child, 'Screen Limits')
+            return {'page': 'screen'}
+        if action in ('wrong-row', 'disabled'):
+            control = (MATCH_OTHER_APP if action == 'wrong-row' else MATCH_APP) + '-access-allowed'
+            try:
+                self.choose_app_access(child, MATCH_APP, control)
+            except UiError as error:
+                require(str(error) == ('ui:access-wrong-row' if action == 'wrong-row'
+                                      else 'ui:match-inactive'), 'ui:access-refusal')
+                return {'refusal': action}
+            raise UiError('ui:access-wrong-accepted')
+        if action == 'row':
+            return self.read_app_access(child, MATCH_APP)
+        return self.choose_app_access(child, MATCH_APP, MATCH_APP + '-access-' + action)
+
+    def read_match_rule(self, child, app, *, editor=False):
+        """Exact finite public value; no backend reads or arbitrary text exports."""
+        def read():
+            value = self.match_entry(child, app, editor=editor)
+            if editor:
+                _, entry = value
+                text = entry.get_text_iface()
+                require(text is not None, 'ui:match-text')
+                count = self.api.Text.get_character_count(text)
+                require(0 < count <= 128, 'ui:match-text-bound')
+                rule = self.api.Text.get_text(text, 0, count)
+            else:
+                description = value.get_description()
+                require(description.startswith('Current match rule: '), 'ui:match-description')
+                rule = description.removeprefix('Current match rule: ')
+            require(rule in MATCH_RULES, 'ui:match-value')
+            return {'app': app, 'rule': rule}
+        # Independent read invocations can also encounter a disappearing toast.
+        # Retry no input, and keep semantic recipient/value refusals immediate.
+        return self.wait(read, 'match-rule')
+
+    def open_match_rule(self, child, app):
+        def recipient():
+            require(self.absent_id('parent-match-rule-dialog', within='parent-window',
+                                   incomplete_raises=True), 'ui:match-already-open')
+            return self.match_entry(child, app)
+        button = self.wait(recipient, 'match-before-open')
+        self._invoke_target(button)
+        self.invalidate_observation()
+        def opened():
+            try:
+                return self.read_match_rule(child, app, editor=True)
+            except UiError as error:
+                if str(error) in ('ui:match-editor', 'ui:match-target'):
+                    return None  # Native dialog map; no input replay.
+                raise
+        return self.wait(opened, 'match-open')
+
+    def parent_app_save_snapshot(self, child, app):
+        """PARENT08 App Limits terminal: usable controls and no failure report."""
+        def saved():
+            observation = self.read_snapshot()
+            nodes, _, identities, _ = observation
+            require(not any(identities[node] in ('feedback-dialog', 'error-report-unavailable-dialog')
+                            and self.showing(node) for node in nodes), 'ui:parent-save-error-report')
+            try:
+                self.match_entry(child, app)
+            except UiError as error:
+                if str(error) in ('ui:match-loading', 'ui:match-inactive'):
+                    return None
+                raise
+            picker = self.snapshot_owned_target('parent-child-selector', observation=observation)
+            return picker is not None and self.has_state(picker, self.api.StateType.SENSITIVE)
+        return self.wait(saved, 'parent-app-save')
+
+    def respond_match_rule(self, child, app, action):
+        require(type(action) is str and action in ('save', 'cancel', 'reset', 'rejected', *MATCH_INVALID),
+                'ui:match-response-binding')
+        invalid = action in MATCH_INVALID
+        if invalid:
+            self.read_synthetic_text('match-invalid-' + action, child=child)
+        if action == 'rejected':
+            self.read_synthetic_text('match-rejected-directory', child=child)
+        # Invalid Save can leave a short-lived toast in the public tree. Retry
+        # only the complete recipient proof before dispatch, with the existing
+        # deadline and fresh ownership/child checks after every failed read.
+        dialog, _ = self.wait(lambda: self.match_entry(child, app, editor=True),
+                              'match-response-entry')
+        target = self.id_target('parent-match-rule-' + ('save' if invalid or action == 'rejected' else action),
+                                root=dialog, sensitive=True)
+        try:
+            self._invoke_target(target)
+        except self.query_errors as error:
+            # Action queries/dispatch are outside the retry boundary. Preserve
+            # the uncertain-input latch and expose a fixed, nonsecret location.
+            raise UiError('ui:match-response-query:action') from error
+        self.invalidate_observation()
+        if invalid:
+            def rejected():
+                _, entry = self.match_entry(child, app, editor=True)
+                self.read_synthetic_text('match-invalid-' + action, child=child)
+                return entry.get_description() == MATCH_INVALID[action]
+            self.wait(rejected, 'match-invalid')
+            return {'invalid': action, 'message': MATCH_INVALID[action]}
+        self.wait(lambda: self.absent_id('parent-match-rule-dialog', within='parent-window'), 'match-closed')
+        if action == 'rejected':
+            self.wait(lambda: self.snapshot_owned_target('feedback-dialog', check_prompt=True),
+                      'match-error-report')
+            return {'closed': 'rejected'}
+        # Public saved/control snapshot is independent of the response action.
+        self.parent_app_save_snapshot(child, app)
+        return {'closed': action}
+
+    def match_operation(self, operation, *, child=EXISTING_CHILD):
+        require(operation in MATCH_OPERATIONS, 'ui:match-operation')
+        action = operation.removeprefix('match-')
+        if action in ('wrong-app', 'ambiguous'):
+            try:
+                if action == 'wrong-app':
+                    self.match_entry(child, MATCH_OTHER_APP, editor=True)
+                else:
+                    self.respond_match_rule(child, MATCH_APP, ('save', 'cancel'))
+            except UiError as error:
+                require(str(error) == ('ui:match-wrong-app' if action == 'wrong-app' else
+                                      'ui:match-response-binding'), 'ui:match-refusal')
+                return {'refusal': action}
+            raise UiError('ui:match-wrong-accepted')
+        if action == 'open':
+            return self.open_match_rule(child, MATCH_APP)
+        if action.startswith('invalid-'):
+            return self.respond_match_rule(child, MATCH_APP, action.removeprefix('invalid-'))
+        if action in ('save', 'cancel', 'reset', 'rejected'):
+            return self.respond_match_rule(child, MATCH_APP, action)
+        return self.read_match_rule(child, MATCH_APP, editor=action == 'read')
+
     def legend_entry(self, child):
         """One complete fresh Parent/child/page proof before legend input or read."""
         require(child in CHILD_IDENTITIES, 'ui:legend-binding')
@@ -5318,9 +5623,10 @@ class AccessibleUI:
         owner, _nodes, _snapshot, _facts = self.shell_search_snapshot()
         return self._shell_provider_metadata(owner)
 
-    def gdm_provider_metadata(self):
-        """Read the actual product-free greeter provider, never observer locale."""
-        owner, _rows = self.gdm_semantic_rows((PARENT,), excluded=(KIOSK,))
+    def gdm_provider_metadata(self, *, installed_child=False):
+        """Read the actual declared greeter provider, never observer locale."""
+        owner, _rows = (self.gdm_semantic_rows((PARENT, KIOSK, CHILD)) if installed_child else
+                        self.gdm_semantic_rows((PARENT,), excluded=(KIOSK,)))
         shell = self._shell_provider_metadata(owner, greeter=True)
         version = subprocess.check_output(
             ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', 'gdm3'],
@@ -5412,7 +5718,7 @@ class AccessibleUI:
 
     def desktop_result(self, account, expected):
         """GDM06 success on the caller's qualified public desktop connection."""
-        require(account in (PARENT, EXISTING_CHILD) and expected == 'success',
+        require(account in (PARENT, EXISTING_CHILD, CHILD) and expected == 'success',
                 'ui:desktop-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             return self.standard_shell_desktop()
@@ -5423,6 +5729,95 @@ class AccessibleUI:
         require(target is not None, 'ui:desktop')
         return target
 
+    def shell_desktop_observation(self, *, no_prompt=False):
+        """One complete Shell desktop read, shared by entry and TIME01."""
+        root = self.api.get_desktop(0)
+        require(root is not None, 'ui:incomplete-tree')
+        snapshot, facts, identities = {}, {}, {}
+        nodes = list(self.nodes(root, strict=True, protect_text=True,
+                                snapshot=snapshot, facts=facts, identities=identities))
+        if any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes):
+            error = UiError('ui:incomplete-tree')
+            error.add_note('desktop observation contains a defunct node')
+            raise error
+        if no_prompt:
+            require(self.system_prompt_kind(observation=(nodes, snapshot, facts)) is None,
+                    'ui:fresh-desktop-prompt')
+        owners = [node for node in nodes if node.get_parent() == root
+                  and node.get_role_name() == 'application'
+                  and node.get_name().casefold() in GDM_SEMANTIC_APPLICATION_NAMES]
+        require(len(owners) <= 1, 'ui:shell-provider-owner')
+        if not owners:
+            return None
+        panels = [node for node in self.snapshot_scope(nodes, snapshot, owners[0])
+                  if node.get_role_name() == 'toggle button' and node.get_name() == 'Activities'
+                  and self.showing(node)
+                  and self.has_state(node, self.api.StateType.SENSITIVE)]
+        require(len(panels) <= 1, 'ui:shell-desktop-ambiguous')
+        if not panels:
+            return None
+        return owners[0], panels[0], (nodes, snapshot, identities, facts)
+
+    def child_countdown(self, present):
+        """TIME01: read-only child-desktop text or two seconds of complete absence."""
+        require(type(present) is bool, 'ui:countdown-binding')
+        uid = pwd.getpwnam(CHILD_ACCOUNTS[CHILD]).pw_uid
+        require(uid >= 1000 and os.getuid() == uid and os.geteuid() == uid,
+                'ui:countdown-account')
+        require_active_launch_session()
+        stable_since = None
+
+        def observe():
+            nonlocal stable_since
+            try:
+                value = self.shell_desktop_observation(no_prompt=True)
+                if value is None:
+                    stable_since = None
+                    return None
+                owner, _, (nodes, edges, identities, facts) = value
+                scope = self.snapshot_scope(nodes, edges, owner)
+                controls = {}
+                for identity in ('child-screen-time-indicator', 'child-request-button',
+                                 'child-remaining-time'):
+                    matches = [node for node in nodes if identities[node] == identity]
+                    require(len(matches) <= 1, 'ui:ambiguous-automation-id')
+                    require(all(node in scope for node in matches), 'ui:countdown-owner')
+                    controls[identity] = matches[0] if matches else None
+                label = controls['child-remaining-time']
+                if present:
+                    anchor = controls['child-screen-time-indicator']
+                    button = controls['child-request-button']
+                    if any(node is None or not self.showing(node)
+                           for node in (anchor, button, label)):
+                        return None
+                    descendants = self.snapshot_scope(nodes, edges, anchor)
+                    require(button in descendants and label in
+                            self.snapshot_scope(nodes, edges, button), 'ui:countdown-owner')
+                    require(facts[label]['role'] == 'label', 'ui:countdown-label')
+                    text = facts[label]['name']
+                    countdown_seconds(text)  # Bound public text before transport/storage.
+                    return {'child': 'fixture-child', 'surface': 'desktop', 'present': True,
+                            'text': text, 'observed_monotonic_ns': time.monotonic_ns(),
+                            'stable_ms': 0}
+                if any(node is not None and self.showing(node) for node in controls.values()):
+                    stable_since = None
+                    return None
+                now = time.monotonic_ns()
+                if stable_since is None:
+                    stable_since = now
+                if now - stable_since < 2_000_000_000:
+                    return None
+                return {'child': 'fixture-child', 'surface': 'desktop', 'present': False,
+                        'text': None, 'observed_monotonic_ns': now,
+                        'stable_ms': (now - stable_since) // 1_000_000}
+            except BaseException:
+                stable_since = None
+                raise
+
+        result = self.wait(observe, 'child-countdown', prompt_in_predicate=True)
+        require_active_launch_session()
+        return result
+
     def standard_shell_desktop(self, *, no_prompt=False):
         """Shell 50 English desktop observation on the bound fixture user's bus.
 
@@ -5430,35 +5825,8 @@ class AccessibleUI:
         it authorizes no Shell input, menu, search, lock or retained-session route.
         """
         def observe():
-            root = self.api.get_desktop(0)
-            require(root is not None, 'ui:incomplete-tree')
-            snapshot = {}
-            facts = {}
-            nodes = list(self.nodes(root, strict=True, protect_text=True,
-                                    snapshot=snapshot, facts=facts))
-            if any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes):
-                # Closing an application can invalidate an otherwise complete
-                # desktop traversal. Discard it and reacquire through wait's
-                # existing read-only deadline; stale nodes never prove a desktop
-                # or prompt absence, and no input is repeated.
-                error = UiError('ui:incomplete-tree')
-                error.add_note('desktop observation contains a defunct node')
-                raise error
-            if no_prompt:
-                require(self.system_prompt_kind(observation=(nodes, snapshot, facts)) is None,
-                        'ui:fresh-desktop-prompt')
-            owners = [node for node in nodes if node.get_parent() == root
-                      and node.get_role_name() == 'application'
-                      and node.get_name().casefold() in GDM_SEMANTIC_APPLICATION_NAMES]
-            require(len(owners) <= 1, 'ui:shell-provider-owner')
-            if not owners:
-                return None
-            panels = [node for node in self.snapshot_scope(nodes, snapshot, owners[0])
-                      if node.get_role_name() == 'toggle button' and node.get_name() == 'Activities'
-                      and self.showing(node)
-                      and self.has_state(node, self.api.StateType.SENSITIVE)]
-            require(len(panels) <= 1, 'ui:shell-desktop-ambiguous')
-            return panels[0] if panels else None
+            value = self.shell_desktop_observation(no_prompt=no_prompt)
+            return value[1] if value else None
         if not no_prompt:
             return self.wait(observe, 'shell-desktop')
         # A complete positive desktop and repeated complete prompt-free reads
@@ -5612,14 +5980,17 @@ class AccessibleUI:
             require(len(owners) <= 1, 'ui:gdm-provider-owner')
             if not owners:
                 return None
-            return owners[0], self.snapshot_scope(nodes, snapshot, owners[0])
+            scope = self.snapshot_scope(nodes, snapshot, owners[0])
+            # Reject this entire read before returning any provider scope.
+            # The existing bounded wait may reacquire after a GDM transition;
+            # no stale node can authorize a result or input.
+            require(scope and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                      for node in scope), 'ui:gdm-stale-tree')
+            return owners[0], scope
 
         # The greeter session and bus can precede Shell's public application.
         # Absence permits another read, never input or a replacement owner.
-        owner, nodes = self.wait(owner, 'gdm-provider-owner')
-        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
-                                  for node in nodes), 'ui:gdm-stale-tree')
-        return owner, nodes
+        return self.wait(owner, 'gdm-provider-owner')
 
     def gdm_semantic_account_rows(self, owner, nodes, names):
         """Resolve exact account labels to their GDM button ancestors."""
@@ -5740,7 +6111,7 @@ class AccessibleUI:
         return owner, result
 
     def gdm_nonsecret_account(self, name):
-        require(name in (PARENT, OTHER_PARENT, EXISTING_CHILD, KIOSK),
+        require(name in (PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD, KIOSK),
                 'ui:gdm-nonsecret-binding')
         if self.gdm_nonsecret_has_id_route():
             return self.greeter_list(name)
@@ -5823,7 +6194,7 @@ class AccessibleUI:
         recipients = [node for node in showing
                       if node.get_role_name() == 'label'
                       and self.gdm_semantic_name(node)
-                      in (PARENT, OTHER_PARENT, EXISTING_CHILD)]
+                      in (PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD)]
         fields = [node for node in showing
                   if node.get_role_name() == 'password text']
         require(len(recipients) == 1, 'ui:gdm-recipient')
@@ -5836,6 +6207,31 @@ class AccessibleUI:
     def gdm_nonsecret_prompt(self):
         """Observe Parent's prompt without reading or authorizing its secret."""
         self.greeter_prompt()
+
+    def gdm_child_time_denied(self):
+        """GDM06: exact English-GDM expiry explanation on the bound greeter bus.
+
+        The provider's PAM account-expiry message is distinct from failed
+        password authentication. Read only public labels, never password text.
+        A fresh snapshot must still identify the child and hide the account list.
+        """
+        def denied():
+            owner, nodes = self.gdm_semantic_nodes(protect_text=True)
+            showing = [node for node in nodes if self.showing(node)]
+            require(not self.gdm_semantic_account_rows(owner, showing, tuple(GREETER_IDENTITIES)),
+                    'ui:gdm-denial-list-overlap')
+            recipients = [node for node in showing if node.get_role_name() == 'label'
+                          and self.gdm_semantic_name(node) in (PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD)]
+            require(len(recipients) == 1 and self.gdm_semantic_name(recipients[0]) == CHILD,
+                    'ui:gdm-denial-recipient')
+            messages = [node for node in showing if node.get_role_name() == 'label'
+                        and self.gdm_semantic_name(node) ==
+                        'Your account was given a time limit that’s now passed.']
+            require(len(messages) <= 1, 'ui:gdm-denial-ambiguous')
+            return bool(messages)
+
+        self.wait(denied, 'gdm-child-time-denied', prompt_in_predicate=True)
+        return {'recipient': 'fixture-child', 'reason': 'time-limit', 'desktop_access': False}
 
     def station_entry_branch(self, owner):
         """Read the offered branch without selecting or dismissing any control."""
@@ -7068,7 +7464,7 @@ class AccessibleUI:
         """
         require(name in GREETER_IDENTITIES, 'ui:gdm-account-binding')
         if not self.gdm_nonsecret_has_id_route():
-            require(name in (PARENT, OTHER_PARENT, EXISTING_CHILD),
+            require(name in (PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD),
                     'ui:gdm-nonsecret-binding')
             recipient, field = self.gdm_semantic_prompt()
             if recipient != name:
@@ -7586,7 +7982,11 @@ class AccessibleUI:
         elif operation == 'station-default-entry':
             result['entry'] = self.station_default_entry(self.branch_owner)
         elif operation in GREETER_OPERATIONS:
-            if operation == 'gdm-installed-accounts':
+            if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
+                result['denial'] = self.gdm_child_time_denied()
+            elif operation == 'gdm-child-denied-returned':
+                self.gdm_nonsecret_account(CHILD)
+            elif operation == 'gdm-installed-accounts':
                 self.gdm_semantic_rows((PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD, KIOSK))
             elif operation == 'gdm-product-free-provider':
                 result['provider'] = self.gdm_provider_metadata()
@@ -7599,14 +7999,19 @@ class AccessibleUI:
                     require(str(error) == 'ui:kiosk-account-surface', 'ui:kiosk-wrong-refusal')
                 else:
                     raise UiError('ui:kiosk-wrong-entry-accepted')
-            elif operation in ('gdm-wrong-recipient-refused', 'gdm-standard-wrong-recipient-refused'):
+            elif operation in ('gdm-wrong-recipient-refused', 'gdm-standard-wrong-recipient-refused',
+                               'gdm-child-wrong-recipient-refused'):
                 self.wait(lambda: self.password_recipient(OTHER_PARENT), 'gdm-other-recipient')
                 name = EXISTING_CHILD if operation == 'gdm-standard-wrong-recipient-refused' else PARENT
+                if operation == 'gdm-child-wrong-recipient-refused':
+                    name = CHILD
                 require(not self.password_recipient(name), 'ui:gdm-wrong-recipient-accepted')
             elif operation in ('gdm-parent-recipient', 'gdm-parent-recipient-rechecked'):
                 self.wait(lambda: self.password_recipient(PARENT), 'gdm-parent-recipient')
             elif operation in ('gdm-standard-recipient', 'gdm-standard-recipient-rechecked'):
                 self.wait(lambda: self.password_recipient(EXISTING_CHILD), 'gdm-standard-recipient')
+            elif operation in ('gdm-child-recipient', 'gdm-child-recipient-rechecked'):
+                self.wait(lambda: self.password_recipient(CHILD), 'gdm-child-recipient')
             elif operation == 'gdm-select-parent':
                 self.gdm_nonsecret_prompt()
             elif operation == 'gdm-product-free-select-parent':
@@ -7620,10 +8025,12 @@ class AccessibleUI:
             elif operation == 'gdm-station-returned':
                 self.kiosk_gdm_returned()
             elif operation in ('gdm-focused', 'gdm-other-focused', 'gdm-standard-focused',
-                              'gdm-station-focused', 'gdm-product-free-focused'):
+                              'gdm-station-focused', 'gdm-product-free-focused', 'gdm-child-focused'):
                 name = OTHER_PARENT if operation == 'gdm-other-focused' else PARENT
                 if operation == 'gdm-standard-focused':
                     name = EXISTING_CHILD
+                if operation == 'gdm-child-focused':
+                    name = CHILD
                 if operation == 'gdm-station-focused':
                     name = KIOSK
                 account = (self.gdm_product_free_account
@@ -7637,6 +8044,8 @@ class AccessibleUI:
                 name = OTHER_PARENT if operation == 'gdm-other-list' else PARENT
                 if operation == 'gdm-standard-list':
                     name = EXISTING_CHILD
+                if operation == 'gdm-child-list':
+                    name = CHILD
                 if operation == 'gdm-station-list':
                     name = KIOSK
                 if operation == 'gdm-product-free-list':
@@ -7646,10 +8055,24 @@ class AccessibleUI:
                                   if operation in GDM_NONSECRET_OPERATIONS
                                   else self.greeter_navigation)
                     result['focused'] = navigation(name)
+                if operation == 'gdm-child-list':
+                    result['provider'] = self.gdm_provider_metadata(installed_child=True)
             else:
                 self.greeter_list()
-        elif operation in ('fresh-parent-desktop', 'fresh-standard-desktop'):
+        elif operation in COUNTDOWN_OPERATIONS:
+            result['countdown'] = self.child_countdown(operation == 'child-countdown-present')
+        elif operation == 'child-countdown-wrong-account-refused':
+            try:
+                self.child_countdown(True)
+            except UiError as error:
+                require(str(error) == 'ui:countdown-account', 'ui:countdown-refusal')
+            else:
+                raise UiError('ui:countdown-wrong-account-accepted')
+            result['refused'] = True
+        elif operation in ('fresh-parent-desktop', 'fresh-standard-desktop', 'fresh-child-desktop'):
             self.standard_shell_desktop(no_prompt=True)
+            if operation == 'fresh-child-desktop':
+                result['provider'] = self.shell_provider_metadata()
         elif operation == 'parent-desktop-provider':
             self.standard_shell_desktop(no_prompt=True)
             result['provider'] = self.shell_provider_metadata()
@@ -7793,6 +8216,13 @@ class AccessibleUI:
             result['apps'] = self.app_row_operation(operation)
         elif operation in LEGEND_OPERATIONS:
             result['legend'] = self.policy_legend_operation(operation)
+        elif operation in MATCH_OPERATIONS:
+            result['match'] = self.match_operation(operation, child=child)
+        elif operation in PARENT_REPORT_OPERATIONS:
+            value = self.parent_report_operation(operation)
+            result['report' if operation == 'parent-report-refused' else 'feedback'] = value
+        elif operation in ACCESS_OPERATIONS:
+            result['access'] = self.access_operation(operation, child=child)
         elif operation in PARENT_SAVE_OPERATIONS:
             result['save'] = self.parent_save_operation(operation)
         elif operation in PICKER_OPERATIONS:
@@ -8192,6 +8622,35 @@ def greeter_account(*, station_branch=False, station_required=False):
         time.sleep(min(.2, remaining))
 
 
+def countdown_seconds(text):
+    """Public horizontal countdown formatting gives a closed seconds interval."""
+    require(type(text) is str and len(text) <= 5, 'ui:countdown-text')
+    match = re.fullmatch(r'([0-9]{2}):([0-5][0-9])', text)
+    if match:
+        seconds = int(match[1]) * 3600 + int(match[2]) * 60
+        require(60 <= seconds < 86400, 'ui:countdown-text')
+        return max(61, seconds), seconds + 59
+    require(re.fullmatch(r'(?:[1-5]?[0-9]|60)', text) is not None,
+            'ui:countdown-text')
+    return int(text), int(text)
+
+
+def validate_countdown(value, present):
+    require(type(value) is dict and set(value) == {
+        'child', 'surface', 'present', 'text', 'observed_monotonic_ns', 'stable_ms'}
+        and value['child'] == 'fixture-child' and value['surface'] == 'desktop'
+        and type(value['present']) is bool and value['present'] is present
+        and type(value['observed_monotonic_ns']) is int and value['observed_monotonic_ns'] > 0
+        and type(value['stable_ms']) is int, 'ui:countdown-response')
+    if present:
+        countdown_seconds(value['text'])
+        require(value['stable_ms'] == 0, 'ui:countdown-response')
+    else:
+        require(value['text'] is None and 2000 <= value['stable_ms'] <= 45000,
+                'ui:countdown-response')
+    return dict(value)
+
+
 def require_active_launch_session():
     """Bind direct execution to one active local graphical session of this UID."""
     uid = os.getuid()
@@ -8354,7 +8813,8 @@ def main():
     else:
         account = greeter_account() if greeter else pwd.getpwnam(
             'oh-no-parent-control' if kiosk else
-            ('onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie'))
+            (CHILD_ACCOUNTS[CHILD] if sys.argv[1] in CHILD_DESKTOP_OPERATIONS else
+             'onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie'))
     require(account.pw_uid > 0 and (greeter or account.pw_uid >= 1000), 'ui:fixture-identity')
     # Station entry is qualified by its public form. Bind the observation
     # client to the account without polling session services or treating their

@@ -129,6 +129,8 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_gdm_navigation', 'check_e2e_gdm_navigation.py',
     'check_e2e_gdm_recipient', 'check_e2e_gdm_recipient.py',
     'check_e2e_challenges', 'check_e2e_challenges.py',
+    'check_e2e_fresh_child_allowed', 'check_e2e_fresh_child_allowed.py',
+    'check_e2e_unlock', 'check_e2e_unlock.py',
     'check_e2e_fresh_desktop', 'check_e2e_fresh_desktop.py',
     'check_e2e_desktop_keyring', 'check_e2e_desktop_keyring.py',
     'check_e2e_shell_search_results', 'check_e2e_shell_search_results.py',
@@ -227,6 +229,8 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
 
 @pytest.mark.parametrize('selector', ['check_e2e_allowance_boundaries', 'check_e2e_allowance_boundaries.py',
                                      'check_e2e_save_chooser', 'check_e2e_save_chooser.py',
+                                     'check_e2e_match_editor', 'check_e2e_match_editor.py',
+                                     'check_e2e_policy', 'check_e2e_policy.py',
                                      'check_e2e_native_fixtures', 'check_e2e_native_fixtures.py'])
 def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, selector):
     import test_storage
@@ -238,7 +242,7 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) == (
         commands.python_file(ROOT, 'tools/build_test_artifacts.py', '--output', str(output)))
-    if selector.startswith('check_e2e_native_fixtures'):
+    if selector.startswith(('check_e2e_native_fixtures', 'check_e2e_match_editor', 'check_e2e_policy')):
         named.assert_called_once_with(fixture_source=True)
     elif selector.startswith('check_e2e_save_chooser'):
         named.assert_called_once_with()

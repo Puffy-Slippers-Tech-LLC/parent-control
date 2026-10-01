@@ -17,6 +17,7 @@ sub close {
         'management-denied' => ['management-denied', 'denial-closed'],
         parent => ['close-ready', 'closed'],
         feedback => ['feedback-draft-reread', 'feedback-draft-closed'],
+        'parent-report' => ['report', 'feedback-draft-closed'],
         'feedback-privacy' => ['feedback-privacy-open', 'feedback-privacy-returned'],
         'feedback-privacy-independent' => ['privacy-independent', 'privacy-independent-returned'],
     );

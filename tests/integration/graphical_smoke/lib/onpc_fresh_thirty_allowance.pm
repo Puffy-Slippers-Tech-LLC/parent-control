@@ -6,6 +6,8 @@ use onpc_gdm ();
 use onpc_journey ();
 use onpc_parent ();
 use onpc_app_rows ();
+use onpc_text ();
+use onpc_feedback_privacy ();
 
 sub run {
     onpc_progress::operation('Qualifying fresh thirty-minute daily allowance setup');
@@ -44,6 +46,31 @@ sub search_filters {
     onpc_app_rows::filter($journey, 'match-rule', 3, 'restore-match');
     onpc_app_rows::filter($journey, 'access-rule', 7, 'restore-access');
     onpc_app_rows::search($journey, 'catalogue-clear', 'cleared-rows');
+    $journey->finish();
+}
+# Parent app-policy/report case composition; mechanics remain in shared leaves.
+sub parent_error_report {
+    onpc_progress::operation('Reviewing and closing reports from rejected Parent match rules');
+    my ($exchange) = @_;
+    die 'report:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'parent-error-report', review => 0);
+    onpc_app_rows::native_entry($journey);
+    for my $stage ('apps-page', 'initial-rule') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    onpc_app_rows::match_editor($journey, 'confirmed-open', 'confirmed-read');
+    onpc_text::replace_text($journey, 'match-wildcard', 'confirmed-draft');
+    onpc_app_rows::match_response($journey, 'confirmed-save', 'confirmed-rule');
+    onpc_app_rows::match_editor($journey, 'editor-open', 'editor-read');
+    onpc_text::replace_text($journey, 'match-rejected-directory', 'rejected-draft');
+    $journey->consume_observation('rejected-save', $journey->seen('rejected-save'));
+    onpc_feedback_privacy::review_parent_report($journey, 'review');
+    $journey->consume_observation('restored-rule', $journey->seen('restored-rule'));
+    onpc_app_rows::match_editor($journey, 'repeat-open', 'repeat-read');
+    onpc_text::replace_text($journey, 'match-rejected-directory', 'repeat-draft');
+    $journey->consume_observation('repeat-save', $journey->seen('repeat-save'));
+    onpc_feedback_privacy::close_parent_report($journey, 'decline');
+    $journey->consume_observation('final-rule', $journey->seen('final-rule'));
     $journey->finish();
 }
 1;

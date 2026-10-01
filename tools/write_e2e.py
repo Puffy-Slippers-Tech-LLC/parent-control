@@ -144,8 +144,9 @@ def session_progress(root, state, count):
     summary = ('Writing task code + host validation + first live VM test; close on success, hand off on failure'
                if state['phase'] == 'implement' else
                f"Investigate/fix previous failure + host validation + live VM test {state['live_attempts'] + 1}; close on success, hand off on failure")
+    model, effort = session_model(state['phase'], state['live_attempts'])
     return [f'{task_label}: {title}',
-            f"\033[1mSession [{state['task_sessions']}]\033[22m: {summary}"]
+            f"\033[1mSession [{state['task_sessions']}]\033[22m: {summary} ({model} {effort})"]
 
 
 def task_progress(run, steps):

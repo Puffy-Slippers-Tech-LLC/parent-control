@@ -558,7 +558,8 @@ def test_absence_uses_one_complete_snapshot_per_observation():
     assert reader.nodes.call_count == 2
 
 
-def test_absence_rejects_a_stable_dialog_outside_its_owned_application():
+@pytest.mark.parametrize('incomplete_raises', [False, True])
+def test_absence_rejects_a_stable_dialog_outside_its_owned_application(incomplete_raises):
     surrounding = Node("kiosk-request-window")
     application = Node("com.puffyslippers.OhNoParentControl", [surrounding])
     foreign = Node("foreign-application", [Node("feedback-success-dialog")])
@@ -567,7 +568,8 @@ def test_absence_rejects_a_stable_dialog_outside_its_owned_application():
     reader.nodes = automation.nodes
 
     with pytest.raises(UiError, match="wrong-absence-owner"):
-        reader.absent_id("feedback-success-dialog", within="kiosk-request-window")
+        reader.absent_id("feedback-success-dialog", within="kiosk-request-window",
+                         incomplete_raises=incomplete_raises)
 
 
 def test_absence_retries_a_cached_node_from_an_exited_exact_owner():

@@ -19,13 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **078a — [Edit one match rule and Save or Cancel](E2E-Tasks/078a-match-save-cancel.md)**.
-
-Task 226 completed case 184 in `20261001T054514Z-f7691e2f` on every enabled VM.
-The shared row reader's native-fixture regression passed in
-`20261001T055119Z-f82bf7c3`; collection, owned cleanup and baseline restoration
-passed for both runs. Coverage is regenerated. Task 078a now owns the valid
-match-editor Save/Cancel slice; its planned selector must be implemented before use.
+Next task: **070 — [Double-click kiosk Request and observe one prompt](E2E-Tasks/070-double-request.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

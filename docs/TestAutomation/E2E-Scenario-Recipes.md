@@ -389,6 +389,20 @@ Case 48 uses `kiosk_escape.PLAN` / `onpc_kiosk_escape::run` and the shared
 `onpc_request_exit::escape` guard/input/return composition.
 Other exits and surfaces remain separate cases; runtime status is in the inventory.
 
+Case 49 uses `kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved', ...)`, the shared
+`approved_request(exit='immediate')` declaration and
+`onpc_request_flow::approve` with the qualified immediate-success/exit leaf.
+Prepare and independently read 900 daily seconds and zero grant through Parent;
+the child has not yet entered. Open the station once and prepare the same
+75-second, soft-app-included choices as cases 47/48. Read the 975-second estimate
+and its guest monotonic timestamp before submitting. Observe explicit approval
+and invoke the offered immediate action once, then independently require absent
+form and usable GDM. Freshly sign in as the intended child and require its usable
+desktop before TIME01. `KioskRequestJourney` compares an immutable countdown
+with the explicit 975-second approved balance, one-second public precision,
+minute flooring and two-second sampling tolerance within 180 real elapsed
+seconds of the estimate; no grant, clock or private-state probe supplies it.
+
 **Request surface exit behavior.** Cases 44, 45, 46, 47, 48, 49.
 
 Bindings: surface = child-overlay / kiosk; exit = cancel / escape / approved.
@@ -929,11 +943,36 @@ Bindings: calendar = ordinary / spring-forward / fall-back; time = daily-reset /
 
 ### E2E-045
 
-Implementation status: All cases pending.
+Implementation context: case 205 is registered through
+`parent_error_report.PLAN` / `onpc_fresh_thirty_allowance::parent_error_report`
+and passed complete live acceptance in `20261001T103654Z-6ee68021` on every
+enabled VM, including collection, owned cleanup and baseline restoration.
+Child-overlay and kiosk cases remain pending.
 
 **Review or decline an error report.** Cases 205, 206, 207.
 
 Bindings: surface = parent / child-overlay / kiosk.
+
+The Parent editor entry reuses the guarded PARENT13 operations and public input
+route delivered by [task 078a's Save/Cancel slice](E2E-Building-Blocks.md#match-editor-save-and-cancel).
+The rejected input for native fixture `A.desktop` is
+`/opt/onpc-test-fixtures/Rejected/*.AppImage`, outside its native target directory.
+First save and capture `/opt/onpc-test-fixtures/Applications/Exact*.AppImage` as
+the last confirmed rule. `rejected_parent_rule.PLAN` declares task 186's
+qualification through `onpc_app_rows::rejected_parent_rule`; the reusable
+`parent_reports.report_review` / `onpc_feedback_privacy::review_parent_report`
+binding starts from the automatic report, reads the fixed public explanation
+and `Error` category, replaces body/reply with `Synthetic feedback first` and
+`first@example.invalid`, checks available actions without sending, reads Privacy
+and closes normally. Repeat from an independently opened editor/report, then
+compare the exact confirmed rule. This qualification supplies no case acceptance.
+Case 205 composes that same review, then repeats the rejected input and uses
+`parent_reports.report_close` / `onpc_feedback_privacy::close_parent_report`
+to read the new automatic report and close it directly without editing or sending.
+Both normal closures compare the exact last-confirmed rule through
+`ParentReportJourney`; Parent offers no report-choice toggle.
+Precise overrides on apps with suggested patterns retain the documented reload
+limitation; this fixture/custom-wildcard comparison makes no claim about that branch.
 
 1. Parent: P → PARENT04(App Limits) → PARENT10(declared app) → PARENT13 → UI16(rejected pattern) → PARENT15(error). Request surfaces: FLOW16(on,30) → request-entry → FLOW04(custom=0.5,soft=false) → FLOW05 → reopen before cooldown → REQUEST09(error). These are the explicit public-error prefixes reused by E2E-047; its setup does not manufacture a report.
 2. FEED15(review) → FEED03 → UI16(synthetic body) → FEED05 → UI02/11(surface actions) → UI18(report) → UI01(original destination).

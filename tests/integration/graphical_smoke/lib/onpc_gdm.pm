@@ -40,6 +40,21 @@ sub choose_account {
     testapi::send_key('ret');
 }
 
+# DESK11's rejected-GDM source. Fresh denial readback authorizes one Escape;
+# the controller independently observes the account list before completion.
+sub return_from_time_denial {
+    onpc_progress::operation('Returning normally from the rejected child prompt');
+    my ($journey, $ready_stage, $returned_stage) = @_;
+    die 'gdm:denial-return-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && defined($ready_stage) && defined($returned_stage)
+        && $ready_stage ne $returned_stage;
+    die 'gdm:console' unless testapi::current_console() eq 'sut';
+    my $ready = $journey->invoke($ready_stage);
+    $journey->consume_observation($ready_stage, $ready);
+    testapi::send_key('esc');
+    return $journey->invoke($returned_stage);
+}
+
 # REQUEST01: one intended station selection and independent public form entry.
 # Shared by station consumers; wrong-account exercises are never prerequisites.
 sub enter_station {

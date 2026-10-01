@@ -22,6 +22,7 @@ from request_duration import PLAN as INVALID_PLAN
 from request_flow import PLAN as FLOW_PLAN, CHOICES, prepared_request, RequestFlowJourney
 from kiosk_cancel import PLAN as CANCEL_PLAN
 from kiosk_escape import PLAN as ESCAPE_PLAN
+from kiosk_approved import PLAN as APPROVED_CASE_PLAN
 from mate_prompt import PLAN as MATE_PLAN
 from kiosk_approval import PLAN as APPROVAL_PLAN
 from auth_result import PLAN as AUTH_RESULT_PLAN
@@ -1262,12 +1263,145 @@ def test_approval_worker_order_and_secret_once(monkeypatch, refusal, binding):
 
 @pytest.mark.parametrize('changed', [{'child': 'other-child'}, {'approver': 'other-parent'},
                                    {'duration_seconds': 300}, {'allow_soft': False},
-                                   {'exit': 'immediate'}])
+                                   {'exit': 'unknown'}])
 def test_approved_composites_refuse_unsupported_bindings(changed):
     choices = {**CHOICES, 'exit': 'automatic', **changed}
     for flow, extra in ((approved_request, {}), (obtain_time, {'initial': 'selected'})):
         with pytest.raises(Exception, match='approved-flow:'):
             flow(**choices, **extra)
+
+
+def test_immediate_approval_uses_qualified_leaf_without_extending_flow06():
+    stages = approved_request(**CHOICES, exit='immediate')
+    assert stages['approval-success'] == 'ui:kiosk-mate-submit-immediate'
+    assert stages['new-returned'] == 'ui:gdm-station-returned'
+    with pytest.raises(EvidenceError, match='approved-flow:exit'):
+        obtain_time(initial='default', **CHOICES, exit='immediate')
+
+
+@pytest.mark.parametrize('binding', [('missing', 975, 1, 180),
+    ('countdown', 975, 1, 180), ('open-estimate', 0, 1, 180),
+    ('open-estimate', True, 1, 180), ('open-estimate', 975, 0, 180),
+    ('open-estimate', 975, 1, 301), ('open-estimate', 975)])
+def test_approved_countdown_plan_refuses_missing_reversed_and_unbounded_inputs(binding):
+    with pytest.raises(EvidenceError, match='countdown-plan'):
+        replace(APPROVED_CASE_PLAN, countdown_checks={'countdown': binding})
+
+
+@pytest.mark.parametrize('refusal', [None, *APPROVED_CASE_PLAN.screen_tags])
+def test_approved_case_complete_worker_order_and_failure_stops(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_kiosk_cancel').replace(
+        'sub record_info { }', "sub record_info { }\nsub type_string { push @main::events, ['text', $_[0]] }")
+    worker = worker.replace("        return {observed => $stage};", """
+        return {observed => $stage, challenge => {id => 'child-login', role => 'child',
+            surface => 'gdm', check => $stage =~ /rechecked\\z/ ? 'rechecked' : 'qualified'}}
+            if $stage =~ /fresh-child-recipient/;
+        return {observed => $stage};""")
+    worker = worker.replace('    });',
+        "    }, 'approved', " + json.dumps(list(APPROVED_CASE_PLAN.invocations)) + ', '
+        + json.dumps({key: list(value) for key, value in APPROVED_CASE_PLAN.challenges.items()})
+            .replace(':', ' =>') + ');')
+    result = json.loads(run_perl(worker).stdout)
+    expected = list(APPROVED_CASE_PLAN.screen_tags)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    # Login, one approval and fresh child login each have their own secret input.
+    secret_boundaries = ['recipient-rechecked', 'approval-rechecked',
+                         'fresh-child-recipient-rechecked']
+    end = len(expected) if refusal is None else expected.index(refusal)
+    assert sum(event[0] == 'secret' for event in result['events']) == sum(
+        expected.index(stage) < end for stage in secret_boundaries)
+    if refusal:
+        assert result['events'][-1] == ['stage', refusal]
+    else:
+        assert [event[1] for event in result['events'] if event[0] == 'text'] == ['1.25']
+        assert result['events'][-1] == ['power', 'off']
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'changed', 'stale', 'late',
+                                  'capture-replay', 'result-replay', 'aliased'])
+def test_shared_approved_countdown_with_renamed_endpoints_and_immutable_capture(tmp_path, fault):
+    from installed_journey import JourneyPlan
+    plan = JourneyPlan(prefix='independent-approved', worker_mode='fixture', phases={},
+        screen_tags={'estimate': 'ui:kiosk-valid-fraction-soft-read',
+                     'result': 'ui:child-countdown-present'},
+        countdown_checks={'result': ('estimate', 975, 1, 180)})
+    journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
+    journey.balance = {'daily': {'seconds': 900, 'precision_seconds': 1},
+        'one_time': {'seconds': 0, 'precision_seconds': 1}, 'observed_monotonic_ns': 1_000_000_000}
+    choice = {'request': dict(CHOICES), 'estimate': {'kind': 'fixed', 'seconds': 975},
+              'observed_monotonic_ns': 2_000_000_000}
+    if fault != 'missing':
+        journey.check_settings('estimate', {'ui': {'valid_choice': choice}})
+    if fault == 'capture-replay':
+        with pytest.raises(EvidenceError, match='capture-replay'):
+            journey.check_settings('estimate', {'ui': {'valid_choice': choice}})
+        return
+    if fault == 'aliased':
+        choice['estimate']['seconds'] = 0
+        choice['observed_monotonic_ns'] = 999_000_000_000
+    countdown = {'child': 'fixture-child', 'surface': 'desktop', 'present': True,
+                 'text': '00:16', 'observed_monotonic_ns': 12_000_000_000, 'stable_ms': 0}
+    if fault == 'changed': countdown['text'] = '00:14'
+    if fault == 'stale': countdown['observed_monotonic_ns'] = 2_000_000_000
+    if fault == 'late': countdown['observed_monotonic_ns'] = 183_000_000_000
+    observed = {'ui': {'countdown': countdown}}
+    if fault in ('missing', 'changed', 'stale', 'late'):
+        with pytest.raises(EvidenceError, match='countdown:'):
+            journey.check_settings('result', observed)
+        assert 'comparison' not in observed
+    else:
+        journey.check_settings('result', observed)
+        assert observed['comparison']['elapsed_seconds'] == 10
+        countdown['text'] = 'changed'
+        assert journey.countdowns['result'].text == '00:16'
+        if fault == 'result-replay':
+            with pytest.raises(EvidenceError, match='comparison-replay'):
+                journey.check_settings('result', observed)
+
+
+@pytest.mark.parametrize('fault', [None, 'countdown', 'request'])
+def test_approved_countdown_comparison_through_real_step_precedes_durable_reply(tmp_path, fault):
+    from installed_journey import JourneyPlan
+    plan = JourneyPlan(prefix='independent-approved', worker_mode='fixture', phases={},
+        screen_tags={'estimate': 'ui:kiosk-valid-fraction-soft-read',
+                     'result': 'ui:child-countdown-present'},
+        countdown_checks={'result': ('estimate', 975, 1, 180)})
+    progress = Mock()
+    journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), progress, plan)
+    journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
+    journey.boot = 'a' * 64
+    journey.balance = {'daily': {'seconds': 900, 'precision_seconds': 1},
+        'one_time': {'seconds': 0, 'precision_seconds': 1}, 'observed_monotonic_ns': 1_000_000_000}
+    request = dict(surface='kiosk', form_count=1, **CHOICES, custom_text='1.25',
+                   child_selector_enabled=True, approver_selector_enabled=True,
+                   duration_enabled=True, soft_choice_enabled=True, request_enabled=True,
+                   cancel_enabled=True, message='', mute=None)
+    for stage in plan.screen_tags:
+        (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+        result = ({'operation': 'kiosk-valid-fraction-soft-read', 'request': dict(request),
+            'valid_choice': {'request': dict(request), 'estimate': {'kind': 'fixed', 'seconds': 975},
+                             'observed_monotonic_ns': 2_000_000_000}} if stage == 'estimate' else
+            {'operation': 'child-countdown-present', 'countdown': {
+                'child': 'fixture-child', 'surface': 'desktop', 'present': True,
+                'text': '00:14' if fault == 'countdown' else '00:16',
+                'observed_monotonic_ns': 12_000_000_000, 'stable_ms': 0}})
+        if fault == 'request' and stage == 'estimate': result['request']['child'] = 'wrong-child'
+        journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value=result))
+        reply = tmp_path / (stage + '.reply.json')
+        progress.side_effect = lambda *args: None if not reply.exists() else pytest.fail('early reply')
+        if fault and stage == ('estimate' if fault == 'request' else 'result'):
+            with pytest.raises(EvidenceError): journey.step(Mock())
+            assert not reply.exists()
+            with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
+            return
+        journey.step(Mock())
+        assert reply.exists()
+    assert journey.request_observations['estimate'].child == 'fixture-child'
+    assert progress.call_args.args[1]['comparison']['elapsed_seconds'] == 10
 
 
 def test_approved_flow_composes_leaves_and_owned_snapshot(tmp_path):

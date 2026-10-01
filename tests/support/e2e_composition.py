@@ -17,12 +17,17 @@ CASE_MODULES = {Path(variant['executable']['path']).stem for _, variant in READY
 # Reviewed composition APIs, not a list of cases. Adding a ready inventory row
 # is sufficient to exercise it. New mechanics belong behind a shared API.
 APIS = {
+    'countdown': {'CountdownObservation', 'check_countdown_balance'},
+    'access_choices': {'AccessChoiceJourney'},
+    'policy_edits': {'policy_edit'},
+    'match_rules': {'MatchRuleJourney', 'MATCH_RULES'},
+    'parent_reports': {'ParentReportJourney', 'report_review', 'report_close'},
     'account_fixture': {'DynamicAccountFixture', 'EmptyAccountFixture', 'station_fixture_actions'},
     'installed_journey': {'JourneyPlan', 'InstalledJourney', 'matched_screens', 'record_installed_journey'},
     'journey_blocks': {'fresh_desktop', 'parent_management', 'parent_search', 'observed_text',
                        'product_free_desktop', 'reboot_desktop', 'station_entry',
                        'custom_child_selection', 'custom_save_entry', 'ordinary_custom_save',
-                       'filter_screens'},
+                       'filter_screens', 'rejected_gdm_return'},
     'native_fixtures': {'fixture_actions', 'check_catalogue', 'expected_rows', 'search_rows', 'catalogue_rows',
                         'CataloguePolicyJourney'},
     'journey_checks': {'allowed_app_rows', 'installed_accounts'},

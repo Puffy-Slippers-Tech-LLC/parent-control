@@ -561,6 +561,214 @@ def test_public_policy_legend_full_read_and_unchanged_choices(
                    for record in read_events(events))
 
 
+def test_app_access_choices_save_and_independent_readback(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, MATCH_APP, ACCESS_CHOICES
+    from tests.support.gui_blocks import run_block
+    events = tmp_path / 'access-events.jsonl'
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario='catalogue', events_path=events)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.activate('parent-child-selector', action_name='menu.popup')
+    ui.activate('parent-child-choice-1002')
+    wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
+    reader = AccessibleUI(ui.api, timeout=30, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    reader.parent_page(EXISTING_CHILD, 'App Limits')
+    assert reader.run('access-wrong-row', '', child='existing')['access'] == {'refusal': 'wrong-row'}
+    reader.open_match_rule(EXISTING_CHILD, MATCH_APP)
+    assert reader.run('access-disabled', '', child='existing')['access'] == {'refusal': 'disabled'}
+    reader.respond_match_rule(EXISTING_CHILD, MATCH_APP, 'cancel')
+    for entry in range(2):
+        if entry:
+            reader.parent_page(EXISTING_CHILD, 'Screen Limits')
+            reader.parent_page(EXISTING_CHILD, 'App Limits')
+        for choice in ACCESS_CHOICES:
+            result = run_block(reader, 'access-choice', 'access-' + choice, 'access-row', child='existing')
+            assert result['access-row']['access'] == {'app': MATCH_APP, 'choice': choice}
+    records = [record for record in read_events(events) if record['event'] == 'set_preferences']
+    assert len(records) == 5  # The initially selected Allowed choice causes no write.
+
+
+def test_policy_composite_filtered_and_independent_entry(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    import json
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, MATCH_APP, MATCH_RULES
+    from tests.e2e.policy_edits import policy_edit
+    from tests.support.gui_blocks import run_block
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario='catalogue', events_path=tmp_path / 'policy-events.jsonl')
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.activate('parent-child-selector', action_name='menu.popup')
+    ui.activate('parent-child-choice-1002')
+    wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
+    reader = AccessibleUI(ui.api, timeout=30, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    for index, (draft, access, filters) in enumerate((
+        ('match-wildcard-appimages', 'permanent', (('match-rule', 3), ('access-rule', 7))),
+        ('match-precise', 'conditional', ()),
+    )):
+        reader.parent_page(EXISTING_CHILD, 'App Limits')
+        prefix = 'independent-' + str(index)
+        screens = policy_edit(MATCH_APP, draft, access, prefix, filters=filters)
+        result = run_block(reader, 'edit-policy', MATCH_APP, draft, access, prefix,
+                           json.dumps(filters), operations=screens,
+                           child_bindings={stage: 'existing' for stage, operation in screens.items()
+                                           if operation != 'ui:catalogue-identifier-rows'})
+        expected_match = {'app': MATCH_APP, 'rule': MATCH_RULES[2 if index == 0 else 0]}
+        expected_access = {'app': MATCH_APP, 'choice': access}
+        assert result[prefix + '-final-match']['match'] == expected_match
+        assert result[prefix + '-access']['access'] == expected_access
+        reader.parent_page(EXISTING_CHILD, 'Screen Limits')
+        reader.parent_page(EXISTING_CHILD, 'App Limits')
+        assert reader.read_match_rule(EXISTING_CHILD, MATCH_APP) == expected_match
+        assert reader.read_app_access(EXISTING_CHILD, MATCH_APP) == expected_access
+
+
+@pytest.mark.parametrize('binding', ('match-precise', 'match-precise-basename',
+                                    'match-wildcard', 'match-wildcard-basename'))
+def test_match_editor_valid_save_cancel_matrix(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, binding):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, MATCH_APP, MATCH_RULES, UiError
+    from tests.support.gui_blocks import run_block
+    events = tmp_path / 'match-events.jsonl'
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario='catalogue', events_path=events)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.activate('parent-child-selector', action_name='menu.popup')
+    ui.activate('parent-child-choice-1002')
+    wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
+    reader = AccessibleUI(ui.api, timeout=30, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    reader.parent_page(EXISTING_CHILD, 'App Limits')
+    original = reader.read_match_rule(EXISTING_CHILD, MATCH_APP)
+    with pytest.raises(UiError, match='match-child'):
+        reader.open_match_rule(CHILD, MATCH_APP)
+    run_block(reader, 'match-editor', 'match-open', 'match-read', child='existing')
+    assert reader.run('match-wrong-app', '', child='existing')['match'] == {'refusal': 'wrong-app'}
+    assert reader.run('match-ambiguous', '', child='existing')['match'] == {'refusal': 'ambiguous'}
+    run_block(reader, 'replace', binding, child='existing')
+    cancelled = run_block(reader, 'match-response', 'match-cancel', 'match-row', child='existing')
+    assert cancelled['match-row']['match'] == original
+    assert not any(record['event'] == 'set_preferences' for record in read_events(events))
+    # Supply an independently open editor, then call the same public read leaf.
+    reader.open_match_rule(EXISTING_CHILD, MATCH_APP)
+    assert reader.run('match-read', '', child='existing')['match'] == original
+    run_block(reader, 'replace', binding, child='existing')
+    saved = run_block(reader, 'match-response', 'match-save', 'match-row', child='existing')
+    expected = MATCH_RULES[1 if 'wildcard' in binding else 0]
+    assert saved['match-row']['match'] == {'app': MATCH_APP, 'rule': expected}
+    reader.open_match_rule(EXISTING_CHILD, MATCH_APP)
+    assert reader.read_match_rule(EXISTING_CHILD, MATCH_APP, editor=True)['rule'] == expected
+    reader.respond_match_rule(EXISTING_CHILD, MATCH_APP, 'cancel')
+
+
+@pytest.mark.parametrize('old_binding', ('match-precise', 'match-wildcard'))
+@pytest.mark.parametrize('response', ('cancel', 'reset'))
+def test_match_editor_invalid_reset_matrix(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, old_binding, response):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, MATCH_APP, MATCH_RULES, MATCH_INVALID
+    from tests.support.gui_blocks import run_block
+    events = tmp_path / 'match-invalid-events.jsonl'
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario='catalogue', events_path=events)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.activate('parent-child-selector', action_name='menu.popup')
+    ui.activate('parent-child-choice-1002')
+    wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
+    reader = AccessibleUI(ui.api, timeout=30, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    reader.parent_page(EXISTING_CHILD, 'App Limits')
+    run_block(reader, 'match-editor', 'match-open', 'match-read', child='existing')
+    run_block(reader, 'replace', old_binding, child='existing')
+    run_block(reader, 'match-response', 'match-save', 'match-row', child='existing')
+    old = reader.read_match_rule(EXISTING_CHILD, MATCH_APP)
+    for invalid, message in MATCH_INVALID.items():
+        run_block(reader, 'match-editor', 'match-open', 'match-read', child='existing')
+        before = sum(record['event'] == 'set_preferences' for record in read_events(events))
+        run_block(reader, 'replace', 'match-invalid-' + invalid, child='existing')
+        assert reader.run('match-invalid-' + invalid, '', child='existing')['match'] == {
+            'invalid': invalid, 'message': message}
+        assert sum(record['event'] == 'set_preferences' for record in read_events(events)) == before
+        # The refusal retains the exact draft and editor; exit uses one normal response.
+        result = run_block(reader, 'match-response', 'match-' + response, 'match-row', child='existing')
+        expected = old if response == 'cancel' else {'app': MATCH_APP, 'rule': MATCH_RULES[0]}
+        assert result['match-row']['match'] == expected
+        reader.open_match_rule(EXISTING_CHILD, MATCH_APP)
+        assert reader.read_match_rule(EXISTING_CHILD, MATCH_APP, editor=True) == expected
+        if response == 'reset':
+            writes = [record for record in read_events(events) if record['event'] == 'set_preferences']
+            assert len(writes) == before + 1  # Reset saved immediately, with no Save input.
+            run_block(reader, 'replace', old_binding, child='existing')
+            run_block(reader, 'match-response', 'match-save', 'match-row', child='existing')
+        else:
+            assert sum(record['event'] == 'set_preferences' for record in read_events(events)) == before
+            reader.respond_match_rule(EXISTING_CHILD, MATCH_APP, 'cancel')
+
+
+@pytest.mark.parametrize('confirmed_binding', ('match-precise', 'match-wildcard'))
+def test_rejected_parent_rule_report_review_and_confirmed_policy(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, confirmed_binding):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, MATCH_APP
+    from tests.e2e.parent_reports import report_review, report_close
+    from tests.support.gui_blocks import run_block
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario='rejected-rule', events_path=tmp_path / 'report-events.jsonl')
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.activate('parent-child-selector', action_name='menu.popup')
+    ui.activate('parent-child-choice-1002')
+    wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
+    reader = AccessibleUI(ui.api, timeout=30, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    reader.parent_page(EXISTING_CHILD, 'App Limits')
+    assert reader.parent_report_operation('parent-report-refused') == {'refusal': 'absent'}
+    run_block(reader, 'match-editor', 'match-open', 'match-read', child='existing')
+    run_block(reader, 'replace', confirmed_binding, child='existing')
+    run_block(reader, 'match-response', 'match-save', 'match-row', child='existing')
+    before = reader.read_match_rule(EXISTING_CHILD, MATCH_APP)
+    for prefix in ('review', 'independent'):
+        run_block(reader, 'match-editor', 'match-open', 'match-read', child='existing')
+        run_block(reader, 'replace', 'match-rejected-directory', child='existing')
+        assert reader.respond_match_rule(EXISTING_CHILD, MATCH_APP, 'rejected') == {'closed': 'rejected'}
+        result = run_block(reader, 'report-review', prefix, operations=report_review(prefix))
+        assert result[prefix + '-report']['feedback']['draft'] == 'parent-rule-error'
+        assert result[prefix + '-actions']['feedback'] == result[prefix + '-feedback-privacy-returned']['feedback']
+        assert reader.read_match_rule(EXISTING_CHILD, MATCH_APP) == before
+    run_block(reader, 'match-editor', 'match-open', 'match-read', child='existing')
+    run_block(reader, 'replace', 'match-rejected-directory', child='existing')
+    assert reader.respond_match_rule(EXISTING_CHILD, MATCH_APP, 'rejected') == {'closed': 'rejected'}
+    result = run_block(reader, 'report-close', 'decline', operations=report_close('decline'))
+    assert result['decline-report']['feedback']['draft'] == 'parent-rule-error'
+    assert reader.read_match_rule(EXISTING_CHILD, MATCH_APP) == before
+    assert all(record['event'] != 'feedback_post'
+               for record in read_events(tmp_path / 'report-events.jsonl'))
+
+
 def test_parent_app_search_rule_edit_and_revocation_confirmation(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     from tests.support.keyboard import key_combo, type_text

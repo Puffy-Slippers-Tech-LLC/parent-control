@@ -588,6 +588,41 @@ class ChallengesQualification(KioskEntryQualification):
             self.checkpoint('phase-started')
 
 
+class FreshChildAllowedQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from fresh_child_allowed import FreshChildAllowedJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FreshChildAllowedJourney(context, progress)
+
+
+class FreshChildDeniedQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from fresh_child_denied import FreshChildDeniedJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FreshChildDeniedJourney(context, progress)
+
+
+class CountdownQualification(ChallengesQualification):
+    present = True
+
+    def journey(self, context, progress):
+        from app_snapshot import snapshot_name
+        from countdown_qualification import CountdownJourney, PLAN, OFF_PLAN
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return CountdownJourney(context, progress, PLAN if self.present else OFF_PLAN)
+
+
+class CountdownOffQualification(CountdownQualification):
+    present = False
+
+
 class RepeatedOperationsQualification(KioskEntryQualification):
     """Finite page cycles in the same owned snapshot/collection envelope."""
 
@@ -1084,6 +1119,56 @@ class AppRowQualification(KioskEntryQualification):
         version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
         context.installed_snapshot = snapshot_name(version)
         return AppRowJourney(context, progress)
+
+
+class MatchSaveCancelQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from match_save_cancel import journey
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return journey(context, progress)
+
+
+class MatchEditorQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from match_save_cancel import journey, EDITOR_PLAN
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return journey(context, progress, EDITOR_PLAN)
+
+
+class RejectedParentRuleQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from rejected_parent_rule import journey
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return journey(context, progress)
+
+
+class AccessChoicesQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from access_choices import journey
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return journey(context, progress)
+
+
+class PolicyQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from policy_qualification import journey
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return journey(context, progress)
 
 
 class PolicyLegendQualification(KioskEntryQualification):

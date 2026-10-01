@@ -20,13 +20,14 @@ RECORDERS = ('record_installed_journey', 'record_package_journey', 'record_seria
 # Review callable references as well as direct calls: passing an unreviewed
 # class/action to a recorder must not hide case mechanics behind an import.
 WORKER_APIS = {
-    'onpc_app_rows': {'native_entry', 'search', 'filter', 'read_rows', 'legend'},
+    'onpc_app_rows': {'native_entry', 'search', 'filter', 'read_rows', 'legend', 'edit_policy',
+                      'match_editor', 'match_response', 'access_choice'},
     'onpc_progress': {'operation'},
     'testapi': {'record_info'},
     'onpc_harness': {'select_console'},
     'onpc_serial': {'attempt', 'login', 'command', 'logout', 'return_graphics'},
     'onpc_gdm': {'select_prompt', 'dismiss_product_free_prompt', 'reattach_functional',
-                 'sign_in_challenge', 'enter_station'},
+                 'sign_in_challenge', 'enter_station', 'return_from_time_denial'},
     'onpc_parent': {'login_functional', 'login_standard_functional', 'enter_desktop',
                     'sign_in', 'launch', 'select_child', 'open_for_child',
                     'open_from_app_grid', 'search_whole_query', 'launch_search_result',
@@ -39,7 +40,8 @@ WORKER_APIS = {
     'onpc_request_flow': {'prepare', 'reject', 'approve'},
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
-    'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy'},
+    'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy', 'review_parent_report',
+                              'close_parent_report'},
     'onpc_allowance_boundaries': {'exercise', 'reload_child', 'select_child'},
     'onpc_text': {'replace_text', 'append_scalar', 'observed_custom_edits'},
     'onpc_format': {'apply_block', 'apply_bold', 'apply_inline', 'apply_all'},
@@ -67,6 +69,28 @@ def test_accessibility_trace_qualification_declares_shared_input_binding():
         (ROOT / 'tests/e2e/feedback_collection.py').read_text(), CASE_MODULES)
     assert not composition_errors(
         (ROOT / 'tests/e2e/save_chooser.py').read_text(), CASE_MODULES)
+
+
+def test_match_qualification_declares_shared_operations_and_comparisons():
+    assert not composition_errors(
+        (ROOT / 'tests/e2e/match_save_cancel.py').read_text(), CASE_MODULES)
+    assert not composition_errors(
+        (ROOT / 'tests/e2e/rejected_parent_rule.py').read_text(), CASE_MODULES)
+
+
+def test_fresh_child_denial_fragments_support_independent_named_invocations():
+    from journey_blocks import fresh_desktop, rejected_gdm_return
+    from private_artifacts import EvidenceError
+    first = {f'independent-{stage}': operation for stage, operation in
+             fresh_desktop('child', 'time-denied').items()}
+    second = {f'return-{stage}': operation for stage, operation in rejected_gdm_return().items()}
+    assert list(first.values()) == ['ui:gdm-child-list', 'ui:gdm-child-focused',
+        'ui:gdm-child-recipient', 'ui:gdm-child-recipient-rechecked', 'ui:gdm-child-time-denied']
+    assert list(second.values()) == ['ui:gdm-child-denied-return-ready', 'ui:gdm-child-denied-returned']
+    first.clear()
+    assert fresh_desktop('child', 'time-denied')['denied'] == 'ui:gdm-child-time-denied'
+    for binding in (('parent', 'time-denied'), ('other-child', 'time-denied'), ('child', 'anything')):
+        with pytest.raises(EvidenceError): fresh_desktop(*binding)
 
 
 @pytest.mark.parametrize('module', ['file_chooser', 'attachment_items', 'attachment_preview',
@@ -144,7 +168,7 @@ def test_ready_binding_phases_assertions_and_worker_are_registered(monkeypatch, 
     branches = re.findall(r'if \(\$ready->\{(\w+)\}\) \{(.*?)\n    \}', dispatch, re.S)
     branch = [body for mode, body in branches if mode == plan.worker_mode]
     assert len(branch) == 1, plan.worker_mode
-    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_none|run_links|search_filters)\(', branch[0])
+    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_none|run_links|search_filters|parent_error_report)\(', branch[0])
     assert len(workers) == 1, plan.worker_mode
     source = (ROOT / 'tests/integration/graphical_smoke/lib' / (workers[0] + '.pm')).read_text()
     # Logging is harmless; raw input, process/file I/O and provider selection
@@ -175,7 +199,35 @@ def test_ready_catalogue_case_uses_the_shared_engine_with_recipe_endpoints(monke
     assert options['journey_type'] is CataloguePolicyJourney
     assert plan.catalogue_checks == {
         'initial-rows': 'initial', 'name-rows': ('catalogue-name', 3, 7),
-        'filtered-rows': ('catalogue-name', 2, 1), 'cleared-rows': 'unchanged'}
+                      'filtered-rows': ('catalogue-name', 2, 1), 'cleared-rows': 'unchanged'}
+
+
+def test_kiosk_approved_case_requires_immediate_exit_then_fresh_child_countdown(monkeypatch):
+    from request_composition import KioskRequestJourney
+    variant = next(variant for _, variant in READY if variant['coverage_id'] == 49)
+    _, plan, options = capture_composition(monkeypatch, variant)
+    assert options['journey_type'] is KioskRequestJourney
+    assert plan.balance_checks == {'time-explanation-read': 900}
+    assert plan.countdown_checks == {'countdown': ('open-estimate', 975, 1, 180)}
+    assert plan.screen_tags['approval-success'] == 'ui:kiosk-mate-submit-immediate'
+    assert list(plan.screen_tags)[-7:] == ['new-returned', 'fresh-installed-greeter',
+        'fresh-child-focused', 'fresh-child-recipient-qualified',
+        'fresh-child-recipient-rechecked', 'fresh-desktop', 'countdown']
+    assert plan.challenges == {'child-login': ('child', 'fresh-child-recipient-qualified',
+                                             'fresh-child-recipient-rechecked')}
+
+
+def test_ready_parent_report_case_uses_shared_review_close_and_exact_restoration(monkeypatch):
+    from parent_reports import ParentReportJourney, report_review, report_close
+    from match_rules import MATCH_RULES
+    variant = next(variant for _, variant in READY if variant['coverage_id'] == 205)
+    _, plan, options = capture_composition(monkeypatch, variant)
+    assert options['journey_type'] is ParentReportJourney
+    assert plan.match_checks['confirmed-rule'] == MATCH_RULES[1]
+    assert all(plan.match_checks[stage] == 'confirmed-rule' for stage in ('restored-rule', 'final-rule'))
+    assert all(plan.screen_tags[stage] == tag for stage, tag in report_review('review').items())
+    assert all(plan.screen_tags[stage] == tag for stage, tag in report_close('decline').items())
+    assert plan.advance_after == {'rejected-save': 'step-2', 'restored-rule': 'step-3'}
 
 
 def worker_errors(source):
@@ -214,6 +266,7 @@ def test_entry_fragments_do_not_share_mutable_recipe_state():
     from journey_blocks import (fresh_desktop, parent_management, parent_search,
                                 product_free_desktop, reboot_desktop, station_entry, observed_text)
     for factory, args in ((fresh_desktop, ('parent',)), (fresh_desktop, ('other-child',)),
+                          (fresh_desktop, ('child',)),
                           (parent_search, ()), (parent_management, ()),
                           (product_free_desktop, ()), (reboot_desktop, ()),
                           (station_entry, ('cancel-',)), (observed_text, ('renamed', 'body-clear'))):
@@ -225,7 +278,7 @@ def test_entry_fragments_do_not_share_mutable_recipe_state():
 
 def test_routine_login_has_no_wrong_account_visit_or_prompt_dismissal():
     from journey_blocks import fresh_desktop
-    for role in ('parent', 'other-child'):
+    for role in ('parent', 'other-child', 'child'):
         stages = fresh_desktop(role)
         assert not any('wrong' in value or 'other-parent' in value or 'dismiss' in value
                        for value in (*stages, *stages.values()))

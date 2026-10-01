@@ -31,6 +31,21 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Checking the intended child graphical login recipient'
+       for operation in accessible_ui.CHILD_GREETER_OPERATIONS},
+    'fresh-child-desktop': 'Independently observing the usable intended child desktop',
+    'child-countdown-present': 'Reading the child desktop countdown',
+    'child-countdown-absent': 'Requiring stable countdown absence on the child desktop',
+    'child-countdown-wrong-account-refused': 'Refusing countdown observation on another account',
+    'gdm-child-time-denied': 'Observing the intended child’s specific time-limit rejection',
+    'gdm-child-denied-return-ready': 'Reobserving the rejected child prompt before normal return',
+    'gdm-child-denied-returned': 'Observing the usable account list after rejection',
+    **{operation: 'Reviewing the automatic Parent error report without sending it'
+       for operation in accessible_ui.PARENT_REPORT_OPERATIONS},
+    **{operation: 'Checking the owned app match editor and its independent public result'
+       for operation in accessible_ui.MATCH_OPERATIONS},
+    **{operation: 'Saving one app access choice and independently reading its public row'
+       for operation in accessible_ui.ACCESS_OPERATIONS},
     **{operation: 'Reading the complete public app access and matching legend'
        for operation in accessible_ui.LEGEND_OPERATIONS},
     **{operation: 'Setting and independently reading a declared catalogue filter'
@@ -806,12 +821,13 @@ class UiObservations:
         try:
             require(type(challenge) is dict and set(challenge) == {
                 'id', 'role', 'surface', 'check'} and challenge['surface'] == 'gdm'
-                and challenge['role'] in ('parent', 'other-child')
+                and challenge['role'] in ('parent', 'other-child', 'child')
                 and challenge['check'] in ('qualified', 'rechecked')
                 and type(challenge['id']) is str and bool(challenge['id']), 'ui:challenge')
             identity = (challenge['id'], challenge['role'], challenge['surface'])
             first = challenge['check'] == 'qualified'
             recipient = ('gdm-parent-recipient' if challenge['role'] == 'parent'
+                         else 'gdm-child-recipient' if challenge['role'] == 'child'
                          else 'gdm-standard-recipient')
             require(operation == recipient + ('' if first else '-rechecked'), 'ui:challenge')
             if first:
@@ -891,6 +907,14 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation in accessible_ui.COUNTDOWN_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'countdown'}, 'ui:response')
+            expected['countdown'] = accessible_ui.validate_countdown(
+                result['countdown'], operation == 'child-countdown-present')
+        if operation == 'child-countdown-wrong-account-refused':
+            require(type(result) is dict and set(result) == {*expected, 'refused'}
+                    and result['refused'] is True, 'ui:countdown-refusal')
+            expected['refused'] = True
         if operation == 'feedback-collection-ready':
             value = result.get('collection')
             require(type(value) is dict and set(value) == {'collecting', 'download'}
@@ -1018,11 +1042,14 @@ class UiObservations:
             # private; journey records and worker replies receive only presence.
             expected['approver_uids'] = uids
         if operation in ('parent-search-close-ready', 'standard-search-qualified',
-                         'parent-desktop-provider'):
+                         'parent-desktop-provider', 'fresh-child-desktop'):
             require(type(result) is dict and set(result) == {*expected, 'provider'}, 'ui:response')
             expected['provider'] = accessible_ui.validate_shell_metadata(result['provider'])
         if operation == 'gdm-product-free-provider':
             require(type(result) is dict and set(result) == {*expected, 'provider'}, 'ui:response')
+            expected['provider'] = accessible_ui.validate_gdm_metadata(result['provider'])
+        if operation == 'gdm-child-list':
+            require(type(result) is dict and set(result) == {*expected, 'provider', 'focused'}, 'ui:response')
             expected['provider'] = accessible_ui.validate_gdm_metadata(result['provider'])
         if operation == 'station-entry-branch':
             require(type(result) is dict and set(result) == {*expected, 'branch'}, 'ui:response')
@@ -1165,6 +1192,50 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'legend'}
                     and result['legend'] == projection, 'ui:legend-response')
             expected['legend'] = result['legend']
+        if operation in accessible_ui.MATCH_OPERATIONS:
+            value = result.get('match')
+            action = operation.removeprefix('match-')
+            if action in ('save', 'cancel', 'reset', 'rejected'):
+                require(value == {'closed': action}, 'ui:match-response')
+            elif action.startswith('invalid-'):
+                key = action.removeprefix('invalid-')
+                require(value == {'invalid': key, 'message': accessible_ui.MATCH_INVALID[key]},
+                        'ui:match-response')
+            elif action in ('wrong-app', 'ambiguous'):
+                require(value == {'refusal': action}, 'ui:match-response')
+            else:
+                require(type(value) is dict and set(value) == {'app', 'rule'}
+                        and value['app'] == accessible_ui.MATCH_APP
+                        and value['rule'] in accessible_ui.MATCH_RULES, 'ui:match-response')
+            require(set(result) == {*expected, 'match'}, 'ui:match-response')
+            expected['match'] = value
+        if operation in accessible_ui.PARENT_REPORT_OPERATIONS:
+            if operation == 'parent-report-refused':
+                require(result.get('report') == {'refusal': 'absent'}
+                        and set(result) == {*expected, 'report'}, 'ui:parent-report-response')
+                expected['report'] = result['report']
+            else:
+                require(set(result) == {*expected, 'feedback'}, 'ui:parent-report-response')
+                FeedbackObservation.from_value(result['feedback'])
+                require(result['feedback']['draft'] == ('parent-rule-error'
+                    if operation == 'parent-report-read' else 'synthetic-first'),
+                    'ui:parent-report-response')
+                expected['feedback'] = result['feedback']
+        if operation in accessible_ui.ACCESS_OPERATIONS:
+            value = result.get('access')
+            action = operation.removeprefix('access-')
+            if action in accessible_ui.ACCESS_CHOICES:
+                require(value == {'chosen': action}, 'ui:access-response')
+            elif action == 'screen':
+                require(value == {'page': 'screen'}, 'ui:access-response')
+            elif action in ('wrong-row', 'disabled'):
+                require(value == {'refusal': action}, 'ui:access-response')
+            else:
+                require(type(value) is dict and set(value) == {'app', 'choice'}
+                        and value['app'] == accessible_ui.MATCH_APP
+                        and value['choice'] in accessible_ui.ACCESS_CHOICES, 'ui:access-response')
+            require(set(result) == {*expected, 'access'}, 'ui:access-response')
+            expected['access'] = value
         if operation in ('feedback-open', 'feedback-read', 'feedback-reopen', 'feedback-reread',
                          'feedback-draft', 'feedback-draft-reopen', 'feedback-draft-reread',
                          'feedback-privacy-returned'):
@@ -1386,6 +1457,18 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
             RequestObservation.from_request(result['request'], operation=operation)
             expected['request'] = result['request']
+        if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
+            require(type(result) is dict and set(result) == {*expected, 'denial'}
+                    and type(result['denial']) is dict
+                    and result['denial'] == {'recipient': 'fixture-child',
+                        'reason': 'time-limit', 'desktop_access': False}
+                    and result['denial']['desktop_access'] is False, 'ui:time-denial')
+            expected['denial'] = result['denial']
+            require(self.last_operation == ('gdm-child-recipient-rechecked'
+                    if operation == 'gdm-child-time-denied' else 'gdm-child-time-denied'),
+                    'ui:denial-order')
+        if operation == 'gdm-child-denied-returned':
+            require(self.last_operation == 'gdm-child-denied-return-ready', 'ui:denial-order')
         require(result == expected, 'ui:response')
         if operation == 'gdm-wrong-recipient-refused':
             require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')
@@ -1401,6 +1484,12 @@ class UiObservations:
                     'ui:recipient-order')
         elif operation == 'gdm-standard-recipient-rechecked':
             require(self.last_operation == 'gdm-standard-recipient', 'ui:recipient-order')
+        elif operation == 'gdm-child-wrong-recipient-refused':
+            require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')
+        elif operation == 'gdm-child-recipient':
+            require(self.last_operation == 'gdm-child-focused', 'ui:recipient-order')
+        elif operation == 'gdm-child-recipient-rechecked':
+            require(self.last_operation == 'gdm-child-recipient', 'ui:recipient-order')
         self.last_operation = operation
         if operation == 'kiosk-approver-baseline':
             self.approver_uids = tuple(result.pop('approver_uids'))

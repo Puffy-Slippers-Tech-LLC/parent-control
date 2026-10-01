@@ -1,7 +1,7 @@
 """Complete App Limits collections must never infer absence from partial reads."""
 
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 import json
 
 import pytest
@@ -14,6 +14,602 @@ from ui_observations import AppRowsObservation, UiObservations
 
 
 ROW = 'parent-app-0123456789abcdef'
+
+
+def match_ui():
+    app = accessible_ui.MATCH_APP
+    rule = accessible_ui.MATCH_RULES[0]
+    entry = Node(role='text', identity='parent-match-rule-entry',
+                 states=('showing', 'visible', 'sensitive', 'editable'))
+    entry.get_text_iface = lambda: rule
+    marker = Node(identity='parent-match-rule-app-' + app.removeprefix('parent-app-'), children=[entry])
+    responses = [Node(identity='parent-match-rule-' + action) for action in ('save', 'cancel', 'reset')]
+    dialog = Node(identity='parent-match-rule-dialog', states=('showing', 'visible', 'active'),
+                  children=[marker, *responses])
+    button = Node(identity=app + '-match-rule', description='Current match rule: ' + rule)
+    row = Node(identity=app, children=[button])
+    other = Node(identity=accessible_ui.MATCH_OTHER_APP, children=[
+        Node(identity=accessible_ui.MATCH_OTHER_APP + '-match-rule')])
+    page = Node(identity='parent-app-limits-page', children=[Node(identity='parent-app-search'),
+        Node(identity='parent-app-rows', children=[row, other])])
+    root = Node(identity='parent-window', states=('showing', 'visible', 'active'), children=[
+        Node(identity='parent-child-selector', children=[Node(identity='parent-child-selected-1002')]), page])
+    desktop = Node(children=[root, dialog])
+    ui = ui_for(desktop)
+    ui.api.Text = SimpleNamespace(get_character_count=len, get_text=lambda text, start, end: text[start:end])
+    return ui, root, dialog, marker, entry, button, responses
+
+
+def test_match_reads_independently_open_editor_and_row_without_input():
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    expected = {'app': accessible_ui.MATCH_APP, 'rule': accessible_ui.MATCH_RULES[0]}
+    assert ui.read_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, editor=True) == expected
+    assert ui.read_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP) == expected
+    for node in (entry, button, *responses):
+        node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('editor', [False, True])
+@pytest.mark.parametrize('fault', ['transient', 'incomplete', 'persistent', 'wrong-child', 'wrong-value'])
+def test_match_rule_read_retries_only_incomplete_public_observations(editor, fault):
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    ui.timeout = .5
+    ui.query_errors = (LookupError,)
+    stale = Node()
+    dialog.children.append(stale)
+    def vanished():
+        if fault != 'persistent':
+            dialog.children.remove(stale)
+        if fault == 'wrong-child':
+            root.children[0].children[0].identity = 'parent-child-selected-1001'
+        if fault == 'wrong-value':
+            button.description = 'Current match rule: unbound-value'
+            entry.get_text_iface = lambda: 'unbound-value'
+        if fault == 'incomplete':
+            raise accessible_ui.UiError('ui:incomplete-tree')
+        raise LookupError('object disappeared')
+    stale.get_name = Mock(side_effect=vanished)
+    if fault in ('transient', 'incomplete'):
+        assert ui.read_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP,
+                                  editor=editor) == {
+            'app': accessible_ui.MATCH_APP, 'rule': accessible_ui.MATCH_RULES[0]}
+        stale.get_name.assert_called_once()
+    else:
+        code = ('match-child' if fault == 'wrong-child' else
+                'match-value' if fault == 'wrong-value' else 'timeout:match-rule')
+        with pytest.raises(accessible_ui.UiError, match=code):
+            ui.read_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, editor=editor)
+    for node in (entry, button, *responses):
+        node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['wrong-child', 'wrong-app', 'duplicate', 'wrong-owner',
+                                 'hidden', 'disabled', 'inactive', 'uncertain', 'ambiguous'])
+def test_match_refuses_before_response_input(fault):
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    child, app, action = accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, 'save'
+    if fault == 'wrong-child': child = accessible_ui.CHILD
+    elif fault == 'wrong-app': app = accessible_ui.MATCH_OTHER_APP
+    elif fault == 'duplicate':
+        duplicate = Node(identity='parent-match-rule-save'); duplicate.parent = dialog
+        dialog.children.append(duplicate)
+    elif fault == 'wrong-owner': ui.api.get_desktop(0).identity = 'unrelated.application'
+    elif fault == 'hidden': entry.states.remove('visible')
+    elif fault == 'disabled': entry.states.remove('sensitive')
+    elif fault == 'inactive': dialog.states.remove('active')
+    elif fault == 'uncertain': ui.input_uncertain = True
+    elif fault == 'ambiguous': action = ('save', 'cancel')
+    with pytest.raises(accessible_ui.UiError):
+        ui.respond_match_rule(child, app, action)
+    for node in (entry, button, *responses):
+        node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('action', ['save', 'cancel', 'reset'])
+def test_match_response_inputs_once_then_observes_closure_and_saved_controls(action):
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    ui.parent_app_save_snapshot = Mock(return_value=True)
+    def respond(_):
+        dialog.parent.children.remove(dialog)
+        return True
+    target = responses[('save', 'cancel', 'reset').index(action)]
+    target.action.do_action.side_effect = respond
+    assert ui.respond_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, action) == {'closed': action}
+    target.action.do_action.assert_called_once()
+    ui.parent_app_save_snapshot.assert_called_once_with(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP)
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-draft', 'no-report', 'wrong-owner', 'uncertain'])
+def test_rejected_match_saves_once_and_leaves_report_open(fault):
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    ui.timeout = .2
+    entry.get_text_iface = lambda: ('wrong' if fault == 'wrong-draft' else
+        accessible_ui.TEXT_VALUES['match-rejected-directory'][1])
+    report = Node(identity='feedback-dialog', states=('showing', 'visible', 'active'))
+    report.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
+        get_n_targets=lambda: 1, get_target=lambda _: root)]
+    if fault == 'uncertain': ui.input_uncertain = True
+    if fault == 'wrong-owner': ui.api.get_desktop(0).identity = 'unrelated.application'
+    def respond(_):
+        desktop = dialog.parent
+        desktop.children.remove(dialog)
+        if fault != 'no-report':
+            desktop.children.append(report); report.parent = desktop
+        return True
+    responses[0].action.do_action.side_effect = respond
+    ui.parent_app_save_snapshot = Mock()
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.respond_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, 'rejected')
+    else:
+        assert ui.respond_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP,
+                                     'rejected') == {'closed': 'rejected'}
+        assert report in report.parent.children
+    assert responses[0].action.do_action.call_count == (1 if fault in (None, 'no-report') else 0)
+    ui.parent_app_save_snapshot.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', ['parent-report-read', 'parent-report-actions', 'parent-report-refused'])
+@pytest.mark.parametrize('fault', [None, 'extra', 'wrong'])
+def test_parent_report_projection_crosses_real_controller_decoder(operation, fault):
+    key = 'report' if operation.endswith('refused') else 'feedback'
+    value = ({'refusal': 'absent'} if key == 'report' else {
+        'draft': 'parent-rule-error' if operation.endswith('read') else 'synthetic-first',
+        'attachments': ['diagnostic-logs.zip'], 'collection': 'ready',
+        'validation': 'none', 'controls': 'ready'})
+    if fault == 'extra': value['private'] = 'canary'
+    elif fault == 'wrong': value['refusal' if key == 'report' else 'draft'] = 'initial-empty'
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', key: value}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps({**result,
+        'boot_sha256': 'b' * 64}).encode()))
+    observer = UiObservations(transport)
+    observer.boot_guard = ''
+    if fault:
+        with pytest.raises(EvidenceError): observer.observe(operation)
+    else:
+        assert observer.observe(operation) == result
+
+
+def test_report_review_is_reusable_with_renamed_stages_and_stops_at_every_boundary():
+    from parent_reports import report_review
+    from tests.support.perl import run_perl
+    screens = report_review('renamed')
+    program = r'''
+use strict; use warnings; use JSON::PP;
+BEGIN {$INC{'testapi.pm'}=1;}
+our @events;
+package testapi;
+sub send_key {push @events, ['key', $_[0]];}
+sub type_string {push @events, ['text', $_[0]];}
+sub record_info {}
+package main;
+require onpc_feedback_privacy;
+my $stop = $ARGV[0];
+my $j = onpc_journey->new(prefix=>'independent', review=>0, exchange=>sub {
+    push @events, ['observe', $_[0]]; die 'injected-refusal' if $_[0] eq $stop;
+    return {observed=>$_[0]};
+});
+eval {onpc_feedback_privacy::review_parent_report($j, 'renamed');};
+print encode_json(\@events);
+'''
+    full = json.loads(run_perl(program, '').stdout)
+    assert [value for kind, value in full if kind == 'observe'] == list(screens)
+    assert ('key', 'alt-f4') in map(tuple, full)
+    assert all('send' not in value for kind, value in full if kind == 'observe')
+    for stage in screens:
+        events = json.loads(run_perl(program, stage).stdout)
+        index = full.index(['observe', stage])
+        assert events == full[:index + 1]
+
+
+def test_parent_report_comparison_refuses_missing_or_changed_draft_after_privacy(tmp_path):
+    from installed_journey import JourneyPlan
+    from parent_reports import ParentReportJourney, report_review
+    plan = JourneyPlan('independent-report', 'independent', report_review('renamed'), {})
+    journey = ParentReportJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
+    def observed(draft='synthetic-first', attachments=('diagnostic-logs.zip',)):
+        return {'ui': {'feedback': {'draft': draft, 'attachments': list(attachments),
+            'collection': 'ready', 'validation': 'none', 'controls': 'ready'}}}
+    with pytest.raises(EvidenceError, match='preserved-draft'):
+        journey.check_settings('renamed-feedback-privacy-returned', observed())
+    journey.check_settings('renamed-report', observed('parent-rule-error'))
+    captured = observed()
+    journey.check_settings('renamed-actions', captured)
+    captured['ui']['feedback']['attachments'].clear()
+    assert journey.report_draft.attachments == ('diagnostic-logs.zip',)
+    with pytest.raises(EvidenceError, match='feedback-response'):
+        journey.check_settings('renamed-feedback-privacy-returned', captured)
+    journey.check_settings('renamed-feedback-privacy-returned', observed())
+    journey.check_settings('renamed-feedback-draft-reread', observed())
+    with pytest.raises(EvidenceError, match='draft-replay'):
+        journey.check_settings('renamed-actions', observed())
+    journey.check_settings('renamed-report', observed('parent-rule-error'))
+    with pytest.raises(EvidenceError, match='preserved-draft'):
+        journey.check_settings('renamed-feedback-draft-reread', observed())
+
+
+def test_report_close_uses_a_fresh_automatic_report_proof_and_stops_before_input():
+    from parent_reports import report_close
+    from tests.support.perl import run_perl
+    screens = report_close('renamed')
+    program = r'''
+use strict; use warnings; use JSON::PP;
+BEGIN {$INC{'testapi.pm'}=1;}
+our @events;
+package testapi;
+sub send_key {push @events, ['key', $_[0]];} sub record_info {}
+package main;
+require onpc_feedback_privacy;
+my $stop = $ARGV[0];
+my $j = onpc_journey->new(prefix=>'independent', review=>0, exchange=>sub {
+    push @events, ['observe', $_[0]]; die 'injected-refusal' if $_[0] eq $stop;
+    return {observed=>$_[0]};
+});
+eval {onpc_feedback_privacy::close_parent_report($j, 'renamed');};
+print encode_json(\@events);
+'''
+    full = [['observe', 'renamed-report'], ['key', 'alt-f4'],
+            ['observe', 'renamed-feedback-draft-closed']]
+    assert json.loads(run_perl(program, '').stdout) == full
+    for stage in screens:
+        assert json.loads(run_perl(program, stage).stdout) == full[:full.index(['observe', stage]) + 1]
+    changed = report_close('renamed'); changed.clear()
+    assert report_close('renamed') == screens
+    for prefix in ('', 'wrong/name', None):
+        with pytest.raises(EvidenceError, match='invocation'): report_close(prefix)
+
+
+@pytest.mark.parametrize('stage', ['restored-rule', 'final-rule', 'review-feedback-privacy-returned'])
+@pytest.mark.parametrize('changed', [False, True])
+def test_report_case_real_step_compares_before_durable_reply(tmp_path, stage, changed):
+    from parent_error_report import PLAN
+    from parent_reports import ParentReportJourney
+    journey = ParentReportJourney(SimpleNamespace(directory=tmp_path), Mock(), PLAN,
+        actions={'native-refuse': Mock(), 'native-verify': Mock()})
+    journey.check_settings('confirmed-rule', {'ui': {'match': {
+        'app': accessible_ui.MATCH_APP, 'rule': accessible_ui.MATCH_RULES[1]}}})
+    feedback = {'draft': 'synthetic-first', 'attachments': ['diagnostic-logs.zip'],
+                'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
+    journey.check_settings('review-actions', {'ui': {'feedback': feedback}})
+    if stage == 'review-feedback-privacy-returned':
+        value = {'feedback': {**feedback, 'draft': 'initial-empty' if changed else 'synthetic-first'}}
+    else:
+        value = {'match': {'app': accessible_ui.MATCH_APP,
+                          'rule': accessible_ui.MATCH_RULES[int(not changed)]}}
+    journey.steps = [{'stage': s} for s in PLAN.stages[:PLAN.stages.index(stage)]]
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(return_value={
+        'operation': PLAN.screen_tags[stage][3:], **value}))
+    journey.boot = 'b' * 64
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    check = Mock(wraps=journey.check_settings); journey.check_settings = check
+    if changed:
+        with pytest.raises(EvidenceError, match='exact-rule|synthetic-draft'): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+        assert journey.failed
+        journey.progress.assert_not_called()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+        journey.progress.assert_called_once()
+    check.assert_called_once()
+
+
+def test_report_case_uses_real_recorder_entry_through_worker_startup(tmp_path):
+    from parent_error_report import execute, PLAN
+    from parent_reports import ParentReportJourney
+    recorder = MagicMock(assertion=Mock())
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+                              verified=SimpleNamespace(inputs={}), guestfs=Mock(),
+                              commands=Mock(), recorder=recorder)
+    def worker(**options):
+        controller = options['guarded_observe'].__self__
+        assert type(controller) is ParentReportJourney and controller.plan is PLAN
+        assert set(controller.actions) == {'native-refuse', 'native-verify'}
+        assert options['validate'].__self__ is controller
+        assert options['timeout'] == 1800 and options['authenticate'] is True
+        raise EvidenceError('synthetic-worker-stop')
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'): execute(recorder, context)
+    context.run_worker.assert_called_once()
+    assert recorder.step.return_value.__exit__.call_args.args[0] is EvidenceError
+    recorder.assertion.assert_not_called()
+
+
+def test_rejected_report_selector_uses_existing_guarded_snapshot_and_fixture_route(tmp_path, monkeypatch):
+    import parent_setup_qualification as qualification
+    import check_graphical_smoke as smoke
+    from rejected_parent_rule import PLAN
+    from parent_reports import ParentReportJourney
+    from owned_commands import CommandError
+    import runpy
+    from tests.support.paths import ROOT
+    from tools.test_storage import named_input
+    source = tmp_path / 'source'; (source / 'data').mkdir(parents=True)
+    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    monkeypatch.setattr(qualification.smoke, 'ROOT', source)
+    context = SimpleNamespace()
+    result = qualification.RejectedParentRuleQualification.journey(context, Mock())
+    assert type(result) is ParentReportJourney and result.plan is PLAN
+    assert context.installed_snapshot == 'onpc-v1.1'
+    with pytest.raises(CommandError, match='rejected-parent-rule-prerequisites'):
+        smoke.main(rejected_parent_rule=True)
+    execute = Mock(return_value=0); monkeypatch.setattr(smoke, 'main', execute)
+    with pytest.raises(SystemExit):
+        runpy.run_path(str(ROOT / 'tests/integration/check_e2e_review_a_rejected_parent_rule_s_report.py'), run_name='__main__')
+    assert execute.call_args.kwargs == {'assets': named_input(fixture_source=True),
+        'provision_credentials': True, 'app_row_observations': True,
+        'native_fixtures': True, 'rejected_parent_rule': True}
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-draft', 'wrong-message', 'closed'])
+def test_match_invalid_response_observes_retained_draft_and_exact_explanation(fault):
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    entry.get_text_iface = lambda: 'wrong' if fault == 'wrong-draft' else ''
+    entry.description = ''
+    def reject(_):
+        if fault == 'closed': dialog.parent.children.remove(dialog)
+        entry.description = 'wrong' if fault == 'wrong-message' else accessible_ui.MATCH_INVALID['empty']
+        return True
+    responses[0].action.do_action.side_effect = reject
+    if fault:
+        with pytest.raises(accessible_ui.UiError):
+            ui.respond_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, 'empty')
+        assert responses[0].action.do_action.call_count == (0 if fault == 'wrong-draft' else 1)
+    else:
+        assert ui.respond_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, 'empty') == {
+            'invalid': 'empty', 'message': accessible_ui.MATCH_INVALID['empty']}
+        responses[0].action.do_action.assert_called_once()
+
+
+def test_match_unobserved_response_is_never_replayed():
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    with pytest.raises(accessible_ui.UiError, match='timeout:match-closed'):
+        ui.respond_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, 'save')
+    responses[0].action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['query', 'incomplete', 'defunct', 'persistent',
+                                 'missing-anchor', 'already-open', 'opened-after-query',
+                                 'duplicate', 'wrong-child'])
+def test_match_open_distinguishes_indeterminate_absence_from_visible_editor(fault):
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    ui.timeout = .5
+    ui.query_errors = (LookupError,)
+    desktop = dialog.parent
+    if fault not in ('already-open', 'opened-after-query', 'duplicate'):
+        desktop.children.remove(dialog)
+    if fault == 'duplicate':
+        desktop.children.append(Node(identity='parent-match-rule-dialog'))
+    if fault == 'missing-anchor':
+        root.identity = 'unidentified-window'
+    else:
+        stale = Node(states=('visible', 'showing', 'defunct') if fault == 'defunct'
+                     else ('visible', 'showing'))
+        desktop.children.append(stale)
+        if fault == 'defunct':
+            def defunct_state():
+                if stale in desktop.children:
+                    desktop.children.remove(stale)
+                return SimpleNamespace(contains=lambda state: state in stale.states)
+            stale.get_state_set = defunct_state
+        elif fault not in ('already-open', 'duplicate'):
+            def vanished():
+                if fault != 'persistent':
+                    desktop.children.remove(stale)
+                if fault == 'wrong-child':
+                    root.children[0].children[0].identity = 'parent-child-selected-1001'
+                if fault == 'incomplete':
+                    raise accessible_ui.UiError('ui:incomplete-tree')
+                raise LookupError('object disappeared')
+            stale.get_name = Mock(side_effect=vanished)
+    def open_editor(_):
+        desktop.children.append(dialog)
+        return True
+    button.action.do_action.side_effect = open_editor
+    if fault in ('query', 'incomplete', 'defunct'):
+        assert ui.open_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP) == {
+            'app': accessible_ui.MATCH_APP, 'rule': accessible_ui.MATCH_RULES[0]}
+        button.action.do_action.assert_called_once()
+    else:
+        code = ('match-already-open' if fault in ('already-open', 'opened-after-query') else
+                'ambiguous-automation-id' if fault == 'duplicate' else
+                'match-child' if fault == 'wrong-child' else 'timeout:match-before-open')
+        with pytest.raises(accessible_ui.UiError, match=code):
+            ui.open_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP)
+        button.action.do_action.assert_not_called()
+    for node in (entry, *responses):
+        node.action.do_action.assert_not_called()
+
+
+def test_match_open_uncertain_action_is_never_replayed():
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    dialog.parent.children.remove(dialog)
+    button.action.do_action.side_effect = LookupError('uncertain dispatch')
+    with pytest.raises(LookupError):
+        ui.open_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP)
+    assert ui.input_uncertain
+    button.action.do_action.assert_called_once()
+    with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+        ui.open_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP)
+    button.action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['transient', 'incomplete', 'persistent', 'wrong-child'])
+def test_match_response_retries_only_preinput_reads_with_fresh_recipient(fault):
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    ui.timeout = .5
+    ui.query_errors = (LookupError,)
+    # The invalid-draft toast may disappear during the next complete read.
+    stale = Node()
+    dialog.children.append(stale)
+    def vanished():
+        if fault != 'persistent':
+            dialog.children.remove(stale)
+        if fault == 'wrong-child':
+            root.children[0].children[0].identity = 'parent-child-selected-1001'
+        if fault == 'incomplete':
+            raise accessible_ui.UiError('ui:incomplete-tree')
+        raise LookupError('object disappeared')
+    stale.get_name = Mock(side_effect=vanished)
+    ui.parent_app_save_snapshot = Mock(return_value=True)
+    def cancel(_):
+        dialog.parent.children.remove(dialog)
+        return True
+    responses[1].action.do_action.side_effect = cancel
+    if fault in ('transient', 'incomplete'):
+        assert ui.respond_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP,
+                                     'cancel') == {'closed': 'cancel'}
+        stale.get_name.assert_called_once()
+        responses[1].action.do_action.assert_called_once()
+    else:
+        with pytest.raises(accessible_ui.UiError, match=(
+                'match-child' if fault == 'wrong-child' else 'timeout:match-response-entry')):
+            ui.respond_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, 'cancel')
+        responses[1].action.do_action.assert_not_called()
+        ui.parent_app_save_snapshot.assert_not_called()
+    for node in (entry, button, responses[0], responses[2]):
+        node.action.do_action.assert_not_called()
+
+
+def test_match_response_query_error_during_action_is_not_retried():
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    ui.query_errors = (LookupError,)
+    responses[1].action.do_action.side_effect = LookupError('uncertain dispatch')
+    with pytest.raises(accessible_ui.UiError, match='match-response-query:action'):
+        ui.respond_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, 'cancel')
+    assert ui.input_uncertain
+    responses[1].action.do_action.assert_called_once()
+    with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+        ui.respond_match_rule(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, 'cancel')
+    responses[1].action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['transient', 'persistent', 'wrong-child'])
+def test_match_selected_observation_retries_only_reads_before_further_input(fault):
+    ui, root, dialog, marker, entry, button, responses = match_ui()
+    ui.timeout = .5  # Permit one read-only retry after the shared 0.2s interval.
+    entry.states.add('focused')
+    ui.query_errors = (LookupError,)
+    stale = Node()
+    dialog.children.append(stale)
+    def vanished():
+        if fault != 'persistent': dialog.children.remove(stale)
+        raise LookupError('object disappeared')
+    stale.get_name = Mock(side_effect=vanished)
+    child = accessible_ui.CHILD if fault == 'wrong-child' else accessible_ui.EXISTING_CHILD
+    if fault == 'transient':
+        assert ui.text_operation('text-match-precise-selected', child=child) is None
+        stale.get_name.assert_called_once()
+    else:
+        with pytest.raises(accessible_ui.UiError, match='match-child' if fault == 'wrong-child' else 'timeout:text-selected'):
+            ui.text_operation('text-match-precise-selected', child=child)
+    for node in (entry, button, *responses):
+        node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'changed', 'missing', 'extra', 'wrong-app'])
+def test_match_projection_crosses_real_controller_decoder(fault):
+    value = {'app': accessible_ui.MATCH_APP, 'rule': accessible_ui.MATCH_RULES[1]}
+    if fault == 'changed': value['rule'] = 'private-rule'
+    elif fault == 'missing': value.pop('rule')
+    elif fault == 'extra': value['private'] = 'value'
+    elif fault == 'wrong-app': value['app'] = accessible_ui.MATCH_OTHER_APP
+    result = {'operation': 'match-row', 'outcome': 'passed', 'interface': 'AT-SPI', 'match': value}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps({**result, 'boot_sha256': 'b' * 64}).encode()))
+    if fault:
+        with pytest.raises(EvidenceError, match='match-response'):
+            UiObservations(transport).observe('match-row', child='existing')
+    else:
+        assert UiObservations(transport).observe('match-row', child='existing') == result
+
+
+def test_match_comparison_has_renamed_endpoints_immutable_capture_and_refusals(tmp_path):
+    from installed_journey import JourneyPlan
+    from match_rules import MatchRuleJourney
+    plan = JourneyPlan('independent-match', 'independent',
+        {'before': 'ui:match-row', 'after': 'ui:match-row'}, {},
+        match_checks={'before': accessible_ui.MATCH_RULES[0], 'after': 'before'})
+    journey = MatchRuleJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
+    def observed(rule):
+        return {'ui': {'match': {'app': accessible_ui.MATCH_APP, 'rule': rule}}}
+    original = observed(accessible_ui.MATCH_RULES[0])
+    with pytest.raises(EvidenceError, match='missing-capture'):
+        journey.check_settings('after', original)
+    journey.check_settings('before', original)
+    original['ui']['match']['rule'] = accessible_ui.MATCH_RULES[1]
+    plan.match_checks.clear()
+    with pytest.raises(EvidenceError, match='exact-rule'):
+        journey.check_settings('after', original)
+    journey.check_settings('after', observed(accessible_ui.MATCH_RULES[0]))
+    with pytest.raises(EvidenceError, match='replay'):
+        journey.check_settings('after', observed(accessible_ui.MATCH_RULES[0]))
+
+
+@pytest.mark.parametrize('changed', [False, True])
+@pytest.mark.parametrize('reset', [False, True])
+def test_match_real_step_compares_before_durable_reply(tmp_path, changed, reset):
+    from match_save_cancel import journey as make_journey, PLAN, EDITOR_PLAN
+    match_plan = EDITOR_PLAN if reset else PLAN
+    journey = make_journey(SimpleNamespace(directory=tmp_path), Mock(), match_plan, actions={
+        'native-refuse': Mock(), 'native-verify': Mock()})
+    journey.steps = [{'stage': stage} for stage in match_plan.stages[:-1]]
+    if reset: journey.match_values['initial-rule'] = (accessible_ui.MATCH_APP, accessible_ui.MATCH_RULES[0])
+    stage = 'final-rule' if reset else 'saved-rule'
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(return_value={
+        'operation': 'match-row', 'match': {'app': accessible_ui.MATCH_APP,
+        'rule': accessible_ui.MATCH_RULES[int(changed) if reset else int(not changed)]}}))
+    journey.boot = 'b' * 64
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if changed:
+        with pytest.raises(EvidenceError, match='exact-rule'): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+
+
+@pytest.mark.parametrize('editor', [False, True])
+def test_match_qualification_selects_snapshot_and_fixture_asset_route(tmp_path, monkeypatch, editor):
+    import parent_setup_qualification as qualification
+    import check_graphical_smoke as smoke
+    from match_save_cancel import PLAN, EDITOR_PLAN
+    match_plan = EDITOR_PLAN if editor else PLAN
+    from match_rules import MatchRuleJourney
+    from owned_commands import CommandError
+    import runpy
+    from tests.support.paths import ROOT
+    from tools.test_storage import named_input
+    source = tmp_path / 'source'; (source / 'data').mkdir(parents=True)
+    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    monkeypatch.setattr(qualification.smoke, 'ROOT', source)
+    context = SimpleNamespace()
+    selected = qualification.MatchEditorQualification if editor else qualification.MatchSaveCancelQualification
+    flag = 'match_editor' if editor else 'match_save_cancel'
+    result = selected.journey(context, Mock())
+    assert type(result) is MatchRuleJourney and result.plan is match_plan
+    assert context.installed_snapshot == 'onpc-v1.1'
+    with pytest.raises(CommandError, match='match-editor-prerequisites' if editor else 'match-save-cancel-prerequisites'):
+        smoke.main(**{flag: True})
+    execute = Mock(return_value=0); monkeypatch.setattr(smoke, 'main', execute)
+    with pytest.raises(SystemExit):
+        runpy.run_path(str(ROOT / 'tests/integration' / ('check_e2e_' + flag + '.py')), run_name='__main__')
+    assert execute.call_args.kwargs == {'assets': named_input(fixture_source=True),
+        'provision_credentials': True, 'app_row_observations': True,
+        'native_fixtures': True, flag: True}
+
+
+@pytest.mark.parametrize('fault', [None, 'message', 'extra'])
+def test_match_invalid_projection_crosses_real_decoder(fault):
+    value = {'invalid': 'empty', 'message': accessible_ui.MATCH_INVALID['empty']}
+    if fault == 'message': value['message'] = 'wrong'
+    if fault == 'extra': value['private'] = 'value'
+    result = {'operation': 'match-invalid-empty', 'outcome': 'passed', 'interface': 'AT-SPI', 'match': value}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps({**result, 'boot_sha256': 'b' * 64}).encode()))
+    if fault:
+        with pytest.raises(EvidenceError, match='match-response'):
+            UiObservations(transport).observe('match-invalid-empty', child='existing')
+    else:
+        assert UiObservations(transport).observe('match-invalid-empty', child='existing') == result
 
 
 def app_ui():
@@ -42,6 +638,304 @@ def test_complete_rows_are_immutable_and_include_off_viewport_controls_without_i
     buttons[0].states.remove('pressed')
     buttons[1].states.add('pressed')
     assert ui.app_rows(accessible_ui.CHILD) == ((ROW, 'conditional', 'precise'),)
+
+
+def access_ui():
+    ui, page, rows, row, buttons, match = app_ui()
+    root = ui.find_id('parent-window')
+    root.states.add('active')
+    root.children[0].children[0].identity = 'parent-child-selected-1002'
+    row.identity = accessible_ui.MATCH_APP
+    for node in (*buttons, row.children[-1], match):
+        node.identity = node.identity.replace(ROW, accessible_ui.MATCH_APP)
+    row.children[-1].states.add('sensitive')
+    return ui, root, buttons
+
+
+@pytest.mark.parametrize('choice', accessible_ui.ACCESS_CHOICES)
+def test_access_one_action_save_wait_and_independent_row_read(choice):
+    ui, root, buttons = access_ui()
+    target = next(node for node in buttons if node.identity.endswith('-access-' + choice))
+    def select(_):
+        for button in buttons:
+            button.states.discard('pressed')
+        target.states.add('pressed')
+        return True
+    target.action.do_action.side_effect = select
+    assert ui.choose_app_access(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP,
+                               target.identity) == {'chosen': choice}
+    assert ui.read_app_access(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP) == {
+        'app': accessible_ui.MATCH_APP, 'choice': choice}
+    target.action.do_action.assert_called_once()
+    for button in buttons:
+        button.component.grab_focus.assert_not_called()
+        if button is not target: button.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['wrong-row', 'wrong-child', 'disabled', 'inactive',
+                                 'hidden', 'duplicate', 'wrong-owner', 'uncertain'])
+def test_access_refuses_before_any_choice_input(fault):
+    ui, root, buttons = access_ui()
+    target = buttons[0]
+    child = accessible_ui.EXISTING_CHILD
+    control = target.identity
+    if fault == 'wrong-row': control = accessible_ui.MATCH_OTHER_APP + '-access-allowed'
+    elif fault == 'wrong-child': child = accessible_ui.CHILD
+    elif fault == 'disabled': target.states.remove('sensitive')
+    elif fault == 'inactive': root.states.remove('active')
+    elif fault == 'hidden': target.states.remove('visible')
+    elif fault == 'duplicate': target.parent.children.append(Node(identity=control))
+    elif fault == 'wrong-owner': ui.api.get_desktop(0).identity = 'foreign.application'
+    elif fault == 'uncertain': ui.input_uncertain = True
+    with pytest.raises(accessible_ui.UiError):
+        ui.choose_app_access(child, accessible_ui.MATCH_APP, control)
+    for button in buttons: button.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['uncertain-action', 'save-failure'])
+def test_access_input_is_not_repeated_after_action_or_observation_failure(fault):
+    ui, root, buttons = access_ui()
+    if fault == 'uncertain-action':
+        buttons[0].action.do_action.side_effect = LookupError('uncertain action')
+    else:
+        ui.parent_app_save_snapshot = Mock(side_effect=accessible_ui.UiError('ui:parent-save-error-report'))
+    with pytest.raises((LookupError, accessible_ui.UiError)):
+        ui.choose_app_access(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, buttons[0].identity)
+    buttons[0].action.do_action.assert_called_once()
+    if fault == 'uncertain-action':
+        assert ui.input_uncertain
+        with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+            ui.choose_app_access(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP, buttons[0].identity)
+        buttons[0].action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', [None, 'choice', 'app', 'extra', 'missing'])
+def test_access_projection_crosses_real_controller_decoder(fault):
+    value = {'app': accessible_ui.MATCH_APP, 'choice': 'permanent'}
+    if fault == 'choice': value['choice'] = 'private-choice'
+    elif fault == 'app': value['app'] = accessible_ui.MATCH_OTHER_APP
+    elif fault == 'extra': value['private'] = 'value'
+    elif fault == 'missing': value.pop('choice')
+    result = {'operation': 'access-row', 'outcome': 'passed', 'interface': 'AT-SPI', 'access': value}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps({**result, 'boot_sha256': 'b' * 64}).encode()))
+    if fault:
+        with pytest.raises(EvidenceError, match='access-response'):
+            UiObservations(transport).observe('access-row', child='existing')
+    else:
+        assert UiObservations(transport).observe('access-row', child='existing') == result
+
+
+@pytest.mark.parametrize('changed', [False, True])
+def test_access_independent_plan_real_step_compares_before_durable_reply(tmp_path, changed):
+    from installed_journey import JourneyPlan
+    from access_choices import AccessChoiceJourney
+    plan = JourneyPlan('independent-access', 'independent', {'renamed': 'ui:access-row'}, {},
+        child_bindings={'renamed': 'existing'}, access_checks={'renamed': 'permanent'})
+    journey = AccessChoiceJourney(SimpleNamespace(directory=tmp_path), Mock(), plan, actions={})
+    plan.access_checks.clear()  # The comparison declaration is captured immutably.
+    journey.steps = [{'stage': stage} for stage in plan.stages[:-1]]
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(return_value={
+        'operation': 'access-row', 'access': {'app': accessible_ui.MATCH_APP,
+                                           'choice': 'allowed' if changed else 'permanent'}}))
+    journey.boot = 'b' * 64
+    (tmp_path / 'renamed.request.json').write_text(json.dumps({'stage': 'renamed', 'screenshot': None}))
+    if changed:
+        with pytest.raises(EvidenceError, match='exact-choice'): journey.step(Mock())
+        assert not (tmp_path / 'renamed.reply.json').exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / 'renamed.reply.json').exists()
+        with pytest.raises(EvidenceError, match='replay'):
+            journey.check_settings('renamed', {'ui': {'access': {
+                'app': accessible_ui.MATCH_APP, 'choice': 'permanent'}}})
+
+
+@pytest.mark.parametrize('boundary', [None, 'renamed-choice', 'renamed-row'])
+def test_access_composite_independent_names_and_refusal_stop(boundary):
+    from tests.support.perl import run_perl
+    program = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN {$INC{'testapi.pm'}=1;}
+package testapi; sub record_info {}
+package main;
+require onpc_app_rows;
+my $journey = onpc_journey->new(prefix=>'independent', review=>0, exchange=>sub {
+    push @events, $_[0]; FAIL return {observed=>$_[0]};
+});
+eval {onpc_app_rows::access_choice($journey, 'renamed-choice', 'renamed-row');};
+print encode_json(\@events);
+'''
+    stop = "die 'refused' if $_[0] eq '" + boundary + "';" if boundary else ''
+    assert json.loads(run_perl(program.replace('FAIL', stop)).stdout) == (
+        ['renamed-choice'] if boundary == 'renamed-choice' else ['renamed-choice', 'renamed-row'])
+
+
+def test_access_qualification_selects_snapshot_and_fixture_assets(tmp_path, monkeypatch):
+    import parent_setup_qualification as qualification
+    import check_graphical_smoke as smoke
+    from access_choices import PLAN, AccessChoiceJourney
+    from owned_commands import CommandError
+    import runpy
+    from tests.support.paths import ROOT
+    from tools.test_storage import named_input
+    source = tmp_path / 'source'; (source / 'data').mkdir(parents=True)
+    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    monkeypatch.setattr(qualification.smoke, 'ROOT', source)
+    context = SimpleNamespace()
+    result = qualification.AccessChoicesQualification.journey(context, Mock())
+    assert type(result) is AccessChoiceJourney and result.plan is PLAN
+    assert context.installed_snapshot == 'onpc-v1.1'
+    with pytest.raises(CommandError, match='access-choices-prerequisites'):
+        smoke.main(access_choices=True)
+    execute = Mock(return_value=0); monkeypatch.setattr(smoke, 'main', execute)
+    with pytest.raises(SystemExit):
+        runpy.run_path(str(ROOT / 'tests/integration/check_e2e_access_choices.py'), run_name='__main__')
+    assert execute.call_args.kwargs == {'assets': named_input(fixture_source=True),
+        'provision_credentials': True, 'app_row_observations': True,
+        'native_fixtures': True, 'access_choices': True}
+
+
+def test_policy_qualification_pattern_is_representable_with_baseline_fixtures(tmp_path):
+    from pathlib import Path
+    from oh_no_parent_control.execution_policy import FapolicydPolicy
+    from tests.fixtures.build_test_applications import NATIVE_NAMES
+    from policy_qualification import PLAN as policy_plan
+
+    for name in NATIVE_NAMES:
+        target = tmp_path / name
+        target.write_bytes(b'\x7fELF fixture ' + name.encode())
+        target.chmod(0o755)
+    pattern = str(tmp_path / Path(policy_plan.match_checks['filtered-match']).name)
+    issues = []
+    rules = FapolicydPolicy.render(
+        {1002: (str(tmp_path / NATIVE_NAMES[0]),)}, {1002: (pattern,)}, issues=issues)
+    assert issues == []
+    assert f'deny_syslog perm=execute uid=1002 : dir={tmp_path}/' in rules
+
+
+@pytest.mark.parametrize('filters', [(), (('match-rule', 3), ('access-rule', 7))])
+@pytest.mark.parametrize('draft', ['match-wildcard', 'match-wildcard-appimages'])
+def test_policy_composite_independent_names_and_every_refusal_stop(filters, draft):
+    from policy_edits import policy_edit
+    from tests.support.perl import run_perl
+    screens = policy_edit(accessible_ui.MATCH_APP, draft, 'permanent',
+                          'renamed', filters=filters)
+    program = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN {$INC{'testapi.pm'}=1;}
+package testapi;
+sub record_info {} sub send_key {push @main::events, ['key', $_[0]];}
+sub type_string {push @main::events, ['text', $_[0]];}
+package main;
+require onpc_app_rows;
+my ($app, $filters, $draft) = @ARGV;
+my $journey = onpc_journey->new(prefix=>'independent', review=>0, exchange=>sub {
+    push @events, ['observe', $_[0]]; FAIL return {observed=>$_[0]};
+});
+eval {onpc_app_rows::edit_policy($journey, $app, $draft, 'permanent', 'renamed', decode_json($filters));};
+print encode_json(\@events);
+'''
+    full = json.loads(run_perl(program.replace('FAIL', ''), accessible_ui.MATCH_APP,
+                               json.dumps(filters), draft).stdout)
+    assert [value for kind, value in full if kind == 'observe'] == list(screens)
+    assert [value for kind, value in full if kind == 'text'] == [
+        accessible_ui.TEXT_VALUES[binding][1] for binding in ('catalogue-identifier', draft)]
+    for stage in screens:
+        stop = "die 'refused' if $_[0] eq '" + stage + "';"
+        events = json.loads(run_perl(program.replace('FAIL', stop), accessible_ui.MATCH_APP,
+                                     json.dumps(filters), draft).stdout)
+        assert events == full[:full.index(['observe', stage]) + 1]
+
+
+@pytest.mark.parametrize('fault', ['app', 'duplicate', 'kind', 'mask'])
+def test_policy_declarations_and_worker_refuse_invalid_binding_before_input(fault):
+    from policy_edits import policy_edit
+    from tests.support.perl import run_perl
+    app = accessible_ui.MATCH_OTHER_APP if fault == 'app' else accessible_ui.MATCH_APP
+    filters = {'app': (), 'duplicate': (('match-rule', 3), ('match-rule', 3)),
+               'kind': (('unknown', 1),), 'mask': (('match-rule', 4),)}[fault]
+    with pytest.raises(EvidenceError, match='policy:'):
+        policy_edit(app, 'match-wildcard', 'permanent', 'renamed', filters=filters)
+    program = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN {$INC{'testapi.pm'}=1;}
+package testapi; sub record_info {} sub send_key {push @main::events,'input';}
+sub type_string {push @main::events,'input';}
+package main; require onpc_app_rows;
+my ($app, $filters)=@ARGV;
+my $j=onpc_journey->new(prefix=>'independent', review=>0, exchange=>sub {push @events,$_[0];});
+eval {onpc_app_rows::edit_policy($j, $app, 'match-wildcard', 'permanent', 'renamed', decode_json($filters));};
+die 'expected refusal' unless $@ =~ /^policy:/;
+print encode_json(\@events);
+'''
+    assert json.loads(run_perl(program, app, json.dumps(filters)).stdout) == []
+
+
+@pytest.mark.parametrize('changed', [None, 'match', 'access', 'missing-capture'])
+def test_policy_exact_comparisons_use_real_step_and_refuse_before_reply(tmp_path, changed):
+    from access_choices import AccessChoiceJourney
+    from installed_journey import JourneyPlan
+    plan = JourneyPlan('renamed-policy', 'independent', {
+        'capture': 'ui:match-row', 'reread': 'ui:match-row', 'choice': 'ui:access-row'}, {},
+        match_checks={'capture': accessible_ui.MATCH_RULES[1], 'reread': 'capture'},
+        access_checks={'choice': 'permanent'})
+    journey = AccessChoiceJourney(SimpleNamespace(directory=tmp_path), Mock(), plan, actions={})
+    plan.match_checks.clear(); plan.access_checks.clear()
+    captured = {'ui': {'match': {'app': accessible_ui.MATCH_APP, 'rule': accessible_ui.MATCH_RULES[1]}}}
+    if changed != 'missing-capture':
+        journey.check_settings('capture', captured)
+        captured['ui']['match']['rule'] = accessible_ui.MATCH_RULES[0]
+    journey.boot = 'b' * 64
+    stage = 'choice' if changed in (None, 'access') else 'reread'
+    journey.steps = [{'stage': value} for value in plan.stages[:plan.stages.index(stage)]]
+    result = ({'access': {'app': accessible_ui.MATCH_APP,
+                         'choice': 'allowed' if changed == 'access' else 'permanent'}}
+              if stage == 'choice' else {'match': {'app': accessible_ui.MATCH_APP,
+                  'rule': accessible_ui.MATCH_RULES[int(changed != 'match')]}})
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
+        'operation': plan.screen_tags[stage][3:], **result}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if changed:
+        with pytest.raises(EvidenceError, match='exact-rule|exact-choice|missing-capture'):
+            journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+    if changed != 'missing-capture':
+        with pytest.raises(EvidenceError, match='replay'):
+            journey.check_settings('capture', captured)
+
+
+def test_policy_qualification_selects_snapshot_and_fixture_assets(tmp_path, monkeypatch):
+    import parent_setup_qualification as qualification
+    import check_graphical_smoke as smoke
+    from policy_qualification import PLAN
+    from access_choices import AccessChoiceJourney
+    from owned_commands import CommandError
+    import runpy
+    from tests.support.paths import ROOT
+    from tools.test_storage import named_input
+    source = tmp_path / 'source'; (source / 'data').mkdir(parents=True)
+    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    monkeypatch.setattr(qualification.smoke, 'ROOT', source)
+    context = SimpleNamespace()
+    result = qualification.PolicyQualification.journey(context, Mock())
+    assert type(result) is AccessChoiceJourney and result.plan is PLAN
+    assert context.installed_snapshot == 'onpc-v1.1'
+    with pytest.raises(CommandError, match='policy-prerequisites'):
+        smoke.main(policy_edit=True)
+    with pytest.raises(CommandError, match='policy-prerequisites'):
+        smoke.main(native_fixtures=True, policy_edit=True, access_choices=True)
+    execute = Mock(return_value=0); monkeypatch.setattr(smoke, 'main', execute)
+    with pytest.raises(SystemExit):
+        runpy.run_path(str(ROOT / 'tests/integration/check_e2e_policy.py'), run_name='__main__')
+    assert execute.call_args.kwargs == {'assets': named_input(fixture_source=True),
+        'provision_credentials': True, 'app_row_observations': True,
+        'native_fixtures': True, 'policy_edit': True}
 
 
 @pytest.mark.parametrize('fault', ['wrong-child', 'wrong-page', 'loading', 'missing-access',
@@ -281,10 +1175,16 @@ def test_catalogue_comparison_keeps_exact_rows_empty_expectations_and_clear_base
     journey.check_settings('cleared-rows', observed(expected_rows()))
 
 
-@pytest.mark.parametrize('worker', ['catalogue_search', 'catalogue_filters'])
+@pytest.mark.parametrize('worker', ['catalogue_search', 'catalogue_filters', 'match_save_cancel', 'match_editor_validation', 'access_choices', 'policy_edit', 'rejected_parent_rule', 'parent_error_report'])
 def test_catalogue_worker_sequence_and_every_refusal_stop(worker):
     from catalogue_search import PLAN as search_plan
     from catalogue import PLAN as filter_plan
+    from match_save_cancel import PLAN as match_plan
+    from match_save_cancel import EDITOR_PLAN as editor_plan
+    from access_choices import PLAN as access_plan
+    from policy_qualification import PLAN as policy_plan
+    from rejected_parent_rule import PLAN as report_plan
+    from parent_error_report import PLAN as report_case_plan
     from tests.support.perl import run_perl
     program = r'''
 use strict; use warnings; use JSON::PP;
@@ -306,11 +1206,17 @@ sub select_child {my($j,$child,$opened)=@_; die 'child' unless $child eq 'existi
     return $j->seen('parent-selected');}
 package main;
 require onpc_app_rows;
+require onpc_fresh_thirty_allowance;
 eval {onpc_app_rows::catalogue_search(sub {push @events,$_[0]; FAIL return {observed=>$_[0]};});};
 print encode_json(\@events);
 '''
-    program = program.replace('onpc_app_rows::catalogue_search', 'onpc_app_rows::' + worker)
-    expected = list((search_plan if worker == 'catalogue_search' else filter_plan).screen_tags)
+    program = program.replace('onpc_app_rows::catalogue_search',
+        'onpc_fresh_thirty_allowance::parent_error_report' if worker == 'parent_error_report' else 'onpc_app_rows::' + worker)
+    expected = list({'catalogue_search': search_plan, 'catalogue_filters': filter_plan,
+                     'match_save_cancel': match_plan, 'match_editor_validation': editor_plan,
+                     'access_choices': access_plan, 'policy_edit': policy_plan,
+                     'rejected_parent_rule': report_plan,
+                     'parent_error_report': report_case_plan}[worker].screen_tags)
     for boundary in (None, *expected):
         stop = "die 'refused' if $_[0] eq '" + boundary + "';" if boundary else ''
         result = run_perl(program.replace('FAIL', stop))

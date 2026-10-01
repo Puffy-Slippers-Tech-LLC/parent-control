@@ -1974,7 +1974,9 @@ class Application(Adw.Application):
         if "style.css" in names:
             self._load_stylesheet()
             LOG.info("kiosk.031")
-        window = self.get_active_window()
+        # The active application window may be the modal language chooser.
+        window = next((window for window in self.get_windows()
+                       if isinstance(window, RequestWindow)), None)
         if (
             names & {"kiosk-background-still.png", "kiosk-background-scenery-clear.png"}
             and window is not None

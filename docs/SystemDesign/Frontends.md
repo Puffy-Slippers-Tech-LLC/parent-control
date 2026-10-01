@@ -202,6 +202,10 @@ An empty value opens a modal language chooser. Parent retains its
 [own dialog UI](../../parent/oh_no_parent_control_parent/language_dialog.py);
 kiosk and child overlay use a separate
 [metal-board dialog](../../kiosk/oh_no_parent_control_kiosk/language_dialog.py).
+Both choosers belong to the owning GTK application, remain transient and modal,
+and restore chooser focus if an outside click activates their parent. Outside
+clicks and window-manager close requests do not dismiss them; Save and Cancel
+own dismissal.
 Its default is the primary session message language from `GLib.get_language_names`,
 mapped by base language to the shared
 [catalogue](../../common/oh_no_parent_control_ui/languages.json); unsupported locales
@@ -216,10 +220,12 @@ setup, the chooser paints before the management interface is constructed in a
 later main-loop iteration behind it; account loading then runs asynchronously.
 A saved language is applied before constructing the management interface.
 
-The chooser lists native names in catalogue order and says “You can change it
-in preferences”. Both dialog UIs use the heading “Choose your language”. Save
+The chooser lists native names in catalogue order. Both dialog UIs use the
+heading “Choose your language”. Save
 and Cancel are available on all surfaces, including first-time setup.
-Cancel continues without saving or applying the candidate; an unset language
+Selection immediately translates the existing chooser controls in a private
+context without remapping the window. Cancel continues without saving or applying
+the candidate to the owning frontend; an unset language
 prompts again next launch, or when that child is next selected in kiosk.
 Save persists the
 current user's selection through `SetOwnLanguage`, or the selected child's

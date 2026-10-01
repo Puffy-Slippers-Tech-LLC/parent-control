@@ -1,8 +1,8 @@
-"""Personal language selection in the owning frontend's current language."""
+"""Personal language selection with an isolated live translation preview."""
 
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.translation_widgets import (
-    localized, set_text, accessible_text, context_for,
+    localized, set_text, accessible_text, context_for, TranslationContext,
 )
 
 import gi
@@ -19,21 +19,21 @@ from common.oh_no_parent_control_ui.languages import (
 
 class LanguageDialog(Gtk.Window):
     def __init__(self, parent, language, save, saved, cancelled):
-        super().__init__(title=m.LANGUAGE, transient_for=parent, modal=True,
+        super().__init__(application=parent.get_application(),
+                         title=m.LANGUAGE, transient_for=parent, modal=True,
                          destroy_with_parent=True, deletable=False)
+        selected = selected_language(language, GLib.get_language_names())
+        self._translation_context = TranslationContext(selected)
         set_text(self, 'title', m.LANGUAGE)
         set_automation_id(self, "language-dialog")
         self.add_css_class("parent-language-dialog")
-        self.set_default_size(540, 660)
+        self.set_default_size(540, -1)
         self._save = save
         self._saved = saved
         self._cancelled = cancelled
-        selected = selected_language(language, GLib.get_language_names())
         self._selected = selected
         self._saving = False
-        header = Gtk.HeaderBar(show_title_buttons=False,
-                               css_classes=["parent-language-header"])
-        self.set_titlebar(header)
+        self.set_titlebar(Gtk.Box())
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16,
                           margin_start=28, margin_end=28, margin_top=16, margin_bottom=24)
         heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -46,11 +46,6 @@ class LanguageDialog(Gtk.Window):
                           css_classes=["parent-language-title"])
         set_automation_id(title, "language-title")
         heading.append(title)
-        subtitle = localized(Gtk.Label, label=m.YOU_CAN_CHANGE_IT_IN_PREFERENCES, wrap=True,
-                             justify=Gtk.Justification.CENTER,
-                             css_classes=["parent-language-description"])
-        set_automation_id(subtitle, "language-description")
-        heading.append(subtitle)
         content.append(heading)
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                 css_classes=["parent-language-list"])
@@ -94,9 +89,18 @@ class LanguageDialog(Gtk.Window):
         self.set_child(content)
         self.set_default_widget(self._continue)
         self.connect("close-request", lambda *_args: True)
+        parent.connect_object("notify::is-active", LanguageDialog._parent_activated, self)
+
+    def _parent_activated(self, *_args):
+        # A compositor may activate the parent on an outside click, especially
+        # when it is fullscreen. Keep the modal chooser above that window.
+        if self.get_visible() and self.get_transient_for().is_active():
+            self.present()
 
     def _choose(self, button, identity):
         if button.get_active():
+            # Relabel the existing controls together, without remapping the window.
+            context_for(self).apply(identity)
             self._selected = identity
 
     def _submit(self, _button):
@@ -116,8 +120,7 @@ class LanguageDialog(Gtk.Window):
         self.destroy()
 
     def _success(self, language):
-        # Remove the chooser from the shared translation context before
-        # relabeling. Its final frame must not resize into the new language.
+        # Close the preview before applying the saved language to the frontend.
         self.destroy()
         self._saved(language)
 

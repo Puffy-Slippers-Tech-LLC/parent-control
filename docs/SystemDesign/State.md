@@ -79,8 +79,11 @@ language followed by optional hyphen-separated 1–8 ASCII-alphanumeric subtags,
 with at most 63 characters in total (for example `en`, `pt-BR`, `zh-Hans`). IDs
 are preserved as supplied. POSIX locale strings, paths and colon-separated
 language lists are rejected. Storage validates syntax, not translation
-availability; future frontends own available choices, translation fallback and
-refresh. There is no change notification in this API.
+availability. The shared [language catalogue](../../common/oh_no_parent_control_ui/languages.json)
+owns the ordered supported choices and native display names for all components;
+the Python loader is GTK-independent and the same JSON is packaged with the
+Shell extension. Frontends own locale resolution and translation application.
+There is no change notification in this API.
 
 Language writes preserve policy and request settings. The store serializes
 language read/modify/write with policy commits; policy saves and rollback retain
@@ -89,7 +92,8 @@ cannot change a child's personal settings. Personal changes are excluded from
 approval-policy snapshot comparisons. Language writes do not alter
 AccountsService, OS locale settings or grants. Ordinary removal
 retains these records; purge removes them with the product state directory.
-GUI selectors and translation application are not implemented by this backend.
+The [Parent selector](Frontends.md#personal-language-selection) uses this API;
+translation application remains outside the implemented language setting.
 
 The ownership of runtime state is deliberately split:
 

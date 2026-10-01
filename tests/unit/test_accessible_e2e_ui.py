@@ -2670,7 +2670,8 @@ def test_empty_parent_requires_readable_explanation_and_no_selected_child(fault,
     placeholder = Node('(None)', 'label', identity='parent-child-selected-none')
     picker = Node('', 'button', children=[placeholder],
                   states=('showing', 'visible'), identity='parent-child-selector')
-    root = Node(PRODUCT, children=[explanation, picker], identity='parent-window')
+    root = Node(PRODUCT, children=[explanation, picker, Node(identity='parent-language-ready')],
+                identity='parent-window')
     if fault == 'hidden': explanation.states.remove('showing')
     if fault == 'missing': root.children.remove(explanation)
     if fault == 'wrong-text': explanation.name = 'Loading accounts'
@@ -2702,9 +2703,49 @@ def test_empty_parent_requires_readable_explanation_and_no_selected_child(fault,
     picker.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('save_result', ['saved', 'failed', 'uncertain'])
+def test_first_run_language_helper_clicks_once_and_requires_public_completion(save_result):
+    button = Node(identity='parent-language-continue')
+    dialog = Node(identity='parent-language-dialog', children=[button])
+    window = Node(identity='parent-window', children=[dialog])
+    ui = ui_for(window)
+
+    def save(_index):
+        if save_result == 'uncertain':
+            return False
+        if save_result == 'saved':
+            ready = Node(identity='parent-language-ready')
+            ready.parent = window
+            window.children = [ready]
+        return True
+
+    button.action.do_action.side_effect = save
+    if save_result == 'saved':
+        ui.complete_parent_language_setup()
+        assert not ui.input_uncertain
+        ui.complete_parent_language_setup()
+    else:
+        with pytest.raises(UiError):
+            ui.complete_parent_language_setup()
+        assert ui.input_uncertain
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.complete_parent_language_setup()
+    button.action.do_action.assert_called_once_with(0)
+
+
+def test_language_helper_leaves_preferences_open_after_startup():
+    button = Node(identity='parent-language-continue')
+    dialog = Node(identity='parent-language-dialog', children=[button])
+    ui = ui_for(Node(identity='parent-window', children=[
+        Node(identity='parent-language-ready'), dialog]))
+    ui.complete_parent_language_setup()
+    button.action.do_action.assert_not_called()
+
+
 def test_empty_parent_waits_for_fresh_state_without_replaying_input():
     from accessible_ui import PRODUCT
     root = Node(PRODUCT, identity='parent-window', children=[
+        Node(identity='parent-language-ready'),
         Node('', 'button', identity='parent-child-selector', children=[
             Node('(None)', 'label', identity='parent-child-selected-none')]),
         Node('No interactive non-administrator account was found.', 'label',

@@ -849,6 +849,7 @@ def owned_surface_id(identity):
         ('parent-access-denied-', 'parent-access-denied-window'),
         ('parent-revoke-', 'parent-revoke-dialog'),
         ('parent-match-rule-', 'parent-match-rule-dialog'),
+        ('parent-language-', 'parent-language-dialog'),
         ('feedback-full-privacy-', 'feedback-privacy-dialog'),
         ('feedback-privacy-', 'feedback-privacy-dialog'),
         ('feedback-success-', 'feedback-success-dialog'),
@@ -872,6 +873,8 @@ def owned_surface_id(identity):
             if identity == 'feedback-privacy-link':
                 return 'feedback-dialog'
             if identity == 'parent-revoke-button':
+                return 'parent-window'
+            if identity in ('parent-language-loading', 'parent-language-ready'):
                 return 'parent-window'
             return None if identity == surface else surface
     return None
@@ -1636,7 +1639,8 @@ class AccessibleUI:
         if identity in primary:
             return
         expected = (('feedback-dialog',) if identity == 'feedback-privacy-dialog' else
-                    ('parent-window',) if identity in ('parent-revoke-dialog', 'parent-match-rule-dialog') else
+                    ('parent-window',) if identity in ('parent-revoke-dialog', 'parent-match-rule-dialog',
+                                                       'parent-language-dialog') else
                     ('kiosk-request-window',) if identity == 'preview-screen-dialog' else
                     tuple(value for value in primary if value != 'parent-access-denied-window'))
         if nodes is None or snapshot is None:
@@ -2020,6 +2024,36 @@ class AccessibleUI:
 
     def parent(self):
         return self.id_target('parent-window')
+
+    def complete_parent_language_setup(self):
+        """Accept the first-run default once, using the same host/E2E public IDs.
+
+        Readiness distinguishes an asynchronous initial read from no dialog.
+        A Preferences dialog opened after startup is deliberately left alone.
+        """
+        def entry():
+            observation = self.read_snapshot()
+            for identity in ('parent-language-ready', 'parent-language-dialog',
+                             'parent-access-denied-window', 'startup-error-window'):
+                if self.snapshot_owned_target(identity, check_prompt=True,
+                                              observation=observation) is not None:
+                    return identity
+            return None
+
+        state = self.wait(entry, 'parent-language-entry', prompt_in_predicate=True)
+        if state != 'parent-language-dialog':
+            return
+        self.activate_id('parent-language-continue')
+        # Keep input uncertain until a fresh public result confirms completion.
+        # A save error or timeout must not replay Continue.
+        self.input_uncertain = True
+
+        def completed():
+            return (self.snapshot_owned_target('parent-language-ready', check_prompt=True) is not None
+                    and self.absent_id('parent-language-dialog', within='parent-window'))
+
+        self.wait(completed, 'parent-language-saved', prompt_in_predicate=True)
+        self.input_uncertain = False
 
     def parent_window_count(self):
         """UI13: count the sole owned management window in a complete snapshot."""
@@ -8275,12 +8309,14 @@ class AccessibleUI:
         elif operation == 'app-grid':
             self.focus_search_result()
         elif operation == 'parent-search-close-ready':
+            self.complete_parent_language_setup()
             result['provider'] = self.shell_provider_metadata()
             self.wait(lambda: self.has_state(self.parent(), self.api.StateType.ACTIVE),
                       'parent-search-close-ready')
         elif operation == 'parent-search-closed':
             self.wait(self.parent_search_closed, 'parent-search-closed')
         elif operation == 'parent-window':
+            self.complete_parent_language_setup()
             self.parent()
         elif operation == 'parent-window-count':
             result['count'] = self.parent_window_count()
@@ -8317,6 +8353,7 @@ class AccessibleUI:
             else:
                 raise UiError('ui:window-refusal-missing')
         elif operation == 'parent-empty':
+            self.complete_parent_language_setup()
             self.parent_empty()
         elif operation == 'named-custom-setup':
             self.configure_time_controls(child, initial_enabled=False, minutes=0, final_enabled=True)

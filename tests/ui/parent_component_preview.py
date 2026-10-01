@@ -21,6 +21,7 @@ class ScriptedParentBroker:
     """Deterministic component-test broker; it contains no authorization logic."""
 
     def __init__(self):
+        self._language = ""
         self._mode = os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO", "normal")
         self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
         if self._mode in ('catalogue', 'rejected-rule'):
@@ -51,6 +52,13 @@ class ScriptedParentBroker:
         if self._mode in {"denied", "unavailable"}:
             raise RuntimeError("service unavailable")
         return PREVIEW_USERS
+
+    def get_own_language(self):
+        return self._language
+
+    def set_own_language(self, language):
+        self._language = language
+        return language
 
     def _wait_for_loading_release(self):
         # The component test must observe both disabled controls before this

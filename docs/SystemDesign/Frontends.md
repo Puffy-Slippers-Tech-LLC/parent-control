@@ -193,6 +193,34 @@ blocked. Automation must not substitute DOM structure, labels, roles,
 JavaScript evaluation or geometry. The ID-reader correction itself is test-only
 and requires no product installation, package activation or saved-data migration.
 
+## Personal language selection
+
+Parent reads `GetOwnLanguage` asynchronously at startup. An empty value opens
+the modal [language chooser](../../parent/oh_no_parent_control_parent/language_dialog.py).
+Its default is the primary session message language from `GLib.get_language_names`,
+mapped by base language to the shared
+[catalogue](../../common/oh_no_parent_control_ui/languages.json); unsupported locales
+use English. Regional and script variants collapse to the product's one choice,
+including Portuguese to `pt-BR` and Chinese to `zh-Hans`.
+
+The chooser lists native names in catalogue order and says “You can change it
+later in preferences”. Continue is its sole dismissal action. It saves the
+current user's selection through `SetOwnLanguage` before closing; failures keep
+the selection visible and permit retry. A nonempty saved value suppresses the
+startup dialog. The top-right menu's Preferences action opens the same chooser
+with the saved selection. This adds no translation application or locale changes,
+and uses the existing preference schema without migration. It activates with the
+next Parent process.
+
+The dialog publishes `parent-language-dialog`, `parent-language-choice-<lowercase-id>`
+and `parent-language-continue`, with the shared public owner relation and control
+metadata. The main content publishes `parent-language-loading` until the initial
+choice is saved or an existing selection is read, then `parent-language-ready`.
+The common host/E2E `complete_parent_language_setup` helper waits for this
+startup result, clicks Continue once if needed, and independently observes
+closure and readiness. It leaves a subsequently opened Preferences dialog alone.
+Host preview launch and installed Parent entry checkpoints use this helper.
+
 ## Parent controls and shared information
 
 Manually launching `/usr/bin/oh-no-parent-control-parent` as a standard user

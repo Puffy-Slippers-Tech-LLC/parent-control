@@ -37,6 +37,14 @@ class BrokerClient:
         users, = self._call("ListManagedUsers", None, "(a(uss))")
         return users
 
+    def get_own_language(self):
+        language, = self._call("GetOwnLanguage", None, "(s)")
+        return language
+
+    def set_own_language(self, language):
+        saved, = self._call("SetOwnLanguage", GLib.Variant("(s)", (language,)), "(s)")
+        return saved
+
     def get_preferences(self, uid):
         encoded, = self._call("GetPreferences", GLib.Variant("(u)", (uid,)), "(s)")
         return json.loads(encoded)

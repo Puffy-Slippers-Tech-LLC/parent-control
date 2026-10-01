@@ -37,6 +37,10 @@ class FakeConnection:
             ))
         if name == BUS_NAME and method == "GetPolicyWarnings":
             return GLib.Variant("(as)", (["game.desktop"],))
+        if name == BUS_NAME and method == "GetOwnLanguage":
+            return GLib.Variant("(s)", ("",))
+        if name == BUS_NAME and method == "SetOwnLanguage":
+            return GLib.Variant("(s)", unpacked)
         if name == BUS_NAME and method == "GetTimeStatus":
             if self.error is not None:
                 raise self.error
@@ -45,6 +49,16 @@ class FakeConnection:
 
 
 class ParentClientTests(unittest.TestCase):
+    def test_personal_language_uses_caller_scoped_api_without_child_uid(self):
+        connection = FakeConnection()
+        client = BrokerClient(connection)
+        self.assertEqual(client.get_own_language(), "")
+        self.assertEqual(client.set_own_language("pt-BR"), "pt-BR")
+        self.assertEqual([call[3:6] for call in connection.calls], [
+            ("GetOwnLanguage", None, "(s)"),
+            ("SetOwnLanguage", ("pt-BR",), "(s)"),
+        ])
+
     def test_policy_warnings_use_the_authorized_target_method(self):
         connection = FakeConnection()
         self.assertEqual(BrokerClient(connection).get_policy_warnings(1001), ["game.desktop"])

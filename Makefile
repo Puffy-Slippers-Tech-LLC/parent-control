@@ -61,9 +61,9 @@ endif
 CHILD_DIR := child
 EXTENSION_SOURCES := accessibility.js branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
 # Explicit production modules prevent preview/test helpers from entering the package.
-COMMON_SOURCES := __init__.py about.py accessibility.py gtk_automation.py app_policy.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py
+COMMON_SOURCES := __init__.py about.py accessibility.py gtk_automation.py app_policy.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py languages.py languages.json
 KIOSK_SOURCES := __init__.py chrome.py floating_islands.py lava.py lightning.py main.py model.py request_content.py selection_store.py snowflakes.py thunder.py
-PARENT_SOURCES := __init__.py client.py main.py
+PARENT_SOURCES := __init__.py client.py main.py language_dialog.py
 BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py execution_probe.py extension_manager.py grant_diagnostics.py logs.py preferences.py probe_channel.py probe_generation.py service.py uninstall.py
 PRODUCT_USER_SERVICES := oh-no-parent-control-app.service oh-no-parent-control-polkit-agent.service
 OBSOLETE_EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js parentalApproval.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js
@@ -74,7 +74,7 @@ BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_
 PARENT_TITLEBAR_ASSET := data/app_logo_titlebar.png
 EXTENSION_BRANDING_ASSETS := data/brand.json data/app_logo_gnome_launcher.png
 # gnome-extensions resolves extra sources relative to CHILD_DIR.
-EXTENSION_PACK_ASSETS := $(EXTENSION_BRANDING_ASSETS:data/%=../data/%) ../common/oh_no_parent_control_ui/diagnostic_catalog.json ../LICENSE ../COPYRIGHT ../NOTICE
+EXTENSION_PACK_ASSETS := $(EXTENSION_BRANDING_ASSETS:data/%=../data/%) ../common/oh_no_parent_control_ui/diagnostic_catalog.json ../common/oh_no_parent_control_ui/languages.json ../LICENSE ../COPYRIGHT ../NOTICE
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
@@ -394,7 +394,7 @@ _install-development-extension:
 	install -d "$(EXTENSION_DIR)" "$(EXTENSION_DIR)/schemas"
 	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(EXTENSION_DIR)/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES)) "$(EXTENSION_DIR)/"
-	install -m 0644 $(EXTENSION_BRANDING_ASSETS) common/oh_no_parent_control_ui/diagnostic_catalog.json LICENSE COPYRIGHT NOTICE "$(EXTENSION_DIR)/"
+	install -m 0644 $(EXTENSION_BRANDING_ASSETS) common/oh_no_parent_control_ui/diagnostic_catalog.json common/oh_no_parent_control_ui/languages.json LICENSE COPYRIGHT NOTICE "$(EXTENSION_DIR)/"
 	install -m 0644 "$(CHILD_DIR)/$(EXTENSION_SCHEMA)" "$(EXTENSION_DIR)/schemas/"
 	glib-compile-schemas "$(EXTENSION_DIR)/schemas"
 	@echo "Installed $(UUID) to $(EXTENSION_DIR)"
@@ -448,7 +448,7 @@ endif
 	# one immutable system payload discoverable in every session; the broker
 	# controls per-child activation through that child's GNOME settings.
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES)) "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
-	install -m 0644 $(EXTENSION_BRANDING_ASSETS) common/oh_no_parent_control_ui/diagnostic_catalog.json LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
+	install -m 0644 $(EXTENSION_BRANDING_ASSETS) common/oh_no_parent_control_ui/diagnostic_catalog.json common/oh_no_parent_control_ui/languages.json LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
 	install -m 0644 "$(CHILD_DIR)/$(EXTENSION_SCHEMA)" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas/"
 	glib-compile-schemas "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas"
 	install -m 0644 $(addprefix broker/oh_no_parent_control/,$(BROKER_SOURCES)) "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"

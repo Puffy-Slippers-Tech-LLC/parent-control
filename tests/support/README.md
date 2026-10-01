@@ -36,6 +36,12 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 ## Host and guest boundaries
 
+Parent preview launch and installed Parent entry share
+`AccessibleUI.complete_parent_language_setup`. It resolves the owned startup
+dialog by public ID, activates Continue once and checks fresh closure/readiness.
+`Automation.complete_parent_language_setup` exposes the same operation to UI
+consumers. Existing management cases therefore retain their original scope.
+
 Host support never establishes installed or customer acceptance. Guest execution
 uses [system_assertions.py](../integration/system_assertions.py) for real-caller
 batches, validated broker replies and authoritative account snapshots, and

@@ -221,18 +221,20 @@ language names in catalogue order and explains that Preferences can change the
 selection, using the same neutral wording for initial setup and subsequent visits.
 
 Parent uses its native GTK dialog; the kiosk and overlay share their separate
-metal-board dialog. Both share catalogue and resolution logic. Continue is the
-sole dismissal action and commits the selected explicit product ID through
-`SetOwnLanguage` before closing. Saving disables the choices and Continue to
+metal-board dialog. Both share catalogue and resolution logic. Save commits the
+selected explicit product ID through `SetOwnLanguage` before closing and is the
+sole dismissal action during first-time setup. When a saved language exists,
+Cancel closes the dialog without writing or applying the candidate selection.
+Saving disables the choices, Save and Cancel to
 prevent duplicate submissions. A failure retains the choice, displays an error
 and enables retry.
 
 The top-right Preferences action reopens the chooser with the account's saved
 selection. Opening it does not write a default. Selecting a language changes only
-the dialog's candidate value; Continue commits it. The candidate does not preview
+the dialog's candidate value; Save commits it. The candidate does not preview
 translations or replace the active context before persistence succeeds.
 
-The empty storage value supplies the first-run default; the chooser's Continue
+The empty storage value supplies the first-run default; the chooser's Save
 action makes the selection explicit. The chooser exposes explicit product
 language choices. Empty remains the unset state that triggers setup at frontend
 start, rather than a selectable persistent mode.
@@ -245,7 +247,8 @@ their existing policy and account checks.
 
 The [frontend contract](Frontends.md#personal-language-selection) owns public
 chooser IDs and readiness observations. `language-dialog`,
-`language-choice-<lowercase-id>` and `language-continue` stay stable across
+`language-choice-<lowercase-id>`, `language-continue` (Save) and `language-cancel`
+stay stable across
 translations. Accessible names, descriptions and validation messages are
 translated for people; IDs, actions and selected-value identities are not.
 
@@ -357,7 +360,7 @@ UI actions and observations for customer acceptance.
 | --- | --- |
 | Language backend | Caller-scoped authorization, invalid input rejection, restart persistence, personal-only records, migration, stale-policy and rollback preservation, concurrent writes, corrupt/future record rejection |
 | Catalogue infrastructure | Real compiled catalogues; resolution, Unicode, named formatting, contexts, language-specific plurals, missing-entry fallback, corrupt-catalogue errors and Python/GJS parity |
-| GUI settings | First-run default, Continue persistence before closure, Preferences reopening, save failure/retry, owning-account isolation and stable public IDs |
+| GUI settings | First-run default, Save persistence before closure, Cancel only with a saved language and no candidate persistence, Preferences reopening, save failure/retry, owning-account isolation and stable public IDs |
 | Language application | Visible and accessible text changes, dynamic result text, preserved selections/drafts/focus, child panel refresh and no change to policy or countdown behavior |
 | Layout and packaging | Long text and script coverage at supported scales; private staged MO assets in both package formats and the extension archive; translated installed surfaces |
 

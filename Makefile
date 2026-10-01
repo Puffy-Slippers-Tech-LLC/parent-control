@@ -41,6 +41,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy \
 	$(DATADIR)/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy \
 	$(DATADIR)/oh-no-parent-control/99-oh-no-parent-control-allow.rules \
+	$(DATADIR)/oh-no-parent-control/child-extension.trust \
 	$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session \
 	$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop \
 	$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png \

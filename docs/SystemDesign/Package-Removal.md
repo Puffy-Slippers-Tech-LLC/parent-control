@@ -158,6 +158,11 @@ under `/usr/share/oh-no-parent-control`, so reinstall recreates these generated
 files without relying on dpkg to restore deleted conffiles. Manually deleting a
 Debian conffile during ordinary removal preserves its missing state on reinstall;
 ownership records and runtime copies avoid resetting administrator conffiles.
+The supplemental child-module trust file follows the same ownership contract.
+Removal deletes only `/etc/fapolicyd/trust.d/oh-no-parent-control.trust`, then
+requests a trust-database refresh if fapolicyd is active. Other trust files and
+the distribution's package filter survive. A failed refresh fails cleanup and
+is retried on the next removal attempt.
 See [Debian configuration-file policy](https://www.debian.org/doc/debian-policy/ch-files.html#configuration-files).
 The Polkit rule and actions live under `/usr/share/polkit-1` and are removed by
 dpkg; polkitd monitors these directories. Administrator rules under `/etc` survive.

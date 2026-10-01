@@ -1,7 +1,8 @@
 """Fixed system session operations over the owned VM's guarded SSH transport.
 
-This module is also sent on stdin to the guest. It accepts fixture roles and
-operation names only. It never observes or changes private product state.
+This module is also sent on stdin to the guest. Customer operations accept
+fixture roles; root maintenance logout binds an explicit UID and session.
+It never observes or changes private product state.
 """
 
 import json
@@ -29,6 +30,7 @@ LABELS = {'switch-user': 'Switching to the greeter',
 LABELS.update({'command-context': 'Verifying the administrator package command context',
                'command-refused': 'Checking command refusal outside the fixture desktop',
                'continuous-activity': 'Preparing the Parent desktop for continuous accessibility input'})
+LOGOUT_COMMAND = ['/usr/bin/gnome-session-quit', '--logout', '--no-prompt']
 
 
 class SessionError(RuntimeError):
@@ -133,7 +135,7 @@ def submit(action):
     """One selected route. Failure is uncertain input; there is no fallback."""
     require(action in LABELS, 'action')
     if action == 'logout':
-        call(['/usr/bin/gnome-session-quit', '--logout', '--no-prompt'])
+        call(LOGOUT_COMMAND)
         return
     # Resolve the switching dependency before the first mutation.
     if action in ('switch-user', 'return-greeter'):
@@ -196,6 +198,55 @@ def package_digest():
         require(identity(os.fstat(stream.fileno())) == identity(before)
                 and identity(path.lstat()) == identity(before), 'package-changed')
     return digest
+
+
+def maintenance_logout(uid, identity):
+    """Root maintenance can log out one pinned desktop even while it is locked.
+
+    Customer journeys retain their foreground/unlocked entry contract. This
+    administrative operation instead binds an explicit UID and session, keeps
+    the observer root, and runs only GNOME's logout command as the desktop user.
+    There is no forced termination or retry after uncertain input.
+    """
+    require(os.geteuid() == 0 and type(uid) is int and uid >= 1000
+            and isinstance(identity, str) and re.fullmatch(r'[a-zA-Z0-9]+', identity),
+            'maintenance-binding')
+    account = pwd.getpwuid(uid)
+
+    def owned(current):
+        matches = [key for key, item in current.items() if local_graphical(item)
+                   and item['User'] == str(uid) and item['Class'] in ('user', 'user-early')]
+        require(matches == [identity], 'maintenance-source')
+        return current[identity]
+
+    before = sessions()
+    source = owned(before)
+    others = {key: item for key, item in before.items() if key != identity
+              and local_graphical(item) and item['Class'] in ('user', 'user-early')}
+    env = environment(account)
+    require(owned(sessions()) == source, 'source-changed')
+    subprocess.run(LOGOUT_COMMAND, stdin=subprocess.DEVNULL, capture_output=True,
+                   check=True, timeout=15, env=env, user=uid, group=account.pw_gid,
+                   extra_groups=os.getgrouplist(account.pw_name, account.pw_gid))
+    deadline = time.monotonic() + 45
+    while True:
+        current = sessions()
+        for key, item in others.items():
+            require(key in current and all(current[key][field] == item[field]
+                    for field in ('User', 'Remote', 'Class', 'Type', 'Seat')),
+                    'maintenance-other-session-lost')
+        if identity not in current:
+            require(not any(local_graphical(item) and item['User'] == str(uid)
+                            and item['Class'] in ('user', 'user-early')
+                            for item in current.values()), 'maintenance-source-replaced')
+            return {'operation': 'maintenance-logout', 'outcome': 'passed',
+                    'source_retained': False, 'other_desktops_retained': True}
+        retained = owned(current)
+        require(all(retained[field] == source[field]
+                    for field in ('User', 'Remote', 'Class', 'Type', 'Seat')),
+                'maintenance-source-changed')
+        require(time.monotonic() < deadline, 'destination-timeout')
+        time.sleep(.2)
 
 
 def prepare_continuous_activity():
@@ -306,8 +357,12 @@ def observe(transport, binding):
 
 if __name__ == '__main__':
     try:
-        require(len(sys.argv) == 2, 'arguments')
-        print(json.dumps(execute(sys.argv[1]), sort_keys=True))
+        if len(sys.argv) == 4 and sys.argv[1] == 'maintenance-logout':
+            result = maintenance_logout(int(sys.argv[2]), sys.argv[3])
+        else:
+            require(len(sys.argv) == 2, 'arguments')
+            result = execute(sys.argv[1])
+        print(json.dumps(result, sort_keys=True))
     except SessionError as error:
         print(str(error), file=sys.stderr)
         sys.exit(1)

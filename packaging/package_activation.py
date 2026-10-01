@@ -12,10 +12,15 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
+import subprocess
+import time
 
 
 LEVELS = ("none", "process-restart", "session-renewal", "reboot")
 MANIFEST_VERSION = 1
+EXTENSION_PATH = Path('usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com')
+EXTENSION_TRUST_PATH = Path('usr/share/oh-no-parent-control/child-extension.trust')
 
 
 def activation_for(path: str) -> str:
@@ -126,6 +131,21 @@ def included_files(root: Path, includes: list[Path]) -> list[Path]:
 
 
 def generate(root: Path, output: Path, includes: list[Path] | None = None) -> None:
+    # Freeze trust from the staged package bytes, never from mutable installed
+    # files during configuration. The package filter can omit .mjs even though
+    # the daemon classifies them as JavaScript. Only packaged ES modules need
+    # supplemental trust; do not trust a directory or change language rules.
+    modules = sorted((root / EXTENSION_PATH).glob('*.mjs'))
+    if modules:
+        records = ['# Packaged child ES modules; generated from shipped bytes.\n']
+        for module in modules:
+            if module.is_symlink() or not module.is_file():
+                raise ValueError('invalid packaged child ES module')
+            records.append(f'/{module.relative_to(root).as_posix()} '
+                           f'{module.stat().st_size} {file_digest(module)}\n')
+        trust = root / EXTENSION_TRUST_PATH
+        trust.parent.mkdir(parents=True, exist_ok=True)
+        trust.write_text(''.join(records), encoding='utf-8')
     output_relative = output.relative_to(root).as_posix()
     files = []
     if includes is None:
@@ -187,6 +207,44 @@ def changed_impacts(old_path: Path, new_path: Path) -> list[str]:
     return [level for level in LEVELS[1:] if level in impacts]
 
 
+def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH) -> None:
+    """Wait for the asynchronous trust update to publish our exact records.
+
+    Read the packaged manifest, not mutable module bytes. The CLI's update
+    command only queues a request; dump-db reads the committed live database.
+    This is database readiness, not proof of a fresh Shell import.
+    """
+    expected = set()
+    for line in path.read_text(encoding='utf-8').splitlines():
+        if not line.strip() or line.startswith('#'):
+            continue
+        fields = line.split()
+        if (len(fields) != 3 or Path(fields[0]).parent != Path('/') / EXTENSION_PATH
+                or not re.fullmatch(r'[A-Za-z0-9_-]+\.mjs', Path(fields[0]).name)
+                or not fields[1].isdecimal() or not re.fullmatch(r'[0-9a-f]{64}', fields[2])):
+            raise ValueError('invalid packaged child trust record')
+        expected.add(tuple(fields))
+    if not expected:
+        raise ValueError('missing packaged child trust records')
+    deadline = time.monotonic() + 30
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('packaged child trust update did not complete')
+        result = subprocess.run(['/usr/sbin/fapolicyd-cli', '--dump-db'],
+                                stdin=subprocess.DEVNULL, capture_output=True,
+                                text=True, check=True, timeout=remaining,
+                                env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+        present = set()
+        for line in result.stdout.splitlines():
+            fields = line.split()
+            if len(fields) == 4 and fields[0] in ('file', 'filedb'):
+                present.add(tuple(fields[1:]))
+        if expected <= present:
+            return
+        time.sleep(min(.25, max(0, deadline - time.monotonic())))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
@@ -200,11 +258,17 @@ def main() -> None:
     compare_parser = commands.add_parser("changed-impacts")
     compare_parser.add_argument("--old", type=Path, required=True)
     compare_parser.add_argument("--new", type=Path, required=True)
+    commands.add_parser("wait-child-trust")
     args = parser.parse_args()
     if args.command == "generate":
         generate(args.root.resolve(), args.output.resolve(), args.include)
-    else:
+    elif args.command == "changed-impacts":
         print("\n".join(changed_impacts(args.old, args.new)))
+    else:
+        try:
+            wait_child_trust()
+        except (OSError, ValueError, subprocess.SubprocessError):
+            raise SystemExit('oh-no-parent-control: child trust database is not ready') from None
 
 
 if __name__ == "__main__":

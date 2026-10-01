@@ -1087,7 +1087,7 @@ qualification; consumers use the isolation helper and
 TCP/UDP DNS observations. They do not inherit the qualification journey.
 `parent_setup_qualification.IndependentNetworkQualification` passed
 `tools/run-tests integration check_e2e_independent_network_management` in
-`20260930T225447Z-420cdcde` on every enabled VM (`onpc-Ubuntu26.04`). It proved
+`20260930T225447Z-420cdcde` on every enabled VM (the configured Ubuntu VM). It proved
 online → offline → online, fresh SSH/public desktop reads, watch reconnects,
 wrong-entry/replay refusal and exception-unwind restoration, with collection,
 owned cleanup and baseline restoration. IPv6 had no default route in this run;
@@ -1104,7 +1104,7 @@ and requires independent Internet probes before, during and after isolation.
 sequence through `onpc_parent_toggle::run`, with fresh qualified sign-in and
 PARENT01 launch rather than autologin/autostart preparation.
 `check_e2e_operate_public_connectivity_controls` passed in
-`20260930T233245Z-9d68a23f` on every enabled VM (`onpc-Ubuntu26.04`): disabled
+`20260930T233245Z-9d68a23f` on every enabled VM (the configured Ubuntu VM): disabled
 entry and wrong-child refusal, offline enable/disable with separate saved-state
 reads, unchanged active Parent window and Internet recovery. The affected
 `check_e2e_toggle` qualification passed in `20260930T233540Z-66f7eb21`.

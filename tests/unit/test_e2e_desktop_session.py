@@ -133,6 +133,52 @@ def test_logout_is_one_direct_command_without_force_or_a_shell(monkeypatch):
     assert call.call_count == 1
 
 
+@pytest.mark.parametrize('active,locked', [('yes', 'no'), ('no', 'yes')])
+def test_root_maintenance_logout_retains_other_desktops(monkeypatch, active, locked):
+    account = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture')
+    source = props(active=active, locked=locked)
+    other = props('1001', active='no' if active == 'yes' else 'yes')
+    before = {'7': source, '8': other}
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control.pwd, 'getpwuid', lambda _: account)
+    monkeypatch.setattr(control.os, 'getgrouplist', lambda *_: [1000])
+    monkeypatch.setattr(control, 'environment', lambda _: {'bound': 'desktop'})
+    monkeypatch.setattr(control, 'sessions', Mock(side_effect=[before, before, {'8': other}]))
+    run = Mock()
+    monkeypatch.setattr(control.subprocess, 'run', run)
+    assert control.maintenance_logout(1000, '7') == {
+        'operation': 'maintenance-logout', 'outcome': 'passed',
+        'source_retained': False, 'other_desktops_retained': True}
+    assert run.call_count == 1
+    assert run.call_args.args[0] == control.LOGOUT_COMMAND
+    assert run.call_args.kwargs['user'] == 1000
+    assert run.call_args.kwargs['env'] == {'bound': 'desktop'}
+    assert control.os.geteuid() == 0
+
+
+@pytest.mark.parametrize('fault', ['nonroot', 'owner', 'ambiguous', 'changed', 'uncertain', 'other-lost'])
+def test_root_maintenance_logout_refuses_without_fallback(monkeypatch, fault):
+    account = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture')
+    before = {'7': props(active='no', locked='yes'), '8': props('1001')}
+    after = {'8': props('1001')}
+    if fault == 'owner':
+        before['7']['User'] = '1002'
+    if fault == 'ambiguous':
+        before['9'] = props(active='no')
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 1 if fault == 'nonroot' else 0)
+    monkeypatch.setattr(control.pwd, 'getpwuid', lambda _: account)
+    monkeypatch.setattr(control.os, 'getgrouplist', lambda *_: [1000])
+    monkeypatch.setattr(control, 'environment', lambda _: {})
+    monkeypatch.setattr(control, 'sessions', Mock(side_effect=[
+        before, after if fault == 'changed' else before,
+        {} if fault == 'other-lost' else after]))
+    run = Mock(side_effect=TimeoutError if fault == 'uncertain' else None)
+    monkeypatch.setattr(control.subprocess, 'run', run)
+    with pytest.raises((control.SessionError, TimeoutError)):
+        control.maintenance_logout(1000, '7')
+    assert run.call_count == (1 if fault in ('uncertain', 'other-lost') else 0)
+
+
 @pytest.mark.parametrize('action', ['switch-user', 'return-greeter'])
 def test_greeter_command_locks_only_an_unlocked_source_and_never_retries(monkeypatch, action):
     events = []

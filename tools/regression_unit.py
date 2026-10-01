@@ -277,6 +277,18 @@ write_e2e write_e2e_cleanup_safety
 # Fedora/Ubuntu payload fixtures. Unit parsing and activation comparisons add
 # only private files; no real systemd, SELinux policy, VM or extra build fixture.
 # The packaging modules retain their compatible unit classifications.
+# Root maintenance logout checks use process-local account/session/command
+# doubles; no real identity changes, session, bus or display. Trust-readiness
+# checks use private tiny manifests and fake command/clock results. Existing
+# e2e_desktop_session and package_activation compatible classifications hold.
+# Child-module trust checks reuse private staged payloads and relocated lifecycle
+# machines, tiny hashes/files and waited command doubles. They touch no host
+# trust database, service, bus, VM or shared cache; existing packaging, activation,
+# configuration and removal modules remain compatible, with no added build load.
+# VM input-file regressions use tiny private pytest files, a sparse oversized
+# sentinel, private FIFO and process-local stdin/transport doubles. No real VM,
+# host service, socket or input descriptor is changed; vm_control_cleanup_safety
+# and vm_config retain compatible scheduling in unit and cleanup inventories.
 # Readiness removal/retry tests use the same private shell machine and bounded
 # command doubles, including ActiveState; they do not contact host systemd.
 # Parent privacy link coverage extends the existing in-memory accessibility

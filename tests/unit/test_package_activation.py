@@ -4,11 +4,84 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
 
 _activation = runpy.run_path(str(Path(__file__).resolve().parents[2] / "debian/package_activation.py"))
 activation_for = _activation["activation_for"]
 changed_impacts = _activation["changed_impacts"]
 generate = _activation["generate"]
+
+
+@pytest.mark.parametrize('fault', ['delayed', 'missing', 'digest', 'size', 'source', 'command'])
+def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch, fault):
+    wait = _activation['wait_child_trust']
+    namespace = wait.__globals__
+    records = [f'/{_activation["EXTENSION_PATH"]}/{name}.mjs 12 ' + digest * 64
+               for name, digest in [('indicatorLogic', 'a'), ('diagnosticEvents', 'b')]]
+    trust = tmp_path / 'child.trust'
+    trust.write_text('# packaged\n' + '\n'.join(records) + '\n')
+    complete = '\n'.join('filedb ' + line for line in records)
+    wrong = {'missing': '', 'digest': complete.replace('a' * 64, 'c' * 64),
+             'size': complete.replace(' 12 ', ' 13 '),
+             'source': complete.replace('filedb ', 'rpmdb ')}
+    outputs = ['', complete] if fault == 'delayed' else [wrong.get(fault, '')] * 4
+    run = Mock(side_effect=(subprocess.CalledProcessError(1, ['fapolicyd-cli'])
+                           if fault == 'command' else
+                           [SimpleNamespace(stdout=value) for value in outputs]))
+    monkeypatch.setattr(namespace['subprocess'], 'run', run)
+    clock = iter([0, 0, 10, 10, 20, 20, 30, 30])
+    monkeypatch.setattr(namespace['time'], 'monotonic', lambda: next(clock))
+    sleep = Mock()
+    monkeypatch.setattr(namespace['time'], 'sleep', sleep)
+    if fault == 'delayed':
+        wait(trust)
+        assert run.call_count == 2
+    else:
+        with pytest.raises((TimeoutError, subprocess.CalledProcessError)):
+            wait(trust)
+    assert run.call_args.args[0] == ['/usr/sbin/fapolicyd-cli', '--dump-db']
+    assert 0 < run.call_args.kwargs['timeout'] <= 30
+
+
+@pytest.mark.parametrize('contents', ['', '# no records\n', '/unexpected/module.mjs 1 ' + 'a' * 64])
+def test_child_trust_wait_refuses_missing_or_unscoped_manifest(tmp_path, monkeypatch, contents):
+    wait = _activation['wait_child_trust']
+    path = tmp_path / 'manifest'
+    path.write_text(contents)
+    run = Mock()
+    monkeypatch.setattr(wait.__globals__['subprocess'], 'run', run)
+    with pytest.raises(ValueError):
+        wait(path)
+    run.assert_not_called()
+
+
+def test_child_trust_contains_only_packaged_modules_and_refreshes_final_hashes(tmp_path):
+    import hashlib
+    extension = tmp_path / _activation['EXTENSION_PATH']
+    extension.mkdir(parents=True)
+    modules = {'indicatorLogic.mjs': b'export const indicator = 1;\n',
+               'diagnosticEvents.mjs': b'export const diagnostic = 2;\n'}
+    for name, contents in modules.items():
+        (extension / name).write_bytes(contents)
+    (extension / 'extension.js').write_text('import module;')
+    (extension / 'metadata.json').write_text('{}')
+    output = tmp_path / 'manifest.json'
+    trust = tmp_path / _activation['EXTENSION_TRUST_PATH']
+    for replacement in (b'export const indicator = 1;\n', b'export const indicator = 3;\n'):
+        modules['indicatorLogic.mjs'] = replacement
+        (extension / 'indicatorLogic.mjs').write_bytes(replacement)
+        generate(tmp_path, output)
+        lines = [line for line in trust.read_text().splitlines() if not line.startswith('#')]
+        assert lines == [f'/{_activation["EXTENSION_PATH"]}/{name} {len(contents)} '
+                         f'{hashlib.sha256(contents).hexdigest()}'
+                         for name, contents in sorted(modules.items())]
+        entries = {item['path']: item for item in json.loads(output.read_text())['files']}
+        entry = entries[str(_activation['EXTENSION_TRUST_PATH'])]
+        assert entry['activation'] == 'none'
+        assert entry['sha256'] == hashlib.sha256(trust.read_bytes()).hexdigest()
 
 
 def test_make_generates_activation_manifest_from_relocated_debian_helper(tmp_path):

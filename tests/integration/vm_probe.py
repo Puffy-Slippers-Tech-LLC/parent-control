@@ -5,6 +5,8 @@ credentials, transport flags, locks and observation remain fixed and guarded.
 """
 
 import re
+import os
+import stat
 import sys
 import xml.etree.ElementTree as ET
 
@@ -12,7 +14,7 @@ import system_runner as system
 from watch_activity import operation
 
 
-def execute(lease, command, timeout):
+def execute(lease, command, timeout, *, input_stream=False):
     """Probe the present instance; never boot, restore, rekey or correct time."""
     from online_snapshot import load, connect_saved_transport, validate_saved_snapshot
     # The caller has resumed the shared maintenance lease. Existing detached
@@ -32,6 +34,16 @@ def execute(lease, command, timeout):
         system.require(record is not None, 'vm-probe:snapshot-credentials-missing')
         validate_saved_snapshot(lease, xml, record)
         hostname = system.address(lease.source)
+        payload = None
+        if input_stream:
+            # The unprivileged launcher opened the source. Never open a host
+            # pathname as root, or block reading an interactive/pipe descriptor.
+            info = os.fstat(0)
+            limit = 64 * 1024 * 1024
+            system.require(stat.S_ISREG(info.st_mode) and info.st_size <= limit and
+                           os.lseek(0, 0, os.SEEK_CUR) == 0, 'vm-probe:invalid-input')
+            payload = sys.stdin.buffer.read(limit + 1)
+            system.require(len(payload) == info.st_size, 'vm-probe:input-changed')
         transport = connect_saved_transport(lease, lease.commands.directory, record, hostname)
 
         def output(data, stream):
@@ -39,7 +51,8 @@ def execute(lease, command, timeout):
             destination.write(data)
             destination.flush()
 
-        transport.call(command, timeout=timeout, check=False, on_stream=output)
+        transport.call(command, timeout=timeout, check=False, on_stream=output,
+                       **({'input': payload} if input_stream else {}))
         # Guard probes can replace Commands.last_returncode; capture it first.
         status = transport.commands.last_returncode
         lease.guard()

@@ -145,6 +145,14 @@ keeps SELinux enforcing. A package marker under `/run` repeats the kiosk reboot
 reminder until reboot. Fedora needs no Ubuntu update-notifier dependency.
 Reminders never reboot or log users out.
 
+Fedora's package trust filter permits `.js` but excludes `.mjs` under `/usr/share`,
+while fapolicyd classifies the child ES modules as JavaScript and its language
+policy requires trust. The shared [package lifecycle](SystemDesign/Lifecycle.md#startup-login-and-update-lifecycle)
+installs narrowly scoped supplemental trust from the shipped module hashes and
+refreshes the daemon before activation. This is distribution-independent package
+integration, also applied to Ubuntu; it neither widens Fedora's trust filter nor
+adds an allow rule. SELinux labels are restored before the daemon consumes the file.
+
 Fedora runs the shared execution canary in the independent
 `oh-no-parent-control-execution-policy-ready.service`. The display manager
 requires and orders itself after this oneshot gate, which requires fapolicyd;

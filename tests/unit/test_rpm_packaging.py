@@ -54,6 +54,14 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     assert files['usr/share/oh-no-parent-control/pam/managed-stack']['activation'] == 'reboot'
     for relative, entry in files.items():
         assert entry['sha256'] == hashlib.sha256((payload / relative).read_bytes()).hexdigest()
+    extension = payload / 'usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com'
+    trust_path = 'usr/share/oh-no-parent-control/child-extension.trust'
+    trust_lines = (payload / trust_path).read_text().splitlines()[1:]
+    assert trust_lines == [f'/{path.relative_to(payload)} {path.stat().st_size} '
+                           f'{hashlib.sha256(path.read_bytes()).hexdigest()}'
+                           for path in sorted(extension.glob('*.mjs'))]
+    assert len(trust_lines) == 2
+    assert files[trust_path]['activation'] == 'none'
     manuals = payload / 'usr/share/man/man1'
     for name in ('oh-no-parent-control.1', 'oh-no-parent-control-parent.1'):
         assert (manuals / name).read_bytes() == (ROOT / 'packaging/man' / name).read_bytes()

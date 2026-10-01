@@ -1,12 +1,43 @@
 #!/usr/bin/python3 -IB
 """Control a configured VM through its installed, individually pinned identity."""
 import os
+import stat
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dev_privileges import launch
 from vm_selection import extract
+
+MAX_INPUT_BYTES = 64 * 1024 * 1024
+
+
+def input_arguments(args):
+    """Open input as the caller; privileged code receives only this descriptor."""
+    controls = args[:args.index('--')] if '--' in args else args
+    if '--input-file' not in controls:
+        return args, None
+    if not controls or controls[0] != 'exec' or controls.count('--input-file') != 1:
+        raise ValueError('vm-probe: input-file requires exec')
+    index = controls.index('--input-file')
+    if index + 1 == len(controls) or controls[index + 1].startswith('-'):
+        raise ValueError('vm-probe: input-file requires a path')
+    path = controls[index + 1]
+    updated = args[:index] + ['--stdin'] + args[index + 2:]
+    from vm_selection import vm_config
+    vm_config.guest_command_arguments(updated[1:])
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError as error:
+        raise ValueError('vm-probe: input file is unreadable or substituted') from error
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_INPUT_BYTES:
+            raise ValueError('vm-probe: input must be a regular file at most 64 MiB')
+        return updated, fd
+    except BaseException:
+        os.close(fd)
+        raise
 
 if __name__ == '__main__':
     if os.geteuid() == 0:
@@ -19,6 +50,10 @@ if __name__ == '__main__':
                 Path(__file__).resolve().parents[1], ['vm', *args])
             sys.exit(0)
         # Keep the host selector before an exec command's -- boundary.
+        args, input_fd = input_arguments(args)
+        if input_fd is not None and input_fd != 0:
+            os.dup2(input_fd, 0)
+            os.close(input_fd)
         launch('/usr/local/libexec/onpc-test-runner', ['vm', '--vm', configured.name, *args])
     except (ValueError, OSError) as error:
         sys.exit('test-vm: ' + (str(error) if isinstance(error, ValueError) else 'refresh test tools with setup'))

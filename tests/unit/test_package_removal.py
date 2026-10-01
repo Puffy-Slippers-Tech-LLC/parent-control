@@ -13,6 +13,50 @@ from tests.support.paths import ROOT
 from tests.support.package_scripts import Machine, machine
 
 
+def test_child_trust_collision_refuses_before_package_changes(machine):
+    trust = machine.write('etc/fapolicyd/trust.d/oh-no-parent-control.trust', 'admin trust\n')
+    result = machine.run('preinst', 'install')
+    assert result.returncode != 0
+    assert trust.read_text() == 'admin trust\n'
+    assert not (machine.root / 'var/lib/oh-no-parent-control/migration-in-progress').exists()
+    assert 'stop oh-no-parent-control-broker.service' not in machine.commands
+
+
+@pytest.mark.parametrize('action', ['remove', 'purge'])
+def test_child_trust_removal_preserves_other_trust_and_refreshes_daemon(machine, action):
+    trust = machine.integration('child-extension-trust',
+                                'etc/fapolicyd/trust.d/oh-no-parent-control.trust')
+    admin = machine.write('etc/fapolicyd/trust.d/administrator.trust', 'keep admin trust\n')
+    result = machine.run('postrm', action, SERVICE_ACTIVE='1')
+    assert result.returncode == 0, result.stderr
+    assert not trust.exists()
+    assert not (machine.root / 'var/lib/oh-no-parent-control/installed-child-extension-trust').exists()
+    assert admin.read_text() == 'keep admin trust\n'
+    assert 'fapolicyd-cli --update' in machine.commands
+
+
+@pytest.mark.parametrize('phase', ['prerm', 'postrm'])
+def test_changed_child_trust_blocks_removal(machine, phase):
+    trust = machine.integration('child-extension-trust',
+                                'etc/fapolicyd/trust.d/oh-no-parent-control.trust')
+    trust.write_text('admin replacement\n')
+    result = machine.run(phase, 'remove')
+    assert result.returncode != 0
+    assert trust.read_text() == 'admin replacement\n'
+    assert (machine.root / 'var/lib/oh-no-parent-control/installed-child-extension-trust').exists()
+    assert 'uninstall --remove' not in machine.commands
+
+
+def test_child_trust_removal_refresh_failure_is_retryable(machine):
+    machine.integration('child-extension-trust',
+                        'etc/fapolicyd/trust.d/oh-no-parent-control.trust')
+    result = machine.run('postrm', 'remove', SERVICE_ACTIVE='1', TRUST_UPDATE_STATUS='7')
+    assert result.returncode == 7
+    result = machine.run('postrm', 'remove', SERVICE_ACTIVE='1')
+    assert result.returncode == 0, result.stderr
+    assert machine.commands.count('fapolicyd-cli --update') == 2
+
+
 def test_preinst_registers_dpkg_notice_before_unpack_and_retries_safely(machine):
     notice = machine.root / "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice"
     assert not notice.exists()

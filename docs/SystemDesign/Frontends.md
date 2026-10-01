@@ -195,8 +195,11 @@ and requires no product installation, package activation or saved-data migration
 
 ## Personal language selection
 
-Parent reads `GetOwnLanguage` asynchronously at startup. An empty value opens
-the modal [language chooser](../../parent/oh_no_parent_control_parent/language_dialog.py).
+Parent, kiosk and child overlay read `GetOwnLanguage` asynchronously at startup.
+An empty value opens a modal language chooser. Parent retains its
+[own dialog UI](../../parent/oh_no_parent_control_parent/language_dialog.py);
+kiosk and child overlay use a separate
+[metal-board dialog](../../kiosk/oh_no_parent_control_kiosk/language_dialog.py).
 Its default is the primary session message language from `GLib.get_language_names`,
 mapped by base language to the shared
 [catalogue](../../common/oh_no_parent_control_ui/languages.json); unsupported locales
@@ -210,16 +213,21 @@ the selection visible and permit retry. A nonempty saved value suppresses the
 startup dialog. The top-right menu's Preferences action opens the same chooser
 with the saved selection. This adds no translation application or locale changes,
 and uses the existing preference schema without migration. It activates with the
-next Parent process.
+next frontend process. The overlay uses the child's personal setting; the kiosk
+uses the kiosk account's setting, independently of the selected child/approver.
+All dialogs reuse `selected_language` in the shared catalogue module for saved
+selection and session fallback. Request controls wait for startup language setup.
 
-The dialog publishes `parent-language-dialog`, `parent-language-choice-<lowercase-id>`
-and `parent-language-continue`, with the shared public owner relation and control
-metadata. The main content publishes `parent-language-loading` until the initial
-choice is saved or an existing selection is read, then `parent-language-ready`.
-The common host/E2E `complete_parent_language_setup` helper waits for this
+Both dialog UIs publish `language-dialog`, `language-choice-<lowercase-id>`
+and `language-continue`, scoped to their owning application and window, with the
+shared public owner relation and control metadata. The main content publishes
+`parent-language-loading` or `kiosk-language-loading` until the initial
+choice is saved or an existing selection is read, then the matching `*-language-ready`.
+The common host/E2E `complete_language_setup` helper waits for this
 startup result, clicks Continue once if needed, and independently observes
 closure and readiness. It leaves a subsequently opened Preferences dialog alone.
-Host preview launch and installed Parent entry checkpoints use this helper.
+Host preview launch and installed entry checkpoints use its
+`complete_parent_language_setup` and `complete_request_language_setup` wrappers.
 
 ## Parent controls and shared information
 

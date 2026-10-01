@@ -31,6 +31,7 @@ from common.oh_no_parent_control_ui.errors import (
 )
 
 from .model import RequestState, public_error
+from .language_dialog import LanguageDialog
 from .request_content import RequestContent
 from .selection_store import SelectionStore
 from .snowflakes import GATEWAY_OUTER_BOUNDS, SnowflakeField
@@ -930,6 +931,11 @@ class RequestWindow(Adw.ApplicationWindow):
         self._errors = ErrorHandler(self, "Child App" if child_overlay else "Kiosk App")
         self._error_report = None
         self._applying_preferences = False
+        self._own_language = None
+        self._language_dialog = None
+        self._language_loading = False
+        self._language_requested = False
+        self._language_load_failed = False
         self._state = RequestState()
         self._estimate_revision = 0
         self._estimate_in_flight = False
@@ -958,6 +964,7 @@ class RequestWindow(Adw.ApplicationWindow):
             from .preview_screen import notify_screen_ready
             self.connect("map", lambda *_: GLib.timeout_add(100, notify_screen_ready, self))
         self._load_users()
+        GLib.idle_add(self._load_language)
         self._estimate_refresh_id = GLib.timeout_add_seconds(
             30, self._refresh_time_estimate,
         )
@@ -983,7 +990,12 @@ class RequestWindow(Adw.ApplicationWindow):
         layout = Gtk.Overlay()
         set_automation_id(layout, "kiosk-window-layout")
         layout.set_child(self._background)
-        layout.add_overlay(self._stack)
+        self._language_readiness = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        set_automation_id(self._language_readiness, "kiosk-language-loading")
+        self._stack.set_vexpand(True)
+        self._stack.set_sensitive(False)
+        self._language_readiness.append(self._stack)
+        layout.add_overlay(self._language_readiness)
         help_popover = Gtk.Popover()
         set_automation_id(help_popover, "kiosk-help-popover")
         help_popover.set_has_arrow(False)
@@ -995,6 +1007,12 @@ class RequestWindow(Adw.ApplicationWindow):
         menu_actions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         set_automation_id(menu_actions, "kiosk-help-actions")
         menu_actions.add_css_class("oh-no-parent-control-hud-menu-actions")
+        preferences_item = self._hud_menu_item("PREFERENCES", MENU, identity="preferences")
+        describe_control(preferences_item, "Preferences", "Choose your language.")
+        preferences_item.connect("clicked", lambda *_args: self._activate_help_menu(
+            help_popover, self._show_preferences,
+        ))
+        menu_actions.append(preferences_item)
         if self._child_overlay:
             help_item = self._hud_menu_item("HELP", HELP, identity="help")
             describe_control(
@@ -1055,7 +1073,7 @@ class RequestWindow(Adw.ApplicationWindow):
         )
         describe_control(
             menu_button, "Request-screen menu",
-            "Open help and product information for this request screen.",
+            "Open preferences, help and product information for this request screen.",
             automation_id="kiosk-menu-button",
         )
         menu_button.set_child(menu_icon)
@@ -1167,6 +1185,91 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _show_about(self, *_args):
         AboutDialog(self, links_enabled=self._child_overlay).present()
+
+    def _load_language(self):
+        if self._language_loading or self._estimate_closed:
+            return GLib.SOURCE_REMOVE
+        self._language_loading = True
+        if self._preview and not self._interactive_preview:
+            self._language_loaded(self._own_language or "")
+        else:
+            try:
+                self._bus_call("GetOwnLanguage", None, "(s)", self._language_done)
+            except Exception as error:
+                self._language_failed(error)
+        return GLib.SOURCE_REMOVE
+
+    def _language_done(self, connection, result):
+        try:
+            language, = connection.call_finish(result).unpack()
+        except Exception as error:
+            self._language_failed(error)
+        else:
+            self._language_loaded(language)
+
+    def _language_loaded(self, language):
+        self._language_loading = False
+        if self._estimate_closed:
+            return
+        self._own_language = language
+        if self._language_load_failed:
+            self._language_load_failed = False
+            self._stack.set_visible_child_name("request")
+        if not language or self._language_requested:
+            self._show_preferences()
+        else:
+            self._language_saved(language)
+
+    def _language_failed(self, error):
+        self._language_loading = False
+        if not self._estimate_closed:
+            self._language_load_failed = True
+            self._stack.set_sensitive(True)
+            set_automation_id(self._language_readiness, "kiosk-language-load-error")
+            self._show_error(error)
+            self._result_detail.set_text(
+                "Your language preference could not be loaded. Open Preferences to try again.")
+            self._result_detail.set_visible(True)
+
+    def _show_preferences(self, *_args):
+        if self._estimate_closed:
+            return
+        self._language_requested = True
+        if self._own_language is None:
+            self._load_language()
+            return
+        if self._language_dialog is None:
+            self._language_dialog = LanguageDialog(
+                self, self._own_language, self._save_language, self._language_saved)
+        self._language_dialog.present()
+
+    def _save_language(self, language, success, failure):
+        if self._preview and not self._interactive_preview:
+            success(language)
+            return
+
+        def finished(connection, result):
+            try:
+                saved, = connection.call_finish(result).unpack()
+            except Exception as error:
+                if not self._estimate_closed:
+                    failure(error)
+            else:
+                if not self._estimate_closed:
+                    success(saved)
+
+        try:
+            self._bus_call("SetOwnLanguage", GLib.Variant("(s)", (language,)), "(s)", finished)
+        except Exception as error:
+            if not self._estimate_closed:
+                failure(error)
+
+    def _language_saved(self, language):
+        self._own_language = language
+        self._language_dialog = None
+        self._language_requested = False
+        self._stack.set_sensitive(True)
+        set_automation_id(self._language_readiness, "kiosk-language-ready")
 
     def _menu_state_changed(self, menu_button, _property):
         LOG.info("kiosk.007", expanded=menu_button.get_active(), overlay=self._child_overlay)

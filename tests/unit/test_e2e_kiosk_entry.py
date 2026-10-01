@@ -673,6 +673,7 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
     (e2e / 'block_semantics.py').write_text('SEMANTICS = True\n')
     (e2e / 'feedback_formats.py').write_text('FORMATS = True\n')
     (e2e / 'download_destination.py').write_text('DESTINATION = True\n')
+    (e2e / 'fixture_ui.py').write_text('FIXTURE_UI = True\n')
     data = tmp_path / 'data'
     data.mkdir()
     (data / 'app.json').write_text('{"version": "1.1"}')
@@ -696,7 +697,11 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
         'download_destination = types.ModuleType("download_destination")\n'
         'sys.modules["download_destination"] = download_destination\n'
         'exec(compile(' + repr('DESTINATION = True\n') + ', "download_destination.py", "exec"), '
-        'download_destination.__dict__)\n' + source
+        'download_destination.__dict__)\n'
+        'fixture_ui = types.ModuleType("fixture_ui")\n'
+        'sys.modules["fixture_ui"] = fixture_ui\n'
+        'exec(compile(' + repr('FIXTURE_UI = True\n') + ', "fixture_ui.py", "exec"), '
+        'fixture_ui.__dict__)\n' + source
     ).encode()
 
     def call(argv, **kwargs):

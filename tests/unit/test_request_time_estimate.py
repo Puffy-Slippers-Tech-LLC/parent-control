@@ -1,7 +1,7 @@
-"""Delayed broker replies and footer priority without a graphical session."""
+"""Asynchronous request-window preferences and estimates without a display."""
 
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -27,6 +27,64 @@ def estimate_window():
     ), RequestWindow, (
         "_refresh_time_estimate", "_time_estimate_done", "_finish_time_estimate",
     ))
+
+
+@pytest.mark.parametrize("language,requested,prompt", [
+    ("", False, True), ("fr", False, False), ("fr", True, True),
+])
+def test_language_startup_uses_caller_preference_and_only_prompts_when_needed(
+        language, requested, prompt):
+    window = SimpleNamespace(
+        _estimate_closed=False, _language_load_failed=False,
+        _language_requested=requested, _show_preferences=Mock(), _language_saved=Mock())
+    RequestWindow._language_loaded(window, language)
+    assert window._own_language == language
+    assert not window._language_loading
+    assert window._show_preferences.called == prompt
+    assert window._language_saved.called == (not prompt)
+
+
+@pytest.mark.parametrize("closed,error", [(False, None), (False, RuntimeError("private")),
+                                         (True, None), (True, RuntimeError("private"))])
+def test_language_save_uses_own_account_api_and_ignores_late_callbacks(closed, error):
+    window = SimpleNamespace(_preview=False, _estimate_closed=False, _bus_call=Mock())
+    success, failure = Mock(), Mock()
+    RequestWindow._save_language(window, "pt-BR", success, failure)
+    method, parameters, signature, callback = window._bus_call.call_args.args
+    assert method == "SetOwnLanguage"
+    assert parameters.unpack() == ("pt-BR",)  # No child or approver UID.
+    assert signature == "(s)"
+    window._estimate_closed = closed
+    connection = SimpleNamespace(call_finish=Mock(
+        side_effect=error, return_value=SimpleNamespace(unpack=lambda: ("pt-BR",))))
+    callback(connection, object())
+    assert success.called == (not closed and error is None)
+    assert failure.called == (not closed and error is not None)
+
+
+def test_language_read_coalesces_preferences_requests_and_retries_after_failure():
+    window = bind_methods(SimpleNamespace(
+        _estimate_closed=False, _language_loading=False, _preview=False,
+        _bus_call=Mock(), _show_error=Mock(), _stack=Mock(), _result_detail=Mock(),
+        _language_readiness=Mock(), _language_requested=True, _language_load_failed=False,
+        _show_preferences=Mock(),
+    ), RequestWindow, ("_load_language", "_language_done", "_language_failed", "_language_loaded"))
+    window._load_language()
+    window._load_language()
+    assert window._bus_call.call_count == 1
+    assert window._bus_call.call_args.args[:3] == ("GetOwnLanguage", None, "(s)")
+    callback = window._bus_call.call_args.args[3]
+    with patch("oh_no_parent_control_kiosk.main.set_automation_id"):
+        callback(SimpleNamespace(call_finish=Mock(side_effect=RuntimeError("private"))), object())
+    assert not window._language_loading
+    assert window._language_load_failed
+    window._load_language()
+    callback(SimpleNamespace(call_finish=Mock(
+        return_value=SimpleNamespace(unpack=lambda: ("de",)))), object())
+    assert window._bus_call.call_count == 2
+    assert not window._language_load_failed
+    window._stack.set_visible_child_name.assert_called_once_with("request")
+    window._show_preferences.assert_called_once_with()
 
 
 def reply(window, seconds=1200, error=None):

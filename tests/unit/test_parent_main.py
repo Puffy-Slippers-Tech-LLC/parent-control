@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest import mock
 from types import SimpleNamespace
 
-from common.oh_no_parent_control_ui.languages import session_language, supported_language
+from common.oh_no_parent_control_ui.languages import selected_language, session_language, supported_language
 
 from parent.oh_no_parent_control_parent.main import (
     ACCOUNT_REFRESH_SECONDS, APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, STATES, ParentAccountSelector, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _minutes_label,
@@ -98,6 +98,9 @@ class ParentWindowTests(unittest.TestCase):
                 self.assertEqual(supported_language(locale), expected)
         self.assertEqual(session_language(["nl_NL", "de_DE", "C"]), "en")
         self.assertEqual(session_language([]), "en")
+        self.assertEqual(selected_language("", ["pt_PT.UTF-8"]), "pt-BR")
+        self.assertEqual(selected_language("fr-CA", ["de_DE"]), "fr")
+        self.assertEqual(selected_language("", ["nl_NL", "fr_FR"]), "en")
 
     def test_language_read_only_prompts_for_empty_or_requested_preferences(self):
         for language, requested, prompt in (("", False, True), ("de", False, False),

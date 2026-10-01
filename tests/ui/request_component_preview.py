@@ -42,6 +42,7 @@ class Broker:
         self.path = os.environ.get("ONPC_REQUEST_COMPONENT_EVENTS_PATH")
         self.pending_slow_reply = None
         self.preferences = copy.deepcopy(PREFERENCES)
+        self.language = ""
         if self.scenario == "two-hours-grant-only":
             self.preferences[1001]["request"]["last_selected_duration"] = "7200"
         if self.scenario == "control-disabled":
@@ -99,6 +100,11 @@ class Broker:
         return reply
 
     def reply(self, method, values):
+        if method == "GetOwnLanguage":
+            return Reply((self.language,))
+        if method == "SetOwnLanguage":
+            self.language, = values
+            return Reply((self.language,))
         if self.scenario.startswith("service-failure") and method.startswith("Request"):
             return Reply(error=RuntimeError("org.example.Secret /private/path"))
         if method == "GetOwnAccount":

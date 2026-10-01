@@ -36,11 +36,15 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 ## Host and guest boundaries
 
-Parent preview launch and installed Parent entry share
-`AccessibleUI.complete_parent_language_setup`. It resolves the owned startup
+Parent, kiosk and child-overlay entry use
+`AccessibleUI.complete_language_setup` through the parent/request wrappers.
+It resolves the owned startup
 dialog by public ID, activates Continue once and checks fresh closure/readiness.
-`Automation.complete_parent_language_setup` exposes the same operation to UI
-consumers. Existing management cases therefore retain their original scope.
+`Automation.complete_parent_language_setup` and
+`Automation.complete_request_language_setup` expose the same operation to UI
+consumers. Existing cases therefore retain their original scope. Preview launch
+owns the existing process and private bus as before; setup adds no new resource,
+storage or cleanup lifetime and leaves the existing parallel classifications intact.
 
 Host support never establishes installed or customer acceptance. Guest execution
 uses [system_assertions.py](../integration/system_assertions.py) for real-caller

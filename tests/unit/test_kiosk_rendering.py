@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 
 from tests.support.paths import ROOT
+from common.oh_no_parent_control_ui import messages as m
 KIOSK_MAIN = ROOT / "kiosk/oh_no_parent_control_kiosk/main.py"
 KIOSK_CONTENT = ROOT / "kiosk/oh_no_parent_control_kiosk/request_content.py"
 PREVIEW_SCREEN = ROOT / "kiosk/oh_no_parent_control_kiosk/preview_screen.py"
@@ -64,11 +65,12 @@ class KioskRenderingTests(unittest.TestCase):
         source = KIOSK_CONTENT.read_text(encoding="utf-8")
 
         self.assertIn(
-            'display_label = f" {label}" if seconds is None else label',
+            'display_label = " " + label if seconds is None else label',
             source,
         )
         self.assertIn('label=display_label, hexpand=True', source)
-        self.assertIn('button, f"Request {label}"', source)
+        self.assertIn("button, m.REQUEST_LABEL_S % {'label': label}", source)
+        self.assertEqual(m.REQUEST_LABEL_S % {'label': 'Custom value'}, 'Request Custom value')
 
     def test_request_surfaces_only_connect_flash_triggered_audio(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
@@ -91,7 +93,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("self._mute_icon = PixelIcon(SPEAKER, display_size=28, label=\"\")", source)
         self.assertIn("menu_icon = PixelIcon(MENU, display_size=31, label=\"\")", source)
         self.assertIn(
-            'armor_kind="hud", tooltip_text="Mute sound and lightning"', source,
+            'armor_kind="hud", tooltip_text=m.MUTE_SOUND_AND_LIGHTNING', source,
         )
         self.assertIn('self._mute_button.connect("clicked", self._toggle_mute)', source)
         self.assertIn('self._thunder.set_muted(muted)', source)
@@ -144,12 +146,16 @@ class KioskRenderingTests(unittest.TestCase):
         )
         self.assertIn('self._bus_call("GetOwnAccount"', source)
         self.assertIn('"RequestOwnAccess"', source)
-        self.assertIn('CHILD_SUCCESS_COPY = "Time granted, Close"', source)
-        self.assertIn('CHILD_SUCCESS_TITLE = "Time granted"', source)
+        self.assertIn('CHILD_SUCCESS_COPY = m.TIME_GRANTED_CLOSE', source)
+        self.assertIn('CHILD_SUCCESS_TITLE = m.TIME_GRANTED', source)
+        self.assertEqual(m.TIME_GRANTED_CLOSE.source, 'Time granted, Close')
+        self.assertEqual(m.TIME_GRANTED.source, 'Time granted')
         self.assertIn("self._show_child_success()", source)
         self.assertIn("SUCCESS_LOGOUT_DELAY_MS = 3_000", source)
         self.assertIn("SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000", source)
-        self.assertIn('f"{self._success_action_label} ({remaining})"', source)
+        self.assertIn("m.COUNTDOWN_ACTION % {'action': self._success_action_label, 'count': remaining}", source)
+        self.assertEqual(m.COUNTDOWN_ACTION % {'action': m.TIME_GRANTED_CLOSE, 'count': 3},
+                         'Time granted, Close (3)')
         self.assertIn("self._tick_success_countdown", source)
         self.assertIn("self._schedule_success_logout()", source)
         self.assertIn('LOG.info("kiosk.011")', source)
@@ -162,13 +168,13 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("preview-child-overlay:", makefile)
         self.assertIn("oh_no_parent_control_kiosk.preview --child-overlay", makefile)
         self.assertIn(
-            "if self._child_overlay:\n            help_item = self._hud_menu_item(\"HELP\", HELP, identity=\"help\")",
+            "if self._child_overlay:\n            help_item = self._hud_menu_item(m.HELP_2, HELP, identity=\"help\")",
             source,
         )
-        self.assertIn('self._hud_menu_item("ABOUT", ABOUT, identity="about")', source)
+        self.assertIn('self._hud_menu_item(m.ABOUT_2, ABOUT, identity="about")', source)
         self.assertLess(
-            source.index('self._hud_menu_item("HELP", HELP, identity="help")'),
-            source.index('self._hud_menu_item("ABOUT", ABOUT, identity="about")'),
+            source.index('self._hud_menu_item(m.HELP_2, HELP, identity="help")'),
+            source.index('self._hud_menu_item(m.ABOUT_2, ABOUT, identity="about")'),
         )
         self.assertIn('always_show_arrow=False', source)
         self.assertIn("oh-no-parent-control-hud-button", source)
@@ -183,7 +189,7 @@ class KioskRenderingTests(unittest.TestCase):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
         content = KIOSK_CONTENT.read_text(encoding="utf-8")
 
-        self.assertIn("self._result_action = ArmoredButton(", source)
+        self.assertIn("self._result_action = localized(ArmoredButton,", source)
         self.assertIn("hexpand=True, armor_kind=\"request\"", source)
         self.assertIn("self._result_action.set_margin_start(10)", source)
         self.assertIn("self._result_action.set_margin_end(10)", source)
@@ -206,7 +212,8 @@ class KioskRenderingTests(unittest.TestCase):
     def test_kiosk_success_omits_redundant_child_detail(self):
         source = KIOSK_MAIN.read_text(encoding="utf-8")
 
-        self.assertIn('self._show_result("Request approved", "")', source)
+        self.assertIn('self._show_result(m.REQUEST_APPROVED, "")', source)
+        self.assertEqual(m.REQUEST_APPROVED.source, 'Request approved')
         self.assertNotIn("The requested access is ready for", source)
         self.assertNotIn("self._requested_label", source)
 
@@ -430,8 +437,10 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("SHIELD, display_size=20", content)
         self.assertIn("PixelIcon(LOCK, display_size=16", content)
         self.assertIn("PixelIcon(POINTER", content)
-        self.assertIn('label="REQUEST"', content)
-        self.assertIn('label="CANCEL"', content)
+        self.assertIn('label=m.REQUEST', content)
+        self.assertIn('label=m.CANCEL_2', content)
+        self.assertEqual(m.REQUEST.source, 'REQUEST')
+        self.assertEqual(m.CANCEL_2.source, 'CANCEL')
         self.assertIn("class MetalBoard(Gtk.Box):", chrome)
         self.assertIn("class MetalPanel(Gtk.Box):", chrome)
         self.assertIn("class ArmoredButton(Gtk.Button):", chrome)
@@ -529,8 +538,10 @@ class KioskRenderingTests(unittest.TestCase):
 
         self.assertIn("class GatewayDropDown(Gtk.Box):", source)
         self.assertIn("outside the request form's snapshot", source)
-        self.assertIn('"child", "Child account", self._account_changed,', source)
-        self.assertIn('"approver", "Approving parent", self._approver_changed,', source)
+        self.assertIn('"child", m.CHILD_ACCOUNT, self._account_changed,', source)
+        self.assertIn('"approver", m.APPROVING_PARENT, self._approver_changed,', source)
+        self.assertEqual(m.CHILD_ACCOUNT.source, 'Child account')
+        self.assertEqual(m.APPROVING_PARENT.source, 'Approving parent')
         self.assertIn("apply_gtk_user_icon", source)
         self.assertIn("parse_listed_user", source)
         self.assertNotIn("Gtk.DropDown", source)
@@ -560,10 +571,11 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("inner.set_margin_end(12)", source)
         self.assertIn("self._choices.set_margin_start(10)", source)
         self.assertIn("self._choices.set_margin_end(10)", source)
-        self.assertIn("filter_row = Gtk.Button(hexpand=True)", source)
+        self.assertIn("filter_row = localized(Gtk.Button, hexpand=True)", source)
         self.assertIn("filter_row.set_margin_start(10)", source)
         self.assertIn("filter_row.set_margin_end(10)", source)
-        self.assertIn('self._allow_soft, "Allow soft blocked apps",', source)
+        self.assertIn('self._allow_soft, m.ALLOW_SOFT_BLOCKED_APPS,', source)
+        self.assertEqual(m.ALLOW_SOFT_BLOCKED_APPS.source, 'Allow soft blocked apps')
         self.assertIn("self._allow_soft = Gtk.Switch(valign=Gtk.Align.CENTER)", source)
         self.assertIn("self._allow_soft.set_can_target(False)", source)
         self.assertIn('filter_row.connect("clicked", self._toggle_allow_soft)', source)
@@ -606,7 +618,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertNotIn("self._duration_menu = Gtk.Overlay()", source)
         self.assertIn("self._screen_limit_overlay = Gtk.Overlay()", source)
         self.assertIn(
-            'label="Screen limit is not enabled in Parent App"', source,
+            'label=m.SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP', source,
         )
         self.assertIn(
             "self._screen_limit_overlay.add_overlay(self._screen_limit_notice)", source,

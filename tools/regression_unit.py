@@ -148,6 +148,10 @@ they introduce no shared resource or process ownership.
 # clock, account and export doubles, with no live Shell, trust DB, bus, files,
 # threads or host services. Existing extension_manager, core and service_contract
 # compatible unit classifications remain appropriate.
+# Localization wording checks reuse private compiled catalogues and waited
+# Make/Node/GJS children. Importing feedback for size formatting constructs no
+# widgets or workers. Controller presentation doubles remain process-local and
+# restored after each test; existing compatible unit classifications apply.
 # The diagnostic-report import-failure regression uses its existing tmp_path
 # writer and restored process-local logger/command doubles; no additional shared
 # service, bus, subprocess or cache. diagnostic collectors remain compatible.

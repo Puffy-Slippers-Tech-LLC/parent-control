@@ -4,7 +4,7 @@ Never put account names, application names, filenames or protocol values here.
 Named operands remain data; all frontends use the same gettext domain.
 """
 
-from .message import gettext, ngettext
+from .message import gettext, ngettext, pgettext
 
 DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B = gettext('Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts.')
 ALWAYS_ALLOWED = gettext('Always Allowed')
@@ -336,7 +336,14 @@ LINK_TARGET = gettext('Link target')
 LINK_EDITOR = gettext('Link editor')
 OPEN_LINK_PREVIEW = gettext('Open link preview')
 SAVE_LINK = gettext('Save link')
+EDIT_LINK = gettext('Edit link')
 REMOVE_LINK = gettext('Remove link')
+ERROR_CATEGORIES = gettext('Error categories: %(categories)s')
+# Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+KILOBYTES = gettext('%(size)s KB')
+MEGABYTES = gettext('%(size)s MB')
+# Translators: Fractional hours need their own form, outside gettext integer plurals.
+FRACTIONAL_HOURS = gettext('%(count)g hours')
 NUMBERED_LIST_ITEM = gettext('numbered list item')
 BULLETED_LIST_ITEM = gettext('bulleted list item')
 COUNTDOWN_ANIMATION = gettext('One minute count down animation')
@@ -360,9 +367,13 @@ def minute_count(count):
 
 
 def hour_count(count):
-    # Fractional hours use the general plural form in the supported languages.
-    plural_count = int(count) if count == int(count) else 5
-    return ngettext('%(count)g hour', '%(count)g hours', plural_count) % {'count': count}
+    if count != int(count):
+        if 0 <= count < 2:
+            # French and Brazilian Portuguese use the singular below two;
+            # other supported languages retain their decimal form here.
+            return pgettext('fractional hours below two', '%(count)g hours') % {'count': count}
+        return FRACTIONAL_HOURS % {'count': count}
+    return ngettext('%(count)g hour', '%(count)g hours', int(count)) % {'count': count}
 
 
 def second_count(count):

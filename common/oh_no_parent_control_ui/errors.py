@@ -38,7 +38,8 @@ class ErrorReport:
     def message(self):
         codes = self.internal.split(",") if type(self.internal) is str else []
         safe = codes if 0 < len(codes) <= 8 and all(code in ERROR_CODES for code in codes) else ["other"]
-        return f"{GENERIC_TITLE}\n{GENERIC_DETAIL}\n\nError categories: " + ", ".join(safe)
+        return (GENERIC_TITLE + "\n" + GENERIC_DETAIL + "\n\n"
+                + m.ERROR_CATEGORIES % {'categories': ", ".join(safe)})
 
     @classmethod
     def capture(cls, component, error, title=GENERIC_TITLE, detail=GENERIC_DETAIL):

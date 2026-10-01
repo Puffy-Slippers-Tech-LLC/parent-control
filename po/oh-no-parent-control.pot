@@ -1531,3 +1531,31 @@ msgstr ""
 #. Shared message: SAVE_APP_ACCESS_FAILED
 msgid "Could not save app access. Please try again later."
 msgstr ""
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr ""
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr ""
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr ""
+
+#, python-format
+msgid "%(size)s MB"
+msgstr ""
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr ""
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr ""

@@ -159,9 +159,11 @@ invalid substitutions rather than presenting damaged policy explanations.
 
 GTK text and accessibility bindings retain the source message and model operands.
 They render through the owning window's context and relabel existing controls
-when it changes. Shared dialogs inherit their transient parent's context. Rich
-editor labels are updated in the existing document, preserving its content and
-undo state. Product branding remains exactly `Oh No! Parent Control` in every
+when it changes. Binding records follow native GObject lifetime, survive Python
+wrapper collection, move between contexts on reparenting, and leave the registry
+when the native object is finalized. Shared dialogs inherit their transient
+parent's context. Rich editor labels are updated in the existing document,
+preserving its content and undo state. Product branding remains exactly `Oh No! Parent Control` in every
 language; account names, paths and other user data are not message identifiers.
 
 ## Language user settings backend
@@ -287,6 +289,16 @@ boundaries, grant arithmetic, usage measurement or the numeric values exchanged
 with the broker. Duration labels use shared localized units and plural rules;
 input validation retains the established numeric contract rather than silently
 changing decimal syntax with UI language.
+
+Whole-hour durations use gettext integer plural rules. Fractional hours have
+separate catalogue messages so Russian and Polish decimal forms do not inherit
+the form for integer five. A context for fractions below two retains the French
+and Brazilian Portuguese singular. Attachment-size units are catalogue messages
+too; language changes retain the existing byte thresholds, scale and numeric value.
+Error-report explanatory text is rendered through the owning dialog's context
+once when the editable draft is seeded; later language changes preserve that
+draft. Rich-editor link actions show Edit link in preview mode and Save link
+in editing mode, updating their visible and accessible labels together.
 
 Labels wrap and containers scroll at supported display sizes and scales. Layout
 uses start/end alignment and text direction rather than assuming left/right

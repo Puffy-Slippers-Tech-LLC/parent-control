@@ -384,8 +384,8 @@ def test_completed_task_is_compacted_while_next_task_keeps_live_updates(checkout
     title_style = summary.get_style_at_offset(Console(), len('Task 001: '))
     assert not title_style.bold and not title_style.link
     lines = [Text.from_ansi(line).plain for step in steps[1:] for line in step['lines']]
-    assert 'Session [1]: Writing task code + host validation + first live VM test; close on success, hand off on failure' in lines
-    assert 'Session [2]: Investigate/fix previous failure + host validation + live VM test 2; close on success, hand off on failure' in lines
+    assert 'Session [1]: Writing task code + host validation + first live VM test; close on success, hand off on failure (gpt-6.1-sol high)' in lines
+    assert 'Session [2]: Investigate/fix previous failure + host validation + live VM test 2; close on success, hand off on failure (gpt-6.1-sol high)' in lines
     (root / 'release').touch()
     assert launcher.follow(run, io.StringIO()) == 0
 

@@ -143,7 +143,8 @@ class FeedbackDialog(Adw.Window):
         set_automation_id(message, "feedback-editor-container")
         self._message = message
         if report:
-            message.set_text(report.message)
+            from .message import render
+            message.set_text(render(report.message, context_for(self).translations))
         message_group.append(message)
         content.append(message_group)
 
@@ -762,8 +763,8 @@ class FeedbackDialog(Adw.Window):
         if size < 1024:
             return m.byte_count(size)
         if size < 1024 * 1024:
-            return f"{size / 1024:.1f} KB"
-        return f"{size / (1024 * 1024):.1f} MB"
+            return m.KILOBYTES % {'size': f"{size / 1024:.1f}"}
+        return m.MEGABYTES % {'size': f"{size / (1024 * 1024):.1f}"}
 
     def _download_logs(self, _button):
         if self._busy or self._collecting or self._kiosk_session or self._logs is None:

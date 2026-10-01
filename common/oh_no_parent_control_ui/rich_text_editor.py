@@ -102,6 +102,7 @@ class RichTextEditor(Gtk.Box):
             'feedback-link-editor': m.LINK_EDITOR,
             'feedback-link-preview': m.OPEN_LINK_PREVIEW,
             'feedback-link-save': m.SAVE_LINK,
+            'edit-link': m.EDIT_LINK,
             'feedback-link-remove': m.REMOVE_LINK,
             'placeholder': m.EDITOR_PLACEHOLDER,
             'code-block': m.CODE_BLOCK,
@@ -361,6 +362,18 @@ function updateStyleLabel() {{
 }}
 new MutationObserver(updateStyleLabel).observe(
   document.getElementById('feedback-format-style'), {{attributes: true, attributeFilter: ['data-value']}});
+function updateLinkAction() {{
+  const tooltip = document.getElementById('feedback-link-editor');
+  const action = document.getElementById('feedback-link-save');
+  const label = tooltip.classList.contains('ql-editing')
+    ? translatedLabels['feedback-link-save'] : translatedLabels['edit-link'];
+  if (!label) return;
+  action.setAttribute('aria-label', label);
+  action.setAttribute('title', label);
+  action.setAttribute('data-label', label);
+}}
+new MutationObserver(updateLinkAction).observe(
+  document.getElementById('feedback-link-editor'), {{attributes: true, attributeFilter: ['class']}});
 function exposeBlockSemantics() {{
   const current = new Map();
   for (const heading of editor.querySelectorAll('h1, h2'))
@@ -408,6 +421,7 @@ window.feedbackEditor = {{
     }}
     editor.setAttribute('data-placeholder', labels.placeholder);
     updateStyleLabel();
+    updateLinkAction();
     exposeBlockSemantics();
   }},
   clear() {{ quill.setContents([]); publish(); }},

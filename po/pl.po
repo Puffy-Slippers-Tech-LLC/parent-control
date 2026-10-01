@@ -1403,6 +1403,31 @@ msgstr "Otwórz podgląd łącza"
 msgid "Save link"
 msgstr "Zapisz łącze"
 
+msgid "Edit link"
+msgstr "Edytuj łącze"
+
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Kategorie błędów: %(categories)s"
+
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s kB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#, python-format
+#. Translators: Fractional hours, independent of integer plural rules.
+msgid "%(count)g hours"
+msgstr "%(count)g godziny"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g godziny"
+
 #. Shared message: REMOVE_LINK
 msgid "Remove link"
 msgstr "Usuń łącze"

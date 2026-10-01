@@ -26,6 +26,8 @@ from pathlib import PurePosixPath
 # spectator feed, close readers, and use registered retention allocations.
 # Sequential language matrices and bounded drafts retain the Layout/Feedback
 # reservations; no host settings, network, new process or shared mutable cache.
+# Native translation lifetime checks use one waited GTK 4 child and two unshown
+# windows on the Identity bucket's private display/bus; no extra session/service.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

@@ -60,7 +60,9 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     assert trust_lines == [f'/{path.relative_to(payload)} {path.stat().st_size} '
                            f'{hashlib.sha256(path.read_bytes()).hexdigest()}'
                            for path in sorted(extension.glob('*.mjs'))]
-    assert len(trust_lines) == 2
+    assert {path.name for path in extension.glob('*.mjs')} == {
+        'diagnosticEvents.mjs', 'indicatorLogic.mjs', 'gettext.mjs',
+    }
     assert files[trust_path]['activation'] == 'none'
     manuals = payload / 'usr/share/man/man1'
     for name in ('oh-no-parent-control.1', 'oh-no-parent-control-parent.1'):

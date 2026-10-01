@@ -753,6 +753,10 @@ def test_primary_action_is_shared_and_never_selects_navigation(reader):
 @pytest.mark.parametrize("initial_parent_sensitive", [False, True])
 def test_owned_disabled_state_tracks_inheritance_and_local_notifications(monkeypatch,
                                                                        initial_parent_sensitive):
+    # Load the presentation dependency with real GI before replacing only the
+    # accessibility module's GTK surface for this sensitivity-state unit test.
+    from common.oh_no_parent_control_ui import translation_widgets
+
     gtk = SimpleNamespace(
         AccessibleState=SimpleNamespace(DISABLED="disabled"),
         Builder=lambda: SimpleNamespace(expose_object=lambda *_args: None),
@@ -762,7 +766,8 @@ def test_owned_disabled_state_tracks_inheritance_and_local_notifications(monkeyp
     monkeypatch.setitem(sys.modules, "gi", SimpleNamespace(require_version=Mock()))
     monkeypatch.setitem(sys.modules, "gi.repository", SimpleNamespace(Gtk=gtk, Gio=SimpleNamespace()))
     spec = importlib.util.spec_from_file_location(
-        "owned_accessibility_test", ROOT / "common/oh_no_parent_control_ui/accessibility.py")
+        "common.oh_no_parent_control_ui.owned_accessibility_test",
+        ROOT / "common/oh_no_parent_control_ui/accessibility.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 

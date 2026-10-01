@@ -60,14 +60,18 @@ def install_component_chooser(manifest, gtk, gio, glib):
     import json
     from pathlib import Path
     from types import SimpleNamespace
+    from gi.repository import GObject
 
     manifest = Path(manifest)
     choices = iter(enumerate(json.loads(manifest.read_text(encoding='utf-8')), 1))
     delivery = manifest.with_suffix('.delivered')
 
-    class Chooser:
+    class Chooser(GObject.Object):
+        title = GObject.Property(type=str)
+
         def __init__(self, *, title):
             assert title == 'Add feedback attachments'
+            super().__init__(title=title)
 
         def open_multiple(self, parent, cancellable, callback):
             sequence, self.paths = next(choices)

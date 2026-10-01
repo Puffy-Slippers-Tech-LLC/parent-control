@@ -909,7 +909,7 @@ def owned_applications(identity):
 
 
 KIOSK_DIAGNOSTIC_IDS = (
-    KIOSK_APPLICATION, 'kiosk-request-window', 'kiosk-request-form',
+    KIOSK_APPLICATION, CHILD_APPLICATION, 'kiosk-request-window', 'kiosk-request-form',
     'kiosk-child-selector', 'kiosk-approver-selector', 'kiosk-request-submit',
     'kiosk-request-cancel', 'kiosk-soft-apps-toggle', 'kiosk-screen-limit-notice',
     'kiosk-mute-button', 'kiosk-custom-duration',
@@ -6814,6 +6814,8 @@ class AccessibleUI:
                 return None
             owner, _, observation = value
             nodes, edges, identities, _facts = observation
+            require(sum(identities[node] == 'child-request-button' for node in nodes) <= 1,
+                    'ui:ambiguous-automation-id')
             target = self.snapshot_owned_target('child-request-button',
                 showing=False, observation=observation)
             if target is None:
@@ -8416,7 +8418,14 @@ class AccessibleUI:
             result['request'] = self.kiosk_request_form(enabled=True, overlay=True)
         elif operation == 'overlay-qualification-cancel':
             self.require_child_overlay_session()
-            self.activate_id('kiosk-request-cancel')
+            nodes, edges, identities, facts = self.read_snapshot(protect_text=True)
+            application = self.snapshot_matches(CHILD_APPLICATION, nodes, showing=False,
+                                                identities=identities)
+            require(application is not None, 'ui:overlay-application')
+            target = self.snapshot_owned_target('kiosk-request-cancel', root=application,
+                showing=False, check_prompt=True, observation=(nodes, edges, identities, facts))
+            require(target is not None, 'ui:overlay-cancel')
+            self._invoke_target(target)
         elif operation == 'overlay-desktop':
             self.overlay_desktop()
         elif operation == 'overlay-wrong-account-refused':

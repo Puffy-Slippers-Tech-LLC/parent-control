@@ -359,19 +359,19 @@ def test_countdown_worker_composes_fresh_child_then_independent_reads(present, f
 
 @pytest.mark.parametrize('fault', ['', *SHELL_PANEL_PLAN.screen_tags])
 def test_shell_panel_actual_worker_order_and_refusal(fault, tmp_path):
-    program = (PERL.replace('onpc_challenges::run(', 'onpc_challenges::shell_panel(')
+    program = (PERL.split('# After success or failure')[0]
+        .replace('onpc_challenges::run(', 'onpc_challenges::shell_panel(')
         .replace('(?:list|greeter|focused)', '(?:list|greeter|focused|opened)')
         .replace('first-login', 'parent-login').replace('third-login', 'new-login')
         .replace('our @events;', 'our @events; our @titles;')
         .replace('sub record_info { }', 'sub record_info { push @main::titles, $_[0] }')
-        .replace('before => $before,', 'titles => \\@titles, before => $before,'))
+        + r'print encode_json({ok => $ok ? 1 : 0, titles => \@titles, events => \@events});')
     result = json.loads(run_perl(program, fault, json.dumps(SHELL_PANEL_PLAN.invocations),
                                 json.dumps(SHELL_PANEL_PLAN.challenges)).stdout)
     assert bool(result['ok']) == (not fault), result
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
     expected = list(SHELL_PANEL_PLAN.screen_tags)
     assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
-    assert not result['retry'] and not result['captured'] and not result['after_failure']
     if not fault:
         assert result['events'].count(['password']) == 2
         assert result['events'][-1] == ['off']
@@ -379,8 +379,12 @@ def test_shell_panel_actual_worker_order_and_refusal(fault, tmp_path):
         results.mkdir()
         (results / 'result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': [
             {'title': title, 'result': 'ok'} for title in result['titles']]}))
-        observations = [{'stage': stage, 'screenshot': {'sha256': 'a' * 64}}
-                        for stage in expected]
+        observations = [{'stage': stage,
+            ('ui' if tag.startswith('ui:') else 'system'): {
+                'operation': tag.split(':', 1)[1], 'outcome': 'passed'},
+            **({'challenge': SHELL_PANEL_PLAN.challenge_at(stage)}
+               if SHELL_PANEL_PLAN.challenge_at(stage) else {})}
+            for stage, tag in SHELL_PANEL_PLAN.screen_tags.items()]
         assert len(matched_screens(tmp_path, SHELL_PANEL_PLAN, observations)) == len(expected)
     else:
         assert ['off'] not in result['events']

@@ -173,6 +173,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_fix_tests_cleanup_safety.py': 38,
              'test_write_e2e_cleanup_safety.py': 54,
+             # Overlay qualification adds only private recorder/transport doubles;
+             # its cleanup rows share no live VM, display, service or storage.
              'test_installed_journey_cleanup_safety.py': 181,
              'test_e2e_leased_recording_cleanup_safety.py': 12,
              'test_e2e_suite_cleanup_safety.py': 21,

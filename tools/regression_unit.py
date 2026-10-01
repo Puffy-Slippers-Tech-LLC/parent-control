@@ -191,8 +191,12 @@ from regression_ui import Bucket
 # Localization uses tiny tmp_path PO/MO trees and bounded, synchronously reaped
 # Make/gettext children. Package compilation targets each fixture's DESTDIR;
 # no checkout outputs, GUI, bus, service or shared locale changes are involved.
+# Overlay/panel checks use process-local accessibility/session doubles and
+# bounded, reaped Perl children; evidence stays in each pytest tmp_path.
+# The added challenge/installed-journey cleanup rows retain the same isolation.
 REVIEWED = frozenset("""
 localization
+e2e_shell_panel
 vm_internet_cleanup_safety baseline_fixtures_cleanup_safety
 about_dialog accessible_e2e_ui accessible_observation adapters app_policy app_termination appsnapshot_cleanup_safety apt_removal_notice
 authentication_evidence automation_ids backing_verification_cleanup_safety baseline_guest_cleanup_safety broker_properties

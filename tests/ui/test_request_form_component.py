@@ -12,6 +12,43 @@ from tests.support.request_form import launch_request, calls, events
 pytestmark = pytest.mark.ui
 
 
+def test_shared_overlay_choice_adapter_and_fractional_text_on_native_gtk(
+        launch_ui, automation, wait_for_accessible_state, monkeypatch):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
+    from tests.e2e.ui_observations import RequestObservation
+    from tests.support.gui_blocks import run_block
+
+    launch_ui('child_overlay_preview')
+    ui = automation
+    wait_for_accessible_state(lambda: ui.find('kiosk-request-submit') is not None,
+                              'overlay form available')
+    reader = AccessibleUI(ui.api, timeout=15, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners, application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002, PARENT: 1000, OTHER_PARENT: 1010},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    # Host preview identity is supplied by its process owner, not a guest login.
+    monkeypatch.setattr(reader, 'require_child_overlay_session', lambda: None)
+    reader.run('overlay-valid-refusals', '')
+    for operation in ('overlay-valid-approver-select', 'overlay-valid-preset-select',
+                      'overlay-valid-preset-read', 'overlay-valid-custom-open'):
+        reader.run(operation, '')
+    run_block(reader, 'replace', 'overlay-fraction')
+    result = reader.run('overlay-valid-fraction-read', '')
+    request = RequestObservation.from_request(result['valid_choice']['request'],
+                                             operation='overlay-valid-fraction-read')
+    assert request.duration_seconds == 75 and request.custom_text == '1.25'
+    assert request.child == 'fixture-child' and request.child_selector_enabled is False
+    for operation in ('overlay-valid-rest-select', 'overlay-valid-rest-read',
+                      'overlay-valid-soft-select', 'overlay-valid-soft-read',
+                      'overlay-valid-excluded-select', 'overlay-valid-excluded-read'):
+        reader.run(operation, '')
+    reader.run('overlay-request-cancel', '')
+    wait_for_accessible_state(lambda: ui.find('kiosk-request-window') is None,
+                              'shared Cancel closed overlay')
+
+
 @pytest.fixture
 def request_ui(automation):
     return automation

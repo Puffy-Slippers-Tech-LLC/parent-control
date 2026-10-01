@@ -1027,7 +1027,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                          kiosk_no_approver, repeated_operations, challenges)))),
             'smoke:product-free-entry-prerequisites')
     require(challenge_profile in ('parent', 'fresh-child', 'fresh-child-denied',
-                                  'countdown-enabled', 'countdown-off', 'shell-panel') and
+                                  'countdown-enabled', 'countdown-off', 'shell-panel',
+                                  'overlay-valid-choices') and
             (challenge_profile == 'parent' or challenges is True), 'smoke:challenge-profile')
     require(type(challenges) is bool and (not challenges or (
             assets is not None and provision_credentials and fresh_desktop is None
@@ -1450,7 +1451,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 'fresh-child-denied': 'installed-fresh-child-denied-qualification',
                 'countdown-enabled': 'installed-countdown-enabled-qualification',
                 'countdown-off': 'installed-countdown-off-qualification',
-                'shell-panel': 'installed-shell-panel-qualification'}[challenge_profile]
+                'shell-panel': 'installed-shell-panel-qualification',
+                'overlay-valid-choices': 'installed-overlay-valid-choices-qualification'}[challenge_profile]
         if product_free_entry:
             result['scope'] = 'product-free-entry-qualification'
         if package_authority:
@@ -1578,13 +1580,15 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if challenges:
                     from parent_setup_qualification import (ChallengesQualification,
                         FreshChildAllowedQualification, FreshChildDeniedQualification,
-                        CountdownQualification, CountdownOffQualification, ShellPanelQualification)
+                        CountdownQualification, CountdownOffQualification, ShellPanelQualification,
+                        OverlayValidChoicesQualification)
                     qualification_class = {'parent': ChallengesQualification,
                         'fresh-child': FreshChildAllowedQualification,
                         'fresh-child-denied': FreshChildDeniedQualification,
                         'countdown-enabled': CountdownQualification,
                         'countdown-off': CountdownOffQualification,
-                        'shell-panel': ShellPanelQualification}[challenge_profile]
+                        'shell-panel': ShellPanelQualification,
+                        'overlay-valid-choices': OverlayValidChoicesQualification}[challenge_profile]
                 if gdm_product_free:
                     from parent_setup_qualification import GdmProductFreeQualification
                     qualification_class = GdmProductFreeQualification

@@ -7,7 +7,56 @@ use onpc_parent ();
 use onpc_text ();
 use onpc_journey ();
 use onpc_password ();
+use onpc_desktop_session ();
+use onpc_app_rows ();
 use testapi ();
+
+sub overlay_valid_choices {
+    onpc_progress::operation('Qualifying valid overlay choices and unchanged app activity after Cancel');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'overlay-valid:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-valid-choices', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    $journey->seen('wrong-account-refused');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    my $activity = onpc_journey->new(
+        exchange => sub { $exchange->('activity-' . $_[0], $_[1]) },
+        prefix => 'overlay-valid-choices-activity', review => 0);
+    onpc_app_rows::native_usable_app($activity, 'command', $activity->seen('desktop'));
+    onpc_app_rows::native_read_activity($activity, 'capture');
+    overlay_entry($journey, 'direct', 'command');
+    for my $stage ('wrong-surface-refused', 'overlay-valid-approver-select', 'overlay-valid-approver-read',
+                   'overlay-valid-preset-select', 'overlay-valid-preset-read', 'overlay-valid-custom-open') {
+        $journey->seen($stage);
+    }
+    onpc_text::replace_text($journey, 'overlay-fraction');
+    for my $stage ('overlay-valid-fraction-read', 'overlay-valid-rest-select', 'overlay-valid-rest-read',
+                   'overlay-valid-soft-select', 'overlay-valid-soft-read',
+                   'overlay-valid-excluded-select', 'overlay-valid-excluded-read',
+                   'cancel', 'returned-desktop') {
+        $journey->seen($stage);
+    }
+    onpc_app_rows::native_read_activity($activity, 'returned');
+    overlay_entry($journey, 'independent', 'command');
+    for my $stage ('independent-preset', 'independent-read', 'independent-cancel', 'independent-desktop') {
+        $journey->invoke($stage);
+    }
+    onpc_app_rows::native_read_activity($activity, 'independent');
+    onpc_app_rows::native_finish_app($activity);
+    $journey->finish();
+}
 
 # REQUEST02/13: one explicit input and independent REQUEST03 observation.
 # The caller owns entry, repeated customer inputs and subsequent exits.

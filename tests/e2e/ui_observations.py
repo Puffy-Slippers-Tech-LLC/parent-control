@@ -95,6 +95,10 @@ OPERATION_LABELS = {
        for operation, (binding, action) in accessible_ui.KIOSK_INVALID_OPERATIONS.items()},
     **{operation: 'Choosing and independently reading valid kiosk duration and app access'
        for operation in accessible_ui.KIOSK_VALID_OPERATIONS},
+    **{operation: 'Choosing and independently reading valid fixed-child overlay values'
+       for operation in accessible_ui.OVERLAY_VALID_OPERATIONS},
+    **{operation: 'Observing usable child app activity around the request overlay'
+       for operation in accessible_ui.OVERLAY_NATIVE_OPERATIONS},
     **{operation: 'Reading idle Revoke availability and zero remaining balances'
        for operation in accessible_ui.REVOKE_DISABLED_OPERATIONS},
     **{operation: 'Qualifying saved time controls and non-collapsing balance reads'
@@ -479,7 +483,9 @@ class RequestObservation:
                     'cancel_enabled'))
                 and type(observation.message) is str and observation.mute is None,
                 'ui:request')
-        valid = accessible_ui.KIOSK_VALID_REQUESTS.get(operation)
+        overlay_valid = operation in accessible_ui.OVERLAY_VALID_REQUESTS
+        valid = {**accessible_ui.KIOSK_VALID_REQUESTS,
+                 **accessible_ui.OVERLAY_VALID_REQUESTS}.get(operation)
         if operation == 'overlay-request-form':
             require(observation == cls(
                 surface='child-overlay', form_count=1, child='fixture-child',
@@ -504,10 +510,10 @@ class RequestObservation:
         if no_approver:
             approver = 'none'
         require(observation == cls(
-            surface='kiosk', form_count=1, child=child,
+            surface='child-overlay' if overlay_valid else 'kiosk', form_count=1, child=child,
             approver=approver, duration_seconds=None if invalid else valid[0] if valid else 1800,
             custom_text=accessible_ui.KIOSK_INVALID_VALUES[invalid[0]] if invalid else valid[1] if valid else None,
-            allow_soft=valid[2] if valid else False, child_selector_enabled=True,
+            allow_soft=valid[2] if valid else False, child_selector_enabled=not overlay_valid,
             approver_selector_enabled=enabled, duration_enabled=enabled,
             soft_choice_enabled=enabled, request_enabled=enabled, cancel_enabled=True,
             message='no-child' if no_child else 'no-approver' if no_approver else (
@@ -754,6 +760,7 @@ class UiObservations:
         # Overlay readback uses the same form reader and diagnostic stream as
         # the station, while retaining its separate child-session binding.
         form_diagnostics = (operation in accessible_ui.KIOSK_SESSION_OPERATIONS
+                            or operation in accessible_ui.OVERLAY_VALID_OPERATIONS
                             or operation in ('overlay-request-form', 'overlay-panel-reveal-ready'))
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
@@ -964,11 +971,12 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation in ('native-opened', 'native-submitted'):
+        if operation in ('native-opened', 'native-submitted', 'overlay-native-opened',
+                         'overlay-native-submitted'):
             expected['activity'] = {'draft': 'ONPC fixture draft',
-                'submitted': 'No submitted draft' if operation == 'native-opened' else 'ONPC fixture draft',
+                'submitted': 'No submitted draft' if operation.endswith('native-opened') else 'ONPC fixture draft',
                 'score': 'Moves: 0; token: 0'}
-        if operation == 'native-activity':
+        if operation in ('native-activity', 'overlay-native-activity'):
             require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
             AppActivityObservation.from_value(result['activity'])
             expected['activity'] = result['activity']
@@ -1501,7 +1509,8 @@ class UiObservations:
                     'ui:kiosk-invalid-response')
             RequestObservation.from_request(value['request'], operation=operation)
             expected['invalid_choice'] = value
-        if operation in accessible_ui.KIOSK_VALID_REQUESTS:
+        valid_requests = {**accessible_ui.KIOSK_VALID_REQUESTS, **accessible_ui.OVERLAY_VALID_REQUESTS}
+        if operation in valid_requests:
             require(type(result) is dict and set(result) == {*expected, 'valid_choice'}, 'ui:response')
             value = result['valid_choice']
             require(type(value) is dict and set(value) == {'request', 'estimate', 'observed_monotonic_ns'}
@@ -1509,7 +1518,7 @@ class UiObservations:
                     and value['observed_monotonic_ns'] > 0, 'ui:kiosk-valid-response')
             RequestObservation.from_request(value['request'], operation=operation)
             estimate = value['estimate']
-            if accessible_ui.KIOSK_VALID_REQUESTS[operation][0] == 0:
+            if valid_requests[operation][0] == 0:
                 require(estimate == {'kind': 'midnight'}, 'ui:kiosk-valid-response')
             else:
                 require(type(estimate) is dict and set(estimate) == {

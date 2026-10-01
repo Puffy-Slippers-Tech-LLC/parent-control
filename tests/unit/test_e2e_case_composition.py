@@ -40,7 +40,7 @@ WORKER_APIS = {
     'onpc_about': {'open_about', 'read_help', 'open_from_help', 'open_license',
                    'check_link', 'return_to_parent'},
     'onpc_documentation': {'read'},
-    'onpc_request_flow': {'prepare', 'reject', 'approve'},
+    'onpc_request_flow': {'prepare', 'reject', 'approve', 'overlay_entry'},
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
     'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy', 'review_parent_report',
@@ -61,6 +61,10 @@ WORKER_APIS = {
 @pytest.mark.parametrize('path', sorted({v['executable']['path'] for _, v in READY}))
 def test_ready_modules_only_declare_and_compose_shared_apis(path):
     assert not composition_errors((ROOT / path).read_text(), CASE_MODULES)
+
+
+def test_overlay_valid_choices_only_composes_shared_apis():
+    assert not composition_errors((ROOT / 'tests/e2e/overlay_valid_choices.py').read_text(), CASE_MODULES)
 
 
 def test_accessibility_trace_qualification_declares_shared_input_binding():

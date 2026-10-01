@@ -28,6 +28,9 @@ from pathlib import PurePosixPath
 # reservations; no host settings, network, new process or shared mutable cache.
 # Native translation lifetime checks use one waited GTK 4 child and two unshown
 # windows on the Identity bucket's private display/bus; no extra session/service.
+# Overlay valid-choice checks reuse the Request behavior bucket's private GTK
+# preview/display/bus and waited Perl input blocks, with its owned cleanup.
+# They introduce no shared setting, file, process or service lifetime.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

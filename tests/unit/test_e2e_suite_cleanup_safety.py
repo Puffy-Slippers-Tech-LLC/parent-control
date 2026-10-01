@@ -413,6 +413,9 @@ def test_online_restore_records_instance_without_booting(prepared_suite, monkeyp
                 revert(*args)
                 preparation_domain.ID.side_effect = lambda: -1
             preparation_domain.revertToSnapshot.side_effect = stale_revert
+            # The shared rig's lookup callback overrides return_value; disable
+            # it so UUID lookup actually returns the fresh handle after revert.
+            lease.source.connection.lookupByUUIDString.side_effect = None
             lease.source.connection.lookupByUUIDString.return_value = fresh
             lease.source.connection.lookupByName.return_value = fresh
         previous = lease.source.domain.revertToSnapshot.call_count

@@ -23,7 +23,15 @@ Qualify normal unlocked-child panel routing (DESK12). For ordinary overlay entry
 
 On the VM with publicly prepared usable child time and fresh child entry, directly invoke the child command and observe exactly one form with the intended fixed child and readable controls. Cancel and repeat from an independently reached child desktop. In a separate entry, activate the panel request control twice deliberately and observe exactly one form with the same fixed child. Use normal Cancel solely to end qualification; this does not qualify the reusable exit binding. Never select another overlay child.
 
-Qualification selector (implement and register before use):
+Implemented callables: `shell_panel.PLAN` / `ShellPanelJourney`,
+`journey_blocks.overlay_entry` / `onpc_request_flow::overlay_entry`,
+`AccessibleUI.overlay_panel_target`, `overlay_panel_launch`, and
+`kiosk_request_form(enabled=True, overlay=True)`. The immutable
+`RequestObservation` validates `overlay-request-form` independently.
+`onpc_challenges::shell_panel` composes the qualification in the existing envelope.
+Host safety and installed qualification remain required before closing this task.
+
+Registered qualification selector:
 
 ```sh
 tools/run-tests integration check_e2e_shell_panel

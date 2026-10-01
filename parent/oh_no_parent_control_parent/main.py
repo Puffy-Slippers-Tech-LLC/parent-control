@@ -451,7 +451,13 @@ class ParentWindow(Adw.ApplicationWindow):
         set_automation_id(self._policy_warning, "parent-policy-warning")
         toolbar.add_top_bar(self._policy_warning)
         self._toasts = Adw.ToastOverlay(child=toolbar)
-        self.set_content(self._toasts)
+        overlay = Gtk.Overlay(child=self._toasts)
+        self._language_shade = Gtk.Box(
+            visible=False, can_target=False,
+            css_classes=["parent-language-shade"],
+        )
+        overlay.add_overlay(self._language_shade)
+        self.set_content(overlay)
 
         # The selected child applies to both tabs. Keep the picker outside the
         # stack and use the same clamp as the tab bar and both page cards so
@@ -1178,6 +1184,10 @@ class ParentWindow(Adw.ApplicationWindow):
         if self._language_dialog is None:
             self._language_dialog = LanguageDialog(
                 self, self._own_language, self._save_language, self._language_saved)
+            self._language_dialog.connect(
+                "map", lambda *_args: self._language_shade.set_visible(True))
+            self._language_dialog.connect(
+                "unmap", lambda *_args: self._language_shade.set_visible(False))
         self._language_dialog.present()
 
     def _save_language(self, language, success, failure):

@@ -33,19 +33,30 @@ def prepared_request(*, prefix, entry, initial, child, approver, duration_second
     return stages
 
 
+def daily_station_entry():
+    """Save the qualified 15-minute preset, read balance and enter the station.
+
+    Requires Parent with the fixture child selected. Request choices and exits
+    remain separate so Cancel, Escape and approval share the same preparation.
+    """
+    return {
+        'limit-enabled': 'ui:parent-toggle-enabled',
+        'save-enabled': 'ui:parent-save-enabled',
+        'allowance-15-select': 'ui:allowance-15-select',
+        'allowance-15-read': 'ui:allowance-15-read',
+        'time-explanation-read': 'ui:time-explanation-read',
+        'switch-user': 'system:parent-switch-user',
+        'gdm-switched': 'ui:gdm-returned',
+        **station_entry(),
+    }
+
+
 CHOICES = dict(child='fixture-child', approver='fixture-parent', duration_seconds=75, allow_soft=True)
 SCREENS = {
     **fresh_desktop('parent'), **parent_management(),
     'wrong-entry': 'ui:parent-kiosk-refused',
     'valid-wrong-entry': 'ui:parent-kiosk-valid-refused',
-    'limit-enabled': 'ui:parent-toggle-enabled',
-    'save-enabled': 'ui:parent-save-enabled',
-    'allowance-15-select': 'ui:allowance-15-select',
-    'allowance-15-read': 'ui:allowance-15-read',
-    'time-explanation-read': 'ui:time-explanation-read',
-    'switch-user': 'system:parent-switch-user',
-    'gdm-switched': 'ui:gdm-returned',
-    **station_entry(),
+    **daily_station_entry(),
     **prepared_request(prefix='open', entry='open', initial='default', **CHOICES),
     'open-cancel': 'ui:kiosk-request-cancel',
     'open-returned': 'ui:gdm-station-returned',

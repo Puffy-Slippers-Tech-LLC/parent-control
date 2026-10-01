@@ -143,6 +143,23 @@ def station_entry(prefix=''):
     }
 
 
+def parent_reopen():
+    """LIFE01: normal closure, same-desktop launch and untouched selection read.
+
+    Child reselection and persistence assertions belong to the caller.
+    Matches onpc_lifecycle::reopen without adding selection repair.
+    """
+    return {
+        'prior-window': 'ui:parent-window',
+        'close-ready': 'ui:parent-restart-ready',
+        'closed': 'ui:parent-search-closed',
+        'same-desktop': 'ui:desktop',
+        'same-parent-command': 'ui:parent-command-launch',
+        'same-parent-window': 'ui:parent-window',
+        'initial-selection': 'ui:parent-initial-selection',
+    }
+
+
 def parent_management():
     """PARENT01/02: direct command, owned window and fixture-child selection."""
     return {

@@ -16,6 +16,75 @@ from ui_observations import AppRowsObservation, UiObservations
 ROW = 'parent-app-0123456789abcdef'
 
 
+@pytest.mark.parametrize('draft,row', [('match-wildcard', 'consumer-result'),
+                                      ('match-rejected-directory', None)])
+def test_match_edit_independent_invocation_and_every_failure_stop(draft, row):
+    # Same private values and waited Perl children as the existing worker tests;
+    # no new storage, VM, display or shared scheduling resource.
+    from match_rules import match_edit
+    from tests.support.perl import run_perl
+    screens = match_edit(draft, 'consumer', editor=('owned-open', 'owned-read'), row=row)
+    expected = ['owned-open', 'owned-read', 'consumer-draft-focus',
+                'consumer-draft-selected', 'consumer-draft-read', 'consumer-save']
+    if row is not None:
+        expected.append(row)
+    assert list(screens) == expected
+    assert screens['consumer-save'] == ('ui:match-save' if row else 'ui:match-rejected')
+    program = r'''
+use strict; use warnings; use JSON::PP;
+BEGIN {$INC{'testapi.pm'}=1;}
+package testapi; sub record_info {} sub send_key {} sub type_string {}
+package main;
+use onpc_app_rows; use onpc_journey;
+my ($draft, $row, $stop) = @ARGV;
+my @events;
+my $j = onpc_journey->new(prefix => 'independent-consumer', review => 0,
+    exchange => sub {push @events, $_[0]; die 'refused' if $_[0] eq $stop;
+                     return {observed => $_[0]};});
+my $ok = eval {onpc_app_rows::match_edit($j, $draft, 'consumer',
+    'owned-open', 'owned-read', length($row) ? $row : undef); 1;} ? 1 : 0;
+print encode_json({ok => $ok, events => \@events});
+'''
+    for stop in ('', *expected):
+        value = json.loads(run_perl(program, draft, row or '', stop).stdout)
+        assert value == {'ok': int(not stop), 'events':
+                         expected[:expected.index(stop) + 1] if stop else expected}
+    changed = match_edit(draft, 'consumer', editor=('owned-open', 'owned-read'), row=row)
+    changed.clear()
+    assert match_edit(draft, 'consumer', editor=('owned-open', 'owned-read'), row=row) == screens
+
+
+@pytest.mark.parametrize('draft,prefix,editor,row', [
+    ('unknown', 'consumer', ('owned-open', 'owned-read'), 'result'),
+    ('match-wildcard', 'bad prefix', ('owned-open', 'owned-read'), 'result'),
+    ('match-wildcard', 'consumer', ('same', 'same'), 'result'),
+    ('match-wildcard', 'consumer', ('owned-open', 'owned-read'), None),
+    ('match-rejected-directory', 'consumer', ('owned-open', 'owned-read'), 'result'),
+    ('match-wildcard', 'consumer', ('owned-open', 'owned-read'), 'consumer-save'),
+])
+def test_match_edit_invalid_binding_refuses_before_any_worker_observation(draft, prefix, editor, row):
+    from match_rules import match_edit
+    from tests.support.perl import run_perl
+    with pytest.raises(EvidenceError):
+        match_edit(draft, prefix, editor=editor, row=row)
+    program = r'''
+use strict; use warnings; use JSON::PP;
+BEGIN {$INC{'testapi.pm'}=1;}
+package testapi; sub record_info {} sub send_key {} sub type_string {}
+package main;
+use onpc_app_rows; use onpc_journey;
+my ($draft, $prefix, $open, $read, $row) = @ARGV;
+my @events;
+my $j = onpc_journey->new(prefix => 'independent-consumer', review => 0,
+    exchange => sub {push @events, $_[0]; return {observed => $_[0]};});
+my $ok = eval {onpc_app_rows::match_edit($j, $draft, $prefix, $open, $read,
+    length($row) ? $row : undef); 1;} ? 1 : 0;
+print encode_json({ok => $ok, events => \@events});
+'''
+    assert json.loads(run_perl(program, draft, prefix, *editor, row or '').stdout) == {
+        'ok': 0, 'events': []}
+
+
 def match_ui():
     app = accessible_ui.MATCH_APP
     rule = accessible_ui.MATCH_RULES[0]

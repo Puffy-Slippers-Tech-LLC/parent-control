@@ -1,9 +1,8 @@
 """Task 186's finite rejected-directory/report qualification, without Send."""
 from installed_journey import JourneyPlan
 from journey_blocks import fresh_desktop, parent_management
-from feedback_composition import text_fragment
 from parent_reports import ParentReportJourney, report_review
-from match_rules import MATCH_RULES
+from match_rules import MATCH_RULES, match_edit
 from native_fixtures import fixture_actions
 
 SCREENS = {
@@ -13,17 +12,14 @@ SCREENS = {
     'parent-selected': 'ui:existing-returned',
     'apps-page': 'ui:existing-apps', 'initial-rule': 'ui:match-row',
     'report-wrong-entry': 'ui:parent-report-refused',
-    'confirmed-open': 'ui:match-open', 'confirmed-read': 'ui:match-read',
-    **text_fragment('match-wildcard', 'confirmed-draft'),
-    'confirmed-save': 'ui:match-save', 'confirmed-rule': 'ui:match-row',
-    'editor-open': 'ui:match-open', 'editor-read': 'ui:match-read',
-    **text_fragment('match-rejected-directory', 'rejected-draft'),
-    'rejected-save': 'ui:match-rejected',
+    **match_edit('match-wildcard', 'confirmed',
+                 editor=('confirmed-open', 'confirmed-read'), row='confirmed-rule'),
+    **match_edit('match-rejected-directory', 'rejected',
+                 editor=('editor-open', 'editor-read'), row=None),
     **report_review('review'),
     'restored-rule': 'ui:match-row',
-    'independent-open': 'ui:match-open', 'independent-read': 'ui:match-read',
-    **text_fragment('match-rejected-directory', 'independent-draft'),
-    'independent-save': 'ui:match-rejected',
+    **match_edit('match-rejected-directory', 'independent',
+                 editor=('independent-open', 'independent-read'), row=None),
     **report_review('independent'),
     'final-rule': 'ui:match-row',
 }

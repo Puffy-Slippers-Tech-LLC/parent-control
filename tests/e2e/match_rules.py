@@ -2,6 +2,34 @@
 from accessible_ui import MATCH_APP, MATCH_RULES
 from installed_journey import InstalledJourney
 from private_artifacts import require
+from feedback_composition import text_fragment
+import re
+
+
+def match_edit(draft, prefix, *, editor, row):
+    """Read an owned editor, replace its draft and Save; observe the result.
+
+    A rejected-directory Save opens the automatic report instead of a row.
+    Callers own entry, report handling and exact policy comparisons.
+    """
+    require(draft in ('match-precise', 'match-precise-basename', 'match-wildcard',
+                     'match-wildcard-basename', 'match-wildcard-appimages',
+                     'match-rejected-directory'), 'match:edit-binding')
+    require(type(editor) is tuple and len(editor) == 2
+            and all(type(stage) is str and re.fullmatch(r'[a-z][a-z0-9-]*', stage)
+                    for stage in (prefix, *editor)), 'match:edit-stages')
+    require(row is None if draft == 'match-rejected-directory' else
+            type(row) is str and re.fullmatch(r'[a-z][a-z0-9-]*', row),
+            'match:edit-result')
+    stages = (*editor, *text_fragment(draft, prefix + '-draft'), prefix + '-save',
+              *((row,) if row is not None else ()))
+    require(len(stages) == len(set(stages)), 'match:edit-stages')
+    return {
+        editor[0]: 'ui:match-open', editor[1]: 'ui:match-read',
+        **text_fragment(draft, prefix + '-draft'),
+        prefix + '-save': 'ui:match-rejected' if row is None else 'ui:match-save',
+        **({row: 'ui:match-row'} if row is not None else {}),
+    }
 
 
 class MatchRuleJourney(InstalledJourney):

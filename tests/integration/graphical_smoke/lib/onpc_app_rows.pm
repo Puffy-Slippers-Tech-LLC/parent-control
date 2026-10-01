@@ -183,6 +183,28 @@ sub match_response {
     return $journey->consume_observation($row, $journey->seen($row));
 }
 
+# PARENT13/15: reusable Save composition from a caller-owned App Limits entry.
+# Validate every binding before touching the editor. Rejected Save ends at the
+# automatic report; callers choose review/close and independently read the row.
+sub match_edit {
+    onpc_progress::operation('Editing the declared match draft and independently observing Save');
+    my ($journey, $draft, $prefix, $open, $read, $row) = @_;
+    die 'match:edit-binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
+        && defined($draft) && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages|rejected-directory)\z/;
+    die 'match:edit-stages' unless !grep { !defined($_) || !/\A[a-z][a-z0-9-]*\z/ }
+        ($prefix, $open, $read);
+    die 'match:edit-result' unless $draft eq 'match-rejected-directory'
+        ? !defined($row) : defined($row) && $row =~ /\A[a-z][a-z0-9-]*\z/;
+    my %used;
+    die 'match:edit-stages' if grep { $used{$_}++ }
+        ($open, $read, "$prefix-draft-focus", "$prefix-draft-selected",
+         "$prefix-draft-read", "$prefix-save", defined($row) ? ($row) : ());
+    match_editor($journey, $open, $read);
+    onpc_text::replace_text($journey, $draft, "$prefix-draft");
+    return match_response($journey, "$prefix-save", $row) if defined($row);
+    return $journey->consume_observation("$prefix-save", $journey->seen("$prefix-save"));
+}
+
 sub match_editor_validation {
     onpc_progress::operation('Qualifying local invalid refusal, saved wildcard and immediate Reset');
     my ($exchange) = @_;
@@ -218,19 +240,16 @@ sub rejected_parent_rule {
     for my $stage ('apps-page', 'initial-rule', 'report-wrong-entry') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
-    match_editor($journey, 'confirmed-open', 'confirmed-read');
-    onpc_text::replace_text($journey, 'match-wildcard', 'confirmed-draft');
-    match_response($journey, 'confirmed-save', 'confirmed-rule');
-    match_editor($journey, 'editor-open', 'editor-read');
-    onpc_text::replace_text($journey, 'match-rejected-directory', 'rejected-draft');
-    $journey->consume_observation('rejected-save', $journey->seen('rejected-save'));
+    match_edit($journey, 'match-wildcard', 'confirmed',
+        'confirmed-open', 'confirmed-read', 'confirmed-rule');
+    match_edit($journey, 'match-rejected-directory', 'rejected',
+        'editor-open', 'editor-read', undef);
     onpc_feedback_privacy::review_parent_report($journey, 'review');
     $journey->consume_observation('restored-rule', $journey->seen('restored-rule'));
     # Second public error supplies independent valid report entry; no hidden
     # report launch or prior attempt state supplies this prerequisite.
-    match_editor($journey, 'independent-open', 'independent-read');
-    onpc_text::replace_text($journey, 'match-rejected-directory', 'independent-draft');
-    $journey->consume_observation('independent-save', $journey->seen('independent-save'));
+    match_edit($journey, 'match-rejected-directory', 'independent',
+        'independent-open', 'independent-read', undef);
     onpc_feedback_privacy::review_parent_report($journey, 'independent');
     $journey->consume_observation('final-rule', $journey->seen('final-rule'));
     $journey->finish();
@@ -311,9 +330,7 @@ sub edit_policy {
     onpc_text::replace_text($journey, 'catalogue-identifier', "$prefix-search");
     filter($journey, $_->[0], $_->[1], "$prefix-$_->[0]") for @$filters;
     $journey->consume_observation("$prefix-found", $journey->seen("$prefix-found"));
-    match_editor($journey, "$prefix-open", "$prefix-old");
-    onpc_text::replace_text($journey, $draft, "$prefix-draft");
-    match_response($journey, "$prefix-save", "$prefix-match");
+    match_edit($journey, $draft, $prefix, "$prefix-open", "$prefix-old", "$prefix-match");
     access_choice($journey, "$prefix-access-save", "$prefix-access");
     return $journey->consume_observation("$prefix-final-match", $journey->seen("$prefix-final-match"));
 }

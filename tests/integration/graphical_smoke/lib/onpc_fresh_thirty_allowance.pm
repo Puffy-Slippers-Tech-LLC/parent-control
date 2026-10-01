@@ -6,7 +6,6 @@ use onpc_gdm ();
 use onpc_journey ();
 use onpc_parent ();
 use onpc_app_rows ();
-use onpc_text ();
 use onpc_feedback_privacy ();
 
 sub run {
@@ -58,17 +57,14 @@ sub parent_error_report {
     for my $stage ('apps-page', 'initial-rule') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
-    onpc_app_rows::match_editor($journey, 'confirmed-open', 'confirmed-read');
-    onpc_text::replace_text($journey, 'match-wildcard', 'confirmed-draft');
-    onpc_app_rows::match_response($journey, 'confirmed-save', 'confirmed-rule');
-    onpc_app_rows::match_editor($journey, 'editor-open', 'editor-read');
-    onpc_text::replace_text($journey, 'match-rejected-directory', 'rejected-draft');
-    $journey->consume_observation('rejected-save', $journey->seen('rejected-save'));
+    onpc_app_rows::match_edit($journey, 'match-wildcard', 'confirmed',
+        'confirmed-open', 'confirmed-read', 'confirmed-rule');
+    onpc_app_rows::match_edit($journey, 'match-rejected-directory', 'rejected',
+        'editor-open', 'editor-read', undef);
     onpc_feedback_privacy::review_parent_report($journey, 'review');
     $journey->consume_observation('restored-rule', $journey->seen('restored-rule'));
-    onpc_app_rows::match_editor($journey, 'repeat-open', 'repeat-read');
-    onpc_text::replace_text($journey, 'match-rejected-directory', 'repeat-draft');
-    $journey->consume_observation('repeat-save', $journey->seen('repeat-save'));
+    onpc_app_rows::match_edit($journey, 'match-rejected-directory', 'repeat',
+        'repeat-open', 'repeat-read', undef);
     onpc_feedback_privacy::close_parent_report($journey, 'decline');
     $journey->consume_observation('final-rule', $journey->seen('final-rule'));
     $journey->finish();

@@ -3,7 +3,7 @@ from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management
 from feedback_composition import text_fragment
 from parent_reports import ParentReportJourney, report_review, report_close
-from match_rules import MATCH_RULES
+from match_rules import MATCH_RULES, match_edit
 from native_fixtures import fixture_actions
 
 
@@ -13,17 +13,14 @@ SCREENS = {
     'child-choice-highlighted': 'ui:existing-child-choice-highlighted',
     'parent-selected': 'ui:existing-returned',
     'apps-page': 'ui:existing-apps', 'initial-rule': 'ui:match-row',
-    'confirmed-open': 'ui:match-open', 'confirmed-read': 'ui:match-read',
-    **text_fragment('match-wildcard', 'confirmed-draft'),
-    'confirmed-save': 'ui:match-save', 'confirmed-rule': 'ui:match-row',
-    'editor-open': 'ui:match-open', 'editor-read': 'ui:match-read',
-    **text_fragment('match-rejected-directory', 'rejected-draft'),
-    'rejected-save': 'ui:match-rejected',
+    **match_edit('match-wildcard', 'confirmed',
+                 editor=('confirmed-open', 'confirmed-read'), row='confirmed-rule'),
+    **match_edit('match-rejected-directory', 'rejected',
+                 editor=('editor-open', 'editor-read'), row=None),
     **report_review('review'),
     'restored-rule': 'ui:match-row',
-    'repeat-open': 'ui:match-open', 'repeat-read': 'ui:match-read',
-    **text_fragment('match-rejected-directory', 'repeat-draft'),
-    'repeat-save': 'ui:match-rejected',
+    **match_edit('match-rejected-directory', 'repeat',
+                 editor=('repeat-open', 'repeat-read'), row=None),
     **report_close('decline'),
     'final-rule': 'ui:match-row',
 }

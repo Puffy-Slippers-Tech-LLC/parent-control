@@ -21,7 +21,7 @@ RECORDERS = ('record_installed_journey', 'record_package_journey', 'record_seria
 # class/action to a recorder must not hide case mechanics behind an import.
 WORKER_APIS = {
     'onpc_app_rows': {'native_entry', 'search', 'filter', 'read_rows', 'legend', 'edit_policy',
-                      'match_editor', 'match_response', 'access_choice',
+                      'match_editor', 'match_response', 'match_edit', 'access_choice',
                       'native_search', 'native_launch_grid', 'native_open_grid',
                       'native_open_command', 'native_use_app', 'native_close_app',
                       'native_usable_app', 'native_read_activity', 'native_finish_app'},
@@ -40,7 +40,7 @@ WORKER_APIS = {
     'onpc_about': {'open_about', 'read_help', 'open_from_help', 'open_license',
                    'check_link', 'return_to_parent'},
     'onpc_documentation': {'read'},
-    'onpc_request_flow': {'prepare', 'reject', 'approve', 'overlay_entry'},
+    'onpc_request_flow': {'prepare', 'reject', 'approve', 'overlay_entry', 'daily_station_entry'},
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
     'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy', 'review_parent_report',
@@ -270,11 +270,11 @@ def test_worker_guard_allows_semantic_labels_and_logging():
 
 
 def test_entry_fragments_do_not_share_mutable_recipe_state():
-    from journey_blocks import (fresh_desktop, parent_management, parent_search,
+    from journey_blocks import (fresh_desktop, parent_management, parent_reopen, parent_search,
                                 product_free_desktop, reboot_desktop, station_entry, observed_text)
     for factory, args in ((fresh_desktop, ('parent',)), (fresh_desktop, ('other-child',)),
                           (fresh_desktop, ('child',)),
-                          (parent_search, ()), (parent_management, ()),
+                          (parent_search, ()), (parent_management, ()), (parent_reopen, ()),
                           (product_free_desktop, ()), (reboot_desktop, ()),
                           (station_entry, ('cancel-',)), (observed_text, ('renamed', 'body-clear'))):
         expected = factory(*args)

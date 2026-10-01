@@ -2,6 +2,7 @@
 from accessible_ui import ACCESS_CHOICES, FILTER_OPTIONS, MATCH_APP
 from journey_blocks import filter_screens
 from private_artifacts import require
+from match_rules import match_edit
 
 
 def policy_edit(app, draft, access, prefix, *, filters=()):
@@ -23,10 +24,8 @@ def policy_edit(app, draft, access, prefix, *, filters=()):
         screens.update(filter_screens(kind, mask, prefix + '-' + kind))
     screens.update({
         prefix + '-found': 'ui:catalogue-identifier-rows',
-        prefix + '-open': 'ui:match-open', prefix + '-old': 'ui:match-read',
-        **{f'{prefix}-draft-{action}': f'ui:text-{draft}-{action}'
-           for action in ('focus', 'selected', 'read')},
-        prefix + '-save': 'ui:match-save', prefix + '-match': 'ui:match-row',
+        **match_edit(draft, prefix, editor=(prefix + '-open', prefix + '-old'),
+                     row=prefix + '-match'),
         prefix + '-access-save': 'ui:access-' + access,
         prefix + '-access': 'ui:access-row', prefix + '-final-match': 'ui:match-row',
     })

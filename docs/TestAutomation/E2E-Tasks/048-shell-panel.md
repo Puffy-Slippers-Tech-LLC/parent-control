@@ -39,47 +39,53 @@ tools/run-tests integration check_e2e_shell_panel
 
 ## Recovery boundary
 
-The retained direct-form failure was a mechanical controller defect: the shared
-form reader emitted valid diagnostic JSON lines and a successful final reply,
-but overlay observation bypassed the station's guarded stream parser.
-`UiObservations.call` now parses both surfaces with the same diagnostic and
-sole-final-reply guards while keeping child-session binding separate.
-Real controller decoding, arbitrary chunks, malformed streams and owned
-transport timeout are covered. Scoped host checks passed all 2229 checks in
-`output/test-runs/host/reports/20261001T185452Z-e1115191/report.md`;
-scheduling/plan checks passed 190 checks in `20261001T185632Z-a23477dc`.
+The previous direct-form diagnostic parser defect and stale language snapshot
+are resolved. Preserve the guarded shared stream parser and default approver
+Casey (`other-fixture-parent`); no product behavior decision is pending.
+
+The retained panel failure in `20261001T185732Z-c40fe452` was mechanical:
+`private/command-0367-stderr.txt` under
+`output/test-runs/privileged/allocations/onpc-graphical-smoke-he7zlyrl`
+reports `ui:missing-action`. [Shell 50's button accessibility implementation](https://github.com/GNOME/gnome-shell/blob/50.0/src/st/st-button.c)
+has no Action interface. The ID/session/owner readiness checks passed before
+any activation. Shared `overlay_panel_launch` now focuses the ID-owned control
+through Component, independently reacquires the same focused target with prompt
+guards, then releases one Enter in `onpc_request_flow::overlay_entry`.
+Focus failure and uncertain input cannot replay; form readback remains independent.
+The host reproduction failed before this correction in `20261001T190910Z-109a8736`.
+
+All 2302 affected host checks passed in
+`output/test-runs/host/reports/20261001T191104Z-ad41a766/report.md`, including
+focus/ownership/prompt/replay refusals, actual worker key order and failure stops,
+shared diagnostic decoding, immutable projections, cleanup and bundle guards.
+Scheduling/plan checks passed 123 checks in `20261001T191332Z-f225d67f`.
 Test/tool/documentation changes do not affect package/build inputs.
 
-The stale app snapshot was previously rebuilt with current language controls;
-this session reused `onpc-v1.2` with `--overwrite false` and released maintenance
-ownership. Do not repeat the resolved snapshot or diagnostic-parser diagnosis.
-
-The new attempt on every enabled VM (currently `onpc-Ubuntu26.04`) failed in
-`output/test-runs/host/reports/20261001T185732Z-c40fe452/report.md` after
-`panel-panel`, before `panel-launch`, with `e2e:worker-execution-failed`
+Maintained snapshot preparation reused `onpc-v1.2` with `--overwrite false`;
+both recorded maintenance stops completed successfully. Live qualification on
+every enabled VM (currently `onpc-Ubuntu26.04`) failed in
+`output/test-runs/host/reports/20261001T191702Z-cab9c288/report.md` after
+`direct-launch`, before `direct-form`, with `e2e:worker-execution-failed`
 (`CommandError`, `step-2`; terminal category `command:failed:ssh`). Parent setup,
-public 900-second daily-time preparation, wrong-account refusal, fresh child
-entry, both direct launches/fixed-child form assertions, their Cancel/desktop
-returns and panel readiness passed. The new cause remains undiagnosed; this is
-not an established product defect. No investigation, repair or retry followed
-this new failure. The worker stopped and callback closed, but normal shutdown
-verification was false. Owned cleanup, baseline restoration and host/source
-preservation passed; collection, panel acceptance and required live kiosk
-regressions were not reached. A subsequent status probe confirmed the VM off.
+public 900-second daily-time preparation, wrong-account refusal and fresh child
+entry passed. The panel correction was not reached. The cause of this new
+failure remains undiagnosed; no investigation, repair or retry followed it.
+Worker stopped and callback closed, but normal shutdown verification was false.
+Owned cleanup, baseline restoration and host/source preservation passed;
+collection and the kiosk regressions were not reached. A subsequent guarded
+status probe confirmed the VM off.
 
-Evidence roots:
-`output/test-runs/privileged/allocations/onpc-graphical-smoke-he7zlyrl`,
-`output/test-runs/privileged/allocations/onpc-e2e-evidence-pt4v4ifs/worker-result.json`,
-and `output/test-runs/privileged/allocations/onpc-e2e-evidence-9tqa9tj0`.
-The queue summary is
-`output/test-runs/host/allocations/onpc-vm-queue-s6qtakgd/results.json`.
-Use the maintained artifact reader; keep raw captures private.
+Retained evidence:
+`output/test-runs/privileged/allocations/onpc-graphical-smoke-z0mgkzqv`,
+`output/test-runs/privileged/allocations/onpc-e2e-evidence-qdq7xs8b/worker-result.json`,
+`output/test-runs/privileged/allocations/onpc-e2e-evidence-hb_ahubl`,
+and `output/test-runs/host/allocations/onpc-vm-queue-jr6tvnbu/results.json`.
+Use the maintained artifact reader and keep raw captures private.
 
-Next session: diagnose and repair this retained failure, rerun affected host
-checks, then prepare the app snapshot under the shared live contract and run the
-qualification without `--vm`. Reuse the refreshed snapshot with
-`--overwrite false` unless application inputs change. After qualification passes,
-run `check_e2e_kiosk_entry` and `check_e2e_kiosk_eligible_choices` as separate
-`tools/run-tests integration` selections for the shared REQUEST03 reader.
-Close only after all acceptance and owned cleanup pass. No adviser has been
-consulted; apply the current Sol High / bounded Astra High escalation policy.
+Next session: recheck cleanup, diagnose and repair this new failure, finish
+affected host validation, then prepare through the shared live contract and run
+`check_e2e_shell_panel` without `--vm`. Reuse the refreshed snapshot unless app
+inputs change. After it passes, run `check_e2e_kiosk_entry` and
+`check_e2e_kiosk_eligible_choices` separately without `--vm` for shared REQUEST03.
+All enabled VMs and owned cleanup must pass before close-out. No adviser has
+been consulted; apply the current Sol High / bounded Astra High escalation policy.

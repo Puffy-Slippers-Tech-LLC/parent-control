@@ -446,11 +446,8 @@ class RequestContent(MetalBoard):
             automation_id="kiosk-request-submit",
         )
         self._request.add_css_class("oh-no-parent-control-request-button")
-        self._request.set_margin_start(3)
-        self._request.set_margin_end(3)
         self._request.set_sensitive(False)
         self._request.connect("clicked", on_request)
-        actions.append(self._request)
 
         self._screen_limit_overlay = Gtk.Overlay()
         set_automation_id(self._screen_limit_overlay, "kiosk-screen-limit-overlay")
@@ -468,18 +465,16 @@ class RequestContent(MetalBoard):
         self.append(self._screen_limit_overlay)
 
         self._cancel = localized(ArmoredButton, 
-            label=m.CANCEL_2, hexpand=True, armor_kind="cancel",
+            label=m.CANCEL_2, hexpand=True,
         )
         describe_control(
             self._cancel, m.CANCEL_REQUEST,
             m.CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME,
             automation_id="kiosk-request-cancel",
         )
-        self._cancel.add_css_class("oh-no-parent-control-cancel-button")
-        self._cancel.set_margin_start(3)
-        self._cancel.set_margin_end(3)
         self._cancel.connect("clicked", on_cancel)
         actions.append(self._cancel)
+        actions.append(self._request)
         self.append(actions)
         status_row = MetalPanel(
             orientation=Gtk.Orientation.VERTICAL,

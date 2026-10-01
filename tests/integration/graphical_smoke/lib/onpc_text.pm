@@ -48,6 +48,10 @@ my %values = (
     'daily-invalid-maximum' => '1440', 'daily-invalid-over' => '1441',
 );
 my %repetitions;
+for my $key (grep { /^kiosk-invalid-/ } keys %values) {
+    (my $overlay = $key) =~ s/^kiosk-/overlay-/;
+    $values{$overlay} = $values{$key};
+}
 for my $binding ('body-ascii-5000', 'body-ascii-5001',
                  'body-mixed-5000-base', 'body-mixed-5001-base') {
     my @chain = ("$binding-seed", map { "$binding-double-$_" } 1..4);

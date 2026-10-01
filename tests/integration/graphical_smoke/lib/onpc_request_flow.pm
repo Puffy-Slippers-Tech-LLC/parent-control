@@ -9,6 +9,7 @@ use onpc_journey ();
 use onpc_password ();
 use onpc_desktop_session ();
 use onpc_app_rows ();
+use onpc_request_exit ();
 use testapi ();
 
 sub overlay_valid_choices {
@@ -88,13 +89,26 @@ sub overlay_entry {
 sub prepare {
     onpc_progress::operation('Preparing the declared kiosk request without submitting');
     my ($journey, $prefix, $entry, $initial, $child, $approver, $seconds, $soft, $invalid) = @_;
-    die 'request-flow:binding' unless (@_ == 8 || @_ == 9 && $invalid eq 'invalid')
+    die 'request-flow:binding' unless (@_ == 8 || @_ == 9 && ($invalid eq 'invalid' || $invalid eq 'overlay'))
         && ref($journey) eq 'onpc_journey'
         && ($prefix eq 'open' || $prefix eq 'new')
         && ($entry eq 'open' || $entry eq 'new')
         && ($initial eq 'default' || $initial eq 'selected')
         && $child eq 'fixture-child' && $approver eq 'fixture-parent'
         && $seconds eq '75' && $soft eq '1';
+    if ($invalid && $invalid eq 'overlay') {
+        overlay_entry($journey, "$prefix-entry", 'command') if $entry eq 'new';
+        for my $suffix ('form', 'approver', 'selections', 'duration') {
+            my $stage = "$prefix-$suffix";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+        onpc_text::replace_text($journey, 'overlay-fraction', "$prefix-text");
+        for my $suffix ('duration-read', 'apps', 'estimate') {
+            my $stage = "$prefix-$suffix";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+        return;
+    }
     onpc_gdm::enter_station($journey, 'cancel-') if $entry eq 'new';
     for my $suffix ('form', 'child', 'approver', 'selections') {
         my $stage = "$prefix-$suffix";
@@ -114,6 +128,49 @@ sub prepare {
         my $stage = "$prefix-$suffix";
         $journey->consume_observation($stage, $journey->seen($stage));
     }
+}
+
+sub overlay_choices {
+    onpc_progress::operation('Qualifying overlay composition, invalid requests and unchanged activity after exits');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'overlay-choices:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-choices', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    $journey->seen('wrong-account-refused');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    my $activity = onpc_journey->new(exchange => sub { $exchange->('activity-' . $_[0], $_[1]) },
+        prefix => 'overlay-choices-activity', review => 0);
+    onpc_app_rows::native_usable_app($activity, 'command', $activity->seen('desktop'));
+    onpc_app_rows::native_read_activity($activity, 'capture');
+    overlay_entry($journey, 'direct', 'command');
+    $journey->seen('wrong-surface-refused');
+    prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
+    $journey->seen('cancel');
+    $journey->seen('cancel-returned');
+    onpc_app_rows::native_read_activity($activity, 'cancel');
+    prepare($journey, 'new', 'new', 'selected', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
+    $journey->seen('exclude-soft');
+    $journey->seen('excluded-read');
+    for my $binding ('empty', 'letters', 'negative', 'zero', 'below', 'over', 'comma') {
+        onpc_text::replace_text($journey, "overlay-invalid-$binding");
+        $journey->seen("overlay-invalid-$binding-$_") for ('ready', 'submit', 'read');
+    }
+    onpc_request_exit::escape($journey);
+    onpc_app_rows::native_read_activity($activity, 'escape');
+    onpc_app_rows::native_finish_app($activity);
+    $journey->finish();
 }
 
 # FLOW05 uses the fixed single-use challenge and the caller's declared exit leaf.

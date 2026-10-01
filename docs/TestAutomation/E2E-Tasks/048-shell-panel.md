@@ -36,3 +36,43 @@ Registered qualification selector:
 ```sh
 tools/run-tests integration check_e2e_shell_panel
 ```
+
+## Recovery boundary
+
+Implementation and scoped host validation passed, including worker-order and
+failure-stop, immutable decoder, entry/refusal, recorder durability and cleanup
+checks: `output/test-runs/host/reports/20261001T184237Z-d71170cd/report.md`
+(2081 checks). Test-only changes do not affect package/build inputs.
+
+The prior Parent-language timeout came from a stale installed package without
+the current language controls. Maintained app-snapshot preparation with
+`--overwrite true` rebuilt `onpc-v1.2`; guarded maintenance inspection confirmed
+the installed language controls, and maintenance stop completed. The new live
+run passed Parent setup, public 900-second daily-time preparation, wrong-account
+refusal and fresh child entry. Do not repeat the old failure diagnosis.
+
+The new attempt on every enabled VM (currently `onpc-Ubuntu26.04`) failed in
+`output/test-runs/host/reports/20261001T184419Z-4be29aa0/report.md` after
+`direct-launch`, before `direct-form`, with `e2e:worker-execution-failed`
+(`EvidenceError`, `step-2`). The cause remains undiagnosed; this is not an
+established product defect. No investigation, repair or retry followed this
+new failure. The worker stopped and callback closed, but normal shutdown
+verification was false. Owned cleanup, baseline restoration and host/source
+preservation passed; collection and overlay acceptance were not reached.
+
+Evidence roots:
+`output/test-runs/privileged/allocations/onpc-graphical-smoke-igd8tula`,
+`output/test-runs/privileged/allocations/onpc-e2e-evidence-51xfd6l8/worker-result.json`,
+and `output/test-runs/privileged/allocations/onpc-e2e-evidence-7tp3pljp`.
+The queue summary is
+`output/test-runs/host/allocations/onpc-vm-queue-swvkiqw9/results.json`.
+Use the maintained artifact reader; keep raw captures private.
+
+Next session: diagnose and repair this retained failure, rerun affected host
+checks, then prepare the app snapshot under the shared live contract and run the
+qualification without `--vm`. Reuse the refreshed snapshot with
+`--overwrite false` unless application inputs change. After qualification passes,
+run `check_e2e_kiosk_entry` and `check_e2e_kiosk_eligible_choices` as separate
+`tools/run-tests integration` selections for the shared REQUEST03 reader.
+Close only after all acceptance and owned cleanup pass. No adviser has been
+consulted; apply the current Sol High / bounded Astra High escalation policy.

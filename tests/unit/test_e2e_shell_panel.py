@@ -140,7 +140,11 @@ def test_real_controller_decoder_retains_strict_immutable_projection(monkeypatch
     if fault == 'selector': fields['child_selector_enabled'] = True
     if fault == 'controls': fields['request_enabled'] = False
     if fault == 'extra': fields['private'] = 'canary'
-    transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+    def call(*_args, on_output, **_kwargs):
+        raw = (json.dumps(result) + '\n').encode()
+        on_output(raw)
+        return raw
+    transport = SimpleNamespace(call=call, commands=SimpleNamespace(progress=None))
     observer = UiObservations(transport)
     if fault:
         with pytest.raises((EvidenceError, a.UiError)): observer.observe('overlay-request-form')
@@ -149,6 +153,27 @@ def test_real_controller_decoder_retains_strict_immutable_projection(monkeypatch
         immutable = RequestObservation.from_request(value, operation='overlay-request-form')
         value['child'] = 'changed'
         assert immutable.child == 'fixture-child'
+
+
+def test_overlay_reader_diagnostics_pass_through_real_controller(monkeypatch, capsys):
+    ui, _, _, _ = overlay(monkeypatch)
+    result = ui.run('overlay-request-form', '')
+    diagnostics = capsys.readouterr().out.encode()
+    # Enough progress to reproduce the live reply-size failure, with arbitrary
+    # transport chunks and no prompt callback to select the stream parser.
+    raw = diagnostics + (json.dumps(result) + '\n').encode()
+    assert len(raw) > 2048
+    def call(*_args, on_output, timeout, **_kwargs):
+        assert timeout == 120
+        for start in range(0, len(raw), 17):
+            on_output(raw[start:start + 17])
+        return raw
+    transport = SimpleNamespace(call=call, commands=SimpleNamespace(progress=None))
+    observed = UiObservations(transport).observe('overlay-request-form')
+    assert RequestObservation.from_request(observed['request'],
+        operation='overlay-request-form').child == 'fixture-child'
+    assert capsys.readouterr().err.encode() == diagnostics
+    assert transport.commands.progress is None
 
 
 def test_overlay_closed_requires_complete_absence_and_desktop(monkeypatch):

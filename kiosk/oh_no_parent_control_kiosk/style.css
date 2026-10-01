@@ -594,7 +594,16 @@ button.oh-no-parent-control-request-button:disabled {
 
 .oh-no-parent-control-language-dialog checkbutton {
   padding: 5px 8px;
+  border-bottom: 1px solid rgba(244, 244, 244, 0.18);
   border-radius: 4px;
+}
+
+.oh-no-parent-control-language-dialog checkbutton:last-child {
+  border-bottom-color: transparent;
+}
+
+.oh-no-parent-control-language-dialog checkbutton radio {
+  margin-left: 12px;
 }
 
 .oh-no-parent-control-language-dialog checkbutton:checked {

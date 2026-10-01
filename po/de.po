@@ -579,9 +579,9 @@ msgstr "Sprache"
 msgid "Choose your language"
 msgstr "Sprache wählen"
 
-#. Shared message: YOU_CAN_CHANGE_IT_LATER_IN_PREFERENCES
-msgid "You can change it later in preferences"
-msgstr "Die Sprache lässt sich später in den Einstellungen ändern"
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Die Sprache lässt sich in den Einstellungen ändern"
 
 #. Shared message: SELECT_NAME_S
 #. Preserve named operands and any markup; operands are supplied by the owning UI.
@@ -710,14 +710,6 @@ msgstr "Anfrage genehmigt"
 #. Shared message: REQUEST_DENIED
 msgid "Request denied"
 msgstr "Anfrage abgelehnt"
-
-#. Shared message: SELECT_LANGUAGE
-msgid "Select Language"
-msgstr "Sprache wählen"
-
-#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES_LATER
-msgid "You can change it in preferences later."
-msgstr "Die Sprache lässt sich später in den Einstellungen ändern"
 
 #. Shared message: CHILD
 msgid "Child"

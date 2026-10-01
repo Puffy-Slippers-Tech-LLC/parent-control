@@ -45,7 +45,7 @@ class LanguageDialog(Gtk.Window):
                           css_classes=["parent-language-title"])
         set_automation_id(title, "language-title")
         heading.append(title)
-        subtitle = localized(Gtk.Label, label=m.YOU_CAN_CHANGE_IT_LATER_IN_PREFERENCES, wrap=True,
+        subtitle = localized(Gtk.Label, label=m.YOU_CAN_CHANGE_IT_IN_PREFERENCES, wrap=True,
                              justify=Gtk.Justification.CENTER,
                              css_classes=["parent-language-description"])
         set_automation_id(subtitle, "language-description")

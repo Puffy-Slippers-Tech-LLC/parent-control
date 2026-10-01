@@ -31,10 +31,10 @@ class LanguageDialog(Gtk.Window):
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                           margin_start=24, margin_end=24, margin_top=24, margin_bottom=24)
         content.append(localized(Gtk.Label, label="🌍", css_classes=["title-1"]))
-        title = localized(Gtk.Label, label=m.SELECT_LANGUAGE, css_classes=["title-1"])
+        title = localized(Gtk.Label, label=m.CHOOSE_YOUR_LANGUAGE, css_classes=["title-1"])
         set_automation_id(title, "language-title")
         content.append(title)
-        description = localized(Gtk.Label, label=m.YOU_CAN_CHANGE_IT_IN_PREFERENCES_LATER,
+        description = localized(Gtk.Label, label=m.YOU_CAN_CHANGE_IT_IN_PREFERENCES,
                                 wrap=True, justify=Gtk.Justification.CENTER)
         set_automation_id(description, "language-description")
         content.append(description)

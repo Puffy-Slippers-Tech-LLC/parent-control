@@ -218,7 +218,7 @@ Parent, kiosk and child overlay read their own language asynchronously at startu
 A nonempty saved value bypasses the chooser. An empty value opens a modal chooser
 with the resolved primary session language selected. The chooser displays native
 language names in catalogue order and explains that Preferences can change the
-selection later.
+selection, using the same neutral wording for initial setup and subsequent visits.
 
 Parent uses its native GTK dialog; the kiosk and overlay share their separate
 metal-board dialog. Both share catalogue and resolution logic. Continue is the

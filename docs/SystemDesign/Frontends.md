@@ -207,7 +207,8 @@ use English. Regional and script variants collapse to the product's one choice,
 including Portuguese to `pt-BR` and Chinese to `zh-Hans`.
 
 The chooser lists native names in catalogue order and says “You can change it
-later in preferences”. Continue is its sole dismissal action. It saves the
+in preferences”. Both dialog UIs use the heading “Choose your language”. Continue
+is its sole dismissal action. It saves the
 current user's selection through `SetOwnLanguage` before closing; failures keep
 the selection visible and permit retry. A nonempty saved value suppresses the
 startup dialog. The top-right menu's Preferences action opens the same chooser

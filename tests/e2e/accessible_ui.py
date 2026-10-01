@@ -6828,9 +6828,27 @@ class AccessibleUI:
         return self.wait(observe, 'overlay-panel', prompt_in_predicate=True)
 
     def overlay_panel_launch(self):
+        """Qualify the ID-owned keyboard recipient; the worker sends Enter once.
+
+        GNOME Shell 50's StButtonAccessible has no AT-SPI Action interface.
+        Use its public Component focus API, never an attempted activation with
+        a fallback after uncertain input.
+        """
         require(not self.input_uncertain, 'ui:uncertain-input')
-        self._invoke_target(self.overlay_panel_target())
-        # One deliberate activation per operation, even after a successful input.
+        target = self.overlay_panel_target()
+        if not self.has_state(target, self.api.StateType.FOCUSED):
+            component = target.get_component_iface()
+            require(component is not None, 'ui:overlay-focus-unavailable')
+            self.input_uncertain = True
+            require(component.grab_focus(), 'ui:overlay-focus-refused')
+
+        def focused():
+            refreshed = self.overlay_panel_target()
+            require(refreshed == target, 'ui:overlay-stale-focus')
+            return self.has_state(refreshed, self.api.StateType.FOCUSED)
+
+        self.wait(focused, 'overlay-panel-focus', prompt_in_predicate=True)
+        # This single-use proof releases exactly one worker keyboard input.
         self.input_uncertain = True
 
     def overlay_desktop(self):

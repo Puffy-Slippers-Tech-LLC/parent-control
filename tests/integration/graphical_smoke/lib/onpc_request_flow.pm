@@ -7,6 +7,7 @@ use onpc_parent ();
 use onpc_text ();
 use onpc_journey ();
 use onpc_password ();
+use testapi ();
 
 # REQUEST02/13: one explicit input and independent REQUEST03 observation.
 # The caller owns entry, repeated customer inputs and subsequent exits.
@@ -17,6 +18,9 @@ sub overlay_entry {
         && $prefix =~ /\A[a-z][a-z0-9-]*\z/ && ($route eq 'command' || $route eq 'panel');
     $journey->invoke("$prefix-panel") if $route eq 'panel';
     $journey->invoke("$prefix-launch");
+    # The panel checkpoint proves focus on child-request-button by public ID.
+    # StButtonAccessible has no Action interface; activate with one ordinary key.
+    testapi::send_key('ret') if $route eq 'panel';
     return $journey->invoke("$prefix-form");
 }
 

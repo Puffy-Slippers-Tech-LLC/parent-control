@@ -39,33 +39,40 @@ tools/run-tests integration check_e2e_shell_panel
 
 ## Recovery boundary
 
-Implementation and scoped host validation passed, including worker-order and
-failure-stop, immutable decoder, entry/refusal, recorder durability and cleanup
-checks: `output/test-runs/host/reports/20261001T184237Z-d71170cd/report.md`
-(2081 checks). Test-only changes do not affect package/build inputs.
+The retained direct-form failure was a mechanical controller defect: the shared
+form reader emitted valid diagnostic JSON lines and a successful final reply,
+but overlay observation bypassed the station's guarded stream parser.
+`UiObservations.call` now parses both surfaces with the same diagnostic and
+sole-final-reply guards while keeping child-session binding separate.
+Real controller decoding, arbitrary chunks, malformed streams and owned
+transport timeout are covered. Scoped host checks passed all 2229 checks in
+`output/test-runs/host/reports/20261001T185452Z-e1115191/report.md`;
+scheduling/plan checks passed 190 checks in `20261001T185632Z-a23477dc`.
+Test/tool/documentation changes do not affect package/build inputs.
 
-The prior Parent-language timeout came from a stale installed package without
-the current language controls. Maintained app-snapshot preparation with
-`--overwrite true` rebuilt `onpc-v1.2`; guarded maintenance inspection confirmed
-the installed language controls, and maintenance stop completed. The new live
-run passed Parent setup, public 900-second daily-time preparation, wrong-account
-refusal and fresh child entry. Do not repeat the old failure diagnosis.
+The stale app snapshot was previously rebuilt with current language controls;
+this session reused `onpc-v1.2` with `--overwrite false` and released maintenance
+ownership. Do not repeat the resolved snapshot or diagnostic-parser diagnosis.
 
 The new attempt on every enabled VM (currently `onpc-Ubuntu26.04`) failed in
-`output/test-runs/host/reports/20261001T184419Z-4be29aa0/report.md` after
-`direct-launch`, before `direct-form`, with `e2e:worker-execution-failed`
-(`EvidenceError`, `step-2`). The cause remains undiagnosed; this is not an
-established product defect. No investigation, repair or retry followed this
-new failure. The worker stopped and callback closed, but normal shutdown
+`output/test-runs/host/reports/20261001T185732Z-c40fe452/report.md` after
+`panel-panel`, before `panel-launch`, with `e2e:worker-execution-failed`
+(`CommandError`, `step-2`; terminal category `command:failed:ssh`). Parent setup,
+public 900-second daily-time preparation, wrong-account refusal, fresh child
+entry, both direct launches/fixed-child form assertions, their Cancel/desktop
+returns and panel readiness passed. The new cause remains undiagnosed; this is
+not an established product defect. No investigation, repair or retry followed
+this new failure. The worker stopped and callback closed, but normal shutdown
 verification was false. Owned cleanup, baseline restoration and host/source
-preservation passed; collection and overlay acceptance were not reached.
+preservation passed; collection, panel acceptance and required live kiosk
+regressions were not reached. A subsequent status probe confirmed the VM off.
 
 Evidence roots:
-`output/test-runs/privileged/allocations/onpc-graphical-smoke-igd8tula`,
-`output/test-runs/privileged/allocations/onpc-e2e-evidence-51xfd6l8/worker-result.json`,
-and `output/test-runs/privileged/allocations/onpc-e2e-evidence-7tp3pljp`.
+`output/test-runs/privileged/allocations/onpc-graphical-smoke-he7zlyrl`,
+`output/test-runs/privileged/allocations/onpc-e2e-evidence-pt4v4ifs/worker-result.json`,
+and `output/test-runs/privileged/allocations/onpc-e2e-evidence-9tqa9tj0`.
 The queue summary is
-`output/test-runs/host/allocations/onpc-vm-queue-swvkiqw9/results.json`.
+`output/test-runs/host/allocations/onpc-vm-queue-s6qtakgd/results.json`.
 Use the maintained artifact reader; keep raw captures private.
 
 Next session: diagnose and repair this retained failure, rerun affected host

@@ -3908,7 +3908,16 @@ Before the first live attempt, check the changed boundary end to end on the host
    once, and either failure prevents the durable reply.
    For a new observation shape, carry realistic-sized output through the real
    controller decoder; an adapter-only mock cannot qualify that boundary. The
-   actual worker bundle must also pass `e2e_worker.distribution_inputs()` through
+   shared request-form reader emits bounded diagnostics on both kiosk and
+   overlay surfaces. Keep those validated progress records separate from the
+   sole final reply in `UiObservations.call`; regress arbitrary stream chunks,
+   missing/replayed replies, late diagnostics and owned transport timeout.
+   Session-account binding remains separate from diagnostic-stream selection.
+   Shell 50's ID-owned `St.Button` exposes Component focus but no Action
+   interface. Panel entry uses public focus and a fresh same-target focused
+   proof before one worker Enter, then independent form readback. Refusals at
+   focus/proof must release no key; uncertain focus/input is never replayed.
+   The actual worker bundle must also pass `e2e_worker.distribution_inputs()` through
    `test_e2e_worker_cleanup_safety.py` when adding or moving worker files. Direct
    Perl tests do not exercise its file-count, size and provenance guards; prefer
    extending an existing owning library when appropriate, preserving those bounds.

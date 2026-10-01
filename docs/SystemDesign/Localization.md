@@ -279,6 +279,12 @@ language on enable, on session resume and after its request overlay exits. This
 keeps panel and overlay tied to one child preference without requiring a broker
 broadcast. These reads must not delay countdown calculation or expiry locking.
 
+The isolated `make preview-child` has no broker. Its Shell and request overlay
+share a language file under the preview's disposable state directory, supplied
+by `OH_NO_PARENT_CONTROL_PREVIEW_LANGUAGE_FILE`. Save replaces that file before
+applying the selection; closing the overlay reloads it into the panel context.
+Reopening the overlay retains the selection for that preview's lifetime.
+
 About, help labels, feedback controls, validation, request results and user-facing
 error explanations inherit the caller's context. Error categories and diagnostic
 payloads stay stable. User-written reports, account names, filenames and external

@@ -164,6 +164,7 @@ def _activate_overlay_cancel():
     if overlay_ui is None:
         raise AssertionError("The live request overlay application was not published")
     overlay_ui.complete_read_wait = _wait
+    overlay_ui.complete_request_language_setup()
     overlay_ui.activate(OVERLAY_CANCEL_ID)
 
 

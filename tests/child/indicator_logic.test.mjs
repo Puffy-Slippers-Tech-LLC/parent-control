@@ -314,6 +314,34 @@ test('countdown animation setting gates the final-minute effects', () => {
         {clears: 1, flashes: 1, countdownStyles: 1, spins: 1, stops: 1});
 });
 
+test('language refresh relabels the hidden dock tooltip before its next hover', () => {
+    const descriptions = [];
+    const indicator = createIndicator({
+        formatRemainingTime,
+        describeControl: (_actor, _id, _name, description) => descriptions.push(description),
+    });
+    let language = 'en';
+    Object.assign(indicator, {
+        _translations: {text: (key, values) => `${language}:${key}:${values.time ?? ''}`},
+        _requestButton: {},
+        _label: {},
+        _tooltip: {visible: false, text: ''},
+        _previewMarker: '',
+        _clearCountdownWarning() {},
+        _syncOrientation: () => false,
+        _updateRequestIcon() {},
+        _sync() { this._updateLabel(2700); },
+    });
+    indicator.refreshLanguage();
+    assert.equal(indicator._tooltip.text, 'en:PANEL_TOOLTIP:00:45');
+    language = 'de';
+    indicator.refreshLanguage();
+    assert.equal(indicator._tooltip.text, 'de:PANEL_TOOLTIP:00:45');
+    assert.equal(indicator._requestButton.accessible_name, 'de:PANEL_REQUEST_TIME:00:45');
+    assert.equal(descriptions.at(-1), 'de:PANEL_DESCRIPTION:');
+    assert.equal(indicator._tooltip.visible, false);
+});
+
 test('display state changes cadence at the final minute and locks only at zero', () => {
     assert.deepEqual(displayState({calculatedEnd: 160, currentTime: 100, locked: false, greeter: false}), {
         remaining: 60, visible: true, shouldLock: false, countdown: false,

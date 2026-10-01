@@ -229,8 +229,9 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
     print(f"UI preview logs: {directory}", flush=True)
     with preview_applications(hermetic_ui_session, directory) as launch:
         def launch_ready(name, **kwargs):
+            complete_language_setup = kwargs.pop('complete_language_setup', True)
             result = launch(name, **kwargs)
-            if name in ("parent_preview", "parent_component_preview", "kiosk_preview",
+            if complete_language_setup and name in ("parent_preview", "parent_component_preview", "kiosk_preview",
                         "child_overlay_preview", "request_component_preview"):
                 import gi
                 gi.require_version("Atspi", "2.0")
@@ -304,12 +305,15 @@ def automation(hermetic_ui_session, launch_ui, wait_for_accessible_state):
 
     api = PublicAtspi(Atspi)
     try:
-        yield Automation(api, lambda: api.get_desktop(0), query_errors=(GLib.Error,),
-                         owner_pids=launch_ui.owner_pids,
-                         application_ids=launch_ui.application_ids,
-                         application_owners=launch_ui.application_owners,
-                         application_owner_history=launch_ui.application_owner_history,
-                         complete_read_wait=wait_for_accessible_state)
+        ui = Automation(api, lambda: api.get_desktop(0), query_errors=(GLib.Error,),
+                        owner_pids=launch_ui.owner_pids,
+                        application_ids=launch_ui.application_ids,
+                        application_owners=launch_ui.application_owners,
+                        application_owner_history=launch_ui.application_owner_history,
+                        complete_read_wait=wait_for_accessible_state)
+        ui.reader.timeout = UI_TIMEOUT_SECONDS
+        ui.reader.dispatch = lambda: GLib.MainContext.default().iteration(False)
+        yield ui
     finally:
         api.reset()
 

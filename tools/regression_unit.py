@@ -28,6 +28,8 @@ private pytest trees; recorded harmless children are released and reaped by
 their fixture. Cross-scope reconnect tests remain safe for compatible overlap.
 Public AT-SPI and observation-cache regressions use process-local bus doubles,
 mock clocks and immutable synthetic trees; they open no real sockets or displays.
+Language chooser action guards use those same in-memory trees and mocked actions;
+scope restoration and uncertain-input checks add no resource or cleanup lifetime.
 Runtime timeout evidence tests mock all OS commands and use private pytest
 metadata; toggle entry tests keep bounded, waited Perl children and no live login.
 Both existing compatible unit classifications remain valid.

@@ -2054,6 +2054,12 @@ class AccessibleUI:
 
     def complete_language_setup(self, surface):
         """Scope shared language IDs to the requested frontend application."""
+        with self.language_scope(surface):
+            self._complete_language_setup(surface)
+
+    @contextmanager
+    def language_scope(self, surface):
+        """Share the owning-account chooser boundary between previews and E2E."""
         require(surface in ('parent', 'kiosk'), 'ui:language-surface')
         original = self.application_ids
         requested = original() if callable(original) else original
@@ -2062,9 +2068,63 @@ class AccessibleUI:
         self.application_ids = tuple(value for value in allowed
                                      if requested is None or value in requested)
         try:
-            self._complete_language_setup(surface)
+            yield
         finally:
             self.application_ids = original
+
+    def open_language_preferences(self, surface):
+        with self.language_scope(surface):
+            self.id_target('parent-window' if surface == 'parent' else 'kiosk-request-window')
+            self.activate_id(f'{surface}-menu-button')
+            self.activate_id('parent-menu-preferences' if surface == 'parent'
+                             else 'kiosk-menu-item-preferences')
+            self.input_uncertain = True
+            self.wait(lambda: self.snapshot_owned_target('language-dialog', check_prompt=True),
+                      'language-preferences-open', prompt_in_predicate=True)
+            self.input_uncertain = False
+
+    def choose_language(self, surface, language):
+        # Finite customer input; never derive target identities from translated names.
+        require(language in ('en', 'de', 'fr', 'ru', 'pl', 'ja', 'zh-Hans'),
+                'ui:language-test-choice')
+        with self.language_scope(surface):
+            identity = 'language-choice-' + language.lower()
+            self.activate_id(identity)
+            self.input_uncertain = True
+            self.wait(lambda: self.has_state(self.id_target(identity, showing=False),
+                                             self.api.StateType.CHECKED),
+                      'language-candidate-selected')
+            self.input_uncertain = False
+
+    def language_save_completed(self, surface):
+        """Observe readiness and closure together; do not replay an uncertain Save."""
+        with self.language_scope(surface):
+            def completed():
+                observation = self.read_snapshot()
+                if any(self.has_state(node, self.api.StateType.DEFUNCT)
+                       for node in observation[0]):
+                    return False
+                if self.snapshot_owned_target(f'{surface}-language-ready', check_prompt=True,
+                                              observation=observation) is None:
+                    return False
+                dialog = self.snapshot_owned_target('language-dialog', showing=False,
+                    observation=observation, allow_unmapped_surface=True)
+                return dialog is None or not self.showing(dialog)
+
+            self.wait(completed, 'language-saved', prompt_in_predicate=True)
+            self.input_uncertain = False
+
+    def save_language(self, surface):
+        with self.language_scope(surface):
+            self.activate_id('language-continue')
+            self.input_uncertain = True
+            self.language_save_completed(surface)
+
+    def cancel_language(self, surface):
+        with self.language_scope(surface):
+            self.activate_id('language-cancel')
+            self.input_uncertain = True
+            self.language_save_completed(surface)
 
     def _complete_language_setup(self, surface):
         """Accept the first-run default once, using the same host/E2E public IDs.
@@ -2102,25 +2162,7 @@ class AccessibleUI:
         # Keep input uncertain until a fresh public result confirms completion.
         # A save error or timeout must not replay Continue.
         self.input_uncertain = True
-
-        def completed():
-            # Observe readiness and closure in one complete, app-scoped read.
-            # Another frontend may still show its own language-dialog; shared
-            # IDs are unique within the owning application, not the desktop.
-            observation = self.read_snapshot()
-            if any(self.has_state(node, self.api.StateType.DEFUNCT)
-                   for node in observation[0]):
-                return False
-            if self.snapshot_owned_target(
-                    ready_id, check_prompt=True, observation=observation) is None:
-                return False
-            dialog = self.snapshot_owned_target(
-                'language-dialog', showing=False, observation=observation,
-                allow_unmapped_surface=True)
-            return dialog is None or not self.showing(dialog)
-
-        self.wait(completed, f'{surface}-language-saved', prompt_in_predicate=True)
-        self.input_uncertain = False
+        self.language_save_completed(surface)
 
     def parent_window_count(self):
         """UI13: count the sole owned management window in a complete snapshot."""

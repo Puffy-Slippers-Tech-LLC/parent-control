@@ -6,16 +6,20 @@ No real account, service, process, or system path is changed by these tests.
 
 import pytest
 
+from tests.support.paths import ROOT
+from tests.support.package_scripts import Machine, machine
+
 
 @pytest.mark.parametrize('changed', [False, True])
-def test_removal_restores_only_unchanged_owned_trust_backend(machine, changed):
+@pytest.mark.parametrize('active', [False, True])
+def test_removal_restores_only_unchanged_owned_trust_backend(machine, changed, active):
     original = 'trust = debdb\nintegrity = none\n'
     configured = original.replace('debdb', 'debdb,file')
     machine.write('var/lib/oh-no-parent-control/child-trust-backend/before', original)
     machine.write('var/lib/oh-no-parent-control/child-trust-backend/after', configured)
     config = machine.write('etc/fapolicyd/fapolicyd.conf',
                            configured + ('# administrator edit\n' if changed else ''))
-    result = machine.run('postrm', 'remove')
+    result = machine.run('postrm', 'remove', SERVICE_ACTIVE=str(int(active)))
     if changed:
         assert result.returncode != 0
         assert '# administrator edit' in config.read_text()
@@ -24,12 +28,11 @@ def test_removal_restores_only_unchanged_owned_trust_backend(machine, changed):
         assert result.returncode == 0, result.stderr
         assert config.read_text() == original
         assert not (machine.root / 'var/lib/oh-no-parent-control/child-trust-backend').exists()
-
-
-from tests.support.paths import ROOT
-
-
-from tests.support.package_scripts import Machine, machine
+        restart = 'deb-systemd-invoke restart fapolicyd.service'
+        if active:
+            assert machine.commands.index('systemctl daemon-reload') < machine.commands.index(restart)
+        else:
+            assert restart not in machine.commands
 
 
 def test_removal_clears_early_denials_before_restoring_policy_baseline(machine):

@@ -84,10 +84,7 @@ def test_first_run_defaults_and_save_waits_for_commit(
     assert ui.text('language-continue') == LANGUAGES[language][3]
     assert ui.target('language-continue').get_description() == LANGUAGES[language][4]
     assert LANGUAGES[language][3] in public_label_names(ui, 'language-dialog')
-    if surface == 'parent':
-        assert ui.showing('language-cancel')
-    else:
-        assert ui.absent('language-cancel', within='language-dialog')
+    assert ui.showing('language-cancel')
     assert not committed(path)
     if surface != 'parent':
         assert not ui.state('kiosk-request-submit', ui.api.StateType.SENSITIVE)
@@ -97,9 +94,7 @@ def test_first_run_defaults_and_save_waits_for_commit(
                          for event in read_events(path)), 'save reaches the fixture')
         assert ui.showing('language-dialog')
         assert not committed(path)
-        disabled = ('language-continue', choice)
-        if surface == 'parent':
-            disabled += ('language-cancel',)
+        disabled = ('language-continue', choice, 'language-cancel')
         for identity in disabled:
             assert not ui.state(identity, ui.api.StateType.SENSITIVE)
     finally:
@@ -128,18 +123,52 @@ def test_parent_first_run_shared_helper_saves_with_cancel_visible(
     assert_no_policy_or_request_writes(path)
 
 
+@pytest.mark.parametrize('surface', SURFACES)
 def test_parent_first_run_cancel_leaves_language_unset(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, surface):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, surface)
+    scope = frontend(surface)
+    wait(lambda: ui.showing('language-dialog'), 'first-run chooser opens')
+    ui.reader.choose_language(scope, 'de')
+    ui.reader.cancel_language(scope)
+    assert_surface_language(ui, wait, surface, 'en')
+    assert not committed(path)
+    ui.reader.open_language_preferences(scope)
+    assert ui.state('language-choice-en', ui.api.StateType.CHECKED)
+    ui.reader.cancel_language(scope)
+    assert_no_policy_or_request_writes(path)
+
+
+def test_kiosk_child_switch_restores_saved_language_and_reprompts_after_cancel(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     ui, wait = automation, wait_for_accessible_state
-    path = launch_language(launch_ui, tmp_path, 'parent')
-    wait(lambda: ui.showing('language-dialog'), 'first-run chooser opens')
-    ui.reader.choose_language('parent', 'de')
-    ui.reader.cancel_language('parent')
-    assert_surface_language(ui, wait, 'parent', 'en')
+    path = launch_language(launch_ui, tmp_path, 'kiosk', scenario='language-switch')
+    wait(lambda: ui.showing('language-dialog'), 'first child setup opens')
+    ui.reader.choose_language('kiosk', 'de')
+    ui.reader.cancel_language('kiosk')
     assert not committed(path)
-    ui.reader.open_language_preferences('parent')
+    ui.activate('kiosk-child-selector')
+    wait(lambda: ui.find('kiosk-child-choice-1002') is not None, 'second child choice')
+    ui.activate('kiosk-child-choice-1002')
+    wait(lambda: ui.showing('language-dialog'), 'second child has no preference')
+    ui.reader.choose_language('kiosk', 'de')
+    ui.reader.save_language('kiosk')
+    assert_surface_language(ui, wait, 'kiosk', 'de')
+    ui.activate('kiosk-child-selector')
+    wait(lambda: ui.find('kiosk-child-choice-1001') is not None, 'first child choice')
+    ui.activate('kiosk-child-choice-1001')
+    wait(lambda: ui.showing('language-dialog'), 'cancelled child setup reopens')
     assert ui.state('language-choice-en', ui.api.StateType.CHECKED)
-    ui.reader.cancel_language('parent')
+    ui.reader.cancel_language('kiosk')
+    assert_surface_language(ui, wait, 'kiosk', 'en')
+    ui.activate('kiosk-child-selector')
+    wait(lambda: ui.find('kiosk-child-choice-1002') is not None, 'saved child choice')
+    ui.activate('kiosk-child-choice-1002')
+    wait(lambda: ui.showing('kiosk-language-ready'), 'saved child language loaded')
+    assert ui.absent('language-dialog', within='kiosk-request-window')
+    assert_surface_language(ui, wait, 'kiosk', 'de')
+    assert committed(path) == ['de']
     assert_no_policy_or_request_writes(path)
 
 
@@ -192,10 +221,7 @@ def test_failed_save_retains_candidate_and_active_language_then_retries(
     assert ui.state('language-continue', ui.api.StateType.SENSITIVE)
     assert ui.text('language-title') == LANGUAGES['en'][2]
     assert not committed(path)
-    if first_run and surface != 'parent':
-        assert ui.absent('language-cancel', within='language-dialog')
-    else:
-        assert ui.state('language-cancel', ui.api.StateType.SENSITIVE)
+    assert ui.state('language-cancel', ui.api.StateType.SENSITIVE)
     ui.reader.save_language(scope)
     assert committed(path) == ['de']
     assert_surface_language(ui, wait, surface, 'de')

@@ -8,6 +8,52 @@ from tests.support.automation_ids import audit_product_controls
 pytestmark = pytest.mark.ui
 
 
+def test_parent_language_chooser_unmaps_before_relabeling(hermetic_ui_session):
+    """Engineering check: the outgoing native window never paints new text."""
+    import subprocess
+    import sys
+    from tests.support.paths import ROOT
+
+    script = '''
+import gi
+gi.require_version('Gtk', '4.0')
+from gi.repository import GLib, Gtk
+from common.oh_no_parent_control_ui import messages as m
+from common.oh_no_parent_control_ui.translation_widgets import context_for, localized
+from parent.oh_no_parent_control_parent.language_dialog import LanguageDialog
+
+Gtk.init()
+parent = Gtk.Window()
+label = localized(Gtk.Label, label=m.CHOOSE_YOUR_LANGUAGE)
+parent.set_child(label)
+context = context_for(parent)
+context.apply('en')
+parent.present()
+events = []
+
+def saved(language):
+    assert not dialog.get_mapped(), 'chooser is still visible during relabeling'
+    events.append('applied')
+    context.apply(language)
+
+dialog = LanguageDialog(parent, 'en', None, saved, None)
+dialog.connect('unmap', lambda *_: events.append('unmapped'))
+dialog.present()
+loop = GLib.MainContext.default()
+while loop.pending():
+    loop.iteration(False)
+assert dialog.get_mapped()
+dialog._success('de')
+assert events == ['unmapped', 'applied'], events
+assert parent.get_child() is label
+assert label.get_label() == 'Sprache wählen'
+parent.destroy()
+'''
+    result = subprocess.run([sys.executable, '-c', script], cwd=ROOT,
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_translation_bindings_follow_native_lifetime_and_reparenting(hermetic_ui_session):
     """Engineering lifecycle check on the existing private GTK display/bus."""
     import subprocess

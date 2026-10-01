@@ -45,6 +45,9 @@ class Broker:
         self.pending_slow_reply = None
         self.preferences = copy.deepcopy(PREFERENCES)
         self.language = LanguageFixture(self.record)
+        self.child_languages = {uid: LanguageFixture(self.record) for uid, *_ in USERS}
+        if self.scenario != 'language-switch':
+            self.child_languages[1002].language = self.child_languages[1002].language or 'en'
         if self.scenario == "two-hours-grant-only":
             self.preferences[1001]["request"]["last_selected_duration"] = "7200"
         if self.scenario == "control-disabled":
@@ -77,14 +80,15 @@ class Broker:
              _flags, _timeout, _cancellable, callback):
         values = () if parameters is None else parameters.unpack()
         self.record("call", method=method, values=values)
-        if method == 'SetOwnLanguage':
-            self.record('language-save-started', language=values[0])
+        if method in ('SetOwnLanguage', 'SetChildLanguage'):
+            language = self.language if method == 'SetOwnLanguage' else self.child_languages[values[0]]
+            self.record('language-save-started', language=values[-1])
             deadline = time.monotonic() + 60
 
             def finish_save():
-                if not self.language.released() and time.monotonic() < deadline:
+                if not language.released() and time.monotonic() < deadline:
                     return GLib.SOURCE_CONTINUE
-                reply = (self.reply(method, values) if self.language.released() else
+                reply = (self.reply(method, values) if language.released() else
                          Reply(error=TimeoutError('language save fixture was not released')))
                 callback(self, reply)
                 return GLib.SOURCE_REMOVE
@@ -116,6 +120,16 @@ class Broker:
         return reply
 
     def reply(self, method, values):
+        if method == 'GetChildLanguage':
+            try:
+                return Reply((self.child_languages[values[0]].read(),))
+            except RuntimeError as error:
+                return Reply(error=error)
+        if method == 'SetChildLanguage':
+            try:
+                return Reply((self.child_languages[values[0]].commit(values[1]),))
+            except RuntimeError as error:
+                return Reply(error=error)
         if method == "GetOwnLanguage":
             try:
                 return Reply((self.language.read(),))

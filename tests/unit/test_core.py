@@ -23,6 +23,35 @@ from tests.support.broker import (
 
 
 class CoreTests(unittest.TestCase):
+    def test_kiosk_language_shares_child_preference_and_preserves_policy(self):
+        preferences = Preferences()
+        broker = make_broker(preferences=preferences)
+        before = preferences.load(1001)
+        self.assertEqual(broker.get_child_language(991, 1001), '')
+        self.assertEqual(broker.set_child_language(991, 1001, 'de'), 'de')
+        self.assertEqual(broker.get_own_language(1001), 'de')
+        self.assertEqual(broker.get_child_language(991, 1002), '')
+        self.assertEqual(broker.get_own_language(991), '')
+        self.assertEqual(preferences.load(1001), {**before, 'personal': {'language': 'de'}})
+
+    def test_child_language_restricts_caller_and_target_before_storage_access(self):
+        store = mock.Mock()
+        broker = Broker(make_broker()._config_loader, Authorizer(), Accounts(), store)
+        for caller in (0, 1001, 1003, True, -1):
+            with self.assertRaises(AccessDenied):
+                broker.get_child_language(caller, 1001)
+            with self.assertRaises(AccessDenied):
+                broker.set_child_language(caller, 1001, 'de')
+        for target in (991, 1003, 1004, 1005):
+            with self.assertRaises(AccessDenied):
+                broker.get_child_language(991, target)
+            with self.assertRaises(AccessDenied):
+                broker.set_child_language(991, target, 'de')
+        with self.assertRaises(InvalidRequest):
+            broker.set_child_language(991, 1001, '../en')
+        store.load.assert_not_called()
+        store.update_language.assert_not_called()
+
     def test_own_language_is_shared_by_uid_and_independent_of_policy(self):
         accounts, authorizer = Accounts(), Authorizer()
         with tempfile.TemporaryDirectory() as directory:

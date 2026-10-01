@@ -139,6 +139,12 @@ class RecordingBroker:
     def set_own_language(self, uid, language):
         return self._invoke("set_own_language", language, uid, language)
 
+    def get_child_language(self, uid, target_uid):
+        return self._invoke("get_child_language", "fr", uid, target_uid)
+
+    def set_child_language(self, uid, target_uid, language):
+        return self._invoke("set_child_language", language, uid, target_uid, language)
+
     def refresh_enabled_extensions(self):
         return self._invoke("refresh_enabled_extensions", (),)
 

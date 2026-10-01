@@ -56,7 +56,9 @@ def test_language_startup_uses_caller_preference_and_only_prompts_when_needed(
 @pytest.mark.parametrize("closed,error", [(False, None), (False, RuntimeError("private")),
                                          (True, None), (True, RuntimeError("private"))])
 def test_language_save_uses_own_account_api_and_ignores_late_callbacks(closed, error):
-    window = SimpleNamespace(_preview=False, _estimate_closed=False, _bus_call=Mock())
+    window = SimpleNamespace(_preview=False, _estimate_closed=False, _bus_call=Mock(),
+                             _child_overlay=True, _language_revision=0,
+                             _language_target_uid=None)
     success, failure = Mock(), Mock()
     RequestWindow._save_language(window, "pt-BR", success, failure)
     method, parameters, signature, callback = window._bus_call.call_args.args
@@ -74,6 +76,7 @@ def test_language_save_uses_own_account_api_and_ignores_late_callbacks(closed, e
 def test_language_read_coalesces_preferences_requests_and_retries_after_failure():
     window = bind_methods(SimpleNamespace(
         _estimate_closed=False, _language_loading=False, _preview=False,
+        _child_overlay=True, _language_revision=0,
         _bus_call=Mock(), _show_error=Mock(), _stack=Mock(), _result_detail=Mock(),
         _language_readiness=Mock(), _language_requested=True, _language_load_failed=False,
         _open_language_dialog=Mock(), _apply_language=Mock(return_value=True),
@@ -94,6 +97,57 @@ def test_language_read_coalesces_preferences_requests_and_retries_after_failure(
     assert not window._language_load_failed
     window._stack.set_visible_child_name.assert_called_once_with("request")
     window._open_language_dialog.assert_called_once_with()
+
+
+@pytest.mark.parametrize('error', (None, RuntimeError('old child failure')))
+def test_child_language_switch_discards_superseded_reads_including_reselection(error):
+    window = bind_methods(SimpleNamespace(
+        _estimate_closed=False, _language_loading=False, _preview=False,
+        _child_overlay=False, _language_revision=0, _language_target_uid=None,
+        _language_dialog=None, _stack=Mock(), _language_readiness=Mock(),
+        _applied_language='en',
+        _bus_call=Mock(), _language_loaded=Mock(), _language_failed=Mock(),
+    ), RequestWindow, ('_select_language_child', '_load_language', '_language_done'))
+    with patch('oh_no_parent_control_kiosk.main.set_automation_id'):
+        window._select_language_child(1001)
+        old_callback = window._bus_call.call_args.args[3]
+        window._select_language_child(1002)
+        window._select_language_child(1001)
+    method, parameters, signature, callback = window._bus_call.call_args.args
+    assert (method, parameters.unpack(), signature) == ('GetChildLanguage', (1001,), '(s)')
+    old_callback(SimpleNamespace(call_finish=Mock(side_effect=error,
+        return_value=SimpleNamespace(unpack=lambda: ('fr',)))), object())
+    window._language_loaded.assert_not_called()
+    window._language_failed.assert_not_called()
+    callback(SimpleNamespace(call_finish=Mock(
+        return_value=SimpleNamespace(unpack=lambda: ('de',)))), object())
+    window._language_loaded.assert_called_once_with('de')
+    window._stack.set_sensitive.assert_not_called()
+
+
+def test_kiosk_language_save_targets_child_and_ignores_reply_after_switch():
+    window = SimpleNamespace(_preview=False, _estimate_closed=False, _bus_call=Mock(),
+                             _child_overlay=False, _language_revision=1,
+                             _language_target_uid=1001)
+    success, failure = Mock(), Mock()
+    RequestWindow._save_language(window, 'de', success, failure)
+    method, parameters, signature, callback = window._bus_call.call_args.args
+    assert (method, parameters.unpack(), signature) == ('SetChildLanguage', (1001, 'de'), '(s)')
+    window._language_revision += 1
+    callback(SimpleNamespace(call_finish=Mock(
+        return_value=SimpleNamespace(unpack=lambda: ('de',)))), object())
+    success.assert_not_called()
+    failure.assert_not_called()
+
+
+def test_unchanged_language_does_not_relabel_widgets():
+    window = SimpleNamespace(_applied_language='de', _show_error=Mock())
+    with patch('oh_no_parent_control_kiosk.main.context_for') as context:
+        assert RequestWindow._apply_language(window, 'de')
+        context.assert_not_called()
+        assert RequestWindow._apply_language(window, 'fr')
+        context.return_value.apply.assert_called_once_with('fr')
+    assert window._applied_language == 'fr'
 
 
 def reply(window, seconds=1200, error=None):

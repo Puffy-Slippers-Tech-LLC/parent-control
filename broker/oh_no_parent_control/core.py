@@ -599,6 +599,28 @@ class Broker:
 
     def set_own_language(self, caller_uid: int, language: object) -> str:
         self._authorize_own_language(caller_uid)
+        return self._save_language(caller_uid, language)
+
+    def _kiosk_language_target(self, caller_uid: int, target_uid: int) -> int:
+        config = self._load_config()
+        if type(caller_uid) is not int or caller_uid != config.kiosk_uid:
+            raise AccessDenied("kiosk access is required")
+        return self._target(config, target_uid).uid
+
+    def get_child_language(self, caller_uid: int, target_uid: int) -> str:
+        target_uid = self._kiosk_language_target(caller_uid, target_uid)
+        if self._preferences is None:
+            raise BackendFailure("user language store is unavailable")
+        try:
+            return self._preferences.load(target_uid)["personal"]["language"]
+        except (PreferencesError, OSError) as error:
+            raise BackendFailure("user language is unavailable") from error
+
+    def set_child_language(self, caller_uid: int, target_uid: int, language: object) -> str:
+        target_uid = self._kiosk_language_target(caller_uid, target_uid)
+        return self._save_language(target_uid, language)
+
+    def _save_language(self, target_uid: int, language: object) -> str:
         try:
             language = validate_language(language)
         except PreferencesError as error:
@@ -606,7 +628,7 @@ class Broker:
         if self._preferences is None:
             raise BackendFailure("user language store is unavailable")
         try:
-            return self._preferences.update_language(caller_uid, language)
+            return self._preferences.update_language(target_uid, language)
         except (PreferencesError, OSError) as error:
             raise BackendFailure("could not save user language") from error
 

@@ -3,6 +3,15 @@
     <method name="GetOwnLanguage">
       <arg name="language" type="s" direction="out"/>
     </method>
+    <method name="GetChildLanguage">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="language" type="s" direction="out"/>
+    </method>
+    <method name="SetChildLanguage">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="language" type="s" direction="in"/>
+      <arg name="saved_language" type="s" direction="out"/>
+    </method>
     <method name="SetOwnLanguage">
       <arg name="language" type="s" direction="in"/>
       <arg name="saved_language" type="s" direction="out"/>

@@ -68,10 +68,13 @@ are rejected; language saves never replace them.
 `GetOwnLanguage()` returns a string; `SetOwnLanguage(language)` persists and
 returns that string. Both derive the account from bus credentials and accept no
 target UID. Administrators (including root), eligible children and the configured
-kiosk account may use them. The selection belongs to the user running the surface:
-the parent uses its administrator's selection, the child extension and overlay
-share the child's selection, and the kiosk uses its own account's selection,
-independent of its selected child or approver.
+kiosk account may use them. The own-language methods always address the caller.
+Parent uses its administrator's selection, the child extension and overlay
+share the child's selection, and the kiosk uses the selected child's selection,
+independent of its approver. `GetChildLanguage(target_uid)` and
+`SetChildLanguage(target_uid, language)` are restricted to the configured kiosk
+caller and an eligible child target. They read and write the same personal record,
+with the same validation and persistence guarantees as the own-language methods.
 
 An empty string means follow the frontend session's language; the broker does
 not resolve its root process locale. Explicit IDs contain a 2–8 ASCII-letter

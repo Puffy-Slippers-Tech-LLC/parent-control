@@ -103,10 +103,14 @@ users' selector files or countdown-animation setting.
 
 The broker stores language in the personal section of the same per-user record
 and infrastructure as policy and request choices. The extension and overlay
-share the child's selection; parent and kiosk use their own account's selection.
+share the child's selection; parent uses its own account's selection and kiosk
+follows the selected child's preference.
 Empty means follow the frontend
 session language. Each GTK frontend prompts when this field is empty and saves
-it through the caller-scoped D-Bus API; its Preferences menu reopens the chooser.
+it through the caller-scoped D-Bus API, or the kiosk-only child-language API;
+its Preferences menu reopens the chooser. Kiosk refreshes on child selection.
+Cancel leaves an unset preference empty and setup reappears on the next launch
+or kiosk selection of that child.
 Parent and request screens have separate dialog UIs, sharing catalogue and locale
 resolution. The shared catalogue supplies native language names.
 [Localization](SystemDesign/Localization.md) defines per-user GNU gettext

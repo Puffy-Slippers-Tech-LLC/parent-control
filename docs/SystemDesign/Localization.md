@@ -27,15 +27,16 @@ and [Makefile](../../Makefile).
 ## Responsibilities and language ownership
 
 Language is a personal presentation preference belonging to the operating-system
-account running the surface. It does not follow the child selected in Parent or
-the approver selected in a request form.
+account running the surface, except the dedicated kiosk, which follows its
+selected child. It does not follow the child selected in Parent or the approver
+selected in a request form.
 
 | Surface | Language owner | Selection UI |
 | --- | --- | --- |
 | Parent App | Signed-in administrator | Parent Preferences |
 | Child Shell panel | Signed-in child | Preferences in the child request overlay |
 | Child request overlay | Same child as the panel | Request Preferences |
-| Dedicated kiosk | Kiosk account | Request Preferences |
+| Dedicated kiosk | Selected child | Request Preferences |
 | Shared About, feedback and error windows | Owning frontend account | Inherit the frontend translation context |
 
 The broker authenticates the caller and stores language intent. Frontends resolve
@@ -178,12 +179,16 @@ The exact schema and ownership contract remain in [State](State.md).
 | --- | --- | --- | --- |
 | `GetOwnLanguage` | None | Saved language string | Caller UID from bus credentials |
 | `SetOwnLanguage` | Language string | Persisted language string | Caller UID from bus credentials |
+| `GetChildLanguage` | Child UID | Saved language string | Configured kiosk caller; eligible child target |
+| `SetChildLanguage` | Child UID, language string | Persisted language string | Configured kiosk caller; eligible child target |
 
-These methods accept no target UID. Administrators, including root, eligible
+The own-language methods accept no target UID. Administrators, including root, eligible
 children and the configured kiosk account may access their own language.
 Authorization occurs before storage access; syntax validation occurs before a
 write. Parent's policy-editing authority does not grant a method for changing
 another account's personal language. See [broker permissions](Broker.md#broker-interface-and-roles).
+The kiosk's child-language methods share the child's personal record with the
+overlay and panel; they grant no policy, authentication or operating-system changes.
 
 Empty means follow the frontend session language. Explicit IDs contain 2–8 ASCII
 letters followed by optional hyphen-separated 1–8 ASCII-alphanumeric subtags,
@@ -214,7 +219,8 @@ excluded from enforcement cleanup.
 
 ## Language user settings GUI
 
-Parent, kiosk and child overlay read their own language asynchronously at startup.
+Parent and child overlay read their own language asynchronously at startup.
+Kiosk reads the selected child's language at startup and each child selection.
 A nonempty saved value bypasses the chooser. An empty value opens a modal chooser
 with the resolved primary session language selected. The chooser displays native
 language names in catalogue order and explains that Preferences can change the
@@ -222,11 +228,13 @@ selection, using the same neutral wording for initial setup and subsequent visit
 
 Parent uses its native GTK dialog; the kiosk and overlay share their separate
 metal-board dialog. Both share catalogue and resolution logic. Save commits the
-selected explicit product ID through `SetOwnLanguage` before closing. Parent
+selected explicit product ID through `SetOwnLanguage` (or kiosk-only
+`SetChildLanguage`) before closing. Parent
 always offers Cancel, including first-time setup; it continues startup without
 writing or applying the candidate, leaving the chooser to appear on the next
-launch while the preference remains empty. Kiosk and overlay offer Cancel only
-when a saved language exists. Cancel never writes or applies the candidate.
+launch while the preference remains empty. Kiosk and overlay also always offer
+Cancel; kiosk prompts again when that child is next selected while unset.
+Cancel never writes or applies the candidate.
 Saving disables the choices, Save and Cancel to
 prevent duplicate submissions. A failure retains the choice, displays an error
 and enables retry.
@@ -368,7 +376,7 @@ UI actions and observations for customer acceptance.
 | --- | --- |
 | Language backend | Caller-scoped authorization, invalid input rejection, restart persistence, personal-only records, migration, stale-policy and rollback preservation, concurrent writes, corrupt/future record rejection |
 | Catalogue infrastructure | Real compiled catalogues; resolution, Unicode, named formatting, contexts, language-specific plurals, missing-entry fallback, corrupt-catalogue errors and Python/GJS parity |
-| GUI settings | First-run default, Save persistence before closure, Parent first-run Cancel with no candidate persistence and prompting again while unset, request Cancel only with a saved language, Preferences reopening, save failure/retry, owning-account isolation and stable public IDs |
+| GUI settings | First-run default, Save persistence before closure, Cancel on every surface without candidate persistence, prompting again while unset, kiosk child-language restoration on selection, Preferences reopening, save failure/retry, account isolation and stable public IDs |
 | Language application | Visible and accessible text changes, dynamic result text, preserved selections/drafts/focus, child panel refresh and no change to policy or countdown behavior |
 | Layout and packaging | Long text and script coverage at supported scales; private staged MO assets in both package formats and the extension archive; translated installed surfaces |
 

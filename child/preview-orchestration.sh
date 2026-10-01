@@ -136,6 +136,9 @@ onpc_preview_prepare_environment() {
                 "$repo_root"/{LICENSE,COPYRIGHT,NOTICE}; do
             ln -s "$source" "$extension_dir/${source##*/}"
         done
+        for source in "$repo_root"/common/oh_no_parent_control_ui/{messages.json,languages.json,diagnostic_catalog.json,locale}; do
+            ln -s "$source" "$extension_dir/${source##*/}"
+        done
         mkdir -p "$extension_dir/schemas"
         for source in "$payload_source_dir"/schemas/*.xml; do
             [[ -e "$source" ]] || continue

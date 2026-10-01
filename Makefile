@@ -60,8 +60,10 @@ ACTIVATION_MANIFEST_PATHS += $(DATADIR)/oh-no-parent-control/00-oh-no-parent-con
 endif
 CHILD_DIR := child
 EXTENSION_SOURCES := accessibility.js branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
+EXTENSION_SOURCES += gettext.mjs localization.js
 # Explicit production modules prevent preview/test helpers from entering the package.
 COMMON_SOURCES := __init__.py about.py accessibility.py gtk_automation.py app_policy.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py languages.py languages.json localization.py
+COMMON_SOURCES += message.py messages.py translation_widgets.py
 KIOSK_SOURCES := __init__.py chrome.py floating_islands.py language_dialog.py lava.py lightning.py main.py model.py request_content.py selection_store.py snowflakes.py thunder.py
 PARENT_SOURCES := __init__.py client.py main.py language_dialog.py
 BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py execution_probe.py extension_manager.py grant_diagnostics.py logs.py preferences.py probe_channel.py probe_generation.py service.py uninstall.py
@@ -75,6 +77,8 @@ PARENT_TITLEBAR_ASSET := data/app_logo_titlebar.png
 EXTENSION_BRANDING_ASSETS := data/brand.json data/app_logo_gnome_launcher.png
 # gnome-extensions resolves extra sources relative to CHILD_DIR.
 EXTENSION_PACK_ASSETS := $(EXTENSION_BRANDING_ASSETS:data/%=../data/%) ../common/oh_no_parent_control_ui/diagnostic_catalog.json ../common/oh_no_parent_control_ui/languages.json ../LICENSE ../COPYRIGHT ../NOTICE
+MESSAGE_ASSET := common/oh_no_parent_control_ui/messages.json
+EXTENSION_PACK_ASSETS += ../$(MESSAGE_ASSET) ../common/oh_no_parent_control_ui/locale
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
@@ -129,6 +133,7 @@ PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.
 	packaging/ubuntu.inc packaging/fedora.inc \
 	$(addprefix packaging/lifecycle/,preinst.in postinst.in prerm.in postrm.in) \
 	rpm/oh-no-parent-control.spec.in rpm/Containerfile
+PACKAGE_SOURCE_FILES += tools/export_messages.py
 
 .PHONY: publish bump-version build install installdeb installrpm uninstalldeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
@@ -389,11 +394,17 @@ preview-parent:
 	# The preview watches parent source and CSS files; no backend or installation is needed.
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=parent $(PYTHON) -m oh_no_parent_control_parent.main --preview
 
-preview-child:
+preview-child: message-assets translations
 	# A nested Shell loads the checkout by temporary symlink; host settings stay untouched.
 	$(CHILD_DIR)/preview
 
 .PHONY: translations check-translations update-pot
+.PHONY: message-assets
+message-assets: $(MESSAGE_ASSET)
+
+$(MESSAGE_ASSET): common/oh_no_parent_control_ui/messages.py tools/export_messages.py
+	$(PYTHON) tools/export_messages.py --output "$@"
+
 translations: $(MOFILES)
 
 $(LOCALE_OUTPUT)/%/LC_MESSAGES/$(GETTEXT_DOMAIN).mo: po/%.po
@@ -418,7 +429,7 @@ update-pot:
 		--keyword=pgettext:1c,2 --keyword=npgettext:1c,2,3 \
 		--output="$(POTFILE)" $(I18N_JS_SOURCES)
 
-pack-extension:
+pack-extension: message-assets translations
 	gnome-extensions pack "$(CHILD_DIR)" --force --out-dir=. --schema="$(EXTENSION_SCHEMA)" $(EXTENSION_SOURCES:%=--extra-source=%) $(EXTENSION_PACK_ASSETS:%=--extra-source=%)
 
 install-extension:
@@ -431,6 +442,8 @@ _install-development-extension:
 	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(EXTENSION_DIR)/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES)) "$(EXTENSION_DIR)/"
 	install -m 0644 $(EXTENSION_BRANDING_ASSETS) common/oh_no_parent_control_ui/diagnostic_catalog.json common/oh_no_parent_control_ui/languages.json LICENSE COPYRIGHT NOTICE "$(EXTENSION_DIR)/"
+	$(PYTHON) tools/export_messages.py --output "$(EXTENSION_DIR)/messages.json"
+	$(MAKE) translations LOCALE_OUTPUT="$(EXTENSION_DIR)/locale"
 	install -m 0644 "$(CHILD_DIR)/$(EXTENSION_SCHEMA)" "$(EXTENSION_DIR)/schemas/"
 	glib-compile-schemas "$(EXTENSION_DIR)/schemas"
 	@echo "Installed $(UUID) to $(EXTENSION_DIR)"
@@ -486,6 +499,8 @@ endif
 	# controls per-child activation through that child's GNOME settings.
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES)) "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
 	install -m 0644 $(EXTENSION_BRANDING_ASSETS) common/oh_no_parent_control_ui/diagnostic_catalog.json common/oh_no_parent_control_ui/languages.json LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
+	$(PYTHON) tools/export_messages.py --output "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/messages.json"
+	$(MAKE) translations LOCALE_OUTPUT="$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/locale"
 	install -m 0644 "$(CHILD_DIR)/$(EXTENSION_SCHEMA)" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas/"
 	glib-compile-schemas "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas"
 	install -m 0644 $(addprefix broker/oh_no_parent_control/,$(BROKER_SOURCES)) "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control/"

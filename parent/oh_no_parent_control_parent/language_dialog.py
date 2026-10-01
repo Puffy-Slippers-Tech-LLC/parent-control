@@ -1,4 +1,9 @@
-"""Personal language selection; translations are applied in future work."""
+"""Personal language selection in the owning frontend's current language."""
+
+from common.oh_no_parent_control_ui import messages as m
+from common.oh_no_parent_control_ui.translation_widgets import (
+    localized, set_text, accessible_text, context_for,
+)
 
 import gi
 
@@ -14,8 +19,9 @@ from common.oh_no_parent_control_ui.languages import (
 
 class LanguageDialog(Gtk.Window):
     def __init__(self, parent, language, save, saved):
-        super().__init__(title="Language", transient_for=parent, modal=True,
+        super().__init__(title=m.LANGUAGE, transient_for=parent, modal=True,
                          destroy_with_parent=True, deletable=False)
+        set_text(self, 'title', m.LANGUAGE)
         set_automation_id(self, "language-dialog")
         self.add_css_class("parent-language-dialog")
         self.set_default_size(540, 660)
@@ -32,14 +38,14 @@ class LanguageDialog(Gtk.Window):
         heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         logo = Gtk.Image.new_from_file(str(branding_asset_path("app_logo.png")))
         logo.set_pixel_size(64)
-        logo.update_property([Gtk.AccessibleProperty.LABEL],
-                             [f"{app_name()} logo"])
+        accessible_text(logo, [Gtk.AccessibleProperty.LABEL],
+                        [m.APP_NAME_S_LOGO % {'app_name': app_name()}])
         heading.append(logo)
-        title = Gtk.Label(label="Choose your language",
+        title = localized(Gtk.Label, label=m.CHOOSE_YOUR_LANGUAGE,
                           css_classes=["parent-language-title"])
         set_automation_id(title, "language-title")
         heading.append(title)
-        subtitle = Gtk.Label(label="You can change it later in preferences", wrap=True,
+        subtitle = localized(Gtk.Label, label=m.YOU_CAN_CHANGE_IT_LATER_IN_PREFERENCES, wrap=True,
                              justify=Gtk.Justification.CENTER,
                              css_classes=["parent-language-description"])
         set_automation_id(subtitle, "language-description")
@@ -49,31 +55,31 @@ class LanguageDialog(Gtk.Window):
                                 css_classes=["parent-language-list"])
         first = None
         for identity, name in SUPPORTED_LANGUAGES:
-            button = Gtk.CheckButton(css_classes=["parent-language-choice"])
+            button = localized(Gtk.CheckButton, css_classes=["parent-language-choice"])
             # Keep the native radio control on the trailing edge and the
             # catalogue's native-language labels aligned on the leading edge.
             button.set_direction(Gtk.TextDirection.RTL)
-            label = Gtk.Label(label=name, xalign=0, hexpand=True)
+            label = localized(Gtk.Label, label=name, xalign=0, hexpand=True)
             label.set_direction(Gtk.TextDirection.LTR)
             button.set_child(label)
             if first is None:
                 first = button
             else:
                 button.set_group(first)
-            describe_control(button, name, f"Select {name}.",
+            describe_control(button, name, m.SELECT_NAME_S % {'name': name},
                              automation_id=f"language-choice-{identity.lower()}")
             button.set_active(identity == selected)
             button.connect("toggled", self._choose, identity)
             self._choices.append(button)
         set_automation_id(self._choices, "language-list")
         content.append(self._choices)
-        self._error = Gtk.Label(wrap=True, visible=False, css_classes=["error"])
+        self._error = localized(Gtk.Label, wrap=True, visible=False, css_classes=["error"])
         set_automation_id(self._error, "language-error")
         content.append(self._error)
-        self._continue = Gtk.Button(label="Continue",
+        self._continue = localized(Gtk.Button, label=m.CONTINUE,
                                    halign=Gtk.Align.END, width_request=160,
                                    css_classes=["suggested-action", "parent-language-continue"])
-        describe_control(self._continue, "Continue", "Save your language preference.",
+        describe_control(self._continue, m.CONTINUE, m.SAVE_YOUR_LANGUAGE_PREFERENCE,
                          automation_id="language-continue")
         self._continue.connect("clicked", self._submit)
         content.append(self._continue)
@@ -102,5 +108,5 @@ class LanguageDialog(Gtk.Window):
         self._saving = False
         self._choices.set_sensitive(True)
         self._continue.set_sensitive(True)
-        self._error.set_label("Your language could not be saved. Please try again.")
+        set_text(self._error, 'label', m.YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN)
         self._error.set_visible(True)

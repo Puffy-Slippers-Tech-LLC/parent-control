@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from common.oh_no_parent_control_ui import messages as m
+from common.oh_no_parent_control_ui.translation_widgets import (
+    localized, set_text, accessible_text, context_for,
+)
+
 import json
 from pathlib import Path
 from urllib.parse import quote
@@ -83,7 +88,7 @@ def _detail_row(icon_name: str | None, label: str, value: str, uri: str | None, 
     icon.set_valign(Gtk.Align.CENTER)
     row.append(icon)
     copy = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
-    label_widget = Gtk.Label(label=label, xalign=0, css_classes=["about-detail-label"])
+    label_widget = localized(Gtk.Label, label=label, xalign=0, css_classes=["about-detail-label"])
     set_automation_id(label_widget, f"about-{identity}-label")
     copy.append(label_widget)
     if uri and links_enabled:
@@ -91,16 +96,17 @@ def _detail_row(icon_name: str | None, label: str, value: str, uri: str | None, 
         # handling pointer clicks, this makes the links reachable by keyboard
         # and exposes their target to assistive technology.
         value_widget = Gtk.LinkButton.new_with_label(uri, value)
+        set_text(value_widget, 'label', value)
         value_widget.set_halign(Gtk.Align.START)
         value_widget.add_css_class("about-link")
         value_widget.add_css_class("about-detail-value")
     else:
-        value_widget = Gtk.Label(label=value, xalign=0,
+        value_widget = localized(Gtk.Label, label=value, xalign=0,
                                  css_classes=["about-detail-value"])
     if isinstance(value_widget, Gtk.LinkButton):
         describe_control(
-            value_widget, f"{label}: {value}",
-            f"Open the product {label.casefold()} information.",
+            value_widget, m.ABOUT_DETAIL_LABEL % {'label': label, 'value': value},
+            m.OPEN_ABOUT_DETAIL % {'label': label},
             automation_id=f"about-{identity}-value",
         )
     else:
@@ -156,7 +162,8 @@ class AboutDialog(Gtk.Window):
 
     def __init__(self, parent: Gtk.Window, *, links_enabled: bool = True):
         values = branding()
-        super().__init__(title="About", transient_for=parent, modal=True)
+        super().__init__(title=m.ABOUT, transient_for=parent, modal=True)
+        set_text(self, 'title', m.ABOUT)
         set_automation_id(self, "about-dialog")
         self.set_default_size(460, 680)
         self.add_css_class("about-dialog")
@@ -172,50 +179,48 @@ class AboutDialog(Gtk.Window):
         logo.set_halign(Gtk.Align.CENTER)
         logo.set_margin_top(16)
         content.append(logo)
-        title = Gtk.Label(label=values["app_name"], css_classes=["title-1"],
+        title = localized(Gtk.Label, label=values["app_name"], css_classes=["title-1"],
                           halign=Gtk.Align.CENTER, margin_top=10)
         set_automation_id(title, "about-product-name")
         content.append(title)
-        version = Gtk.Label(label=f"Version {app_version()}",
+        version = localized(Gtk.Label, label=m.VERSION_APP_VERSION_S % {'app_version': app_version()},
                             css_classes=["dim-label"], halign=Gtk.Align.CENTER)
         set_automation_id(version, "about-version")
         content.append(version)
-        content.append(Gtk.Label(label="Helping families build healthy digital habits.",
+        content.append(localized(Gtk.Label, label=m.HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS,
                                  css_classes=["dim-label"], halign=Gtk.Align.CENTER,
                                  margin_bottom=16))
         content.append(Gtk.Separator())
-        content.append(_detail_row(None, "Website", values["app_url"],
+        content.append(_detail_row(None, m.WEBSITE, values["app_url"],
                                    values["app_url"], links_enabled=links_enabled,
                                    icon_filename="company_icon_32.png"))
-        content.append(_detail_row("security-high-symbolic", "Privacy",
-                                   "Privacy policy", _PRIVACY_URL,
+        content.append(_detail_row("security-high-symbolic", m.PRIVACY,
+                                   m.PRIVACY_POLICY, _PRIVACY_URL,
                                    links_enabled=links_enabled))
         subject = f"{values['app_name']}: Feedbacks"
         # Some mail clients display '+' from form-style query encoding
         # literally. Percent encoding is unambiguous for a mailto URI.
         email_uri = f"mailto:{values['contact']}?subject={quote(subject, safe='')}"
-        content.append(_detail_row("mail-unread-symbolic", "Support", values["contact"],
+        content.append(_detail_row("mail-unread-symbolic", m.SUPPORT, values["contact"],
                                    email_uri, links_enabled=links_enabled))
         license_path = _data_dir() / "LICENSE"
-        content.append(_detail_row("text-x-generic-symbolic", "License",
+        content.append(_detail_row("text-x-generic-symbolic", m.LICENSE,
                                    "GNU General Public License v3.0",
                                    license_path.as_uri(), links_enabled=links_enabled))
         notices_path = _data_dir() / "NOTICE"
-        content.append(_detail_row("dialog-information-symbolic", "Legal notices",
-                                   "Malcontent integration and bundled-font notices",
+        content.append(_detail_row("dialog-information-symbolic", m.LEGAL_NOTICES,
+                                   m.MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES,
                                    notices_path.as_uri(), links_enabled=links_enabled))
-        integration_notice = Gtk.Label(
-            label=("Uses the separately installed Malcontent parental-controls "
-                   "service through public system APIs. Not affiliated with or "
-                   "endorsed by the Malcontent authors or GNOME."),
+        integration_notice = localized(Gtk.Label, 
+            label=(m.USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI),
             wrap=True, justify=Gtk.Justification.CENTER, halign=Gtk.Align.FILL,
             css_classes=["dim-label"], margin_top=4,
         )
         set_automation_id(integration_notice, "about-integration-notice")
         content.append(integration_notice)
         content.append(Gtk.Box(vexpand=True))
-        copyright_notice = Gtk.Label(
-            label=f"© 2026 {values['vendor_name']}\nGPL-3.0-only · No warranty.",
+        copyright_notice = localized(Gtk.Label, 
+            label=m.COPYRIGHT % {'vendor': values['vendor_name']},
             justify=Gtk.Justification.CENTER, css_classes=["dim-label"],
             halign=Gtk.Align.CENTER,
         )

@@ -1,5 +1,7 @@
 """Small UI state machine used to enforce single-flight requests."""
 
+from common.oh_no_parent_control_ui import messages as m
+
 from dataclasses import dataclass
 
 
@@ -21,10 +23,10 @@ def public_error(_error: Exception, *, child_overlay=False) -> tuple[str, str]:
     """Never expose D-Bus names, paths, or backend messages to the request UI."""
     if child_overlay:
         return (
-            "Request unavailable",
-            "The request could not be completed. Please try again later.",
+            m.REQUEST_UNAVAILABLE,
+            m.THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER,
         )
     return (
-        "Request unavailable",
-        "The request could not be completed. Please return to login and try again later.",
+        m.REQUEST_UNAVAILABLE,
+        m.THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR,
     )

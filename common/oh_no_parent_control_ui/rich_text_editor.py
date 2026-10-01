@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from . import messages as m
+from .message import render
+from .translation_widgets import context_for, register_retranslation
+
 import json
 from html import escape
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
@@ -56,13 +60,54 @@ class RichTextEditor(Gtk.Box):
         self._view.set_hexpand(True)
         describe_control(
             self._view,
-            "Your feedback",
-            "Write and format feedback. Use the toolbar for headings, bold, italic, "
-            "underline, lists, quotes, code, links, attachments, and remove formatting.",
+            m.YOUR_FEEDBACK,
+            m.EDITOR_DESCRIPTION,
             automation_id="feedback-webview",
         )
         self.append(self._view)
         self._view.load_html(self._document(), None)
+        register_retranslation(self, self._retranslate)
+
+    def _retranslate(self, translations):
+        if not self._ready:
+            return
+        labels = self._labels(translations)
+        # JSON is a JavaScript value, never markup or a script assembled from data.
+        self._view.evaluate_javascript(
+            'window.feedbackEditor.labels(' + json.dumps(labels) + ');',
+            -1, None, None, None, None, None,
+        )
+
+    @staticmethod
+    def _labels(translations):
+        return {key: render(value, translations) for key, value in {
+            'feedback-format-toolbar': m.FEEDBACK_FORMATTING,
+            'feedback-editor-input': m.YOUR_FEEDBACK,
+            'feedback-format-style': m.TEXT_STYLE,
+            'feedback-format-normal': m.NORMAL_TEXT,
+            'feedback-format-heading-1': m.HEADING_1,
+            'feedback-format-heading-2': m.HEADING_2,
+            'feedback-format-bold': m.BOLD,
+            'feedback-format-italic': m.ITALIC,
+            'feedback-format-underline': m.UNDERLINE,
+            'feedback-format-strike': m.STRIKETHROUGH,
+            'feedback-format-ordered': m.NUMBERED_LIST,
+            'feedback-format-bulleted': m.BULLETED_LIST,
+            'feedback-format-quote': m.QUOTE,
+            'feedback-format-code': m.CODE_BLOCK,
+            'feedback-format-link': m.INSERT_LINK,
+            'feedback-format-attachment': m.ADD_ATTACHMENT,
+            'feedback-format-clear': m.REMOVE_FORMATTING,
+            'feedback-link-target': m.LINK_TARGET,
+            'feedback-link-editor': m.LINK_EDITOR,
+            'feedback-link-preview': m.OPEN_LINK_PREVIEW,
+            'feedback-link-save': m.SAVE_LINK,
+            'feedback-link-remove': m.REMOVE_LINK,
+            'placeholder': m.EDITOR_PLACEHOLDER,
+            'code-block': m.CODE_BLOCK,
+            'numbered-list-item': m.NUMBERED_LIST_ITEM,
+            'bulleted-list-item': m.BULLETED_LIST_ITEM,
+        }.items()}
 
     @property
     def plain_text(self):
@@ -116,6 +161,7 @@ class RichTextEditor(Gtk.Box):
         kind = payload.get("type")
         if kind == "ready":
             self._ready = True
+            self._retranslate(context_for(self).translations)
             encoded_delta = json.dumps(self._delta)
             self._view.evaluate_javascript(
                 f"window.feedbackEditor.restore(JSON.parse({encoded_delta}));",
@@ -169,8 +215,9 @@ class RichTextEditor(Gtk.Box):
     def _document(self):
         quill_js = (ASSET_DIR / "quill.js").read_text(encoding="utf-8")
         quill_css = (ASSET_DIR / "quill.snow.css").read_text(encoding="utf-8")
+        initial_labels = json.dumps(self._labels(context_for(self).translations))
         attachment_button = (
-            '<button id="feedback-format-attachment" class="ql-attachment" type="button" title="Add attachment" '
+            '<button id="feedback-format-attachment" class="ql-attachment" type="button" '
             'aria-label="Add attachment">📎</button>'
             if self._attachment_requested is not None else ""
         )
@@ -227,31 +274,35 @@ body {{ display: flex; flex-direction: column; }}
   outline: 2px solid #7657f6; outline-offset: 2px;
 }}
 #feedback-format-toolbar .ql-attachment {{ padding: 3px 7px; font-size: 19px; line-height: 24px; }}
+#feedback-format-toolbar .ql-picker-label[data-label]::before,
+#feedback-format-toolbar .ql-picker-item[data-label]::before {{ content: attr(data-label) !important; }}
+.ql-tooltip a[data-label]::after {{ content: attr(data-label) !important; }}
+.ql-tooltip[data-label]::before {{ content: attr(data-label) !important; }}
 </style></head><body>
-<div id="feedback-format-toolbar" role="toolbar" aria-label="Feedback formatting">
+<div id="feedback-format-toolbar" role="toolbar">
   <span class="ql-formats">
-    <select class="ql-header" title="Text style" aria-label="Text style">
+    <select class="ql-header">
       <option selected></option>
-      <option value="1">Heading 1</option>
-      <option value="2">Heading 2</option>
+      <option value="1"></option>
+      <option value="2"></option>
     </select>
   </span>
   <span class="ql-formats">
-    <button id="feedback-format-bold" class="ql-bold" title="Bold" aria-label="Bold"></button>
-    <button id="feedback-format-italic" class="ql-italic" title="Italic" aria-label="Italic"></button>
-    <button id="feedback-format-underline" class="ql-underline" title="Underline" aria-label="Underline"></button>
-    <button id="feedback-format-strike" class="ql-strike" title="Strikethrough" aria-label="Strikethrough"></button>
+    <button id="feedback-format-bold" class="ql-bold"></button>
+    <button id="feedback-format-italic" class="ql-italic"></button>
+    <button id="feedback-format-underline" class="ql-underline"></button>
+    <button id="feedback-format-strike" class="ql-strike"></button>
   </span>
   <span class="ql-formats">
-    <button id="feedback-format-ordered" class="ql-list" value="ordered" title="Numbered list" aria-label="Numbered list"></button>
-    <button id="feedback-format-bulleted" class="ql-list" value="bullet" title="Bulleted list" aria-label="Bulleted list"></button>
-    <button id="feedback-format-quote" class="ql-blockquote" title="Quote" aria-label="Quote"></button>
-    <button id="feedback-format-code" class="ql-code-block" title="Code block" aria-label="Code block"></button>
+    <button id="feedback-format-ordered" class="ql-list" value="ordered"></button>
+    <button id="feedback-format-bulleted" class="ql-list" value="bullet"></button>
+    <button id="feedback-format-quote" class="ql-blockquote"></button>
+    <button id="feedback-format-code" class="ql-code-block"></button>
   </span>
   <span class="ql-formats">
-    <button id="feedback-format-link" class="ql-link" title="Insert link" aria-label="Insert link"></button>
+    <button id="feedback-format-link" class="ql-link"></button>
     {attachment_button}
-    <button id="feedback-format-clear" class="ql-clean" title="Remove formatting" aria-label="Remove formatting"></button>
+    <button id="feedback-format-clear" class="ql-clean"></button>
   </span>
 </div>
 <div id="feedback-editor-root"></div>
@@ -261,48 +312,55 @@ body {{ display: flex; flex-direction: column; }}
 const bridge = window.webkit.messageHandlers.feedbackEditor;
 const quill = new Quill('#feedback-editor-root', {{
   theme: 'snow',
-  placeholder: 'Describe your idea, or what happened and what you expected...',
+  placeholder: '',
   formats: ['header', 'bold', 'italic', 'underline', 'strike', 'list', 'blockquote',
             'code-block', 'link'],
   modules: {{ toolbar: {{ container: '#feedback-format-toolbar', handlers: {{
     attachment: () => bridge.postMessage(JSON.stringify({{ type: 'attachment' }})),
   }} }} }},
 }});
-function identify(selector, id, label) {{
+function identify(selector, id) {{
   const element = document.querySelector(selector);
   if (!element)
     throw new Error(`Missing generated rich-editor control: ${{id}}`);
   element.id = id;
-  element.setAttribute('aria-label', label);
   return element;
 }}
 const editor = identify(
-  '#feedback-editor-root .ql-editor', 'feedback-editor-input', 'Your feedback');
+  '#feedback-editor-root .ql-editor', 'feedback-editor-input');
 const stylePicker = document.querySelector(
   '#feedback-format-toolbar .ql-picker.ql-header');
 if (!stylePicker)
   throw new Error('Missing generated rich-editor style picker');
 identify(
   '#feedback-format-toolbar .ql-picker.ql-header .ql-picker-label',
-  'feedback-format-style', 'Text style');
+  'feedback-format-style');
 for (const option of stylePicker.querySelectorAll('.ql-picker-item')) {{
   const value = option.getAttribute('data-value');
   const identity = value === '1' ? 'feedback-format-heading-1'
     : value === '2' ? 'feedback-format-heading-2' : 'feedback-format-normal';
-  const label = value === '1' ? 'Heading 1'
-    : value === '2' ? 'Heading 2' : 'Normal text';
   option.id = identity;
-  option.setAttribute('aria-label', label);
 }}
-identify('.ql-tooltip input[data-link]', 'feedback-link-target', 'Link target');
-identify('.ql-tooltip', 'feedback-link-editor', 'Link editor');
-identify('.ql-tooltip .ql-preview', 'feedback-link-preview', 'Open link preview');
-identify('.ql-tooltip .ql-action', 'feedback-link-save', 'Save link');
-identify('.ql-tooltip .ql-remove', 'feedback-link-remove', 'Remove link');
+identify('.ql-tooltip input[data-link]', 'feedback-link-target');
+identify('.ql-tooltip', 'feedback-link-editor');
+identify('.ql-tooltip .ql-preview', 'feedback-link-preview');
+identify('.ql-tooltip .ql-action', 'feedback-link-save');
+identify('.ql-tooltip .ql-remove', 'feedback-link-remove');
 // WebKit does not expose all native block meanings in a contenteditable.
 // Derive ARIA from the current content, including undo and restored deltas.
 // Never change the editor role or Quill's document model.
 let semanticNodes = new Set();
+let translatedLabels = {{}};
+function updateStyleLabel() {{
+  if (!translatedLabels['feedback-format-normal']) return;
+  const picker = document.getElementById('feedback-format-style');
+  const selected = picker.getAttribute('data-value');
+  picker.setAttribute('data-label', selected === '1'
+    ? translatedLabels['feedback-format-heading-1'] : selected === '2'
+    ? translatedLabels['feedback-format-heading-2'] : translatedLabels['feedback-format-normal']);
+}}
+new MutationObserver(updateStyleLabel).observe(
+  document.getElementById('feedback-format-style'), {{attributes: true, attributeFilter: ['data-value']}});
 function exposeBlockSemantics() {{
   const current = new Map();
   for (const heading of editor.querySelectorAll('h1, h2'))
@@ -310,10 +368,11 @@ function exposeBlockSemantics() {{
   for (const quote of editor.querySelectorAll('blockquote'))
     current.set(quote, {{role: 'blockquote'}});
   for (const block of editor.querySelectorAll('.ql-code-block-container'))
-    current.set(block, {{role: 'code', 'aria-roledescription': 'code block'}});
+    current.set(block, {{role: 'code', 'aria-roledescription': translatedLabels['code-block']}});
   for (const item of editor.querySelectorAll('li[data-list]'))
     current.set(item, {{'aria-roledescription': item.getAttribute('data-list') === 'ordered'
-      ? 'numbered list item' : 'bulleted list item'}});
+      ? translatedLabels['numbered-list-item']
+      : translatedLabels['bulleted-list-item']}});
   for (const node of new Set([...semanticNodes, ...current.keys()])) {{
     const attributes = current.get(node) || {{}};
     for (const key of ['role', 'aria-level', 'aria-roledescription']) {{
@@ -338,9 +397,23 @@ function publish() {{
 }}
 quill.on('text-change', publish);
 window.feedbackEditor = {{
+  labels(labels) {{
+    translatedLabels = labels;
+    for (const [id, label] of Object.entries(labels)) {{
+      const node = document.getElementById(id);
+      if (!node) continue;
+      node.setAttribute('aria-label', label);
+      node.setAttribute('title', label);
+      node.setAttribute('data-label', label);
+    }}
+    editor.setAttribute('data-placeholder', labels.placeholder);
+    updateStyleLabel();
+    exposeBlockSemantics();
+  }},
   clear() {{ quill.setContents([]); publish(); }},
   focus() {{ quill.focus(); }},
   restore(delta) {{ quill.setContents(delta); publish(); }},
 }};
+window.feedbackEditor.labels({initial_labels});
 bridge.postMessage(JSON.stringify({{ type: 'ready' }}));
 </script></body></html>"""

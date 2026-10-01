@@ -10,6 +10,11 @@ the child request overlay and the dedicated kiosk. The
 [Front ends](Frontends.md#personal-language-selection) owns the chooser surfaces.
 
 Implementation entry points: [localization.py](../../common/oh_no_parent_control_ui/localization.py),
+[shared source messages](../../common/oh_no_parent_control_ui/messages.py),
+[deferred messages](../../common/oh_no_parent_control_ui/message.py),
+[GTK bindings](../../common/oh_no_parent_control_ui/translation_widgets.py),
+[Shell translation context](../../child/localization.js),
+[MO decoder](../../child/gettext.mjs),
 [languages.py](../../common/oh_no_parent_control_ui/languages.py),
 [language catalogue](../../common/oh_no_parent_control_ui/languages.json),
 [preferences.py](../../broker/oh_no_parent_control/preferences.py),
@@ -97,7 +102,8 @@ npgettext = translations.npgettext
 ```
 
 Each frontend owns its translation object and passes the context to shared UI.
-Helpers such as duration formatting take that context explicitly. Translation
+Shared presentation helpers retain source messages and named operands until the
+destination renders them through its owning context. Translation
 methods are bound in the owning scope, rather than installed globally in
 `builtins`. The application does not mutate `LANGUAGE`, `LANG`, `LC_MESSAGES` or
 `LC_ALL`, or call process-wide `setlocale` to apply a personal selection.
@@ -123,7 +129,13 @@ translation source format, not a separate JavaScript message dictionary.
 
 ### Message authoring
 
-English source strings are complete literal messages at presentation call sites.
+English source strings are complete literal messages in the shared
+`common/oh_no_parent_control_ui/messages.py` module. Parent, request, shared
+dialogs and the rich editor refer to its named messages. The Shell build exports
+these same messages to a generated `messages.json` asset; it does not maintain
+another hand-written source dictionary. Add or edit a message in this module,
+update the POT and the affected PO entries, then rebuild the packaged assets.
+
 Extraction recognizes explicitly marked `_`, `gettext`, `ngettext`, `pgettext`
 and `npgettext` calls. Messages use named placeholders and interpolation occurs
 after translation:
@@ -144,6 +156,13 @@ Markup and rich-editor content require destination-specific escaping of dynamic
 values after translation. Translation is not an HTML or Pango escaping step.
 Catalogue checks retain required placeholders; shared format helpers reject
 invalid substitutions rather than presenting damaged policy explanations.
+
+GTK text and accessibility bindings retain the source message and model operands.
+They render through the owning window's context and relabel existing controls
+when it changes. Shared dialogs inherit their transient parent's context. Rich
+editor labels are updated in the existing document, preserving its content and
+undo state. Product branding remains exactly `Oh No! Parent Control` in every
+language; account names, paths and other user data are not message identifiers.
 
 ## Language user settings backend
 
@@ -293,6 +312,7 @@ installed payload. GNU gettext is a build dependency for both Debian and RPM.
 | `msginit` / `msgmerge --update` | Create or update `po/<locale>.po` using canonical underscore locale names and the correct language-specific `Plural-Forms` header |
 | `make check-translations` | Validate PO syntax, headers and marked placeholders with `msgfmt --check --check-format` |
 | `make translations` | Compile MO files under the checkout's shared Python `locale/` directory; `LOCALE_OUTPUT` selects another output directory |
+| `make message-assets` | Export shared source messages for the Shell extension without importing GTK |
 
 PO sources and the POT template are reviewed source artifacts; generated MO
 files are build artifacts. Template changes accompany marked message changes.

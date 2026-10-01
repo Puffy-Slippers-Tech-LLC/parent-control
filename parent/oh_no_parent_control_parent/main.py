@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from common.oh_no_parent_control_ui import messages as m
+from common.oh_no_parent_control_ui.translation_widgets import (
+    localized, set_text, accessible_text, context_for,
+)
+
 import argparse
 import hashlib
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
@@ -44,19 +49,19 @@ APPLICATION_ICON_NAME = "com.puffyslippers.OhNoParentControl"
 STATES = (
     {
         "id": "allowed",
-        "label": "Always Allowed",
+        "label": m.ALWAYS_ALLOWED,
         "icon": "emblem-ok-symbolic",
         "css": "policy-allowed",
     },
     {
         "id": "permanent",
-        "label": "Hard Blocked",
+        "label": m.HARD_BLOCKED,
         "icon": "window-close-symbolic",
         "css": "policy-hard-blocked",
     },
     {
         "id": "conditional",
-        "label": "Soft Blocked",
+        "label": m.SOFT_BLOCKED,
         "icon": "dialog-warning-symbolic",
         "css": "policy-soft-blocked",
     },
@@ -67,17 +72,17 @@ APP_LIST_STATES = (STATES[0], STATES[2], STATES[1])
 MATCH_RULES = (
     {
         "id": "pattern",
-        "label": "Pattern Match",
+        "label": m.PATTERN_MATCH,
         "glyph": "***",
         "css": "match-rule-pattern",
-        "description": "Matches versioned filenames using a wildcard.",
+        "description": m.MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD,
     },
     {
         "id": "precise",
-        "label": "Precise execution path",
+        "label": m.PRECISE_EXECUTION_PATH,
         "glyph": "ABC",
         "css": "match-rule-precise",
-        "description": "Matches only this exact executable path.",
+        "description": m.MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH,
     },
 )
 MAX_DAILY_LIMIT_MINUTES = 24 * 60
@@ -99,7 +104,7 @@ CUSTOM_DAILY_LIMIT_SAVE_DELAY_MS = 350
 CATALOG_ROW_BATCH_SIZE = 8
 
 def _minutes_label(minutes):
-    return f"{minutes} minute" if minutes == 1 else f"{minutes} minutes"
+    return m.minute_count(minutes)
 
 
 def _daily_limit_label(minutes):
@@ -107,7 +112,7 @@ def _daily_limit_label(minutes):
     if minutes < 60:
         return _minutes_label(minutes)
     hours = minutes / 60
-    return f"{hours:g} hour" if hours == 1 else f"{hours:g} hours"
+    return m.hour_count(hours)
 
 
 def _daily_limit_selection(minutes):
@@ -123,9 +128,7 @@ def _time_status_subtitle(status):
     daily = format_duration(status["daily_allowance_remaining_seconds"])
     remaining = format_duration(status["calculated_active_extension_seconds"])
     return (
-        f"Daily allowance remaining: <b>{daily}</b>\n"
-        f"One-time grant remaining: <b>{grant}</b>\n"
-        f"<b>Remaining time: {remaining}</b> — the larger of the two amounts."
+        m.DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B % {'daily': daily, 'grant': grant, 'remaining': remaining}
     )
 
 
@@ -213,7 +216,7 @@ class ParentAccountSelector(Gtk.MenuButton):
                 pass
         avatar.set_custom_image(texture)
         row.append(avatar)
-        row.append(Gtk.Label(
+        row.append(localized(Gtk.Label, 
             label=label, xalign=0, hexpand=True, ellipsize=3,
             css_classes=["account-name"],
         ))
@@ -228,15 +231,15 @@ class ParentAccountSelector(Gtk.MenuButton):
             self._choices.remove(child)
         focus_actions = Gio.SimpleActionGroup()
         for index, (uid, label, icon_file) in enumerate(users):
-            choice = Gtk.Button(
+            choice = localized(Gtk.Button, 
                 child=self._content(
                     label, icon_file, f"parent-child-choice-{uid}-content",
                 ),
                 css_classes=["parent-account-choice"],
             )
             describe_control(
-                choice, f"Child account: {label}",
-                f"Manage screen time and app policy for {label}.",
+                choice, m.CHILD_ACCOUNT_LABEL_S % {'label': label},
+                m.MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S % {'label': label},
                 automation_id=f"parent-child-choice-{uid}",
             )
             target = choice.weak_ref()
@@ -281,13 +284,13 @@ class ParentAccountSelector(Gtk.MenuButton):
             content = self._content(
                 label, icon_file, f"parent-child-selected-{uid}",
             )
-            description = f"Selected child: {label}."
+            description = m.SELECTED_CHILD_LABEL_S % {'label': label}
         else:
-            content = Gtk.Label(label="(None)", xalign=0, hexpand=True)
+            content = localized(Gtk.Label, label=m.NONE, xalign=0, hexpand=True)
             set_automation_id(content, "parent-child-selected-none")
-            description = "No child account is selected."
+            description = m.NO_CHILD_ACCOUNT_IS_SELECTED
         self.set_child(content)
-        describe_control(self, "Selected child", description)
+        describe_control(self, m.SELECTED_CHILD, description)
 
 
 class ParentWindow(Adw.ApplicationWindow):
@@ -303,6 +306,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self.set_size_request(820, -1)
         self._client = client_factory()
         self._own_language = None
+        context_for(self)
         self._language_dialog = None
         self._language_loading = False
         self._language_requested = False
@@ -372,11 +376,11 @@ class ParentWindow(Adw.ApplicationWindow):
             str(branding_asset_path("app_logo_titlebar.png")),
         )
         title_logo.set_pixel_size(48)
-        title_logo.update_property(
-            [Gtk.AccessibleProperty.LABEL], [f"{app_name()} logo"],
+        accessible_text(title_logo, 
+            [Gtk.AccessibleProperty.LABEL], [m.APP_NAME_S_LOGO % {'app_name': app_name()}],
         )
         title_brand.append(title_logo)
-        title_brand.append(Adw.WindowTitle(
+        title_brand.append(localized(Adw.WindowTitle, 
             title=app_name(), css_classes=["parent-window-title"],
         ))
         header.set_title_widget(title_brand)
@@ -389,11 +393,11 @@ class ParentWindow(Adw.ApplicationWindow):
             callback()
 
         for identity, label, callback in (
-            ("preferences", "Preferences", self._show_preferences),
-            ("help", "Help", open_help),
-            ("about", "About", self._show_about),
+            ("preferences", m.PREFERENCES, self._show_preferences),
+            ("help", m.HELP, open_help),
+            ("about", m.ABOUT, self._show_about),
         ):
-            item = Gtk.Button(child=Gtk.Label(label=label, xalign=0),
+            item = localized(Gtk.Button, child=localized(Gtk.Label, label=label, xalign=0),
                               css_classes=["parent-menu-item"])
             describe_control(item, label, label,
                              automation_id=f"parent-menu-{identity}")
@@ -405,16 +409,16 @@ class ParentWindow(Adw.ApplicationWindow):
                        halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
         for _ in range(3):
             dots.append(Gtk.Box(css_classes=["parent-menu-dot"]))
-        self._menu_button = Gtk.MenuButton(
+        self._menu_button = localized(Gtk.MenuButton, 
             child=dots,
             valign=Gtk.Align.CENTER,
             popover=popover,
-            tooltip_text="Menu",
+            tooltip_text=m.MENU,
             css_classes=["parent-header-menu"],
         )
         describe_control(
-            self._menu_button, "Parent app menu",
-            "Open preferences, help and product information.",
+            self._menu_button, m.PARENT_APP_MENU,
+            m.OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION,
             automation_id="parent-menu-button",
         )
         # Keep native window actions and the desktop's decoration layout, with
@@ -424,12 +428,12 @@ class ParentWindow(Adw.ApplicationWindow):
         feedback_content.append(Gtk.Image(
             icon_name="chat-message-new-symbolic", pixel_size=20,
         ))
-        feedback_content.append(Gtk.Label(label="Feedback"))
-        feedback_button = Gtk.Button(
+        feedback_content.append(localized(Gtk.Label, label=m.FEEDBACK))
+        feedback_button = localized(Gtk.Button, 
             child=feedback_content, css_classes=["parent-header-feedback"],
             valign=Gtk.Align.CENTER,
         )
-        describe_control(feedback_button, "Feedback", "Send feedback about the app.",
+        describe_control(feedback_button, m.FEEDBACK, m.SEND_FEEDBACK_ABOUT_THE_APP,
                          automation_id="parent-feedback-button")
         feedback_button.connect("clicked", lambda _button: self._show_feedback())
         header_actions.append(feedback_button)
@@ -443,7 +447,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._language_readiness = content
         set_automation_id(content, "parent-language-loading")
         toolbar.set_content(content)
-        self._policy_warning = Gtk.Label(
+        self._policy_warning = localized(Gtk.Label, 
             wrap=True, xalign=0, visible=False,
             margin_start=18, margin_end=18, margin_top=8, margin_bottom=8,
             css_classes=["warning"],
@@ -468,8 +472,8 @@ class ParentWindow(Adw.ApplicationWindow):
             hexpand=True,
             css_classes=["account-section"],
         )
-        account_label = Gtk.Label(
-            label="Child account", xalign=0, css_classes=["section-title"],
+        account_label = localized(Gtk.Label, 
+            label=m.CHILD_ACCOUNT, xalign=0, css_classes=["section-title"],
         )
         account_section.append(account_label)
         account_actions = Gtk.Box(
@@ -478,8 +482,8 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         self._account = ParentAccountSelector(self._account_changed)
         describe_control(
-            self._account, "Selected child",
-            "Choose the child whose screen time and app policy are displayed.",
+            self._account, m.SELECTED_CHILD,
+            m.CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED,
             automation_id="parent-child-selector",
         )
         # A DropDown's visible selection is its AT-SPI name.  Connect the
@@ -505,36 +509,36 @@ class ParentWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.VERTICAL, spacing=3,
             valign=Gtk.Align.CENTER, hexpand=True,
         )
-        revoke_labels.append(Gtk.Label(
-            label="Revoke one-time grant", xalign=0,
+        revoke_labels.append(localized(Gtk.Label, 
+            label=m.REVOKE_ONE_TIME_GRANT_2, xalign=0,
             css_classes=["revoke-grant-title"],
         ))
-        self._revoke_description = Gtk.Label(
-            label="Revokes one-time screen time and app access grants.",
+        self._revoke_description = localized(Gtk.Label, 
+            label=m.REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS,
             xalign=0, wrap=True, width_request=270, max_width_chars=36,
             css_classes=["revoke-grant-description"],
         )
         revoke_labels.append(self._revoke_description)
         revoke_content.append(revoke_labels)
-        revoke_content.append(Gtk.Label(
-            label="Revoke", valign=Gtk.Align.CENTER,
+        revoke_content.append(localized(Gtk.Label, 
+            label=m.REVOKE, valign=Gtk.Align.CENTER,
             css_classes=["revoke-grant-action"],
         ))
-        self._revoke = Gtk.Button(
+        self._revoke = localized(Gtk.Button, 
             child=revoke_content, valign=Gtk.Align.FILL,
             width_request=320, css_classes=["revoke-grant-button"],
             sensitive=False,
         )
         describe_control(
-            self._revoke, "Revoke one-time access",
-            "Remove the selected child's active one-time grant after confirmation.",
+            self._revoke, m.REVOKE_ONE_TIME_ACCESS,
+            m.REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA,
             automation_id="parent-revoke-button",
         )
         self._revoke.connect("clicked", self._confirm_revoke)
         account_actions.append(self._revoke)
         account_section.append(account_actions)
-        self._no_users_message = Gtk.Label(
-            label="No interactive non-administrator account was found.",
+        self._no_users_message = localized(Gtk.Label, 
+            label=m.NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND,
             xalign=0, wrap=True, visible=False,
             css_classes=["account-empty-message"],
         )
@@ -555,17 +559,17 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         first_page_button = None
         for page_name, label, icon_name in (
-            ("screen-limits", "Screen Limits", "alarm-symbolic"),
-            ("app-limits", "App Limits", "view-grid-symbolic"),
+            ("screen-limits", m.SCREEN_LIMITS, "alarm-symbolic"),
+            ("app-limits", m.APP_LIMITS, "view-grid-symbolic"),
         ):
-            button = Gtk.ToggleButton(
+            button = localized(Gtk.ToggleButton, 
                 child=Gtk.Box(spacing=8, halign=Gtk.Align.CENTER),
                 hexpand=True,
             )
             button.get_child().append(Gtk.Image(icon_name=icon_name))
-            button.get_child().append(Gtk.Label(label=label))
+            button.get_child().append(localized(Gtk.Label, label=label))
             describe_control(
-                button, label, f"Show the {label} page.",
+                button, label, m.SHOW_THE_LABEL_S_PAGE % {'label': label},
                 automation_id=f"parent-page-{page_name}",
             )
             if first_page_button is None:
@@ -595,7 +599,7 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         set_automation_id(screen_limits_page, "parent-screen-limits-page")
         pages.add_titled_with_icon(
-            screen_limits_page, "screen-limits", "Screen Limits", "alarm-symbolic",
+            screen_limits_page, "screen-limits", m.SCREEN_LIMITS, "alarm-symbolic",
         )
 
         screen_limits = Gtk.Box(
@@ -606,9 +610,9 @@ class ParentWindow(Adw.ApplicationWindow):
             selection_mode=Gtk.SelectionMode.NONE,
             css_classes=["screen-limit-rows"],
         )
-        control_row = Adw.ActionRow(
-            title="Screen Time Limit",
-            subtitle="Turn on / off screen time limit",
+        control_row = localized(Adw.ActionRow, 
+            title=m.SCREEN_TIME_LIMIT_2,
+            subtitle=m.TURN_ON_OFF_SCREEN_TIME_LIMIT,
             css_classes=["screen-limit-toggle-row"],
         )
         control_row.add_prefix(self._setting_icon("alarm-symbolic"))
@@ -618,15 +622,15 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["screen-limit-switch"],
         )
         describe_control(
-            self._enabled, "Screen time limit",
-            "Enable or disable daily screen-time control for the selected child.",
+            self._enabled, m.SCREEN_TIME_LIMIT,
+            m.ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI,
             automation_id="parent-screen-limit-toggle",
         )
         self._enabled.connect("notify::active", self._enabled_changed)
         control_row.add_suffix(self._enabled)
         screen_limit_rows.append(control_row)
-        daily_limit_row = Adw.ActionRow(
-            title="Daily Time Allowance",
+        daily_limit_row = localized(Adw.ActionRow, 
+            title=m.DAILY_TIME_ALLOWANCE_2,
             css_classes=["daily-limit-row"],
         )
         daily_limit_row.add_prefix(self._setting_icon("x-office-calendar-symbolic"))
@@ -636,15 +640,15 @@ class ParentWindow(Adw.ApplicationWindow):
         # daily allowance.
         self._daily_limit_selected = 0
         self._daily_limit_choices = []
-        self._daily_limit = Gtk.MenuButton(
+        self._daily_limit = localized(Gtk.MenuButton, 
             label=_daily_limit_label(0),
             css_classes=["daily-limit-button"],
         )
         self._daily_limit.set_sensitive(False)
         self._daily_limit.set_valign(Gtk.Align.CENTER)
         describe_control(
-            self._daily_limit, "Daily time allowance",
-            "Choose the selected child's daily screen-time allowance.",
+            self._daily_limit, m.DAILY_TIME_ALLOWANCE,
+            m.CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE,
             automation_id="parent-daily-limit-selector",
         )
         allowance_popover = self._daily_limit_popover()
@@ -652,13 +656,13 @@ class ParentWindow(Adw.ApplicationWindow):
         self._daily_limit.set_create_popup_func(allowance_popover.prepare)
         daily_limit_row.add_suffix(self._daily_limit)
         screen_limit_rows.append(daily_limit_row)
-        self._custom_daily_limit = Adw.ActionRow(
-            title="Custom daily allowance",
-            subtitle="Enter a whole number from 0 to 1439.",
+        self._custom_daily_limit = localized(Adw.ActionRow, 
+            title=m.CUSTOM_DAILY_ALLOWANCE,
+            subtitle=m.ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439,
             visible=False,
             css_classes=["custom-daily-limit-row"],
         )
-        self._custom_daily_limit_entry = Gtk.Entry(
+        self._custom_daily_limit_entry = localized(Gtk.Entry, 
             text="30",
             input_purpose=Gtk.InputPurpose.DIGITS,
             width_chars=5,
@@ -666,8 +670,8 @@ class ParentWindow(Adw.ApplicationWindow):
             valign=Gtk.Align.CENTER,
         )
         describe_control(
-            self._custom_daily_limit_entry, "Custom daily allowance",
-            "Enter a whole number of minutes from zero through 1439.",
+            self._custom_daily_limit_entry, m.CUSTOM_DAILY_ALLOWANCE,
+            m.ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439,
             automation_id="parent-custom-daily-limit",
         )
         self._custom_daily_limit_entry.connect(
@@ -680,22 +684,22 @@ class ParentWindow(Adw.ApplicationWindow):
         custom_daily_limit_focus.connect("leave", self._custom_daily_limit_changed)
         self._custom_daily_limit_entry.add_controller(custom_daily_limit_focus)
         self._custom_daily_limit.add_suffix(self._custom_daily_limit_entry)
-        self._custom_daily_limit.add_suffix(Gtk.Label(label="minutes"))
+        self._custom_daily_limit.add_suffix(localized(Gtk.Label, label=m.MINUTES))
         screen_limit_rows.append(self._custom_daily_limit)
-        self._time_status = Adw.ExpanderRow(
-            title="Today's Remaining Time",
-            subtitle="Time left for today",
+        self._time_status = localized(Adw.ExpanderRow, 
+            title=m.TODAY_S_REMAINING_TIME_2,
+            subtitle=m.TIME_LEFT_FOR_TODAY,
             expanded=True,
             css_classes=["time-status-row"],
         )
         describe_control(
-            self._time_status, "Today's remaining time",
-            "Expand or collapse the daily and one-time remaining-time calculation.",
+            self._time_status, m.TODAY_S_REMAINING_TIME,
+            m.EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA,
             automation_id="parent-time-status",
         )
         self._time_status.add_prefix(self._setting_icon("hourglass-symbolic"))
-        self._time_status_value = Gtk.Label(
-            label="Loading…", valign=Gtk.Align.CENTER,
+        self._time_status_value = localized(Gtk.Label, 
+            label=m.LOADING, valign=Gtk.Align.CENTER,
             css_classes=["remaining-time-value"],
         )
         set_automation_id(self._time_status_value, "parent-time-remaining")
@@ -718,7 +722,7 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         set_automation_id(app_limits_page, "parent-app-limits-page")
         pages.add_titled_with_icon(
-            app_limits_page, "app-limits", "App Limits", "view-grid-symbolic",
+            app_limits_page, "app-limits", m.APP_LIMITS, "view-grid-symbolic",
         )
 
         app_limits = Gtk.Box(
@@ -742,23 +746,23 @@ class ParentWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.VERTICAL,
             hexpand=True, valign=Gtk.Align.CENTER,
         )
-        search_labels.append(Gtk.Label(
-            label="Installed apps", xalign=0,
+        search_labels.append(localized(Gtk.Label, 
+            label=m.INSTALLED_APPS, xalign=0,
             css_classes=["apps-panel-title"],
         ))
-        search_labels.append(Gtk.Label(
-            label="Desktop, AppImage, Flatpak, Snap, and system launchers",
+        search_labels.append(localized(Gtk.Label, 
+            label=m.DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS,
             xalign=0, wrap=True,
             css_classes=["apps-panel-subtitle"],
         ))
         search_row.append(search_labels)
-        self._search = Gtk.SearchEntry(
-            placeholder_text="Search installed apps", valign=Gtk.Align.CENTER,
+        self._search = localized(Gtk.SearchEntry, 
+            placeholder_text=m.SEARCH_INSTALLED_APPS, valign=Gtk.Align.CENTER,
             width_chars=32, css_classes=["apps-search"],
         )
         describe_control(
-            self._search, "Search installed apps",
-            "Filter the selected child's available applications.",
+            self._search, m.SEARCH_INSTALLED_APPS,
+            m.FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS,
             automation_id="parent-app-search",
         )
         self._search.connect("search-changed", self._filter)
@@ -766,7 +770,7 @@ class ParentWindow(Adw.ApplicationWindow):
         search_row.append(self._search)
         apps_section.append(search_row)
 
-        apps = Adw.PreferencesGroup(css_classes=["apps-panel"])
+        apps = localized(Adw.PreferencesGroup, css_classes=["apps-panel"])
         set_automation_id(apps, "parent-app-rows")
         self._apps_group = apps
         # PreferencesGroup places non-row widgets after its list. Keep the
@@ -774,17 +778,17 @@ class ParentWindow(Adw.ApplicationWindow):
         # The trailing headings are overlaid on inert copies of the controls
         # below. This makes their columns use the same measurements as every
         # app row instead of letting the heading text determine the width.
-        headers = Adw.ActionRow(css_classes=["app-policy-columns"])
-        headers.add_prefix(Gtk.Label(label="Icon", xalign=0, hexpand=False,
+        headers = localized(Adw.ActionRow, css_classes=["app-policy-columns"])
+        headers.add_prefix(localized(Gtk.Label, label=m.ICON, xalign=0, hexpand=False,
                                      css_classes=["app-policy-column-header",
                                                   "app-policy-icon-header"]))
-        headers.set_title("App Name &amp; Detail")
+        set_text(headers, 'title', m.APP_NAME_AMP_DETAIL)
         headers.add_suffix(self._policy_column_heading(
-            "Match Rule", self._match_rule_slot(), "match-rule-header",
+            m.MATCH_RULE, self._match_rule_slot(), "match-rule-header",
             MATCH_RULES, self._match_rule_filters, self._match_rule_filter_icon,
             identity="match-rule"))
         headers.add_suffix(self._policy_column_heading(
-            "Access Rule", self._policy_selector_slot(), "access-rule-header",
+            m.ACCESS_RULE, self._policy_selector_slot(), "access-rule-header",
             STATES, self._access_rule_filters, self._access_rule_filter_icon,
             identity="access-rule"))
         apps.add(headers)
@@ -809,8 +813,8 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["apps-loading-spinner"],
         )
         loading_content.append(self._apps_loading_spinner)
-        loading_content.append(Gtk.Label(
-            label="Loading installed apps…",
+        loading_content.append(localized(Gtk.Label, 
+            label=m.LOADING_INSTALLED_APPS,
             css_classes=["apps-loading-label"],
         ))
         loading_center = Gtk.CenterBox(hexpand=True, vexpand=True)
@@ -851,18 +855,18 @@ class ParentWindow(Adw.ApplicationWindow):
             icon_name="accessories-calculator-symbolic", pixel_size=18,
             css_classes=["calculation-icon"],
         ))
-        heading.append(Gtk.Label(
-            label="How it's calculated", xalign=0, hexpand=True,
+        heading.append(localized(Gtk.Label, 
+            label=m.HOW_IT_S_CALCULATED, xalign=0, hexpand=True,
             css_classes=["calculation-title"],
         ))
-        collapse = Gtk.Button(
+        collapse = localized(Gtk.Button, 
             icon_name="go-up-symbolic",
-            tooltip_text="Hide calculation",
+            tooltip_text=m.HIDE_CALCULATION,
             css_classes=["calculation-collapse"],
         )
         describe_control(
-            collapse, "Hide remaining-time calculation",
-            "Collapse the remaining-time calculation details.",
+            collapse, m.HIDE_REMAINING_TIME_CALCULATION,
+            m.COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS,
             automation_id="parent-time-calculation-collapse",
         )
         collapse.connect(
@@ -871,7 +875,7 @@ class ParentWindow(Adw.ApplicationWindow):
         heading.append(collapse)
         panel.append(heading)
 
-        self._time_explanation = Gtk.Label(
+        self._time_explanation = localized(Gtk.Label, 
             label="—", xalign=0, wrap=True, use_markup=True,
             css_classes=["calculation-formula"],
         )
@@ -884,20 +888,20 @@ class ParentWindow(Adw.ApplicationWindow):
         """Overlay a filter heading on a measurement-matched, inert policy control."""
         overlay = Gtk.Overlay(css_classes=["app-policy-heading", css_class])
         overlay.set_child(slot)
-        trigger = Gtk.MenuButton(
-            tooltip_text=f"Filter by {label}",
+        trigger = localized(Gtk.MenuButton, 
+            tooltip_text=m.FILTER_BY_LABEL_S % {'label': label},
             halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
             css_classes=["app-policy-filter"],
         )
         describe_control(
-            trigger, f"Filter {label}",
-            f"Choose which {label.casefold()} values are shown in the app list.",
+            trigger, m.FILTER_LABEL_S % {'label': label},
+            m.FILTER_DESCRIPTION,
             automation_id=f"parent-filter-{identity}",
         )
         trigger_content = Gtk.Box(
             spacing=4, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
         )
-        trigger_content.append(Gtk.Label(
+        trigger_content.append(localized(Gtk.Label, 
             label=label, css_classes=["app-policy-column-header"],
         ))
         trigger_content.append(Gtk.Image(
@@ -914,20 +918,20 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["app-policy-filter-menu"],
         )
         for item in items:
-            choice = Gtk.CheckButton(
+            choice = localized(Gtk.CheckButton, 
                 active=item["id"] in selected,
                 css_classes=["app-policy-filter-item"],
             )
             content = Gtk.Box(spacing=10, valign=Gtk.Align.CENTER)
             content.append(icon_factory(item))
-            content.append(Gtk.Label(
+            content.append(localized(Gtk.Label, 
                 label=item["label"], xalign=0, hexpand=True,
                 css_classes=["app-policy-filter-item-label"],
             ))
             choice.set_child(content)
             describe_control(
                 choice, item["label"],
-                f"Show apps with this {label.casefold()}.",
+                m.SHOW_APPS_RULE,
                 automation_id=f"parent-filter-{identity}-{item['id']}",
             )
             choice.connect(
@@ -963,7 +967,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._filter()
 
     def _match_rule_filter_icon(self, item):
-        return Gtk.Button(
+        return localized(Gtk.Button, 
             can_focus=False, can_target=False,
             css_classes=[
                 "match-rule-button", "policy-choice", "policy-legend-icon",
@@ -974,7 +978,7 @@ class ParentWindow(Adw.ApplicationWindow):
 
     @staticmethod
     def _access_rule_filter_icon(item):
-        return Gtk.ToggleButton(
+        return localized(Gtk.ToggleButton, 
             active=True, can_focus=False, can_target=False,
             css_classes=["policy-choice", "policy-legend-icon", item["css"]],
             child=Gtk.Image(icon_name=item["icon"], pixel_size=19),
@@ -986,7 +990,7 @@ class ParentWindow(Adw.ApplicationWindow):
             width_request=92, halign=Gtk.Align.CENTER,
             valign=Gtk.Align.CENTER, css_classes=["match-rule-cell"],
         )
-        cell.append(Gtk.Button(
+        cell.append(localized(Gtk.Button, 
             sensitive=False, can_focus=False, can_target=False, opacity=0,
             css_classes=["match-rule-button"],
         ))
@@ -999,7 +1003,7 @@ class ParentWindow(Adw.ApplicationWindow):
             opacity=0, css_classes=["policy-selector"],
         )
         for state in APP_LIST_STATES:
-            selector.append(Gtk.ToggleButton(
+            selector.append(localized(Gtk.ToggleButton, 
                 sensitive=False, can_focus=False, can_target=False,
                 css_classes=["policy-choice", state["css"]],
             ))
@@ -1025,11 +1029,11 @@ class ParentWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True,
             valign=Gtk.Align.CENTER,
         )
-        labels.append(Gtk.Label(
-            label="Legend", xalign=0, css_classes=["policy-legend-title"],
+        labels.append(localized(Gtk.Label, 
+            label=m.LEGEND, xalign=0, css_classes=["policy-legend-title"],
         ))
-        subtitle = Gtk.Label(
-            label="Quick reference for access and match rules",
+        subtitle = localized(Gtk.Label, 
+            label=m.QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES,
             xalign=0, wrap=True, css_classes=["policy-legend-subtitle"],
         )
         labels.append(subtitle)
@@ -1037,15 +1041,15 @@ class ParentWindow(Adw.ApplicationWindow):
         chevron = Gtk.Image(icon_name="go-down-symbolic", pixel_size=20)
         header_content.append(chevron)
 
-        header = Gtk.ToggleButton(
+        header = localized(Gtk.ToggleButton, 
             active=False,
-            tooltip_text="Show legend",
+            tooltip_text=m.SHOW_LEGEND,
             css_classes=["policy-legend-header"],
             child=header_content,
         )
         describe_control(
-            header, "Policy legend",
-            "Expand or collapse the app access and match-rule legend.",
+            header, m.POLICY_LEGEND,
+            m.EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND,
             automation_id="parent-legend-toggle",
         )
         card.append(header)
@@ -1056,10 +1060,10 @@ class ParentWindow(Adw.ApplicationWindow):
         sections = Gtk.Grid(css_classes=["policy-legend-sections"])
         set_automation_id(sections, "parent-legend-content")
         sections.attach(self._legend_section(
-            "App Access (What happens)", APP_LIST_STATES, {
-                "allowed": "App can always be used",
-                "permanent": "App is completely blocked and can only be allowed by admins",
-                "conditional": "App is blocked and can be granted one-time extension per child request if time limit is enabled",
+            m.APP_ACCESS_WHAT_HAPPENS, APP_LIST_STATES, {
+                "allowed": m.APP_CAN_ALWAYS_BE_USED,
+                "permanent": m.APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS,
+                "conditional": m.APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R,
             }, access=True,
         ), 0, 0, 1, 1)
         sections.attach(Gtk.Separator(
@@ -1067,9 +1071,9 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["policy-legend-divider"],
         ), 1, 0, 1, 1)
         sections.attach(self._legend_section(
-            "Match Rule (How apps are matched)", MATCH_RULES, {
-                "pattern": "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)",
-                "precise": "Matches exact app path\n(e.g., /usr/bin/firefox)",
+            m.MATCH_RULE_HOW_APPS_ARE_MATCHED, MATCH_RULES, {
+                "pattern": m.MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB,
+                "precise": m.MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX,
             }, access=False,
         ), 2, 0, 1, 1)
 
@@ -1092,7 +1096,7 @@ class ParentWindow(Adw.ApplicationWindow):
             hexpand=True,
             css_classes=["policy-legend-section"],
         )
-        section.append(Gtk.Label(
+        section.append(localized(Gtk.Label, 
             label=title, xalign=0, wrap=True,
             css_classes=["policy-legend-section-title"],
         ))
@@ -1102,7 +1106,7 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         for row, item in enumerate(items):
             if access:
-                icon = Gtk.ToggleButton(
+                icon = localized(Gtk.ToggleButton, 
                     active=True, can_focus=False, can_target=False,
                     valign=Gtk.Align.CENTER,
                     css_classes=[
@@ -1111,7 +1115,7 @@ class ParentWindow(Adw.ApplicationWindow):
                     child=Gtk.Image(icon_name=item["icon"], pixel_size=19),
                 )
             else:
-                icon = Gtk.Button(
+                icon = localized(Gtk.Button, 
                     can_focus=False, can_target=False, valign=Gtk.Align.CENTER,
                     css_classes=[
                         "match-rule-button", "policy-choice",
@@ -1120,11 +1124,11 @@ class ParentWindow(Adw.ApplicationWindow):
                     child=self._match_rule_image(item),
                 )
             rows.attach(icon, 0, row, 1, 1)
-            rows.attach(Gtk.Label(
+            rows.attach(localized(Gtk.Label, 
                 label=item["label"], xalign=0, wrap=True, max_width_chars=22,
                 css_classes=["policy-legend-item-title"],
             ), 1, row, 1, 1)
-            rows.attach(Gtk.Label(
+            rows.attach(localized(Gtk.Label, 
                 label=descriptions[item["id"]], xalign=0, wrap=True,
                 max_width_chars=22, hexpand=True,
                 css_classes=["policy-legend-description"],
@@ -1136,14 +1140,13 @@ class ParentWindow(Adw.ApplicationWindow):
     def _legend_toggled(button, revealer, subtitle, chevron, card):
         expanded = button.get_active()
         revealer.set_reveal_child(expanded)
-        subtitle.set_label(
-            "Understanding access rules and match rules"
-            if expanded else "Quick reference for access and match rules"
+        set_text(subtitle, 'label', m.UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+            if expanded else m.QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
         )
         chevron.set_from_icon_name(
             "go-up-symbolic" if expanded else "go-down-symbolic",
         )
-        button.set_tooltip_text("Hide legend" if expanded else "Show legend")
+        set_text(button, 'tooltip-text', m.HIDE_LEGEND if expanded else m.SHOW_LEGEND)
         if expanded:
             card.add_css_class("expanded")
         else:
@@ -1164,23 +1167,25 @@ class ParentWindow(Adw.ApplicationWindow):
         if self._closed:
             return
         self._own_language = language
+        if not self._apply_language(language):
+            return
         if not language or self._language_requested:
-            self._show_preferences()
+            self._open_language_dialog()
         else:
             set_automation_id(self._language_readiness, "parent-language-ready")
 
     def _language_failed(self, error):
         self._language_loading = False
         if not self._closed:
-            self._show_error(error, "Your language preference could not be loaded. Open Preferences to try again.")
+            self._show_error(error, m.YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO)
 
     def _show_preferences(self, *_args):
         if self._closed:
             return
         self._language_requested = True
-        if self._own_language is None:
-            self._load_language()
-            return
+        self._load_language()
+
+    def _open_language_dialog(self):
         if self._language_dialog is None:
             self._language_dialog = LanguageDialog(
                 self, self._own_language, self._save_language, self._language_saved)
@@ -1206,7 +1211,17 @@ class ParentWindow(Adw.ApplicationWindow):
         self._own_language = language
         self._language_dialog = None
         self._language_requested = False
+        if not self._apply_language(language):
+            return
         set_automation_id(self._language_readiness, "parent-language-ready")
+
+    def _apply_language(self, language):
+        try:
+            context_for(self).apply(language)
+        except (OSError, ValueError) as error:
+            self._show_error(error)
+            return False
+        return True
 
     def _show_feedback(self, *_args):
         if not getattr(self, "_feedback_dialog", None):
@@ -1227,7 +1242,7 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _add_app_row(self, app):
         automation_key = _app_automation_key(app["id"])
-        row = Adw.ActionRow(
+        row = localized(Adw.ActionRow, 
             title=app["name"], subtitle=app["description"] or app["id"],
             css_classes=["app-policy-row"],
         )
@@ -1248,13 +1263,13 @@ class ParentWindow(Adw.ApplicationWindow):
                 icon_cell.append(Gtk.Image(gicon=icon, pixel_size=36))
                 row.add_prefix(icon_cell)
         row.policy_buttons = {}
-        row.match_rule_button = Gtk.Button(
-            tooltip_text="Edit match rule", valign=Gtk.Align.CENTER,
+        row.match_rule_button = localized(Gtk.Button, 
+            tooltip_text=m.EDIT_MATCH_RULE, valign=Gtk.Align.CENTER,
             css_classes=["match-rule-button"],
         )
         describe_control(
-            row.match_rule_button, f"{app['name']} match rule",
-            "Choose whether this application's saved rule matches an exact path or versioned filename pattern.",
+            row.match_rule_button, m.APP_NAME_S_MATCH_RULE % {'app_name': app['name']},
+            m.CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA,
             automation_id=f"parent-app-{automation_key}-match-rule",
         )
         row.match_rule_button.connect("clicked", self._edit_match_rule, row)
@@ -1270,15 +1285,15 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         first_button = None
         for state in APP_LIST_STATES:
-            button = Gtk.ToggleButton(
+            button = localized(Gtk.ToggleButton, 
                 tooltip_text=state["label"],
                 css_classes=["policy-choice", state["css"]],
                 child=Gtk.Image(icon_name=state["icon"], pixel_size=19),
                 valign=Gtk.Align.CENTER,
             )
             describe_control(
-                button, f"{app['name']} access rule: {state['label']}",
-                f"Set the selected child's access rule for {app['name']} to {state['label']}.",
+                button, m.APP_NAME_S_ACCESS_RULE_STATE_LABEL_S % {'app_name': app['name'], 'state_label': state['label']},
+                m.SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB % {'app_name': app['name'], 'state_label': state['label']},
                 automation_id=f"parent-app-{automation_key}-access-{state['id']}",
             )
             if first_button is None:
@@ -1372,11 +1387,11 @@ class ParentWindow(Adw.ApplicationWindow):
             # discovery outage. Each operation still authorizes at the broker.
             if not self._user_discovery_error_reported:
                 self._user_discovery_error_reported = True
-                self._show_error(error, "Child accounts could not be refreshed. Retrying automatically.")
+                self._show_error(error, m.CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY)
             return
         LOG.warning("parent.006", error_type=error_code(error))
         self.get_content().set_sensitive(False)
-        self._show_error(error, "The Parent App could not load. Please try again later.",
+        self._show_error(error, m.THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER,
                          on_close=self.get_application().quit)
 
     def _users_loaded(self, users):
@@ -1405,7 +1420,7 @@ class ParentWindow(Adw.ApplicationWindow):
             self._load_selected()
         else:
             if not self._users:
-                self._toast("No interactive non-admin users were found")
+                self._toast(m.NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND)
 
     def _selected_uid(self):
         index = self._account.get_selected()
@@ -1423,15 +1438,14 @@ class ParentWindow(Adw.ApplicationWindow):
         self._load_policy_warnings()
         selected = self._account.get_selected()
         child_name = self._users[selected][1].split(maxsplit=1)[0]
-        self._revoke_description.set_label(
-            f"Revokes one-time screen time and app access grants granted to {child_name}."
+        set_text(self._revoke_description, 'label', m.REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH % {'child_name': child_name}
         )
         self._loading = True
         # Do not carry a previous child's grant state into this selection while
         # its authoritative time status is still loading.
         self._remaining_time_seconds = None
-        self._time_status_value.set_label("Loading…")
-        self._time_explanation.set_label("—")
+        set_text(self._time_status_value, 'label', m.LOADING)
+        set_text(self._time_explanation, 'label', "—")
         LOG.info("parent.008")
         self._set_apps_sensitive(False)
         # Start the application catalog immediately on a background thread so
@@ -1481,7 +1495,7 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         self._apps_loading = False
         LOG.warning("parent.011", error_type=error_code(error))
-        self._show_error(error, "Installed apps could not be loaded. Please try again later.")
+        self._show_error(error, m.INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER)
         self._app_catalog = []
         self._app_catalog_uid = uid
         self._update_apps_loading_ui()
@@ -1594,10 +1608,9 @@ class ParentWindow(Adw.ApplicationWindow):
         self._remaining_time_seconds = max(
             0, int(status["calculated_active_extension_seconds"]),
         )
-        self._time_status_value.set_label(
-            format_duration(status["calculated_active_extension_seconds"])
+        set_text(self._time_status_value, 'label', format_duration(status["calculated_active_extension_seconds"])
         )
-        self._time_explanation.set_label(_time_status_subtitle(status))
+        set_text(self._time_explanation, 'label', _time_status_subtitle(status))
         LOG.info(
             "parent.013",
             daily=status["daily_allowance_remaining_seconds"],
@@ -1625,9 +1638,9 @@ class ParentWindow(Adw.ApplicationWindow):
                 TIME_STATUS_RETRY_DELAY_SECONDS, self._retry_time_status,
             )
             return
-        self._time_status_value.set_label("Unavailable")
-        self._time_explanation.set_label("—")
-        self._show_error(error, "Remaining time could not be loaded. Please try again later.")
+        set_text(self._time_status_value, 'label', m.UNAVAILABLE)
+        set_text(self._time_explanation, 'label', "—")
+        self._show_error(error, m.REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER)
 
     def _retry_time_status(self):
         self._time_status_retry_id = 0
@@ -1677,15 +1690,13 @@ class ParentWindow(Adw.ApplicationWindow):
         if not affected:
             return
         names = {app["id"]: app["name"] for app in self._app_catalog or ()}
-        apps = ", ".join(names.get(app_id, app_id or "another application") for app_id in affected)
+        apps = ", ".join(names.get(app_id, app_id or m.ANOTHER_APPLICATION) for app_id in affected)
         detail = (
-            "Some app limits could not be applied. Affected apps or updated versions "
-            "may be unrestricted. Other controls remain available, and saved rules "
-            "will be retried automatically."
+            m.SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
         )
         # App identities are displayed locally, never included in automatic
         # diagnostic events or the error-report draft.
-        self._policy_warning.set_label(f"{detail}\nAffected apps: {apps}")
+        set_text(self._policy_warning, 'label', m.DETAIL_S_AFFECTED_APPS_APPS_S % {'detail': detail, 'apps': apps})
         if affected != previous:
             self._show_error(RuntimeError("application rules unavailable"), detail)
 
@@ -1696,11 +1707,11 @@ class ParentWindow(Adw.ApplicationWindow):
         if uid != self._selected_uid():
             self._load_policy_warnings()
             return
-        self._policy_warning.set_label("App limit status is unavailable. Retrying automatically.")
+        set_text(self._policy_warning, 'label', m.APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY)
         self._policy_warning.set_visible(True)
         if not self._policy_warning_query_failed:
             self._policy_warning_query_failed = True
-            self._show_error(error, "App limit status could not be checked. Other controls remain available.")
+            self._show_error(error, m.APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI)
 
     def _refresh_users(self):
         self._load_users()
@@ -1757,18 +1768,15 @@ class ParentWindow(Adw.ApplicationWindow):
         if selected >= len(self._users):
             return
         child_name = self._users[selected][1]
-        dialog = Gtk.Dialog(
-            transient_for=self, modal=True, title="Revoke one-time grant?",
+        dialog = localized(Gtk.Dialog, 
+            transient_for=self, modal=True, title=m.REVOKE_ONE_TIME_GRANT,
         )
         set_automation_id(dialog, "parent-revoke-dialog")
         header = Gtk.HeaderBar()
         add_identified_window_controls(header, "parent-revoke-window-controls")
         dialog.set_titlebar(header)
-        warning = Gtk.Label(
-            label=("This will revoke one-time screen time and access to soft blocked apps "
-                   f"granted to {child_name}, close their running blocked apps, and "
-                   "lock their desktop when no time remains. "
-                   "Their remaining daily time allowance is not impacted."),
+        warning = localized(Gtk.Label, 
+            label=(m.THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED % {'child_name': child_name}),
             wrap=True, max_width_chars=72, xalign=0,
             margin_top=18, margin_bottom=18,
             margin_start=18, margin_end=18,
@@ -1777,12 +1785,12 @@ class ParentWindow(Adw.ApplicationWindow):
         set_automation_id(warning, "parent-revoke-warning")
         dialog.get_content_area().append(warning)
         add_dialog_button(
-            dialog, "Cancel", Gtk.ResponseType.CANCEL, "parent-revoke-cancel",
-            description="Keep the current one-time grant.",
+            dialog, m.CANCEL, Gtk.ResponseType.CANCEL, "parent-revoke-cancel",
+            description=m.KEEP_THE_CURRENT_ONE_TIME_GRANT,
         )
         add_dialog_button(
-            dialog, "Revoke grant", Gtk.ResponseType.OK, "parent-revoke-confirm",
-            description="Revoke the selected child's one-time grant.",
+            dialog, m.REVOKE_GRANT, Gtk.ResponseType.OK, "parent-revoke-confirm",
+            description=m.REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT,
             css_class="destructive-action",
         )
         dialog.set_default_response(Gtk.ResponseType.CANCEL)
@@ -1809,7 +1817,7 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         self._loading = False
         self._set_apps_sensitive(True)
-        self._toast("One-time grant revoked")
+        self._toast(m.ONE_TIME_GRANT_REVOKED)
         self._load_time_status()
 
     def _enabled_changed(self, switch, _param):
@@ -1829,7 +1837,7 @@ class ParentWindow(Adw.ApplicationWindow):
             )
             describe_control(
                 choice, _daily_limit_label(minutes),
-                f"Set the selected child's daily allowance to {_daily_limit_label(minutes)}.",
+                m.SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI % {'daily_limit_label_minutes': _daily_limit_label(minutes)},
                 automation_id=f"parent-daily-limit-{minutes}",
             )
             choices.append(choice)
@@ -1846,12 +1854,12 @@ class ParentWindow(Adw.ApplicationWindow):
         menu.append(choices_scroll)
         menu.append(Gtk.Separator(css_classes=["daily-limit-separator"]))
         custom = self._daily_limit_choice(
-            "Custom amount…", CUSTOM_DAILY_LIMIT_INDEX,
+            m.CUSTOM_AMOUNT, CUSTOM_DAILY_LIMIT_INDEX,
             icon_name="emblem-system-symbolic",
         )
         describe_control(
-            custom, "Custom amount",
-            "Enter a custom daily allowance in minutes.",
+            custom, m.CUSTOM_AMOUNT_2,
+            m.ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES,
             automation_id="parent-daily-limit-custom",
         )
         menu.append(custom)
@@ -1877,13 +1885,13 @@ class ParentWindow(Adw.ApplicationWindow):
                 css_classes=["daily-limit-radio"],
             )
         content.append(marker)
-        content.append(Gtk.Label(
+        content.append(localized(Gtk.Label, 
             label=label,
             xalign=0,
             hexpand=True,
             css_classes=["daily-limit-choice-label"],
         ))
-        choice = Gtk.Button(
+        choice = localized(Gtk.Button, 
             child=content,
             hexpand=True,
             css_classes=["daily-limit-choice"],
@@ -1895,11 +1903,12 @@ class ParentWindow(Adw.ApplicationWindow):
     def _update_daily_limit_choice_styles(self):
         for choice, marker, index in self._daily_limit_choices:
             selected = index == self._daily_limit_selected
-            label = ("Custom amount" if index == CUSTOM_DAILY_LIMIT_INDEX
+            label = (m.CUSTOM_AMOUNT_2 if index == CUSTOM_DAILY_LIMIT_INDEX
                      else _daily_limit_label(DAILY_LIMIT_PRESETS[index]))
-            choice.update_property(
+            accessible_text(choice, 
                 [Gtk.AccessibleProperty.DESCRIPTION],
-                [("Selected daily allowance: " if selected else "Daily allowance: ") + label],
+                [(m.SELECTED_DAILY_ALLOWANCE_DESCRIPTION if selected else m.DAILY_ALLOWANCE_DESCRIPTION)
+                 % {'duration': label}],
             )
             if selected:
                 choice.add_css_class("selected")
@@ -1913,7 +1922,7 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         self._daily_limit_selected = selected
         is_custom = selected == CUSTOM_DAILY_LIMIT_INDEX
-        self._daily_limit.set_label("Custom value" if is_custom else _daily_limit_label(
+        set_text(self._daily_limit, 'label', m.CUSTOM_VALUE if is_custom else _daily_limit_label(
             DAILY_LIMIT_PRESETS[selected],
         ))
         self._update_daily_limit_choice_styles()
@@ -1933,20 +1942,19 @@ class ParentWindow(Adw.ApplicationWindow):
         text = self._custom_daily_limit_entry.get_text().strip()
         if not text.isdecimal() or not 0 <= int(text) <= MAX_CUSTOM_DAILY_LIMIT_MINUTES:
             self._custom_daily_limit_entry.add_css_class("error")
-            self._custom_daily_limit_entry.update_property(
+            accessible_text(self._custom_daily_limit_entry, 
                 [Gtk.AccessibleProperty.DESCRIPTION],
-                ["Invalid daily allowance. Enter a whole number from 0 to 1439."],
+                [m.INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439],
             )
-            self._custom_daily_limit.set_subtitle(
-                "Enter a whole number from 0 to 1439."
+            set_text(self._custom_daily_limit, 'subtitle', m.ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
             )
             return False
         self._custom_daily_limit_entry.remove_css_class("error")
-        self._custom_daily_limit_entry.update_property(
+        accessible_text(self._custom_daily_limit_entry, 
             [Gtk.AccessibleProperty.DESCRIPTION],
-            ["Enter a whole number of minutes from zero through 1439."],
+            [m.ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439],
         )
-        self._custom_daily_limit.set_subtitle("Enter a whole number from 0 to 1439.")
+        set_text(self._custom_daily_limit, 'subtitle', m.ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439)
         self._save_parent_control(self._enabled.get_active(), custom=True)
         return False
 
@@ -1973,17 +1981,17 @@ class ParentWindow(Adw.ApplicationWindow):
         """Restore the selected child's saved allowance, including its editor."""
         selected, is_custom = _daily_limit_selection(minutes)
         self._daily_limit_selected = selected
-        self._daily_limit.set_label("Custom value" if is_custom else _daily_limit_label(minutes))
+        set_text(self._daily_limit, 'label', m.CUSTOM_VALUE if is_custom else _daily_limit_label(minutes))
         self._update_daily_limit_choice_styles()
         self._custom_daily_limit.set_visible(is_custom)
         # Preference loads replace abandoned drafts even when the saved value
         # selects a preset. Successful autosaves do not use this load path, so
         # ongoing typing keeps its text, focus and caret.
-        self._custom_daily_limit_entry.set_text(str(minutes))
+        set_text(self._custom_daily_limit_entry, 'text', str(minutes))
         self._custom_daily_limit_entry.remove_css_class("error")
-        self._custom_daily_limit_entry.update_property(
+        accessible_text(self._custom_daily_limit_entry, 
             [Gtk.AccessibleProperty.DESCRIPTION],
-            ["Enter a whole number of minutes from zero through 1439."],
+            [m.ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439],
         )
 
     def _daily_limit_minutes(self):
@@ -2064,32 +2072,32 @@ class ParentWindow(Adw.ApplicationWindow):
             value, f"parent-app-{_app_automation_key(row.app['id'])}-match-{match['id']}",
         )
         row.match_rule_button.set_child(value)
-        row.match_rule_button.set_tooltip_text(match["label"])
-        describe_control(row.match_rule_button, f"{row.app['name']} match rule",
-                         f"Current match rule: {rule}")
+        set_text(row.match_rule_button, 'tooltip-text', match["label"])
+        describe_control(row.match_rule_button, m.ROW_APP_NAME_S_MATCH_RULE % {'row_app_name': row.app['name']},
+                         m.CURRENT_MATCH_RULE_RULE_S % {'rule': rule})
 
     @staticmethod
     def _match_rule_image(match):
-        return Gtk.Label(
+        return localized(Gtk.Label, 
             label=match["glyph"],
             css_classes=["match-rule-icon", match["css"]],
         )
 
     def _edit_match_rule(self, _button, row):
-        dialog = Gtk.Dialog(transient_for=self, modal=True, title="Edit Match Rule")
+        dialog = localized(Gtk.Dialog, transient_for=self, modal=True, title=m.EDIT_MATCH_RULE_2)
         set_automation_id(dialog, "parent-match-rule-dialog")
         header = Gtk.HeaderBar()
         add_identified_window_controls(header, "parent-match-rule-window-controls")
         dialog.set_titlebar(header)
         add_dialog_button(
-            dialog, "Cancel", Gtk.ResponseType.CANCEL, "parent-match-rule-cancel",
+            dialog, m.CANCEL, Gtk.ResponseType.CANCEL, "parent-match-rule-cancel",
         )
         add_dialog_button(
-            dialog, "Reset to Default", Gtk.ResponseType.APPLY,
+            dialog, m.RESET_TO_DEFAULT, Gtk.ResponseType.APPLY,
             "parent-match-rule-reset",
         )
         add_dialog_button(
-            dialog, "Save", Gtk.ResponseType.OK, "parent-match-rule-save",
+            dialog, m.SAVE, Gtk.ResponseType.OK, "parent-match-rule-save",
         )
         dialog.set_default_response(Gtk.ResponseType.OK)
         content = dialog.get_content_area()
@@ -2099,34 +2107,34 @@ class ParentWindow(Adw.ApplicationWindow):
         content.set_margin_bottom(18)
         content.set_margin_start(18)
         content.set_margin_end(18)
-        content.append(Gtk.Label(
-            label="Use an exact execution path, or include * for a versioned filename pattern.",
+        content.append(localized(Gtk.Label, 
+            label=m.USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME,
             wrap=True, xalign=0,
         ))
-        entry = Gtk.Entry(hexpand=True, width_chars=54,
+        entry = localized(Gtk.Entry, hexpand=True, width_chars=54,
                           text=row.match_rule or self._default_match_rule(row))
         describe_control(
-            entry, "Application match rule",
-            "Enter an exact execution path or a versioned filename pattern.",
+            entry, m.APPLICATION_MATCH_RULE,
+            m.ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN,
             automation_id="parent-match-rule-entry",
         )
         content.append(entry)
         entry.connect("changed", lambda widget: describe_control(
-            widget, "Application match rule",
-            "Enter an exact execution path or a versioned filename pattern.",
+            widget, m.APPLICATION_MATCH_RULE,
+            m.ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN,
         ))
 
         def response(_dialog, response_id):
             if response_id == Gtk.ResponseType.OK:
                 rule = self._canonical_match_rule(row, entry.get_text())
                 if not rule:
-                    describe_control(entry, "Application match rule", "A match rule is required")
-                    self._toast("A match rule is required")
+                    describe_control(entry, m.APPLICATION_MATCH_RULE, m.A_MATCH_RULE_IS_REQUIRED)
+                    self._toast(m.A_MATCH_RULE_IS_REQUIRED)
                     return
                 if not self._is_pattern(rule) and rule not in row.app["targets"]:
-                    describe_control(entry, "Application match rule",
-                                     "A precise match must be this app's execution path")
-                    self._toast("A precise match must be this app's execution path")
+                    describe_control(entry, m.APPLICATION_MATCH_RULE,
+                                     m.A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH)
+                    self._toast(m.A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH)
                     return
                 row.match_rule = rule
                 # Saving the detected default is not an override. A value only
@@ -2232,7 +2240,12 @@ class ParentWindow(Adw.ApplicationWindow):
         self._save_in_progress = False
         self._active_save = None
         LOG.warning("parent.018", setting=setting, error_type=error_code(error))
-        self._show_error(error, f"Could not save {setting}. Please try again later.")
+        message = {
+            'one-time grant': m.SAVE_GRANT_FAILED,
+            'screen-time settings': m.SAVE_SCREEN_TIME_FAILED,
+            'app access': m.SAVE_APP_ACCESS_FAILED,
+        }.get(setting, m.SOMETHING_WENT_WRONG)
+        self._show_error(error, message)
         if uid == self._selected_uid():
             self._restore_preferences_uid = uid
         self._start_next_save()
@@ -2250,7 +2263,7 @@ class ParentWindow(Adw.ApplicationWindow):
                 self._preferences_loaded(self._preferences)
 
     def _toast(self, title):
-        self._toasts.add_toast(Adw.Toast(title=title))
+        self._toasts.add_toast(localized(Adw.Toast, title=title, translation_owner=self))
 
     def _row_match_rule_id(self, row):
         rule = row.match_rule or self._default_match_rule(row)
@@ -2372,8 +2385,8 @@ class Application(Adw.Application):
         """Explain an explicit broker refusal without creating management UI."""
         window = self.get_active_window()
         if window is None:
-            window = Adw.ApplicationWindow(application=self,
-                title="Administrator access required", default_width=820,
+            window = localized(Adw.ApplicationWindow, application=self,
+                title=m.ADMINISTRATOR_ACCESS_REQUIRED, default_width=820,
                 default_height=320, css_classes=["management-denied"])
             set_automation_id(window, "parent-access-denied-window")
             self._ensure_stylesheet(window)
@@ -2395,30 +2408,28 @@ class Application(Adw.Application):
                 css_classes=["management-denied-divider"]))
             text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                 hexpand=True, valign=Gtk.Align.CENTER)
-            brand = Gtk.Label(label=app_name(), xalign=0, wrap=True,
+            brand = localized(Gtk.Label, label=app_name(), xalign=0, wrap=True,
                 margin_bottom=6, css_classes=["management-denied-brand"])
             set_automation_id(brand, "parent-access-denied-brand")
             text.append(brand)
-            heading = Gtk.Label(label="Administrator Required", xalign=0,
+            heading = localized(Gtk.Label, label=m.ADMINISTRATOR_REQUIRED, xalign=0,
                 wrap=True, css_classes=["management-denied-title"])
             set_automation_id(heading, "parent-access-denied-heading")
             text.append(heading)
-            explanation = Gtk.Label(
-                label="Only an administrator can manage parental controls.\n"
-                      "Sign in with an administrator account to open the Parent App.",
+            explanation = localized(Gtk.Label, 
+                label=m.ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH,
                 xalign=0, wrap=True, css_classes=["management-denied-message"])
             set_automation_id(explanation, "parent-access-denied-message")
-            explanation.update_property([Gtk.AccessibleProperty.LABEL], [
-                "Only an administrator can manage parental controls. "
-                "Sign in with an administrator account to open the Parent App."])
+            accessible_text(explanation, [Gtk.AccessibleProperty.LABEL], [
+                m.ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2])
             text.append(explanation)
             message.append(text)
             content.append(message)
-            close = Gtk.Button(label="Close", halign=Gtk.Align.END,
+            close = localized(Gtk.Button, label=m.CLOSE, halign=Gtk.Align.END,
                 css_classes=["management-denied-close"])
             describe_control(
-                close, "Close",
-                "Close the administrator-required notice.",
+                close, m.CLOSE,
+                m.CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE,
                 automation_id="parent-access-denied-close",
             )
             close.connect("clicked", lambda *_: self.quit())

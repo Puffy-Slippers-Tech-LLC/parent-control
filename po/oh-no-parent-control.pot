@@ -1533,6 +1533,11 @@ msgstr ""
 msgid "Error categories: %(categories)s"
 msgstr ""
 
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr ""
+
 #. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
 #, python-format
 msgid "%(size)s KB"

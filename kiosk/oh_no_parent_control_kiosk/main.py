@@ -1274,7 +1274,8 @@ class RequestWindow(Adw.ApplicationWindow):
         if self._language_dialog is None:
             self._language_dialog = LanguageDialog(
                 self, self._own_language, self._save_language, self._language_saved,
-                self._language_cancelled)
+                self._language_cancelled,
+                account=self._request_content.selected_child_account())
         self._language_dialog.present()
 
     def _language_cancelled(self):
@@ -1516,6 +1517,9 @@ class RequestWindow(Adw.ApplicationWindow):
             uid, label, icon_file = connection.call_finish(result).unpack()
             LOG.info("kiosk.014")
             self._request_content.set_accounts(((uid, label, icon_file),))
+            if self._language_dialog is not None:
+                self._language_dialog.set_account(
+                    self._request_content.selected_child_account())
         except Exception as error:
             LOG.warning("kiosk.015", error_type=error_code(error))
             self._show_error(error)

@@ -138,6 +138,8 @@ SAVE_YOUR_LANGUAGE_PREFERENCE = gettext('Save your language preference.')
 YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN = gettext('Your language could not be saved. Please try again.')
 LANGUAGE = gettext('Language')
 CHOOSE_YOUR_LANGUAGE = gettext('Choose your language')
+# Translators: The name operand is the child's display name, with escaped styling markup.
+LANGUAGE_FOR_NAME = gettext('For %(name)s')
 YOU_CAN_CHANGE_IT_IN_PREFERENCES = gettext('You can change it in preferences')
 SELECT_NAME_S = gettext('Select %(name)s.')
 TIME_GRANTED = gettext('Time granted')

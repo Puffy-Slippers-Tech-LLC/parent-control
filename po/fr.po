@@ -1549,3 +1549,9 @@ msgstr "Impossible d’enregistrer les paramètres du temps d’écran. Réessay
 #. Shared message: SAVE_APP_ACCESS_FAILED
 msgid "Could not save app access. Please try again later."
 msgstr "Impossible d’enregistrer l’accès aux applications. Réessayez plus tard."
+
+#. Shared message: LANGUAGE_FOR_NAME
+#. The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "Pour %(name)s"

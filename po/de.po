@@ -1549,3 +1549,9 @@ msgstr "Die Bildschirmzeiteinstellungen konnten nicht gespeichert werden. Bitte 
 #. Shared message: SAVE_APP_ACCESS_FAILED
 msgid "Could not save app access. Please try again later."
 msgstr "Der App-Zugriff konnte nicht gespeichert werden. Bitte später erneut versuchen."
+
+#. Shared message: LANGUAGE_FOR_NAME
+#. The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "Für %(name)s"

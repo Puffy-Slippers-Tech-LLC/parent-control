@@ -592,6 +592,21 @@ button.oh-no-parent-control-request-button:disabled {
   color: #f4f4f4;
 }
 
+.oh-no-parent-control-language-title {
+  color: #f4f4f4;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.oh-no-parent-control-language-account {
+  color: #cccccc;
+  font-size: 16px;
+}
+
+.oh-no-parent-control-language-description {
+  color: #cccccc;
+}
+
 .oh-no-parent-control-language-dialog checkbutton {
   padding: 5px 8px;
   border-bottom: 1px solid rgba(244, 244, 244, 0.18);

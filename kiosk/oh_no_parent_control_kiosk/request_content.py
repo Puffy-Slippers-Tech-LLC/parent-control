@@ -788,6 +788,13 @@ class RequestContent(MetalBoard):
             return 0
         return self._approver_uids[index]
 
+    def selected_child_account(self):
+        index = self._accounts.get_selected()
+        if index >= len(self._account_uids):
+            return None
+        return (self._account_uids[index], self._account_labels[index],
+                self._account_icons[index])
+
     def _restore_approver(self):
         if not self._approvers_loaded or not self._approver_uids:
             return

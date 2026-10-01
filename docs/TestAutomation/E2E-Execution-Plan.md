@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **048e — [Choose valid overlay values and Cancel](E2E-Tasks/048e-overlay-valid-choices.md)**.
+Next task: **048a — [Qualify overlay Escape and invalid durations](E2E-Tasks/048a-overlay-choices.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

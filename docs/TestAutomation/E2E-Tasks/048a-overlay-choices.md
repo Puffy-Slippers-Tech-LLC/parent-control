@@ -28,6 +28,17 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Reuse the shared form operations with explicit overlay selectors and the fixed child. Qualify approver/duration, custom text, soft-app choice, estimate, Cancel and Escape; compose overlay FLOW04 only after those bindings. Mute and authenticated outcomes belong to their later scoped capabilities.
 
+Use the [qualified valid-value/Cancel slice](../E2E-Building-Blocks.md#valid-overlay-choice-and-cancel-qualification)
+for exact shared callables and remaining scope. Reuse `KioskRequestJourney`,
+`journey_blocks.overlay_entry`, `native_usable_app('command', child='child')`,
+`overlay-valid-*`, `text-overlay-fraction-*`, `overlay-request-cancel`,
+`overlay_desktop` and declared `JourneyPlan.activity_checks` endpoints.
+[`overlay_valid_choices.py`](../../../tests/e2e/overlay_valid_choices.py) is the
+finite qualification declaration; shared libraries own the mechanics. Its
+independent entry reads the remembered zero-duration/Jamie/excluded choices,
+then selects 300 seconds. Keep the new Escape/invalid/FLOW04 slice and exit
+observations distinct; do not treat the prior valid-value pass as those outcomes.
+
 ## Live VM acceptance
 
 In separate live attempts with publicly prepared usable child time, record an app activity, open the overlay, change each declared choice and read it back. Cancel or Escape must close the form and return to the same usable activity. Invalid custom text shows validation while an otherwise ready Request remains enabled; selecting it preserves the form and starts no authentication prompt. Child selection is refused.

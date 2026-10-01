@@ -853,6 +853,17 @@ waited Perl input lifetime. Unit scheduling classifies the new module as private
 process-local doubles/evidence plus bounded reaped Perl children; no shared
 resource or cleanup inventory is introduced.
 
+All affected live regressions passed on every enabled VM, including collection,
+worker shutdown, owned cleanup, baseline restoration and source preservation:
+
+| Shared boundary | Selector | Run |
+| --- | --- | --- |
+| Kiosk valid durations/estimates | `check_e2e_kiosk_valid_duration` | `20261001T213243Z-936b0244` |
+| Account selection | `check_e2e_kiosk_eligible_choices` | `20261001T213814Z-16f005ba` |
+| Kiosk Cancel/Escape | `check_e2e_request_exit` | `20261001T214112Z-04d66799` |
+| Default native command binding | `check_e2e_native_app` | `20261001T214337Z-561e36ba` |
+| Default direct/panel overlay entry | `check_e2e_shell_panel` | `20261001T214741Z-fc13b5da` |
+
 #### Kiosk approval qualification
 
 `kiosk_approval.PLAN` / `KioskApprovalJourney` and

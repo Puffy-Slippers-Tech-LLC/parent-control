@@ -838,10 +838,13 @@ Case 184 requires the fresh Jordan 30-minute FLOW16 binding
 `gdm/parent/fresh/new/existing/0/30/1`, qualified by task 226a through
 `fresh_thirty_allowance.JORDAN_PLAN`, `FreshThirtyAllowanceJourney` and
 `onpc_parent::set_allowance`. Carry the explicit `existing` child binding through
-setup and independent balance readback. The public access/match legend read
-(task 226b) remains unqualified. The native launchers are already Jordan-only
-per-user inputs; the wrong-control legend-toggle refusal does not supply the
-missing legend result.
+setup and independent balance readback. Task 226b qualified the public
+access/match legend through `AccessibleUI.expand_policy_legend` /
+`read_policy_legend` and `onpc_app_rows::legend`, with independent full reads,
+wrong-entry refusals and unchanged policies. Reuse caller-owned stages from the
+[public policy legend contract](E2E-Building-Blocks.md#public-policy-legend);
+`PolicyLegendJourney` owns qualification, not the complete case lifecycle.
+The native launchers are already Jordan-only per-user inputs.
 
 1. FLOW16(ample daily) → PARENT04(App Limits) → UI04(legend) → UI03 → PARENT12(assets).
 2. Run the corresponding finite catalogue subrecipe below using PARENT10/11/13/15/16, UI16, shared FILE05 commands and LIFE01.

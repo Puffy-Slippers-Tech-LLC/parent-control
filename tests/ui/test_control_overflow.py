@@ -71,6 +71,7 @@ def test_language_switch_preserves_parent_selection_numeric_draft_and_filters(
     ui.activate('parent-filter-match-rule')
     wait(lambda: ui.showing(choice), 'filter reopens')
     assert ui.state(choice, ui.api.StateType.CHECKED) != before
+    ui.focus(choice)
     press_key(ui, choice, 'Escape', state=ui.api.StateType.FOCUSED)
     review_frame('parent-apps-' + language + '-to-ja')
 

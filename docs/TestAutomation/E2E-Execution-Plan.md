@@ -19,14 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **035p — [Install the declared native app fixtures](E2E-Tasks/035p-native-fixtures.md)**.
-
-Blocker: `check_e2e_native_fixtures` failed the public catalogue-default comparison
-in run `20261001T013104Z-7f771800`; guarded native-file readback, wrong-entry
-refusal, owned cleanup and baseline restoration passed, but collection did not
-run. All five affected enforcement cases passed. Resume when the declared
-catalogue identities/defaults, independent reopening and collection pass with
-owned cleanup and baseline restoration; retain the brief's exported failure evidence.
+Next task: **077 — [Filter the public app catalogue](E2E-Tasks/077-catalogue.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

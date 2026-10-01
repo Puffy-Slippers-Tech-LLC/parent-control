@@ -142,10 +142,66 @@ def test_all_public_fixture_rows_and_default_matches_are_required():
         with pytest.raises(EvidenceError): controller.check_catalogue(AppRowsObservation(changed))
 
 
+@pytest.mark.parametrize('fault', ['missing', 'match'])
+def test_catalogue_failure_retains_closed_fixture_diagnostics(fault, capsys):
+    rows = controller.expected_rows()
+    changed = rows[:-1] if fault == 'missing' else tuple(
+        (row[0], row[1], 'precise') for row in rows)
+    # Unrelated public IDs are neither identities nor diagnostic payloads here.
+    changed += (('parent-app-' + 'f' * 16, 'allowed', 'precise'),)
+    with pytest.raises(EvidenceError, match='^native:catalogue-defaults$'):
+        controller.check_catalogue(AppRowsObservation(changed))
+    output = capsys.readouterr()
+    assert not output.out
+    diagnostic = json.loads(output.err.removeprefix('native:catalogue-diagnostic='))
+    assert diagnostic['row_count'] == len(changed)
+    assert len(diagnostic['fixtures']) == 4
+    assert {item['id'] for item in diagnostic['fixtures']} == {row[0] for row in rows}
+    for item in diagnostic['fixtures']:
+        expected = next(row[1:] for row in rows if row[0] == item['id'])
+        actual = next((row[1:] for row in changed if row[0] == item['id']), None)
+        assert item['expected'] == list(expected)
+        assert item['present'] == (actual is not None)
+        assert item['actual'] == (list(actual) if actual is not None else None)
+
+
 def test_guest_refusal_checks_actual_authority_and_preserves_empty_entry(payload, monkeypatch):
     child, expected = payload
     monkeypatch.setattr(guest, 'authority', Mock(side_effect=guest.session_control.SessionError('session:source-owner')))
     assert guest.execute('refuse', expected) == {'wrong_entry_refused': True}
+
+
+def test_preparation_authority_and_public_selection_bind_same_child(monkeypatch):
+    import accessible_ui
+    import baseline_fixtures
+    from tests.fixtures.baseline_assets import native_files
+    names = ('onpc-child-riley', 'onpc-child-jordan', 'onpc-parent-jamie')
+    accounts = {name: SimpleNamespace(pw_name=name, pw_uid=1001 + index,
+        pw_gid=1001 + index, pw_dir='/home/' + name) for index, name in enumerate(names)}
+    passwd = '\n'.join(f'{name}:x:{user.pw_uid}:{user.pw_gid}::{user.pw_dir}:/bin/bash'
+                       for name, user in accounts.items()).encode()
+    prepared = baseline_fixtures.accounts(SimpleNamespace(read_file=Mock(return_value=passwd)))
+    monkeypatch.setattr(guest.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(guest.pwd, 'getpwnam', accounts.__getitem__)
+    monkeypatch.setattr(guest.grp, 'getgrnam', lambda _: SimpleNamespace(gr_gid=27))
+    monkeypatch.setattr(guest.os, 'getgrouplist', lambda *_: [27])
+    monkeypatch.setattr(guest.session_control, 'sessions', lambda: {})
+    monkeypatch.setattr(guest.session_control, 'source_session', lambda *_: 'parent-session')
+    child, _, _ = guest.authority()
+    assert child.pw_uid == prepared['other'].pw_uid
+    assert child.pw_name == accessible_ui.CHILD_ACCOUNTS[accessible_ui.EXISTING_CHILD]
+    files = native_files(prepared)
+    for path, _ in guest.destinations(child).values():
+        assert files[str(path)][2] == 'other'
+    for stage in ('child-picker-opened', 'child-choice-highlighted', 'parent-selected'):
+        operation = PLAN.screen_tags[stage].removeprefix('ui:')
+        bindings = (accessible_ui.PICKER_OPERATIONS | accessible_ui.HIGHLIGHT_OPERATIONS
+                    | accessible_ui.SETTINGS_OPERATIONS)
+        assert bindings[operation] == accessible_ui.EXISTING_CHILD
+    assert PLAN.screen_tags['apps-page'] == 'ui:existing-apps'
+    for stage in ('app-rows', 'wrong-child', 'wrong-page', 'reopened-rows'):
+        operation = PLAN.screen_tags[stage].removeprefix('ui:')
+        assert operation in accessible_ui.APP_ROW_OPERATIONS and operation.startswith('existing-')
 
 
 def test_worker_sequence_matches_plan_and_stops_on_preparation_failure():
@@ -164,7 +220,7 @@ sub enter_desktop {my ($j,@args)=@_; die 'entry' unless join(',',@args) eq 'gdm,
     return $j->seen('desktop');}
 sub launch {my($j,$desktop,$expected)=@_; die 'launch' unless $expected eq 'management';
     $j->consume_observation('desktop',$desktop); $j->seen('parent-command'); $j->seen('parent-window');}
-sub select_child {my($j,$child,$opened)=@_; die 'child' unless $child eq 'child';
+sub select_child {my($j,$child,$opened)=@_; die 'child' unless $child eq 'existing';
     $j->consume_observation('child-picker-opened',$opened); $j->seen('child-choice-highlighted');
     return $j->seen('parent-selected');}
 package main;

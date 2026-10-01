@@ -78,6 +78,7 @@ import request_exit
 import parent_toggle
 import app_row_observations
 import native_fixture_qualification
+import catalogue_search
 import feedback_read
 import feedback_privacy
 import feedback_states
@@ -205,6 +206,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  parent_information.PLAN,
                                  repeated_operations.PLAN, challenges.PLAN, app_row_observations.PLAN,
                                  native_fixture_qualification.PLAN,
+                                 catalogue_search.PLAN,
                                  feedback_read.PLAN, feedback_privacy.PLAN, feedback_states.PLAN,
                                  trace_stable_state.PLAN, trace_transition.PLAN, compose_observation.PLAN,
                                  accessibility_input_trace.PLAN, named_child_custom_saves.PLAN,
@@ -231,7 +233,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'terminal-provider', 'license-viewer-provider', 'parent-website',
                               'parent-privacy', 'parent-support', 'parent-information', 'parent-links',
                               'repeated-operations',
-                              'challenges', 'app-rows', 'native-fixtures', 'feedback-read', 'feedback-privacy', 'feedback-states',
+                              'challenges', 'app-rows', 'native-fixtures', 'catalogue-search', 'feedback-read', 'feedback-privacy', 'feedback-states',
                               'trace-stable', 'trace-transition', 'compose-observation',
                               'accessibility-trace', 'named-child-custom-saves',
                               'format', 'block-semantics', 'feedback-formats', 'feedback-link',
@@ -381,9 +383,21 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             result['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
         if plan is native_fixture_qualification.PLAN and operation in (
-                'parent-app-rows', 'parent-app-rows-reopened'):
+                'existing-parent-app-rows', 'existing-parent-app-rows-reopened'):
             from native_fixtures import expected_rows
             result['apps'] = {'rows': [list(row) for row in expected_rows()]}
+        if plan is catalogue_search.PLAN and operation in accessible_ui.APP_ROW_OPERATIONS:
+            from native_fixtures import expected_rows, search_rows
+            if operation in accessible_ui.CATALOGUE_ROW_OPERATIONS:
+                binding = accessible_ui.CATALOGUE_ROW_OPERATIONS[operation]
+                rows = expected_rows() if binding == 'catalogue-clear' else search_rows(binding)
+                result['apps'] = {'rows': [list(row) for row in rows]}
+            elif operation.endswith(('wrong-child', 'wrong-page')):
+                result['apps'] = {'refusal': operation.rsplit('rows-', 1)[1]}
+            elif operation == 'catalogue-incomplete-refused':
+                result['apps'] = {'refusal': 'incomplete-result'}
+            else:
+                result['apps'] = {'rows': [list(row) for row in expected_rows()]}
         if plan is compose_observation.PLAN and operation in (
                 'feedback-state-empty', 'feedback-trace-finish'):
             state_value = {'draft': 'initial-empty', 'attachments': ['diagnostic-logs.zip'],
@@ -515,7 +529,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         real_interval_qualification.RealIntervalJourney
                         if plan is INTERVAL_RECORDER_PLAN else
                         native_fixture_qualification.NativeFixtureJourney
-                        if plan is native_fixture_qualification.PLAN else journeys.InstalledJourney)
+                        if plan is native_fixture_qualification.PLAN else
+                        catalogue_search.CatalogueSearchJourney
+                        if plan is catalogue_search.PLAN else journeys.InstalledJourney)
         if failure:
             with pytest.raises((OSError, RuntimeError)):
                 journeys.record_installed_journey(recorder, context, plan, actions=actions,

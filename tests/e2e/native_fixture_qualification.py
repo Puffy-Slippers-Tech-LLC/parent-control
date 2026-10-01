@@ -8,11 +8,15 @@ from private_artifacts import require
 SCREENS = {
     **fresh_desktop('parent'),
     **parent_management(),
-    'apps-page': 'ui:parent-apps-page',
-    'app-rows': 'ui:parent-app-rows',
-    'wrong-child': 'ui:parent-app-rows-wrong-child',
-    'wrong-page': 'ui:parent-app-rows-wrong-page',
-    'reopened-rows': 'ui:parent-app-rows-reopened',
+    # The baseline and guarded readback bind the native profile to Jordan.
+    'child-picker-opened': 'ui:existing-child-picker-opened',
+    'child-choice-highlighted': 'ui:existing-child-choice-highlighted',
+    'parent-selected': 'ui:existing-returned',
+    'apps-page': 'ui:existing-apps',
+    'app-rows': 'ui:existing-parent-app-rows',
+    'wrong-child': 'ui:existing-parent-app-rows-wrong-child',
+    'wrong-page': 'ui:existing-parent-app-rows-wrong-page',
+    'reopened-rows': 'ui:existing-parent-app-rows-reopened',
 }
 PLAN = JourneyPlan(
     prefix='native-fixtures', worker_mode='native_fixtures', screen_tags=SCREENS,

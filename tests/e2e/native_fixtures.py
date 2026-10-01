@@ -96,9 +96,41 @@ def expected_rows():
                          'allowed', asset[4]) for asset in ASSETS))
 
 
+# Finite public search inputs; expected identities are independent of UI output.
+CATALOGUE_QUERIES = {
+    'catalogue-name': ASSETS[0][2],
+    'catalogue-absent': 'ONPC Absent Catalogue Fixture 077b',
+    'catalogue-clear': '',
+}
+
+
+def search_rows(binding):
+    require(binding in CATALOGUE_QUERIES and binding != 'catalogue-clear',
+            'catalogue:binding')
+    return (() if binding == 'catalogue-absent' else
+            tuple(row for row in expected_rows() if row[0] == 'parent-app-' +
+                  hashlib.sha256(desktop_id('A').encode()).hexdigest()[:16]))
+
+
 def check_catalogue(rows):
     """Require all declared public row identities/defaults; stock rows remain allowed."""
     expected = expected_rows()
     selected = tuple(row for row in rows.rows if row[0] in {item[0] for item in expected})
+    if selected != expected:
+        # The failing stage is not persisted by InstalledJourney. Retain only
+        # declared fixture IDs and closed choice enums in the runner's stderr.
+        actual = {row[0]: row[1:] for row in selected}
+        diagnostic = {'row_count': len(rows.rows), 'fixtures': []}
+        for identity, access, match in expected:
+            value = actual.get(identity)
+            diagnostic['fixtures'].append({
+                'id': identity, 'present': value is not None,
+                'expected': [access, match],
+                'actual': None if value is None else [
+                    value[0] if value[0] in ('allowed', 'conditional', 'permanent') else 'invalid',
+                    value[1] if value[1] in ('pattern', 'precise') else 'invalid'],
+            })
+        print('native:catalogue-diagnostic=' + json.dumps(diagnostic, sort_keys=True),
+              file=sys.stderr, flush=True)
     require(selected == expected, 'native:catalogue-defaults')
     return {'declared_launchers': 4, 'allowed_defaults': True, 'default_matches': True}

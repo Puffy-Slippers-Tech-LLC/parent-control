@@ -31,7 +31,16 @@ Own the complete UI preview matrix: five queries × four match subsets × eight
 access subsets from the recipe, including zero results and unchanged policies.
 Keep finite values and exact comparisons shared with the installed sample.
 
-Reuse PARENT12 and the complete app-row reader. Bind native fixture identities, then implement public search with exact bounded result sets and both access/match filter popovers using UI17. Empty expected results are explicit; search reads no installed catalogue backend.
+Reuse PARENT12 and the complete app-row reader. Start at the delivered
+[catalogue search](../E2E-Building-Blocks.md#catalogue-search):
+`onpc_app_rows::search`, `AccessibleUI.CATALOGUE_ROW_OPERATIONS`,
+`native_fixtures.fixture_actions()` / `search_rows()` and the finite text bindings.
+Bind the prepared native profile to Jordan through explicit `existing` text
+child bindings and `existing-parent-app-rows`; unprefixed row bindings target Riley.
+Extend search bindings for the recipe's description/identifier matrix and add
+both access/match filter popovers using UI17. Empty expected results are explicit;
+search reads no installed catalogue backend. Compose shared leaves with a new
+caller-owned plan, rather than inheriting the search qualification's lifecycle.
 
 ## Live VM acceptance
 

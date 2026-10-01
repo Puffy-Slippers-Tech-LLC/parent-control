@@ -437,6 +437,42 @@ def test_parent_rejected_custom_allowance_reloads_saved_value(
         'Enter a whole number of minutes from zero through 1439.')
 
 
+def test_catalogue_text_binding_focus_replacement_clear_and_wrong_child(
+        launch_ui, automation, wait_for_accessible_state):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, UiError
+    from tests.support.keyboard import key_combo, type_text
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    reader = AccessibleUI(ui.api, timeout=10, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    reader.parent_page(CHILD, 'App Limits')
+    original = reader.app_rows(CHILD)
+    with pytest.raises(UiError, match='wrong-child'):
+        reader.focus_text('parent-app-search', child=EXISTING_CHILD)
+    for binding in ('catalogue-name', 'catalogue-absent', 'catalogue-clear'):
+        from tests.e2e.accessible_ui import TEXT_VALUES
+        reader.focus_text('parent-app-search', child=CHILD)
+        key_combo(ui, 'parent-app-search', '<Control>a', state=ui.api.StateType.FOCUSED)
+        reader.text_recipient('parent-app-search', focused=True, child=CHILD)
+        value = TEXT_VALUES[binding][1]
+        if value:
+            type_text(ui, 'parent-app-search', value)
+        else:
+            key_combo(ui, 'parent-app-search', 'BackSpace', state=ui.api.StateType.FOCUSED)
+        assert reader.read_synthetic_text(binding, child=CHILD)['exact']
+        wait_for_accessible_state(lambda: reader.app_rows(CHILD) == (
+            original if binding == 'catalogue-clear' else ()), 'complete search result')
+    reader.parent_page(CHILD, 'Screen Limits')
+    # GTK may omit the inactive page entirely from its complete public tree.
+    with pytest.raises(UiError, match='text-entry|text-disabled|app-row-page'):
+        reader.focus_text('parent-app-search', child=CHILD)
+
+
 def test_parent_app_search_rule_edit_and_revocation_confirmation(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     from tests.support.keyboard import key_combo, type_text

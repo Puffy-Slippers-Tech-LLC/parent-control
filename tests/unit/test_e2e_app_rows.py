@@ -111,7 +111,8 @@ def test_projection_validates_transport_and_does_not_embed_allowed_expectations(
 
 
 @pytest.mark.parametrize('streamed', [False, True])
-@pytest.mark.parametrize('operation', ['parent-app-rows', 'parent-app-rows-reopened'])
+@pytest.mark.parametrize('operation', ['parent-app-rows', 'parent-app-rows-reopened',
+    'existing-parent-app-rows', 'existing-parent-app-rows-reopened'])
 @pytest.mark.parametrize('count', [46, 256])
 def test_collection_transport_accepts_complete_installed_sized_reply(streamed, operation, count):
     rows = [[f'parent-app-{index:016x}', 'allowed', 'precise'] for index in range(count)]
@@ -137,6 +138,29 @@ def collection_transport(raw, streamed):
     transport = SimpleNamespace(commands=commands, call=Mock(side_effect=call))
     observer = UiObservations(transport, system_prompt=Mock() if streamed else None)
     return observer, transport, commands, previous
+
+
+@pytest.mark.parametrize('existing', [False, True])
+def test_row_operations_bind_read_reopening_and_refusals_to_same_child(existing):
+    ui, page, rows, *_ = app_ui()
+    child = accessible_ui.EXISTING_CHILD if existing else accessible_ui.CHILD
+    other = accessible_ui.CHILD if existing else accessible_ui.EXISTING_CHILD
+    prefix = 'existing-' if existing else ''
+    if existing:
+        picker = ui.find_id('parent-child-selector')
+        picker.children[0].identity = 'parent-child-selected-1002'
+    ui.parent_page = Mock(side_effect=lambda selected, name: (
+        page.states.add('visible') if name == 'App Limits' else page.states.discard('visible')))
+    assert ui.app_row_operation(prefix + 'parent-app-rows') == {
+        'rows': ((ROW, 'allowed', 'precise'),)}
+    assert ui.app_row_operation(prefix + 'parent-app-rows-wrong-child') == {'refusal': 'wrong-child'}
+    with pytest.raises(accessible_ui.UiError, match='app-row-child'):
+        ui.app_rows(other)
+    assert ui.app_row_operation(prefix + 'parent-app-rows-wrong-page') == {'refusal': 'wrong-page'}
+    assert ui.app_row_operation(prefix + 'parent-app-rows-reopened') == {
+        'rows': ((ROW, 'allowed', 'precise'),)}
+    assert ui.parent_page.call_args_list == [
+        ((child, 'Screen Limits'),), ((child, 'Screen Limits'),), ((child, 'App Limits'),)]
 
 
 @pytest.mark.parametrize('streamed', [False, True])
@@ -229,3 +253,112 @@ print encode_json(\@events);
 ''')
     assert json.loads(result.stdout) == ['parent-selected', 'apps-page', 'app-rows',
         'wrong-child', 'wrong-page', 'reopened-rows', 'power']
+
+
+def test_catalogue_comparison_keeps_exact_rows_empty_expectations_and_clear_baseline():
+    from catalogue_search import CatalogueSearchJourney, PLAN as search_plan
+    from native_fixtures import expected_rows, search_rows, CATALOGUE_QUERIES
+    journey = CatalogueSearchJourney(SimpleNamespace(), Mock(),
+                                    actions={'native-refuse': Mock(), 'native-verify': Mock()})
+    def observed(rows):
+        return {'ui': {'apps': {'rows': [list(row) for row in rows]}}}
+    for binding, value in CATALOGUE_QUERIES.items():
+        assert accessible_ui.TEXT_VALUES[binding] == ('parent-app-search', value)
+    assert set(search_plan.child_bindings.values()) == {'existing'}
+    original = observed(expected_rows())
+    journey.check_settings('initial-rows', original)
+    original['ui']['apps']['rows'].clear()
+    for stage in ('name-rows', 'reopened-name'):
+        journey.check_settings(stage, observed(search_rows('catalogue-name')))
+        with pytest.raises(EvidenceError, match='exact-results'):
+            journey.check_settings(stage, observed(()))
+    for stage in ('absent-rows', 'reopened-absent'):
+        journey.check_settings(stage, observed(()))
+        with pytest.raises(EvidenceError, match='exact-results'):
+            journey.check_settings(stage, observed(expected_rows()))
+    journey.check_settings('cleared-rows', observed(expected_rows()))
+    with pytest.raises(EvidenceError, match='catalogue:clear'):
+        journey.check_settings('cleared-rows', observed(()))
+
+
+def test_catalogue_worker_sequence_and_every_refusal_stop():
+    from catalogue_search import PLAN as search_plan
+    from tests.support.perl import run_perl
+    program = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'}=1; $INC{'onpc_parent.pm'}=1; $INC{'onpc_gdm.pm'}=1; }
+package testapi; sub record_info {} sub send_key {} sub type_string {}
+sub power {push @main::events, 'power'} sub check_shutdown {1}
+sub console {bless {}, 'Console'}
+package Console; sub disable {}
+package onpc_gdm; sub reattach_functional {}
+package onpc_parent;
+sub enter_desktop {my ($j,@args)=@_; die 'entry' unless join(',',@args) eq 'gdm,parent,fresh,success';
+    for ('installed-greeter','parent-focused','recipient-qualified','recipient-rechecked') {$j->seen($_)}
+    return $j->seen('desktop');}
+sub launch {my($j,$desktop,$expected)=@_; die 'launch' unless $expected eq 'management';
+    $j->consume_observation('desktop',$desktop); $j->seen('parent-command'); $j->seen('parent-window');}
+sub select_child {my($j,$child,$opened)=@_; die 'child' unless $child eq 'existing';
+    $j->consume_observation('child-picker-opened',$opened); $j->seen('child-choice-highlighted');
+    return $j->seen('parent-selected');}
+package main;
+require onpc_app_rows;
+eval {onpc_app_rows::catalogue_search(sub {push @events,$_[0]; FAIL return {observed=>$_[0]};});};
+print encode_json(\@events);
+'''
+    expected = list(search_plan.screen_tags)
+    for boundary in (None, *expected):
+        stop = "die 'refused' if $_[0] eq '" + boundary + "';" if boundary else ''
+        result = run_perl(program.replace('FAIL', stop))
+        assert json.loads(result.stdout) == (expected[:expected.index(boundary) + 1]
+                                            if boundary else expected + ['power'])
+
+
+def test_catalogue_adapter_refuses_incomplete_result_and_observes_debounce():
+    ui, *_ = app_ui()
+    ui.read_synthetic_text = Mock()
+    ui.parent_page = Mock()
+    ui.app_rows = Mock(side_effect=[accessible_ui.UiError('ui:app-row-set'), ()])
+    ui.wait = lambda fn, _: fn() or fn()
+    assert ui.app_row_operation('catalogue-absent-reopened') == {'rows': ()}
+    assert ui.parent_page.call_args_list == [
+        ((accessible_ui.EXISTING_CHILD, 'Screen Limits'),),
+        ((accessible_ui.EXISTING_CHILD, 'App Limits'),)]
+    ui.read_synthetic_text.assert_called_once_with('catalogue-absent', child=accessible_ui.EXISTING_CHILD)
+    ui.app_rows = Mock(side_effect=accessible_ui.UiError('ui:app-row-set'))
+    assert ui.app_row_operation('catalogue-incomplete-refused') == {'refusal': 'incomplete-result'}
+    ui.app_rows = Mock(side_effect=accessible_ui.UiError('ui:app-row-child'))
+    with pytest.raises(accessible_ui.UiError, match='app-row-child'):
+        ui.app_row_operation('catalogue-absent-rows')
+
+
+def test_catalogue_text_entry_binds_nondefault_child_before_focus_input():
+    ui, page, *_ = app_ui()
+    root = ui.find_id('parent-window')
+    root.states.add('active')
+    picker = ui.find_id('parent-child-selector')
+    picker.children[0].identity = 'parent-child-selected-1002'
+    picker.children[0].name = accessible_ui.EXISTING_CHILD
+    picker.children[0].role = 'label'
+    search = ui.find_id('parent-app-search')
+    search.states.add('editable')
+    ui.activate_id = Mock(side_effect=lambda *_, **__: search.states.add('focused'))
+    ui.focus_text('parent-app-search', child=accessible_ui.EXISTING_CHILD)
+    ui.activate_id.assert_called_once_with('parent-window', action_name='focus.parent-app-search')
+    ui.activate_id.reset_mock()
+    with pytest.raises(accessible_ui.UiError, match='wrong-child'):
+        ui.focus_text('parent-app-search', child=accessible_ui.CHILD)
+    page.states.discard('visible')
+    with pytest.raises(accessible_ui.UiError, match='app-row-page'):
+        ui.focus_text('parent-app-search', child=accessible_ui.EXISTING_CHILD)
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', list(accessible_ui.CATALOGUE_ROW_OPERATIONS))
+def test_catalogue_results_use_complete_controller_schema(operation):
+    rows = [] if 'absent' in operation else [[ROW, 'allowed', 'precise']]
+    result = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed',
+              'apps': {'rows': rows}}
+    observer, *_ = collection_transport((json.dumps(result) + '\n').encode(), False)
+    assert observer.observe(operation) == result

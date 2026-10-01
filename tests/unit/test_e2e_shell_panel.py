@@ -41,9 +41,6 @@ def overlay(monkeypatch):
     child.states.discard('sensitive')
     child.description = 'Selected child account: ' + a.CHILD + '.'
     child.children[0].identity = 'kiosk-child-selected-1001'
-    approver = ui.find_id('kiosk-approver-selector')
-    approver.description = 'Selected approving parent: ' + a.PARENT + '.'
-    approver.children[0].identity = 'kiosk-approver-selected-1000'
     return ui, application, form, child
 
 
@@ -83,6 +80,7 @@ def test_fixed_overlay_reader_refuses_unsafe_or_incomplete_forms(monkeypatch, fa
         observed = RequestObservation.from_request(ui.run('overlay-request-form', '')['request'],
                                                   operation='overlay-request-form')
         assert observed.surface == 'child-overlay' and observed.child == 'fixture-child'
+        assert observed.approver == 'other-fixture-parent'
         assert observed.form_count == 1 and not observed.child_selector_enabled
         with pytest.raises(FrozenInstanceError): observed.child = 'changed'
     child.action.do_action.assert_not_called()
@@ -158,6 +156,31 @@ def test_overlay_closed_requires_complete_absence_and_desktop(monkeypatch):
     ui.run('overlay-desktop', '')
     shell.children.append(Node(identity='kiosk-request-form'))
     with pytest.raises(a.UiError): ui.run('overlay-desktop', '')
+
+
+def test_delayed_overlay_read_uses_the_existing_deadline(monkeypatch):
+    ui, application, _, _ = overlay(monkeypatch)
+    ui.timeout = 1
+    ui.api.get_desktop = Mock(side_effect=[Node(role='desktop frame'), application])
+    result = ui.run('overlay-request-form', '')
+    assert result['request']['form_count'] == 1
+    assert ui.api.get_desktop.call_count == 2
+
+
+@pytest.mark.parametrize('fault', ['', 'station-owner', 'uncertain'])
+def test_qualification_cancel_is_owned_and_preserves_uncertain_input(monkeypatch, fault):
+    ui, application, _, _ = overlay(monkeypatch)
+    cancel = ui.find_id('kiosk-request-cancel')
+    if fault == 'station-owner': application.identity = a.KIOSK_APPLICATION
+    if fault == 'uncertain': cancel.action.do_action.side_effect = TimeoutError()
+    if fault:
+        with pytest.raises((a.UiError, TimeoutError)): ui.run('overlay-qualification-cancel', '')
+    else:
+        ui.run('overlay-qualification-cancel', '')
+    assert cancel.action.do_action.call_count == (0 if fault == 'station-owner' else 1)
+    if fault == 'uncertain':
+        with pytest.raises(a.UiError, match='uncertain-input'): ui.run('overlay-qualification-cancel', '')
+        assert cancel.action.do_action.call_count == 1
 
 
 def test_fixed_selector_registration_and_snapshot_envelope(monkeypatch):

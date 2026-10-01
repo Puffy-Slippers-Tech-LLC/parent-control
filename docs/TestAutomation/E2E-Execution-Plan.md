@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **077 — [Filter the public app catalogue](E2E-Tasks/077-catalogue.md)**.
+Next task: **226 — [E2E-041: search-filters](E2E-Tasks/226-case-184.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

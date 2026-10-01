@@ -77,6 +77,7 @@ import request_choices
 import request_exit
 import parent_toggle
 import app_row_observations
+import native_fixture_qualification
 import feedback_read
 import feedback_privacy
 import feedback_states
@@ -203,6 +204,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  license_viewer_provider.INFORMATION_PLAN,
                                  parent_information.PLAN,
                                  repeated_operations.PLAN, challenges.PLAN, app_row_observations.PLAN,
+                                 native_fixture_qualification.PLAN,
                                  feedback_read.PLAN, feedback_privacy.PLAN, feedback_states.PLAN,
                                  trace_stable_state.PLAN, trace_transition.PLAN, compose_observation.PLAN,
                                  accessibility_input_trace.PLAN, named_child_custom_saves.PLAN,
@@ -229,7 +231,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'terminal-provider', 'license-viewer-provider', 'parent-website',
                               'parent-privacy', 'parent-support', 'parent-information', 'parent-links',
                               'repeated-operations',
-                              'challenges', 'app-rows', 'feedback-read', 'feedback-privacy', 'feedback-states',
+                              'challenges', 'app-rows', 'native-fixtures', 'feedback-read', 'feedback-privacy', 'feedback-states',
                               'trace-stable', 'trace-transition', 'compose-observation',
                               'accessibility-trace', 'named-child-custom-saves',
                               'format', 'block-semantics', 'feedback-formats', 'feedback-link',
@@ -378,6 +380,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             result['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             result['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
+        if plan is native_fixture_qualification.PLAN and operation in (
+                'parent-app-rows', 'parent-app-rows-reopened'):
+            from native_fixtures import expected_rows
+            result['apps'] = {'rows': [list(row) for row in expected_rows()]}
         if plan is compose_observation.PLAN and operation in (
                 'feedback-state-empty', 'feedback-trace-finish'):
             state_value = {'draft': 'initial-empty', 'attachments': ['diagnostic-logs.zip'],
@@ -507,7 +513,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         journey_type = (compose_observation.ComposeObservationJourney
                         if plan is compose_observation.PLAN else
                         real_interval_qualification.RealIntervalJourney
-                        if plan is INTERVAL_RECORDER_PLAN else journeys.InstalledJourney)
+                        if plan is INTERVAL_RECORDER_PLAN else
+                        native_fixture_qualification.NativeFixtureJourney
+                        if plan is native_fixture_qualification.PLAN else journeys.InstalledJourney)
         if failure:
             with pytest.raises((OSError, RuntimeError)):
                 journeys.record_installed_journey(recorder, context, plan, actions=actions,

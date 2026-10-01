@@ -1606,6 +1606,51 @@ authentication outcome or app behavior being tested.
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX05 | A | Validate the one declared, manually prepared Lunar/AppImageLauncher/Minecraft profile after the normal installed-snapshot restore and before the attempt. Read-only setup verification, not installation, policy configuration or customer acceptance. | No callable yet. Task 295 binds versions/digests, original AppImage and launcher/autostart routes, local world, credential references and ordinary restore/provisioning ownership. Refuse missing/drifted assets; never synthesize a denial. [Profile contract](#lunar-client-preparation-and-observation-gate). | pending |
 
+### Native fixture preparation
+
+FIX04's finite native declaration is [native_assets.py](../../tests/fixtures/native_assets.py).
+A/H/S/N are later policy roles; preparation leaves every launcher Allowed.
+The shared [builder](../../tests/fixtures/build_test_applications.py) compiles
+distinct retained role identities while preserving the GUI's native kind.
+The four executables share adjacent `onpc-test-gui.py` and `gtk_automation.py`.
+
+| Role | Desktop ID suffix (`com.puffyslippers.ONPCTest.`) | Executable below `/opt/onpc-test-fixtures/Applications` | Visible name | Description | Default match |
+| --- | --- | --- | --- | --- | --- |
+| A | `A.desktop` | `Exact Fixture.AppImage` | ONPC Allowed Fixture | Exact native catalogue fixture | precise |
+| H | `H.desktop` | `Path With Spaces.AppImage` | ONPC Hard Fixture | Whitespace native catalogue fixture | precise |
+| S | `S.desktop` | `Lunar Client-3.7.17.AppImage` | ONPC Soft Fixture | Versioned native catalogue fixture | pattern (`Lunar Client-*.AppImage`) |
+| N | `N.desktop` | `PrismLauncher.AppImage` | ONPC Nonmatching Fixture | Unrelated native catalogue fixture | precise |
+
+[NativeFixtures](../../tests/e2e/native_fixtures.py) uses the existing guarded
+administrator SSH transport after independent graphical entry. FIX04 transfers
+and independently observes the complete verified assets before placement.
+`fixture_actions()` supplies separate wrong-entry refusal and preparation
+actions to a caller's attempt; `prepare()` verifies ten declared source digests,
+checks dependencies and collisions before mutation, then independently reopens
+the prepared files. [The fixed guest helper](../../tests/e2e/native_fixtures_guest.py)
+uses [shared descriptor-pinned file operations](../../tests/e2e/guest_files.py),
+resolves the selected child's home through `pwd`, and places only four binaries,
+two GUI files and four desktop entries. New directories/binaries are `0755`,
+GUI/desktop files `0644`, all explicitly child-owned; existing XDG parents and
+unrelated entries are preserved. Links, hardlinks, unsafe parents, corrupt
+sources, collisions, replacement and replay refuse. An exclusive root marker
+outside the immutable transfer tree consumes placement before mutation; outer
+owned baseline restoration removes successful or partial preparation.
+No package manager, product policy, grant, reboot or fixture launch is involved.
+
+`native_fixture_qualification.PLAN` / `NativeFixtureJourney` and
+`onpc_app_rows::native_fixtures` compose fresh guarded entry, preparation,
+PARENT12/UI13 public Allowed/default-match observations for all four identities,
+wrong-child/page refusals and independent reopening. `check_catalogue()` is a
+shared caller-owned comparison; stock rows are retained in the full reread.
+The argument-free selector is `tools/run-tests integration check_e2e_native_fixtures`;
+live qualification remains pending. Launch/usability and complete scenarios
+remain separate tasks. Host refusal/placement checks live in
+`test_native_fixtures_cleanup_safety.py`; recorder and worker distribution checks
+use the existing shared safety inventories. Source-keyed `named_input(fixture_source=True)`
+prepares absent inputs through the maintained artifact builder and preserves
+existing frozen inputs.
+
 FIX03's multiple profile reuses the guarded installed snapshot's two canonical
 children and two approvers; it changes no account identities, roles or station
 ownership. `kiosk_multiple.PLAN` / `KioskMultipleJourney`,

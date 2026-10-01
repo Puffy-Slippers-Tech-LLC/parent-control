@@ -347,6 +347,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_customer_reboot'], ['check_e2e_customer_reboot.py'],
             ['check_e2e_toggle'], ['check_e2e_toggle.py'],
             ['check_e2e_app_row_observations'], ['check_e2e_app_row_observations.py'],
+            ['check_e2e_native_fixtures'], ['check_e2e_native_fixtures.py'],
             ['check_e2e_feedback_read'], ['check_e2e_feedback_read.py'],
             ['check_e2e_feedback_reset'], ['check_e2e_feedback_reset.py'],
             ['check_e2e_feedback_privacy'], ['check_e2e_feedback_privacy.py'],
@@ -411,7 +412,9 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_operate_public_connectivity_controls.py']):
         return None
     from test_storage import named_input
-    output = str(named_input(package_source=True) if args in (
+    output = str(named_input(fixture_source=True) if args in (
+        ['check_e2e_native_fixtures'], ['check_e2e_native_fixtures.py']) else
+        named_input(package_source=True) if args in (
         ['check_e2e_allowance_boundaries'], ['check_e2e_allowance_boundaries.py'])
         else named_input())
     if os.path.lexists(output):

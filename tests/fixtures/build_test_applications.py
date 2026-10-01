@@ -28,6 +28,7 @@ from typing import Mapping
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+from tests.fixtures.native_assets import ASSETS as NATIVE_ASSETS, desktop_id, desktop_entry
 SOURCE = Path(__file__).with_name("onpc_test_application.c")
 GUI_SOURCE = Path(__file__).with_name("gui_application.py")
 GTK_AUTOMATION_SOURCE = ROOT / "common/oh_no_parent_control_ui/gtk_automation.py"
@@ -158,12 +159,14 @@ def verify(output: Path) -> None:
     _log("verify-digests", "passed")
 
 
-def _compile_native(output: Path, *, kind="native", headless=False) -> Path:
+def _compile_native(output: Path, *, kind="native", headless=False, identity="default") -> Path:
     compiler = os.environ.get("CC", "cc")
-    native = output / ("mechanical" if headless else kind) / "onpc-test-application"
+    native = output / ("mechanical" if headless else kind) / (
+        "onpc-test-application" if identity == 'default' else 'identity-' + identity)
     native.parent.mkdir(parents=True, exist_ok=True)
     _run([compiler, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-static",
           f'-DFIXTURE_KIND="{kind}"', f'-DFIXTURE_GUI_DEFAULT={0 if headless else 1}',
+          f'-DFIXTURE_IDENTITY="{identity}"',
           "-o", str(native), str(SOURCE)])
     native.chmod(0o755)
     if not headless:
@@ -187,11 +190,15 @@ def _build_native_layout(output: Path, native: Path) -> None:
     applications = image / INSTALL_PREFIX / "Applications"
     applications.mkdir(parents=True, exist_ok=True)
     _copy_gui_runtime(applications)
+    identities = {asset[1]: asset[0] for asset in NATIVE_ASSETS}
+    identities[NATIVE_NAMES[3]] = 'S-update'
     for name in NATIVE_NAMES:
         target = applications / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(native, target)
+        shutil.copyfile(_compile_native(output, identity=identities[name]), target)
         target.chmod(0o755)
+    for asset in NATIVE_ASSETS:
+        _write_text(output / 'native-launchers' / desktop_id(asset[0]), desktop_entry(asset))
     exact = INSTALL_PREFIX / "Applications" / NATIVE_NAMES[0]
     versioned = INSTALL_PREFIX / "Applications" / NATIVE_NAMES[2]
     _write_text(

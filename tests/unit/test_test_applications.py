@@ -53,6 +53,13 @@ class TestApplicationFixtures(unittest.TestCase):
             output = Path(temporary) / "payload"
             fixtures.build(output)
             fixtures.verify(output)
+            from tests.fixtures.native_assets import ASSETS, PREFIX, desktop_id, desktop_entry
+            binaries = [output / ('image-root' + PREFIX) / asset[1] for asset in ASSETS]
+            import hashlib
+            self.assertEqual(len({hashlib.sha256(path.read_bytes()).hexdigest() for path in binaries}), 4)
+            for asset in ASSETS:
+                self.assertEqual((output / 'native-launchers' / desktop_id(asset[0])).read_text(),
+                                 desktop_entry(asset))
             flatpak_environment = fixtures._flatpak_environment(output)
             for variable in ("HOME", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR"):
                 self.assertTrue(Path(flatpak_environment[variable]).is_relative_to(output))

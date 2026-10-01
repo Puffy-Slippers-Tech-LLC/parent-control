@@ -42,11 +42,15 @@ class SyntheticFiles:
     def _command(self, name, previous):
         program = Path(__file__).with_name('synthetic_files_guest.py').read_bytes()
         source = Path(__file__).with_name('download_destination.py').read_text()
+        files_source = Path(__file__).with_name('guest_files.py').read_text()
         modules = ('import sys, types\n'
                    'download_destination = types.ModuleType("download_destination")\n'
                    'sys.modules["download_destination"] = download_destination\n'
                    f'exec(compile({source!r}, "download_destination.py", "exec"), '
-                   'download_destination.__dict__)\n')
+                   'download_destination.__dict__)\n'
+                   'guest_files = types.ModuleType("guest_files")\n'
+                   'sys.modules["guest_files"] = guest_files\n'
+                   f'exec({files_source!r}, guest_files.__dict__)\n')
         program = modules.encode() + program
         raw = self.transport.call([
             '/usr/sbin/runuser', '--user', 'onpc-parent-jamie', '--',

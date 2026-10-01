@@ -20,6 +20,11 @@
 #ifndef FIXTURE_GUI_DEFAULT
 #define FIXTURE_GUI_DEFAULT 1
 #endif
+#ifndef FIXTURE_IDENTITY
+#define FIXTURE_IDENTITY "default"
+#endif
+/* Retain a distinct executable content identity without changing GUI kind. */
+static const char fixture_identity[] __attribute__((used)) = FIXTURE_IDENTITY;
 
 static volatile sig_atomic_t termination_signal = 0;
 

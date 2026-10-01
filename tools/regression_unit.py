@@ -120,6 +120,10 @@ system-guest, provenance, package-content and snapshot modules stay compatible.
 from pathlib import PurePosixPath
 # LIFE06 Parent composition retains vm_internet_cleanup_safety's private
 # journals/replies and process-local UI/libvirt doubles; compatible scheduling.
+# Native preparation uses private tmp_path files, restored ownership/GTK/SSH
+# doubles and waited bounded Perl children; no live VM, bus, display or shared
+# cache. Existing fixture build tests retain build resource admission. Named
+# fixture-input hashing uses tiny private files; both cleanup/unit reviews hold.
 
 # TIME03 uses fake clocks and process-local guard/UI doubles, private tmp_path
 # records and bounded waited Perl children. No VM, bus, display or shared cache.
@@ -142,7 +146,7 @@ broker_state_machine build_package build_test_artifacts bump_version catalog cat
 child_preview_cleanup_safety clean_install_cleanup_safety codex_test_rules config core coverage_generation customer_reboot_cleanup_safety data_migration
 dbus_harness_cleanup_safety desktop_session_cleanup_safety dev_privileges dev_tool_installation
 diagnostic_export diagnostic_privacy diagnostic_report diagnostics document_checks
-dynamic_account_fixture e2e_app_rows e2e_asset_transfer_cleanup_safety e2e_broker_startup_observations
+dynamic_account_fixture e2e_app_rows native_fixtures_cleanup_safety e2e_asset_transfer_cleanup_safety e2e_broker_startup_observations
 e2e_case_composition e2e_command_help e2e_controller_qualification_cleanup_safety e2e_desktop_keyring
 e2e_desktop_session e2e_disabled_child e2e_evidence e2e_feedback_read e2e_fresh_desktop
 e2e_execution_cleanup_safety e2e_files_cleanup_safety e2e_fixture_credentials_cleanup_safety e2e_gdm_helper

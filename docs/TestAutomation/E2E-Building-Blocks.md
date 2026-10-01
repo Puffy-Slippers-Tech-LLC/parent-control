@@ -3913,6 +3913,9 @@ Before the first live attempt, check the changed boundary end to end on the host
    sole final reply in `UiObservations.call`; regress arbitrary stream chunks,
    missing/replayed replies, late diagnostics and owned transport timeout.
    Session-account binding remains separate from diagnostic-stream selection.
+   Account-selector descriptions use `Selected account: …` for both child and
+   approver. Keep synthetic form metadata aligned with the current producer;
+   namespace-scoped selected UID IDs establish identity before description readback.
    Shell 50's ID-owned `St.Button` exposes Component focus but no Action
    interface. Panel entry uses public focus and a fresh same-target focused
    proof before one worker Enter, then independent form readback. Refusals at

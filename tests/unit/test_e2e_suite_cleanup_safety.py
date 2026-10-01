@@ -756,8 +756,17 @@ def test_new_invocation_reuses_completed_snapshot_metadata(prepared_suite):
 
 
 @pytest.mark.parametrize('failure', ['create', 'publish'])
-def test_interruption_never_marks_unfinished_snapshot_reusable(prepared_suite, failure):
+def test_interruption_never_marks_unfinished_snapshot_reusable(prepared_suite, monkeypatch, failure):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
+    cleanup_errors = []
+    finish = lease.finish
+    def finish_with_evidence():
+        try:
+            return finish()
+        except BaseException as error:
+            cleanup_errors.append(error)
+            raise
+    monkeypatch.setattr(lease, 'finish', finish_with_evidence)
     original = lease.source.domain.snapshotCreateXML.side_effect
     calls = []
     def interrupted(xml, flags):
@@ -772,7 +781,14 @@ def test_interruption_never_marks_unfinished_snapshot_reusable(prepared_suite, f
     lease.source.domain.snapshotCreateXML.side_effect = interrupted
     with pytest.raises(RuntimeError, match='snapshot interrupted'), lease:
         owner.prepare_installed(directory, directory, {}, root=directory, overwrite=False)
-    lease.audit()
+    try:
+        lease.audit()
+    except BaseException as audit_error:
+        # __exit__ preserves the injected preparation error. Keep the actual
+        # cleanup traceback instead of reporting only cleanup-incomplete.
+        if cleanup_errors:
+            raise cleanup_errors[0] from audit_error
+        raise
     assert calls == ([0] if failure == 'create' else [0, 1])
     assert not app_snapshot.matches(names['onpc-v1.1'].getXMLDesc(0),
         app_snapshot.input_identity(lease, directory, owner._input_bundle, owner.commands))

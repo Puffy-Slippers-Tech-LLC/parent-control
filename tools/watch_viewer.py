@@ -51,14 +51,11 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
         raise RuntimeError('watch needs GTK 4 VTE; run ./setup.sh --test-tools-only') from error
     from gi.repository import Gdk, GLib, Gtk, Pango, Vte
     from common.oh_no_parent_control_ui.gtk_automation import (
-        set_automation_id as identify,
+        set_automation_id,
     )
     from ui_watch_viewer import panel as ui_panel
     from e2e_watch_viewer import panel as vm_panel
     from watch_output import Output, terminal, TerminalWriter
-
-    def set_automation_id(widget, name):
-        identify(widget, prefix + name)
 
     for name in ('GIO_LAUNCHED_DESKTOP_FILE', 'GIO_LAUNCHED_DESKTOP_FILE_PID',
                  'DESKTOP_STARTUP_ID', 'XDG_ACTIVATION_TOKEN'):
@@ -78,7 +75,7 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
             self.output_status = Gtk.Label(label='Terminal Outputs — Waiting for tests',
                 xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
                 margin_start=8, margin_end=8, margin_top=8, margin_bottom=8)
-            set_automation_id(self.output_status, 'watch-output-status')
+            set_automation_id(self.output_status, prefix + 'watch-output-status')
             self.terminal, self.output_scroll = terminal(prefix + 'watch-output', 'Test runner terminal output')
             self.writer = TerminalWriter(self.terminal)
             self.output = output if output is not None else Output(root, terminal_size=lambda: os.terminal_size((
@@ -106,7 +103,7 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
                                             ('watch-select-all', 'Select All', self.select_output),
                                             ('watch-stop', 'Stop command', self.stop_command)):
                 button = Gtk.Button(label=label)
-                set_automation_id(button, identity)
+                set_automation_id(button, prefix + identity)
                 button.add_css_class('flat')
                 button.connect('clicked', lambda _button, callback=action: (callback(), self.menu.popdown()))
                 menu_items.append(button)

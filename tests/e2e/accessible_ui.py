@@ -95,7 +95,8 @@ STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-absent'})
 CHILD_DESKTOP_OPERATIONS = frozenset({'fresh-child-desktop'}) | COUNTDOWN_OPERATIONS
 OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
-    'overlay-panel-launch', 'overlay-qualification-cancel', 'overlay-desktop'})
+    'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
+    'overlay-qualification-cancel', 'overlay-desktop'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | frozenset({'child-command-launch'})
 OPERATIONS |= frozenset({'overlay-wrong-account-refused'})
 CHILD_GREETER_OPERATIONS = frozenset({
@@ -8432,6 +8433,13 @@ class AccessibleUI:
             self.overlay_panel_target()
         elif operation == 'overlay-panel-launch':
             self.overlay_panel_launch()
+        elif operation == 'overlay-panel-reveal-ready':
+            self.require_child_overlay_session()
+            self.kiosk_request_form(enabled=True, overlay=True)
+            require(self.shell_search_field() is None, 'ui:overlay-overview-already-open')
+        elif operation == 'overlay-panel-overview':
+            self.require_child_overlay_session()
+            self.search_ready('overview')
         elif operation == 'overlay-request-form':
             result['request'] = self.kiosk_request_form(enabled=True, overlay=True)
         elif operation == 'overlay-qualification-cancel':

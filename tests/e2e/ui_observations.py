@@ -159,6 +159,8 @@ OPERATION_LABELS = {
     'child-command-launch': 'Invoking the child overlay command as [Child user]',
     'overlay-panel-ready': 'Checking the child panel request control',
     'overlay-panel-launch': 'Qualifying focus for one child panel activation',
+    'overlay-panel-reveal-ready': 'Checking the open overlay before revealing its panel',
+    'overlay-panel-overview': 'Checking Overview before returning to the open overlay',
     'overlay-request-form': 'Reading one overlay with the fixed child account',
     'overlay-qualification-cancel': 'Closing the qualification overlay with Cancel',
     'overlay-desktop': 'Checking the overlay closed and child desktop returned',
@@ -752,7 +754,7 @@ class UiObservations:
         # Overlay readback uses the same form reader and diagnostic stream as
         # the station, while retaining its separate child-session binding.
         form_diagnostics = (operation in accessible_ui.KIOSK_SESSION_OPERATIONS
-                            or operation == 'overlay-request-form')
+                            or operation in ('overlay-request-form', 'overlay-panel-reveal-ready'))
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
         # Kiosk waits only for the public form, with transport margin.

@@ -354,6 +354,12 @@ Implementation status: All cases pending.
 
 Bindings: soft-apps = excluded / included; approver = first / second.
 
+REQUEST13's repeated entry uses the shared `overlay_entry(..., 'panel-reopen')`
+binding: validate the existing fixed-child form, reveal the covered panel with
+Super, reacquire its public ID and focus, activate once, then verify Overview
+before Escape and independently reread the singleton form. The ordinary first
+panel entry uses `panel`; supporting overlay entries use `command`.
+
 1. FLOW13(combined, soft included) → C → FLOW08(soft) → APP04 → REQUEST13 twice (explicit panel launch and singleton check) → REQUEST03(fixed child,one form).
 2. REQUEST04(approver,duration) → REQUEST06(soft choice) → REQUEST08 → REQUEST09 → AUTH01(exact prompt).
 3. AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic) → TIME01 → APP02(soft effect) → FLOW08(hard/soft). After TIME03(cooldown): REQUEST02 → REQUEST09 → AUTH02(cancel) → REQUEST11(cancel) → REQUEST12(cancel).

@@ -15,12 +15,23 @@ sub overlay_entry {
     onpc_progress::operation('Opening and independently reading the child overlay');
     my ($journey, $prefix, $route) = @_;
     die 'request-flow:overlay-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
-        && $prefix =~ /\A[a-z][a-z0-9-]*\z/ && ($route eq 'command' || $route eq 'panel');
-    $journey->invoke("$prefix-panel") if $route eq 'panel';
+        && $prefix =~ /\A[a-z][a-z0-9-]*\z/
+        && ($route eq 'command' || $route eq 'panel' || $route eq 'panel-reopen');
+    if ($route eq 'panel-reopen') {
+        # The fullscreen overlay hides the panel. Reveal it once through
+        # Overview after proving the fixed-child form and closed Overview.
+        $journey->invoke("$prefix-reveal");
+        testapi::send_key('super');
+    }
+    $journey->invoke("$prefix-panel") if $route ne 'command';
     $journey->invoke("$prefix-launch");
     # The panel checkpoint proves focus on child-request-button by public ID.
     # StButtonAccessible has no Action interface; activate with one ordinary key.
-    testapi::send_key('ret') if $route eq 'panel';
+    testapi::send_key('ret') if $route ne 'command';
+    if ($route eq 'panel-reopen') {
+        $journey->invoke("$prefix-overview");
+        testapi::send_key('esc');
+    }
     return $journey->invoke("$prefix-form");
 }
 

@@ -47,6 +47,108 @@
   background: linear-gradient(145deg, #fcfcfd, #f6f7f9);
 }
 
+.parent-language-shade {
+  background: alpha(#292934, 0.32);
+}
+
+.parent-language-dialog,
+.parent-language-dialog:backdrop {
+  background: #fcfcfd;
+  color: #292934;
+}
+
+.parent-language-header {
+  background: #fcfcfd;
+  box-shadow: none;
+}
+
+.parent-language-title {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.parent-language-description {
+  color: #666977;
+  font-size: 14px;
+}
+
+.parent-language-list {
+  background: #ffffff;
+  border: 1px solid alpha(#292934, 0.14);
+  border-radius: 12px;
+}
+
+.parent-language-choice {
+  min-height: 26px;
+  padding: 4px 16px;
+  margin: 0;
+  border: 1px solid transparent;
+  border-bottom-color: alpha(#292934, 0.12);
+  border-radius: 0;
+  color: #292934;
+  font-size: 15px;
+}
+
+.parent-language-choice:first-child {
+  border-radius: 11px 11px 0 0;
+}
+
+.parent-language-choice:last-child {
+  border-bottom-color: transparent;
+  border-radius: 0 0 11px 11px;
+}
+
+.parent-language-choice:hover {
+  background: alpha(#7657f6, 0.04);
+}
+
+.parent-language-choice:checked {
+  background: alpha(#7657f6, 0.09);
+  border-color: alpha(#7657f6, 0.22);
+  color: #6748ef;
+  font-weight: 700;
+}
+
+.parent-language-choice radio {
+  min-width: 18px;
+  min-height: 18px;
+  margin-left: 12px;
+  background: #ffffff;
+  border: 1px solid alpha(#292934, 0.40);
+  box-shadow: none;
+  color: #ffffff;
+}
+
+.parent-language-choice radio:checked {
+  background: #7657f6;
+  border-color: #7657f6;
+}
+
+.parent-language-continue {
+  min-height: 40px;
+  padding: 0 24px;
+  border: none;
+  border-radius: 10px;
+  background: #7657f6;
+  color: #ffffff;
+  box-shadow: none;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.parent-language-continue:hover {
+  background: #6748ef;
+}
+
+.parent-language-continue:active {
+  background: #5939dc;
+}
+
+.parent-language-continue:disabled {
+  background: alpha(#7657f6, 0.35);
+  color: alpha(#ffffff, 0.75);
+}
+
 /* Align About-dialog links with their labels. LinkButton normally inherits
  * button padding from the GTK theme. */
 button.about-link,

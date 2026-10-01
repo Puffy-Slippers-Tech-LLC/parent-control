@@ -474,6 +474,12 @@ sub run {
         onpc_fresh_thirty_allowance::run(\&exchange);
         return;
     }
+    if ($ready->{jordan_thirty_allowance}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_fresh_thirty_allowance::run(\&exchange, 'existing');
+        return;
+    }
     if ($ready->{set_allowance}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

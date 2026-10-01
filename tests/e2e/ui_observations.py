@@ -827,7 +827,7 @@ class UiObservations:
 
     def _observe(self, operation, *, child=None):
         require(child is None or (child in accessible_ui.NAMED_CUSTOM_CHILDREN and
-                operation in accessible_ui.NAMED_CUSTOM_OPERATIONS), 'ui:custom-child-binding')
+                operation in accessible_ui.NAMED_CHILD_OPERATIONS), 'ui:custom-child-binding')
         import re
         # Qualifications lack a scenario recorder, but use the same existing
         # spectator command pane as customer cases. Keep private program/stdin
@@ -1277,7 +1277,9 @@ class UiObservations:
             if operation.endswith(('read', 'reread')):
                 require(type(value) is dict and set(value) == {
                     'child', 'expanded', 'daily', 'one_time', 'total', 'observed_monotonic_ns'}
-                    and value['child'] == 'fixture-child' and value['expanded'] is True
+                    and value['child'] == accessible_ui.CHILD_IDENTITIES[
+                        accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']]
+                    and value['expanded'] is True
                     and type(value['observed_monotonic_ns']) is int
                     and 0 < value['observed_monotonic_ns'] < 10**20, 'ui:time-response')
                 for key in ('daily', 'one_time', 'total'):

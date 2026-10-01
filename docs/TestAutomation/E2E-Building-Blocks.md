@@ -1420,6 +1420,23 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW19 | C | Configure a finite named app-rule set for one child and return to sign-in. Each match/access edit and save is explicit; no time approval or account preparation is hidden. | FLOW01(parent, explicit source/entry/window/child) → PARENT04(App Limits) → FLOW03 for each declared app/rule → DESK03. First consumers E2E-006/007; reused as AppSet in the recipes. | pending |
 | FLOW20 | C | Approve a specified interval on either request surface and continue as the named child. Accept explicit new/open form entry, child/parent, duration, soft choice, child fresh/retained entry and expected countdown. New overlay entry requires that child's unlocked desktop; new kiosk entry requires GDM. It does not create those preconditions or alter daily policy. | FLOW04(entry and all choices) → FLOW05 → FLOW15(child,declared entry) only for kiosk → TIME01 → UI12(expected interval). Overlay returns to its existing desktop. Reuse FLOW04/05/15 without another surface-specific approval implementation. E2E-048 immediate repeat and E2E-049/050/051. | pending |
 
+FLOW16 also qualifies `gdm/parent/fresh/new/existing/0/30/1` for Jordan through
+`fresh_thirty_allowance.JORDAN_PLAN`, `FreshThirtyAllowanceJourney`,
+`JordanThirtyAllowanceQualification` and `onpc_fresh_thirty_allowance::run(exchange, 'existing')`.
+`onpc_parent::set_allowance` carries the explicit child through FLOW01 selection;
+`JourneyPlan.child_bindings` carries it through FLOW02 setup and the independent
+PARENT20 reread. `AccessibleUI.time_explanation_operation` and `UiObservations`
+validate that same child; Riley receipts are refused. The thirty-minute setup
+requires disabled/zero initial settings before edits. Saved enabled/30-minute
+settings, separate 1800/0/1800-second balance reads and wrong-child/state/window
+refusals passed `check_e2e_set_jordan_thirty_minute_allowance` in
+`20261001T044105Z-eb3ffcb2` on every enabled VM. Riley's existing fresh-thirty and
+zero/positive bindings passed their unchanged selectors in
+`20261001T044336Z-31c717c4` and `20261001T044557Z-2a15ce8d`. All three runs passed
+collection, owned cleanup and baseline restoration. This adds only the named
+fresh Parent/Jordan FLOW01 and thirty-minute FLOW02/FLOW16 slice; other pending
+bindings and complete case 184 remain separate.
+
 #### Approved kiosk flow qualification
 
 Case 50 composes the qualified fresh-zero FLOW16 setup, caller-owned station

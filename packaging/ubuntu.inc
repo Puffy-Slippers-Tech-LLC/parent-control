@@ -96,6 +96,9 @@ prepare_package_notice() {
             /home/oh-no-parent-control/.config/gnome-initial-setup/upgrade-26.04-done
     '
 
+# @trust_label@
+# No SELinux integration on Ubuntu.
+
 # @pam_enable@
     # Query debconf through its supported protocol before changing the one
     # dependency profile we replace. Restore only that choice on removal.

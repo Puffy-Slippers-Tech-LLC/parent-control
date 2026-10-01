@@ -389,8 +389,9 @@ def test_guest_command_controls_are_bounded_and_unambiguous(args):
 
 def test_guest_command_has_no_guest_program_allowlist_or_shell_interpolation():
     command = ['sh', '-c', 'journalctl; printf "%s" "$(id -u)"', '--vm', '--timeout', '--help']
-    assert vm_config.guest_command_arguments(['--timeout', '600', '--', *command]) == (600, command)
-    assert vm_config.guest_command_arguments(['--', 'id']) == (120, ['id'])
+    assert vm_config.guest_command_arguments(['--timeout', '600', '--', *command]) == (600, command, False)
+    assert vm_config.guest_command_arguments(['--', 'id']) == (120, ['id'], False)
+    assert vm_config.guest_command_arguments(['--stdin', '--', 'cat']) == (120, ['cat'], True)
 
 
 def test_selection_updates_imported_controller_and_guest(monkeypatch):

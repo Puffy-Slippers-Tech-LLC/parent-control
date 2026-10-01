@@ -181,6 +181,15 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
     remove_integration /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
         /var/lib/oh-no-parent-control/installed-fapolicyd-fallback
 @readiness_remove_rule@
+    if [ -L /etc/fapolicyd ] || [ -L /etc/fapolicyd/trust.d ]; then
+        echo 'oh-no-parent-control: refusing substituted child trust directory' >&2
+        exit 1
+    fi
+    remove_integration /etc/fapolicyd/trust.d/oh-no-parent-control.trust \
+        /var/lib/oh-no-parent-control/installed-child-extension-trust
+    if [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
+        /usr/sbin/fapolicyd-cli --update
+    fi
     rm -f \
         /etc/fapolicyd/rules.d/89-oh-no-parent-control.rules \
         /etc/oh-no-parent-control/config.json \

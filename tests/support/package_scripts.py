@@ -38,7 +38,8 @@ cat "$AUDIT_ROOT"/etc/fapolicyd/rules.d/*.rules > "$AUDIT_ROOT/etc/fapolicyd/com
 """)
         (root / "usr/sbin/fagenrules").chmod(0o755)
         self.write("usr/sbin/fapolicyd-cli", """#!/bin/sh
-printf '%s\\n' 'fapolicyd-cli --reload-rules' >> "$AUDIT_ROOT/commands"
+printf '%s\\n' "fapolicyd-cli $*" >> "$AUDIT_ROOT/commands"
+if [ "$1" = --update ]; then exit "${TRUST_UPDATE_STATUS:-0}"; fi
 """).chmod(0o755)
         self.write("usr/libexec/oh-no-parent-control-uninstall", """#!/bin/sh
 printf '%s\\n' "uninstall $*" >> "$AUDIT_ROOT/commands"
@@ -161,7 +162,7 @@ def package_machine(tmp_path, request):
         (state / name).touch()
 
     (state / "package-created-kiosk-uid").write_text("1006\n")
-    for name in ("gdm-presession", "99-oh-no-parent-control-allow.rules"):
+    for name in ("gdm-presession", "99-oh-no-parent-control-allow.rules", "child-extension.trust"):
         path = tmp_path / "usr/share/oh-no-parent-control" / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("product integration\n")
@@ -208,9 +209,12 @@ case "$name" in
     id) printf '1006\n' ;;
     policy-rc.d) exit "${POLICY_STATUS:-0}" ;;
     oh-no-parent-control-migrate-state) exit "${MIGRATION_STATUS:-0}" ;;
-    oh-no-parent-control-package-activation) printf '%s\n' "$IMPACTS" ;;
+    oh-no-parent-control-package-activation)
+        if [ "$*" = wait-child-trust ]; then exit "${TRUST_READY_STATUS:-0}"; fi
+        printf '%s\n' "$IMPACTS" ;;
     fagenrules) exit "${RULE_COMPILE_STATUS:-0}" ;;
     fapolicyd-cli)
+        if [ "$*" = '--update' ]; then exit "${TRUST_UPDATE_STATUS:-0}"; fi
         test "$*" = '--reload-rules' || exit 99
         test "${RULE_RELOAD_STATUS:-0}" = 0 || exit "$RULE_RELOAD_STATUS"
         test -f "$AUDIT_ROOT/etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules" || exit 93
@@ -226,6 +230,7 @@ case "$name" in
         ;;
     systemctl)
         case "$*" in
+            'is-active --quiet fapolicyd.service') exit "${FAPOLICYD_ACTIVE_STATUS:-0}" ;;
             'start oh-no-parent-control-execution-policy-ready.service')
                 test -f "$AUDIT_ROOT/canary-loaded" || exit 92
                 exit "${READINESS_STATUS:-0}"

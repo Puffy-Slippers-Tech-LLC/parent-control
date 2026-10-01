@@ -546,6 +546,13 @@ snapshot's private credential record and the existing maintenance ownership
 journal; manually started guests and active test controllers are refused.
 The default command deadline is 120 seconds; `--timeout` accepts 1–86400 seconds.
 This is finite command execution, without an interactive terminal.
+The probe authenticates as guest root independently of the foreground desktop
+and lock state. Customer-journey foreground/unlocked preconditions are not
+maintenance authorization checks. For an explicitly requested session renewal,
+the shared `tests/e2e/session_control.py maintenance-logout UID SESSION` entry
+binds that root operation to one observed desktop and retains other desktops.
+It invokes GNOME's normal logout as the target user while keeping the observer
+root; it neither forces termination nor retries uncertain input.
 Private key copies and command artifacts remain in shared root-private scratch;
 stdout/stderr return to the authenticated caller and the existing filtered watch
 transcript. Setup refresh installs this route and any missing OpenSSH client via
@@ -565,6 +572,13 @@ argument and decode it inside the guest rather than embedding multiline source
 or shell quote concatenations. Encoding changes transport only; guest identity,
 ownership, observation and authorization checks still apply. A rules refresh
 does not change that parser boundary or reload the current Codex process.
+For binary artifacts, use `tools/test-vm --vm NAME exec --input-file 'PATH' -- COMMAND`.
+The unprivileged launcher opens a regular, non-symlink file of at most 64 MiB and
+passes its descriptor as stdin. Privileged code never opens the supplied host
+path; it validates finite regular-file input and sends its bytes through the
+same guarded SSH transport in one operation. Input bytes are filtered by the
+existing private-input observation path. Pipes, interactive stdin, oversized
+files and changed sizes are refused; ordinary `exec` never reads stdin.
 Rename accepts only a destination label, preserving the UUID and disks. It
 records original metadata before mutation and rolls back checked failures;
 interrupted records remain a refusal gate. After renaming, update `name` in the

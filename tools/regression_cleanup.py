@@ -14,6 +14,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Root guest probes reuse those private lease/scratch trees and mocked transport
 # streams; snapshot connection checks mock SSH and the clock. Both existing
 # VM-control and app-snapshot cleanup buckets remain compatible.
+# VM input-file checks use private pytest files/FIFO and in-memory descriptor,
+# stdin and SSH doubles, without touching a live VM, host stdin or shared state.
+# vm_control_cleanup_safety retains its existing compatible cleanup classification.
 # Fedora snapshot backend/proof checks retain private tmp_path locks and mocked
 # builders, guestfs and VM transport. App-snapshot, system-runner and suite
 # cleanup classifications stay compatible; no real build, VM or shared resource.

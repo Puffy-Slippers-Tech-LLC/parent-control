@@ -410,7 +410,8 @@ def main(argv=None):
             from vm_probe import execute
             with operation('Probing the owned guest as root'):
                 resume(lease)
-                status = execute(lease, probe[1], probe[0])
+                status = (execute(lease, probe[1], probe[0], input_stream=True)
+                          if probe[2] else execute(lease, probe[1], probe[0]))
                 event('Maintenance: exec complete')
                 return status
         else:

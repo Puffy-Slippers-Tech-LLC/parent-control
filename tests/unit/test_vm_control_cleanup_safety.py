@@ -251,6 +251,48 @@ def test_public_probe_launcher_keeps_host_selector_before_guest_arguments(monkey
                                   ['vm', *VM_ARGS, 'exec', '--', *guest])
 
 
+def test_probe_input_is_opened_unprivileged_and_not_forwarded_as_a_host_path(tmp_path):
+    source = tmp_path / 'payload.rpm'
+    source.write_bytes(b'RPM\0payload')
+    root = Path(__file__).resolve().parents[2]
+    prepare = runpy.run_path(str(root / 'tools/test-vm'))['input_arguments']
+    guest = ['cat', '--input-file', '/guest-only']
+    args, fd = prepare(['exec', '--input-file', str(source), '--', *guest])
+    try:
+        assert args == ['exec', '--stdin', '--', *guest]
+        assert os.read(fd, 100) == b'RPM\0payload'
+        assert str(source) not in args
+    finally:
+        os.close(fd)
+
+
+@pytest.mark.parametrize('fault', ['symlink', 'directory', 'fifo', 'oversize', 'missing', 'wrong-action'])
+def test_probe_input_refuses_invalid_files_and_actions(tmp_path, fault):
+    root = Path(__file__).resolve().parents[2]
+    prepare = runpy.run_path(str(root / 'tools/test-vm'))['input_arguments']
+    source = tmp_path / 'payload'
+    if fault == 'symlink':
+        source.symlink_to(tmp_path)
+    elif fault == 'directory':
+        source.mkdir()
+    elif fault == 'fifo':
+        os.mkfifo(source)
+    elif fault == 'oversize':
+        with source.open('wb') as stream:
+            stream.truncate(64 * 1024 * 1024 + 1)
+    args = ['status' if fault == 'wrong-action' else 'exec', '--input-file', str(source), '--', 'cat']
+    with pytest.raises(ValueError, match='vm-probe:'):
+        prepare(args)
+
+
+def test_dispatcher_passes_input_marker_without_a_privileged_host_path():
+    root = Path(__file__).resolve().parents[2]
+    dispatch = runpy.run_path(str(root / 'tools/onpc-test-runner'))['selection']
+    dispatch.__globals__['VM_UUIDS'] = {vm_name(): UUID}
+    command = dispatch(root, ['vm', 'exec', *VM_ARGS, '--stdin', '--', 'cat'])
+    assert command[-3:] == ['--stdin', '--', 'cat']
+
+
 @pytest.mark.parametrize('args', [[], ['id'], ['--'], ['--host', 'other', '--', 'id']])
 def test_root_guest_dispatch_refuses_invalid_host_controls(args):
     root = Path(__file__).resolve().parents[2]
@@ -275,7 +317,8 @@ def probe_snapshot(held, current):
 
 
 @pytest.mark.parametrize('status', [0, 1, 127, 255])
-def test_root_probe_preserves_guest_state_and_exit_status(lease_rig, monkeypatch, capsys, status):
+@pytest.mark.parametrize('input_stream', [False, True])
+def test_root_probe_preserves_guest_state_and_exit_status(lease_rig, monkeypatch, capsys, status, input_stream):
     import online_snapshot
     import vm_probe
     lease, current = lease_rig
@@ -288,9 +331,19 @@ def test_root_probe_preserves_guest_state_and_exit_status(lease_rig, monkeypatch
     monkeypatch.setattr(online_snapshot, 'load', Mock(return_value=record))
     monkeypatch.setattr(vm_probe.system, 'address', Mock(return_value='192.168.122.20'))
     transport = Mock()
+    if input_stream:
+        import io
+        from types import SimpleNamespace
+        original_stat, original_seek = os.fstat, os.lseek
+        monkeypatch.setattr(vm_probe.os, 'fstat', lambda fd: SimpleNamespace(st_mode=0o100600, st_size=7)
+                            if fd == 0 else original_stat(fd))
+        monkeypatch.setattr(vm_probe.os, 'lseek', lambda fd, offset, whence: 0
+                            if fd == 0 else original_seek(fd, offset, whence))
+        monkeypatch.setattr(vm_probe.sys, 'stdin', SimpleNamespace(buffer=io.BytesIO(b'payload')))
     def run(command, **kwargs):
         assert command == ['journalctl', '--no-pager']
         assert kwargs['check'] is False and kwargs['timeout'] == 120
+        assert kwargs.get('input') == (b'payload' if input_stream else None)
         kwargs['on_stream'](b'guest stdout\n', 'stdout')
         kwargs['on_stream'](b'guest stderr\n', 'stderr')
         transport.commands.last_returncode = status
@@ -305,7 +358,7 @@ def test_root_probe_preserves_guest_state_and_exit_status(lease_rig, monkeypatch
         transport.commands.last_returncode = 0
     held.guard = checked_guard
     try:
-        assert vm_probe.execute(held, ['journalctl', '--no-pager'], 120) == status
+        assert vm_probe.execute(held, ['journalctl', '--no-pager'], 120, input_stream=input_stream) == status
         connect.assert_called_once_with(held, held.commands.directory, record, '192.168.122.20')
         assert held.journal.read_bytes() == journal
         assert (held.directory / 'vm-control.json').read_bytes() == owner
@@ -353,6 +406,38 @@ def test_root_probe_refuses_unbound_snapshot_credentials_before_connecting(lease
         address.assert_not_called()
         assert held.journal.read_bytes() == journal
         assert held.source.domain.revertToSnapshot.call_count == restores
+    finally:
+        held.release()
+
+
+@pytest.mark.parametrize('fault', ['pipe', 'oversize', 'offset', 'changed'])
+def test_root_probe_refuses_invalid_input_before_ssh(lease_rig, monkeypatch, fault):
+    import io
+    from types import SimpleNamespace
+    import online_snapshot
+    import vm_probe
+    lease, current = lease_rig
+    start(lease)
+    held = reopened(lease)
+    control.resume(held)
+    _, _, record = probe_snapshot(held, current)
+    monkeypatch.setattr(online_snapshot, 'load', Mock(return_value=record))
+    monkeypatch.setattr(vm_probe.system, 'address', Mock(return_value='192.168.122.20'))
+    connect = Mock()
+    monkeypatch.setattr(online_snapshot, 'connect_saved_transport', connect)
+    original_stat, original_seek = os.fstat, os.lseek
+    info = SimpleNamespace(st_mode=0o010600 if fault == 'pipe' else 0o100600,
+                           st_size=64 * 1024 * 1024 + 1 if fault == 'oversize' else 7)
+    monkeypatch.setattr(vm_probe.os, 'fstat', lambda fd: info if fd == 0 else original_stat(fd))
+    monkeypatch.setattr(vm_probe.os, 'lseek', lambda fd, offset, whence:
+                        (1 if fault == 'offset' else 0) if fd == 0 else original_seek(fd, offset, whence))
+    monkeypatch.setattr(vm_probe.sys, 'stdin', SimpleNamespace(buffer=io.BytesIO(b'short')))
+    journal = held.journal.read_bytes()
+    try:
+        with pytest.raises(RuntimeError, match='vm-probe:'):
+            vm_probe.execute(held, ['cat'], 120, input_stream=True)
+        connect.assert_not_called()
+        assert held.journal.read_bytes() == journal
     finally:
         held.release()
 

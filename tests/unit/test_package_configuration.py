@@ -56,6 +56,15 @@ def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_
     helper = root / "usr/libexec/oh-no-parent-control-package-activation"
     helper.unlink()
     source = (ROOT / "packaging/package_activation.py").read_text()
+    # Only comparison runs for real in this relocated machine. Keep the
+    # daemon-readiness double: the host has neither this fixture's installed
+    # trust file nor a fixture fapolicyd database. Exact live-record matching
+    # has separate helper tests, and lifecycle tests cover its failure status.
+    source = source.replace('    args = parser.parse_args()',
+        '    args = parser.parse_args()\n'
+        '    if args.command == "wait-child-trust":\n'
+        '        import os\n'
+        '        raise SystemExit(int(os.environ.get("TRUST_READY_STATUS", "0")))')
     helper.write_text(f"#!{sys.executable}\n" + source.split("\n", 1)[1])
     helper.chmod(0o755)
 
@@ -125,7 +134,7 @@ def test_ubuntu_does_not_start_fedora_readiness_unit(package_machine):
     assert result.returncode == 0, result.stderr
     assert 'oh-no-parent-control-execution-policy-ready.service' not in (root / 'commands').read_text()
     assert 'fagenrules' not in (root / 'commands').read_text()
-    assert 'fapolicyd-cli' not in (root / 'commands').read_text()
+    assert 'fapolicyd-cli --reload-rules' not in (root / 'commands').read_text()
 
 
 @pytest.mark.parametrize("impacts", ["", "process-restart", "session-renewal", None],
@@ -305,3 +314,76 @@ def test_missing_generated_integrations_are_recreated_on_reinstall(package_machi
     assert result.returncode == 0, result.stderr
     assert (root / "etc/gdm3/PreSession/Default").read_bytes() == (state / "installed-gdm-presession").read_bytes()
     assert (root / "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules").read_bytes() == (state / "installed-fapolicyd-fallback").read_bytes()
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+def test_child_module_trust_install_upgrade_and_reinstall(package_machine):
+    root, state, run = package_machine
+    template = root / 'usr/share/oh-no-parent-control/child-extension.trust'
+    target = root / 'etc/fapolicyd/trust.d/oh-no-parent-control.trust'
+    record = state / 'installed-child-extension-trust'
+    # Existing administrator trust and the distribution filter are never edited.
+    admin = target.parent / 'administrator.trust'
+    admin.parent.mkdir(parents=True)
+    admin.write_text('administrator trust\n')
+    filter_path = root / 'etc/fapolicyd/fapolicyd-filter.conf'
+    filter_path.write_text('+ /\n - usr/share/\n  + *.js\n')
+    for payload in ('first packaged hashes\n', 'replacement packaged hashes\n'):
+        template.write_text(payload)
+        result = run()
+        assert result.returncode == 0, result.stderr
+        assert target.read_text() == record.read_text() == payload
+        assert target.stat().st_mode & 0o777 == 0o644
+        assert record.stat().st_mode & 0o777 == 0o600
+    target.unlink()
+    assert run().returncode == 0
+    assert target.read_bytes() == template.read_bytes()
+    assert admin.read_text() == 'administrator trust\n'
+    assert filter_path.read_text() == '+ /\n - usr/share/\n  + *.js\n'
+    commands = (root / 'commands').read_text().splitlines()
+    refresh = commands.index('fapolicyd-cli --update')
+    ready = commands.index('oh-no-parent-control-package-activation wait-child-trust')
+    assert refresh < ready < commands.index(f'systemctl --system restart {BROKER}')
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('failure', ['TRUST_UPDATE_STATUS', 'TRUST_READY_STATUS'])
+def test_child_trust_refresh_failure_blocks_activation_and_is_retryable(package_machine, failure):
+    root, state, run = package_machine
+    result = run(**{failure: '7'})
+    assert result.returncode == 7
+    assert (state / 'package-activation-pending').exists()
+    assert f'systemctl --system restart {BROKER}' not in (root / 'commands').read_text()
+    assert run().returncode == 0
+    assert not (state / 'package-activation-pending').exists()
+
+
+def test_deferred_daemon_start_does_not_request_trust_refresh(package_machine):
+    root, _, run = package_machine
+    assert run(FAPOLICYD_ACTIVE_STATUS='3', POLICY_STATUS='101').returncode == 0
+    assert 'fapolicyd-cli --update' not in (root / 'commands').read_text()
+    assert (root / 'etc/fapolicyd/trust.d/oh-no-parent-control.trust').is_file()
+
+
+@pytest.mark.parametrize('substitution', ['modified', 'target-link', 'directory-link', 'record-link'])
+def test_child_trust_configuration_preserves_modified_or_substituted_paths(package_machine, substitution):
+    root, state, run = package_machine
+    assert run().returncode == 0
+    target = root / 'etc/fapolicyd/trust.d/oh-no-parent-control.trust'
+    record = state / 'installed-child-extension-trust'
+    sentinel = root / 'sentinel'
+    sentinel.write_text('keep administrator content\n')
+    if substitution == 'modified':
+        target.write_bytes(sentinel.read_bytes())
+    elif substitution == 'target-link':
+        target.unlink()
+        target.symlink_to(sentinel)
+    elif substitution == 'record-link':
+        record.unlink()
+        record.symlink_to(sentinel)
+    else:
+        target.unlink()
+        target.parent.rmdir()
+        target.parent.symlink_to(sentinel.parent)
+    assert run().returncode != 0
+    assert sentinel.read_text() == 'keep administrator content\n'

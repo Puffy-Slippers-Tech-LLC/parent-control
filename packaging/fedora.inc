@@ -50,6 +50,9 @@ prepare_package_notice() { :; }
         touch /home/oh-no-parent-control/.config/gnome-initial-setup-done
     '
 
+# @trust_label@
+    restorecon -R /etc/fapolicyd/trust.d
+
 # @pam_enable@
     /usr/libexec/oh-no-parent-control-fedora-pam install
 

@@ -78,6 +78,24 @@ Configuration compiles and reloads rules before the gate, including an owned
 Fedora-only early root-canary deny before the distribution's trusted-file allow.
 Ubuntu's drop-ins and readiness helper are unchanged.
 
+Both packages generate supplemental fapolicyd trust for the shipped child `.mjs`
+modules from final staged bytes (path, size and SHA256). Configuration installs
+the owned `/etc/fapolicyd/trust.d/oh-no-parent-control.trust` and refreshes a running
+daemon before readiness/broker activation; a stopped daemon consumes it at startup.
+Because the update request is asynchronous, configuration waits up to 30 seconds
+for both exact packaged path/size/hash records in the live trust database before
+activating the broker. Timeout preserves pending activation for configuration retry.
+This database check does not establish a fresh Shell import or usable child UI.
+This covers clean installs, upgrades, reconfiguration and reinstalls even when
+the distribution's package trust filter excludes `.mjs` under `/usr/share`.
+The filter, language rules and enforcement mode stay unchanged. Trust generation
+never hashes mutable installed files or trusts a whole extension directory.
+Modified/substituted owned trust files block configuration/removal, and removal
+deletes only the package's records and refreshes the surviving daemon.
+The lifecycle change activates during configuration (`none`); a Shell that already
+cached a failed import needs a new child session to retry it. Package configuration
+does not force logout.
+
 The PAM account stack exempts `systemd-user`, the kiosk account, and members
 of Ubuntu's `sudo` group from the Malcontent account check.
 For other accounts, the public AccountsService `LimitType` helper skips

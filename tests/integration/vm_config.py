@@ -194,6 +194,7 @@ def guest_command_arguments(argv):
     boundary = argv.index('--')
     parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
     parser.add_argument('--timeout', type=int, default=120)
+    parser.add_argument('--stdin', action='store_true')
     try:
         options = parser.parse_args(argv[:boundary])
     except SystemExit as error:
@@ -203,4 +204,4 @@ def guest_command_arguments(argv):
             not command[0] or command[0].startswith('-') or
             any('\0' in arg for arg in command)):
         raise ValueError('vm-probe: invalid timeout or guest command')
-    return options.timeout, command
+    return options.timeout, command, options.stdin

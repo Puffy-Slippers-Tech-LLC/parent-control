@@ -29,6 +29,14 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
         exit 1
     fi
 @readiness_preflight@
+    if [ -L /etc/fapolicyd ] || [ -L /etc/fapolicyd/trust.d ] ||
+       [ -L /etc/fapolicyd/trust.d/oh-no-parent-control.trust ] ||
+       [ -L "$state/installed-child-extension-trust" ] ||
+       { [ -e /etc/fapolicyd/trust.d/oh-no-parent-control.trust ] &&
+         [ ! -f "$state/installed-child-extension-trust" ]; }; then
+        echo 'oh-no-parent-control: child trust path already exists or was substituted; preserving it' >&2
+        exit 1
+    fi
     install -d -o root -g root -m 0700 /var/lib/oh-no-parent-control
     if [ "$1" = install ] && [ -z "${2:-}" ]; then
         touch /var/lib/oh-no-parent-control/first-install-in-progress

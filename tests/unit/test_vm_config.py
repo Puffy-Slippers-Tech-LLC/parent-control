@@ -599,7 +599,13 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(tmp
             assert command[5:] == ['system', 'e2e']
             assert ('prepare-input', 'host') in calls
             time.sleep(.02)
-            output(b'test output\n')
+            if name == 'guest-0':
+                handoff = tmp_path / 'guest-failure.json'
+                handoff.write_text(json.dumps({'categories': ['e2e'], 'failures': [
+                    dict(category='e2e', case='E2E-004/terminal', vm='')]}))
+                output(f'Failure handoff: {handoff}\n'.encode())
+            else:
+                output(b'test output\n')
             with gate:
                 active -= 1
             return 1 if name == 'guest-0' else 0
@@ -610,10 +616,13 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(tmp
     assert sorted(name for mode, name in calls if mode == '--execute') == [vm.name for vm in vms]
     assert peak == 2
     evidence, = tmp_path.glob('onpc-vm-queue-*')
-    assert json.loads((evidence / 'failure.json').read_text())['categories'] == ['system', 'e2e']
+    handoff = json.loads((evidence / 'failure.json').read_text())
+    assert handoff['categories'] == ['e2e']
+    assert handoff['failures'] == [dict(category='e2e', case='E2E-004/terminal', vm='guest-0')]
     assert set(json.loads((evidence / 'results.json').read_text())) == {vm.name for vm in vms}
     for vm in vms:
-        assert (evidence / (vm.name + '.log')).read_text() == 'test output\n'
+        text = (evidence / (vm.name + '.log')).read_text()
+        assert text.startswith('Failure handoff: ' if vm.name == 'guest-0' else 'test output\n')
 
 
 def test_cancelling_parallel_workers_waits_for_each_owned_child_cleanup(tmp_path):

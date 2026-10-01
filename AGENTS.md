@@ -49,7 +49,9 @@
 - Choose GPT-6.1 Sol Medium for settled implementation and GPT-6.1 Sol High for
   unresolved security, concurrency, ownership, difficult diagnosis or broad
   correctness review. Prefer Sol High over Astra Low; use bounded Astra High
-  advice when an applicable workflow requires it. Prefer quality, then allowance.
+  advice when an applicable workflow requires it. The
+  [launcher policies](tests/README.md#scripted-repair-loop) specialize these defaults
+  for test repair and E2E implementation. Prefer quality, then allowance.
 
 ## Tests and acceptance
 

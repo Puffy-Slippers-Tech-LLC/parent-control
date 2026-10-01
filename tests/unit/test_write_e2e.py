@@ -21,7 +21,7 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
     command = workflow.session_command(tmp_path, phase)
     config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
     assert command[command.index('--model') + 1] == 'gpt-6.1-sol'
-    assert config['model_reasoning_effort'] == 'medium'
+    assert config['model_reasoning_effort'] == 'high'
     assert config['service_tier'] == 'default'
     assert config['features']['fast_mode'] is False
     assert config['features']['multi_agent'] is True
@@ -46,14 +46,14 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
 
 
 @pytest.mark.parametrize('phase,attempts,model,effort', [
-    ('implement', 0, 'gpt-6.1-sol', 'medium'),
-    ('live', 1, 'gpt-6.1-sol', 'medium'),
+    ('implement', 0, 'gpt-6.1-sol', 'high'),
+    ('live', 1, 'gpt-6.1-sol', 'high'),
     ('live', 2, 'gpt-6.1-sol', 'high'),
-    ('recover', 0, 'gpt-6.1-sol', 'medium'),
+    ('recover', 0, 'gpt-6.1-sol', 'high'),
     ('recover', 2, 'gpt-6.1-sol', 'high'),
     ('recover', 5, 'gpt-6.1-sol', 'high'),
 ])
-def test_command_and_prompt_agree_on_stalled_task_escalation(tmp_path, monkeypatch,
+def test_command_and_prompt_keep_high_independent_of_attempt_count(tmp_path, monkeypatch,
                                                           phase, attempts, model, effort):
     monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/opt/codex')
     command = workflow.session_command(tmp_path, phase, tmp_path, live_attempts=attempts)
@@ -68,7 +68,7 @@ def test_command_and_prompt_agree_on_stalled_task_escalation(tmp_path, monkeypat
     prompt = workflow.session_prompt(state)
     label = f'GPT-6.1-Sol {effort.title()}'
     assert f'You are the {label} coordinator' in prompt
-    assert 'Consult before implementing an unresolved risky\ndesign' in prompt
+    assert 'Consult before implementing such an unresolved\nrisky design' in prompt
     assert 'e2e_adviser agent' in prompt
     assert 'Prefer GPT-6.1-Sol High over Astra Low' in prompt
     assert 'Never use Sol High' not in prompt
@@ -76,19 +76,32 @@ def test_command_and_prompt_agree_on_stalled_task_escalation(tmp_path, monkeypat
 
 
 @pytest.mark.parametrize('phase', ['live', 'recover'])
-def test_follow_up_keeps_implementation_and_acceptance_with_sol_medium(phase):
+def test_follow_up_keeps_implementation_and_acceptance_with_sol_high(phase):
     state = dict(workflow.fresh_state('001'), phase=phase,
                  handoff='Legacy recommendation: continue with Astra High.')
     prompt = workflow.session_prompt(state)
-    assert 'GPT-6.1-Sol Medium coordinator and implementer for this session' in prompt
+    assert 'GPT-6.1-Sol High coordinator and implementer for this session' in prompt
     assert 'Prefer GPT-6.1-Sol High over Astra Low' in prompt
     assert 'Ignore model recommendations in older handoffs' in prompt
-    assert 'delegate one bounded diagnosis or review to the e2e_adviser agent' in prompt
+    assert 'or review to the e2e_adviser agent using GPT-6-Astra High only when' in prompt
     assert 'No parallel agents or overlapping work' in prompt
     assert 'close it before resuming your work' in prompt
     assert 'You alone implement the settled correction, run all validation' in prompt
     assert 'advice is not acceptance evidence' in prompt
     assert 'Leave investigation and repairs of this new failure to the next session' in prompt
+
+
+def test_adviser_requires_evidence_and_retains_findings_across_handoffs():
+    prompt = workflow.session_prompt(dict(workflow.fresh_state('001'), phase='recover',
+        handoff='Prior question: ownership race. Finding: missing lease. Correction: hold the lease.'))
+    for rule in ('failed verification without improving the explanation',
+                 'conflicting evidence prevents', 'State the concrete escalation reason',
+                 'alone do not justify Astra', 'another consultation requires materially new evidence',
+                 'restart does not repeat the same consultation', 'No Extra High step is required'):
+        assert rule in prompt
+    assert 'Prior question: ownership race.' in prompt
+    role = tomllib.loads(workflow.ADVISER_CONFIG.read_text())
+    assert 'Do not repeat a prior\nconsultation without materially new evidence' in role['developer_instructions']
 
 
 def test_usage_retains_only_reported_nonnegative_counters_without_estimated_billing(tmp_path):

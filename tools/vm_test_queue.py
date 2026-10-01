@@ -134,14 +134,26 @@ def run(root, argv):
 
             results = dispatch(vms, snapshot['concurrency'], execute, control.stopped)
             categories = []
+            failures = []
             for vm in vms:
                 result = results[vm.name]
+                vm_categories = []
+                vm_failures = []
                 if isinstance(result, dict):
                     for path in result['handoffs']:
-                        categories.extend(json.loads(Path(path).read_text())['categories'])
+                        handoff = json.loads(Path(path).read_text())
+                        vm_categories.extend(handoff['categories'])
+                        vm_failures.extend(dict(item, vm=vm.name)
+                                           for item in handoff.get('failures', []))
                 if (result['status'] if isinstance(result, dict) else result) != 0:
-                    categories.extend(kind for kind, _ in selections(root, guest_args)
-                                      if kind in ('system', 'e2e'))
+                    if not vm_categories:
+                        vm_categories.extend(kind for kind, _ in selections(root, guest_args)
+                                             if kind in ('system', 'e2e'))
+                    for category in dict.fromkeys(vm_categories):
+                        if not any(item['category'] == category for item in vm_failures):
+                            vm_failures.append(dict(category=category, case='', vm=vm.name))
+                categories.extend(vm_categories)
+                failures.extend(vm_failures)
             (evidence / 'results.json').write_text(json.dumps(results, indent=2))
             failed = any((result['status'] if isinstance(result, dict) else result) != 0
                          for result in results.values())
@@ -150,7 +162,8 @@ def run(root, argv):
             if failed and not control.stopped.is_set():
                 prompt = f'Investigate the VM failures in {evidence / "results.json"} and adjacent VM logs. Preserve expected behavior and all unrelated work.'
                 handoff = evidence / 'failure.json'
-                handoff.write_text(json.dumps({'prompt': prompt, 'categories': list(dict.fromkeys(categories))}))
+                handoff.write_text(json.dumps({'prompt': prompt, 'categories': list(dict.fromkeys(categories)),
+                                              'failures': failures}))
                 print(f'Failure handoff: {handoff}', flush=True)
             print(f'VM results: {evidence / "results.json"}', flush=True)
             return 130 if control.stopped.is_set() else 1 if failed else 0

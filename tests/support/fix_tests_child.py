@@ -52,6 +52,20 @@ def main():
             return 0
         if kind == 'test':
             print('Started run-tests session: harmless', flush=True)
+        if kind == 'test' and mode == 'agent-script':
+            script = json.loads((root / 'script.json').read_text())
+            marker = root / 'script-tests'
+            index = int(marker.read_text()) if marker.exists() else 0
+            marker.write_text(str(index + 1))
+            case = script['tests'][index]
+            if case is None:
+                return 0
+            target = dict(category=category, case=case, vm='') if isinstance(case, str) else case
+            handoff = root / 'failure.json'
+            handoff.write_text(json.dumps({'prompt': 'LATEST FAILURE ONLY',
+                'categories': [category], 'failures': [target]}))
+            print(f'Failure handoff: {handoff}', flush=True)
+            return 1
         if mode in ('retention-once', 'recovery-wait'):
             if category == 'unit' and not (root / 'recovered').exists():
                 print('retention: previous owner did not finish; preserve evidence for recovery',
@@ -111,10 +125,13 @@ def main():
               'uncertain' if mode == 'agent-uncertain' and count == 0 else
               'fixed' if (app_mode or mode == 'agent-repeat') and count >= 1 else
               'test_fixed')
+    if mode == 'agent-script':
+        status = json.loads((root / 'script.json').read_text())['agents'][count]
+        blocked = status == 'blocked'
     reply = Path(args[args.index('--output-last-message') + 1])
     reply.write_text(json.dumps([] if mode == 'agent-invalid' else
                                {'status': status,
-                                'summary': 'fixture result',
+                                'summary': f'fixture result {count + 1}' if mode == 'agent-script' else 'fixture result',
                                 'blocker': {
                                     'explanation': 'Expected the specified behavior; observed a mismatch.',
                                     'question': 'Which behavior should the repair preserve?',

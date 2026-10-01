@@ -54,6 +54,7 @@ class Category:
     done: int = 0
     state: str = 'Pending'
     failures: int = 0
+    failed_nodeids: tuple[str, ...] = ()
     elapsed: float = 0.0
     started: float | None = None
     waiting: float = 0.0
@@ -504,6 +505,7 @@ class Execution:
             elif event['kind'] == 'failure':
                 self.failed.add(event['nodeid'])
                 item.failures = len(self.failed)
+                item.failed_nodeids = tuple(sorted(self.failed))
                 if event.get('when') in ('setup', 'teardown'):
                     self.fixture_failed = True
                     from test_retention import preserve_for_recovery
@@ -1126,6 +1128,23 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                                      if (item.failures or item.state == 'Failed')
                                      and item.retry_category)) if run is not None else []
         handoff = report.directory / 'failure.json'
-        handoff.write_text(json.dumps({'prompt': prompt, 'categories': retries}, indent=2))
+        from vm_selection import VARIABLE
+        failures = failure_targets(run.categories, vm=os.environ.get(VARIABLE, '')) if run else []
+        handoff.write_text(json.dumps({'prompt': prompt, 'categories': retries,
+                                      'failures': failures}, indent=2))
         print(f'Failure handoff: {handoff.resolve()}', flush=True)
     return status
+
+
+def failure_targets(categories, *, vm=''):
+    """Keep case identities separate from changing report paths and worker buckets."""
+    targets = []
+    for item in categories:
+        if not item.retry_category or not (item.failures or item.state == 'Failed'):
+            continue
+        scope = vm if item.retry_category in ('system', 'e2e', 'integration') else ''
+        for case in item.failed_nodeids or ('',):
+            target = dict(category=item.retry_category, case=case, vm=scope)
+            if target not in targets:
+                targets.append(target)
+    return targets

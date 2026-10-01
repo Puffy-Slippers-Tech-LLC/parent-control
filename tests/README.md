@@ -260,14 +260,34 @@ at the judgment boundary without paying for an additional adviser and a second
 implementation context. Delegation stays disabled; classification is not an
 extra read-only agent before every mechanical repair.
 
-If verification after a claimed repair still fails, the next repair goes
-directly to GPT-6.1 Sol High with the latest failure evidence and previous repair
-summary. It stays there until that category passes, even if the next failure
-is different. This conservative rule avoids another Medium classification pass;
-it does not wait for E2E's two-live-attempt threshold. A passing category clears
-that handoff. A new failure chain starts with classification. Detaching preserves
-the live loop; after a stopped/dead owner, a new run starts fresh, as before,
-without loading old repair conversations or assuming old verification applies.
+If verification still reports the same case, its next repair goes directly to
+GPT-6.1 Sol High with the latest evidence and that case's previous repair summary.
+A newly exposed case starts with Medium classification, even in the same category.
+The runner's `failure.json` includes `failures` entries with category, case ID
+and VM name; host cases have an empty VM name. Worker bucket names, report paths
+and model-generated labels never define a case. Multi-VM handoffs retain each
+guest's identity. The repair targets one reported case at a time and reruns the
+original category selectors. A passing category clears its repair handoffs.
+
+Each case has at most **five agent sessions per launcher run**, including
+classification, High repair and answered-blocker continuations. Counts survive
+switching cases and later verification rounds; another case or VM has its own
+budget. Non-case failures and legacy handoffs without case IDs share a category
+infrastructure budget (VM-scoped when supplied). Verification and owned cleanup
+after the fifth session still finish, and a pass is accepted. If further repair
+is needed, the run fails before a sixth session or another blocker question.
+`repair-stop.json` retains that case's identity, count, latest failure prompt and
+last agent result, even if another case was repaired in between. An entire category
+has no five-session cap. High may also return
+`stalled` before editing when it has no evidence-backed next correction; this
+ends the run with its unresolved question and evidence. An initial `stalled`
+classification transfers to High within the same budget. Missing prerequisites
+and permissions use their maintained repair/blocker routes, not model escalation
+by themselves. These are session limits, not token budgets.
+
+Detaching preserves the live loop; after a stopped/dead owner, a new run starts fresh,
+with fresh case budgets, without loading old repair conversations or assuming
+old verification applies.
 An answered blocker keeps its current model/phase and is not a failed repair.
 Ownership recovery remains the existing scripted `cleanup-e2e` operation; a
 normal cleanup failure handoff enters the same repair policy, while refusal
@@ -335,9 +355,10 @@ and supplies stable retry category IDs. A missing or malformed handoff, agent
 crash or unmapped infrastructure failure stops with evidence.
 
 `agent-usage.jsonl` records CLI turn counters with session/repair IDs, attempt,
-round, phase, selected model/effort and Standard speed. Session exit, structured
-result and category verification events link classification, blockers and retries
-to the repair chain. Missing counters are unknown, including a session with no
+case identity, per-case session number, round, phase, selected model/effort and
+Standard speed. Session exit, structured result, session-limit and category
+verification events link classification, blockers and retries to the repair chain.
+Missing counters are unknown, including a session with no
 reported usage; they are never zero-filled. An interrupted verification has no
 success event. A category pass is local verification, not proof that later
 aggregate verification will pass. Records are observational, never resume state;
@@ -420,26 +441,30 @@ commands and their results remain visually separate, including without color.
 task close-out, then starts no further session. Ctrl+C cancels immediately and
 waits for owned cleanup.
 
-Initial implementation and follow-up sessions use GPT-6.1-Sol Medium as
-coordinator and implementer. After two recorded live attempts on an unfinished
-task, subsequent sessions use GPT-6.1-Sol High, including after a launcher restart.
-A new task starts with 6.1 Sol Medium again; a suspended consumer retains its
-own attempt count. Preparation failures and session count alone do not trigger
-escalation. Settled implementation, mechanical
-repairs, test execution and close-out stay with that coordinator. Unresolved
-root causes, security, concurrency, ownership and risky
-correctness questions require one bounded GPT-6-Astra High consultation through
-the [read-only adviser](../tools/write_e2e_adviser.toml). Prefer GPT-6.1 Sol High
-over Astra Low for implementation and recovery.
+Initial implementation, follow-up, recovery and new tasks use **GPT-6.1-Sol High**
+as coordinator and implementer. Attempt counts remain acceptance history;
+implementation, mechanical repairs, validation and close-out stay with Sol High.
+The existing five-session task cap is unchanged.
+Use one bounded **GPT-6-Astra High** consultation through the
+[read-only adviser](../tools/write_e2e_adviser.toml) when a High repair failed
+verification without improving the explanation, conflicting evidence prevents
+a defensible correction, or a consequential security, concurrency or ownership
+design question remains unresolved. State the concrete escalation reason and
+what High already established. Ordinary diagnosis, missing prerequisites,
+permissions and preparation failures use their maintained repair/blocker routes;
+session or live-attempt counts alone do not justify Astra. No Extra High step is
+required. Prefer Sol High over Astra Low for implementation and recovery.
 This policy overrides model recommendations in older saved handoffs.
-Consult before implementing an unresolved risky design, including in the initial
-session. All coordinators and advisers pin Standard speed, so personal Fast
-settings cannot silently increase subscription usage. Keep source reads and
+Consult before implementing such an unresolved risky design, including in the
+initial session without first spending a failed attempt. All coordinators and
+advisers pin Standard speed, so personal Fast settings cannot silently increase
+subscription usage. Keep source reads and
 diagnostic output scoped, reuse unchanged context and carry concise handoffs;
 never reduce required understanding, assertions, acceptance or cleanup.
 
 Consultations are sequential: the coordinator gives one exact question, relevant
-source/evidence paths, applicable contracts and user decisions in a fresh context,
+source/evidence paths, attempted corrections, applicable contracts and user
+decisions in a fresh context,
 waits for the answer, then closes the adviser before resuming work or consulting
 again. Codex V1 is configured with one concurrent child slot and one level of
 delegation. The adviser cannot delegate further and is configured read-only; its
@@ -447,6 +472,12 @@ instructions prohibit edits, tests/builds, VM control and task completion. It
 returns concise findings, evidence, a proposed correction, uncertainty and required
 regressions. The coordinator checks the advice and owns all implementation,
 validation, cleanup and queue updates. Advice provides no acceptance credit.
+Consult once per unresolved question; repetition requires materially new evidence
+or a distinct question. Carry the question, findings, attempted correction and
+remaining uncertainty in the handoff across sessions and restarts. Cosmetic
+rewording or another failed run is not new evidence. These consultation rules
+are agent instructions; the launcher enforces the coordinator session cap and
+concurrency/depth bounds, not semantic novelty or an adviser token ceiling.
 Consultations are part of the coordinator session, not extra `--sessions` units;
 they still consume model usage. Do not introduce parallel agents or overlapping
 coordinator work. `fix-tests` keeps delegation disabled.
@@ -548,7 +579,7 @@ Closing the terminal leaves it paused; rerun
 `tools/write-e2e` in an interactive terminal to answer. Piped output remains an
 observer and never invents an answer. With multiple attached terminals, the first
 submitted answer wins. Your answer continues the same task through a fresh Sol
-Medium recovery session with the saved handoff and your instructions. It does not
+High recovery session with the saved handoff and your instructions. It does not
 count as passing the blocked prerequisite. If a session limit was exhausted at
 the blocker, answering grants one recovery session beyond that limit; automatic
 work remains subject to the limits afterward. `--stop` saves the pending question

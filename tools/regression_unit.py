@@ -142,6 +142,11 @@ from pathlib import PurePosixPath
 # They remain compatible with other unit modules; no live VM/display/bus is used.
 
 from regression_cleanup import ESTIMATES as CLEANUP_ESTIMATES, work_units
+
+# Repair-budget/routing probes use finite synthetic agents, private tmp_path
+# handoffs and recorded owners. Case-ID/VM-queue metadata probes use only private
+# files and mocked controllers. Existing compatible classifications remain valid;
+# no live model, VM, display, shared cache or new cleanup authority is used.
 from regression_resources import HOST_WORKERS
 from regression_ui import Bucket
 

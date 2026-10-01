@@ -97,7 +97,11 @@ prepare_package_notice() {
     '
 
 # @trust_label@
-# No SELinux integration on Ubuntu.
+    child_trust_backend=$(/usr/libexec/oh-no-parent-control-package-activation prepare-child-trust-backend)
+    case "$child_trust_backend" in
+        none|changed) ;;
+        *) echo 'oh-no-parent-control: invalid child trust backend result' >&2; exit 1 ;;
+    esac
 
 # @pam_enable@
     # Query debconf through its supported protocol before changing the one

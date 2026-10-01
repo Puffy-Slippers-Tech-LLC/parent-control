@@ -62,6 +62,9 @@ def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_
     # has separate helper tests, and lifecycle tests cover its failure status.
     source = source.replace('    args = parser.parse_args()',
         '    args = parser.parse_args()\n'
+        '    if args.command == "prepare-child-trust-backend":\n'
+        '        print("none")\n'
+        '        raise SystemExit(0)\n'
         '    if args.command == "wait-child-trust":\n'
         '        import os\n'
         '        raise SystemExit(int(os.environ.get("TRUST_READY_STATUS", "0")))')
@@ -251,7 +254,8 @@ def test_migration_failure_prevents_broker_activation(package_machine):
     assert result.returncode != 0
     assert (state / "migration-in-progress").exists()
     assert (state / "package-activation-pending").exists()
-    assert "systemctl" not in (root / "commands").read_text()
+    assert f"systemctl --system start {BROKER}" not in (root / "commands").read_text()
+    assert f"systemctl --system restart {BROKER}" not in (root / "commands").read_text()
 
 
 def test_configure_without_pending_comparison_starts_broker(package_machine):
@@ -353,9 +357,76 @@ def test_child_trust_refresh_failure_blocks_activation_and_is_retryable(package_
     result = run(**{failure: '7'})
     assert result.returncode == 7
     assert (state / 'package-activation-pending').exists()
+    assert (state / 'migration-in-progress').exists()
     assert f'systemctl --system restart {BROKER}' not in (root / 'commands').read_text()
     assert run().returncode == 0
     assert not (state / 'package-activation-pending').exists()
+    assert not (state / 'migration-in-progress').exists()
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('stop_refused', [False, True])
+def test_reconfigure_guards_and_stops_an_existing_broker(package_machine, stop_refused):
+    root, state, run = package_machine
+    (state / 'migration-in-progress').unlink()
+    (root / 'broker-active').touch()
+    result = run(BROKER_STOP_REFUSED=str(int(stop_refused)))
+    commands = (root / 'commands').read_text()
+    if stop_refused:
+        assert result.returncode != 0
+        assert (state / 'migration-in-progress').exists()
+        assert 'oh-no-parent-control-migrate-state ' not in commands
+        assert 'wait-child-trust' not in commands
+    else:
+        assert result.returncode == 0, result.stderr
+        assert not (state / 'migration-in-progress').exists()
+        assert commands.index(f'stop {BROKER}') < commands.index('oh-no-parent-control-migrate-state ')
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+def test_dbus_startup_exclusion_survives_until_trust_is_ready(package_machine):
+    root, state, run = package_machine
+    # Model a concurrent activation at the actual readiness boundary using the
+    # two shipped startup checks, without a host bus or installed service.
+    launcher = root / 'broker-launcher'
+    source = (ROOT / 'broker/oh-no-parent-control-broker').read_text()
+    source = source.replace('/var/lib/oh-no-parent-control', str(state))
+    launcher.write_text(source.split('sys.path.insert', 1)[0] + 'raise SystemExit(0)\n')
+    unit = (ROOT / 'data/systemd/oh-no-parent-control-broker.service').read_text()
+    assert 'ConditionPathExists=!/var/lib/oh-no-parent-control/migration-in-progress' in unit
+    helper = root / 'usr/libexec/oh-no-parent-control-package-activation'
+    helper.unlink()
+    helper.write_text(f'''#!{sys.executable}
+import pathlib, subprocess, sys
+if sys.argv[1] == 'wait-child-trust':
+    assert pathlib.Path({str(state / 'migration-in-progress')!r}).is_file()
+    result = subprocess.run([{sys.executable!r}, {str(launcher)!r}], capture_output=True)
+    assert result.returncode != 0
+    assert b'saved-data migration is incomplete' in result.stderr
+elif sys.argv[1] == 'prepare-child-trust-backend':
+    print('none')
+else:
+    print('process-restart')
+''')
+    helper.chmod(0o755)
+    result = run()
+    assert result.returncode == 0, result.stderr
+    assert subprocess.run([sys.executable, str(launcher)], capture_output=True).returncode == 0
+
+
+@pytest.mark.parametrize('active', [False, True])
+def test_backend_change_preserves_active_desktops_and_configuration_guard(package_machine, active):
+    root, state, run = package_machine
+    result = run(TRUST_BACKEND_ACTION='changed', FAPOLICYD_ACTIVE_STATUS='0' if active else '3')
+    commands = (root / 'commands').read_text()
+    assert 'restart fapolicyd.service' not in commands
+    if active:
+        assert result.returncode != 0
+        assert 'reboot and retry configuration' in result.stderr
+        assert (state / 'migration-in-progress').exists()
+        assert 'wait-child-trust' not in commands
+    else:
+        assert result.returncode == 0, result.stderr
 
 
 def test_deferred_daemon_start_does_not_request_trust_refresh(package_machine):

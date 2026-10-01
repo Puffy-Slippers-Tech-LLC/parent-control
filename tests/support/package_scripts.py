@@ -208,8 +208,13 @@ case "$name" in
         ;;
     id) printf '1006\n' ;;
     policy-rc.d) exit "${POLICY_STATUS:-0}" ;;
-    oh-no-parent-control-migrate-state) exit "${MIGRATION_STATUS:-0}" ;;
+    oh-no-parent-control-migrate-state)
+        test -f "$AUDIT_ROOT/var/lib/oh-no-parent-control/migration-in-progress" || exit 94
+        test ! -f "$AUDIT_ROOT/broker-active" || exit 95
+        exit "${MIGRATION_STATUS:-0}"
+        ;;
     oh-no-parent-control-package-activation)
+        if [ "$*" = prepare-child-trust-backend ]; then printf '%s\n' "${TRUST_BACKEND_ACTION:-none}"; exit 0; fi
         if [ "$*" = wait-child-trust ]; then exit "${TRUST_READY_STATUS:-0}"; fi
         printf '%s\n' "$IMPACTS" ;;
     fagenrules) exit "${RULE_COMPILE_STATUS:-0}" ;;
@@ -230,6 +235,11 @@ case "$name" in
         ;;
     systemctl)
         case "$*" in
+            'is-active --quiet oh-no-parent-control-broker.service')
+                test -f "$AUDIT_ROOT/broker-active"; exit $? ;;
+            'stop oh-no-parent-control-broker.service')
+                if [ "${BROKER_STOP_REFUSED:-0}" != 1 ]; then rm -f "$AUDIT_ROOT/broker-active"; fi
+                ;;
             'is-active --quiet fapolicyd.service') exit "${FAPOLICYD_ACTIVE_STATUS:-0}" ;;
             'start oh-no-parent-control-execution-policy-ready.service')
                 test -f "$AUDIT_ROOT/canary-loaded" || exit 92
@@ -245,6 +255,9 @@ case "$name" in
     deb-systemd-invoke)
         # Reproduce the installed helper's behavior for an inactive static unit.
         case "$*" in
+            'stop oh-no-parent-control-broker.service')
+                if [ "${BROKER_STOP_REFUSED:-0}" != 1 ]; then rm -f "$AUDIT_ROOT/broker-active"; fi
+                ;;
             *oh-no-parent-control-broker.service*)
                 printf 'inactive static unit skipped\n' >&2
                 ;;

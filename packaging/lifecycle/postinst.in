@@ -57,8 +57,23 @@ if [ "$1" = configure ]; then
     if [ -f /var/lib/oh-no-parent-control/uninstall-enforcement.json ]; then
         /usr/libexec/oh-no-parent-control-uninstall --restore
     fi
+    # Reconfiguration can enter without preinst. Exclude D-Bus activation as
+    # well as explicit starts until migration and execution trust are ready.
+    if [ -L /var/lib/oh-no-parent-control ] ||
+       [ -L /var/lib/oh-no-parent-control/migration-in-progress ]; then
+        echo 'oh-no-parent-control: refusing substituted configuration guard' >&2
+        exit 1
+    fi
+    touch /var/lib/oh-no-parent-control/migration-in-progress
+    if [ -d /run/systemd/system ] &&
+       systemctl is-active --quiet oh-no-parent-control-broker.service; then
+        @service_command@ stop oh-no-parent-control-broker.service >/dev/null
+        if systemctl is-active --quiet oh-no-parent-control-broker.service; then
+            echo 'oh-no-parent-control: broker remained active; configuration must be retried' >&2
+            exit 1
+        fi
+    fi
     /usr/libexec/oh-no-parent-control-migrate-state
-    rm -f /var/lib/oh-no-parent-control/migration-in-progress
     release_removal_guard
 
     kiosk_user=oh-no-parent-control
@@ -170,6 +185,11 @@ if [ "$1" = configure ]; then
         fapolicyd.service \
         malcontent-timerd.service \
         malcontent-timer-extension-agent.service >/dev/null
+    if [ "${child_trust_backend:-none}" = changed ] &&
+       [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
+        echo 'oh-no-parent-control: reboot and retry configuration to load the new child trust backend; preserving active desktops' >&2
+        exit 1
+    fi
     @service_command@ start \
         fapolicyd.service \
         malcontent-timerd.service \
@@ -206,6 +226,9 @@ if [ "$1" = configure ]; then
                 ;;
         esac
     fi
+    # Keep the startup exclusion on every earlier failure, including a queued
+    # trust update that never committed. The broker may now safely auto-start.
+    rm -f /var/lib/oh-no-parent-control/migration-in-progress
     activate_broker "$broker_action"
     # Preserve the comparison on failure so a configure retry repeats the
     # required activation and cannot lose a pending reboot requirement.

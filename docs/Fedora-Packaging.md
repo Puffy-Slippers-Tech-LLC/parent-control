@@ -179,13 +179,15 @@ is removed before rebuilding the remaining policy or restoring the baseline.
 
 ## Local VM qualification
 
-Open enforcement blocker: Fedora's
+Fedora's
 [default known-libs policy](https://src.fedoraproject.org/rpms/fapolicyd/raw/f44/f/fapolicyd.spec)
 loads a [trusted-file execute allow](https://github.com/linux-application-whitelisting/fapolicyd/blob/v2.0.1/rules.d/42-trusted-elf.rules)
-before the broker's current `89-oh-no-parent-control.rules`. Trusted child
-executables can therefore bypass those later native denies. The early root-canary
-rule fixes boot readiness only; Fedora application-policy ordering still needs
-repair and installed enforcement qualification before Fedora acceptance.
+before `89-oh-no-parent-control.rules`. The broker now also writes concrete
+UID-scoped path/hash denials to `01-oh-no-parent-control-deny.rules`, ahead of
+those distribution allows. Wildcard allowances remain late to preserve
+distribution language/library restrictions. This ordering is shared with Ubuntu;
+it changes neither distribution rule files nor trust filters. Installed
+enforcement qualification remains required before Fedora acceptance.
 
 Use `tools/prepare-appsnapshot --vm NAME --y` for a configured, pinned Fedora
 Workstation 44 VM with a finalized baseline. The shared preparation path builds

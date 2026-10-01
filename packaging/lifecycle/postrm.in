@@ -172,10 +172,40 @@ restore_execution_policy() {
     echo 'oh-no-parent-control: execution-policy cleanup outcome=accepted' >&2
 }
 
+restore_child_trust_backend() {
+    trust_backend=/var/lib/oh-no-parent-control/child-trust-backend
+    trust_config=/etc/fapolicyd/fapolicyd.conf
+    if [ -L "$trust_backend" ]; then
+        echo 'oh-no-parent-control: unsafe child trust backend record' >&2
+        exit 1
+    fi
+    if [ ! -e "$trust_backend" ]; then return; fi
+    for trust_path in "$trust_backend/before" "$trust_backend/after" "$trust_config"; do
+        if [ -L "$trust_path" ] || [ ! -f "$trust_path" ]; then
+            echo 'oh-no-parent-control: unsafe child trust backend path' >&2
+            exit 1
+        fi
+    done
+    if ! cmp -s "$trust_config" "$trust_backend/before" &&
+       ! cmp -s "$trust_config" "$trust_backend/after"; then
+        echo 'oh-no-parent-control: preserving modified child trust backend configuration' >&2
+        exit 1
+    fi
+    trust_temporary=$(mktemp /etc/fapolicyd/.onpc-trust-XXXXXX)
+    cp -p "$trust_backend/before" "$trust_temporary"
+    mv -f "$trust_temporary" "$trust_config"
+    trust_backend_restored=1
+}
+
 if [ "$1" = remove ] || [ "$1" = purge ]; then
     # Check every recursively removed root before any irreversible cleanup.
     check_tree /var/lib/oh-no-parent-control
     if [ "$1" = purge ]; then check_tree /var/log/oh-no-parent-control; fi
+    if [ -L /etc/fapolicyd ]; then
+        echo 'oh-no-parent-control: refusing substituted child trust directory' >&2
+        exit 1
+    fi
+    restore_child_trust_backend
     remove_integration @gdm_presession_dir@/Default \
         /var/lib/oh-no-parent-control/installed-gdm-presession
     remove_integration /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
@@ -191,6 +221,7 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
         /usr/sbin/fapolicyd-cli --update
     fi
     rm -f \
+        /etc/fapolicyd/rules.d/01-oh-no-parent-control-deny.rules \
         /etc/fapolicyd/rules.d/89-oh-no-parent-control.rules \
         /etc/oh-no-parent-control/config.json \
         /usr/share/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf
@@ -201,6 +232,12 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
 @readiness_remove@
     fi
     restore_execution_policy
+    if [ "${trust_backend_restored:-0}" -eq 1 ]; then
+        if [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
+            @service_command@ restart fapolicyd.service >/dev/null
+        fi
+        remove_tree /var/lib/oh-no-parent-control/child-trust-backend
+    fi
     @bus_reload@ >/dev/null || true
     remove_package_created_kiosk
     if [ -f /var/lib/oh-no-parent-control/uninstall-broker-mask ]; then

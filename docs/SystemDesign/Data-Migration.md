@@ -15,7 +15,7 @@ The current framework migrates the per-child records in `/var/lib/oh-no-parent-c
 
 `debian/preinst` creates `/var/lib/oh-no-parent-control/migration-in-progress` before a new payload is unpacked. Both the broker launcher and its systemd unit refuse to start while that marker exists. `preinst` explicitly stops a running broker before package files or saved records can change.
 
-After unpacking, `debian/postinst` runs the newly installed `/usr/libexec/oh-no-parent-control-migrate-state`. It removes the marker only after all migrations and current-schema validation succeed, then continues with provisioning and package-update activation.
+After unpacking, `debian/postinst` runs the newly installed `/usr/libexec/oh-no-parent-control-migrate-state`. It retains the marker through provisioning, trust-database readiness and activation preparation, releasing it immediately before broker activation. Configuration also establishes the marker and stops/verifies an existing broker when entered without `preinst`, so reconfiguration has the same exclusion. Failures before activation retain the marker and prevent D-Bus clients from starting the broker early.
 
 The maintainer script deliberately fails if migration fails. The marker then keeps the broker unavailable and APT leaves the package unconfigured. Fixing the underlying record or migration and running `dpkg --configure -a` retries the operation. A successfully migrated record is skipped on retry, so an interruption between records is safe.
 

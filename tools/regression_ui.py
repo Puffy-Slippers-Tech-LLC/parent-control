@@ -8,6 +8,10 @@ New modules remain included, but run exclusively until their isolation is review
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
+# Policy legend reads reuse preview_smoke's owned compositor/application and
+# private event files, with the shared AT-SPI adapter. No new shared display,
+# process, cache or service; the existing UI bucket classification applies.
+
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e
 # checks; aggregate arguments make the same boundary explicit in its inventory.

@@ -657,7 +657,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
          challenges=False, product_free_entry=False, package_authority=False,
          package_install=False, customer_reboot=False, app_row_observations=False, native_fixtures=False,
-         catalogue_search=False, catalogue_filters=False,
+         catalogue_search=False, catalogue_filters=False, policy_legend=False,
          feedback_read=False, text_qualification=False, allowance_presets=False, allowance=False,
          time_explanation=False, set_allowance=False, app_restart=False,
          allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False,
@@ -679,12 +679,15 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:catalogue-search-prerequisites')
     require(type(catalogue_filters) is bool and (not catalogue_filters or
             (native_fixtures and not catalogue_search)), 'smoke:catalogue-filter-prerequisites')
+    require(type(policy_legend) is bool and (not policy_legend or
+            (native_fixtures and not catalogue_search and not catalogue_filters)),
+            'smoke:policy-legend-prerequisites')
     require(type(native_fixtures) is bool and (not native_fixtures or (
         app_row_observations and assets is not None and provision_credentials
         and fresh_desktop is None and approval_flow is None
         and not any(value for name, value in locals().items()
                     if name not in ('assets', 'provision_credentials', 'app_row_observations',
-                                    'native_fixtures', 'catalogue_search', 'catalogue_filters') and isinstance(value, bool)))),
+                                    'native_fixtures', 'catalogue_search', 'catalogue_filters', 'policy_legend') and isinstance(value, bool)))),
         'smoke:native-fixtures-prerequisites')
     require(type(public_connectivity_controls) is bool and (not public_connectivity_controls or (
         assets is not None and provision_credentials and parent_toggle
@@ -1287,6 +1290,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-catalogue-search-qualification'
         if catalogue_filters:
             result['scope'] = 'installed-catalogue-filter-qualification'
+        if policy_legend:
+            result['scope'] = 'installed-policy-legend-qualification'
         if feedback_read:
             result['scope'] = 'installed-feedback-read-qualification'
         if file_chooser:
@@ -1565,6 +1570,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if catalogue_filters:
                     from parent_setup_qualification import CatalogueQualification
                     qualification_class = CatalogueQualification
+                if policy_legend:
+                    from parent_setup_qualification import PolicyLegendQualification
+                    qualification_class = PolicyLegendQualification
                 if feedback_read:
                     from parent_setup_qualification import FeedbackReadQualification
                     qualification_class = FeedbackReadQualification

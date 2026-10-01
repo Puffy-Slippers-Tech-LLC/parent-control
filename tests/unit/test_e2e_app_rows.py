@@ -509,3 +509,334 @@ def test_catalogue_results_use_complete_controller_schema(operation):
               'apps': {'rows': rows}}
     observer, *_ = collection_transport((json.dumps(result) + '\n').encode(), False)
     assert observer.observe(operation) == result
+
+
+def legend_ui(*, expanded=False):
+    labels = [Node(value, role='label', states=('visible',)) for value in (
+        'App Access (What happens)', 'Match Rule (How apps are matched)',
+        'Always Allowed', 'App can always be used',
+        'Soft Blocked', 'App is blocked and can be granted one-time extension per child request if time limit is enabled',
+        'Hard Blocked', 'App is completely blocked and can only be allowed by admins',
+        'Pattern Match', 'Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)',
+        'Precise execution path', 'Matches exact app path\n(e.g., /usr/bin/firefox)')]
+    content = Node(identity='parent-legend-content', children=labels, states=('visible',))
+    toggle = Node(identity='parent-legend-toggle',
+                  states=('visible', 'sensitive', *(('pressed',) if expanded else ())))
+    page = Node(identity='parent-app-limits-page', children=[
+        Node(identity='parent-app-search'), toggle, content])
+    picker = Node(identity='parent-child-selector', children=[
+        Node('Jordan (Child)', role='label', identity='parent-child-selected-1002')])
+    root = Node(identity='parent-window', states=('active', 'visible', 'showing'),
+                children=[picker, page])
+    ui = ui_for(root)
+    def expand(_):
+        toggle.states.add('pressed')
+        return True
+    toggle.action.do_action.side_effect = expand
+    return ui, root, page, toggle, content
+
+
+def test_legend_expands_once_and_independent_open_read_never_replays_input():
+    ui, root, page, toggle, content = legend_ui()
+    result = ui.expand_policy_legend(accessible_ui.EXISTING_CHILD)
+    assert result['activated'] is True
+    assert len(result['rules']) == 5 and len(result['headings']) == 2
+    assert ui.read_policy_legend(accessible_ui.EXISTING_CHILD) == {
+        key: value for key, value in result.items() if key != 'activated'}
+    assert ui.expand_policy_legend(accessible_ui.EXISTING_CHILD)['activated'] is False
+    toggle.action.do_action.assert_called_once_with(0)
+    toggle.component.scroll_to.assert_not_called()
+    toggle.component.grab_focus.assert_not_called()
+    # An independent invocation starts with the legend already open.
+    independent, _, _, button, _ = legend_ui(expanded=True)
+    assert independent.read_policy_legend(accessible_ui.EXISTING_CHILD)['rules'] == result['rules']
+    button.action.do_action.assert_not_called()
+
+
+def test_legend_delayed_reveal_retries_only_observation(monkeypatch):
+    ui, _, _, toggle, _ = legend_ui()
+    read = ui.read_policy_legend
+    calls = []
+    def delayed(child):
+        calls.append(child)
+        if len(calls) == 1:
+            raise accessible_ui.UiError('ui:legend-explanations')
+        return read(child)
+    ui.read_policy_legend = delayed
+    ui.timeout = 1
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _: None)
+    assert ui.expand_policy_legend(accessible_ui.EXISTING_CHILD)['activated'] is True
+    assert calls == [accessible_ui.EXISTING_CHILD] * 2
+    toggle.action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['child', 'page', 'owner', 'missing-toggle',
+    'missing-content', 'duplicate-toggle', 'duplicate-content', 'misplaced',
+    'hidden', 'disabled', 'stale', 'incomplete', 'uncertain', 'inactive'])
+def test_legend_guard_refuses_before_input(fault):
+    ui, root, page, toggle, content = legend_ui(expanded=fault == 'missing-content')
+    child = accessible_ui.EXISTING_CHILD
+    if fault == 'child':
+        child = accessible_ui.CHILD
+    elif fault == 'page':
+        page.states.clear()
+    elif fault == 'owner':
+        ui.api.get_desktop(0).identity = 'unrelated.application'
+    elif fault.startswith('missing-'):
+        page.children.remove(toggle if fault.endswith('toggle') else content)
+    elif fault.startswith('duplicate-'):
+        root.children.append(Node(identity='parent-legend-' + fault.split('-')[1]))
+    elif fault == 'misplaced':
+        page.children.remove(toggle)
+        root.children.append(toggle)
+        toggle.parent = root
+    elif fault == 'hidden':
+        toggle.states.discard('visible')
+    elif fault == 'disabled':
+        toggle.states.discard('sensitive')
+    elif fault == 'stale':
+        toggle.states.add('defunct')
+    elif fault == 'incomplete':
+        content.get_child_count = Mock(side_effect=LookupError('incomplete'))
+    elif fault == 'uncertain':
+        ui.input_uncertain = True
+    elif fault == 'inactive':
+        root.states.discard('active')
+    with pytest.raises((accessible_ui.UiError, LookupError)):
+        ui.expand_policy_legend(child)
+    toggle.action.do_action.assert_not_called()
+
+
+def test_legend_collapsed_gtk_subtree_can_be_omitted_until_expansion():
+    ui, _, page, toggle, content = legend_ui()
+    page.children.remove(content)
+    def reveal(_):
+        toggle.states.add('pressed')
+        page.children.append(content)
+        return True
+    toggle.action.do_action.side_effect = reveal
+    assert ui.expand_policy_legend(accessible_ui.EXISTING_CHILD)['activated'] is True
+    toggle.action.do_action.assert_called_once()
+
+
+def test_legend_pressed_before_content_retries_fresh_snapshots_without_input(monkeypatch):
+    ui, _, page, toggle, content = legend_ui()
+    page.children.remove(content)
+    snapshots = []
+    read = ui.read_snapshot
+    def observed(*args, **kwargs):
+        result = read(*args, **kwargs)
+        snapshots.append((ui.has_state(toggle, ui.api.StateType.PRESSED),
+                          content in result[0]))
+        return result
+    ui.read_snapshot = observed
+    ui.timeout = 1
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _: page.children.append(content))
+    assert ui.expand_policy_legend(accessible_ui.EXISTING_CHILD)['activated'] is True
+    assert snapshots == [(False, False), (True, False), (True, True)]
+    toggle.action.do_action.assert_called_once_with(0)
+
+
+def test_legend_persistent_missing_content_times_out_without_replay(monkeypatch):
+    ui, _, page, toggle, content = legend_ui()
+    page.children.remove(content)
+    clock = [0]
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda seconds: clock.__setitem__(0, clock[0] + seconds))
+    ui.timeout = .3
+    with pytest.raises(accessible_ui.UiError, match='ui:timeout:legend-expanded'):
+        ui.expand_policy_legend(accessible_ui.EXISTING_CHILD)
+    toggle.action.do_action.assert_called_once()
+    with pytest.raises(accessible_ui.UiError, match='ui:legend-content-missing'):
+        ui.read_policy_legend(accessible_ui.EXISTING_CHILD)
+    with pytest.raises(accessible_ui.UiError, match='ui:legend-content-missing'):
+        ui.expand_policy_legend(accessible_ui.EXISTING_CHILD)
+    toggle.action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['misplaced', 'duplicate', 'owner', 'page', 'child'])
+def test_legend_post_input_identity_faults_refuse_immediately(monkeypatch, fault):
+    ui, root, page, toggle, content = legend_ui()
+    def change(_):
+        toggle.states.add('pressed')
+        if fault == 'misplaced':
+            page.children.remove(content)
+            root.children.append(content)
+            content.parent = root
+        elif fault == 'duplicate':
+            root.children.append(Node(identity='parent-legend-content'))
+        elif fault == 'owner':
+            ui.api.get_desktop(0).identity = 'unrelated.application'
+        elif fault == 'page':
+            page.states.clear()
+        else:
+            root.children[0].children[0].identity = 'parent-child-selected-1001'
+        return True
+    toggle.action.do_action.side_effect = change
+    sleep = Mock()
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    with pytest.raises(accessible_ui.UiError):
+        ui.expand_policy_legend(accessible_ui.EXISTING_CHILD)
+    sleep.assert_not_called()
+    toggle.action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['closed', 'missing', 'truncated', 'duplicate',
+                                  'hidden', 'stale', 'bound'])
+def test_legend_read_requires_every_full_explanation(fault):
+    ui, root, page, toggle, content = legend_ui(expanded=True)
+    if fault == 'closed':
+        toggle.states.discard('pressed')
+    elif fault == 'missing':
+        content.children.pop()
+    elif fault == 'truncated':
+        content.children[-1].name = 'Matches exact app path'
+    elif fault == 'duplicate':
+        content.children.append(Node(content.children[-1].name, role='label'))
+    elif fault == 'hidden':
+        content.children[-1].states.discard('visible')
+    elif fault == 'stale':
+        content.children[-1].states.add('defunct')
+    elif fault == 'bound':
+        content.children.append(Node('x' * 4097, role='label'))
+    with pytest.raises(accessible_ui.UiError):
+        ui.read_policy_legend(accessible_ui.EXISTING_CHILD)
+    toggle.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('change', ['child', 'page', 'content', 'uncertain-action'])
+def test_legend_post_input_reacquires_guards_and_failure_never_replays(change):
+    ui, root, page, toggle, content = legend_ui()
+    def changed(_):
+        toggle.states.add('pressed')
+        if change == 'child':
+            root.children[0].children[0].identity = 'parent-child-selected-1001'
+        elif change == 'page':
+            page.states.clear()
+        elif change == 'content':
+            content.children.pop()
+        else:
+            return False
+        return True
+    toggle.action.do_action.side_effect = changed
+    with pytest.raises(accessible_ui.UiError):
+        ui.expand_policy_legend(accessible_ui.EXISTING_CHILD)
+    toggle.action.do_action.assert_called_once()
+    if change == 'uncertain-action':
+        assert ui.input_uncertain is True
+        with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+            ui.expand_policy_legend(accessible_ui.EXISTING_CHILD)
+        toggle.action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('streamed', [False, True])
+@pytest.mark.parametrize('operation', list(accessible_ui.LEGEND_OPERATIONS))
+def test_legend_complete_projection_uses_real_controller_decoder(streamed, operation):
+    ui, *_ = legend_ui(expanded=True)
+    projection = ({'refusal': operation.removeprefix('policy-legend-')}
+        if operation.endswith(('wrong-child', 'wrong-page')) else
+        ui.read_policy_legend(accessible_ui.EXISTING_CHILD))
+    if operation.endswith('expand'):
+        projection['activated'] = False
+    result = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed',
+              'legend': projection}
+    observer, *_ = collection_transport((json.dumps(result) + '\n').encode(), streamed)
+    assert observer.observe(operation) == result
+    result['legend']['extra'] = 'incomplete cannot pass'
+    observer, *_ = collection_transport((json.dumps(result) + '\n').encode(), streamed)
+    with pytest.raises(EvidenceError, match='legend-response'):
+        observer.observe(operation)
+
+
+def test_legend_worker_order_reuses_jordan_setup_and_stops_at_every_refusal():
+    from policy_legend import PLAN as legend_plan
+    from tests.support.perl import run_perl
+    program = r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'}=1; $INC{'onpc_parent.pm'}=1; $INC{'onpc_gdm.pm'}=1; }
+package testapi; sub record_info {} sub power {push @main::events,'power'}
+sub check_shutdown {1} sub console {bless {},'Console'}
+package Console; sub disable {}
+package onpc_gdm; sub reattach_functional {}
+package onpc_parent;
+sub set_allowance {
+    my ($j,@args)=@_; die 'binding' unless join(',',@args) eq 'gdm,parent,fresh,new,existing,0,30,1';
+    for (ENTRY) {$j->consume_observation($_,$j->seen($_))}
+    return $j->seen('allowance-configured');
+}
+package main;
+require onpc_app_rows;
+eval {onpc_app_rows::policy_legend(sub {push @events,$_[0]; FAIL return {observed=>$_[0]};});};
+print encode_json(\@events);
+'''
+    expected = list(legend_plan.screen_tags)
+    entry = expected[:expected.index('allowance-configured')]
+    program = program.replace('ENTRY', ','.join("'" + stage + "'" for stage in entry))
+    for boundary in (None, *expected):
+        stop = "die 'refused' if $_[0] eq '" + boundary + "';" if boundary else ''
+        result = run_perl(program.replace('FAIL', stop))
+        assert json.loads(result.stdout) == (expected[:expected.index(boundary) + 1]
+                                            if boundary else expected + ['power'])
+
+
+@pytest.mark.parametrize('changed', [False, True])
+def test_legend_real_step_keeps_immutable_rows_and_checks_before_reply(tmp_path, changed):
+    from policy_legend import PolicyLegendJourney, PLAN as legend_plan
+    from native_fixtures import expected_rows
+    journey = PolicyLegendJourney(SimpleNamespace(directory=tmp_path), Mock(), actions={
+        'native-refuse': Mock(), 'native-verify': Mock()})
+    baseline = [list(row) for row in expected_rows()]
+    journey.check_settings('initial-rows', {'ui': {'apps': {'rows': baseline}}})
+    baseline.clear()
+    journey.steps = [{'stage': stage} for stage in legend_plan.stages[:-1]]
+    rows = [list(row) for row in expected_rows()]
+    if changed:
+        rows[-1][2] = 'pattern' if rows[-1][2] == 'precise' else 'precise'
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(return_value={
+        'operation': 'existing-parent-app-rows', 'apps': {'rows': rows}}))
+    journey.boot = 'b' * 64
+    (tmp_path / 'final-rows.request.json').write_text(json.dumps({
+        'stage': 'final-rows', 'screenshot': None}))
+    inherited = Mock(wraps=journey.check_settings)
+    journey.check_settings = inherited
+    if changed:
+        with pytest.raises(EvidenceError, match='unchanged-policies'):
+            journey.step(Mock())
+        assert not (tmp_path / 'final-rows.reply.json').exists()
+        journey.progress.assert_not_called()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / 'final-rows.reply.json').exists()
+        assert journey.final_rows == journey.initial_rows
+        rows.clear()
+        assert len(journey.final_rows.rows) > 0
+        journey.progress.assert_called_once()
+    inherited.assert_called_once()
+
+
+def test_legend_qualification_selects_fresh_snapshot_and_registered_asset_route(tmp_path, monkeypatch):
+    import parent_setup_qualification as qualification
+    import check_graphical_smoke as smoke
+    from policy_legend import PolicyLegendJourney, PLAN as legend_plan
+    from owned_commands import CommandError
+    import runpy
+    from tests.support.paths import ROOT
+    from tools.test_storage import named_input
+    source = tmp_path / 'source'
+    (source / 'data').mkdir(parents=True)
+    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    monkeypatch.setattr(qualification.smoke, 'ROOT', source)
+    context = SimpleNamespace()
+    journey = qualification.PolicyLegendQualification.journey(context, Mock())
+    assert type(journey) is PolicyLegendJourney and journey.plan is legend_plan
+    assert context.installed_snapshot == 'onpc-v1.1'
+    with pytest.raises(CommandError, match='policy-legend-prerequisites'):
+        smoke.main(policy_legend=True)
+    execute = Mock(return_value=0)
+    monkeypatch.setattr(smoke, 'main', execute)
+    with pytest.raises(SystemExit):
+        runpy.run_path(str(ROOT / 'tests/integration/check_e2e_policy_legend.py'), run_name='__main__')
+    assert execute.call_args.kwargs == {'assets': named_input(fixture_source=True),
+        'provision_credentials': True, 'app_row_observations': True,
+        'native_fixtures': True, 'policy_legend': True}

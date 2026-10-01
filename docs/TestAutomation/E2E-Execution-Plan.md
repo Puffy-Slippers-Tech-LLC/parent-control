@@ -26,6 +26,12 @@ legend read required tasks 226a and 226b before complete case 184 can run.
 Task 226a's Jordan setup is now qualified; task 226b's legend read remains.
 No case 184 live attempt has been made. Resume task 226 after both slices pass
 their installed qualification and close-out.
+Task 226b is implemented and host-validated. Its first live qualification failed
+at `legend-expanded` in `20261001T050542Z-92ea21ab`; preserved evidence is in
+`output/test-runs/privileged/allocations/onpc-graphical-smoke-ngxugkm_`.
+Worker/display cleanup and baseline restoration completed. Resume with diagnosis
+of that failure, then the legend qualification and required catalogue/toggle
+regressions; no retry or failure repair was made in this session.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

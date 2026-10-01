@@ -387,6 +387,17 @@ FILTER_OPERATIONS = {
 }
 OPERATIONS |= frozenset(FILTER_OPERATIONS)
 OPERATIONS |= APP_ROW_OPERATIONS
+LEGEND_HEADINGS = ('App Access (What happens)', 'Match Rule (How apps are matched)')
+LEGEND_RULES = (
+    ('allowed', 'Always Allowed', 'App can always be used'),
+    ('conditional', 'Soft Blocked', 'App is blocked and can be granted one-time extension per child request if time limit is enabled'),
+    ('permanent', 'Hard Blocked', 'App is completely blocked and can only be allowed by admins'),
+    ('pattern', 'Pattern Match', 'Matches by pattern to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)'),
+    ('precise', 'Precise execution path', 'Matches exact app path (e.g., /usr/bin/firefox)'),
+)
+LEGEND_OPERATIONS = frozenset({'policy-legend-expand', 'policy-legend-read',
+                             'policy-legend-wrong-child', 'policy-legend-wrong-page'})
+OPERATIONS |= LEGEND_OPERATIONS
 TOGGLE_OPERATIONS = {
     'multiple-other-enable': {'state': True, 'activated': True},
     'parent-toggle-enabled': {'state': True, 'activated': True},
@@ -4998,6 +5009,98 @@ class AccessibleUI:
         check_deadline()
         return result
 
+    def legend_entry(self, child):
+        """One complete fresh Parent/child/page proof before legend input or read."""
+        require(child in CHILD_IDENTITIES, 'ui:legend-binding')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        observation = self.read_snapshot()
+        nodes, edges, identities, facts = observation
+        root = self.snapshot_owned_target('parent-window', check_prompt=True,
+                                          observation=observation)
+        require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+                'ui:legend-window')
+        def target(identity):
+            node = self.snapshot_owned_target(identity, root=root, showing=False,
+                                              observation=observation)
+            require(node is not None and self.has_state(node, self.api.StateType.VISIBLE)
+                    and not self.has_state(node, self.api.StateType.DEFUNCT),
+                    'ui:legend-target')
+            return node
+        picker = target('parent-child-selector')
+        uid = (self.fixture_uids[child] if self.fixture_uids is not None
+               else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
+        selected = self.snapshot_owned_target('parent-child-selected-' + str(uid),
+            root=picker, observation=observation)
+        require(selected is not None, 'ui:legend-child')
+        page = target('parent-app-limits-page')
+        scope = set(self.snapshot_scope(nodes, edges, page))
+        search = target('parent-app-search')
+        toggle = target('parent-legend-toggle')
+        require(search in scope and toggle in scope
+                and self.has_state(search, self.api.StateType.SENSITIVE)
+                and self.has_state(toggle, self.api.StateType.SENSITIVE), 'ui:legend-page')
+        # Resolve across the complete window before checking page containment,
+        # so misplaced or duplicate IDs cannot hide outside the desired subtree.
+        content = self.snapshot_owned_target('parent-legend-content', root=root,
+            showing=False, observation=observation)
+        # GTK omits the collapsed Revealer subtree. Input is guarded by its
+        # toggle ID; a read must resolve the content independently after reveal.
+        require(content is None or content in scope, 'ui:legend-content')
+        require(not self.has_state(toggle, self.api.StateType.PRESSED)
+                or content is not None, 'ui:legend-content-missing')
+        return toggle, content, observation
+
+    def read_policy_legend(self, child):
+        """UI03: bounded full explanations below the owned content ID; no input."""
+        toggle, content, (nodes, edges, identities, facts) = self.legend_entry(child)
+        require(self.has_state(toggle, self.api.StateType.PRESSED), 'ui:legend-closed')
+        scoped = self.snapshot_scope(nodes, edges, content)
+        require(all(not self.has_state(node, self.api.StateType.DEFUNCT) for node in scoped),
+                'ui:legend-stale')
+        labels = [' '.join(facts[node]['name'].split()) for node in scoped
+                  if facts[node]['role'] == 'label'
+                  and self.has_state(node, self.api.StateType.VISIBLE)]
+        require(len(labels) <= 32 and sum(map(len, labels)) <= 4096, 'ui:legend-bound')
+        expected = (*LEGEND_HEADINGS, *(value for _, title, text in LEGEND_RULES
+                                      for value in (title, text)))
+        require(all(labels.count(value) == 1 for value in expected), 'ui:legend-explanations')
+        return {'headings': list(LEGEND_HEADINGS), 'rules': [list(rule) for rule in LEGEND_RULES]}
+
+    def expand_policy_legend(self, child):
+        """UI04 once, followed by fresh independent UI03; never replay expansion."""
+        toggle, _, _ = self.legend_entry(child)
+        activated = not self.has_state(toggle, self.api.StateType.PRESSED)
+        if activated:
+            self._invoke_target(toggle)
+        self.invalidate_observation()
+        def ready():
+            try:
+                return self.read_policy_legend(child)
+            except UiError as error:
+                if str(error) not in ('ui:legend-closed', 'ui:legend-explanations',
+                                     'ui:legend-content-missing'):
+                    raise
+                return None  # Reveal transition; observation retries never send input.
+        result = self.wait(ready, 'legend-expanded')
+        return {'activated': activated, **result}
+
+    def policy_legend_operation(self, operation):
+        require(operation in LEGEND_OPERATIONS, 'ui:legend-operation')
+        if operation.endswith(('wrong-child', 'wrong-page')):
+            wrong_child = operation.endswith('wrong-child')
+            if not wrong_child:
+                self.parent_page(EXISTING_CHILD, 'Screen Limits')
+            try:
+                self.expand_policy_legend(CHILD if wrong_child else EXISTING_CHILD)
+            except UiError as error:
+                require(str(error) in (('ui:legend-child',) if wrong_child else
+                        ('ui:legend-target', 'ui:legend-page')), 'ui:legend-wrong-refusal')
+            else:
+                raise UiError('ui:legend-wrong-accepted')
+            return {'refusal': 'wrong-child' if wrong_child else 'wrong-page'}
+        return (self.expand_policy_legend(EXISTING_CHILD) if operation.endswith('expand')
+                else self.read_policy_legend(EXISTING_CHILD))
+
     def catalogue_filter(self, child, kind, mask, action):
         """PARENT11 leaves: owned entry, UI17 options, exact read and closure.
 
@@ -7688,6 +7791,8 @@ class AccessibleUI:
             result['filter'] = self.catalogue_filter(child, kind, mask, action)
         elif operation in APP_ROW_OPERATIONS:
             result['apps'] = self.app_row_operation(operation)
+        elif operation in LEGEND_OPERATIONS:
+            result['legend'] = self.policy_legend_operation(operation)
         elif operation in PARENT_SAVE_OPERATIONS:
             result['save'] = self.parent_save_operation(operation)
         elif operation in PICKER_OPERATIONS:

@@ -525,6 +525,42 @@ def test_catalogue_complete_query_match_access_matrix(
         reader.catalogue_filter(EXISTING_CHILD, 'match-rule', 2, 'open')
 
 
+def test_public_policy_legend_full_read_and_unchanged_choices(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, UiError
+    events = tmp_path / 'legend-events.jsonl'
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario='catalogue', events_path=events)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.activate('parent-child-selector', action_name='menu.popup')
+    ui.activate('parent-child-choice-1002')
+    wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
+    reader = AccessibleUI(ui.api, timeout=20, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    reader.parent_page(EXISTING_CHILD, 'App Limits')
+    initial = reader.app_rows(EXISTING_CHILD)
+    with pytest.raises(UiError, match='legend-child'):
+        reader.expand_policy_legend(CHILD)
+    reader.parent_page(EXISTING_CHILD, 'Screen Limits')
+    with pytest.raises(UiError, match='legend-target|legend-page'):
+        reader.expand_policy_legend(EXISTING_CHILD)
+    reader.parent_page(EXISTING_CHILD, 'App Limits')
+    expanded = reader.run('policy-legend-expand', '')['legend']
+    assert expanded['activated'] is True
+    read = reader.run('policy-legend-read', '')['legend']
+    assert read == {key: value for key, value in expanded.items() if key != 'activated'}
+    assert len(read['rules']) == 5 and len(read['headings']) == 2
+    assert reader.run('policy-legend-read', '')['legend'] == read
+    assert reader.app_rows(EXISTING_CHILD) == initial
+    assert not any(record['event'] in ('set_preferences', 'set_parent_control')
+                   for record in read_events(events))
+
+
 def test_parent_app_search_rule_edit_and_revocation_confirmation(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     from tests.support.keyboard import key_combo, type_text

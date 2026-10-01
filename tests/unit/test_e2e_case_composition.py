@@ -20,7 +20,7 @@ RECORDERS = ('record_installed_journey', 'record_package_journey', 'record_seria
 # Review callable references as well as direct calls: passing an unreviewed
 # class/action to a recorder must not hide case mechanics behind an import.
 WORKER_APIS = {
-    'onpc_app_rows': {'native_entry', 'search', 'filter', 'read_rows'},
+    'onpc_app_rows': {'native_entry', 'search', 'filter', 'read_rows', 'legend'},
     'onpc_progress': {'operation'},
     'testapi': {'record_info'},
     'onpc_harness': {'select_console'},

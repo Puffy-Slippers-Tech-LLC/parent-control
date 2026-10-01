@@ -80,6 +80,7 @@ import app_row_observations
 import native_fixture_qualification
 import catalogue_search
 import catalogue
+import policy_legend
 import feedback_read
 import feedback_privacy
 import feedback_states
@@ -209,6 +210,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  native_fixture_qualification.PLAN,
                                  catalogue_search.PLAN,
                                  catalogue.PLAN,
+                                 policy_legend.PLAN,
                                  feedback_read.PLAN, feedback_privacy.PLAN, feedback_states.PLAN,
                                  trace_stable_state.PLAN, trace_transition.PLAN, compose_observation.PLAN,
                                  accessibility_input_trace.PLAN, named_child_custom_saves.PLAN,
@@ -236,7 +238,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'terminal-provider', 'license-viewer-provider', 'parent-website',
                               'parent-privacy', 'parent-support', 'parent-information', 'parent-links',
                               'repeated-operations',
-                              'challenges', 'app-rows', 'native-fixtures', 'catalogue-search', 'catalogue', 'feedback-read', 'feedback-privacy', 'feedback-states',
+                              'challenges', 'app-rows', 'native-fixtures', 'catalogue-search', 'catalogue', 'policy-legend', 'feedback-read', 'feedback-privacy', 'feedback-states',
                               'trace-stable', 'trace-transition', 'compose-observation',
                               'accessibility-trace', 'named-child-custom-saves',
                               'format', 'block-semantics', 'feedback-formats', 'feedback-link',
@@ -383,7 +385,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 result['request'].update(approver='none', message='no-approver')
         if operation in accessible_ui.TOGGLE_OPERATIONS:
             result['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
-        if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN) and state['stage'] in (
+        if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN, policy_legend.PLAN) and state['stage'] in (
                 'allowance-configured', 'balance-reread'):
             result['time_explanation'] = {
                 'child': 'existing-fixture-child' if child == 'existing' else 'fixture-child',
@@ -405,7 +407,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 'existing-parent-app-rows', 'existing-parent-app-rows-reopened'):
             from native_fixtures import expected_rows
             result['apps'] = {'rows': [list(row) for row in expected_rows()]}
-        if plan in (catalogue_search.PLAN, catalogue.PLAN) and operation in accessible_ui.APP_ROW_OPERATIONS:
+        if plan in (catalogue_search.PLAN, catalogue.PLAN, policy_legend.PLAN) and operation in accessible_ui.APP_ROW_OPERATIONS:
             from native_fixtures import expected_rows, search_rows
             if operation in accessible_ui.CATALOGUE_ROW_OPERATIONS:
                 binding = accessible_ui.CATALOGUE_ROW_OPERATIONS[operation]
@@ -552,6 +554,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         catalogue_search.CatalogueSearchJourney
                         if plan is catalogue_search.PLAN else
                         catalogue.CatalogueJourney if plan is catalogue.PLAN else
+                        policy_legend.PolicyLegendJourney if plan is policy_legend.PLAN else
                         fresh_thirty_allowance.FreshThirtyAllowanceJourney
                         if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN)
                         else journeys.InstalledJourney)

@@ -1086,6 +1086,16 @@ class AppRowQualification(KioskEntryQualification):
         return AppRowJourney(context, progress)
 
 
+class PolicyLegendQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from policy_legend import PolicyLegendJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return PolicyLegendJourney(context, progress)
+
+
 class CatalogueQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

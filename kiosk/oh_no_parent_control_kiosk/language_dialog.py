@@ -8,16 +8,17 @@ from common.oh_no_parent_control_ui.translation_widgets import (
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GLib, Gtk
+from gi.repository import GLib, Gtk, Pango
 
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
 from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES, selected_language
+from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon
 from .chrome import ArmoredButton, MetalBoard
 
 
 class LanguageDialog(Gtk.Window):
-    def __init__(self, parent, language, save, saved, cancelled):
+    def __init__(self, parent, language, save, saved, cancelled, *, account=None):
         super().__init__(title=m.LANGUAGE, transient_for=parent, modal=True,
                          destroy_with_parent=True, deletable=False, decorated=False)
         set_text(self, 'title', m.LANGUAGE)
@@ -33,16 +34,34 @@ class LanguageDialog(Gtk.Window):
         board = MetalBoard(orientation=Gtk.Orientation.VERTICAL)
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                           margin_start=24, margin_end=24, margin_top=24, margin_bottom=24)
-        logo = Gtk.Image.new_from_file(str(branding_asset_path("app_logo.png")))
-        logo.set_pixel_size(64)
-        accessible_text(logo, [Gtk.AccessibleProperty.LABEL],
+        header = Gtk.Box(spacing=20)
+        self._logo = Gtk.Image.new_from_file(str(branding_asset_path("app_logo.png")))
+        self._logo.set_halign(Gtk.Align.START)
+        self._logo.set_valign(Gtk.Align.START)
+        accessible_text(self._logo, [Gtk.AccessibleProperty.LABEL],
                         [m.APP_NAME_S_LOGO % {'app_name': app_name()}])
-        content.append(logo)
-        title = localized(Gtk.Label, label=m.CHOOSE_YOUR_LANGUAGE, css_classes=["title-1"])
+        header.append(self._logo)
+        self._heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
+                                hexpand=True)
+        title = localized(Gtk.Label, label=m.CHOOSE_YOUR_LANGUAGE, xalign=0,
+                          css_classes=["oh-no-parent-control-language-title"])
         set_automation_id(title, "language-title")
-        content.append(title)
+        self._heading.append(title)
+        self._account_row = Gtk.Box(spacing=12, visible=False)
+        self._account_icon = Gtk.Image()
+        self._account_row.append(self._account_icon)
+        self._account_label = Gtk.Label(xalign=0, use_markup=True,
+                                       ellipsize=Pango.EllipsizeMode.END,
+                                       max_width_chars=28,
+                                       css_classes=["oh-no-parent-control-language-account"])
+        set_automation_id(self._account_label, "language-account")
+        self._account_row.append(self._account_label)
+        self._heading.append(self._account_row)
+        header.append(self._heading)
+        content.append(header)
         description = localized(Gtk.Label, label=m.YOU_CAN_CHANGE_IT_IN_PREFERENCES,
-                                wrap=True, justify=Gtk.Justification.CENTER)
+                                wrap=True, xalign=0,
+                                css_classes=["oh-no-parent-control-language-description"])
         set_automation_id(description, "language-description")
         content.append(description)
 
@@ -88,8 +107,22 @@ class LanguageDialog(Gtk.Window):
         content.append(actions)
         board.append(content)
         self.set_child(board)
+        self.set_account(account)
         self.set_default_widget(self._continue)
         self.connect("close-request", lambda *_args: True)
+        self._size_to_gateway(self)
+
+    def set_account(self, account):
+        if account is not None:
+            _uid, label, icon_file = account
+            apply_gtk_user_icon(self._account_icon, icon_file, pixel_size=32)
+            name = GLib.markup_escape_text(label)
+            set_text(self._account_label, 'label', m.LANGUAGE_FOR_NAME % {
+                'name': f'<span foreground="#38a8ed" weight="bold">{name}</span>',
+            })
+        self._account_row.set_visible(account is not None)
+        # The logo spans precisely the title and account rows, including their gap.
+        self._logo.set_pixel_size(self._heading.measure(Gtk.Orientation.VERTICAL, -1)[1])
         self._size_to_gateway(self)
 
     def _size_to_gateway(self, _window):

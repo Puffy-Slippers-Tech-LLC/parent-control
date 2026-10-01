@@ -1543,3 +1543,9 @@ msgstr "利用時間の設定を保存できませんでした。しばらくし
 #. Shared message: SAVE_APP_ACCESS_FAILED
 msgid "Could not save app access. Please try again later."
 msgstr "アプリのアクセス設定を保存できませんでした。しばらくしてからもう一度お試しください。"
+
+#. Shared message: LANGUAGE_FOR_NAME
+#. The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "%(name)s さん用"

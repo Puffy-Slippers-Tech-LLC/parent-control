@@ -87,6 +87,10 @@ def test_first_run_defaults_and_save_waits_for_commit(
     assert ui.showing('language-cancel')
     assert not committed(path)
     if surface != 'parent':
+        account = {'en': 'For Alex Morgan', 'de': 'Für Alex Morgan',
+                   'zh-Hans': '为 Alex Morgan'}[language]
+        wait(lambda: ui.text('language-account') == account,
+             'chooser identifies the child in the active language')
         assert not ui.state('kiosk-request-submit', ui.api.StateType.SENSITIVE)
     try:
         ui.activate('language-continue')
@@ -145,6 +149,7 @@ def test_kiosk_child_switch_restores_saved_language_and_reprompts_after_cancel(
     ui, wait = automation, wait_for_accessible_state
     path = launch_language(launch_ui, tmp_path, 'kiosk', scenario='language-switch')
     wait(lambda: ui.showing('language-dialog'), 'first child setup opens')
+    assert ui.text('language-account') == 'For Alex Morgan'
     ui.reader.choose_language('kiosk', 'de')
     ui.reader.cancel_language('kiosk')
     assert not committed(path)
@@ -152,6 +157,7 @@ def test_kiosk_child_switch_restores_saved_language_and_reprompts_after_cancel(
     wait(lambda: ui.find('kiosk-child-choice-1002') is not None, 'second child choice')
     ui.activate('kiosk-child-choice-1002')
     wait(lambda: ui.showing('language-dialog'), 'second child has no preference')
+    assert ui.text('language-account') == 'For Sam Rivera'
     ui.reader.choose_language('kiosk', 'de')
     ui.reader.save_language('kiosk')
     assert_surface_language(ui, wait, 'kiosk', 'de')
@@ -159,6 +165,7 @@ def test_kiosk_child_switch_restores_saved_language_and_reprompts_after_cancel(
     wait(lambda: ui.find('kiosk-child-choice-1001') is not None, 'first child choice')
     ui.activate('kiosk-child-choice-1001')
     wait(lambda: ui.showing('language-dialog'), 'cancelled child setup reopens')
+    assert ui.text('language-account') == 'For Alex Morgan'
     assert ui.state('language-choice-en', ui.api.StateType.CHECKED)
     ui.reader.cancel_language('kiosk')
     assert_surface_language(ui, wait, 'kiosk', 'en')

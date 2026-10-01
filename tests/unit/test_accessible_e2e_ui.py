@@ -463,22 +463,25 @@ def test_configure_time_controls_conditional_enable_save_and_final_state(initial
     ui.reach_time_explanation.assert_called_once_with(accessible_ui.CHILD)
 
 
-def test_fresh_thirty_operation_enables_saves_and_reads_selected_child():
-    ui, *_ = time_explanation_ui()
+@pytest.mark.parametrize('child', [accessible_ui.CHILD, accessible_ui.EXISTING_CHILD])
+def test_fresh_thirty_operation_enables_saves_and_reads_selected_child(child):
+    ui, _root, picker, *_ = time_explanation_ui()
+    if child == accessible_ui.EXISTING_CHILD:
+        picker.children[0].identity = 'parent-child-selected-1002'
+        picker.children[0].children[0].name = child
     events = []
     ui.activate_id = Mock(side_effect=lambda identity: events.append(('page', identity)))
-    ui.settings = Mock(side_effect=[{'limit_enabled': False}, {
-        'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['30 minutes']}])
+    ui.settings = Mock(side_effect=[{'limit_enabled': False, 'allowance': ['0 minutes']}, {
+        'child': accessible_ui.CHILD_IDENTITIES[child], 'limit_enabled': True, 'allowance': ['30 minutes']}])
     ui.set_toggle = Mock(side_effect=lambda _id, state, **_kw: events.append(('toggle', state)))
     ui.parent_save_snapshot = Mock(side_effect=lambda child, state: events.append(('save', child, state)))
     ui.allowance_preset = Mock(side_effect=lambda child, value, **_kw: events.append(('allowance', child, value)))
     ui.reach_time_explanation = Mock(return_value={'independent': True})
-    assert ui.time_explanation_operation('time-explanation-setup-thirty-read') == {'independent': True}
+    assert ui.time_explanation_operation('time-explanation-setup-thirty-read', child=child) == {'independent': True}
     assert events == [('page', 'parent-page-screen-limits'), ('toggle', True),
-                      ('save', accessible_ui.CHILD, True), ('allowance', accessible_ui.CHILD, 30),
-                      ('save', accessible_ui.CHILD, True), ('toggle', True),
-                      ('save', accessible_ui.CHILD, True)]
-    ui.reach_time_explanation.assert_called_once_with(accessible_ui.CHILD)
+                      ('save', child, True), ('allowance', child, 30),
+                      ('save', child, True), ('toggle', True), ('save', child, True)]
+    ui.reach_time_explanation.assert_called_once_with(child)
 
 
 @pytest.mark.parametrize('initial,minutes,final', [(True, 30, True), (False, 30, False),
@@ -492,12 +495,45 @@ def test_configure_time_controls_refuses_unqualified_bindings_before_input(initi
     ui.time_explanation_entry.assert_not_called()
 
 
+def test_fresh_thirty_refuses_nonzero_initial_allowance_before_input():
+    ui, *_ = time_explanation_ui()
+    ui.settings = Mock(return_value={'limit_enabled': False, 'allowance': ['15 minutes']})
+    ui.activate_id = Mock()
+    with pytest.raises(UiError, match='time-initial-allowance'):
+        ui.time_explanation_operation('time-explanation-setup-thirty-read')
+    ui.activate_id.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'riley-receipt'])
+@pytest.mark.parametrize('operation', ['time-explanation-setup-thirty-read', 'time-explanation-read'])
+def test_jordan_time_controller_carries_identity_and_rejects_wrong_child(operation, fault):
+    ui, _root, picker, *_ = time_explanation_ui()
+    picker.children[0].identity = 'parent-child-selected-1002'
+    picker.children[0].children[0].name = accessible_ui.EXISTING_CHILD
+    projection = ui.time_explanation(accessible_ui.EXISTING_CHILD)
+    if fault:
+        projection['child'] = 'fixture-child'
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+              'time_explanation': projection, 'boot_sha256': 'b' * 64}
+    transport = Mock()
+    transport.call.return_value = json.dumps(result).encode()
+    observer = UiObservations(transport)
+    if fault:
+        with pytest.raises(EvidenceError, match='ui:time-response'):
+            observer.observe(operation, child='existing')
+    else:
+        assert observer.observe(operation, child='existing')['time_explanation'] == projection
+    command = transport.call.call_args.args[0]
+    assert command[-3:] == ['', '', 'existing']
+
+
 @pytest.mark.parametrize('fault', ['child', 'initial', 'save', 'settings'])
 @pytest.mark.parametrize('minutes,initial', [(0, True), (30, False)])
 def test_configure_time_controls_refuses_wrong_entry_and_failed_save(fault, minutes, initial):
     ui, *_ = time_explanation_ui()
     ui.activate_id = Mock()
-    ui.settings = Mock(side_effect=[{'limit_enabled': not initial if fault == 'initial' else initial}, {
+    ui.settings = Mock(side_effect=[{'limit_enabled': not initial if fault == 'initial' else initial,
+                                    'allowance': ['0 minutes']}, {
         'child': 'fixture-child', 'limit_enabled': True,
         'allowance': ['15 minutes' if fault == 'settings' else str(minutes) + ' minutes']}])
     ui.set_toggle = Mock()

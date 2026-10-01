@@ -834,6 +834,14 @@ for fresh baseline verification and `check_catalogue()` for the public initial d
 preparation assigns no policy. Complete E2E-041 bindings remain pending.
 The native profile belongs to Jordan; bind selection, App Limits entry and
 public row operations to that same child as described in the native contract.
+Case 184 requires the fresh Jordan 30-minute FLOW16 binding
+`gdm/parent/fresh/new/existing/0/30/1`, qualified by task 226a through
+`fresh_thirty_allowance.JORDAN_PLAN`, `FreshThirtyAllowanceJourney` and
+`onpc_parent::set_allowance`. Carry the explicit `existing` child binding through
+setup and independent balance readback. The public access/match legend read
+(task 226b) remains unqualified. The native launchers are already Jordan-only
+per-user inputs; the wrong-control legend-toggle refusal does not supply the
+missing legend result.
 
 1. FLOW16(ample daily) → PARENT04(App Limits) → UI04(legend) → UI03 → PARENT12(assets).
 2. Run the corresponding finite catalogue subrecipe below using PARENT10/11/13/15/16, UI16, shared FILE05 commands and LIFE01.

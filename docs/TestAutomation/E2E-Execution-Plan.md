@@ -19,7 +19,13 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **226 — [E2E-041: search-filters](E2E-Tasks/226-case-184.md)**.
+Next task: **226b — [Read the public app policy legend](E2E-Tasks/226b-policy-legend.md)**.
+
+Task 226 remains unchecked: its Jordan-bound FLOW16 setup and public policy
+legend read required tasks 226a and 226b before complete case 184 can run.
+Task 226a's Jordan setup is now qualified; task 226b's legend read remains.
+No case 184 live attempt has been made. Resume task 226 after both slices pass
+their installed qualification and close-out.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

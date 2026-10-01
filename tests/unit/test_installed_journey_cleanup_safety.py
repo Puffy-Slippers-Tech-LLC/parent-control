@@ -225,7 +225,8 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  restricted_station.PLAN, approval_flow.REJECTION_PLAN, approval_flow.CANCEL_PLAN,
                                  kiosk_multiple.PLAN, kiosk_multiple.CASE_PLAN,
                                  kiosk_multiple.INELIGIBLE_PLAN, kiosk_multiple.INELIGIBLE_CASE_PLAN,
-                                 restricted_station_about.PLAN, fresh_thirty_allowance.PLAN, kiosk_about.PLAN,
+                                 restricted_station_about.PLAN, fresh_thirty_allowance.PLAN,
+                                 fresh_thirty_allowance.JORDAN_PLAN, kiosk_about.PLAN,
                                  INTERVAL_RECORDER_PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
@@ -246,7 +247,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',
                               'flow-rejection', 'flow-cancel', 'kiosk-multiple', 'multiple-case',
                               'ineligible-profile', 'ineligible-case', 'station-about', 'fresh-thirty-allowance',
-                              'station-about-case', 'real-interval'])
+                              'jordan-thirty-allowance', 'station-about-case', 'real-interval'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, journey_inventory, plan, failure):
@@ -350,7 +351,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                     operation == 'parent-selected' and operation_counts[operation] == 3
                     or operation == 'parent-screen-page' and operation_counts[operation] == 2):
                 result['settings']['allowance'] = ['1 hour']
-            if plan is fresh_thirty_allowance.PLAN and operation_counts[operation] == 2:
+            if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN) and state['stage'] == 'final-settings':
                 result['settings'].update(limit_enabled=True, allowance=['30 minutes'])
             if plan is named_child_custom_saves.PLAN and state['stage'] in plan.settings_checks:
                 expected = plan.settings_checks[state['stage']]
@@ -382,6 +383,14 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 result['request'].update(approver='none', message='no-approver')
         if operation in accessible_ui.TOGGLE_OPERATIONS:
             result['toggle'] = accessible_ui.TOGGLE_OPERATIONS[operation]
+        if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN) and state['stage'] in (
+                'allowance-configured', 'balance-reread'):
+            result['time_explanation'] = {
+                'child': 'existing-fixture-child' if child == 'existing' else 'fixture-child',
+                'daily': {'seconds': 1800, 'precision_seconds': 1},
+                'one_time': {'seconds': 0, 'precision_seconds': 1},
+                'total': {'seconds': 1800, 'precision_seconds': 1},
+                'observed_monotonic_ns': len(boot_bindings)}
         if operation in accessible_ui.FILTER_OPERATIONS:
             kind, mask, action = accessible_ui.FILTER_OPERATIONS[operation]
             options = accessible_ui.FILTER_OPTIONS[kind]
@@ -542,7 +551,10 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         if plan is native_fixture_qualification.PLAN else
                         catalogue_search.CatalogueSearchJourney
                         if plan is catalogue_search.PLAN else
-                        catalogue.CatalogueJourney if plan is catalogue.PLAN else journeys.InstalledJourney)
+                        catalogue.CatalogueJourney if plan is catalogue.PLAN else
+                        fresh_thirty_allowance.FreshThirtyAllowanceJourney
+                        if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN)
+                        else journeys.InstalledJourney)
         if failure:
             with pytest.raises((OSError, RuntimeError)):
                 journeys.record_installed_journey(recorder, context, plan, actions=actions,

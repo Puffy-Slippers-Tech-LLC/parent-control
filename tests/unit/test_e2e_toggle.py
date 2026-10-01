@@ -278,6 +278,75 @@ def test_fresh_thirty_selector_and_guarded_preparation(monkeypatch, tmp_path, sn
     assert FreshThirtyAllowanceQualification.prepare_context is KioskEntryQualification.prepare_context
 
 
+def test_jordan_thirty_selector_and_guarded_preparation(monkeypatch, tmp_path, snapshot_version):
+    import check_e2e_set_jordan_thirty_minute_allowance as check
+    import check_graphical_smoke as smoke
+    from owned_commands import CommandError
+    from parent_setup_qualification import JordanThirtyAllowanceQualification, KioskEntryQualification
+    from fresh_thirty_allowance import JORDAN_PLAN
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs['fresh_thirty_allowance'] is True
+    assert run.call_args.kwargs['fresh_thirty_child'] == 'existing'
+    for inputs in ({'fresh_thirty_child': 'existing'},
+                   {'fresh_thirty_allowance': True, 'fresh_thirty_child': 'other'},
+                   {'fresh_thirty_allowance': True, 'fresh_thirty_child': 'existing',
+                    'time_explanation': True}):
+        with pytest.raises(CommandError, match='prerequisites'):
+            smoke.main(assets=tmp_path, provision_credentials=True, **inputs)
+    context = SimpleNamespace(directory=tmp_path)
+    assert JordanThirtyAllowanceQualification.journey(context, Mock()).plan is JORDAN_PLAN
+    assert context.installed_snapshot == 'onpc-v1.1'
+    assert JordanThirtyAllowanceQualification.finalize is KioskEntryQualification.finalize
+    assert JordanThirtyAllowanceQualification.prepare_context is KioskEntryQualification.prepare_context
+
+
+@pytest.mark.parametrize('stage,fault', [
+    ('balance-reread', None), ('balance-reread', 'daily'),
+    ('balance-reread', 'order'), ('final-settings', None),
+    ('final-settings', 'child'), ('final-settings', 'enabled'),
+])
+def test_jordan_thirty_real_step_compares_before_durable_reply(tmp_path, monkeypatch, stage, fault):
+    import fresh_thirty_allowance as setup
+    import installed_journey
+    from private_artifacts import EvidenceError
+    plan = setup.JORDAN_PLAN
+    journey = setup.FreshThirtyAllowanceJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
+    journey.steps = [{'stage': name} for name in plan.stages[:plan.stages.index(stage)]]
+    journey.earlier_time_observation = 10
+    result = ({'time_explanation': {
+        'daily': {'seconds': 1801 if fault == 'daily' else 1800, 'precision_seconds': 1},
+        'one_time': {'seconds': 0, 'precision_seconds': 1},
+        'total': {'seconds': 1800, 'precision_seconds': 1},
+        'observed_monotonic_ns': 10 if fault == 'order' else 11}}
+        if stage == 'balance-reread' else {'settings': {
+            'child': 'fixture-child' if fault == 'child' else 'existing-fixture-child',
+            'limit_enabled': fault != 'enabled', 'allowance': ['30 minutes']}})
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(return_value=result))
+    monkeypatch.setattr(setup, 'check_balances', Mock(wraps=setup.check_balances))
+    original = installed_journey.InstalledJourney.check_settings
+    inherited = Mock(side_effect=lambda self, *args: original(self, *args))
+    monkeypatch.setattr(installed_journey.InstalledJourney, 'check_settings',
+                        lambda self, *args: inherited(self, *args))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError):
+            journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+        journey.progress.assert_not_called()
+        with pytest.raises(EvidenceError, match='previous-failure'):
+            journey.step(Mock())
+    else:
+        journey.step(Mock())
+        assert json.loads((tmp_path / (stage + '.reply.json')).read_bytes()) == {'observed': stage}
+        assert journey.progress.call_count == 1
+    assert inherited.call_count == 1
+    assert setup.check_balances.call_count == int(stage == 'balance-reread')
+    journey.ui.observe.assert_called_once_with(plan.screen_tags[stage][3:], **(
+        {'child': 'existing'} if stage == 'balance-reread' else {}))
+
+
 @pytest.mark.parametrize('fault', ['daily', 'one_time', 'total', 'order', 'child', 'enabled', 'allowance'])
 def test_fresh_thirty_requires_balances_fresh_read_and_saved_settings(fault):
     from fresh_thirty_allowance import FreshThirtyAllowanceJourney
@@ -413,17 +482,24 @@ def test_set_allowance_actual_worker_stops_before_later_input_at_every_boundary(
         assert result['events'] == success['events'][:boundary + 1]
 
 
-def test_fresh_thirty_actual_worker_stops_at_every_refused_boundary(monkeypatch):
-    from fresh_thirty_allowance import PLAN
+@pytest.mark.parametrize('child', ['child', 'existing'])
+def test_fresh_thirty_actual_worker_stops_at_every_refused_boundary(monkeypatch, child):
+    from fresh_thirty_allowance import PLAN, JORDAN_PLAN
+    PLAN = PLAN if child == 'child' else JORDAN_PLAN
     from accessible_ui import OPERATIONS
     from ui_observations import OPERATION_LABELS
     from tests.support.paths import ROOT
     import re
     dispatch = (ROOT / 'tests/integration/graphical_smoke/tests/smoke.pm').read_text()
-    branches = re.findall(r'if \(\$ready->\{fresh_thirty_allowance\}\) \{(.*?)\n    \}', dispatch, re.S)
+    branches = re.findall(r'if \(\$ready->\{' + PLAN.worker_mode + r'\}\) \{(.*?)\n    \}', dispatch, re.S)
     assert len(branches) == 1
-    assert 'onpc_fresh_thirty_allowance::run(\\&exchange);' in branches[0]
+    invocation = ('onpc_fresh_thirty_allowance::run(\\&exchange);' if child == 'child' else
+                  "onpc_fresh_thirty_allowance::run(\\&exchange, 'existing');")
+    assert invocation in branches[0]
     script = ALLOWANCE_WORKER.replace('onpc_set_allowance', 'onpc_fresh_thirty_allowance')
+    if child == 'existing':
+        script = script.replace('onpc_fresh_thirty_allowance::run($exchange)',
+                                "onpc_fresh_thirty_allowance::run($exchange, 'existing')")
     monkeypatch.setenv('ONPC_TEST_REFUSE', '')
     success = json.loads(run_perl(script).stdout)
     assert success['ok'], success['error']
@@ -508,6 +584,9 @@ for my $args (
     ['gdm', 'parent', 'fresh', 'retained', 'child', 0, 30, 1],
     ['gdm', 'parent', 'fresh', 'new', 'child', 1, 30, 1],
     ['desktop', 'parent', 'same-user', 'new', 'child', 1, 30, 1],
+    ['desktop', 'parent', 'same-user', 'new', 'existing', 1, 30, 1],
+    ['gdm', 'parent', 'fresh', 'new', 'existing', 1, 30, 1],
+    ['gdm', 'parent', 'fresh', 'new', 'existing', 0, 15, 1],
     ['gdm', 'parent', 'fresh', 'new', 'child', 0, 45, 1]) {
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'set-allowance', review => 0);
     eval { onpc_parent::set_allowance($journey, @$args); };
@@ -517,7 +596,7 @@ print encode_json({errors => \@errors, events => \@events});
 '''
     result = json.loads(run_perl(script).stdout)
     assert not result['events']
-    assert len(result['errors']) == 8
+    assert len(result['errors']) == 11
     assert all('parent:allowance-binding' in error for error in result['errors'])
 
 

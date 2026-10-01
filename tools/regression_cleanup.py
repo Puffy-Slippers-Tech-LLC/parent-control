@@ -182,6 +182,8 @@ def work_units(path, ids, kind, estimate):
     pieces leave enough packing choices alongside the slower launcher modules.
     Both unit and cleanup scheduling use this review and the same partition.
     """
+    # Jordan FLOW16 uses the same private recorder files and VM/UI doubles as
+    # Riley; its added parameters retain this unit/cleanup isolation review.
     matrix = path == 'tests/unit/test_installed_journey_cleanup_safety.py'
     if not matrix or len(ids) < 32:
         return [Bucket(path, (path,), tuple(ids), kind, estimate)]

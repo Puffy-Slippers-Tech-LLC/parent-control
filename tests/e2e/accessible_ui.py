@@ -414,6 +414,11 @@ NAMED_CUSTOM_OPERATIONS = frozenset(
         'named-custom-wrong-child-refused', 'parent-trace-wrong-surface-refused',
     }
 NAMED_CUSTOM_CHILDREN = {'child': CHILD, 'existing': EXISTING_CHILD}
+NAMED_TIME_OPERATIONS = frozenset({
+    'time-explanation-setup-thirty-read', 'time-explanation-read',
+    'time-explanation-config-wrong-child', 'time-explanation-config-wrong-state',
+})
+NAMED_CHILD_OPERATIONS = NAMED_CUSTOM_OPERATIONS | NAMED_TIME_OPERATIONS
 OPERATIONS |= NAMED_CUSTOM_OPERATIONS
 PARENT_SAVE_OPERATIONS = {
     'multiple-other-saved': {
@@ -4419,8 +4424,11 @@ class AccessibleUI:
                    zip(('daily', 'one_time', 'total'), match.groups())},
                 'observed_monotonic_ns': time.monotonic_ns()}
 
-    def time_explanation_operation(self, operation):
+    def time_explanation_operation(self, operation, *, child=CHILD):
         require(operation in TIME_EXPLANATION_OPERATIONS, 'ui:time-operation')
+        require(child in (CHILD, EXISTING_CHILD) and
+                (child == CHILD or operation in NAMED_TIME_OPERATIONS), 'ui:time-child-binding')
+        other_child = EXISTING_CHILD if child == CHILD else CHILD
         configurations = {
             'time-explanation-setup-zero-read': (False, 0, True),
             'time-explanation-setup-positive-read': (True, 15, True),
@@ -4432,7 +4440,7 @@ class AccessibleUI:
         if operation in configurations:
             initial, minutes, final = configurations[operation]
             return self.configure_time_controls(
-                CHILD, initial_enabled=initial, minutes=minutes, final_enabled=final)
+                child, initial_enabled=initial, minutes=minutes, final_enabled=final)
         if operation in ('time-explanation-reach-read', 'time-explanation-reach-reread',
                          'time-explanation-zero-reread'):
             return self.reach_time_explanation(CHILD)
@@ -4445,7 +4453,7 @@ class AccessibleUI:
                     self.reach_time_explanation(EXISTING_CHILD)
                 else:
                     self.configure_time_controls(
-                        CHILD if wrong_state else EXISTING_CHILD,
+                        child if wrong_state else other_child,
                         initial_enabled=False, minutes=15, final_enabled=True)
             except UiError as error:
                 require(str(error) == ('ui:time-initial-state' if wrong_state else
@@ -4453,7 +4461,7 @@ class AccessibleUI:
                 return {'refusal': operation.removeprefix('time-explanation-')}
             raise UiError('ui:time-refusal-missing')
         if operation in ('time-explanation-read', 'time-explanation-reread'):
-            return self.time_explanation(CHILD)
+            return self.time_explanation(child)
         if operation.endswith(('wrong-child', 'collapsed')):
             child = EXISTING_CHILD if operation.endswith('wrong-child') else CHILD
             expected = 'ui:wrong-child' if child == EXISTING_CHILD else 'ui:time-collapsed'
@@ -4499,8 +4507,13 @@ class AccessibleUI:
                 and (minutes in (0, 15) or
                      minutes == 30 and not initial_enabled and final_enabled), 'ui:time-binding')
         self.time_explanation_entry(child)
+        if minutes == 30:
+            initial = self.settings(child)
+            require(initial['limit_enabled'] == initial_enabled, 'ui:time-initial-state')
+            require(initial['allowance'] == ['0 minutes'], 'ui:time-initial-allowance')
         self.activate_id('parent-page-screen-limits')
-        initial = self.settings(child)
+        if minutes != 30:
+            initial = self.settings(child)
         require(initial['limit_enabled'] == initial_enabled, 'ui:time-initial-state')
         if not initial_enabled:
             self.set_toggle('parent-screen-limit-toggle', True, root=self.parent())
@@ -7440,7 +7453,7 @@ class AccessibleUI:
     def run(self, operation, version, *, child=None):
         """One registered operation, with generic read reuse between inputs."""
         require(child is None or (child in NAMED_CUSTOM_CHILDREN
-                and operation in NAMED_CUSTOM_OPERATIONS), 'ui:custom-child-binding')
+                and operation in NAMED_CHILD_OPERATIONS), 'ui:custom-child-binding')
         if self.timing is not None:
             require(operation in OPERATIONS, 'ui:operation')
             self._timing = {'started': time.monotonic(), 'tree_reads': 0,
@@ -7743,7 +7756,7 @@ class AccessibleUI:
         elif operation in ALLOWANCE_OPERATIONS:
             result['allowance'] = self.allowance_operation(operation)
         elif operation in TIME_EXPLANATION_OPERATIONS:
-            result['time_explanation'] = self.time_explanation_operation(operation)
+            result['time_explanation'] = self.time_explanation_operation(operation, child=child)
         elif operation in REVOKE_DISABLED_OPERATIONS:
             result['revoke'] = self.revoke_disabled(CHILD, REVOKE_DISABLED_OPERATIONS[operation])
         elif operation in INVALID_ALLOWANCE_OPERATIONS:
@@ -8211,7 +8224,7 @@ def main():
     require(len(sys.argv) in (3, 4, 5, 6) and sys.argv[1] in OPERATIONS, 'ui:arguments')
     child = sys.argv[5] if len(sys.argv) == 6 else None
     require(child is None or (child in NAMED_CUSTOM_CHILDREN and
-            sys.argv[1] in NAMED_CUSTOM_OPERATIONS), 'ui:custom-child-binding')
+            sys.argv[1] in NAMED_CHILD_OPERATIONS), 'ui:custom-child-binding')
     boot = None
     if len(sys.argv) >= 4:
         # This is transport continuity, not a product/UI assertion. Check it

@@ -1,5 +1,6 @@
 """FLOW16 fresh Parent setup with a saved thirty-minute daily allowance."""
 
+from dataclasses import replace
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop, parent_management
 from time_explanation import check_balances
@@ -21,13 +22,27 @@ PLAN = JourneyPlan(
             **{stage: 'step-2' for stage in ('balance-reread', 'wrong-child',
                                            'wrong-state', 'wrong-window', 'final-settings')}},
     advance_after={'allowance-configured': 'step-2'},
-    settings_checks={'final-settings': SettingsObservation('fixture-child', True, ('30 minutes',))},
+    settings_checks={'parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',)),
+                     'final-settings': SettingsObservation('fixture-child', True, ('30 minutes',))},
+)
+JORDAN_PLAN = replace(
+    PLAN, prefix='jordan-thirty-allowance', worker_mode='jordan_thirty_allowance',
+    screen_tags={**SCREENS,
+                 'child-picker-opened': 'ui:existing-child-picker-opened',
+                 'child-choice-highlighted': 'ui:existing-child-choice-highlighted',
+                 'parent-selected': 'ui:existing-returned',
+                 'final-settings': 'ui:existing-returned'},
+    child_bindings={stage: 'existing' for stage in
+                    ('allowance-configured', 'balance-reread', 'wrong-child', 'wrong-state')},
+    settings_checks={
+        'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
+        'final-settings': SettingsObservation('existing-fixture-child', True, ('30 minutes',))},
 )
 
 
 class FreshThirtyAllowanceJourney(InstalledJourney):
-    def __init__(self, context, progress):
-        super().__init__(context, progress, PLAN)
+    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)

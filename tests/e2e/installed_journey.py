@@ -79,9 +79,9 @@ class JourneyPlan:
                     and all(type(value) is str and value for value in binding)
                     for stage, binding in self.request_checks.items()),
                 self.prefix + ':request-plan')
-        from accessible_ui import NAMED_CUSTOM_CHILDREN, NAMED_CUSTOM_OPERATIONS
+        from accessible_ui import NAMED_CUSTOM_CHILDREN, NAMED_CHILD_OPERATIONS
         require(all(stage in self.screen_tags and child in NAMED_CUSTOM_CHILDREN and
-                    (self.screen_tags[stage][3:] in NAMED_CUSTOM_OPERATIONS or
+                    (self.screen_tags[stage][3:] in NAMED_CHILD_OPERATIONS or
                      self.screen_tags[stage] == 'ui:parent-custom-save-trace')
                     for stage, child in self.child_bindings.items()),
                 self.prefix + ':custom-child-plan')

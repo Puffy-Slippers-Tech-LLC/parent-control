@@ -260,6 +260,8 @@ write_e2e write_e2e_cleanup_safety
 # with mocked VM operations; neither needs build admission or exclusive state.
 # LIFE01 checks in e2e_toggle use the same bounded Perl children and private
 # tmp_path contexts; accessible_e2e_ui uses in-memory trees and mocked transport.
+# Jordan FLOW16 adds private recorder requests and in-memory child receipts;
+# existing compatible unit classifications and cleanup partitions still apply.
 # Its standalone observer check runs one bounded isolated Python child with
 # captured pipes in tmp_path; invalid arguments stop before UI/account access.
 # It needs no display, bus, shared cache, process cleanup or build admission.

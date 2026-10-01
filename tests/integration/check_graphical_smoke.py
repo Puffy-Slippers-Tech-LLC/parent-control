@@ -664,6 +664,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          request_flow=False, mate_prompt=False, kiosk_approval=False, kiosk_rejection=False,
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
+         fresh_thirty_child='child',
          feedback_privacy=False, feedback_states=False, format_qualification=False,
          trace_stable_state=False, trace_transition=False, compose_observation=False,
          accessibility_input_trace=False, parent_save_trace=False, custom_save_trace=False,
@@ -789,6 +790,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(fresh_thirty_allowance) is bool and type(set_allowance) is bool
             and not (fresh_thirty_allowance and set_allowance),
             'smoke:fresh-thirty-allowance-prerequisites')
+    require(fresh_thirty_child in ('child', 'existing') and
+            (fresh_thirty_allowance or fresh_thirty_child == 'child'),
+            'smoke:fresh-thirty-child-prerequisites')
     set_allowance = set_allowance or fresh_thirty_allowance
     require(type(restricted_station_about) is bool and not (restricted_station_about and (
         kiosk_ineligible or kiosk_multiple or kiosk_valid_duration or request_duration
@@ -1370,7 +1374,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if set_allowance:
             result['scope'] = 'installed-set-allowance-qualification'
         if fresh_thirty_allowance:
-            result['scope'] = 'installed-fresh-thirty-allowance-qualification'
+            result['scope'] = ('installed-fresh-thirty-allowance-qualification'
+                               if fresh_thirty_child == 'child' else
+                               'installed-jordan-thirty-allowance-qualification')
         if app_restart:
             result['scope'] = 'installed-app-restart-qualification'
         if real_interval:
@@ -1690,8 +1696,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import SetAllowanceQualification
                     qualification_class = SetAllowanceQualification
                 if fresh_thirty_allowance:
-                    from parent_setup_qualification import FreshThirtyAllowanceQualification
-                    qualification_class = FreshThirtyAllowanceQualification
+                    from parent_setup_qualification import FreshThirtyAllowanceQualification, JordanThirtyAllowanceQualification
+                    qualification_class = (FreshThirtyAllowanceQualification if fresh_thirty_child == 'child'
+                                           else JordanThirtyAllowanceQualification)
                 if app_restart:
                     from parent_setup_qualification import AppRestartQualification
                     qualification_class = AppRestartQualification

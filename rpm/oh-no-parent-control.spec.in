@@ -9,6 +9,7 @@ Source0:        %{name}-%{version}.tar.xz
 ExclusiveArch:  x86_64
 
 BuildRequires:  gcc
+BuildRequires:  gettext
 BuildRequires:  make
 BuildRequires:  pam-devel
 BuildRequires:  glib2

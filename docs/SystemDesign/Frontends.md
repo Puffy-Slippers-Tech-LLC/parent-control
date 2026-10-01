@@ -229,6 +229,93 @@ closure and readiness. It leaves a subsequently opened Preferences dialog alone.
 Host preview launch and installed entry checkpoints use its
 `complete_parent_language_setup` and `complete_request_language_setup` wrappers.
 
+## Localization infrastructure
+
+The GTK-independent [localization module](../../common/oh_no_parent_control_ui/localization.py)
+uses Python's standard-library GNU gettext implementation. Its class-based API
+keeps translations explicit and per user; no framework, runtime dependency,
+global `_` installation, environment mutation or `setlocale` call is needed.
+See the [Python API](https://docs.python.org/3/library/gettext.html#class-based-api)
+and [GNU catalogue tools](https://www.gnu.org/software/gettext/manual/html_node/msgfmt-Invocation.html).
+
+`load_translations(saved_language, language_names)` accepts the existing saved
+personal language and the frontend's `GLib.get_language_names()` result. It
+uses the same `selected_language` resolver as the choosers: explicit selections
+win, otherwise the primary session language applies, and unsupported choices
+fall back to English. Regional/script variants map to the catalogue's one product
+choice. Product IDs use hyphens; gettext catalogue names use underscores:
+`pt-BR` maps to `pt_BR`, and `zh-Hans` maps to `zh_Hans`. Only resolved catalogue
+IDs become filesystem search components. Omitting session languages defaults to
+English, never the root broker's environment.
+
+The returned standard translation object supports `gettext`, `ngettext`,
+`pgettext` and `npgettext`. Missing catalogues or entries return English source
+strings, including English plural fallback. Corrupt/unreadable shipped catalogues
+raise an error instead of silently hiding a broken package. Catalogues are
+trusted package assets, not downloaded or supplied by the account. Different
+users retain separate translation objects. A future chooser integration should
+load a new object after a successful save and rebuild/relabel its surface;
+existing bound translation methods do not switch languages automatically.
+
+Future presentation code can bind methods in its own scope:
+
+```python
+translations = load_translations(saved_language, GLib.get_language_names())
+_ = translations.gettext
+ngettext = translations.ngettext
+pgettext = translations.pgettext
+label = _("Hello, %(name)s") % {"name": display_name}
+remaining = ngettext("%(count)d minute", "%(count)d minutes", count) % {"count": count}
+action = pgettext("button action", "Open")
+```
+
+Keep complete literal English messages at presentation call sites. Use named
+placeholders and interpolate after translation; never pass f-strings, assembled
+sentences or user content for extraction. Use plural methods rather than English
+singular/plural conditionals, context for ambiguous short labels, and
+`# Translators:` comments for needed explanations. Escape dynamic values for
+the destination widget's markup separately from translation. Logs, diagnostic
+events, identifiers and protocol values are never localized; backend errors
+remain stable and any future user-facing explanation belongs in presentation.
+
+The [Makefile](../../Makefile) owns the catalogue workflow:
+
+- `make update-pot` extracts explicitly marked production Python and child
+  JavaScript strings into `po/oh-no-parent-control.pot`. It excludes broker
+  source, tests, previews and vendored editor code. No bulk literal extraction
+  occurs. Commit the template when introducing/changing translatable strings.
+- Use GNU `msginit` to create `po/<locale>.po`, or
+  `msgmerge --update po/<locale>.po po/oh-no-parent-control.pot` to update it.
+  Use the canonical underscore locale name and correct `Plural-Forms` header.
+  The shared language catalogue remains the owner of supported product choices.
+- `make check-translations` validates PO syntax, headers and marked format
+  placeholders using `msgfmt --check --check-format`.
+- `make translations` compiles catalogues beside the checkout's shared Python
+  module for development. Generated `locale/` files are ignored by Git.
+  `LOCALE_OUTPUT` can select a private output directory.
+
+Package builds include PO sources in the source manifest and compile validated
+MO files directly into the private staging tree at
+`/usr/lib/oh-no-parent-control/common/oh_no_parent_control_ui/locale/<locale>/LC_MESSAGES/oh-no-parent-control.mo`.
+Python resolves this directory relative to its module in both checkout and
+installed layouts, including relocated prefixes. These new assets use the
+existing common-payload `none` activation classification while there are no
+live consumers; frontend integration must review activation for its consumers.
+Debian and
+RPM declare GNU gettext as a build dependency; normal development setup installs
+the declared build dependencies. Compilation uses a temporary file and only
+replaces an existing catalogue after validation succeeds. Fuzzy/untranslated
+entries are not shipped as translations.
+
+The initial [English catalogue](../../po/en.po) contains only metadata so the
+build/install path is exercised without moving application strings. String
+migration, real translated messages, frontend lifecycle wiring and the child's
+GJS binding remain future work. GJS can consume the same standard MO domain;
+there is no second translation format. This foundation changes no visible UI,
+saved data, OS locale, logs or D-Bus behavior. Its
+[host tests](../../tests/unit/test_localization.py) cover real compiled catalogues;
+they do not establish translated GUI acceptance.
+
 ## Parent controls and shared information
 
 Manually launching `/usr/bin/oh-no-parent-control-parent` as a standard user

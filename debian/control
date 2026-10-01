@@ -4,6 +4,7 @@ Maintainer: Puffy Slippers <support@puffyslippers.com>
 Build-Depends:
  debhelper-compat (= 13),
  dh-sequence-python3,
+ gettext,
  libfeature-compat-try-perl,
  libglib2.0-bin,
  libpam0g-dev,

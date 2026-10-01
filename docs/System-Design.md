@@ -107,8 +107,11 @@ Empty means follow the frontend
 session language. Each GTK frontend prompts when this field is empty and saves
 it through the caller-scoped D-Bus API; its Preferences menu reopens the chooser.
 Parent and request screens have separate dialog UIs, sharing catalogue and locale
-resolution. The shared catalogue supplies native language names. Translation application
-remains separate work. See
+resolution. The shared catalogue supplies native language names. A shared
+[GNU gettext foundation](SystemDesign/Frontends.md#localization-infrastructure)
+provides per-user translation objects and packaged message catalogues. Migrating
+presentation strings and applying translations in the frontends remain separate
+work; logs are never localized. See
 [State](SystemDesign/State.md) for the storage and API contract.
 
 - Screen-time control and saved app policy are independent. Temporary approval

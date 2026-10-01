@@ -938,7 +938,7 @@ these blocks, not copies of them.
 | FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). `save_destination_actions` adds fixed `save` preparation, exact output readback and owned cleanup for the diagnostic Save binding below. Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text and diagnostic Save destination bindings ready; other profiles pending |
 | FILE08 | C | Inspect a declared synthetic or customer-exported text/ZIP artifact with bounded read-only filesystem/archive APIs over guarded SSH. Bind exact file identity and compare actual contents. For explicitly tested retained work, directly open its document in the registered work app and observe real activity instead. | `read_declared_text` / `read_declared_zip` in [synthetic_files.py](../../tests/e2e/synthetic_files.py) and fixed `open-text` / `open-zip` in [synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py) qualify synthetic text/ZIP and the fixed `diagnostic-export` Save receipt binding; see [artifact-read boundary](#customer-artifact-read-boundary). Work uses APP01/03/04; file reads cannot prove usable or retained activity. No Files/editor/archive-viewer GUI for export inspection and no private product files. | synthetic text/ZIP and named Parent diagnostic-export bindings ready; retained-work and other exported artifacts pending |
 | FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | `change_attachment_source` / `SyntheticFiles.call('change-source')`; [qualified source binding](#synthetic-source-change). UI16/Ctrl-S/public saved state only for work observed by an enforcement/retention case. | standard/single synthetic source preparation ready; product snapshot/re-add belongs to the attachment UI matrix; retained-work binding pending |
-| APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | `onpc_app_rows::native_search/native_launch_grid/native_open_grid` qualify Jordan's exact Allowed fixture grid route under [native fixture preparation](#native-fixture-preparation). Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 over SSH as the child desktop user without Terminal UI. Never substitute the tested route after failure. | native Allowed grid ready; command and other bindings pending |
+| APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | `onpc_app_rows::native_search/native_launch_grid/native_open_grid` qualify Jordan's exact Allowed fixture grid route under [native fixture preparation](#native-fixture-preparation). `native_open_command` / `AccessibleUI.native_launch_command` qualify the fixed native command as the bound active child desktop user over guarded SSH, with independent APP02 window readback. Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 without Terminal UI. Never substitute the tested route after failure. | native Allowed grid/command ready; other bindings pending |
 | APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | `AccessibleUI.native_app_snapshot/native_app_closed` independently observe the owned primary native window and exact initial activity, then complete absence with the recognized desktop after `onpc_app_rows::native_close_app`. UI01 → UI03 for presence; FILE06 for command denial; UI11 for hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. | native Allowed presence/normal closure ready; denial, hidden and other bindings pending |
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | `onpc_app_rows::native_use_app` composes guarded public Submit draft through `AccessibleUI.native_app_submit` and separate exact submitted-label readback. UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. | native primary draft submission ready; other actions/bindings pending |
 | APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | APP02(present) → UI03 → UI12 only for compare. A newly launched window cannot satisfy retained-activity expectations. No hidden process/window inspection. | pending |
@@ -2134,8 +2134,26 @@ owned cleanup and baseline restoration. The observed Shell provider tuple was
 Host checks in `test_e2e_native_grid_usable.py` reconcile actual worker marker
 titles and fresh ordered public observations; the shared ownership/recorder and
 native GTK preview checks preserve input/refusal and exact activity assertions.
-Command launch, hidden/denied results, other fixture actions and complete
-scenarios remain pending under their own task bindings.
+`native_app.PLAN` / `NativeAppJourney` and `onpc_app_rows::native_app`
+qualified the same APP01/02/03 usable scope through the fixed command route in
+`check_e2e_native_app`, report `20261001T170046Z-2e777027`, on every enabled VM.
+FIX06's ten-file readback precedes child entry. The worker uses the shared
+`onpc_gdm::sign_in_challenge` with distinct declared Parent and Jordan challenges;
+the unchanged password helper consumes two fresh same-challenge proofs once for
+each login. `native_open_command` consumes a fresh desktop proof and delegates
+one fixed executable submission to `AccessibleUI.native_launch_command` in the
+active child session over guarded SSH. APP02 independently reads the actual
+owned primary window; command success alone supplies no window result.
+Two independent launches reused `native_use_app` / `native_close_app` and passed
+the exact draft/effect and complete closure observations above, with
+wrong-entry/instance/uncertain-input refusals, collection, owned cleanup and
+baseline restoration. Host regressions in `test_e2e_native_app.py` exercise the
+real password/worker sequence, reject failed or mismatched child proofs before
+secret input, and reconcile actual markers and challenge evidence. Shared
+recorder/composition and challenge-safety regressions passed. The existing grid
+qualification and its provider tuple remain unchanged.
+Hidden/denied results, other fixture actions and complete scenarios remain
+pending under their own task bindings.
 
 FIX03's multiple profile reuses the guarded installed snapshot's two canonical
 children and two approvers; it changes no account identities, roles or station

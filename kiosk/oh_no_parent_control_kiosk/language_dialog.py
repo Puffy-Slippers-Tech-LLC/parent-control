@@ -16,7 +16,7 @@ from .chrome import ArmoredButton, MetalBoard
 
 
 class LanguageDialog(Gtk.Window):
-    def __init__(self, parent, language, save, saved):
+    def __init__(self, parent, language, save, saved, cancelled):
         super().__init__(title=m.LANGUAGE, transient_for=parent, modal=True,
                          destroy_with_parent=True, deletable=False, decorated=False)
         set_text(self, 'title', m.LANGUAGE)
@@ -24,6 +24,8 @@ class LanguageDialog(Gtk.Window):
         self.add_css_class("oh-no-parent-control-language-dialog")
         self.set_default_size(400, 540)
         self._save, self._saved = save, saved
+        self._cancelled = cancelled
+        self._can_cancel = bool(language)
         self._selected = selected_language(language, GLib.get_language_names())
         self._saving = False
 
@@ -60,12 +62,19 @@ class LanguageDialog(Gtk.Window):
         self._error = localized(Gtk.Label, wrap=True, visible=False, css_classes=["error"])
         set_automation_id(self._error, "language-error")
         content.append(self._error)
-        self._continue = localized(ArmoredButton, label=m.CONTINUE,
+        actions = Gtk.Box(spacing=12, homogeneous=True)
+        self._cancel = localized(ArmoredButton, label=m.CANCEL, visible=self._can_cancel)
+        describe_control(self._cancel, m.CANCEL, m.CANCEL,
+                         automation_id="language-cancel")
+        self._cancel.connect("clicked", self._dismiss)
+        actions.append(self._cancel)
+        self._continue = localized(ArmoredButton, label=m.SAVE,
                                        css_classes=["oh-no-parent-control-request-button"])
-        describe_control(self._continue, m.CONTINUE, m.SAVE_YOUR_LANGUAGE_PREFERENCE,
+        describe_control(self._continue, m.SAVE, m.SAVE_YOUR_LANGUAGE_PREFERENCE,
                          automation_id="language-continue")
         self._continue.connect("clicked", self._submit)
-        content.append(self._continue)
+        actions.append(self._continue)
+        content.append(actions)
         board.append(content)
         self.set_child(board)
         self.set_default_widget(self._continue)
@@ -82,7 +91,14 @@ class LanguageDialog(Gtk.Window):
         self._error.set_visible(False)
         self._choices.set_sensitive(False)
         self._continue.set_sensitive(False)
+        self._cancel.set_sensitive(False)
         self._save(self._selected, self._success, self._failure)
+
+    def _dismiss(self, _button):
+        if self._saving or not self._can_cancel:
+            return
+        self._cancelled()
+        self.destroy()
 
     def _success(self, language):
         self._saved(language)
@@ -92,5 +108,6 @@ class LanguageDialog(Gtk.Window):
         self._saving = False
         self._choices.set_sensitive(True)
         self._continue.set_sensitive(True)
+        self._cancel.set_sensitive(True)
         set_text(self._error, 'label', m.YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN)
         self._error.set_visible(True)

@@ -265,7 +265,7 @@ sub run {
     if ($ready->{native_app}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_app_rows::native_app(\&exchange);
+        onpc_app_rows::native_app(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{native_grid_usable}) {

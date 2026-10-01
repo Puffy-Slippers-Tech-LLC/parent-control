@@ -26,12 +26,21 @@ def login_window(g, *, prepare=False):
     lines = original.splitlines(keepends=True)
     selected = [i for i, line in enumerate(lines)
                 if line.split() and line.split()[0] == b'LOGIN_TIMEOUT']
-    require(len(selected) == 1, 'login-setting')
-    index = selected[0]
-    match = re.fullmatch(rb'([ \t]*LOGIN_TIMEOUT[ \t]+)(60|600)([ \t]*(?:#[^\r\n]*)?)(\r?\n)?', lines[index])
-    require(match is not None, 'login-setting')
-    lines[index] = match[1] + b'600' + match[3] + (match[4] or b'')
+    require(len(selected) <= 1, 'login-setting')
+    if selected:
+        index = selected[0]
+        match = re.fullmatch(rb'([ \t]*LOGIN_TIMEOUT[ \t]+)(60|600)([ \t]*(?:#[^\r\n]*)?)(\r?\n)?', lines[index])
+        require(match is not None, 'login-setting')
+        lines[index] = match[1] + b'600' + match[3] + (match[4] or b'')
+    else:
+        # Some supported guests leave the shadow default implicit. Only
+        # baseline preparation may add the declared console prerequisite.
+        require(prepare, 'login-stale')
+        if not original.endswith(b'\n'):
+            lines.append(b'\n')
+        lines.append(b'LOGIN_TIMEOUT\t600\n')
     desired = b''.join(lines)
+    require(len(desired) <= 65536, 'login-size')
     require(identity(g.lstatns(path)) == identity(before), 'login-file-changed')
     if desired != original:
         require(prepare, 'login-stale')

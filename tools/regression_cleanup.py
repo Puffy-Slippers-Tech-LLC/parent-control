@@ -17,6 +17,11 @@ fixtures and external resources have been reviewed; never omit their cases.
 # VM input-file checks use private pytest files/FIFO and in-memory descriptor,
 # stdin and SSH doubles, without touching a live VM, host stdin or shared state.
 # vm_control_cleanup_safety retains its existing compatible cleanup classification.
+# Restored-off maintenance audits use the same private lease/disk fixtures and
+# mocked VM/guest inspection, with no live VM, socket or shared state. Existing
+# VM-control compatible scheduling remains appropriate in both inventories.
+# Missing console-timeout preparation checks use only the existing in-memory
+# guestfs fixture; baseline_fixtures retains compatible unit/cleanup scheduling.
 # Fedora snapshot backend/proof checks retain private tmp_path locks and mocked
 # builders, guestfs and VM transport. App-snapshot, system-runner and suite
 # cleanup classifications stay compatible; no real build, VM or shared resource.

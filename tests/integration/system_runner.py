@@ -103,6 +103,8 @@ def error_category(error):
     """Return only the runner's fixed public failure categories."""
     if isinstance(error, (Error, CommandError)):
         return str(error)
+    if isinstance(error, baseline.guest_contract.PreparationError):
+        return error.category
     return 'unexpected-failure-or-interruption'
 
 

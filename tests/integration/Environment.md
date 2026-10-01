@@ -147,6 +147,9 @@ retries have explicit regressions. Accounts/settings preserve unrelated state.
 All declaration, builder and runtime sources participate in the baseline digest,
 invalidating stale baselines and their derived app snapshots. Independent offline
 inspection verifies fixtures and console configuration before capture.
+Console preparation preserves an existing supported `LOGIN_TIMEOUT` entry or
+adds `LOGIN_TIMEOUT 600` when none is active. Duplicate or malformed entries
+refuse; test attempts only verify the prepared setting and never add it.
 
 Idempotence does not suppress auto-mode system updates or the documented snapshot
 replacement. It does not authorize adopting an unknown file or bypassing the

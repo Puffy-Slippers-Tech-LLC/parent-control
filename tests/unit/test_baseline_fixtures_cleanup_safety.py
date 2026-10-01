@@ -179,3 +179,39 @@ def test_baseline_console_getty_is_idempotent_and_test_route_is_read_only():
     console.getty(guest, prepare=True)
     console.getty(guest)
     guest.ln_s.assert_called_once()
+
+
+@pytest.mark.parametrize('original', [
+    b'# LOGIN_TIMEOUT 60\nLOGIN_RETRIES 3\n',
+    b'LOGIN_RETRIES 3',
+])
+def test_console_preparation_adds_missing_timeout_and_preserves_existing_bytes(original):
+    guest = Guest()
+    guest.write('/etc/login.defs', original)
+    before = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    with pytest.raises(ValueError, match='login-stale'):
+        console.login_window(guest)
+    assert guest.nodes == before and not guest.writes
+    console.login_window(guest, prepare=True)
+    desired = original + (b'' if original.endswith(b'\n') else b'\n') + b'LOGIN_TIMEOUT\t600\n'
+    assert guest.read_file('/etc/login.defs') == desired
+    guest.writes.clear()
+    console.login_window(guest, prepare=True)
+    console.login_window(guest)
+    assert not guest.writes
+
+
+@pytest.mark.parametrize('original', [
+    b'LOGIN_TIMEOUT 60\nLOGIN_TIMEOUT 600\n',
+    b'LOGIN_TIMEOUT invalid\n',
+    b'#' + b'x' * 65534 + b'\n',
+])
+def test_console_preparation_refuses_ambiguous_invalid_or_oversized_settings(original):
+    guest = Guest()
+    guest.write('/etc/login.defs', original)
+    before = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    with pytest.raises(ValueError):
+        console.login_window(guest, prepare=True)
+    assert guest.nodes == before and not guest.writes

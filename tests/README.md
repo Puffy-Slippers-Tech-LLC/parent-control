@@ -995,6 +995,12 @@ The installed `check_test_recovery` route reconciles the VM through the existing
 identity-checked recovery controller and shared VM lease. It also runs before a
 new VM category, so a stale VM journal cannot strand otherwise completed host work.
 Recovery runs no test suites and creates no parallel cleanup branches.
+Recorded maintenance cleanup also accepts an already restored, powered-off guest
+when its active and inactive XML exactly match the recorded original. It audits
+the baseline snapshot and guest before completing the stale journal, without
+shutting down, reverting or redefining the VM. A running replacement instance
+still refuses; shut it down through the VM manager before retrying recovery.
+Changed guest state or configuration preserves the journal and evidence.
 
 After VM recovery succeeds, unfinished retention journals and recovery markers
 are archived as `recovered-<run>.json` and `recovered-<run>.marker`. Every registered

@@ -102,6 +102,84 @@ def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lea
     assert lease.source.off
 
 
+@pytest.mark.parametrize('phase', ['running', 'cleanup-requested'])
+@pytest.mark.parametrize('restored', [False, True])
+def test_off_maintenance_recovery_audits_restored_guest_or_restores_owned_isolation(
+        lease_rig, phase, restored):
+    lease, current = lease_rig
+    start(lease)
+    lease.state['phase'] = phase
+    lease.journal.write_bytes(runner.baseline.encode(lease.state))
+    if restored:
+        lease.source.domain.revertToSnapshot(None, 0)
+    else:
+        lease.source.off, current['id'] = True, -1
+    held = reopened(lease)
+    snapshots = lease.source.domain.revertToSnapshot.call_count
+    definitions = lease.source.connection.defineXML.call_count
+    shutdowns = lease.source.shutdown_calls
+    try:
+        control.recover_preparation(held)
+        assert held.state['phase'] == 'complete'
+        assert current['id'] == -1
+        assert lease.source.domain.revertToSnapshot.call_count == snapshots + int(not restored)
+        assert lease.source.connection.defineXML.call_count == definitions + int(not restored)
+        assert lease.source.shutdown_calls == shutdowns
+    finally:
+        held.release()
+    lease.source.domain.create.assert_called_once()
+    lease.source.domain.destroyFlags.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [
+    'guest', 'audit-interrupted', 'restarted', 'configuration', 'split-configuration',
+    'owner', 'snapshot', 'busy'])
+def test_restored_off_maintenance_refusals_preserve_journal_without_vm_mutation(
+        lease_rig, fault):
+    lease, current = lease_rig
+    start(lease)
+    lease.source.domain.revertToSnapshot(None, 0)
+    before = lease.journal.read_bytes()
+    held = reopened(lease)
+    competitor = reopened(lease)
+    original = current['xml']
+    if fault == 'guest':
+        held.inspect = Mock(return_value={})
+    elif fault == 'audit-interrupted':
+        held.inspect = Mock(side_effect=KeyboardInterrupt())
+    elif fault == 'restarted':
+        def restart(*args):
+            lease.source.off, current['id'] = False, 72
+            return lease.capture.state['guest']
+        held.inspect = restart
+    elif fault == 'configuration':
+        current['xml'] = original.replace('</domain>', '<description>unrelated</description></domain>')
+    elif fault == 'split-configuration':
+        lease.source.domain.XMLDesc.side_effect = lambda flags=0: (
+            original if flags else original.replace('</domain>', '<description>unrelated</description></domain>'))
+    elif fault == 'owner':
+        (lease.directory / 'vm-control.json').write_text('{}')
+    elif fault == 'snapshot':
+        lease.source.baseline_xml += ' '
+    else:
+        control.resume(competitor, stopping=True)
+    snapshots = lease.source.domain.revertToSnapshot.call_count
+    definitions = lease.source.connection.defineXML.call_count
+    shutdowns = lease.source.shutdown_calls
+    try:
+        with pytest.raises(KeyboardInterrupt if fault == 'audit-interrupted' else RuntimeError):
+            control.recover_preparation(held)
+        assert lease.journal.read_bytes() == before
+        assert lease.source.domain.revertToSnapshot.call_count == snapshots
+        assert lease.source.connection.defineXML.call_count == definitions
+        assert lease.source.shutdown_calls == shutdowns
+        lease.source.domain.destroyFlags.assert_not_called()
+        lease.source.domain.create.assert_called_once()
+    finally:
+        held.release()
+        competitor.release()
+
+
 @pytest.mark.parametrize('fault', [None, 'instance', 'owner', 'busy'])
 def test_automatic_preparation_recovery_stops_only_proven_maintenance(
         lease_rig, tmp_path, monkeypatch, fault):

@@ -501,6 +501,13 @@ def test_check_tools_rejects_missing_package_inspection_tool(monkeypatch, capsys
     lease.assert_not_called()
 
 
+def test_preparation_failure_category_preserves_reason_without_private_details():
+    error = runner.baseline.guest_contract.PreparationError(
+        'marker:dependencies', 'private guest details')
+    assert runner.error_category(error) == 'marker:dependencies'
+    assert runner.error_category(RuntimeError('private guest details')) == 'unexpected-failure-or-interruption'
+
+
 @pytest.mark.parametrize(('failure', 'category'), [
     (FileNotFoundError('private input path'), 'assets:source-missing'),
     (PermissionError('private input path'), 'assets:source-inaccessible'),

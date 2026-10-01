@@ -298,6 +298,11 @@ write_e2e write_e2e_cleanup_safety
 # sentinel, private FIFO and process-local stdin/transport doubles. No real VM,
 # host service, socket or input descriptor is changed; vm_control_cleanup_safety
 # and vm_config retain compatible scheduling in unit and cleanup inventories.
+# Restored-off maintenance recovery uses private lease journals, tiny fixture
+# disks and mocked VM/inspection calls, including a simulated restart during
+# audit. It adds no live VM or shared resource; vm_control remains compatible.
+# Missing console-timeout preparation checks use the existing in-memory guestfs
+# fixture only; baseline_fixtures retains compatible unit/cleanup scheduling.
 # Readiness removal/retry tests use the same private shell machine and bounded
 # command doubles, including ActiveState; they do not contact host systemd.
 # Parent privacy link coverage extends the existing in-memory accessibility

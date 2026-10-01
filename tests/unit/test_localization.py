@@ -202,3 +202,59 @@ def test_production_extraction_and_catalogue_checks(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
     result = make_catalogues(ROOT, "check-translations")
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.fixture(scope='module')
+def production_catalogues(tmp_path_factory):
+    destination = tmp_path_factory.mktemp('localization-review')
+    result = make_catalogues(ROOT, 'translations', f'LOCALE_OUTPUT={destination}')
+    assert result.returncode == 0, result.stdout + result.stderr
+    return destination
+
+
+def test_all_shipped_messages_preserve_operands_and_python_shell_plural_parity(production_catalogues):
+    import json
+    import re
+    from tools.export_messages import export
+    messages = export(ROOT / 'common/oh_no_parent_control_ui/messages.py')
+    placeholder = re.compile(r'%\(([^)]+)\)([sdg])')
+    lookups, expected = [], []
+    for language in ('de', 'es', 'fr', 'pt-BR', 'zh-Hans', 'ru', 'it', 'pl', 'ja'):
+        translations = load_translations(language, localedir=production_catalogues)
+        path = production_catalogues / language.replace('-', '_') / 'LC_MESSAGES' / (DOMAIN + '.mo')
+        for key, source in messages.items():
+            forms = source if isinstance(source, list) else [source]
+            counts = (0, 1, 2, 5, 11, 21, 22, 25, 101) if len(forms) == 2 else (1,)
+            for count in counts:
+                # Missing entries must not silently pass via source fallback.
+                catalog_key = (forms[0], translations.plural(count)) if len(forms) == 2 else forms[0]
+                assert translations._catalog.get(catalog_key), (language, key, count)
+                translated = (translations.ngettext(*forms, count) if len(forms) == 2
+                              else translations.gettext(forms[0]))
+                assert sorted(placeholder.findall(translated)) == sorted(placeholder.findall(forms[0])), (language, key)
+                values = {name: 'Zoë <&>' if kind == 's' else count
+                          for name, kind in placeholder.findall(forms[0])}
+                assert isinstance(translated % values, str), (language, key)
+                lookups.append([str(path), forms, count])
+                expected.append(translated)
+    script = '''
+import {readFileSync} from 'node:fs';
+import {Catalogue} from './child/gettext.mjs';
+const cache = new Map();
+const results = JSON.parse(readFileSync(0, 'utf8')).map(([path, forms, n]) => {
+    if (!cache.has(path)) cache.set(path, new Catalogue(readFileSync(path)));
+    const catalogue = cache.get(path);
+    return forms.length === 2 ? catalogue.ngettext(...forms, n) : catalogue.gettext(forms[0]);
+});
+process.stdout.write(JSON.stringify(results));
+'''
+    result = subprocess.run(['node', '--input-type=module', '-e', script], cwd=ROOT,
+                            input=json.dumps(lookups), capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == expected
+
+
+@pytest.mark.parametrize('language,expected', [('ru', '1.5 часа'), ('pl', '1.5 godziny')])
+def test_fractional_hours_use_native_wording(production_catalogues, language, expected):
+    from common.oh_no_parent_control_ui.messages import hour_count
+    assert hour_count(1.5).render(load_translations(language, localedir=production_catalogues)) == expected

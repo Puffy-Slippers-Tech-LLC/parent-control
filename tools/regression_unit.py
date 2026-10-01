@@ -191,6 +191,9 @@ from regression_ui import Bucket
 # Localization uses tiny tmp_path PO/MO trees and bounded, synchronously reaped
 # Make/gettext children. Package compilation targets each fixture's DESTDIR;
 # no checkout outputs, GUI, bus, service or shared locale changes are involved.
+# Production-language parity adds a bounded, reaped Node child reading those
+# private MO files. Payload comparisons reuse the existing fixture admission
+# and DESTDIR; neither addition introduces shared mutable state.
 # Overlay/panel checks use process-local accessibility/session doubles and
 # bounded, reaped Perl children; evidence stays in each pytest tmp_path.
 # The added challenge/installed-journey cleanup rows retain the same isolation.

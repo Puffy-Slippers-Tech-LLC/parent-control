@@ -519,8 +519,9 @@ They do not qualify a route, waive acceptance or close a row.
 
 ## Deferred future work
 
-This row has no current-release consumer and does not prevent active completion.
+These rows have no current-release consumer and do not prevent active completion.
 
 | Done | ID | Task | Requires tasks | Delivered scope | Minutes |
 | --- | --- | --- | --- | --- | --- |
 | [ ] | 154 | [Deferred qualification of restored mute](E2E-Tasks/154-mute.md) | 048a | Deferred future public mute; outside current-release completion; gate in brief | 20–40 |
+| [ ] | 300 | [Installed personal-language acceptance](E2E-Tasks/300-localization.md) | Baseline | Future English/German/Simplified Chinese acceptance across Parent, child panel/overlay and kiosk; reuse UI language helpers | Future implementation |

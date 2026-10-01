@@ -7,15 +7,11 @@ from pathlib import Path
 
 
 def switch_language(ui, wait, surface, language):
-    ui.activate('parent-menu-button' if surface == 'parent' else 'kiosk-menu-button')
-    ui.activate('parent-menu-preferences' if surface == 'parent'
-                else 'kiosk-menu-item-preferences')
-    wait(lambda: ui.showing('language-dialog'), 'language chooser opens')
-    ui.activate('language-choice-' + language.lower())
-    ui.activate('language-continue')
-    wait(lambda: ui.absent('language-dialog', within=(
-        'parent-window' if surface == 'parent' else 'kiosk-request-window')),
-        'language chooser commits and closes')
+    # Keep the existing preview facade while using the installed adapter's
+    # exact public-ID operations, ownership checks and independent results.
+    ui.reader.open_language_preferences(surface)
+    ui.reader.choose_language(surface, language)
+    ui.reader.save_language(surface)
 
 
 def public_label_names(ui, identity):

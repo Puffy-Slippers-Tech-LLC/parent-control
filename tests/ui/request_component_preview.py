@@ -6,6 +6,8 @@ import copy
 import json
 import os
 import sys
+import time
+from tests.support.language_fixture import LanguageFixture
 
 from gi.repository import GLib
 
@@ -42,7 +44,7 @@ class Broker:
         self.path = os.environ.get("ONPC_REQUEST_COMPONENT_EVENTS_PATH")
         self.pending_slow_reply = None
         self.preferences = copy.deepcopy(PREFERENCES)
-        self.language = ""
+        self.language = LanguageFixture(self.record)
         if self.scenario == "two-hours-grant-only":
             self.preferences[1001]["request"]["last_selected_duration"] = "7200"
         if self.scenario == "control-disabled":
@@ -75,6 +77,20 @@ class Broker:
              _flags, _timeout, _cancellable, callback):
         values = () if parameters is None else parameters.unpack()
         self.record("call", method=method, values=values)
+        if method == 'SetOwnLanguage':
+            self.record('language-save-started', language=values[0])
+            deadline = time.monotonic() + 60
+
+            def finish_save():
+                if not self.language.released() and time.monotonic() < deadline:
+                    return GLib.SOURCE_CONTINUE
+                reply = (self.reply(method, values) if self.language.released() else
+                         Reply(error=TimeoutError('language save fixture was not released')))
+                callback(self, reply)
+                return GLib.SOURCE_REMOVE
+
+            GLib.timeout_add(20, finish_save)
+            return
         reply = self.reply(method, values)
         if self.scenario == "slow-request" and method.startswith("Request"):
             if self.pending_slow_reply is not None:
@@ -101,10 +117,15 @@ class Broker:
 
     def reply(self, method, values):
         if method == "GetOwnLanguage":
-            return Reply((self.language,))
+            try:
+                return Reply((self.language.read(),))
+            except RuntimeError as error:
+                return Reply(error=error)
         if method == "SetOwnLanguage":
-            self.language, = values
-            return Reply((self.language,))
+            try:
+                return Reply((self.language.commit(values[0]),))
+            except RuntimeError as error:
+                return Reply(error=error)
         if self.scenario.startswith("service-failure") and method.startswith("Request"):
             return Reply(error=RuntimeError("org.example.Secret /private/path"))
         if method == "GetOwnAccount":

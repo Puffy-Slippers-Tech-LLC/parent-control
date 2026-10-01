@@ -46,6 +46,16 @@ consumers. Existing cases therefore retain their original scope. Preview launch
 owns the existing process and private bus as before; setup adds no new resource,
 storage or cleanup lifetime and leaves the existing parallel classifications intact.
 
+Dedicated chooser checks opt out of automatic setup with
+`launch_ui(..., complete_language_setup=False)`. The host and future installed
+language tests reuse `AccessibleUI.language_scope`, `open_language_preferences`,
+`choose_language`, `save_language`, `cancel_language` and
+`language_save_completed`; the existing `localization_review.switch_language`
+facade delegates to these operations too. They resolve only public IDs and
+observe checked choices, readiness and closure independently of input success.
+`language_fixture.py` supplies preview-only saved/read/save outcomes and tiny
+caller-owned release files; it is not a substitute for installed persistence.
+
 Host support never establishes installed or customer acceptance. Guest execution
 uses [system_assertions.py](../integration/system_assertions.py) for real-caller
 batches, validated broker replies and authoritative account snapshots, and

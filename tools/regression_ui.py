@@ -59,7 +59,10 @@ def serial_options(options):
 
 
 GROUPS = (
-    ('Request behavior', ('test_request_form_component.py',), 6),
+    # Language settings use the existing owned previews and private bus/display.
+    # Tiny tmp_path event/release files gate one worker; finally releases it.
+    # No host locale/settings mutation, network, new service or cleanup owner.
+    ('Request behavior', ('test_request_form_component.py', 'test_language_settings.py'), 6),
     ('Layout and overflow', ('test_request_layout.py', 'test_control_overflow.py'), 6),
     ('Feedback', ('test_parent_feedback.py', 'test_error_feedback.py'), 6),
     # Match invalid/Reset matrix shares the owned private preview/display and

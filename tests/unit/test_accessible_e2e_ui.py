@@ -2791,6 +2791,88 @@ def test_language_helper_leaves_preferences_open_after_startup(surface):
     button.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('surface', ['parent', 'kiosk'])
+@pytest.mark.parametrize('language', ['en', 'de', 'zh-Hans'])
+def test_language_candidate_requires_checked_readback_without_replay(surface, language):
+    choice = Node(identity='language-choice-' + language.lower())
+    dialog = Node(identity='language-dialog', children=[choice])
+    window = Node(identity='parent-window' if surface == 'parent' else 'kiosk-request-window',
+                  children=[dialog])
+    ui = ui_for(window)
+    # Input acceptance alone cannot permit the next input or establish a choice.
+    with pytest.raises(UiError, match='timeout'):
+        ui.choose_language(surface, language)
+    assert ui.input_uncertain
+    assert ui.application_ids is None
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.choose_language(surface, language)
+    choice.action.do_action.assert_called_once_with(0)
+
+
+@pytest.mark.parametrize('surface', ['parent', 'kiosk'])
+@pytest.mark.parametrize('language', ['en', 'de', 'zh-Hans'])
+def test_language_candidate_uses_ids_and_independent_checked_state(surface, language):
+    choice = Node('an unrelated translated name', identity='language-choice-' + language.lower())
+    ui = ui_for(Node(identity='parent-window' if surface == 'parent' else 'kiosk-request-window',
+                     children=[Node(identity='language-dialog', children=[choice])]))
+
+    def select(_index):
+        choice.states.add('checked')
+        return True
+
+    choice.action.do_action.side_effect = select
+    ui.choose_language(surface, language)
+    assert not ui.input_uncertain and ui.application_ids is None
+    choice.action.do_action.assert_called_once_with(0)
+
+
+@pytest.mark.parametrize('surface', ['parent', 'kiosk'])
+@pytest.mark.parametrize('operation', ['save_language', 'cancel_language'])
+@pytest.mark.parametrize('completed', [False, True])
+def test_language_dismissal_requires_closure_and_restores_owner_scope(surface, operation, completed):
+    identity = 'language-continue' if operation == 'save_language' else 'language-cancel'
+    button = Node(identity=identity)
+    ready = Node(identity=surface + '-language-ready')
+    dialog = Node(identity='language-dialog', children=[button])
+    window = Node(identity='parent-window' if surface == 'parent' else 'kiosk-request-window',
+                  children=[ready, dialog])
+    ui = ui_for(window)
+
+    def dismiss(_index):
+        if completed:
+            window.children.remove(dialog)
+        return True
+
+    button.action.do_action.side_effect = dismiss
+    if completed:
+        getattr(ui, operation)(surface)
+        assert not ui.input_uncertain
+    else:
+        with pytest.raises(UiError, match='timeout'):
+            getattr(ui, operation)(surface)
+        assert ui.input_uncertain
+        with pytest.raises(UiError, match='uncertain-input'):
+            getattr(ui, operation)(surface)
+    assert ui.application_ids is None
+    button.action.do_action.assert_called_once_with(0)
+
+
+@pytest.mark.parametrize('surface', ['parent', 'kiosk'])
+def test_language_preferences_requires_observed_dialog_after_input(surface):
+    menu = Node(identity=surface + '-menu-button')
+    preferences = Node(identity='parent-menu-preferences' if surface == 'parent'
+                       else 'kiosk-menu-item-preferences')
+    ui = ui_for(Node(identity='parent-window' if surface == 'parent' else 'kiosk-request-window',
+                     children=[menu, preferences]))
+    with pytest.raises(UiError, match='timeout'):
+        ui.open_language_preferences(surface)
+    assert ui.input_uncertain and ui.application_ids is None
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.open_language_preferences(surface)
+    menu.action.do_action.assert_called_once_with(0)
+    preferences.action.do_action.assert_called_once_with(0)
+
+
 def test_empty_parent_waits_for_fresh_state_without_replaying_input():
     from accessible_ui import PRODUCT
     root = Node(PRODUCT, identity='parent-window', children=[

@@ -10,6 +10,7 @@ import sys
 import time
 
 from parent.oh_no_parent_control_parent.main import Application
+from tests.support.language_fixture import LanguageFixture
 from parent.oh_no_parent_control_parent.preview_data import (
     PREVIEW_APPS,
     PREVIEW_PREFERENCES,
@@ -21,7 +22,7 @@ class ScriptedParentBroker:
     """Deterministic component-test broker; it contains no authorization logic."""
 
     def __init__(self):
-        self._language = ""
+        self._language = LanguageFixture(self._record)
         self._mode = os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO", "normal")
         self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
         if self._mode in ('catalogue', 'rejected-rule'):
@@ -54,11 +55,10 @@ class ScriptedParentBroker:
         return PREVIEW_USERS
 
     def get_own_language(self):
-        return self._language
+        return self._language.read()
 
     def set_own_language(self, language):
-        self._language = language
-        return language
+        return self._language.save(language)
 
     def _wait_for_loading_release(self):
         # The component test must observe both disabled controls before this

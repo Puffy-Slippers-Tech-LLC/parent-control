@@ -7,13 +7,13 @@ from tests.support.accessible_ui import Node, ui_for
 def request_form(*, fault=None):
     child = Node(
         'Child account', 'push button', identity='kiosk-child-selector',
-        description='Selected child account: Jordan (Child).',
+        description='Selected account: Jordan (Child).',
         children=[Node('Jordan (Child)', 'label', identity='kiosk-child-selected-1002')],
     )
     approver = Node(
         'Approving parent', 'push button', states=('showing', 'visible'),
         identity='kiosk-approver-selector',
-        description='Selected approving parent: Casey (Parent).',
+        description='Selected account: Casey (Parent).',
         children=[Node('Casey (Parent)', 'label', identity='kiosk-approver-selected-1010')],
     )
     durations = []
@@ -90,7 +90,7 @@ def accounts_form(field='child'):
         selected = selector.children[0]
         selected.identity = f'kiosk-{field}-selected-{ui.fixture_uids[expected[0]]}'
         selected.name = expected[0]
-        selector.description = f'Selected {label.casefold()}: {expected[0]}.'
+        selector.description = f'Selected account: {expected[0]}.'
         # Independent form read, with enabled availability after loading.
         for node in form.children:
             if node.identity == 'kiosk-screen-limit-notice':
@@ -104,7 +104,7 @@ def accounts_form(field='child'):
     if field == 'approver':
         child = ui.find_id('kiosk-child-selector')
         child.children[0].identity = 'kiosk-child-selected-1001'
-        child.description = f'Selected child account: {CHILD}.'
+        child.description = f'Selected account: {CHILD}.'
     return ui, selector, choices, expected
 
 
@@ -114,7 +114,7 @@ def disabled_accounts_form():
     def commit(_):
         selector.children[0].identity = 'kiosk-child-selected-1001'
         selector.children[0].name = CHILD
-        selector.description = f'Selected child account: {CHILD}.'
+        selector.description = f'Selected account: {CHILD}.'
         choices.states.discard('showing')
         return True
 

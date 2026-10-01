@@ -6663,7 +6663,7 @@ class AccessibleUI:
                 require(not any(self.showing(node) and identity_by_node[node].startswith(
                     'kiosk-child-choice-') for node in form_nodes), 'ui:overlay-child-expanded')
 
-            def selected_identity(control, label, canonical_identities, code):
+            def selected_identity(control, canonical_identities, code):
                 namespace = 'child' if canonical_identities == CHILD_IDENTITIES else 'approver'
                 diagnostic.emit('selected-' + namespace)
                 accounts = CHILD_ACCOUNTS if namespace == 'child' else APPROVER_ACCOUNTS
@@ -6693,7 +6693,7 @@ class AccessibleUI:
                 name, canonical = selected[0]
                 control.clear_cache_single()
                 description = ' '.join(control.get_description().split())
-                if description != f'Selected {label.casefold()}: {name}.':
+                if description != f'Selected account: {name}.':
                     # The selected label ID and the trigger description are
                     # published separately. Read both again after the update.
                     return None
@@ -6764,9 +6764,9 @@ class AccessibleUI:
             projection = {
                 'surface': 'child-overlay' if overlay else 'kiosk', 'form_count': 1,
                 'child': 'none' if no_child else selected_identity(
-                    child, 'Child account', CHILD_IDENTITIES, 'kiosk-child'),
+                    child, CHILD_IDENTITIES, 'kiosk-child'),
                 'approver': 'none' if no_approver else selected_identity(
-                    approver, 'Approving parent', APPROVER_IDENTITIES,
+                    approver, APPROVER_IDENTITIES,
                     'kiosk-approver'),
                 'duration_seconds': duration_seconds,
                 'custom_text': custom_text if custom_text is not None else (

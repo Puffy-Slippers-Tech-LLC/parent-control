@@ -21,15 +21,17 @@ changing runtime readiness on the strength of documentation alone.
 
 Next task: **048 — [Qualify direct and panel entry to the child overlay](E2E-Tasks/048-shell-panel.md)**.
 
-Task 048 recovery: shared overlay diagnostic parsing was repaired; 2229 scoped
-host checks and 190 scheduling/plan checks passed. Live `check_e2e_shell_panel`
-run `20261001T185732Z-c40fe452` passed both direct entries and fixed-child form
-readbacks, then failed after `panel-panel`, before `panel-launch`, with
-`e2e:worker-execution-failed` (`CommandError`; `command:failed:ssh`).
-The worker stopped and callback closed; normal shutdown verification was false.
-Owned cleanup and baseline restoration passed. Diagnose this new failure in
-the next session, then pass qualification and both affected kiosk-readback
-regressions on every enabled VM before close-out. See the brief for evidence.
+Task 048 recovery: the retained panel failure was `ui:missing-action` on
+Shell 50's ID-owned button. Shared panel entry now uses public Component focus,
+a fresh same-target focus proof and one worker Enter before independent form
+readback. All 2302 affected host checks and 123 scheduling/plan checks passed.
+Live run `20261001T191702Z-cab9c288` failed after `direct-launch`, before
+`direct-form`, with `e2e:worker-execution-failed` (`CommandError`, `step-2`;
+terminal category `command:failed:ssh`). The panel correction was not reached.
+No diagnosis or retry of this new failure followed it. Worker/callback cleanup,
+baseline restoration and host/source preservation passed; the VM is off.
+Diagnose the retained new failure next session, then pass qualification and both
+affected kiosk-readback regressions on every enabled VM. See the brief for evidence.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -39,9 +39,25 @@ def overlay(monkeypatch):
             node.states.add('sensitive')
     child = ui.find_id('kiosk-child-selector')
     child.states.discard('sensitive')
-    child.description = 'Selected child account: ' + a.CHILD + '.'
+    child.description = 'Selected account: ' + a.CHILD + '.'
     child.children[0].identity = 'kiosk-child-selected-1001'
     return ui, application, form, child
+
+
+def test_overlay_reads_current_selected_account_descriptions(monkeypatch):
+    ui, _, _, child = overlay(monkeypatch)
+    # AccountSelector._describe_trigger publishes the same description for
+    # both namespaces; the distinct public UID IDs establish their identities.
+    child.description = f'Selected account: {a.CHILD}.'
+    approver = ui.find_id('kiosk-approver-selector')
+    approver.description = f'Selected account: {a.OTHER_PARENT}.'
+    result = ui.run('overlay-request-form', '')
+    observed = RequestObservation.from_request(result['request'],
+                                              operation='overlay-request-form')
+    assert observed.child == 'fixture-child'
+    assert observed.approver == 'other-fixture-parent'
+    child.action.do_action.assert_not_called()
+    approver.action.do_action.assert_not_called()
 
 
 def panel(monkeypatch):
@@ -98,7 +114,7 @@ def test_fixed_overlay_reader_refuses_unsafe_or_incomplete_forms(monkeypatch, fa
     if fault == 'unlocked': child.states.add('sensitive')
     if fault == 'wrong-child':
         child.children[0].identity = 'kiosk-child-selected-1002'
-        child.description = 'Selected child account: ' + a.EXISTING_CHILD + '.'
+        child.description = 'Selected account: ' + a.EXISTING_CHILD + '.'
     if fault == 'duplicate-form':
         form.children.append(Node(identity='kiosk-request-form'))
     if fault == 'foreign-form':

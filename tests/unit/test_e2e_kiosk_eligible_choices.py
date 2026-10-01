@@ -22,7 +22,7 @@ def test_multiple_inspect_collapse_and_decode_without_selection(field, fault):
     form = ui.find_id('kiosk-request-form')
     child = ui.find_id('kiosk-child-selector')
     child.children[0].identity = 'kiosk-child-selected-1002'
-    child.description = f'Selected child account: {EXISTING_CHILD}.'
+    child.description = f'Selected account: {EXISTING_CHILD}.'
     for node in form.children:
         if node.identity == 'kiosk-screen-limit-notice':
             node.states.discard('showing')
@@ -34,7 +34,7 @@ def test_multiple_inspect_collapse_and_decode_without_selection(field, fault):
                 choices.states.discard('showing')
             if fault == 'selection':
                 child.children[0].identity = 'kiosk-child-selected-1001'
-                child.description = f'Selected child account: {CHILD}.'
+                child.description = f'Selected account: {CHILD}.'
         else:
             choices.states.add('showing')
         return True
@@ -137,7 +137,7 @@ def test_successful_input_without_changed_selection_fails():
     def wrong(index):
         commit(index)
         selector.children[0].identity = 'kiosk-child-selected-1002'
-        selector.description = f'Selected child account: {EXISTING_CHILD}.'
+        selector.description = f'Selected account: {EXISTING_CHILD}.'
         return True
     choices.children[0].action.do_action.side_effect = wrong
     with pytest.raises(UiError, match='timeout:kiosk-request-form'):

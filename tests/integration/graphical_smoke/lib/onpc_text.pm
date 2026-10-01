@@ -26,6 +26,7 @@ my %values = (
     'body-mixed-5000-base' => 'x' x 4998,
     'body-mixed-5001-base' => 'x' x 4999,
     'kiosk-fraction' => '1.25',
+    'overlay-fraction' => '1.25',
     'kiosk-invalid-empty' => '', 'kiosk-invalid-letters' => 'abc',
     'kiosk-invalid-negative' => '-1', 'kiosk-invalid-zero' => '0',
     'kiosk-invalid-below' => '0.09', 'kiosk-invalid-over' => '1440.1',

@@ -67,8 +67,9 @@ class KioskRequestJourney(InstalledJourney):
             precision = max(self.balance[key]['precision_seconds'] for key in ('daily', 'one_time'))
             require(max(0, max(daily, grant) - elapsed) + requested - precision <= actual
                     <= max(daily, grant) + requested + precision, 'kiosk-valid:estimate-bounds')
-            require(abs(actual - (max(daily, grant) + requested)) <= precision,
-                    'kiosk-valid:unused-child-estimate')
+            if choice['request'].get('surface', 'kiosk') == 'kiosk':
+                require(abs(actual - (max(daily, grant) + requested)) <= precision,
+                        'kiosk-valid:unused-child-estimate')
         observed['comparison'] = {'estimate_bounds': True, 'no_authentication': True}
 
     def check_preserved_request(self, stage, observed):

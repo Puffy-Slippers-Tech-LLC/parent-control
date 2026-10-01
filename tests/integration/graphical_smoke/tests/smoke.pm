@@ -139,6 +139,12 @@ sub run {
         onpc_product_free_entry::run(\&exchange);
         return;
     }
+    if ($ready->{overlay_valid_choices}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::overlay_valid_choices(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{shell_panel}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -7,10 +7,12 @@ phase transitions. Each call returns a fresh mapping owned by its caller.
 from private_artifacts import require
 
 
-def native_usable_app(route):
+def native_usable_app(route, *, child='other-child'):
     """FLOW08 finite native usable scope; caller owns stages and later activity."""
     require(route in ('command', 'grid'), 'journey:native-route')
-    return {
+    require(child in ('child', 'other-child') and (child != 'child' or route == 'command'),
+            'journey:native-child-binding')
+    stages = {
         'desktop': 'ui:native-desktop',
         **({'command': 'ui:native-command-launch'} if route == 'command' else {
             'search-ready': 'ui:native-search-ready',
@@ -21,6 +23,8 @@ def native_usable_app(route):
         'submit': 'ui:native-submit',
         'submitted': 'ui:native-submitted',
     }
+    return {stage: tag.replace('ui:native-', 'ui:overlay-native-') if child == 'child' else tag
+            for stage, tag in stages.items()}
 
 
 def filter_screens(kind, mask, prefix):
@@ -150,17 +154,19 @@ def parent_management():
     }
 
 
-def overlay_entry(prefix, route):
+def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
     """REQUEST02/13 input followed by REQUEST03's independent fixed-child read."""
     import re
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix)
             and route in ('command', 'panel', 'panel-reopen'), 'journey:overlay-binding')
+    require(form_operation in ('overlay-request-form', 'overlay-valid-excluded-read'),
+            'journey:overlay-form-binding')
     return {
         **({prefix + '-reveal': 'ui:overlay-panel-reveal-ready'} if route == 'panel-reopen' else {}),
         **({prefix + '-panel': 'ui:overlay-panel-ready'} if route != 'command' else {}),
         prefix + '-launch': 'ui:child-command-launch' if route == 'command' else 'ui:overlay-panel-launch',
         **({prefix + '-overview': 'ui:overlay-panel-overview'} if route == 'panel-reopen' else {}),
-        prefix + '-form': 'ui:overlay-request-form',
+        prefix + '-form': 'ui:' + form_operation,
     }
 
 

@@ -27,7 +27,7 @@ APIS = {
     'journey_blocks': {'fresh_desktop', 'parent_management', 'parent_search', 'observed_text',
                        'product_free_desktop', 'reboot_desktop', 'station_entry',
                        'custom_child_selection', 'custom_save_entry', 'ordinary_custom_save',
-                       'filter_screens', 'rejected_gdm_return', 'native_usable_app'},
+                       'filter_screens', 'rejected_gdm_return', 'native_usable_app', 'overlay_entry'},
     'native_fixtures': {'fixture_actions', 'check_catalogue', 'expected_rows', 'search_rows', 'catalogue_rows',
                         'CataloguePolicyJourney'},
     'journey_checks': {'allowed_app_rows', 'installed_accounts'},

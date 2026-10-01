@@ -633,6 +633,16 @@ class ShellPanelQualification(ChallengesQualification):
         return ShellPanelJourney(context, progress)
 
 
+class OverlayValidChoicesQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from overlay_valid_choices import OverlayValidChoicesJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return OverlayValidChoicesJourney(context, progress)
+
+
 class RepeatedOperationsQualification(KioskEntryQualification):
     """Finite page cycles in the same owned snapshot/collection envelope."""
 

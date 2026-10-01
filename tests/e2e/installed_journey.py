@@ -77,10 +77,11 @@ class JourneyPlan:
                 self.prefix + ':assertion-plan')
         used = set()
         stages = list(self.screen_tags)
-        require(all(stage in stages and self.screen_tags[stage] == 'ui:native-activity'
+        require(all(stage in stages and self.screen_tags[stage] in (
+                    'ui:native-activity', 'ui:overlay-native-activity')
                     and type(binding) is tuple and len(binding) == 2
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
-                    and self.screen_tags[binding[0]] == 'ui:native-activity'
+                    and self.screen_tags[binding[0]] == self.screen_tags[stage]
                     and binding[1] in ('same', 'replaced')
                     for stage, binding in self.activity_checks.items()),
                 self.prefix + ':activity-plan')
@@ -316,7 +317,7 @@ class InstalledJourney:
 
     def check_activity(self, stage, observed):
         """Capture/compare before the worker can receive a durable reply."""
-        if self.plan.screen_tags.get(stage) != 'ui:native-activity':
+        if self.plan.screen_tags.get(stage) not in ('ui:native-activity', 'ui:overlay-native-activity'):
             return
         require(stage not in self.activity_observations, 'ui:app-activity-replay')
         current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'))

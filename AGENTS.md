@@ -13,6 +13,9 @@
   phases. Let running commands and owned cleanup finish before reporting their
   result; retain actionable failure details.
 
+## Localization
+- When editing strings, update all supported languages
+
 ## Authority and reading routes
 
 - Start product work at [System design](docs/System-Design.md): use its module map

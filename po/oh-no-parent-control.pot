@@ -578,8 +578,8 @@ msgstr ""
 msgid "Choose your language"
 msgstr ""
 
-#. Shared message: YOU_CAN_CHANGE_IT_LATER_IN_PREFERENCES
-msgid "You can change it later in preferences"
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
 msgstr ""
 
 #. Shared message: SELECT_NAME_S
@@ -708,14 +708,6 @@ msgstr ""
 
 #. Shared message: REQUEST_DENIED
 msgid "Request denied"
-msgstr ""
-
-#. Shared message: SELECT_LANGUAGE
-msgid "Select Language"
-msgstr ""
-
-#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES_LATER
-msgid "You can change it in preferences later."
 msgstr ""
 
 #. Shared message: CHILD

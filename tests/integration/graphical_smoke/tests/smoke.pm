@@ -438,6 +438,12 @@ sub run {
         onpc_parent_toggle::run(\&exchange);
         return;
     }
+    if ($ready->{native_fixtures}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::native_fixtures(\&exchange);
+        return;
+    }
     if ($ready->{app_row_observations}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

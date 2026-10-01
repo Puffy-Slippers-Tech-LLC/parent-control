@@ -21,7 +21,8 @@ def setup(tmp_path):
     installed_setup.stage(tmp_path, assets, {'consumer': 'E2E-030/parent'})
     payload = tmp_path / 'input'
     selected = json.loads((payload / 'selected-inputs.json').read_text())
-    verified = SimpleNamespace(recheck=Mock(), lease=SimpleNamespace(state={'run': 'a' * 32}),
+    verified = SimpleNamespace(recheck=Mock(), lease=SimpleNamespace(state={'run': 'a' * 32},
+        capture=SimpleNamespace(state={'guest': {'ubuntu_version': '26.04'}})),
         inputs={'package_sha256': installed_setup.system.baseline.digest(payload / 'package.deb')},
         source_files={entry['source']: entry['sha256'] for entry in selected['files'].values()})
     vm = Mock()

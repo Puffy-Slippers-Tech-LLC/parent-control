@@ -836,6 +836,11 @@ Implementation status: All cases pending.
 
 Bindings: flow = search-filters / match-editor / match-reopen / shared-launchers / special-paths / pattern-files.
 
+Native identities/defaults come from FIX04's [finite native declaration](E2E-Building-Blocks.md#native-fixture-preparation)
+and `tests/fixtures/native_assets.py`. Reuse `native_fixtures.fixture_actions()`
+for fresh preparation and `check_catalogue()` for the public initial defaults;
+preparation assigns no policy. Complete E2E-041 bindings remain pending.
+
 1. FLOW16(ample daily) → PARENT04(App Limits) → UI04(legend) → UI03 → PARENT12(assets).
 2. Run the corresponding finite catalogue subrecipe below using PARENT10/11/13/15/16, UI16, shared FILE05 commands and LIFE01.
 3. PARENT12 → UI12(saved/expected rule) → C → FLOW08(declared positive and negative targets). Search-only checks compare rules without changing them.

@@ -18,6 +18,7 @@ import zipfile
 import zlib
 from datetime import date
 from download_destination import DIRECTORY as SAVE_DIRECTORY, download_directory
+from guest_files import read_regular
 
 ZIP_NAME = 'Synthetic archive.zip'
 ZIP_ARTIFACT = 'synthetic-archive'
@@ -170,26 +171,13 @@ def read_pinned(root_fd, root, receipt, expected, name, limit, *, diagnostic=Fal
     require(identity(before) == expected['identity'] and stat.S_ISREG(before.st_mode)
             and before.st_uid == os.getuid() and before.st_nlink == 1
             and stat.S_IMODE(before.st_mode) == 0o600 and 0 < before.st_size <= limit)
-    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=root_fd)
-    try:
-        require(identity(os.fstat(fd)) == identity(before))
-        chunks, remaining = [], before.st_size
-        while remaining:
-            chunk = os.read(fd, min(65536, remaining))
-            require(chunk)
-            chunks.append(chunk)
-            remaining -= len(chunk)
-        content = b''.join(chunks)
-        require(len(content) == before.st_size and os.read(fd, 1) == b'')
-        require(len(content) == expected['size']
-                and hashlib.sha256(content).hexdigest() == expected['sha256'])
-        require(identity(os.fstat(fd)) == identity(before))
-        require(identity(os.stat(name, dir_fd=root_fd, follow_symlinks=False)) == identity(before))
-        require(identity(os.fstat(root_fd)) == receipt['directory']
-                and identity(root.lstat()) == receipt['directory'])
-        return content
-    finally:
-        os.close(fd)
+    content, pinned = read_regular(root_fd, name, owner=os.getuid(), mode=0o600, limit=limit)
+    require(identity(pinned) == identity(before)
+            and len(content) == expected['size']
+            and hashlib.sha256(content).hexdigest() == expected['sha256'])
+    require(identity(os.fstat(root_fd)) == receipt['directory']
+            and identity(root.lstat()) == receipt['directory'])
+    return content
 
 
 def inspect_zip(content, *, diagnostic=False):

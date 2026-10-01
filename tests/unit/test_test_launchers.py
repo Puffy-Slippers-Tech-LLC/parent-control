@@ -24,22 +24,21 @@ def named_qualification_inputs():
         for node in ast.walk(tree):
             if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                     and node.func.id == 'named_input'):
-                package_source = next((ast.literal_eval(kw.value) for kw in node.keywords
-                                       if kw.arg == 'package_source'), False)
-                yield path.stem, package_source
+                options = {kw.arg: ast.literal_eval(kw.value) for kw in node.keywords}
+                yield path.stem, options
                 break
 
 
-@pytest.mark.parametrize(('name', 'package_source'), list(named_qualification_inputs()))
+@pytest.mark.parametrize(('name', 'options'), list(named_qualification_inputs()))
 @pytest.mark.parametrize('suffix', ['', '.py'])
 @pytest.mark.parametrize('build_status', [0, 7])
 def test_every_named_input_consumer_prepares_before_dispatch(
-        monkeypatch, name, package_source, suffix, build_status):
+        monkeypatch, name, options, suffix, build_status):
     import dev_privileges
     import regression_process
     import test_storage
 
-    output = str(test_storage.named_input(package_source=package_source))
+    output = str(test_storage.named_input(**options))
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
@@ -225,7 +224,8 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_allowance_boundaries', 'check_e2e_allowance_boundaries.py',
-                                     'check_e2e_save_chooser', 'check_e2e_save_chooser.py'])
+                                     'check_e2e_save_chooser', 'check_e2e_save_chooser.py',
+                                     'check_e2e_native_fixtures', 'check_e2e_native_fixtures.py'])
 def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, selector):
     import test_storage
     output = ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-current'
@@ -236,7 +236,9 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) == (
         commands.python_file(ROOT, 'tools/build_test_artifacts.py', '--output', str(output)))
-    if selector.startswith('check_e2e_save_chooser'):
+    if selector.startswith('check_e2e_native_fixtures'):
+        named.assert_called_once_with(fixture_source=True)
+    elif selector.startswith('check_e2e_save_chooser'):
         named.assert_called_once_with()
     else:
         named.assert_called_once_with(package_source=True)

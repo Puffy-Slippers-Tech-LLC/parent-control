@@ -656,7 +656,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_eligible_choices=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
          challenges=False, product_free_entry=False, package_authority=False,
-         package_install=False, customer_reboot=False, app_row_observations=False,
+         package_install=False, customer_reboot=False, app_row_observations=False, native_fixtures=False,
          feedback_read=False, text_qualification=False, allowance_presets=False, allowance=False,
          time_explanation=False, set_allowance=False, app_restart=False,
          allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False,
@@ -673,6 +673,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False):
+    require(type(native_fixtures) is bool and (not native_fixtures or (
+        app_row_observations and assets is not None and provision_credentials
+        and fresh_desktop is None and approval_flow is None
+        and not any(value for name, value in locals().items()
+                    if name not in ('assets', 'provision_credentials', 'app_row_observations',
+                                    'native_fixtures') and isinstance(value, bool)))),
+        'smoke:native-fixtures-prerequisites')
     require(type(public_connectivity_controls) is bool and (not public_connectivity_controls or (
         assets is not None and provision_credentials and parent_toggle
         and fresh_desktop is None and approval_flow is None
@@ -1265,6 +1272,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-public-connectivity-controls-qualification'
         if app_row_observations:
             result['scope'] = 'installed-app-row-observations-qualification'
+        if native_fixtures:
+            result['scope'] = 'installed-native-fixtures-qualification'
         if feedback_read:
             result['scope'] = 'installed-feedback-read-qualification'
         if file_chooser:
@@ -1532,6 +1541,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if app_row_observations:
                     from parent_setup_qualification import AppRowQualification
                     qualification_class = AppRowQualification
+                if native_fixtures:
+                    from parent_setup_qualification import NativeFixtureQualification
+                    qualification_class = NativeFixtureQualification
                 if feedback_read:
                     from parent_setup_qualification import FeedbackReadQualification
                     qualification_class = FeedbackReadQualification

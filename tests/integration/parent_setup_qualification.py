@@ -1076,6 +1076,25 @@ class AppRowQualification(KioskEntryQualification):
         return AppRowJourney(context, progress)
 
 
+class NativeFixtureQualification(KioskEntryQualification):
+    def execute(self, lease, guestfs):
+        self.guestfs = guestfs
+        super().execute(lease, guestfs)
+
+    def prepare_context(self, context):
+        self.transfer = smoke.AssetTransfer(self.verified)
+        self.result['asset_transfer'] = self.transfer.provision(context.lease, self.guestfs)
+        context.asset_transfer = self.transfer
+
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from native_fixture_qualification import NativeFixtureJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return NativeFixtureJourney(context, progress)
+
+
 class ParentToggleQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

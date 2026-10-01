@@ -40,13 +40,17 @@ from pathlib import PurePosixPath
 # libvirt/filter/SSH doubles; it is compatible with other cleanup/unit buckets.
 # LIFE06 Parent composition adds process-local UI doubles and private recorder
 # replies to vm_internet; it opens no real display, bus, socket or guest.
+# Native fixture placement/readback and source-keyed input tests own only private
+# pytest files, process-local guest/SSH/GTK doubles and bounded waited Perl
+# children. No real ownership mutation, VM, bus, display, shared path or cache;
+# compatible overlap in cleanup and unit scheduling.
 
 from regression_ui import Bucket
 from regression_resources import HOST_WORKERS
 
 
 REVIEWED = frozenset('''
-vm_internet
+vm_internet native_fixtures
 appsnapshot backing_verification baseline_guest challenges child_preview clean_install customer_reboot dbus_harness e2e_asset_transfer
 e2e_controller_qualification e2e_execution e2e_files e2e_fixture_credentials
 e2e_keyring_fixture e2e_leased_recording e2e_recording e2e_startup_cache e2e_suite

@@ -56,6 +56,26 @@ def test_current_named_input_changes_with_product_bytes_without_overwriting(tmp_
         storage.named_input(package_source=True)
 
 
+def test_native_named_input_tracks_fixture_bytes_and_preserves_existing_output(tmp_path, monkeypatch):
+    from tools import package_inputs
+    monkeypatch.setattr(storage, 'ROOT', tmp_path)
+    monkeypatch.setattr(storage, 'BASE', tmp_path / 'outputs')
+    monkeypatch.setattr(package_inputs, 'paths', lambda _: [Path('product.py')])
+    files = ('product.py', 'tests/fixtures/build_test_applications.py', 'tests/fixtures/native_assets.py',
+             'tests/fixtures/onpc_test_application.c', 'tests/fixtures/gui_application.py',
+             'common/oh_no_parent_control_ui/gtk_automation.py')
+    for name in files:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('first')
+    first = storage.named_input(fixture_source=True)
+    first.mkdir(parents=True)
+    (first / 'preserved').write_text('existing')
+    (tmp_path / files[2]).write_text('second')
+    assert storage.named_input(fixture_source=True) != first
+    assert (first / 'preserved').read_text() == 'existing'
+
+
 def test_storage_refuses_linked_parent_before_creating_outside(tmp_path):
     outside = tmp_path / 'outside'
     outside.mkdir()

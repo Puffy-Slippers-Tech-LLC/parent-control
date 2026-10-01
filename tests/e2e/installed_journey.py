@@ -419,7 +419,7 @@ class InstalledJourney:
                     observed['setup'] = {'installed_snapshot': context.installed_snapshot}
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport
-            if product_free and getattr(context, 'asset_transfer', None) is not None:
+            if getattr(context, 'asset_transfer', None) is not None:
                 observed['setup']['assets'] = context.asset_transfer.observe(self.vm)
             reply = {'setup_complete': True}
         else:
@@ -528,6 +528,8 @@ class InstalledJourney:
                     if plan.stage_actions[stage] == 'source-change'
                     else 'Waiting the declared real interval under the attempt guard'
                     if plan.stage_actions[stage] == 'real-interval'
+                    else 'Preparing declared native application fixtures'
+                    if plan.stage_actions[stage] in ('native-refuse', 'native-prepare')
                     else 'Preparing the declared child-account fixture')
             action = self.actions[plan.stage_actions[stage]]
             observed['fixture'] = action(self, guard)

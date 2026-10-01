@@ -16,6 +16,7 @@ from challenges import PLAN, CHALLENGES, INVOCATIONS, ChallengesJourney
 from fresh_child_allowed import PLAN as CHILD_PLAN, FreshChildAllowedJourney
 from fresh_child_denied import PLAN as DENIED_PLAN, FreshChildDeniedJourney
 from countdown_qualification import PLAN as COUNTDOWN_PLAN, OFF_PLAN
+from shell_panel import PLAN as SHELL_PANEL_PLAN
 from installed_journey import InstalledJourney, matched_screens
 from owned_commands import CommandError
 from parent_setup_qualification import ChallengesQualification, KioskEntryQualification, FreshChildAllowedQualification
@@ -352,6 +353,35 @@ def test_countdown_worker_composes_fresh_child_then_independent_reads(present, f
     if not fault:
         assert result['events'].count(['password']) == 2
         assert result['events'][-1] == ['off']
+    else:
+        assert ['off'] not in result['events']
+
+
+@pytest.mark.parametrize('fault', ['', *SHELL_PANEL_PLAN.screen_tags])
+def test_shell_panel_actual_worker_order_and_refusal(fault, tmp_path):
+    program = (PERL.replace('onpc_challenges::run(', 'onpc_challenges::shell_panel(')
+        .replace('(?:list|greeter|focused)', '(?:list|greeter|focused|opened)')
+        .replace('first-login', 'parent-login').replace('third-login', 'new-login')
+        .replace('our @events;', 'our @events; our @titles;')
+        .replace('sub record_info { }', 'sub record_info { push @main::titles, $_[0] }')
+        .replace('before => $before,', 'titles => \\@titles, before => $before,'))
+    result = json.loads(run_perl(program, fault, json.dumps(SHELL_PANEL_PLAN.invocations),
+                                json.dumps(SHELL_PANEL_PLAN.challenges)).stdout)
+    assert bool(result['ok']) == (not fault), result
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(SHELL_PANEL_PLAN.screen_tags)
+    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
+    assert not result['retry'] and not result['captured'] and not result['after_failure']
+    if not fault:
+        assert result['events'].count(['password']) == 2
+        assert result['events'][-1] == ['off']
+        results = tmp_path / 'testresults'
+        results.mkdir()
+        (results / 'result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': [
+            {'title': title, 'result': 'ok'} for title in result['titles']]}))
+        observations = [{'stage': stage, 'screenshot': {'sha256': 'a' * 64}}
+                        for stage in expected]
+        assert len(matched_screens(tmp_path, SHELL_PANEL_PLAN, observations)) == len(expected)
     else:
         assert ['off'] not in result['events']
 

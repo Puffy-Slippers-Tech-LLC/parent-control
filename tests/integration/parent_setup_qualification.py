@@ -623,6 +623,16 @@ class CountdownOffQualification(CountdownQualification):
     present = False
 
 
+class ShellPanelQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from shell_panel import ShellPanelJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ShellPanelJourney(context, progress)
+
+
 class RepeatedOperationsQualification(KioskEntryQualification):
     """Finite page cycles in the same owned snapshot/collection envelope."""
 

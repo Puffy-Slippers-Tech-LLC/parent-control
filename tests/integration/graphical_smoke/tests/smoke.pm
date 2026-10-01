@@ -139,6 +139,12 @@ sub run {
         onpc_product_free_entry::run(\&exchange);
         return;
     }
+    if ($ready->{shell_panel}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::shell_panel(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{countdown_enabled} || $ready->{countdown_off}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -210,10 +210,13 @@ from regression_ui import Bucket
 # Overlay invalid/Escape/FLOW04 checks extend that same lifetime and introduce
 # no live session, display, shared cache, socket or additional cleanup inventory.
 # The added challenge/installed-journey cleanup rows retain the same isolation.
+# Overlay Cancel case checks use private evidence/doubles and reaped Perl workers;
+# verification-only action selection adds no shared resource or cleanup lifetime.
 REVIEWED = frozenset("""
 localization
 e2e_shell_panel
 e2e_overlay_valid_choices
+e2e_overlay_cancel
 vm_internet_cleanup_safety baseline_fixtures_cleanup_safety
 about_dialog accessible_e2e_ui accessible_observation adapters app_policy app_termination appsnapshot_cleanup_safety apt_removal_notice
 authentication_evidence automation_ids backing_verification_cleanup_safety baseline_guest_cleanup_safety broker_properties

@@ -832,6 +832,8 @@ Native identities/defaults come from FIX06's [finite native declaration](E2E-Bui
 and `tests/fixtures/native_assets.py`. Reuse `native_fixtures.fixture_actions()`
 for fresh baseline verification and `check_catalogue()` for the public initial defaults;
 preparation assigns no policy. Complete E2E-041 bindings remain pending.
+The native profile belongs to Jordan; bind selection, App Limits entry and
+public row operations to that same child as described in the native contract.
 
 1. FLOW16(ample daily) → PARENT04(App Limits) → UI04(legend) → UI03 → PARENT12(assets).
 2. Run the corresponding finite catalogue subrecipe below using PARENT10/11/13/15/16, UI16, shared FILE05 commands and LIFE01.

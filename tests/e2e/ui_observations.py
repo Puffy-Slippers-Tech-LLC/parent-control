@@ -15,6 +15,7 @@ import system_runner as system
 # Collection replies need room for their full bounded semantic projection.
 # App rows still validate at most 256 fixed-format ID/access/match triples.
 RESPONSE_BYTE_LIMITS = {
+    **{operation: 32768 for operation in accessible_ui.CATALOGUE_ROW_OPERATIONS},
     'feedback-collection-events': 8192,
     'parent-checked-events': 8192,
     'parent-save-events': 8192,
@@ -22,12 +23,20 @@ RESPONSE_BYTE_LIMITS = {
     'kiosk-approver-baseline': 65536,
     'parent-app-rows': 32768,
     'parent-app-rows-reopened': 32768,
+    'existing-parent-app-rows': 32768,
+    'existing-parent-app-rows-reopened': 32768,
 }
 
 
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Checking the complete declared catalogue search result'
+       for operation in accessible_ui.CATALOGUE_ROW_OPERATIONS},
+    'catalogue-incomplete-refused': 'Refusing an incomplete catalogue result expectation',
+    **{'existing-' + operation: 'Checking public App Limits rows for [Existing child]'
+       for operation in accessible_ui.APP_ROW_OPERATIONS
+       if operation.startswith('parent-app-rows')},
     'about-interval-read': 'Reading the already open About window and its public identity',
     'about-interval-refused': 'Refusing About read entry while only management is open',
     **{operation: 'Saving diagnostic output through the owned chooser: ' + operation
@@ -1112,7 +1121,9 @@ class UiObservations:
         if operation in accessible_ui.APP_ROW_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'apps'}, 'ui:response')
             apps = result['apps']
-            if operation.endswith(('wrong-child', 'wrong-page')):
+            if operation == 'catalogue-incomplete-refused':
+                require(apps == {'refusal': 'incomplete-result'}, 'ui:app-row-refusal')
+            elif operation.endswith(('wrong-child', 'wrong-page')):
                 require(apps == {'refusal': 'wrong-child' if operation.endswith('wrong-child')
                                   else 'wrong-page'}, 'ui:app-row-refusal')
             else:

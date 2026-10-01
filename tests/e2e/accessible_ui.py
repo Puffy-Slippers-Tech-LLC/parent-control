@@ -171,6 +171,9 @@ KIOSK_INVALID_VALUES = {
     'below': '0.09', 'over': '1440.1', 'comma': '1,5',
 }
 TEXT_VALUES = {
+    'catalogue-name': ('parent-app-search', 'ONPC Allowed Fixture'),
+    'catalogue-absent': ('parent-app-search', 'ONPC Absent Catalogue Fixture 077b'),
+    'catalogue-clear': ('parent-app-search', ''),
     **{f'body-ascii-{units}': ('feedback-editor-input', 'x' * units)
        for units in (5000, 5001)},
     **{f'body-mixed-{units}' + suffix: ('feedback-editor-input', 'x' * (units - 2) + emoji)
@@ -362,6 +365,14 @@ APP_ROW_OPERATIONS = frozenset({
     'parent-app-rows', 'parent-app-rows-reopened',
     'parent-app-rows-wrong-child', 'parent-app-rows-wrong-page',
 })
+APP_ROW_OPERATIONS |= frozenset('existing-' + operation for operation in APP_ROW_OPERATIONS)
+APP_ROW_OPERATIONS |= {'catalogue-incomplete-refused'}
+CATALOGUE_ROW_OPERATIONS = {
+    'catalogue-name-rows': 'catalogue-name', 'catalogue-name-reopened': 'catalogue-name',
+    'catalogue-absent-rows': 'catalogue-absent', 'catalogue-absent-reopened': 'catalogue-absent',
+    'catalogue-clear-rows': 'catalogue-clear',
+}
+APP_ROW_OPERATIONS |= frozenset(CATALOGUE_ROW_OPERATIONS)
 OPERATIONS |= APP_ROW_OPERATIONS
 TOGGLE_OPERATIONS = {
     'multiple-other-enable': {'state': True, 'activated': True},
@@ -384,7 +395,7 @@ NAMED_CUSTOM_OPERATIONS = frozenset(
     operation for operation, (_, action) in CUSTOM_ALLOWANCE_OPERATIONS.items()
     if action in ('open', 'saved', 'reopen')) | frozenset(
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
-    if binding in ('daily-6', 'daily-7')) | {
+    if binding in ('daily-6', 'daily-7', 'catalogue-name', 'catalogue-absent', 'catalogue-clear')) | {
         'parent-custom-events', 'parent-custom-trace-focus',
         'parent-custom-trace-disabled-refused', 'named-custom-setup',
         'named-custom-wrong-child-refused', 'parent-trace-wrong-surface-refused',
@@ -3094,7 +3105,7 @@ class AccessibleUI:
         require(node.get_role_name() != 'password text'
                 and self.has_state(node, self.api.StateType.EDITABLE), 'ui:text-editor')
         surface = ('kiosk-request-window' if identity == 'kiosk-custom-duration' else
-                   'parent-window' if identity == 'parent-custom-daily-limit'
+                   'parent-window' if identity in ('parent-custom-daily-limit', 'parent-app-search')
                    else 'feedback-dialog')
         root = self.snapshot_owned_target(surface, check_prompt=True)
         require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
@@ -3103,6 +3114,14 @@ class AccessibleUI:
                 'ui:text-entry')
         if identity == 'parent-custom-daily-limit':
             self.allowance_entry(child)
+        if identity == 'parent-app-search':
+            picker = self.id_target('parent-child-selector', root=root, sensitive=True)
+            require(self.child_id_control(child, 'parent-child-selected-', root=picker,
+                                          showing=True) is not None, 'ui:wrong-child')
+            page = self.snapshot_owned_target('parent-app-limits-page', root=root, showing=False)
+            require(page is not None and self.has_state(page, self.api.StateType.VISIBLE)
+                    and self.snapshot_owned_target(identity, root=page, showing=False) is not None,
+                    'ui:app-row-page')
         if identity == 'kiosk-custom-duration':
             self.kiosk_valid_target(identity)
         require(not focused or self.has_state(node, self.api.StateType.FOCUSED),
@@ -3111,8 +3130,8 @@ class AccessibleUI:
 
     def focus_text(self, identity, *, child=CHILD):
         node = self.text_recipient(identity, child=child)
-        if identity in ('parent-custom-daily-limit', 'kiosk-custom-duration'):
-            surface = 'parent-window' if identity == 'parent-custom-daily-limit' else 'kiosk-request-window'
+        if identity in ('parent-custom-daily-limit', 'parent-app-search', 'kiosk-custom-duration'):
+            surface = 'kiosk-request-window' if identity == 'kiosk-custom-duration' else 'parent-window'
             self.activate_id(surface, action_name='focus.' + identity)
             self.wait(lambda: self.has_state(self.text_recipient(identity, child=child),
                                             self.api.StateType.FOCUSED), 'text-focus')
@@ -4953,22 +4972,56 @@ class AccessibleUI:
 
     def app_row_operation(self, operation):
         require(operation in APP_ROW_OPERATIONS, 'ui:app-row-operation')
+        if operation in CATALOGUE_ROW_OPERATIONS:
+            binding = CATALOGUE_ROW_OPERATIONS[operation]
+            if operation.endswith('reopened'):
+                self.parent_page(EXISTING_CHILD, 'Screen Limits')
+                self.parent_page(EXISTING_CHILD, 'App Limits')
+            self.read_synthetic_text(binding, child=EXISTING_CHILD)
+            expected = (() if binding == 'catalogue-absent' else
+                        ('parent-app-' + hashlib.sha256(
+                            b'com.puffyslippers.ONPCTest.A.desktop').hexdigest()[:16],))
+            def ready():
+                try:
+                    if binding == 'catalogue-clear':
+                        rows = self.app_rows(EXISTING_CHILD)
+                        fixtures = {'parent-app-' + hashlib.sha256(
+                            ('com.puffyslippers.ONPCTest.' + role + '.desktop').encode()
+                            ).hexdigest()[:16] for role in ('A', 'H', 'S', 'N')}
+                        return {'rows': rows} if fixtures <= {row[0] for row in rows} else None
+                    return {'rows': self.app_rows(EXISTING_CHILD, expected_ids=expected)}
+                except UiError as error:
+                    if str(error) == 'ui:app-row-set':
+                        return None  # SearchEntry's public debounce may still be pending.
+                    raise
+            return self.wait(ready, 'catalogue-results')
+        if operation == 'catalogue-incomplete-refused':
+            try:
+                self.app_rows(EXISTING_CHILD, expected_ids=())
+            except UiError as error:
+                require(str(error) == 'ui:app-row-set', 'ui:app-row-wrong-refusal')
+            else:
+                raise UiError('ui:app-row-wrong-accepted')
+            return {'refusal': 'incomplete-result'}
+        child = EXISTING_CHILD if operation.startswith('existing-') else CHILD
+        other = CHILD if child == EXISTING_CHILD else EXISTING_CHILD
+        operation = operation.removeprefix('existing-')
         if operation == 'parent-app-rows-reopened':
-            self.parent_page(CHILD, 'Screen Limits')
-            self.parent_page(CHILD, 'App Limits')
+            self.parent_page(child, 'Screen Limits')
+            self.parent_page(child, 'App Limits')
         if operation in ('parent-app-rows-wrong-child', 'parent-app-rows-wrong-page'):
             wrong_child = operation == 'parent-app-rows-wrong-child'
             if not wrong_child:
-                self.parent_page(CHILD, 'Screen Limits')
+                self.parent_page(child, 'Screen Limits')
             try:
-                self.app_rows(EXISTING_CHILD if wrong_child else CHILD)
+                self.app_rows(other if wrong_child else child)
             except UiError as error:
                 require(str(error) == ('ui:app-row-child' if wrong_child else 'ui:app-row-page'),
                         'ui:app-row-wrong-refusal')
             else:
                 raise UiError('ui:app-row-wrong-accepted')
             return {'refusal': 'wrong-child' if wrong_child else 'wrong-page'}
-        return {'rows': self.app_rows(CHILD)}
+        return {'rows': self.app_rows(child)}
 
     def launchable_result(self, product):
         """SEARCH04's owned Shell launcher branch, without input."""

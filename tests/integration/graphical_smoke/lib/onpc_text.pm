@@ -8,6 +8,8 @@ use onpc_journey ();
 use onpc_parent ();
 
 my %values = (
+    'catalogue-name' => 'ONPC Allowed Fixture',
+    'catalogue-absent' => 'ONPC Absent Catalogue Fixture 077b', 'catalogue-clear' => '',
     'body-ascii-5000' => 'x' x 5000,
     'body-ascii-5001' => 'x' x 5001,
     'body-mixed-5000-base' => 'x' x 4998,

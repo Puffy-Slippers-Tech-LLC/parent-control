@@ -438,6 +438,12 @@ sub run {
         onpc_parent_toggle::run(\&exchange);
         return;
     }
+    if ($ready->{catalogue_search}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::catalogue_search(\&exchange);
+        return;
+    }
     if ($ready->{native_fixtures}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

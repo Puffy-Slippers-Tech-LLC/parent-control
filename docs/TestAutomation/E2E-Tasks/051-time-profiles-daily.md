@@ -1,7 +1,7 @@
 # 051 — Compose the daily-only time profile
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -15,8 +15,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **180** — FLOW01 same-user entry; FLOW16 fresh/same Parent allowance setup.
 - **003d** — DESK04 direct logout command and independent GDM result.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Compose the daily-only FLOW13 branch from fresh/same FLOW01, PARENT09, FLOW02 and DESK03. Require an already observed zero grant; refuse unexpected nonzero G. Optional revocation and retained Parent entry are qualified with the later grant-profile extension.
@@ -25,14 +23,8 @@ Compose the daily-only FLOW13 branch from fresh/same FLOW01, PARENT09, FLOW02 an
 
 In a fresh installed VM attempt, reach Parent, read G=0, save a short positive allowance, verify D>0/G=0 and finish at GDM. Qualify an independently opened same-user Parent entry too. No real approval or retained-user return is required by this slice.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_time_profiles_daily
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

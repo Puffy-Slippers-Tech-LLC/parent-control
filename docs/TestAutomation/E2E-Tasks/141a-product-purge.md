@@ -1,7 +1,7 @@
 # 141a — Qualify purge and reinstall to visible defaults
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 30–50 minutes.
 
@@ -16,8 +16,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **141** — LIFE04 product remove/reinstall; LIFE05 corresponding notices/activation.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Bind the exact verified purge command to AUTH03's administrator authority and
@@ -31,14 +29,8 @@ mechanical tests.
 
 In a fresh live attempt, make one public setting nondefault, purge through the shared administrator SSH package helper and follow its actual activation notice. Enter an ordinary child desktop and use the fixture app. Reinstall, follow activation and read the visible fresh default before editing. Require package cleanup checks and owned cleanup; the uninterrupted retained-settings journey remains case 139.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_product_purge
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

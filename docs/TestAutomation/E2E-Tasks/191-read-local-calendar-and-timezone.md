@@ -1,7 +1,7 @@
 # 191 — Read local date, time and timezone through SSH
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes. Follow the
 [session contract](../E2E-Execution-Plan.md#task-size-and-order).
@@ -37,8 +37,3 @@ Use the shared watch intent, display and guarded command transport. Pass
 applicable cleanup/ownership checks in isolation first. Require independent
 result readback, sanitized evidence and owned cleanup. Host tests alone do not
 qualify a live route or complete a customer scenario.
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

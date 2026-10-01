@@ -1,7 +1,7 @@
 # 043a — Observe retained-child time denial and return
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -9,12 +9,8 @@ Estimate: 20–30 minutes.
 
 Add configured-zero retained time denial and the shared command return from the locked session to GDM. Reuse 043c's successful unlock; keep the full public Parent/child setup and explicit-denial assertion.
 
-Tasks **043c** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
-predecessor brief is an input to this session.
+Reuse the delivered scope of tasks **043c** under the
+[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -27,8 +23,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **042** — DESK05, DESK06, DESK07.
 - **043c** — GDM02 retained lock entry and DESK08 successful unlock.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Qualify GDM02(child, destination=lock) for the already observed retained child session. Compose DESK06, two fresh DESK07 proofs, UI19, submission and the declared success/time-denial observation. For DESK11 reuse `session_control.observe` with the bound `return-greeter` action after observing the denial; preserve the locked session without unlocking or locking again. Keep rejected GDM's Escape route separate; never reuse a GDM secret proof on the lock surface.
@@ -39,14 +33,8 @@ On the VM, enter the child with positive daily time, lock normally and unlock wi
 
 Record the same desktop/activity before locking and compare it after successful unlock; a newly launched window or fresh login cannot satisfy retention. Preserve two fresh same-user lock proofs, single-use delivery, wrong-recipient refusal and no replay after uncertain input.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_retained_unlock
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

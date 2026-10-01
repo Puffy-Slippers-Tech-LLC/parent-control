@@ -1,97 +1,38 @@
 # E2E task queue
 
-This is the canonical checklist of the [master execution plan](E2E-Execution-Plan.md).
-Start each session at that plan's **Next task**. Its pointer names the first
-unchecked active row below. This table is one fixed sequence: follow it from
-top to bottom, including provider qualification and retained regressions.
-An incomplete or blocked row stays current; there is no second queue to consult.
+This is the single ordered checklist selected by the
+[execution plan](E2E-Execution-Plan.md#next-task). Table order is execution order;
+IDs and filenames are stable labels. An incomplete row keeps the pointer.
 
-The master owns live acceptance, coverage refresh and close-out. A checked row
-records its delivered scope at completion time. It does not override a later
-pending block/provider qualification; see the [status vocabulary](README.md#status-vocabulary).
-Completed GDM/Shell rows record historical harness qualification, not customer
-features or mandatory GUI choreography. Their consumers use the current shared
-entry/session helpers. Wrong-account visits and keyring exercises are isolated
-harness safety checks. Task 003's menu implementation is superseded by DESK03/04
-system commands; its checked status does not qualify the replacement.
-
-External supporting operations use the shared command/API route under the
-[automation mandate](../Mandates/UI-Automation-Mandate.MD). Tasks 195a/195 inspect
-declared text/ZIP artifacts over guarded SSH; 037a/045/046 retain the real
-Download/Save interaction and product results without Files/editor/archive-viewer
-choreography. Explicit enforcement launch routes, offered previews, information
-links, retained app activity and unavoidable graphical authentication keep their
-own GUI assertions. These route corrections do not complete or qualify a task.
-
-Every remaining brief and case also follows the
-[bounded supporting-work contract](E2E-Building-Blocks.md#keep-supporting-work-bounded).
-Use existing local fixture assets and shared preparation helpers; qualify only
-the dependency operation the app assertion needs. In particular, prepare desktop
-entries without file-manager choreography, reopen ordinary overlays directly,
-and restore Internet access through LIFE06 from the current surface without a
-Parent visit. Feedback stops at the app's result; real-app and calendar
-prerequisites retain explicit gates instead of expanding into dependency projects.
-The product assertions, task order and acceptance requirements remain in force.
-
-The system-operation audit removed unnecessary menu/dialog tasks 003ca/003da,
-Terminal-help task 001ta (INFO02 already reads SSH stdout), Users-wizard tasks
-184d/184a/184e, and Shell-calendar task 191a. File-preparation slices 036e/036c/036d
-are consolidated into 036's shared commands. Their GUI actions carry no product
-acceptance obligation; the dependent product assertions remain in their cases.
-The developer's [validation decision](E2E-Execution-Plan.md#current-scope)
-closed the initial migration gate for its then-ready cases. It supplies no
-acceptance for later changes or additional cases and does not advance the
-current pointer. Current rows close through their stated acceptance and cleanup.
+A checked row preserves delivered scope and historical evidence. Current block
+qualification and scenario registration remain with their respective owners in
+the [documentation map](README.md#status-vocabulary). Historical menu, Terminal,
+external-handler or account-wizard work does not override the current UI mandate.
+The [initial migration decision](E2E-Execution-Plan.md#current-scope) supplies no
+acceptance for later changes.
 
 ## Ordered task queue
 
-The [UI/E2E allocation](UI-and-E2E-Coverage.md) applies to every remaining row.
-Tasks 070/070a, 077, 078/078a and 185p/185o deliver their declared complete UI
-matrices before the corresponding small installed cases. Case 154's changed
-chooser composition and moved UI matrix passed validation; its outstanding
-shared qualifications remain recorded below. No row is closed
-by this review.
-
-Requires lists **task IDs**, not block IDs. Reuse their delivered capability
-scopes; prerequisites apply transitively. Block IDs live in Delivered scope and
-the catalogue. Keep each case's `Cases N;` scope prefix when appending close-out
-results; retained regressions and system obligations keep their respective
-structured prefixes. A qualified slice can be reused while unrelated bindings remain
-pending; consumers do not wait for their own scenario to qualify that slice.
+Requires lists **task IDs**, not block IDs; prerequisites apply transitively.
 `Baseline` means existing qualified source and the standard guarded envelope,
-not an exemption for an unqualified provider. Table order is execution order;
-IDs and filenames are stable labels, not sort keys. The customer-first rule is
-already reflected here: each newly enabled scenario or retained regression
-precedes the next capability, with simultaneously enabled cases in numeric order.
-Each scenario row owns one numeric case; finite checks inside its complete recipe
-do not create a task-selection loop.
-Scenario execution is never a prerequisite of another scenario.
+not an exemption for an unqualified route. Delivered scope is cumulative when
+a capability was split; its brief's Session boundary names the remaining work.
+Each unfinished row has one brief; completed rows retain plain titles.
 
-Ordinary rows target one **15–30-minute session**, including targeted checks,
-live qualification, cleanup and close-out under the master's
-[task-size contract](E2E-Execution-Plan.md#task-size-and-order). Estimates assume
-available prerequisites; they are not measured runtimes or stop timers.
-A Minutes cell marked **(exception)** has a concrete reason in its brief.
-Continuous journeys and required regressions keep their real run bounds.
+Preserve the structured scope prefixes `Cases N;`, `Retained regression N;`
+and `System obligation N`. Each scenario task owns one numeric case with its
+complete recipe, independent of other scenario runs. Capabilities precede
+consumers; all newly enabled cases follow immediately in numeric case order.
 
-When a capability is split, new rows deliver independently qualified operations;
-the original ID closes the remaining operation/composition. Its brief's
-**Session boundary** identifies the new work. Delivered scope includes qualified
-prerequisites transitively, so consumers retain the full contract without
-reimplementing extracted operations. Completed rows and case IDs are unchanged.
+Sizing, session exceptions, prerequisite insertion and fixed placement of external
+or calendar gates follow the [ordering contract](E2E-Execution-Contracts.md#task-size-and-order).
+Execution, coverage refresh and completion follow the
+[shared task contract](E2E-Execution-Contracts.md#task-brief-contract).
+A `(exception)` estimate needs its reason in the brief. Estimates are planning
+ranges, not measured runtimes or stop timers.
 
-Check completion only after the master's acceptance and cleanup. Every unfinished
-active row has one brief; briefs contain acceptance requirements, not alternate
-next-task decisions.
-Scheduling repairs update this table and the master's pointer together and run
-`tools/run-tests unit 'tests/unit/test_e2e_plan.py'`.
-
-Ordinary customer capabilities/cases come first, followed by the retained system
-obligations. Work requiring sending authorization, manual Lunar assets or an
-unproven public trigger follows in this same fixed sequence; natural calendar
-windows are last. This order prevents known external prerequisites from sitting
-in front of ordinary implementation. It does not waive acceptance or authorize
-skipping a blocked row. Plan separate real calendar windows in table order.
+Queue/pointer/brief repairs run the [consistency checks](E2E-Execution-Contracts.md#completion-and-document-cleanup).
+They do not qualify a route, waive acceptance or close a row.
 
 | Done | ID | Task | Requires tasks | Delivered scope | Minutes |
 | --- | --- | --- | --- | --- | --- |
@@ -213,7 +154,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [x] | 232 | E2E-042: parent-links | 185p | Cases 190; Case 190 passed on Ubuntu 26.04 in `20260930T195316Z-5a8d360d`: case-owned `parent_information.PLAN` / `onpc_parent_about::run_links` compose fresh Parent entry, captured child/settings, Help and all five About link clickability reads without activation or URI inspection, owned About close and unchanged settings. Public results, reconciliation, product/infrastructure/collection outcomes, owned cleanup and baseline restoration passed; coverage regenerated. | 20–30 |
 | [x] | 193a | Qualify simple VM Internet isolation | Baseline | `vm_internet.InternetIsolation.enter` / `restore` qualified in `20260930T225447Z-420cdcde` on every enabled VM: Internet absence/recovery, preserved SSH/public desktop/watch, wrong-entry/replay refusal, interruption cleanup, collection and baseline restoration. No LIFE06 or scenario credit. | 45–75 (exception) |
 | [x] | 193 | Verify Parent usability without Internet access | 003d, 010, 044a, 193a | LIFE06 `offline_controls` / `public_connectivity_controls.PLAN` qualified in `20260930T233245Z-9d68a23f` on every enabled VM: unchanged Parent window, offline enable/disable with independent saved-state reads, independent Internet recovery. Shared UI17 entry uses qualified sign-in/PARENT01; toggle regression passed in `20260930T233540Z-66f7eb21`. Scoped host checks, collection, owned cleanup and baseline restoration passed; no complete-scenario credit. | 20–30 |
-| [ ] | 035p | [Install the declared native app fixtures](E2E-Tasks/035p-native-fixtures.md) | 006, 077a | FIX04 native assets and launcher preparation through baseline reconciliation; attempts independently verify files through guarded SSH and catalogue rows through Parent. Blocker: public catalogue-default comparison failed in `20261001T013104Z-7f771800`; native readback, five affected enforcement cases, owned cleanup and baseline restoration passed; collection did not run. Resume when catalogue defaults, independent reopening and collection pass with owned cleanup and baseline restoration. | 20–30 |
+| [ ] | 035p | [Install the declared native app fixtures](E2E-Tasks/035p-native-fixtures.md) | 006, 077a | FIX06 native baseline verification and catalogue preparation through baseline reconciliation; attempts independently verify files through guarded SSH and catalogue rows through Parent. Blocker: public catalogue-default comparison failed in `20261001T013104Z-7f771800`; native readback, five affected enforcement cases, owned cleanup and baseline restoration passed; collection did not run. Resume when catalogue defaults, independent reopening and collection pass with owned cleanup and baseline restoration. | 20–30 |
 | [ ] | 077b | [Search the public app catalogue](E2E-Tasks/077b-catalogue-search.md) | 010, 035p, 009, 077a | PARENT10 exact catalogue search results | 20–30 |
 | [ ] | 077 | [Filter the public app catalogue](E2E-Tasks/077-catalogue.md) | 010, 035p, 009, 077a, 077b | PARENT10, PARENT11 | 20–30 |
 | [ ] | 226 | [E2E-041: search-filters](E2E-Tasks/226-case-184.md) | 077, 180 | Cases 184 | 20–30 |
@@ -351,10 +292,10 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 274 | [E2E-049: native-grid-kiosk](E2E-Tasks/274-case-232.md) | 197k, 079b, 079a, 180 | Cases 232 | 20–30 |
 | [ ] | 279 | [E2E-049: native-command-child-overlay](E2E-Tasks/279-case-237.md) | 197, 079b, 079a, 180 | Cases 237 | 20–30 |
 | [ ] | 280 | [E2E-049: native-command-kiosk](E2E-Tasks/280-case-238.md) | 197k, 079b, 079a, 180 | Cases 238 | 20–30 |
-| [ ] | 035d | [Qualify a native executable path containing a space](E2E-Tasks/035d-native-space-path.md) | 036, 079a | FIX04 space-path asset; FILE05 copy and command-policy result | 20–30 |
-| [ ] | 035a | [Qualify the comma-containing native fixture](E2E-Tasks/035a-qualify-native-fixtures-with-spaces-and-commas.md) | 036, 079a, 035d | FIX04 special-path native assets; FILE05 and command-result bindings | 20–30 |
+| [ ] | 035d | [Qualify a native executable path containing a space](E2E-Tasks/035d-native-space-path.md) | 036, 079a | FIX06 space-path readiness; FILE05 copy and command-policy result | 20–30 |
+| [ ] | 035a | [Qualify the comma-containing native fixture](E2E-Tasks/035a-qualify-native-fixtures-with-spaces-and-commas.md) | 036, 079a, 035d | FIX06 special-path readiness; FILE05 and command-result bindings | 20–30 |
 | [ ] | 230 | [E2E-041: special-paths](E2E-Tasks/230-case-188.md) | 035a, 180 | Cases 188 | 20–30 |
-| [ ] | 035b | [Qualify versioned AppImage pattern assets](E2E-Tasks/035b-qualify-versioned-appimage-pattern-assets.md) | 036, 079a, 186, 052c | FIX04 AppImage versions; FILE05 and pattern launch results | 20–30 |
+| [ ] | 035b | [Qualify versioned AppImage pattern assets](E2E-Tasks/035b-qualify-versioned-appimage-pattern-assets.md) | 036, 079a, 186, 052c | FIX06 versioned-path readiness; FILE05 and pattern launch results | 20–30 |
 | [ ] | 231 | [E2E-041: pattern-files](E2E-Tasks/231-case-189.md) | 035b, 180 | Cases 189 | 20–30 |
 | [ ] | 036f | [Launch separate usable native windows from Files](E2E-Tasks/036f-native-files-usable.md) | 036, 079a | APP01/02/03 native file-manager usable/new-window route | 20–30 |
 | [ ] | 036a | [Observe policy results for Files launches](E2E-Tasks/036a-native-file-routes.md) | 036, 079a, 036f | APP01/02/03 native file-manager route | 20–30 |
@@ -377,7 +318,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 095b | [E2E-019: native-desktop-soft-blocked-disabled](E2E-Tasks/095b-case-73.md) | 180, 036b | Cases 73 | 20–30 |
 | [ ] | 275 | [E2E-049: native-desktop-child-overlay](E2E-Tasks/275-case-233.md) | 197, 079b, 180, 036b | Cases 233 | 20–30 |
 | [ ] | 276 | [E2E-049: native-desktop-kiosk](E2E-Tasks/276-case-234.md) | 197k, 079b, 180, 036b | Cases 234 | 20–30 |
-| [ ] | 109p | [Prepare the declared Snap fixtures in the baseline](E2E-Tasks/109p-snap-fixtures.md) | 006, 077a | Snap baseline assets and verification; FIX04 transfer only | 20–30 |
+| [ ] | 109p | [Prepare the declared Snap fixtures in the baseline](E2E-Tasks/109p-snap-fixtures.md) | 006, 077a | Snap baseline assets and FIX06 verification | 20–30 |
 | [ ] | 109b | [Launch and use Snap fixtures by command](E2E-Tasks/109b-snap-command-usable.md) | 109p, 079a | APP01/02/03/04 and FLOW08 Snap command usable/new-window route | 20–30 |
 | [ ] | 109 | [Observe Snap command denial and closure](E2E-Tasks/109-snap.md) | 109p, 079a, 109b | APP01/02/03/04 and FLOW08 Snap command route | 20–30 |
 | [ ] | 113 | [E2E-019: snap-command-allowed-enabled](E2E-Tasks/113-case-92.md) | 180, 109 | Cases 92 | 20–30 |
@@ -397,7 +338,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 112b | [E2E-019: snap-grid-soft-blocked-disabled](E2E-Tasks/112b-case-91.md) | 180, 109a | Cases 91 | 20–30 |
 | [ ] | 281 | [E2E-049: snap-grid-child-overlay](E2E-Tasks/281-case-239.md) | 197, 079b, 180, 109a | Cases 239 | 20–30 |
 | [ ] | 282 | [E2E-049: snap-grid-kiosk](E2E-Tasks/282-case-240.md) | 197k, 079b, 180, 109a | Cases 240 | 20–30 |
-| [ ] | 116p | [Prepare the declared Flatpak fixtures in the baseline](E2E-Tasks/116p-flatpak-fixtures.md) | 006, 077a | Flatpak baseline assets and verification; FIX04 transfer only | 20–30 |
+| [ ] | 116p | [Prepare the declared Flatpak fixtures in the baseline](E2E-Tasks/116p-flatpak-fixtures.md) | 006, 077a | Flatpak baseline assets and FIX06 verification | 20–30 |
 | [ ] | 116b | [Launch and use Flatpak fixtures by command](E2E-Tasks/116b-flatpak-command-usable.md) | 116p, 079a | APP01/02/03/04 and FLOW08 Flatpak command usable/new-window route | 20–30 |
 | [ ] | 116 | [Observe Flatpak command denial and closure](E2E-Tasks/116-flatpak.md) | 116p, 079a, 116b | APP01/02/03/04 and FLOW08 Flatpak command route | 20–30 |
 | [ ] | 120 | [E2E-019: flatpak-command-allowed-enabled](E2E-Tasks/120-case-104.md) | 180, 116 | Cases 104 | 20–30 |
@@ -424,7 +365,7 @@ skipping a blocked row. Plan separate real calendar windows in table order.
 | [ ] | 124 | [E2E-020: update](E2E-Tasks/124-case-110.md) | 123, 079a, 180 | Cases 110 | 35–55 (exception) |
 | [ ] | 123a | [Save a match draft after fixture removal](E2E-Tasks/123a-catalog-removal.md) | 079, 006, 044a, 028 | LIFE04 fixture remove/reinstall; PARENT15 retained-editor save; LIFE01 catalogue refresh | 30–50 (exception) |
 | [ ] | 125 | [E2E-020: remove](E2E-Tasks/125-case-111.md) | 123a, 079a, 180 | Cases 111 | 35–55 (exception) |
-| [ ] | 126p | [Prepare the declared offline game in the baseline](E2E-Tasks/126p-game-fixture.md) | 006, 077a | Offline-game baseline assets and verification; FIX04 transfer only | 20–30 |
+| [ ] | 126p | [Prepare the declared offline game in the baseline](E2E-Tasks/126p-game-fixture.md) | 006, 077a | Offline-game baseline assets and FIX06 verification | 20–30 |
 | [ ] | 126a | [Launch and observe the prepared offline game](E2E-Tasks/126a-game-activity.md) | 126p, 047 | Game APP01/02/03/04 and FLOW08 usable activity | 20–30 |
 | [ ] | 126 | [Compose windowed gameplay through natural expiry](E2E-Tasks/126-game.md) | 126a, 062, 065 | APP05/FLOW10 windowed game | 20–30 |
 | [ ] | 127 | [E2E-023: windowed](E2E-Tasks/127-case-126.md) | 126, 102, 079b | Cases 126 | 40–60 (exception) |

@@ -1,7 +1,7 @@
 # 296d — Close Lunar to its tray and restore it
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -22,16 +22,8 @@ Extend the qualified Lunar adapter with the actual tray owner/entry and independ
 
 Launch Lunar, close to tray, observe the tray with the main window absent, restore the same Lunar surface, then Quit through the qualified operation. Wrong tray owner, incomplete absence and uncertain input refuse.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_lunar_tray
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

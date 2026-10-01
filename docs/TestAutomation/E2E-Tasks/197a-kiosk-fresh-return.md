@@ -1,7 +1,7 @@
 # 197a — Compose kiosk approval and fresh child entry
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -24,16 +24,8 @@ Compose kiosk FLOW04/FLOW05 with explicit fresh FLOW15 and countdown comparison.
 
 Qualify new-form/fresh-child and open-form/fresh-child in a fresh guarded attempt. Approve once per invocation, read success and automatic exit, then perform fresh child entry and compare countdown with elapsed-time bounds.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_kiosk_fresh_return
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

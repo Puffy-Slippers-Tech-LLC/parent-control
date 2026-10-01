@@ -25,19 +25,33 @@ prerequisites, implementation and acceptance alongside these applicable owners:
 | Failure or missing prerequisite | [Failure handling](../../tests/README.md#handling-test-failures); retain expected/actual evidence and the current blocker. Repair proven mechanical defects within the bounded supporting-work contract. |
 | Completion | [Close-out](#completion-and-document-cleanup), only after the selected task's complete acceptance and owned cleanup. |
 
-Briefs contain task-specific deltas: the required product result, exact bindings,
-finite input/recipe references, source entry points, planned or implemented
-selectors, exceptional prerequisites and remaining acceptance. Link to shared
-rules instead of copying them. Keep one complete case per scenario task and
-independent-entry/refusal checks in capability qualification.
+Briefs contain task-specific deltas. Use this format for new and revised briefs:
 
-VM test commands without `--vm` use every enabled registry entry under the launcher's
-configured concurrency. An explicit `--vm NAME` narrows diagnosis to that entry;
-report that limit and do not claim acceptance on other targets. Preparation and
-maintenance always select an explicit registered VM in agent sessions. A listed
-qualification name is planned until its executable and registration exist;
-implement and cleanup-test it before invoking it. A real case command must select
-its inventory `coverage_id`, not the task ID.
+- Link this contract and the applicable acceptance branch at the top. Those
+  links include live prerequisites, failure handling and close-out; do not copy
+  their procedures into a second checklist or generic Close out section.
+- State the estimate and any session exception. For a split task, identify the
+  remaining operation in Session boundary and name extracted prerequisite tasks.
+  Implementation and acceptance describe that remaining slice; the cumulative
+  delivered scope includes its unchanged qualified prerequisites.
+- List required task IDs in the queue row's declared order with only the capability each supplies.
+  State exact inventory binding/parameters for a scenario and link its recipe.
+- Name the product result, finite input/branch references, relevant source
+  paths/symbols and selected qualification or case command. Mark nonexistent
+  selectors as planned; inspect registration before running them.
+- Retain task-specific gates, expected public results and unresolved acceptance
+  with its existing evidence pointer. Shared rules remain links to their owners.
+
+Cases use the [existing consumer path](E2E-Building-Blocks.md#add-a-consumer)
+and the recipe's entry/transition rules in a fresh guarded attempt. Keep one
+complete case per scenario task and independent-entry/refusal checks in capability
+qualification. Cases and qualifications reuse shared operations; neither another
+brief nor saved VM state supplies a prerequisite.
+
+Target selection follows the [VM mandate](../Mandates/VM-Mandate.MD#authority-and-operation).
+An explicit `--vm NAME` narrows diagnosis; report that limit without claiming other
+targets. Brief commands without it select the enabled registry queue. A real
+case command selects inventory `coverage_id`, never the task ID.
 
 ## Task size and order
 
@@ -142,13 +156,11 @@ Never invent IDs from labels, restore retired generic selectors, or make an
 upstream patch, provider rebuild or exhaustive ID search a prerequisite.
 
 Use the existing `AccessibleUI`, `UiObservations`, worker and guarded attempt
-envelope. Tests must reject wrong owner/session/surface, ambiguity, stale
-handles, disabled/hidden input, lost focus, incomplete observations and uncertain
-input. Qualify real input and independent public results, independent valid entry,
-wrong-entry refusal and owned cleanup on the pinned VM. Reacquire after input
-and transitions; incomplete trees never prove absence. Secret routes require two
-fresh same-challenge recipient proofs, an empty masked focused field, sealed
-capture and single-use delivery without replay. Unknown prompts refuse.
+envelope. Apply the [input/result guards](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results)
+and [secret route contract](../../tests/e2e/README.md#credential-staging-and-password-capture-boundary) to independent valid entry,
+wrong-entry refusal and owned cleanup on the pinned VM. Incomplete observations
+cannot prove absence; unknown prompts refuse. Viewport clipping alone does not
+make an otherwise available control hidden or require scrolling before its action.
 
 Record the actually qualified package versions, provider locale and keyboard
 layout in existing sanitized evidence and the catalogue. Observer locale is
@@ -189,8 +201,9 @@ For post-installation work, run `./tools/prepare-appsnapshot --vm NAME --y --ove
 under the [setup contract](E2E-Building-Blocks.md#parent-login-and-time-scenarios).
 Use `--overwrite true` when application code changed; documentation-only and
 test-only changes continue to use `false`.
-Wait for completion without monitoring or reporting incremental output; proceed
-only on success. Online preparation leaves a maintenance-owned running VM;
+Wait for completion; report meaningful blockers or results rather than routine
+polling. Required watch observation remains active. Proceed only on success.
+Online preparation leaves a maintenance-owned running VM;
 release it with `tools/test-vm --vm NAME stop` before launching qualification or E2E so
 the guarded attempt can acquire its own lease. The normal dispatcher owns
 preparation/restoration. Package
@@ -312,7 +325,8 @@ changes, including ordinary close-out:
 tools/run-tests unit 'tests/unit/test_e2e_plan.py' 'tests/unit/test_e2e_inventory.py' 'tests/unit/test_coverage_generation.py'
 ```
 
-It checks the pointer, task/brief dependencies, one case per scenario task,
+It checks the pointer, task/brief dependencies, exact scenario bindings, acceptance
+branches and recipe links, one case per scenario task,
 queued case titles and parameters, first-consumer hints, session sizing/exception
 metadata and capability-before-consumer
 order. It does not qualify UI

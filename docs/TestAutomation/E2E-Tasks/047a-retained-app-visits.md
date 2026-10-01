@@ -1,7 +1,7 @@
 # 047a — Compose retained app visits for distinct users
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -14,8 +14,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **047** — APP04; FLOW08 native usable-app scope.
 - **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
@@ -34,14 +32,8 @@ usable. FLOW14 starts and ends at GDM; FLOW09 ends at the named usable activity.
 Independent retained entry must work; a missing prior observation or wrong
 entry mode refuses without recreating state.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_retained_app_visits
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

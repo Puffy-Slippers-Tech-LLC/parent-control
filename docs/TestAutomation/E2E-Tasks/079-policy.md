@@ -1,7 +1,7 @@
 # 079 — Compose one app match/access edit
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -9,12 +9,8 @@ Estimate: 20–30 minutes.
 
 Compose FLOW03 match/access editing from the already-qualified leaves, including optional filters and independent row comparison.
 
-Tasks **079c** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
-predecessor brief is an input to this session.
+Reuse the delivered scope of tasks **079c** under the
+[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -26,8 +22,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **078** — PARENT13/15 ordinary Save/Cancel/Reset and local invalid drafts.
 - **079c** — PARENT16 Allowed/Hard/Soft save and row readback.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Bind UI15 to one row's access choice, then compose PARENT16 from save and row readback. Compose FLOW03 only after PARENT10/11/13/15/16 and UI16 are qualified. Inputs declare the app, match draft, access choice and optional filters.
@@ -36,14 +30,8 @@ Bind UI15 to one row's access choice, then compose PARENT16 from save and row re
 
 On installed Parent, save Allowed, Hard Blocked and Soft Blocked for the declared native row, reading every saved choice. Compose a full match/access edit and compare the row from an independent App Limits entry. This slice proves public editing; the separate app-result capability proves child enforcement.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_policy
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

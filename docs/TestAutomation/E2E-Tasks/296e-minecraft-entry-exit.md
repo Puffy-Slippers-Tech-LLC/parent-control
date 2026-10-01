@@ -1,7 +1,7 @@
 # 296e — Launch Minecraft to its menu and exit normally
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -22,16 +22,8 @@ Bind Lunar's actual game-launch action, intended Minecraft owner and normal game
 
 From an independently supplied Lunar surface, launch the prepared game to its public menu within the existing 180-second readiness bound. Exit normally and independently observe the same Lunar entry. Wrong owner or uncertain input refuses.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_minecraft_entry_exit
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

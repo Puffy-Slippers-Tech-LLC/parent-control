@@ -1,7 +1,7 @@
 # 052a — Measure final-second countdown ticks
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -9,12 +9,8 @@ Estimate: 20–30 minutes.
 
 Add final-second formatting/ticks with their declared sample order and tolerances. Reuse 052d's minute-sampling machinery; no clock changes or backend usage reads.
 
-Tasks **052d** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
-predecessor brief is an input to this session.
+Reuse the delivered scope of tasks **052d** under the
+[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -28,8 +24,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **052c** — TIME03.
 - **052d** — TIME02 minute-precision sampling.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Compose TIME02 from TIME01, guarded TIME03 intervals and explicit UI12 elapsed-time comparisons. Declare public precision, formatting and tolerances before execution. Keep elapsed time distinct from an enforcement result.
@@ -38,14 +32,8 @@ Compose TIME02 from TIME01, guarded TIME03 intervals and explicit UI12 elapsed-t
 
 On the live VM, publicly establish short daily-only time, enter the child and observe minute ticks and final-second changes over real measured intervals. Require the declared sample order and tolerances. No guest clock adjustment or usage probe is allowed.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_countdown_ticks
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

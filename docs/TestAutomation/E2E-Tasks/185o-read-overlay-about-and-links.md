@@ -1,7 +1,7 @@
 # 185o — Complete overlay support and legal links
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -11,12 +11,8 @@ Check remaining offered support/legal links are clickable and compose overlay
 information observations. Reuse 185oa/185ob for license, website and privacy
 controls; no external link is invoked.
 
-Tasks **185oa**, **185ob** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
-predecessor brief is an input to this session.
+Reuse the delivered scope of tasks **185oa**, **185ob** under the
+[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -30,8 +26,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **185p** — INFO01 Parent.
 - **185l** — Retained ABOUT02/03 entry/return helpers; use the current link-only contract.
 - **185ob** — INFO01 overlay website/privacy link clickability.
-
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
@@ -53,14 +47,8 @@ On the live child overlay, read product/version and check every offered
 information link is clickable without invoking it. Close About and compare
 the original form choices before editing. No external handler is required.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_read_overlay_about_and_links
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

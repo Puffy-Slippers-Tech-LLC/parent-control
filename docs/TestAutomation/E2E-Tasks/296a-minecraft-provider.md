@@ -1,7 +1,7 @@
 # 296a — Play the prepared Minecraft local world
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -9,12 +9,8 @@ Estimate: 20–30 minutes.
 
 Add the fixed local-world selection, normal play action and independent visible effect. Reuse 296e's game entry/exit; unavailable world/assets remain a blocker.
 
-Tasks **296e** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
-predecessor brief is an input to this session.
+Reuse the delivered scope of tasks **296e** under the
+[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -50,8 +46,3 @@ cleanup; host tests alone do not close this row.
 ```sh
 tools/run-tests integration check_e2e_minecraft_provider
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

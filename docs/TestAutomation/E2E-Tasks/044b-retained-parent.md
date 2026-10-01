@@ -1,7 +1,7 @@
 # 044b — Return to an existing Parent desktop and window
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -23,16 +23,8 @@ Reuse qualified Switch User, recipient proofs and DESK10 to return to an existin
 
 Leave a recognizable Parent window, switch away and legitimately return, foreground that same window and compare public state before editing. Independently supplied retained entry works; absent windows refuse without relaunch.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_retained_parent
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

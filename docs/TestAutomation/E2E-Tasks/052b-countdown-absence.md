@@ -1,7 +1,7 @@
 # 052b — Prove countdown absence on other surfaces
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -14,8 +14,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **052** — TIME01 child-desktop presence and limits-off absence.
 - **043a** — GDM02 retained-child lock entry; DESK08/11.
-
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
@@ -32,14 +30,8 @@ countdown again. Switch User to GDM and require absence, then enter the named
 other user and require absence on that desktop. Qualify independently reached
 entry states and wrong-surface refusal. No natural-expiry or tick claim is made.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_countdown_absence
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

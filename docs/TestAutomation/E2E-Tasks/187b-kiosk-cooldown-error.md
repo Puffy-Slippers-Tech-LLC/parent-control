@@ -1,7 +1,7 @@
 # 187b — Observe and decline a kiosk cooldown error
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -27,16 +27,8 @@ Qualify the normal kiosk reopen/re-entry and Request before the real five-second
 
 Approve once on the VM, perform the normal return-and-Request within five seconds, read the error and decline. Independently observe the declared form/desktop or GDM destination and original balance before another approval. An unreachable route stays pending; no timing changes or forced errors.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_kiosk_cooldown_error
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

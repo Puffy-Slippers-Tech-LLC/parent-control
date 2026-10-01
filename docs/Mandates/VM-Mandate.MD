@@ -32,7 +32,8 @@ and supplies no live qualification.
   `tools/cleanup-e2e` may
   reconcile all enabled VMs serially when the selector is omitted.
   Operate the selected, individually pinned VM only through `tools/test-vm`.
-  Do not bypass ownership or create snapshots, overlays or clones. Stop maintenance
+  Do not bypass ownership or create snapshots, overlays or clones outside the
+  maintained preparation/execution routes. Stop maintenance
   before system/E2E tests; reset is not a customer journey step.
   Root OS investigation uses `tools/test-vm --vm NAME exec -- COMMAND [ARG ...]`
   in an owned running online app-snapshot maintenance instance. Arbitrary command
@@ -113,7 +114,7 @@ and supplies no live qualification.
   `onpc_baseline`. Do not ask the developer for confirmation; launcher/session
   work uses `tools/prepare-baseline --vm NAME --mode auto --y` to suppress the
   y/n prompt. Manual mode still requires explicit developer authorization;
-  authorized launcher/session work uses `--mode manual --y`. Manual work omits
+  authorized launcher/session work uses `--mode manual --y`. Interactive invocation omits
   `--y` to retain confirmation. Both modes still show the warning, require the
   VM off and retain all tool safety checks; see
   [VM prerequisites](../../tests/integration/Environment.md).

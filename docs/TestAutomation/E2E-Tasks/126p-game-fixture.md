@@ -1,13 +1,13 @@
 # 126p — Prepare the declared offline game in the baseline
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **Offline-game baseline assets and verification; FIX04 transfer only**.
+Deliver **Offline-game baseline assets and FIX06 verification**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
@@ -43,8 +43,3 @@ cleanup; host tests alone do not close this row.
 ```sh
 tools/run-tests integration check_e2e_game_fixture
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

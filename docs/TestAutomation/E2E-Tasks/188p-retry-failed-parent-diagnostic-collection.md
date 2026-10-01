@@ -1,7 +1,7 @@
 # 188p — Observe failed Parent diagnostic collection
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -16,8 +16,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **031a** — FEED09 collection trace.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Bind FEED09's unavailable/partial collection explanation and editing/Close controls on Parent. Arm the public observer before entry. Enter ordinary feedback with FEED01. Record the exact genuine public prerequisite failure; a lost Internet connection alone does not fail local collection.
@@ -26,14 +24,8 @@ Bind FEED09's unavailable/partial collection explanation and editing/Close contr
 
 On the VM, observe collection actually fail on Parent with its read-only trace already active. Read the failure explanation, enter a synthetic draft through the usable editor and close normally through the usable Close action. No successful recovery or submission is needed to qualify this failure-state slice.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_parent_collection_failure
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

@@ -1,7 +1,7 @@
 # 102 — Compose expiry recovery through kiosk approval
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -16,8 +16,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **079a** — APP02 and FLOW08 native grid/command policy results.
 - **065** — FLOW13 grant-only/combined; retained entry and explicit revoke preparation.
 
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
-
 ## Implementation
 
 Compose DESK11, FLOW06, retained FLOW15 and APP02/04/03 with explicit retained-or-closed expectations. A legitimate unlock must precede activity inspection; the closed branch ends at APP02.
@@ -26,14 +24,8 @@ Compose DESK11, FLOW06, retained FLOW15 and APP02/04/03 with explicit retained-o
 
 Let real child time expire, obtain a replacement through kiosk, unlock normally and observe the declared same usable activity or closed blocked app. Compare only earlier public observations; no claim about unseen events under lock.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_replacement
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

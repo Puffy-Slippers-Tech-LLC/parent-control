@@ -1,7 +1,7 @@
 # 154 — Deferred qualification of restored mute
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract).
+This deferred brief has no current-release acceptance.
 
 This is future-feature scope, outside current-release completion. No active
 task depends on it. Reconsider only after a real product release restores the
@@ -19,7 +19,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **048a** — Overlay REQUEST04/05/06/08, invalid REQUEST09, REQUEST11/12 Cancel/Escape and FLOW04.
 
- Use its maintained callables plus the restored feature's
+Use its maintained callables plus the restored feature's
 contract. Preserve the saved-field obligations under
 [engineering reconciliation](../E2E-Building-Blocks.md#inventory-reconciliation).
 No old task document or VM state is required.
@@ -29,19 +29,13 @@ No old task document or VM state is required.
 After restoration, qualify the real control on both installed VM forms: read
 initial state, set the explicit value and verify the specified surface-local
 behavior and persistence through normal public exits/re-entry. Do not enable a
-test-only feature switch. Require independent entry and owned cleanup. Plan this
-as a focused 20–40-minute slice; split new feature requirements before work if needed.
+test-only feature switch. Require independent entry and owned cleanup. Reassess
+the task under the [sizing contract](../E2E-Execution-Contracts.md#task-size-and-order)
+when the feature returns.
 
-## Close out
+## Reactivation and close-out
 
-Keep this row unchecked while deferred. After actual implementation and live
-acceptance, update the qualified scope in
-[E2E-Building-Blocks.md](../E2E-Building-Blocks.md) and applicable recipe status in
-[E2E-Scenario-Recipes.md](../E2E-Scenario-Recipes.md).
-After any completed E2E scenario and cleanup, run
-`tools/generate_test_coverage.sh` (`tools/generate_test_coverage.py`).
-
-Only then check the [master's queue](../E2E-Task-Queue.md), refresh the
-master's **Next task** pointer and remove this brief when
-no longer needed, replacing its link with plain text. Validate Markdown with
-`tools/read-only links`. Preserve normal artifacts; no new history document.
+Keep this row unchecked and outside the active queue until the feature is restored
+and its scope is authorized. Reactivation must repair queue order and prerequisites
+under the shared contract; it cannot skip the current active task. Apply capability
+acceptance and normal close-out only after that selection and live qualification.

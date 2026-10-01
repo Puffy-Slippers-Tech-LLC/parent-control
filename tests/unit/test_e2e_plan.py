@@ -133,11 +133,20 @@ def test_every_unfinished_task_has_one_matching_brief_and_prerequisites(rows, br
     assert linked == set((DOCS / 'E2E-Tasks').glob('*.md')), 'orphan/missing brief'
 
 
-def test_unfinished_briefs_inherit_the_shared_execution_contract(briefs):
+def test_unfinished_briefs_select_their_shared_contract_and_acceptance(rows, briefs):
     contract = DOCS / 'E2E-Execution-Contracts.md'
     assert '\n## Task brief contract\n' in contract.read_text()
-    for identity, (_, brief) in briefs.items():
-        assert '(../E2E-Execution-Contracts.md#task-brief-contract)' in brief, identity
+    for row in rows:
+        if row['done']:
+            continue
+        _, brief = briefs[row['id']]
+        entry = brief.split('\n\n', 2)[1]
+        assert '(../E2E-Execution-Contracts.md#task-brief-contract)' in entry, row['id']
+        if row['deferred']:
+            continue
+        kind = ('scenario' if is_case(row) else
+                'system' if row['scope'].startswith('System obligation ') else 'capability')
+        assert f'(../E2E-Execution-Contracts.md#{kind}-acceptance)' in entry, row['id']
 
 
 def test_case_assignments_preserve_inventory_and_one_case_per_task(rows, variants):
@@ -168,14 +177,16 @@ def test_scenario_brief_bindings_match_inventory(rows, variants, briefs):
             continue
         _, brief = briefs[row['id']]
         bindings = re.findall(r'^- \*\*(\d+) — ([^:]+):\*\* (.+)\.$', brief, re.M)
-        # Some dedicated briefs select their case solely through the live command.
+        assert len(bindings) == 1, (row['id'], 'one explicit inventory binding required')
         for number, name, values in bindings:
-            _, variant = variants[int(number)]
+            assert int(number) == case_number(row), (row['id'], number)
+            family, variant = variants[int(number)]
             expected = {f'{key}={value}' for key, value in variant['parameters'].items()}
-            actual = set(re.findall(r'`([^`]+)`', values))
+            actual = re.findall(r'`([^`]+)`', values)
             if (int(number) not in row['cases'] or name != variant['id']
-                    or actual != expected):
+                    or set(actual) != expected or len(actual) != len(expected)):
                 errors.append((row['id'], number, name, actual, expected))
+            assert f'(../E2E-Scenario-Recipes.md#{family["id"].lower()})' in brief, row['id']
     assert not errors, errors
 
 

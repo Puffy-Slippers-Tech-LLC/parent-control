@@ -1,7 +1,7 @@
 # 043c — Unlock the intended retained child successfully
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -23,16 +23,8 @@ Bind retained-child GDM selection to its lock destination. Compose two fresh loc
 
 Capture child activity with positive daily time, lock normally and unlock correctly. Independently compare the same usable activity. Qualify separate valid retained-lock entry and refuse GDM proofs or wrong recipients.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-
-Implement and register this fixed argument-free qualification, with its cleanup
-coverage, before invoking it:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_retained_unlock_success
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

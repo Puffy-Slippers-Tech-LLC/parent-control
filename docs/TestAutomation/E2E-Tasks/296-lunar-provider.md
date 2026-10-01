@@ -1,7 +1,7 @@
 # 296 — Observe Lunar command denial
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -9,12 +9,8 @@ Estimate: 20–30 minutes.
 
 Add the original command's specific public policy denial and compose the complete snapshot/launch/tray/Quit contract. Reuse 296c/296d; Minecraft and login intervals remain separate.
 
-Tasks **296c**, **296d** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
-predecessor brief is an input to this session.
+Reuse the delivered scope of tasks **296c**, **296d** under the
+[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -30,11 +26,11 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Qualify the prepared original AppImage's command launch, Lunar window, close to
-tray, tray restore and genuine Quit under the
+Add the original AppImage command's specific denial result under the
 [profile contract](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate).
-Implement a bounded APP06 public snapshot of the tray/Lunar surfaces and the
-recognized surrounding desktop. Apply the external-provider exception only in
+Reuse 296c/296d's command launch, Lunar window, close-to-tray, restore, Quit and
+APP06 surrounding-desktop snapshots when composing the new policy branch.
+Apply the external-provider exception only in
 explicit adapters, preserving owner, ambiguity and input/result checks. Keep
 Minecraft gameplay and continuous login observation in their following tasks.
 
@@ -56,9 +52,4 @@ tools/run-tests integration check_e2e_lunar_provider
 Pass affected safety/adapter checks before the VM run. Use shared watch intent,
 observation and transport throughout; require collection and owned cleanup.
 
-## Close out
-
-Follow the [master close-out](../E2E-Execution-Plan.md#completion-and-document-cleanup).
-Record exact qualified callables and scope, check **296** after cleanup, advance
-the single pointer and delete this brief. APP06's game and login bindings remain
-pending; this task does not pass case 253.
+APP06's game and login bindings remain pending; this task does not pass case 253.

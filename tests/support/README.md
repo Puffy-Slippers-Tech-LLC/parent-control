@@ -66,7 +66,9 @@ Helpers must not import collected cases, mutate the desktop at import time or
 infer process ownership from names/environment variables.
 
 Preserve test names, parameter IDs, requirement links, refusal cases, deadlines,
-privacy canaries and cleanup checks during extraction. Run affected standalone
-selections and complete suites. Cleanup changes require their isolated safety
-regressions before protected operations. See [test maintenance](../README.md)
+privacy canaries and cleanup checks during extraction. Validate affected callers
+at the [lowest effective scope](../README.md#all-established-regressions), retaining
+required acceptance and selectors; extraction alone does not require unrelated suites.
+Cleanup changes require their isolated safety regressions before protected
+operations. See [test maintenance](../README.md)
 for authorized launchers and evidence boundaries.

@@ -1,7 +1,7 @@
 # 152 — Observe feedback retry and recovery
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -17,8 +17,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **150** — FEED11, FEED09 sending/success and FEED14 Parent feedback; gate in brief.
 - **193** — LIFE06.
-
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
@@ -37,14 +35,8 @@ operations from the existing test-control channel while keeping the current
 app/session surface. If the qualified helper loses control or observation,
 report that infrastructure failure; do not improvise another network route.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_network
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

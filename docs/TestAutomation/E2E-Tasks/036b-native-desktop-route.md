@@ -1,7 +1,7 @@
 # 036b — Observe policy results for desktop launches
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -9,12 +9,8 @@ Estimate: 20–30 minutes.
 
 Add desktop-specific blocked results after a public Parent save. Reuse 036g/036h's usable and separate-window bindings; missing DING support remains a blocker.
 
-Tasks **036g**, **036h** supply the extracted operations through their maintained
-callables and qualified scope. The delivery below is cumulative with those
-prerequisites. Implement only the remaining slice above. Keep the original
-acceptance results: reuse valid independent-branch evidence, and run every new
-composition and any earlier branch affected by the change. No saved VM state or
-predecessor brief is an input to this session.
+Reuse the delivered scope of tasks **036g**, **036h** under the
+[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
@@ -25,10 +21,8 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
 - **079a** — APP02 and FLOW08 native grid/command policy results.
-- **035p** — FIX04 native assets; LIFE04 fixture installation.
+- **035p** — native baseline assets and launchers; guarded read-only verification.
 - **036h** — APP01/02 desktop separate-window route.
-
-Use the catalogue's maintained callables and a fresh attempt, never prior task/VM state.
 
 ## Implementation
 
@@ -47,14 +41,8 @@ file-manager activation cannot replace the tested desktop route.
 
 On the live VM, activate the actual desktop entry, observe the real app window and perform a normal usability action. While an earlier S activity remains open, use a supported desktop gesture to launch and independently identify a second window; presenting the first window cannot pass. Apply a public Parent block and observe this route's declared blocked result. Qualify independently reached desktop entry and wrong-target refusal; terminal/file-manager activation is not desktop acceptance.
 
-Apply [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Run the fixed qualification below once implemented and registered:
+Qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_native_desktop_route
 ```
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

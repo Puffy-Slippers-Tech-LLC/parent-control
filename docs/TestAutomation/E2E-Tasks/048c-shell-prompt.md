@@ -1,7 +1,7 @@
 # 048c — Qualify the overlay Shell prompt and Cancel
 
-Apply the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and the task-specific scope and acceptance below.
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
@@ -40,8 +40,3 @@ Use the existing guarded envelope. Pass applicable cleanup-safety checks in
 isolation before live execution; require independent valid entry, wrong-entry
 refusal, sanitized evidence and owned cleanup. A new selector needs its
 argument-free launcher and cleanup coverage. Host tests alone cannot close this row.
-
-## Close out
-
-Follow [completion and document cleanup](../E2E-Execution-Contracts.md#completion-and-document-cleanup)
-after this task's acceptance and owned cleanup pass.

@@ -42,59 +42,24 @@ machinery, not customer assertions. Apply the distinction below to each action.
 
 ### Environment preparation and customer interaction
 
-Use the simplest reliable supported shortcut, SSH command or public system API
-for every operation that does not itself exercise an app feature. Put each
-operation in shared libraries, infrastructure or harness code. This includes
-Shell/GDM navigation, login preparation, logout, user switching, explicit locks,
-reboot/suspend, network changes, clock reads, account/file preparation and
-supporting-tool launch. Completed queue tasks and retained code have no exemption.
+Choose routes under the [UI mandate](../Mandates/UI-Automation-Mandate.MD#route-selection).
+This catalogue binds those routes to callables and qualified scopes; it does not
+repeat the mandate's command, login, launch or external-link rules. Product
+actions and public results remain distinct from supporting environment checks.
 
 The shared installed envelope verifies each observed fixture Parent desktop's
 prepared accessibility and idle settings through independent readback before
 acknowledging entry. Cases must not add idle-prevention stages. See the
 [shared entry contract](../../tests/e2e/README.md#shared-system-and-account-entry-helpers)
 for ownership, cleanup and the unchanged child-session policies.
-Case 158 samples preset 15, accepted custom 1 and rejected 1441, with child
-switching and Parent reopen persistence. The full local matrix belongs to UI
-tests under the [allocation](UI-and-E2E-Coverage.md); adapter qualification keeps
-its independent-entry and refusal checks.
-
-Routine login goes directly to the intended account through the shared entry
-helper. Where real graphical login or unlock is necessary, keep the minimal
-selection/keyboard authentication and fresh secret-recipient checks. Wrong-account
-visits, repeated prompt entry/Escape and deliberately created keyring challenges
-are harness safety qualifications; they are not customer journey prerequisites.
-
-PARENT01 and REQUEST02 invoke the installed commands directly as the active
-desktop user. Command execution uses guarded SSH, never Terminal UI merely to
-type a shell command. Switch User uses the shared lock/greeter route; logout
-uses `gnome-session-quit --logout --no-prompt`. No Quick Settings, power-menu or
-logout-confirmation adapter is needed.
-
-Use real GUI input for the product controls and integrations explicitly tested:
-app fields and choices, approval prompts, product panel controls, app-grid
-discovery, specific enforcement launch routes and file choosers. Offered
-external links require public clickability only under the UI mandate.
-A lifecycle or offline scenario tests the product across a system transition;
-it does not turn GNOME's controls into features under test. Supporting windows
-may be activated or opened directly.
-
-Preserve owned VM/account/session identity, secret safety, single-use input,
-uncertain-command refusal and cleanup. Independently observe the system
-destination and the app's required public result. System commands cannot inject
-product state, grants, usage or outcomes, replace natural expiry with a lock,
-or replace graphical PAM denial/retained unlock with an SSH login.
 
 ### Keep supporting work bounded
 
-Reusable one-time guest setup is owned by `tools/prepare-baseline`, as required
-by the [VM mandate](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
-Fixed fixture apps/launchers, prerequisite packages and persistent harness
-settings must be prepared there idempotently and verified by consumers.
-Tests must not repair missing baseline inputs on the fly. Attempt-specific
-credentials, transport, evidence, product installation and deliberate scenario
-mutations retain their own lifetimes. A fresh attempt restores the prepared
-baseline; it does not reinstall its reusable fixtures.
+First classify each input's lifetime under the
+[baseline mandate](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
+Baseline reconciliation owns reusable inputs; FIX06 verifies declared fixture
+profiles after restore. FIX04 transfers attempt inputs. A package or file change
+explicitly tested by a recipe remains a scenario mutation.
 
 For every remaining task, name the product assertion first, then choose one
 supported way to establish each unrelated prerequisite. Reuse the qualified
@@ -158,13 +123,9 @@ integration assertions. Simplify their setup without replacing their results.
   is allowed; requiring a particular previous test or hidden global state is
   not. An independently supplied valid entry state must work. A wrong entry
   state fails without performing preparatory customer actions.
-- **`ready`:** the cited callable implements the exact stated scope today.
-  **`pending`:** extraction, generalization, new implementation or qualification
-  is still needed. Existing code is a reuse source, not proof that the proposed
-  interface is ready. A runnable scenario can contain pending-to-extract blocks.
+- **Status:** use the [shared vocabulary](README.md#status-vocabulary).
   Mark a composite ready only after its callees and its own complete behavior
-  are qualified. Block readiness is distinct from inventory readiness and a
-  passing scenario run.
+  are qualified for the declared binding.
 
 Every implementation records its source callable and qualification reference
 in its row. Repository-owned selectors use public `automation-id` values scoped
@@ -1630,7 +1591,8 @@ authentication outcome or app behavior being tested.
 
 | ID | Kind | Supporting operation and boundary | Existing source | Status |
 | --- | --- | --- | --- | --- |
-| FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt; stage finite synthetic files through guarded SSH. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); [transfer safety](../../tests/unit/test_e2e_asset_transfer_cleanup_safety.py), case 1 qualification. `SyntheticFiles.call('stage')` supplies the [synthetic text files](#synthetic-file-commands); its six finite `profile` values supply the qualified [attachment boundaries](#attachment-rejection-boundaries), with exact receipt/readback and cleanup. Game/Snap/Flatpak profiles remain pending baseline preparation and read-only verification in tasks 126p/109p/116p; attempts never install these prerequisites. | existing transfer, synthetic-text and six attachment-boundary profiles ready |
+| FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt; stage finite synthetic files through guarded SSH. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); [transfer safety](../../tests/unit/test_e2e_asset_transfer_cleanup_safety.py), case 1 qualification. `SyntheticFiles.call('stage')` supplies the [synthetic text files](#synthetic-file-commands); its six finite `profile` values supply the qualified [attachment boundaries](#attachment-rejection-boundaries), with exact receipt/readback and cleanup. Reusable fixture readiness belongs to FIX06, not transfer or installation during an attempt. | existing transfer, synthetic-text and six attachment-boundary profiles ready |
+| FIX06 | A | Independently verify one declared reusable fixture profile after baseline restore. Read-only files, launchers and ownership checks; no installation, repair, app launch or product-state setup. | Native: `NativeFixtures.verify` / `fixture_actions` in [native_fixtures.py](../../tests/e2e/native_fixtures.py), with guarded reads in [native_fixtures_guest.py](../../tests/e2e/native_fixtures_guest.py); see [native preparation](#native-fixture-preparation). Task 035p owns native qualification. Tasks 035d/035a/035b, 109p, 116p and 126p extend their finite baseline profiles and verification before consumers; they do not broaden FIX04. FIX05 retains the separate real Lunar profile. | native implemented, live qualification pending; other profiles planned |
 | FIX03 | A | Prepare one declared account-eligibility profile before a kiosk journey: multiple, no child, no approver or ineligible approver. Do not generalize FIX02 into arbitrary account mutation. | `EmptyAccountFixture.prepare` / `e2e_dynamic_account.prepare_empty` changes only the two canonical children's account type, preserving identities, existing administrators and the station; outer lease cleanup restores the profile. `kiosk_no_child.PLAN` / `onpc_kiosk_no_child::run` qualified this profile through `check_e2e_kiosk_no_child` in run `20260924T064646Z-19f2aad6`, with shared station navigation requalified in run `20260924T173643Z-8d742069`. `AccessibleUI.kiosk_request_form(no_child=True)` and `RequestObservation.from_request` independently require the exact empty child set and no-child explanation, disabled Request/duration/soft-app/approver controls and no authentication prompt. Valid station entry, wrong-entry refusal, repeated public readback, sanitized collection, owned cleanup and baseline restoration passed without product-policy mutation. Complete case 54 separately passed via `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run` and `tools/run-tests e2e --id '54'`, adding public Cancel/GDM return; wrong-entry refusal remains qualification-only. The no-approver callables and independent case 55 acceptance below supply the second ready profile. `kiosk_multiple.PLAN` / `onpc_kiosk_multiple::run` supply the qualified multiple profile below. `kiosk_multiple.INELIGIBLE_PLAN` / `KioskIneligibleJourney` supplies the locked-administrator exclusion profile qualified below. | ready; multiple/no-child/no-approver/locked-approver profiles |
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
@@ -1638,7 +1600,7 @@ authentication outcome or app behavior being tested.
 
 ### Native fixture preparation
 
-FIX04's finite native declaration is [native_assets.py](../../tests/fixtures/native_assets.py).
+FIX06's finite native declaration is [native_assets.py](../../tests/fixtures/native_assets.py).
 A/H/S/N are later policy roles; preparation leaves every launcher Allowed.
 The shared [builder](../../tests/fixtures/build_test_applications.py) compiles
 distinct retained role identities while preserving the GUI's native kind.
@@ -2001,8 +1963,9 @@ external account creation is implied.
 Task 295/FIX05 must first establish how these inputs are present **after** the
 runner's ordinary installed-snapshot restore. Use the authorized baseline route
 and its finite idempotent inventory; do not add alternate snapshots, skip
-restoration or rely on earlier manual VM state. FIX04 transfers attempt inputs
-and verifies reusable baseline assets. This prerequisite does not grant FIX05 an installer or
+restoration or rely on earlier manual VM state. FIX04 transfers attempt inputs;
+FIX05 verifies this real-app profile and FIX06 verifies repository-owned fixtures.
+This prerequisite does not grant FIX05 an installer or
 unattended vendor sign-in. Missing integration, invalid sign-in, mandatory update,
 network dependence or unavailable assets blocks this profile until resolved in
 preparation. Pin a profile that runs the declared local activity without downloads
@@ -3332,12 +3295,11 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | Observed challenge | Reusable resolution |
 | --- | --- |
 | Black VNC image after the installation reboot | Treat graphical reattachment as provider-blocked until the public GDM identity route can re-establish the surface. The retained legacy `onpc_gdm::reattach_after_setup` entry point refuses; never restore it with image readiness or reset the VM inside a customer journey. |
-| Displaced or covered controls | Resolve public automation IDs and use semantic activation/focus; never derive input from pixels, extents or framebuffer size. Missing app IDs require app changes. |
+| Displaced or covered owned controls | Invoke the ID-resolved public action directly. Viewport clipping alone needs no focus or scroll; reveal only when a required observation or unavailable action needs it, then reacquire. Follow the [UI input contract](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results). |
 | Installed greeter differs from the baseline account list | Use the qualified GDM adapter and independently prove the intended secret recipient; see external-provider qualification. |
-| GDM scrolls its account list | Use ID-addressed reveal/navigation, reacquire the intended account and verify its own empty focused password field before secret input. Never use outlines, positions or image absence as proof. |
+| GDM scrolls its account list | Reuse the qualified GDM provider's direct account selection or bounded keyboard navigation with observed identity/focus under the UI mandate. Reacquire the intended recipient before secret input; list order and image absence are not recipient proof. |
 | Parent search shows only an online suggestion for a standard user | The [launcher contract](../SystemDesign/Broker.md#accounts-and-roles) intentionally restricts app-grid discovery to administrators. Match the exact query, web-only suggestion and empty application-result area. Do not press Enter on the suggestion or invent a denial dialog. Executable denial belongs to the separate direct-command variant. |
 | Keyboard assumptions select the wrong child or menu item | Use UI14's ID-addressed navigation, verify the intended highlighted row, then press Enter. Verify the selected child independently. Ordinary Parent launch/reopening uses PARENT01's direct command and independent window result; only explicit app-grid discovery cases use whole-query SEARCH05/06. |
-| About footer starts below the viewport | Resolve the footer by ID. Invoke an available direct action without preliminary scrolling; reveal only when needed to read required content. No fixed scroll distance, dialog size or pixel match. |
 | An acknowledged action has no durable evidence, or belongs to the wrong step | Store the observation and any required next-phase start before publishing the reply; guard ownership again after storage. An acknowledgement may immediately permit input. Storage or guard failure latches terminal failure. |
 | A stale observation appears to prove returning to the same child | Reconcile one fresh semantic result per ordered stage. Compare the returned child, switch state and allowance with the initial displayed settings. Missing, reused or reordered evidence refuses. Worker exit zero alone cannot pass. |
 | Choosing package inputs | Build artifacts when the installed product needs to include current changes. Runs use the supplied artifacts and allow concurrent checkout edits; private staged artifacts remain integrity-checked. |

@@ -372,7 +372,12 @@ Bindings: surface = child-overlay / kiosk; outcome = wrong-password / cancel.
 
 ### E2E-014
 
-Implementation status: All cases pending.
+Implementation status: cases 38–43 are excluded from automation scheduling under
+the [unsupported native-gesture rule](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures).
+Their stable inventory IDs remain pending without executables or acceptance
+credit. The following recipe records uncovered behavior, not an implementation
+instruction. Do not create tasks for it or make it block the remaining queue.
+Local duration validation is independent and remains with the UI coverage owner.
 
 **Shared duration boundaries and duplicate submission.** Cases 38, 39, 40, 41, 42, 43.
 

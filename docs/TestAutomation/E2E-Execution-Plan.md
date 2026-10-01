@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **070 — [Double-click kiosk Request and observe one prompt](E2E-Tasks/070-double-request.md)**.
+Next task: **035c — [Launch and use a native fixture from the app grid](E2E-Tasks/035c-native-grid-usable.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
@@ -28,6 +28,12 @@ row. Repair a stale pointer against table order, without scanning for other
 eligible work.
 
 ## Current scope
+
+Native double-click automation is [excluded by the UI mandate](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures).
+Tasks 070, 070a and 071–076 were removed by the developer's scope decision;
+E2E-014 cases 38–43 retain uncovered inventory/recipe obligations but have no
+active or deferred task. Do not recreate those tasks or stop queue execution
+for this known exclusion. This records no acceptance pass.
 
 Apply the [UI/E2E allocation](UI-and-E2E-Coverage.md): full local GUI matrices
 belong in UI tests, with representative installed checks and complete integration

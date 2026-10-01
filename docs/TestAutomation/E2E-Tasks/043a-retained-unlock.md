@@ -14,7 +14,7 @@ Reuse the delivered scope of tasks **043c** under the
 
 ## Scope and prerequisites
 
-Deliver **GDM02 retained-child lock entry; DESK08/11**. First scheduled consumer: [E2E-014, case 40](../E2E-Scenario-Recipes.md#e2e-014).
+Deliver **GDM02 retained-child lock entry; DESK08/11**. First scheduled consumer: [E2E-018, case 58](../E2E-Scenario-Recipes.md#e2e-018).
 Read the named [block contracts](../E2E-Building-Blocks.md#sign-in-and-desktop-entry), [related block contracts](../E2E-Building-Blocks.md#desktop-and-retained-session-entry) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):

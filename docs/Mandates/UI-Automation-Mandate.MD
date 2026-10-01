@@ -129,6 +129,33 @@ and independent result checks apply to both routes.
   exception never applies to repository-owned UI and overrides blanket external
   ID requirements in subordinate documents.
 
+## Unsupported native gestures
+
+Native double-click addressed to a repository-owned GTK control without geometry
+is unsupported by the public interfaces examined. Do not create, queue or implement
+automation requiring it, or make it a prerequisite of other work. This is an
+automation coverage exclusion, not a product failure or a passed test. Continue
+the remaining active queue; do not park its next-task pointer on this exclusion.
+
+The public [AT-SPI mouse API](https://gnome.pages.gitlab.gnome.org/at-spi2-core/libatspi/func.generate_mouse_event.html)
+uses coordinates. GTK's [button accessibility implementation](https://github.com/GNOME/gtk/blob/main/gtk/a11y/gtkatspiaction.c)
+exposes semantic activation, not native pointer presses. Dogtail's
+[control double-click](https://gitlab.com/dogtail/dogtail/-/blob/master/dogtail/tree.py)
+calculates the control's center internally; hiding geometry behind an ID or
+object API does not make it compliant. Remote Desktop/libei button injection
+does not address a control, and keyboard focus does not route mouse input:
+[GTK picks pointer targets by event coordinates](https://docs.gtk.org/gtk4/input-handling.html#event-propagation).
+Two semantic activations, keyboard input or manually emitted gesture signals
+must not be described as native double-click coverage.
+
+Keep affected stable case IDs and uncovered assertions in their inventory/recipe
+owners, explicitly excluded from scheduling; remove their implementation briefs
+and queue dependencies. Do not recreate them as provider prerequisites or
+repeated research tasks. Reconsider only with materially new evidence of a
+supported public control-addressed native route that uses no geometry, followed
+by an explicit scope decision and qualification. This exclusion does not relax
+the geometry prohibition or authorize skipping unrelated active blockers.
+
 ## Input and independent results
 
 - After ID lookup (or qualified external-provider resolution), names, roles,

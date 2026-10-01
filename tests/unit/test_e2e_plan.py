@@ -15,6 +15,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / 'docs/TestAutomation'
 RETAINED_CASES = {1, 3, 4, 5, 6, 151, 193}
+EXCLUDED_NATIVE_GESTURE_CASES = {38, 39, 40, 41, 42, 43}
 
 
 def queue_rows(text):
@@ -155,7 +156,9 @@ def test_case_assignments_preserve_inventory_and_one_case_per_task(rows, variant
     assert all(len(row['cases']) <= 1 for row in rows), 'split paired case tasks'
     regressions = [row['regression'] for row in rows if row['regression'] is not None]
     assert Counter(regressions) == Counter(RETAINED_CASES)
-    assert set(assignments) | RETAINED_CASES == set(variants), 'unqueued/unknown case'
+    assert set(assignments).isdisjoint(EXCLUDED_NATIVE_GESTURE_CASES)
+    assert (set(assignments) | RETAINED_CASES | EXCLUDED_NATIVE_GESTURE_CASES
+            == set(variants)), 'unqueued/unknown case'
     assert set(variants).isdisjoint(range(140, 151))
     for number, (_, variant) in variants.items():
         if number in RETAINED_CASES:
@@ -168,6 +171,23 @@ def test_case_assignments_preserve_inventory_and_one_case_per_task(rows, variant
     obligations = [int(match[1]) for row in rows
                    if (match := re.fullmatch(r'System obligation (\d+)', row['scope']))]
     assert Counter(obligations) == Counter(range(140, 151))
+
+
+def test_unsupported_native_gestures_remain_explicitly_uncovered_and_unscheduled(rows, variants):
+    queue = (DOCS / 'E2E-Task-Queue.md').read_text()
+    declared = re.findall(r'^Excluded cases: \*\*([\d, ]+)\*\*', queue, re.M)
+    assert len(declared) == 1
+    assert {int(value) for value in declared[0].split(', ')} == EXCLUDED_NATIVE_GESTURE_CASES
+    assert {row['id'] for row in rows}.isdisjoint(
+        {'070', '070a', '071', '072', '073', '074', '075', '076'})
+    for row in rows:
+        assert not re.search(r'\b(?:UI20|REQUEST10)\b', row['scope']), row['id']
+    for number in EXCLUDED_NATIVE_GESTURE_CASES:
+        family, variant = variants[number]
+        assert family['id'] == 'E2E-014'
+        assert variant['status'] == 'pending' and variant['executable'] is None
+        assert variant['pending_reason'].startswith('Excluded from automation scheduling:')
+        assert 'UI-Automation-Mandate.MD#unsupported-native-gestures' in variant['pending_reason']
 
 
 def test_scenario_brief_bindings_match_inventory(rows, variants, briefs):

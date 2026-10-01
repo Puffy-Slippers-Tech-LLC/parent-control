@@ -14,7 +14,7 @@ Reuse the delivered scope of tasks **044b** under the
 
 ## Scope and prerequisites
 
-Deliver **DESK09; FLOW15 and FLOW01 retained scopes**. First scheduled consumer: [E2E-014, case 40](../E2E-Scenario-Recipes.md#e2e-014).
+Deliver **DESK09; FLOW15 and FLOW01 retained scopes**. First scheduled consumer: [E2E-018, case 58](../E2E-Scenario-Recipes.md#e2e-018).
 Read the named [block contracts](../E2E-Building-Blocks.md#desktop-and-retained-session-entry), [related block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):

@@ -190,8 +190,8 @@ row's ownership, ambiguity, focus, input and independent-result guards.
 | --- | --- | --- | --- | --- |
 | UI01 | A | Find one control by public `automation-id` within its ID-addressed surface. Resolve clipped controls without requiring viewport visibility; check application-visible/enabled state before input. Reject ambiguity; return a fresh local target. | Registered adapter operations use their scoped ID mappings. Retained generic `target`/`find` and `labelled_button` entry points refuse before traversal. | ready |
 | UI02 | A | Read one declared public boolean state from a control first resolved by `automation-id`, such as selected, checked, focused, enabled or showing. Disabled settings remain readable. New surface/state bindings need their consumer's qualification. | `AccessibleUI.has_state`, `showing`; ID-addressed selector scope only. `AccessibleUI.revoke_disabled(child, enabled)` composes saved/idle entry and owned Revoke sensitivity with PARENT20 zero balances, without button input. Case 161 qualified this binding with limits on and off through `zero_total.PLAN` / `onpc_zero_total::run` in `20260925T065641Z-c6d3948b`, including retained zero allowance, collection, owned cleanup and baseline restoration. | ready |
-| UI03 | A | Resolve one registered public `automation-id`, then read its bounded nonsecret text projection from a showing label, field or document. Inputs: surface/ID, maximum characters, expected projection and deadline. Text, names and roles verify meaning after lookup and never identify the node. Return a bounded semantic value or match result, never arbitrary document text. Reject masked fields before accessing Text. | Registered `read_label`/`read_document` paths resolve their roots by ID; bounded descendant meaning checks reject ambiguous text projections. `AccessibleUI.read_synthetic_text` qualifies the six `TEXT_VALUES` body/reply projections, including empty, through `check_e2e_text` in run `20260925T030015Z-4c7d9b02`; only the rich editor's terminal paragraph newline is normalized. Generic name/role selectors refuse. Other projections remain pending. [Parent discovery contracts](#parent-discovery-block-contracts), [About contracts](#about-block-contracts) and [search contracts](#search-and-standard-sign-in-contracts). | ready |
-| UI04 | A | Resolve one fresh control by public `automation-id` and invoke its qualified public action once. Require application-visible, enabled and nondefunct state; viewport clipping alone does not refuse input. No preliminary focus, reveal or repeated traversal. Return input completion, not the claimed customer result. | `AccessibleUI.activate_id` / `activate_provider` resolve ownership, prompts and target in one fresh scoped snapshot; `_invoke_target` invokes the action without another traversal. | ready |
+| UI03 | A | Resolve one registered public `automation-id`, then read its bounded nonsecret text projection from a showing label, field or document. Inputs: surface/ID, maximum characters, expected projection and deadline. Text, names and roles verify meaning after lookup and never identify the node. Return a bounded semantic value or match result, never arbitrary document text. Reject masked fields before accessing Text. | Registered `read_label`/`read_document` paths resolve their roots by ID; bounded descendant meaning checks reject ambiguous text projections. `AccessibleUI.read_synthetic_text` qualifies the six `TEXT_VALUES` body/reply projections, including empty, through `check_e2e_text` in run `20260925T030015Z-4c7d9b02`; only the rich editor's terminal paragraph newline is normalized. `AccessibleUI.read_policy_legend` supplies the qualified [public policy legend](#public-policy-legend). Generic name/role selectors refuse. Other projections remain pending. [Parent discovery contracts](#parent-discovery-block-contracts), [About contracts](#about-block-contracts) and [search contracts](#search-and-standard-sign-in-contracts). | ready |
+| UI04 | A | Resolve one fresh control by public `automation-id` and invoke its qualified public action once. Require application-visible, enabled and nondefunct state; viewport clipping alone does not refuse input. No preliminary focus, reveal or repeated traversal. Return input completion, not the claimed customer result. | `AccessibleUI.activate_id` / `activate_provider` resolve ownership, prompts and target in one fresh scoped snapshot; `_invoke_target` invokes the action without another traversal. `AccessibleUI.expand_policy_legend` composes one guarded toggle action with an independent [public policy legend](#public-policy-legend) read. | ready |
 | UI05 | A | Send one declared normal key/chord to an already qualified, focused recipient, such as Enter, Escape, Tab, Home, Down or Super-A. Repository-owned recipients use `automation-id`; an external recipient uses its qualified provider adapter. Reacquire and verify the recipient immediately before input. | Existing workers' `testapi::send_key` require a fresh scoped recipient proof before reuse; secret entry is excluded. | ready |
 | UI06 | A | Type one nonsecret string once at a declared bounded pace into the intended, focused input surface. Repository-owned inputs use `automation-id`; an external input uses its qualified provider adapter. | Existing workers' `testapi::type_string` require a fresh scoped recipient proof; `onpc_parent::enter_search_query` retains its bounded pace after migration. | ready |
 | UI07 | A | **Retired.** Geometry-based resolution has no executable route. Use UI01 and semantic input; no execution exemption. | Retained `AccessibleUI.pointer_target`, `pointer_glyph` and `stable_pointer` entry points refuse before traversal or geometry access. | retired; safely refused |
@@ -453,6 +453,37 @@ The full preview matrix is
 `test_preview_smoke.py::test_catalogue_complete_query_match_access_matrix`, with
 scripted hard/soft policies and a final complete row comparison plus no broker
 policy writes. Complete case 184 remains separate.
+
+### Public policy legend
+
+`AccessibleUI.expand_policy_legend(child)` / `read_policy_legend(child)` in
+[accessible_ui.py](../../tests/e2e/accessible_ui.py) bind the owned active Parent,
+selected child and App Limits page before input or read. UI04 resolves
+`parent-legend-toggle` once and invokes its public action only when collapsed;
+UI03 independently resolves `parent-legend-content` and requires both headings
+and all five complete access/matching explanations. Missing/duplicate IDs,
+wrong owner, child/page, stale or incomplete content and uncertain input refuse.
+GTK may omit collapsed content or expose the pressed toggle before its Revealer
+subtree. Only the post-input result wait retries missing content within its
+original deadline; misplaced content refuses immediately, initial already-open
+entry and standalone reads remain strict, and input is never replayed.
+
+`onpc_app_rows::legend(journey, expanded_stage, read_stage)` in
+[onpc_app_rows.pm](../../tests/integration/graphical_smoke/lib/onpc_app_rows.pm)
+uses caller-owned stages; `expanded_stage = undef` reads an independently open
+legend without expansion. Callers own finite child bindings and complete
+initial/final policy row assertions, without inheriting qualification setup.
+[policy_legend.py](../../tests/e2e/policy_legend.py)'s `PLAN` /
+`PolicyLegendJourney` and `PolicyLegendQualification` own fresh Jordan allowance
+setup, independent balances/legend reads, wrong-entry refusals and immutable
+unchanged row comparisons. `check_e2e_policy_legend` passed on every enabled VM
+in `20261001T051651Z-f6a0ab62`, including all explanations and unchanged 61-row
+policies. Affected `check_e2e_catalogue` / `check_e2e_toggle` regressions passed in
+`20261001T051932Z-f4508577` / `20261001T052424Z-65757534`; collection, owned cleanup
+and baseline restoration passed for all three runs. Host guard/readiness,
+decoder, worker-order and recorder checks plus
+`test_preview_smoke.py::test_public_policy_legend_full_read_and_unchanged_choices`
+cover the shared mechanics. Complete case 184 remains separately pending.
 
 ### Kiosk, child overlay and the shared request form
 

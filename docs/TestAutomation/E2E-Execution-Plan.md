@@ -19,19 +19,15 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **226b — [Read the public app policy legend](E2E-Tasks/226b-policy-legend.md)**.
+Next task: **226 — [E2E-041: search-filters](E2E-Tasks/226-case-184.md)**.
 
-Task 226 remains unchecked: its Jordan-bound FLOW16 setup and public policy
-legend read required tasks 226a and 226b before complete case 184 can run.
-Task 226a's Jordan setup is now qualified; task 226b's legend read remains.
-No case 184 live attempt has been made. Resume task 226 after both slices pass
-their installed qualification and close-out.
-Task 226b is implemented and host-validated. Its first live qualification failed
-at `legend-expanded` in `20261001T050542Z-92ea21ab`; preserved evidence is in
-`output/test-runs/privileged/allocations/onpc-graphical-smoke-ngxugkm_`.
-Worker/display cleanup and baseline restoration completed. Resume with diagnosis
-of that failure, then the legend qualification and required catalogue/toggle
-regressions; no retry or failure repair was made in this session.
+Task 226 remains unchecked. Its Jordan-bound FLOW16 setup and public policy
+legend prerequisites are qualified by tasks 226a and 226b. The legend passed
+`check_e2e_policy_legend` in `20261001T051651Z-f6a0ab62`; required catalogue/toggle
+regressions passed in `20261001T051932Z-f4508577` and `20261001T052424Z-65757534`.
+All enabled VMs completed collection, owned cleanup and baseline restoration.
+Compose complete case 184 from the shared operations; no case 184 live attempt
+has been made, and capability qualification supplies no complete-case credit.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

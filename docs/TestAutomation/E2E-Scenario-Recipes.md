@@ -429,7 +429,9 @@ Bindings: surface = child-overlay / kiosk; exit = cancel / escape / approved.
 2. REQUEST12(cancel|escape|approved-immediate). Overlay APP04(compare) → APP03; kiosk GDM01. Approved enters child if needed → TIME01.
 
 Cases 47 and 48 prepare an enabled 15-minute daily allowance through Parent and read
-the public balance before switching to GDM. Enter the station once, then use
+the public balance before switching to GDM, using the shared
+`daily_station_entry` declaration/worker fragment also used by case 49.
+Enter the station once, then use
 FLOW04 with `entry=open`, `initial=default`, explicit fixture child/parent,
 custom `1.25` minutes and soft apps included. Independently compare the estimate
 with that balance before Cancel (47) or one guarded Escape (48); require the
@@ -777,7 +779,8 @@ case-specific idle step; see the [shared entry contract](../../tests/e2e/README.
 
 Parent reopening uses `onpc_lifecycle::reopen(journey, 'parent', prior_window,
 'management')` with a fresh `prior-window` observation. Bind the stages in
-`app_restart.PLAN`, including `initial-selection`, before selecting each child
+`journey_blocks.parent_reopen()`, also used by `app_restart.PLAN`, including
+`initial-selection`, before selecting each child
 to compare saved values. Task 028 qualifies only this LIFE01 slice.
 
 **Choose allowances and save edits.** Cases 158, 159.
@@ -989,6 +992,9 @@ Case 205 composes that same review, then repeats the rejected input and uses
 to read the new automatic report and close it directly without editing or sending.
 Both normal closures compare the exact last-confirmed rule through
 `ParentReportJourney`; Parent offers no report-choice toggle.
+The qualification and case use `match_rules.match_edit` /
+`onpc_app_rows::match_edit` for both the confirmed wildcard and rejected Save;
+report handling remains a separate fragment.
 Precise overrides on apps with suggested patterns retain the documented reload
 limitation; this fixture/custom-wildcard comparison makes no claim about that branch.
 

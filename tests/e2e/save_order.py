@@ -1,7 +1,7 @@
 """Case 159: real save ordering and independent named-child persistence."""
 
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import (fresh_desktop, parent_management,
+from journey_blocks import (fresh_desktop, parent_management, parent_reopen,
                             custom_child_selection, custom_save_entry, ordinary_custom_save)
 from ui_observations import SettingsObservation
 
@@ -30,13 +30,7 @@ EDITS = {
     'repeat-selected': 'ui:parent-selected',
 }
 PERSISTENCE = {
-    'prior-window': 'ui:parent-window',
-    'close-ready': 'ui:parent-restart-ready',
-    'closed': 'ui:parent-search-closed',
-    'same-desktop': 'ui:desktop',
-    'same-parent-command': 'ui:parent-command-launch',
-    'same-parent-window': 'ui:parent-window',
-    'initial-selection': 'ui:parent-initial-selection',
+    **parent_reopen(),
     **custom_child_selection('reopen-jordan', 'existing'),
     'jordan-after-restart': 'ui:custom-6-reopen',
     **custom_child_selection('reopen-riley', 'child'),

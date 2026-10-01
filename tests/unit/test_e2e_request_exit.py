@@ -272,3 +272,39 @@ def test_request_exit_is_the_fixed_argument_free_integration_selector():
     assert "ASSETS = named_input()" in source
     assert 'request_exit=True' in source
     assert 'sys.argv' not in source
+
+
+def test_shared_daily_station_preparation_stops_before_later_stages_on_failure():
+    # Uses the existing private Perl/double resource profile; no live resources.
+    from request_flow import daily_station_entry
+    expected = ['limit-enabled', 'save-enabled', 'allowance-15-select',
+                'allowance-15-read', 'time-explanation-read', 'switch-user',
+                'gdm-switched', 'station-list', 'station-focused', 'station-branch']
+    assert list(daily_station_entry()) == expected
+    changed = daily_station_entry()
+    changed.clear()
+    assert list(daily_station_entry()) == expected
+    script = r'''
+use strict; use warnings; use JSON::PP;
+BEGIN {$INC{'testapi.pm'}=1;}
+package testapi; sub record_info {} sub send_key {} sub type_string {}
+package main;
+use onpc_request_flow; use onpc_journey;
+my $stop = shift @ARGV;
+my @events;
+no warnings 'redefine';
+*onpc_gdm::enter_station = sub {
+    my ($j, $prefix) = @_;
+    die 'wrong-entry' unless $prefix eq '';
+    $j->seen($_) for ('station-list', 'station-focused', 'station-branch');
+};
+my $j = onpc_journey->new(prefix => 'independent-station', review => 0,
+    exchange => sub {push @events, $_[0]; die 'refused' if $_[0] eq $stop;
+                     return {observed => $_[0]};});
+my $ok = eval {onpc_request_flow::daily_station_entry($j); 1;} ? 1 : 0;
+print encode_json({ok => $ok, events => \@events});
+'''
+    for stop in ('', *expected):
+        value = json.loads(run_perl(script, stop).stdout)
+        assert value == {'ok': int(not stop), 'events':
+                         expected[:expected.index(stop) + 1] if stop else expected}

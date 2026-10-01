@@ -2,13 +2,11 @@
 
 from feedback_composition import FeedbackValidationJourney, text_fragment
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, parent_management
 
 
 ENTRY = {
-    **fresh_desktop('parent'), 'parent-command': 'ui:parent-command-launch',
-    **{stage: 'ui:' + stage for stage in (
-        'parent-window', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected')},
+    **fresh_desktop('parent'), **parent_management(),
     'feedback-open': 'ui:feedback-open', 'feedback-state-empty': 'ui:feedback-state-empty',
 }
 MATRIX = {
@@ -33,13 +31,11 @@ PLAN = JourneyPlan(
 )
 
 
-class ValidationJourney(FeedbackValidationJourney):
-    def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
+ValidationJourney = FeedbackValidationJourney
 
 
 def execute(recorder, context):
-    record_installed_journey(recorder, context, PLAN, journey_type=ValidationJourney)
+    record_installed_journey(recorder, context, PLAN, journey_type=FeedbackValidationJourney)
 
 
 E2E_CASES = {'validation': execute}

@@ -16,11 +16,7 @@ sub run {
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
-    for my $stage ('limit-enabled', 'save-enabled', 'allowance-15-select',
-                   'allowance-15-read', 'time-explanation-read', 'switch-user', 'gdm-switched') {
-        $journey->consume_observation($stage, $journey->seen($stage));
-    }
-    onpc_gdm::enter_station($journey, '');
+    onpc_request_flow::daily_station_entry($journey);
     onpc_request_flow::prepare($journey, 'open', 'open', 'default',
                                'fixture-child', 'fixture-parent', 75, 1);
     onpc_request_exit::escape($journey);

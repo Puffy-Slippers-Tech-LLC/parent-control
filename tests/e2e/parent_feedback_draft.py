@@ -2,14 +2,12 @@
 from attachment_composition import file_handoff
 from feedback_composition import FeedbackDraftJourney, privacy_review, text_fragment
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import fresh_desktop
+from journey_blocks import fresh_desktop, parent_management, parent_reopen
 from synthetic_files import fixture_actions
 from window_switch import window_switch_entry
 
 ENTRY = {
-    **fresh_desktop('parent'), 'parent-command': 'ui:parent-command-launch',
-    **{stage: 'ui:' + stage for stage in (
-        'parent-window', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected')},
+    **fresh_desktop('parent'), **parent_management(),
     **window_switch_entry(), 'feedback-open': 'ui:feedback-open',
 }
 EDIT = {
@@ -30,10 +28,7 @@ REVIEW = {
     'feedback-draft-reopen': 'ui:draft-feedback-draft-reopen',
     'reset-feedback-draft-reread': 'ui:draft-feedback-draft-reread',
     'reset-feedback-draft-closed': 'ui:feedback-draft-closed',
-    'prior-window': 'ui:parent-window', 'close-ready': 'ui:parent-restart-ready',
-    'closed': 'ui:parent-search-closed', 'same-desktop': 'ui:desktop',
-    'same-parent-command': 'ui:parent-command-launch', 'same-parent-window': 'ui:parent-window',
-    'initial-selection': 'ui:parent-initial-selection',
+    **parent_reopen(),
     'feedback-wrong-entry': 'ui:feedback-wrong-entry',
     'feedback-reopen': 'ui:draft-feedback-reopen', 'feedback-reread': 'ui:draft-feedback-reread',
 }

@@ -160,6 +160,19 @@ sub reject {
     $journey->consume_observation('flow-preserved', $journey->seen('flow-preserved'));
 }
 
+# Requires the fixture child already selected in Parent. This preparation has
+# no request or exit branch and can be composed with Cancel, Escape or approval.
+sub daily_station_entry {
+    onpc_progress::operation('Saving daily time and entering the request station');
+    my ($journey) = @_;
+    die 'request-flow:station-entry' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    for my $stage ('limit-enabled', 'save-enabled', 'allowance-15-select',
+                   'allowance-15-read', 'time-explanation-read', 'switch-user', 'gdm-switched') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    return onpc_gdm::enter_station($journey, '');
+}
+
 sub run {
     onpc_progress::operation('Qualifying open and fresh kiosk request composition');
     my ($exchange, $mate) = @_;
@@ -173,14 +186,11 @@ sub run {
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     $journey->consume_observation('parent-selected', $selected);
-    for my $stage ('wrong-entry', 'valid-wrong-entry', ($mate ? ('mate-wrong-entry') : ()),
-                   'limit-enabled', 'save-enabled',
-                   'allowance-15-select', 'allowance-15-read', 'time-explanation-read',
-                   'switch-user', 'gdm-switched') {
+    for my $stage ('wrong-entry', 'valid-wrong-entry', ($mate ? ('mate-wrong-entry') : ())) {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
     # Independent caller-owned entry; prepare(open) must not open it again.
-    onpc_gdm::enter_station($journey, '');
+    daily_station_entry($journey);
     prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1,
             ($mate ? ('invalid') : ()));
     $journey->consume_observation('open-mate', $journey->seen('open-mate')) if $mate;

@@ -1,7 +1,7 @@
 """Case 158: one preset, custom edit and rejection with real per-child persistence."""
 
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import fresh_desktop, parent_management
+from journey_blocks import fresh_desktop, parent_management, parent_reopen
 from allowance_boundaries import boundary_screens
 from ui_observations import SettingsObservation
 
@@ -17,13 +17,7 @@ VALUES = {
     **boundary_screens(accepted=(1,), invalid=('over',)),
 }
 PERSISTENCE = {
-    'prior-window': 'ui:parent-window',
-    'close-ready': 'ui:parent-restart-ready',
-    'closed': 'ui:parent-search-closed',
-    'same-desktop': 'ui:desktop',
-    'same-parent-command': 'ui:parent-command-launch',
-    'same-parent-window': 'ui:parent-window',
-    'initial-selection': 'ui:parent-initial-selection',
+    **parent_reopen(),
     'persist-away-open': 'ui:existing-child-picker-opened',
     'persist-away-focus': 'ui:existing-child-choice-highlighted',
     'persist-away-selected': 'ui:existing-returned',

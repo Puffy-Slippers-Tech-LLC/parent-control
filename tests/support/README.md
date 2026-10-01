@@ -75,6 +75,16 @@ integration or saved-data migration.
 
 ## Extend without hiding the scenario
 
+E2E declaration fragments and worker execution have matching shared owners:
+`journey_blocks.parent_reopen` / `onpc_lifecycle::reopen` for LIFE01,
+`request_flow.daily_station_entry` / `onpc_request_flow::daily_station_entry`
+for the qualified 15-minute preset and station entry, and
+`match_rules.match_edit` / `onpc_app_rows::match_edit` for editor replacement and
+Save. They preserve caller-owned phase boundaries, expected values and exits;
+the [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md) owns binding
+scope and qualification. Reuse these fragments in both cases and qualifications
+instead of copying their stage maps or creating a plan-only comparison subclass.
+
 Keep expected outcomes, case tables, fault injection and independent oracles in
 the owning tests. The broker state-machine model intentionally has independent
 state and assertions. Standard `tmp_path`, `monkeypatch`, `unittest.mock` and

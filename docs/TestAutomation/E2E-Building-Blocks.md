@@ -593,6 +593,15 @@ in `InstalledJourney`. `onpc_app_rows::match_editor` and `match_response` are
 shared mechanics; [match_save_cancel.py](../../tests/e2e/match_save_cancel.py)
 declares the qualification's finite order and assertions.
 
+`match_rules.match_edit(draft, prefix, editor=(open_stage, read_stage), row=row_stage)`
+and `onpc_app_rows::match_edit(journey, draft, prefix, open_stage, read_stage, row_stage)`
+compose editor entry/read, UI16 replacement and one Save. All bindings and
+invocation collisions are validated before input. Ordinary Save requires an
+independent row endpoint; `match-rejected-directory` requires `row=None`/`undef`
+and ends at the automatic report. The caller owns report review/closure and
+exact restored-rule assertions. FLOW03, the rejected-rule qualification and
+case 205 reuse this composition without changing their stage order.
+
 `tools/run-tests integration check_e2e_match_save_cancel` passed on every enabled
 VM in `20261001T070820Z-36f8cd02`: precise initial capture, wildcard draft/Cancel,
 unchanged public row, independent editor entry, wildcard draft/Save and exact
@@ -1503,6 +1512,11 @@ routes remain separate consumers.
 | LIFE05 | C | Follow the displayed activation requirement for the explicit finite list of affected apps/users: none, process reopen, session renewal, or reboot/login. | None: UI03(notice). Process: LIFE01 for each app. Session: DESK03 → GDM02 → DESK08 when reaching another retained user, then DESK04 → GDM07 for each required renewal. Reboot: LIFE02 → GDM07. Compare displayed state afterward; one user's logout does not renew every session. | pending |
 | LIFE06 | C | Remove and restore the owned VM's Internet access through one shared distro-independent operation; independently observe offline/online state and required product results. Local test-control access remains available. | `vm_internet.InternetIsolation.enter(transport)` / `restore(lease)` and `offline_controls.offline_controls`; [owned VM Internet contract](#owned-vm-internet-isolation). No guest networking service, new transport or injected product fault. | ready for the VM Internet helper and Parent enable/disable with independent saved-state reads and same-window continuity; other product results and complete scenarios remain pending |
 
+`journey_blocks.parent_reopen()` supplies LIFE01's shared checkpoint declaration
+for `onpc_lifecycle::reopen`, including `initial-selection`. The app-restart
+qualification and cases 152, 158 and 159 compose it before their separate draft
+reset or child-persistence assertions; it never repairs the selected child.
+
 #### Child desktop countdown qualification
 
 `check_e2e_countdown` passed on every enabled VM in
@@ -2000,6 +2014,14 @@ Python state, recorder fixtures and bounded owned Perl doubles, with no shared
 paths, caches, buses, displays or heavy fixture construction.
 
 #### Prepared request qualification
+
+`request_flow.daily_station_entry()` and
+`onpc_request_flow::daily_station_entry(journey)` share the preparation used by
+this qualification and cases 47–49: from the already selected fixture child in
+Parent, enable limits, save/read the 15-minute preset, independently read the
+balance, switch to GDM and enter the station. Request selection, authentication
+and exit remain separate compositions. This fragment changes no existing
+stage names, phase boundaries or balance assertions.
 
 `request_flow.prepared_request(prefix, entry, initial, child, approver,
 duration_seconds, allow_soft)` declares the finite FLOW04 kiosk stage mapping;
@@ -3938,9 +3960,10 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | A trace wrapper cannot observe a transient during a synchronous input (016b–017a) | Qualify stable sampling, sampling during input, and public event delivery as distinct capabilities. Use the existing token/boot/deadline rendezvous; retain readiness before input and latch storage, source, order or token failure. Keep an event subscription active during synchronous input, then compare a fresh terminal snapshot. A checked-state event alone does not prove Saving or control inhibition; see [observation checkpoints](#canonical-reuse-and-implementation-checkpoints). |
 | Observer readiness triggers nested commands that also produce output (016c) | Keep stdout parsing local to each command. Exercise split/buffered replies and nested ownership/input commands through the real transport; unrelated command output must never enter the observer's JSON stream. Keep readiness, one input and terminal evidence ordered under the same attempt guard. |
 | Rapid-save qualification has a different inhibition contract from toggle-saving (017b/017c) | Declare the finite edit batch once and carry the named child through setup, focus, observer/source digest, worker input proof and saved readback. Bind input to that source and token and release it only after durable readiness. Test both children and refuse a mismatched proof before keys. Observe which controls remain editable and which recover, then independently reselect and reload each child's distinct expected value. Preserve every keyboard/input boundary on failure; reuse the shared selector and save fragments. |
-| Fixture preparation could be confused with catalogue, launch or enforcement acceptance (035p/077b/077/226) | Follow the [baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline), then independently verify its finite source inventory in the guarded attempt. Compare declared fixture IDs and defaults within the complete public catalogue, preserving unrelated stock rows. Search/filter expectations come from the shared finite oracle, including empty sets; restoring filters compares the full initial policies. File verification and catalogue visibility do not qualify launch/usability or enforcement. Keep the full matrix with its [UI owner](UI-and-E2E-Coverage.md) and reuse its oracle in the installed sample. |
+| Fixture preparation could be confused with catalogue, launch or enforcement acceptance (035p/077b/077/226/079) | Follow the [baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline), then independently verify its finite source inventory in the guarded attempt. Compare declared fixture IDs and defaults within the complete public catalogue, preserving unrelated stock rows. Search/filter expectations come from the shared finite oracle, including empty sets; restoring filters compares the full initial policies. Before live pattern edits, exercise the actual draft against the complete declared fixture directory, including space-bearing nonmatches: task 079's narrower pattern exposed an unrepresentable omitted rule. Retain a no-omission regression for the chosen pattern rather than changing the expected policy or fixture inventory. File verification and catalogue visibility do not qualify launch/usability or enforcement. Keep the full matrix with its [UI owner](UI-and-E2E-Coverage.md) and reuse its oracle in the installed sample. |
 | An external-handler workflow is considered before checking what acceptance requires (185w/185v/185s/185p/232) | Resolve the [current integration contract](../Mandates/UI-Automation-Mandate.MD#product-integrations) before adding a provider dependency. These tasks reused the owned clickable-link reader for individual links and then the complete information composition. Qualify an added control's missing/disabled/nonactionable/wrong-owner refusals, then compose the same reader; historical handler qualification does not expand the consumer's acceptance. |
 | Internet isolation risks disconnecting the attempt's own transport (193a/193) | Qualify shared infrastructure isolation separately from product usability. Preserve guarded SSH, display/watch and VM identity, independently observe Internet absence and recovery, and test interruption restoration and replay/wrong-entry refusal before composing Parent actions. The infrastructure result does not establish LIFE06 or a complete offline case. Reuse `vm_internet.InternetIsolation` and `offline_controls`, rather than case-local network commands. |
+| A request estimate or unchanged app text could falsely pass a continuation (052/061/047/048e) | Bind the expected countdown to independently observed daily time and the explicit requested increment (case 49: 900 + 75 seconds), with declared elapsed-time bounds; the request estimate alone is not issued-time evidence. Capture activity before opening the overlay and compare both the immutable native-window identity and exact draft after Cancel, before cleanup or new input. A replacement window with identical text must refuse. Reuse `countdown.check_countdown_balance` and `ui_observations.compare_app_activity`; these checks do not qualify expiry, denial or cross-user retention. |
 
 ### Composition preflight
 

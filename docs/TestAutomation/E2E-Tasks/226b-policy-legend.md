@@ -48,7 +48,17 @@ recorder startup/comparison before live execution.
 
 ## Live VM acceptance
 
-Implement and register this planned selector before invocation:
+The implemented selector uses `policy_legend.PLAN` / `PolicyLegendJourney`,
+`PolicyLegendQualification` and `onpc_app_rows::policy_legend`. Shared
+`AccessibleUI.expand_policy_legend` / `read_policy_legend` and
+`onpc_app_rows::legend` own the guarded expansion/read, with caller-owned stages.
+The qualification reuses Jordan's shared fresh allowance and balance operations,
+retains immutable complete rows, and independently reads an already open legend.
+Host guard, worker order/refusal, response-decoder and real recorder/comparison
+coverage lives in `test_e2e_app_rows.py` and
+`test_installed_journey_cleanup_safety.py`; the real GTK read is
+`test_preview_smoke.py::test_public_policy_legend_full_read_and_unchanged_choices`.
+Installed qualification remains required:
 
 ```sh
 tools/run-tests integration check_e2e_policy_legend
@@ -64,3 +74,36 @@ tools/run-tests integration check_e2e_toggle
 ```
 
 This slice grants no complete-case acceptance credit; case 184 stays separate.
+
+## Current failure and remaining work
+
+Implementation and host validation passed, including shared guard/refusal and
+worker-order checks, real controller decoding, recorder startup/comparison and
+the complete real GTK legend read with unchanged policies. The preview exposed
+GTK's omitted collapsed Revealer subtree; expansion now guards the toggle first
+and the independent expanded read requires the content ID and full explanations.
+The existing wrong-control toggle refusal remains unchanged.
+
+The first live `check_e2e_policy_legend` run failed at `legend-expanded` after
+fresh Jordan setup/balances, complete initial rows, wrong-child/page refusals and
+independent App Limits entry passed. No expansion result, independent legend
+read or final row comparison passed. The catalogue/toggle live regressions have
+not run. Leave diagnosis and correction to the next session; no live retry or
+failure repair occurred here.
+
+Evidence: `output/test-runs/host/reports/20261001T050542Z-92ea21ab/report.md`,
+adjacent `category-001.log` / `failure.json`, and
+`output/test-runs/privileged/allocations/onpc-graphical-smoke-ngxugkm_`
+(`legend-expanded.request.json`, `result.json`, `private/`, `worker-private.log`).
+The runner reported `e2e:worker-execution-failed`, followed by
+`command:failed:ssh`; cause remains uninvestigated. Worker/display cleanup and
+baseline restoration completed; collection/finalization details remain in the
+retained result. The enabled-VM queue drained and exited with failure.
+
+Host evidence: `output/test-runs/host/reports/20261001T050014Z-0751bc62/report.md`
+(1479 safety/unit checks), `20261001T050306Z-460dcc2c/report.md` under the same
+reports root (177 updated adapter checks plus real GTK preview), and
+`20261001T050349Z-fd5dac9c/report.md` (301 composition/consistency/scheduling
+checks). Product/build inputs are unchanged; no package build was required by
+the test-only edits. The live launcher built and verified its missing named
+qualification inputs automatically.

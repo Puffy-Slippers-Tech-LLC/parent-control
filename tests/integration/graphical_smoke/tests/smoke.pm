@@ -438,6 +438,12 @@ sub run {
         onpc_parent_toggle::run(\&exchange);
         return;
     }
+    if ($ready->{policy_legend}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::policy_legend(\&exchange);
+        return;
+    }
     if ($ready->{catalogue_filters}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

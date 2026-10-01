@@ -128,4 +128,33 @@ sub catalogue_filters {
     $journey->finish();
 }
 
+# UI04/UI03 caller-owned stages, reusable from an independently open legend.
+sub legend {
+    onpc_progress::operation('Reading the public app access and match-rule explanations');
+    my ($journey, $expanded, $read) = @_;
+    die 'legend:arguments' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && (!defined($expanded) || $expanded =~ /\A[a-z][a-z0-9-]*\z/)
+        && $read =~ /\A[a-z][a-z0-9-]*\z/;
+    $journey->consume_observation($expanded, $journey->seen($expanded)) if defined($expanded);
+    return $journey->consume_observation($read, $journey->seen($read));
+}
+
+sub policy_legend {
+    onpc_progress::operation('Qualifying the complete public legend without changing app policy');
+    my ($exchange) = @_;
+    die 'legend:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'policy-legend', review => 0);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    for my $stage ('balance-reread', 'apps-page', 'initial-rows', 'wrong-child',
+                   'wrong-page', 'independent-entry') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    legend($journey, 'legend-expanded', 'legend-read');
+    legend($journey, undef, 'independent-open-read');
+    $journey->consume_observation('final-rows', $journey->seen('final-rows'));
+    $journey->finish();
+}
+
 1;

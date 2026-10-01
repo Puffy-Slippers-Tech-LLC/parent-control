@@ -100,6 +100,9 @@ Catalogue filter regressions reuse in-memory AT-SPI trees, finite transport
 values and bounded, synchronously reaped Perl workers. Recorder probes retain
 their private tmp_path evidence; no live VM, display, bus or shared state is
 added. App-row and installed-journey modules retain compatible unit scheduling.
+Legend guards and worker-order tests use the same in-memory trees and bounded,
+waited Perl children; recorder tests use private tmp_path evidence. No new live
+VM, display, bus, socket or shared cache; both existing buckets remain compatible.
 """
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,

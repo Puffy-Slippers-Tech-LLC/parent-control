@@ -52,6 +52,9 @@ from pathlib import PurePosixPath
 # Catalogue filter recorder additions reuse that installed-journey private
 # evidence and process-local UI/worker doubles. No new cleanup resource or live
 # access is added; its compatible unit and cleanup classifications remain.
+# Legend recorder startup/comparison adds only existing private tmp_path records
+# and process-local worker/UI doubles; installed-journey remains compatible in
+# cleanup and unit scheduling, with no new owned resource or live access.
 
 from regression_ui import Bucket
 from regression_resources import HOST_WORKERS

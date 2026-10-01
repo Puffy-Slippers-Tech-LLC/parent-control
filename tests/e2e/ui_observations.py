@@ -31,6 +31,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Reading the complete public app access and matching legend'
+       for operation in accessible_ui.LEGEND_OPERATIONS},
     **{operation: 'Setting and independently reading a declared catalogue filter'
        for operation in accessible_ui.FILTER_OPERATIONS},
     **{operation: 'Checking the complete declared catalogue search result'
@@ -1151,6 +1153,18 @@ class UiObservations:
                 require(type(apps) is dict and set(apps) == {'rows'}, 'ui:app-rows')
                 AppRowsObservation.from_rows(apps['rows'])
             expected['apps'] = apps
+        if operation in accessible_ui.LEGEND_OPERATIONS:
+            projection = ({'refusal': operation.removeprefix('policy-legend-')}
+                if operation.endswith(('wrong-child', 'wrong-page')) else
+                {'headings': list(accessible_ui.LEGEND_HEADINGS),
+                 'rules': [list(rule) for rule in accessible_ui.LEGEND_RULES]})
+            if operation == 'policy-legend-expand':
+                activated = result.get('legend', {}).get('activated')
+                require(type(activated) is bool, 'ui:legend-response')
+                projection['activated'] = activated
+            require(type(result) is dict and set(result) == {*expected, 'legend'}
+                    and result['legend'] == projection, 'ui:legend-response')
+            expected['legend'] = result['legend']
         if operation in ('feedback-open', 'feedback-read', 'feedback-reopen', 'feedback-reread',
                          'feedback-draft', 'feedback-draft-reopen', 'feedback-draft-reread',
                          'feedback-privacy-returned'):

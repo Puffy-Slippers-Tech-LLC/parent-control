@@ -104,6 +104,7 @@ RESIDUE_PATHS = {
         "/usr/share/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy",
         "/usr/share/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy",
         "/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules",
+        "/etc/fapolicyd/rules.d/01-oh-no-parent-control-deny.rules",
         "/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules",
         "/usr/lib/systemd/system/fapolicyd.service.d/oh-no-parent-control-readiness.conf",
         "/usr/lib/systemd/system/display-manager.service.d/oh-no-parent-control.conf",

@@ -115,6 +115,17 @@ kernel clause in that case. Pattern rules put exact safe-file allowances before
 a denial for the guarded directory, so a matching new AppImage is denied before
 a later rescan while unrelated existing executables remain usable.
 
+Concrete path/hash denials are also emitted in
+`01-oh-no-parent-control-deny.rules`, before distribution trusted-file allows.
+The existing `89-oh-no-parent-control.rules` retains wildcard guards and their
+exceptions after the distribution's language/library restrictions. The early
+file contains no allow rules. Both files are written, compiled, notified and
+rolled back together under the policy lock; removal clears both before reload.
+This generic ordering fixes trusted native targets such as Fedora Firefox
+without modifying distribution rules or broadening execution trust. It does
+not change the existing wildcard guard's position relative to distribution
+allows; a trusted future wildcard match still needs separate qualification.
+
 The open denial prevents an interpreter from reading a blocked program and
 executing a different object. In particular, the supported AppImageLauncher
 [`binfmt-bypass` implementation](https://github.com/TheAssassin/AppImageLauncher/blob/96cb937/src/binfmt-bypass/lib.cpp)

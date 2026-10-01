@@ -281,6 +281,11 @@ write_e2e write_e2e_cleanup_safety
 # Fedora/Ubuntu payload fixtures. Unit parsing and activation comparisons add
 # only private files; no real systemd, SELinux policy, VM or extra build fixture.
 # The packaging modules retain their compatible unit classifications.
+# Configuration exclusion and dual policy-file regressions use only private
+# fixture trees and bounded command/launcher doubles. No live bus, service,
+# daemon or VM; configuration and execution_policy remain compatible units.
+# File-backend preparation/rollback cases in package_activation and removal use
+# private tiny configuration trees; no live daemon or shared host configuration.
 # Root maintenance logout checks use process-local account/session/command
 # doubles; no real identity changes, session, bus or display. Trust-readiness
 # checks use private tiny manifests and fake command/clock results. Existing

@@ -32,7 +32,7 @@ def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch
                            if fault == 'command' else
                            [SimpleNamespace(stdout=value) for value in outputs]))
     monkeypatch.setattr(namespace['subprocess'], 'run', run)
-    clock = iter([0, 0, 10, 10, 20, 20, 30, 30])
+    clock = iter([0, 0, 40, 40, 80, 80, 120, 120])
     monkeypatch.setattr(namespace['time'], 'monotonic', lambda: next(clock))
     sleep = Mock()
     monkeypatch.setattr(namespace['time'], 'sleep', sleep)
@@ -43,7 +43,56 @@ def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch
         with pytest.raises((TimeoutError, subprocess.CalledProcessError)):
             wait(trust)
     assert run.call_args.args[0] == ['/usr/sbin/fapolicyd-cli', '--dump-db']
-    assert 0 < run.call_args.kwargs['timeout'] <= 30
+    assert 0 < run.call_args.kwargs['timeout'] <= 120
+
+
+@pytest.mark.parametrize('backend', ['debdb', 'rpmdb,file', 'debdb,file'])
+def test_child_file_backend_is_enabled_reversibly_only_when_missing(tmp_path, backend):
+    prepare = _activation['prepare_child_trust_backend']
+    config = tmp_path / 'fapolicyd.conf'
+    record = tmp_path / 'record'
+    original = f'# distribution configuration\ntrust = {backend}\nintegrity = none\n'.encode()
+    config.write_bytes(original)
+    for attempt in range(2):
+        action = prepare(config, record)
+        assert action == ('changed' if backend == 'debdb' and attempt == 0 else 'none')
+    if backend == 'debdb':
+        assert (record / 'before').read_bytes() == original
+        assert config.read_bytes() == (record / 'after').read_bytes()
+        assert config.read_bytes() == original.replace(b'debdb', b'debdb,file')
+        # Retry after snapshotting but before applying the configuration.
+        config.write_bytes(original)
+        assert prepare(config, record) == 'changed'
+        config.write_bytes(b'trust = debdb,file\nintegrity = sha256\n')
+        with pytest.raises(ValueError, match='modified'):
+            prepare(config, record)
+        assert b'integrity = sha256' in config.read_bytes()
+    else:
+        assert config.read_bytes() == original
+        assert not record.exists()
+
+
+@pytest.mark.parametrize('fault', ['symlink', 'record-link', 'source', 'duplicate', 'inactive-trust'])
+def test_child_file_backend_refuses_unsafe_or_unowned_changes(tmp_path, fault):
+    prepare = _activation['prepare_child_trust_backend']
+    config = tmp_path / 'fapolicyd.conf'
+    record = tmp_path / 'record'
+    config.write_bytes(b'trust = debdb\n')
+    if fault == 'symlink':
+        config.rename(tmp_path / 'original')
+        config.symlink_to(tmp_path / 'original')
+    elif fault == 'record-link':
+        record.symlink_to(tmp_path / 'missing')
+    elif fault == 'source':
+        config.write_bytes(b'trust = administrator\n')
+    elif fault == 'duplicate':
+        config.write_bytes(b'trust = debdb\ntrust = file\n')
+    else:
+        (tmp_path / 'fapolicyd.trust').write_bytes(b'/administrator/file 12 ' + b'a' * 64)
+    original = config.read_bytes()
+    with pytest.raises(ValueError):
+        prepare(config, record)
+    assert config.read_bytes() == original
 
 
 @pytest.mark.parametrize('contents', ['', '# no records\n', '/unexpected/module.mjs 1 ' + 'a' * 64])

@@ -82,9 +82,24 @@ Both packages generate supplemental fapolicyd trust for the shipped child `.mjs`
 modules from final staged bytes (path, size and SHA256). Configuration installs
 the owned `/etc/fapolicyd/trust.d/oh-no-parent-control.trust` and refreshes a running
 daemon before readiness/broker activation; a stopped daemon consumes it at startup.
-Because the update request is asynchronous, configuration waits up to 30 seconds
+Ubuntu's default `debdb` backend
+[excludes packages still being configured](https://github.com/linux-application-whitelisting/fapolicyd/blob/v1.3.6/src/library/deb-backend.c).
+For that exact default, configuration enables the `file` backend, preserving
+the complete original configuration in an owned rollback directory. It refuses
+to activate pre-existing inactive administrator trust records. Already
+file-enabled configurations, including Fedora's default, are unchanged.
+If this changes a running daemon's backend, configuration fails closed with a
+reboot-and-retry instruction; restarting its display-manager prerequisite could
+log out unrelated desktops. Clean installation starts the daemon with the new
+backend. Removal restores the original configuration only when the owned
+replacement is unchanged. Local edits are preserved and block automatic cleanup.
+Because the update request is asynchronous, configuration waits up to 120 seconds
 for both exact packaged path/size/hash records in the live trust database before
 activating the broker. Timeout preserves pending activation for configuration retry.
+The existing startup-exclusion marker remains present through this wait and
+earlier provisioning, including configuration retries without `preinst`.
+D-Bus activation cannot bypass the trust gate; an existing broker is stopped
+and verified inactive before configuration proceeds.
 This database check does not establish a fresh Shell import or usable child UI.
 This covers clean installs, upgrades, reconfiguration and reinstalls even when
 the distribution's package trust filter excludes `.mjs` under `/usr/share`.
@@ -159,6 +174,8 @@ shared; Fedora live acceptance remains pending.
 /var/lib/oh-no-parent-control/preferences/             authoritative child records
 /var/log/oh-no-parent-control/<component>/             daily component logs
 /etc/fapolicyd/rules.d/89-oh-no-parent-control.rules   generated UID-scoped denies
+/etc/fapolicyd/rules.d/01-oh-no-parent-control-deny.rules
+                                                       early concrete UID-scoped denies
 /usr/lib/systemd/system/{fapolicyd,display-manager}.service.d/
                                                        boot readiness ordering
 ```

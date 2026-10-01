@@ -11,9 +11,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
+import tempfile
 import time
 
 
@@ -207,6 +210,91 @@ def changed_impacts(old_path: Path, new_path: Path) -> list[str]:
     return [level for level in LEVELS[1:] if level in impacts]
 
 
+def prepare_child_trust_backend(
+        config=Path('/etc/fapolicyd/fapolicyd.conf'),
+        record=Path('/var/lib/oh-no-parent-control/child-trust-backend')):
+    """Enable file trust for Ubuntu's debdb-only default, with exact rollback.
+
+    debdb omits a package during its own postinst. Do not change an already
+    file-enabled configuration or accept an unrecognised backend selection.
+    Commit both ownership records before replacing the live configuration.
+    """
+    def regular(path):
+        if path.is_symlink() or not path.is_file():
+            raise ValueError('unsafe child trust backend path')
+
+    def enabled(contents):
+        matches = list(re.finditer(rb'(?m)^([ \t]*trust[ \t]*=[ \t]*)([^\r\n#]*)(.*)$', contents))
+        if len(matches) != 1:
+            raise ValueError('ambiguous child trust backend configuration')
+        match = matches[0]
+        sources = [value.strip() for value in match[2].split(b',')]
+        if b'file' in sources:
+            return contents
+        if sources != [b'debdb']:
+            raise ValueError('unsupported child trust backend configuration')
+        return (contents[:match.start(2)] + match[2].replace(b'debdb', b'debdb,file', 1)
+                + contents[match.end(2):])
+
+    if config.parent.is_symlink() or record.parent.is_symlink() or record.is_symlink():
+        raise ValueError('unsafe child trust backend directory')
+    regular(config)
+    current = config.read_bytes()
+    if record.exists():
+        regular(record / 'before')
+        regular(record / 'after')
+        before, after = (record / 'before').read_bytes(), (record / 'after').read_bytes()
+        if before == after or enabled(before) != after or current not in (before, after):
+            raise ValueError('modified child trust backend configuration')
+    else:
+        before, after = current, enabled(current)
+        if before == after:
+            return 'none'
+        # A previously disabled file source may contain administrator records.
+        # Never activate those as a side effect of trusting our two modules.
+        trust_paths = [config.parent / 'fapolicyd.trust']
+        trust_dir = config.parent / 'trust.d'
+        if trust_dir.is_symlink():
+            raise ValueError('unsafe child trust directory')
+        if trust_dir.exists():
+            trust_paths.extend(trust_dir.iterdir())
+        for path in trust_paths:
+            if path == trust_dir / 'oh-no-parent-control.trust':
+                continue  # postinst has independently verified this owned file
+            if not path.exists() and not path.is_symlink():
+                continue
+            regular(path)
+            if any(line.strip() and not line.lstrip().startswith(b'#')
+                   for line in path.read_bytes().splitlines()):
+                raise ValueError('inactive administrator file trust must be reviewed')
+        temporary = Path(tempfile.mkdtemp(prefix='.child-trust-backend-', dir=record.parent))
+        try:
+            shutil.copy2(config, temporary / 'before')
+            (temporary / 'after').write_bytes(after)
+            temporary.rename(record)
+        finally:
+            if temporary.exists():
+                shutil.rmtree(temporary)
+    if current != after:
+        descriptor, temporary = tempfile.mkstemp(prefix='.onpc-trust-', dir=config.parent)
+        try:
+            with os.fdopen(descriptor, 'wb') as stream:
+                stream.write(after)
+                stream.flush()
+                os.fsync(stream.fileno())
+            metadata = config.stat()
+            os.chmod(temporary, metadata.st_mode & 0o777)
+            os.chown(temporary, metadata.st_uid, metadata.st_gid)
+            os.replace(temporary, config)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+    # The caller must not restart a live daemon: its display-manager dependency
+    # could log out unrelated desktops. Live exact-record readiness also guards
+    # retries made before a required reboot has loaded the new backend.
+    return 'changed' if current != after else 'none'
+
+
 def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH) -> None:
     """Wait for the asynchronous trust update to publish our exact records.
 
@@ -226,7 +314,7 @@ def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH) -> None:
         expected.add(tuple(fields))
     if not expected:
         raise ValueError('missing packaged child trust records')
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + 120
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -248,6 +336,7 @@ def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser('prepare-child-trust-backend')
     generate_parser = commands.add_parser("generate")
     generate_parser.add_argument("--root", type=Path, required=True)
     generate_parser.add_argument("--output", type=Path, required=True)
@@ -264,6 +353,11 @@ def main() -> None:
         generate(args.root.resolve(), args.output.resolve(), args.include)
     elif args.command == "changed-impacts":
         print("\n".join(changed_impacts(args.old, args.new)))
+    elif args.command == 'prepare-child-trust-backend':
+        try:
+            print(prepare_child_trust_backend())
+        except (OSError, ValueError):
+            raise SystemExit('oh-no-parent-control: child file trust backend cannot be configured safely') from None
     else:
         try:
             wait_child_trust()

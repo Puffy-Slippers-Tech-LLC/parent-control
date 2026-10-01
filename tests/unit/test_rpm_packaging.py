@@ -356,7 +356,8 @@ def test_fedora_rpm_scriptlet_owns_configuration_and_preserves_failures(
                                      'readiness': 9, 'broker': 1}[failure]
         assert (state / 'package-activation-pending').exists()
         assert (state / 'previous-package-activation.json').exists()
-        assert (state / 'migration-in-progress').exists() == (failure == 'migration')
+        # Every pre-activation failure must retain the D-Bus startup exclusion.
+        assert (state / 'migration-in-progress').exists() == (failure != 'broker')
         if failure in ('compile', 'reload', 'readiness'):
             assert 'systemctl --system restart oh-no-parent-control-broker.service' not in (root / 'commands').read_text()
             if failure != 'readiness':

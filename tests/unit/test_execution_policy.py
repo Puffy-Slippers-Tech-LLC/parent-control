@@ -416,10 +416,99 @@ class ExecutionPolicyTests(unittest.TestCase):
                 policy.reconcile({1001: ("/usr/bin/game",)})
 
             self.assertIn("uid=1001", rules_path.read_text(encoding="utf-8"))
+            self.assertIn("uid=1001", policy._early_rules_path.read_text(encoding="utf-8"))
             self.assertEqual([call.args[0] for call in run.call_args_list], [
                 ("/usr/sbin/fagenrules",),
                 ("/usr/sbin/fapolicyd-cli", "--reload-rules"),
             ])
+
+    def test_exact_denials_precede_distribution_trust_without_early_allowances(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            target = directory / 'firefox'
+            target.write_bytes(b'packaged browser')
+            script = directory / 'untrusted.js'
+            script.write_text('print("untrusted")')
+            policy = FapolicydPolicy(directory / '89-oh-no-parent-control.rules')
+            with mock.patch.object(policy, '_reload'):
+                policy.reconcile({1004: (str(target),)},
+                                 {1004: (str(directory / 'firefox*'),)})
+            early = policy._early_rules_path.read_text()
+            late = policy._rules_path.read_text()
+            self.assertLess(policy._early_rules_path.name, '20-dracut.rules')
+            self.assertLess(policy._early_rules_path.name, '42-trusted-elf.rules')
+            self.assertTrue(all(line.startswith(('#', 'deny_syslog '))
+                                for line in early.splitlines()))
+            for permission in ('open', 'execute'):
+                self.assertEqual(self._decision(early, 1004, permission, target), 'deny')
+                self.assertEqual(self._decision(early, 1000, permission, target), 'allow')
+            self.assertNotIn(str(script), early)
+            self.assertIn(f'allow perm=open uid=1004 : path={script}', late)
+            # The existing language deny remains before these late exceptions.
+            self.assertLess('70-trusted-lang.rules', policy._rules_path.name)
+            with mock.patch.object(policy, '_reload'):
+                policy.reconcile({1004: ()})
+            self.assertNotIn('deny_syslog', policy._early_rules_path.read_text())
+
+    def test_both_rule_layers_roll_back_after_write_or_reload_failure(self):
+        for operation in ('reconcile', 'remove', 'write'):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as temporary:
+                policy = FapolicydPolicy(Path(temporary) / '89-oh-no-parent-control.rules')
+                with mock.patch.object(policy, '_reload'):
+                    policy.reconcile({1004: ('/usr/bin/firefox',)})
+                previous = policy._read_layers()
+                replacement = policy._replace
+                failed = False
+
+                def replace(contents, *, path=None):
+                    nonlocal failed
+                    if path == policy._rules_path and not failed:
+                        failed = True
+                        raise OSError('injected second-file failure')
+                    return replacement(contents, path=path)
+
+                with mock.patch.object(policy, '_reload', side_effect=(
+                        [None] if operation == 'write' else [ExecutionPolicyError('reload'), None])):
+                    with mock.patch.object(policy, '_replace', side_effect=(
+                            replace if operation == 'write' else replacement)):
+                        with self.assertRaises(ExecutionPolicyError):
+                            if operation == 'remove':
+                                policy.remove()
+                            else:
+                                policy.reconcile({})
+                self.assertEqual(policy._read_layers(), previous)
+                with mock.patch.object(policy, '_reload') as reload:
+                    policy.reconcile({1004: ('/usr/bin/firefox',)})
+                    reload.assert_not_called()
+
+    def test_early_layer_changes_invalidate_notification_cache_and_remove_cleans_both(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            policy = FapolicydPolicy(Path(temporary) / '89-oh-no-parent-control.rules')
+            with mock.patch.object(policy, '_reload') as reload:
+                policy.reconcile({1004: ('/usr/bin/firefox',)})
+                policy._early_rules_path.unlink()
+                policy.reconcile({1004: ('/usr/bin/firefox',)})
+                self.assertEqual(reload.call_count, 2)
+                policy.remove()
+            self.assertEqual(policy._read_layers(), (None, None))
+
+    def test_early_rule_collision_and_substitution_preserve_existing_files(self):
+        for symlink in (False, True):
+            with self.subTest(symlink=symlink), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                policy = FapolicydPolicy(directory / '89-oh-no-parent-control.rules')
+                sentinel = directory / 'administrator.rules'
+                sentinel.write_text('administrator policy\n')
+                if symlink:
+                    policy._early_rules_path.symlink_to(sentinel)
+                else:
+                    policy._early_rules_path.write_bytes(sentinel.read_bytes())
+                for operation in (lambda: policy.reconcile({}), policy.remove):
+                    with mock.patch.object(policy, '_reload') as reload:
+                        with self.assertRaises(ExecutionPolicyError):
+                            operation()
+                        reload.assert_not_called()
+                self.assertEqual(sentinel.read_text(), 'administrator policy\n')
 
     def test_failed_reload_restores_previous_rules(self):
         with tempfile.TemporaryDirectory() as temporary:

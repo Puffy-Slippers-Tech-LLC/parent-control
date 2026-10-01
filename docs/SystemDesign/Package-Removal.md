@@ -41,6 +41,13 @@ limits, clears `DailyLimit`, `LimitType`, and
 `AppFilter`, verifies each result, and transactionally removes and reloads the
 generated fapolicyd policy. It attempts every managed account before reporting
 failure, and package removal stops if any final state cannot be verified.
+Both the early concrete-denial file and the late wildcard-policy file participate
+in removal and rollback. Final package cleanup removes both before deciding
+whether administrator rules remain or the pre-install policy must be restored.
+If installation enabled file trust for Ubuntu's `debdb`-only default, cleanup
+also restores the recorded original daemon configuration and restarts a surviving
+active daemon. A locally modified configuration is preserved and blocks this
+automatic restoration; the ownership record remains available for retry.
 A mode-`0600` transient snapshot records the exact derived values before the
 first write. If `prerm` is aborted, `postinst abort-remove` restores and
 verifies that snapshot before releasing the removal mask. Rollback enables and

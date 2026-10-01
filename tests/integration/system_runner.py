@@ -1497,8 +1497,10 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
 def host_fingerprint(commands):
     """Detect product or login-integration changes on the development host."""
     paths = ('/etc/pam.d/common-auth', '/etc/pam.d/common-account', '/etc/pam.d/common-session',
+             '/etc/fapolicyd/fapolicyd.conf',
              '/etc/oh-no-parent-control/config.json',
              '/usr/lib/systemd/system/oh-no-parent-control-broker.service',
+             '/etc/fapolicyd/rules.d/01-oh-no-parent-control-deny.rules',
              '/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules')
     result = {path: baseline.digest(Path(path)) if Path(path).is_file() else None for path in paths}
     result['package-status'] = hashlib.sha256(commands.run(

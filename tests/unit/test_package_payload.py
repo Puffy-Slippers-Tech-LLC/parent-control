@@ -115,6 +115,22 @@ def test_packaged_localization_is_loadable_and_covered_by_activation(production_
     assert entries[f"{relative}/localization.py"]["activation"] == "none"
 
 
+def test_gtk_and_shell_package_catalogues_match_all_supported_languages(production_payload):
+    from tools.export_messages import export
+    from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES
+    gtk = production_payload / 'usr/lib/oh-no-parent-control/common/oh_no_parent_control_ui/locale'
+    shell = production_payload / 'usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com'
+    assert json.loads((shell / 'messages.json').read_text()) == export(
+        ROOT / 'common/oh_no_parent_control_ui/messages.py')
+    for language, _name in SUPPORTED_LANGUAGES:
+        relative = Path(language.replace('-', '_')) / 'LC_MESSAGES/oh-no-parent-control.mo'
+        assert (gtk / relative).read_bytes() == (shell / 'locale' / relative).read_bytes()
+        assert (gtk / relative).stat().st_mode & 0o777 == 0o644
+        with (gtk / relative).open('rb') as source:
+            translations = gettext.GNUTranslations(source)
+        assert translations.info()['language'] == language.replace('-', '_')
+
+
 def test_native_probe_payload_and_activation_are_complete(production_payload):
     manifest = json.loads((production_payload / (
         "usr/share/oh-no-parent-control/package-activation.json")).read_text())

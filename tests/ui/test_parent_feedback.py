@@ -13,6 +13,35 @@ from tests.support.feedback import (
 pytestmark = pytest.mark.ui
 
 
+@pytest.mark.parametrize('language', ['de', 'ja', 'zh-Hans'])
+def test_language_switch_preserves_feedback_draft_reply_and_undo(
+        launch_ui, automation, wait_for_accessible_state, language):
+    from tests.support.keyboard import type_text, key_combo
+    from tests.support.localization_review import switch_language, review_frame
+    ui, wait = automation, wait_for_accessible_state
+    editor, _log = open_feedback(launch_ui, ui, wait)
+    type_feedback(ui, 'A retained draft', wait)
+    ui.focus('feedback-reply-email')
+    type_text(ui, 'feedback-reply-email', 'review@example.com')
+    ui.activate('feedback-close')
+    wait(lambda: ui.absent('feedback-dialog', within='parent-window'), 'draft closes')
+    switch_language(ui, wait, 'parent', language)
+    review_frame('parent-' + language)
+    ui.activate('parent-feedback-button')
+    wait(lambda: ui.showing('feedback-dialog'), 'draft reopens')
+    feedback_editor(ui, wait)
+    assert ui.content(editor).strip() == 'A retained draft'
+    assert ui.content('feedback-reply-email') == 'review@example.com'
+    expected = {'de': 'Fett', 'ja': '太字', 'zh-Hans': '粗体'}
+    wait(lambda: ui.text('feedback-format-bold') == expected[language], 'toolbar relabels')
+    review_frame('feedback-' + language)
+    ui.focus(editor)
+    type_text(ui, editor, '!')
+    wait(lambda: ui.content(editor).strip() == 'A retained draft!', 'draft remains editable')
+    key_combo(ui, editor, '<Control>z', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.content(editor).strip() == 'A retained draft', 'undo survives switch')
+
+
 def block_semantic_tree(node):
     """Retain bounded public-tree diagnostics for the declared synthetic editor."""
     remaining = 128

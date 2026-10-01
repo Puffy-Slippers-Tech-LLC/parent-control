@@ -21,6 +21,11 @@ from pathlib import PurePosixPath
 # Native activity identity/readback adds only immutable public values to the
 # existing fixture GUI's private display and owned payload processes; retain
 # its whole-module fixture build reservation and compatible classification.
+# Localization review keeps the existing private preview/display/bus and owned
+# application lifecycle. Optional images read only the current worker's sealed
+# spectator feed, close readers, and use registered retention allocations.
+# Sequential language matrices and bounded drafts retain the Layout/Feedback
+# reservations; no host settings, network, new process or shared mutable cache.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

@@ -222,9 +222,11 @@ selection, using the same neutral wording for initial setup and subsequent visit
 
 Parent uses its native GTK dialog; the kiosk and overlay share their separate
 metal-board dialog. Both share catalogue and resolution logic. Save commits the
-selected explicit product ID through `SetOwnLanguage` before closing and is the
-sole dismissal action during first-time setup. When a saved language exists,
-Cancel closes the dialog without writing or applying the candidate selection.
+selected explicit product ID through `SetOwnLanguage` before closing. Parent
+always offers Cancel, including first-time setup; it continues startup without
+writing or applying the candidate, leaving the chooser to appear on the next
+launch while the preference remains empty. Kiosk and overlay offer Cancel only
+when a saved language exists. Cancel never writes or applies the candidate.
 Saving disables the choices, Save and Cancel to
 prevent duplicate submissions. A failure retains the choice, displays an error
 and enables retry.
@@ -366,7 +368,7 @@ UI actions and observations for customer acceptance.
 | --- | --- |
 | Language backend | Caller-scoped authorization, invalid input rejection, restart persistence, personal-only records, migration, stale-policy and rollback preservation, concurrent writes, corrupt/future record rejection |
 | Catalogue infrastructure | Real compiled catalogues; resolution, Unicode, named formatting, contexts, language-specific plurals, missing-entry fallback, corrupt-catalogue errors and Python/GJS parity |
-| GUI settings | First-run default, Save persistence before closure, Cancel only with a saved language and no candidate persistence, Preferences reopening, save failure/retry, owning-account isolation and stable public IDs |
+| GUI settings | First-run default, Save persistence before closure, Parent first-run Cancel with no candidate persistence and prompting again while unset, request Cancel only with a saved language, Preferences reopening, save failure/retry, owning-account isolation and stable public IDs |
 | Language application | Visible and accessible text changes, dynamic result text, preserved selections/drafts/focus, child panel refresh and no change to policy or countdown behavior |
 | Layout and packaging | Long text and script coverage at supported scales; private staged MO assets in both package formats and the extension archive; translated installed surfaces |
 

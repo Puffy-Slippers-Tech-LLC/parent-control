@@ -160,6 +160,9 @@ onpc_preview_prepare_environment() {
     export GSETTINGS_BACKEND=keyfile
     export GSETTINGS_SCHEMA_DIR="$schema_dir"
     export OH_NO_PARENT_CONTROL_PREVIEW=1
+    # Share personal presentation state between the disposable Shell and its
+    # request processes without contacting the developer host's broker.
+    export OH_NO_PARENT_CONTROL_PREVIEW_LANGUAGE_FILE="$onpc_preview_root/state/language"
     export PYTHONPATH="$repo_root:$repo_root/kiosk${PYTHONPATH:+:$PYTHONPATH}"
     # The child overlay targets the explicitly named nested Wayland socket.
     # Mutter Devkit reserves the host display variables for its own viewer.

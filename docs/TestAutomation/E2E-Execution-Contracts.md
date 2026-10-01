@@ -125,7 +125,12 @@ these are assertions inside that case, never task-selection loops. A capability
 task uses its named fixed qualification and does not absorb the later scenario
 task. Previously delivered scopes remain recorded when a task is split.
 
-Authorization, real calendar windows and unsupported public routes cannot be
+The UI mandate's [unsupported native gestures](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures)
+are explicitly excluded from scheduling. Do not introduce tasks or prerequisites
+for them; preserve uncovered case IDs without acceptance credit. This authorized
+scope exclusion does not permit skipping an unrelated active blocker.
+
+Authorization, real calendar windows and other unsupported public routes cannot be
 removed by editing the schedule. They are acceptance prerequisites with one
 documented return condition, not alternate branches. Prepare the selected task's
 concrete inputs, then report the exact missing prerequisite and keep that task

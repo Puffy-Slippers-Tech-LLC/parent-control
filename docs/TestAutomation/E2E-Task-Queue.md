@@ -11,6 +11,19 @@ external-handler or account-wizard work does not override the current UI mandate
 The [initial migration decision](E2E-Execution-Plan.md#current-scope) supplies no
 acceptance for later changes.
 
+## Excluded automation
+
+The developer removed tasks 070, 070a and 071–076 on 2026-10-01 under the
+[unsupported native-gesture rule](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures).
+They are neither completed nor deferred tasks. Do not recreate their briefs,
+dependencies or queue rows. The remaining queue continues normally.
+
+Excluded cases: **38, 39, 40, 41, 42, 43** (E2E-014).
+Stable IDs and uncovered assertions remain in the inventory and recipe with no
+executable or acceptance credit. Their native double-click dependency cannot
+be supplied without prohibited geometry; UI20 and REQUEST10 are unschedulable.
+Independent local duration validation remains with the UI coverage owner.
+
 ## Ordered task queue
 
 Requires lists **task IDs**, not block IDs; prerequisites apply transitively.
@@ -170,9 +183,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 043 | Observe fresh child time denial and return | 004, 041, 043b | GDM06/07, DESK01 and FLOW15 child fresh entry/denial; DESK11 rejected-GDM return qualified through `fresh_child_denied.PLAN`, `onpc_challenges::fresh_child_denied` and `check_e2e_unlock` in `20261001T114758Z-22b2d095` on every enabled VM: Parent zero daily/no grant preparation, wrong-recipient refusal, two fresh child proofs, sealed correct-password input, exact time-limit rejection and independently observed usable account list after one guarded Escape. Defunct transition reads are discarded within the existing deadline; host safety checks passed all 2831 checks. Separate success, challenge and desktop-session regressions passed in `20261001T115033Z-f55da4b5`, `20261001T115307Z-a19ef2ed` and `20261001T115500Z-4e9c011e`; collection, worker shutdown, owned cleanup and baseline restoration passed. Retained routes and complete cases remain separate. | 20–30 |
 | [x] | 052 | Observe the child countdown or its absence | 043 | TIME01 child-desktop presence and limits-off absence qualified through `AccessibleUI.child_countdown`, immutable `countdown.CountdownObservation` / `check_countdown_balance`, `countdown_qualification.PLAN` / `OFF_PLAN`, `onpc_challenges::countdown` and `check_e2e_countdown` in separate restored attempts in `20261001T121730Z-8a327c27` on every enabled VM. Positive Parent daily balance, fresh intended child entry, bounded horizontal countdown text, wrong-account refusal, independent readback and two-second complete usable-desktop absence with limits off passed. All 3932 affected host checks passed in `20261001T121457Z-2f7aded5`. Fresh-child success, challenge and separate logout/switch regressions passed in `20261001T122258Z-caba8911`, `20261001T122606Z-1363057f` and `20261001T122801Z-b6362573`; collection, worker shutdown, owned cleanup and baseline restoration passed. Lock/GDM, compact panels, ticks and complete cases remain separate. | 20–30 |
 | [x] | 061 | E2E-015: kiosk-approved | 180, 021, 052 | Cases 49; `kiosk_approved.PLAN` / shared `onpc_kiosk_cancel::run` approved branch passed in `20261001T124720Z-77d15a97` on every enabled VM: independent 900-second daily/no-grant preparation, 75-second soft-included request, real approval, explicit success, one immediate exit, absent form/usable GDM, fresh child desktop and immutable TIME01 comparison with the explicit 975-second balance. All 1612 scoped host checks plus eight declaration checks passed. Affected Cancel case 47 and automatic FLOW05/06 regressions passed in `20261001T125148Z-49cc07cc` and `20261001T125510Z-18d567bf`; collection, worker shutdown, owned cleanup and baseline restoration passed. Coverage regenerated after both cases. | 20–30 |
-| [ ] | 070 | [Double-click kiosk Request and observe one prompt](E2E-Tasks/070-double-request.md) | 020, 016a | UI20; REQUEST10 kiosk binding | 20–30 |
-| [ ] | 074 | [E2E-014: kiosk-predefined](E2E-Tasks/074-case-41.md) | 180, 070, 052 | Cases 41 | 40–60 (exception) |
-| [ ] | 075 | [E2E-014: kiosk-custom](E2E-Tasks/075-case-42.md) | 180, 070, 052 | Cases 42 | 40–60 (exception) |
 | [ ] | 035c | [Launch and use a native fixture from the app grid](E2E-Tasks/035c-native-grid-usable.md) | 035p, 001t, 009 | APP01/02/03 native app-grid usable route | 20–30 |
 | [ ] | 035 | [Launch and use native fixtures by command](E2E-Tasks/035-native-app.md) | 035p, 001t, 009, 035c | APP01/02/03 native grid/command usable scope | 20–30 |
 | [ ] | 047 | [Record app activity and compose launch/use](E2E-Tasks/047-app-activity.md) | 035, 043 | APP04; FLOW08 native usable-app scope | 20–30 |
@@ -190,17 +200,12 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 048f | [Observe overlay password rejection and Cancel](E2E-Tasks/048f-overlay-rejection.md) | 048a, 021, 048c, 048d | AUTH02 overlay rejection/Cancel and preserved-form readback | 20–30 |
 | [ ] | 048b | [Complete overlay exits and approval compositions](E2E-Tasks/048b-overlay-approval.md) | 048a, 021, 048c, 048d, 048f | Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07 | 20–30 |
 | [ ] | 060 | [E2E-015: child-overlay-approved](E2E-Tasks/060-case-46.md) | 180, 048b, 052 | Cases 46 | 20–30 |
-| [ ] | 070a | [Observe one prompt after an overlay double-click](E2E-Tasks/070a-overlay-double-request.md) | 070, 048b | REQUEST10 overlay binding | 20–30 |
-| [ ] | 071 | [E2E-014: child-overlay-predefined](E2E-Tasks/071-case-38.md) | 180, 070a, 052 | Cases 38 | 40–60 (exception) |
-| [ ] | 072 | [E2E-014: child-overlay-custom](E2E-Tasks/072-case-39.md) | 180, 070a, 052 | Cases 39 | 40–60 (exception) |
 | [ ] | 042a | [Lock a desktop and observe its challenge surface](E2E-Tasks/042a-lock-surface.md) | 003d | DESK05/06 explicit Lock, curtain and challenge reveal | 20–30 |
 | [ ] | 042 | [Prove the intended lock-screen recipient](E2E-Tasks/042-lock-recipient.md) | 003d, 042a | DESK05, DESK06, DESK07 | 20–30 |
 | [ ] | 043c | [Unlock the intended retained child successfully](E2E-Tasks/043c-retained-unlock-success.md) | 043, 042 | GDM02 retained lock entry and DESK08 successful unlock | 20–30 |
 | [ ] | 043a | [Observe retained-child time denial and return](E2E-Tasks/043a-retained-unlock.md) | 043, 042, 043c | GDM02 retained-child lock entry; DESK08/11 | 20–30 |
 | [ ] | 044b | [Return to an existing Parent desktop and window](E2E-Tasks/044b-retained-parent.md) | 043a, 044a | DESK09 and FLOW01 retained Parent entry | 20–30 |
 | [ ] | 044 | [Visit both retained child desktops](E2E-Tasks/044-retained-entry.md) | 043a, 044a, 044b | DESK09; FLOW15 and FLOW01 retained scopes | 20–30 |
-| [ ] | 073 | [E2E-014: child-overlay-rest-of-day](E2E-Tasks/073-case-40.md) | 180, 070a, 052, 044, 052c | Cases 40 | 40–60 (exception) |
-| [ ] | 076 | [E2E-014: kiosk-rest-of-day](E2E-Tasks/076-case-43.md) | 180, 070, 052, 044, 052c, 021 | Cases 43 | 40–60 (exception) |
 | [ ] | 155a | [Compare overlay choices at the kiosk](E2E-Tasks/155a-choices-overlay-to-kiosk.md) | 048a, 044, 180 | FLOW12 overlay-to-kiosk choices for both children | 20–30 |
 | [ ] | 156 | [E2E-018: overlay-to-kiosk-first](E2E-Tasks/156-case-58.md) | 155a | Cases 58 | 20–30 |
 | [ ] | 156b | [E2E-018: overlay-to-kiosk-second](E2E-Tasks/156b-case-59.md) | 155a | Cases 59 | 20–30 |

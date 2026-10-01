@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">18352</span>/<span style="color: gray">0</span>/18352 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">18353</span>/<span style="color: gray">0</span>/18353 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">194</span>/<span style="color: gray">0</span>/194 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,7 +15,7 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">118</span>/<span style="color: gray">0</span>/118 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">30</span>/<span style="color: gray">212</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">19094</span>/<span style="color: gray">212</span>/19306** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">19095</span>/<span style="color: gray">212</span>/19307** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -1329,7 +1329,7 @@ Variant: choice: predefined; surface: child overlay
 - Read the selected footer and actual prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
 - Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from automation scheduling: native control-addressed double-click without geometry is unsupported. See docs/Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures. Do not create implementation tasks or block the active queue; this case remains uncovered.
 
 </div>
 
@@ -1349,7 +1349,7 @@ Variant: choice: custom; surface: child overlay
 - Read the selected footer and actual prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
 - Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from automation scheduling: native control-addressed double-click without geometry is unsupported. See docs/Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures. Do not create implementation tasks or block the active queue; this case remains uncovered.
 
 </div>
 
@@ -1369,7 +1369,7 @@ Variant: choice: rest of day; surface: child overlay
 - Read the selected footer and actual prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
 - Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from automation scheduling: native control-addressed double-click without geometry is unsupported. See docs/Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures. Do not create implementation tasks or block the active queue; this case remains uncovered.
 
 </div>
 
@@ -1389,7 +1389,7 @@ Variant: choice: predefined; surface: kiosk
 - Read the selected footer and actual prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
 - Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from automation scheduling: native control-addressed double-click without geometry is unsupported. See docs/Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures. Do not create implementation tasks or block the active queue; this case remains uncovered.
 
 </div>
 
@@ -1409,7 +1409,7 @@ Variant: choice: custom; surface: kiosk
 - Read the selected footer and actual prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
 - Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from automation scheduling: native control-addressed double-click without geometry is unsupported. See docs/Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures. Do not create implementation tasks or block the active queue; this case remains uncovered.
 
 </div>
 
@@ -1429,7 +1429,7 @@ Variant: choice: rest of day; surface: kiosk
 - Read the selected footer and actual prompt. Invalid custom input keeps Request available on an otherwise ready form; selecting it shows validation without authentication. Review valid prompt details. For Rest of the day, first approve a 1440-minute fixed grant, then compare it with the shorter until-midnight result after the tested approval.
 - Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from automation scheduling: native control-addressed double-click without geometry is unsupported. See docs/Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures. Do not create implementation tasks or block the active queue; this case remains uncovered.
 
 </div>
 

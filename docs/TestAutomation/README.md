@@ -66,6 +66,12 @@ historical, with current readiness in its inventory/catalogue owner.
   Missing IDs alone do not prohibit adapter work authorized by AGENTS.md.
 - **Retired** means the route cannot execute. Preserve displaced behavioral or
   engineering obligations under their current owner.
+- **Excluded from scheduling** means an explicit scope decision removes the
+  implementation task, not the uncovered behavior or stable case ID. The
+  [native-gesture exclusion](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures)
+  must not be recreated as a task or block the next-task pointer. Retained
+  inventory variants stay pending with an explicit exclusion reason and no
+  executable; this is not a pass or deferred implementation task.
 
 Current counts are derived from the source inventories and regenerated into
 [Test coverage](../Test-Coverage.md); do not maintain independent totals in

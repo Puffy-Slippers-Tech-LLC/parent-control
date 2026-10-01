@@ -84,7 +84,10 @@ def test_first_run_defaults_and_save_waits_for_commit(
     assert ui.text('language-continue') == LANGUAGES[language][3]
     assert ui.target('language-continue').get_description() == LANGUAGES[language][4]
     assert LANGUAGES[language][3] in public_label_names(ui, 'language-dialog')
-    assert ui.absent('language-cancel', within='language-dialog')
+    if surface == 'parent':
+        assert ui.showing('language-cancel')
+    else:
+        assert ui.absent('language-cancel', within='language-dialog')
     assert not committed(path)
     if surface != 'parent':
         assert not ui.state('kiosk-request-submit', ui.api.StateType.SENSITIVE)
@@ -94,7 +97,10 @@ def test_first_run_defaults_and_save_waits_for_commit(
                          for event in read_events(path)), 'save reaches the fixture')
         assert ui.showing('language-dialog')
         assert not committed(path)
-        for identity in ('language-continue', choice):
+        disabled = ('language-continue', choice)
+        if surface == 'parent':
+            disabled += ('language-cancel',)
+        for identity in disabled:
             assert not ui.state(identity, ui.api.StateType.SENSITIVE)
     finally:
         # Release the owned worker even if a pre-commit assertion fails.
@@ -108,6 +114,33 @@ def test_first_run_defaults_and_save_waits_for_commit(
     assert ui.showing('language-cancel')
     ui.reader.cancel_language(scope)
     assert committed(path) == [language]
+
+
+def test_parent_first_run_shared_helper_saves_with_cancel_visible(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'parent')
+    wait(lambda: ui.showing('language-dialog'), 'first-run chooser opens')
+    assert ui.showing('language-cancel')
+    ui.complete_parent_language_setup()
+    assert committed(path) == ['en']
+    assert_surface_language(ui, wait, 'parent', 'en')
+    assert_no_policy_or_request_writes(path)
+
+
+def test_parent_first_run_cancel_leaves_language_unset(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'parent')
+    wait(lambda: ui.showing('language-dialog'), 'first-run chooser opens')
+    ui.reader.choose_language('parent', 'de')
+    ui.reader.cancel_language('parent')
+    assert_surface_language(ui, wait, 'parent', 'en')
+    assert not committed(path)
+    ui.reader.open_language_preferences('parent')
+    assert ui.state('language-choice-en', ui.api.StateType.CHECKED)
+    ui.reader.cancel_language('parent')
+    assert_no_policy_or_request_writes(path)
 
 
 @pytest.mark.parametrize('surface', SURFACES)
@@ -159,7 +192,7 @@ def test_failed_save_retains_candidate_and_active_language_then_retries(
     assert ui.state('language-continue', ui.api.StateType.SENSITIVE)
     assert ui.text('language-title') == LANGUAGES['en'][2]
     assert not committed(path)
-    if first_run:
+    if first_run and surface != 'parent':
         assert ui.absent('language-cancel', within='language-dialog')
     else:
         assert ui.state('language-cancel', ui.api.StateType.SENSITIVE)

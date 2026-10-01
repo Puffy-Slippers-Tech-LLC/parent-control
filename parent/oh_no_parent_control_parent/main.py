@@ -344,17 +344,48 @@ class ParentWindow(Adw.ApplicationWindow):
         self._app_limits_visible = False
         self._match_rule_filters = {rule["id"] for rule in MATCH_RULES}
         self._access_rule_filters = {state["id"] for state in STATES}
+        self._content_built = False
+        self._time_status_refresh_id = 0
+        self._account_refresh_id = 0
+        self._toasts = Adw.ToastOverlay()
+        overlay = Gtk.Overlay(child=self._toasts)
+        self._language_shade = Gtk.Box(
+            visible=False, can_target=False,
+            css_classes=["parent-language-shade"],
+        )
+        overlay.add_overlay(self._language_shade)
+        self.set_content(overlay)
+        self.connect("close-request", self._close_requested)
+        GLib.idle_add(self._load_language)
+
+    def _finish_startup(self):
+        if self._content_built or self._closed:
+            return GLib.SOURCE_REMOVE
         self._build()
+        self._content_built = True
         self._time_status_refresh_id = GLib.timeout_add_seconds(
             30, self._refresh_time_status,
         )
         self._account_refresh_id = GLib.timeout_add_seconds(
             ACCOUNT_REFRESH_SECONDS, self._refresh_users,
         )
-        self.connect("close-request", self._close_requested)
         LOG.info("parent.002", app_count=len(self._rows))
-        GLib.idle_add(self._load_users)
-        GLib.idle_add(self._load_language)
+        self._load_users()
+        return GLib.SOURCE_REMOVE
+
+    def _language_dialog_mapped(self, dialog):
+        self._language_shade.set_visible(True)
+        if self._content_built:
+            return
+        # Mapping alone precedes painting. Yield through the chooser's first
+        # frame before constructing management widgets behind the modal.
+        clock = dialog.get_frame_clock()
+
+        def painted(clock):
+            clock.disconnect(handler)
+            GLib.idle_add(self._finish_startup)
+
+        handler = clock.connect("after-paint", painted)
 
     def _build(self):
         toolbar = Adw.ToolbarView()
@@ -454,14 +485,7 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         set_automation_id(self._policy_warning, "parent-policy-warning")
         toolbar.add_top_bar(self._policy_warning)
-        self._toasts = Adw.ToastOverlay(child=toolbar)
-        overlay = Gtk.Overlay(child=self._toasts)
-        self._language_shade = Gtk.Box(
-            visible=False, can_target=False,
-            css_classes=["parent-language-shade"],
-        )
-        overlay.add_overlay(self._language_shade)
-        self.set_content(overlay)
+        self._toasts.set_child(toolbar)
 
         # The selected child applies to both tabs. Keep the picker outside the
         # stack and use the same clamp as the tab bar and both page cards so
@@ -1168,15 +1192,21 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         self._own_language = language
         if not self._apply_language(language):
+            self._finish_startup()
+            self._language_shade.set_visible(False)
             return
         if not language or self._language_requested:
             self._open_language_dialog()
         else:
+            self._finish_startup()
+            self._language_shade.set_visible(False)
             set_automation_id(self._language_readiness, "parent-language-ready")
 
     def _language_failed(self, error):
         self._language_loading = False
         if not self._closed:
+            self._finish_startup()
+            self._language_shade.set_visible(False)
             self._show_error(error, m.YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO)
 
     def _show_preferences(self, *_args):
@@ -1191,7 +1221,7 @@ class ParentWindow(Adw.ApplicationWindow):
                 self, self._own_language, self._save_language, self._language_saved,
                 self._language_cancelled)
             self._language_dialog.connect(
-                "map", lambda *_args: self._language_shade.set_visible(True))
+                "map", self._language_dialog_mapped)
             self._language_dialog.connect(
                 "unmap", lambda *_args: self._language_shade.set_visible(False))
         self._language_dialog.present()
@@ -1199,6 +1229,8 @@ class ParentWindow(Adw.ApplicationWindow):
     def _language_cancelled(self):
         self._language_dialog = None
         self._language_requested = False
+        self._finish_startup()
+        set_automation_id(self._language_readiness, "parent-language-ready")
 
     def _save_language(self, language, success, failure):
         def saved(value):
@@ -1218,6 +1250,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._language_requested = False
         if not self._apply_language(language):
             return
+        self._finish_startup()
         set_automation_id(self._language_readiness, "parent-language-ready")
 
     def _apply_language(self, language):

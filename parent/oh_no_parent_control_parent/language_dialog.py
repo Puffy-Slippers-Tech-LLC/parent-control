@@ -28,7 +28,6 @@ class LanguageDialog(Gtk.Window):
         self._save = save
         self._saved = saved
         self._cancelled = cancelled
-        self._can_cancel = bool(language)
         selected = selected_language(language, GLib.get_language_names())
         self._selected = selected
         self._saving = False
@@ -79,7 +78,7 @@ class LanguageDialog(Gtk.Window):
         set_automation_id(self._error, "language-error")
         content.append(self._error)
         actions = Gtk.Box(spacing=12, homogeneous=True, hexpand=True)
-        self._cancel = localized(Gtk.Button, label=m.CANCEL, visible=self._can_cancel,
+        self._cancel = localized(Gtk.Button, label=m.CANCEL,
                                  css_classes=["parent-language-cancel"])
         describe_control(self._cancel, m.CANCEL, m.CANCEL,
                          automation_id="language-cancel")
@@ -111,7 +110,7 @@ class LanguageDialog(Gtk.Window):
         self._save(self._selected, self._success, self._failure)
 
     def _dismiss(self, _button):
-        if self._saving or not self._can_cancel:
+        if self._saving:
             return
         self._cancelled()
         self.destroy()

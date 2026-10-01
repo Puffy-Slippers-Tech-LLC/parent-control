@@ -675,7 +675,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          file_chooser=False, save_chooser=False, diagnostic_export=False, attachment_items=False, attachment_preview=False,
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
-         independent_network=False, public_connectivity_controls=False, native_grid_usable=False):
+         independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
+         native_app=False):
+    require(type(native_app) is bool and (not native_app or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'native_app')
+            and isinstance(value, bool)))), 'smoke:native-app-prerequisites')
     require(type(native_grid_usable) is bool and (not native_grid_usable or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1315,6 +1321,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-native-fixtures-qualification'
         if native_grid_usable:
             result['scope'] = 'installed-native-grid-usable-qualification'
+        if native_app:
+            result['scope'] = 'installed-native-app-qualification'
         if catalogue_search:
             result['scope'] = 'installed-catalogue-search-qualification'
         if catalogue_filters:
@@ -1462,7 +1470,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     result['source_preflight'] = preflight_source(staged)
                 if (parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
-                        or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable
+                        or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or native_app
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
@@ -1616,6 +1624,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if native_grid_usable:
                     from parent_setup_qualification import NativeGridQualification
                     qualification_class = NativeGridQualification
+                if native_app:
+                    from parent_setup_qualification import NativeAppQualification
+                    qualification_class = NativeAppQualification
                 if catalogue_search:
                     from parent_setup_qualification import CatalogueSearchQualification
                     qualification_class = CatalogueSearchQualification

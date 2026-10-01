@@ -88,7 +88,8 @@ STANDARD_OPERATIONS |= frozenset({'standard-search-qualified'})
 NATIVE_PRODUCT = 'ONPC Allowed Fixture'
 NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'desktop', 'search-ready', 'search-focused', 'search-entered', 'grid',
-    'grid-refusals', 'wrong-entry', 'opened', 'submit', 'submitted', 'close', 'closed'))
+    'grid-refusals', 'command-launch', 'command-refusals', 'wrong-entry',
+    'opened', 'submit', 'submitted', 'close', 'closed'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-absent'})
@@ -7630,6 +7631,25 @@ class AccessibleUI:
         self.wait(focused, 'parent-result-focus')
         self.input_uncertain = False
 
+    def native_launch_command(self, instance='primary'):
+        """APP01: one fixed native command in Jordan's active desktop session.
+
+        FIX06 verifies the baseline inputs before this operation. Submission is
+        never window acceptance; APP02 independently reads the public result.
+        """
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require(instance == 'primary', 'ui:native-binding')
+        require_active_launch_session()
+        self.desktop_result(EXISTING_CHILD, 'success')
+        require(self.native_app_closed(), 'ui:native-window-exists')
+        self.handle_system_prompt()
+        self.input_uncertain = True
+        subprocess.run([
+            '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+            '--service-type=exec',
+            '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
+        ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
+
     def native_app_snapshot(self, submitted, *, pending=False):
         """APP02/03: public owned window and finite independent activity projection."""
         require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
@@ -7673,6 +7693,23 @@ class AccessibleUI:
         require(operation in NATIVE_APP_OPERATIONS, 'ui:native-operation')
         if operation in ('native-desktop', 'native-closed'):
             self.wait(self.native_app_closed, 'native-closed')
+        elif operation == 'native-command-launch':
+            self.native_launch_command()
+        elif operation == 'native-command-refusals':
+            require(self.native_app_closed(), 'ui:native-wrong-entry')
+            for instance, uncertain, expected in (
+                    ('secondary', False, 'ui:native-binding'),
+                    ('primary', True, 'ui:uncertain-input')):
+                self.input_uncertain = uncertain
+                try:
+                    self.native_launch_command(instance)
+                except UiError as error:
+                    require(str(error) == expected, 'ui:native-wrong-refusal')
+                else:
+                    raise UiError('ui:native-refusal-missing')
+                finally:
+                    self.input_uncertain = False
+            require(self.native_app_closed(), 'ui:native-refusal-changed')
         elif operation == 'native-search-ready':
             self.search_ready('overview')
         elif operation == 'native-search-focused':

@@ -371,6 +371,17 @@ sub native_open_grid {
     return native_launch_grid($journey, native_search($journey, $desktop));
 }
 
+# APP01's direct command route. The controller binds the active child session;
+# APP02 reads the actual public window separately from command submission.
+sub native_open_command {
+    onpc_progress::operation('Launching the declared native fixture as [Child user]');
+    my ($journey, $desktop) = @_;
+    die 'native:launch-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    $journey->consume_observation('desktop', $desktop);
+    $journey->seen('command');
+    return $journey->seen('opened');
+}
+
 # APP03: caller holds a fresh owned-window proof. Controller performs the
 # public Submit action; a separate observation reads its customer-visible effect.
 sub native_use_app {
@@ -417,6 +428,37 @@ sub native_grid_usable {
     # under the original operation's single-use observation identity.
     my $grid = $repeat->seen('app-grid');
     $opened = native_launch_grid($repeat, $grid);
+    native_close_app($repeat, native_use_app($repeat, $opened));
+    $journey->finish();
+}
+
+sub native_app {
+    onpc_progress::operation('Qualifying guarded native command launch and ordinary use');
+    my ($exchange) = @_;
+    die 'native:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'native-app', review => 0);
+    onpc_gdm::reattach_functional();
+    onpc_parent::sign_in($journey, 'parent', 'success');
+    $journey->seen('logout');
+    my $child = onpc_journey->new(
+        exchange => sub { $exchange->('child-' . $_[0], $_[1]) },
+        prefix => 'native-app-child', review => 0);
+    onpc_parent::sign_in($child, 'other-child', 'success');
+    $journey->seen('wrong-entry');
+    my $first = onpc_journey->new(
+        exchange => sub { $exchange->('first-' . $_[0], $_[1]) },
+        prefix => 'native-app-first', review => 0);
+    my $opened = native_open_command($first, $first->seen('desktop'));
+    native_close_app($first, native_use_app($first, $opened));
+    my $repeat = onpc_journey->new(
+        exchange => sub { $exchange->('repeat-' . $_[0], $_[1]) },
+        prefix => 'native-app-repeat', review => 0);
+    my $wrong = $repeat->seen('wrong-entry');
+    my $accepted = eval { native_open_command($repeat, $wrong); 1; };
+    die 'native:wrong-entry-accepted' if $accepted;
+    die 'native:wrong-refusal' unless $@ =~ /journey:stale-observation/;
+    $repeat->seen('refusals');
+    $opened = native_open_command($repeat, $repeat->seen('desktop'));
     native_close_app($repeat, native_use_app($repeat, $opened));
     $journey->finish();
 }

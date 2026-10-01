@@ -262,6 +262,12 @@ sub run {
         onpc_parent_search_launch::run(\&exchange);
         return;
     }
+    if ($ready->{native_app}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::native_app(\&exchange);
+        return;
+    }
     if ($ready->{native_grid_usable}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

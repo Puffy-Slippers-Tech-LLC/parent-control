@@ -21,7 +21,9 @@ RECORDERS = ('record_installed_journey', 'record_package_journey', 'record_seria
 # class/action to a recorder must not hide case mechanics behind an import.
 WORKER_APIS = {
     'onpc_app_rows': {'native_entry', 'search', 'filter', 'read_rows', 'legend', 'edit_policy',
-                      'match_editor', 'match_response', 'access_choice'},
+                      'match_editor', 'match_response', 'access_choice',
+                      'native_search', 'native_launch_grid', 'native_open_grid',
+                      'native_open_command', 'native_use_app', 'native_close_app'},
     'onpc_progress': {'operation'},
     'testapi': {'record_info'},
     'onpc_harness': {'select_console'},

@@ -44,6 +44,11 @@ and active form return precede caller-declared immutable request comparisons in
 The finite `links='browser-links'` fragment checks website and privacy through
 `AccessibleUI.read_overlay_link`, with the same independent entry/return
 boundaries; `overlay_license.BROWSER_LINKS_PLAN` declares its comparisons.
+The finite `links='information'` binding composes Help, owned About entry and
+all five About link readers. `overlay_license.INFORMATION_PLAN` and
+`onpc_request_flow::overlay_information` qualify two independent round trips;
+the shared fragment and `KioskRequestJourney` retain caller-owned capture and
+return endpoints. Help is rechecked before entering About from the open menu.
 
 `AccessibleUI.allowance_preset` owns the PARENT05 observation scope for both
 direct preview calls and registered operations. Composed child, control, save

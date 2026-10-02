@@ -12,10 +12,11 @@ import pytest
 import accessible_ui as a
 import check_e2e_overlay_license as check
 import check_e2e_overlay_browser_links as browser_check
-from overlay_license import PLAN, BROWSER_LINKS_PLAN, OverlayLicenseJourney
+import check_e2e_read_overlay_about_and_links as information_check
+from overlay_license import PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN, OverlayLicenseJourney
 from journey_blocks import overlay_license_read
 from parent_setup_qualification import OverlayLicenseQualification, KioskEntryQualification
-from parent_setup_qualification import OverlayBrowserLinksQualification
+from parent_setup_qualification import OverlayBrowserLinksQualification, OverlayInformationQualification
 from private_artifacts import EvidenceError
 from tests.support.accessible_ui import Node, ui_for
 from ui_observations import OPERATION_LABELS, UiObservations
@@ -40,7 +41,7 @@ def about_tree(monkeypatch, opened=True):
     return ui, owner, window, about, link
 
 
-@pytest.mark.parametrize('binding', ['license', 'website', 'privacy'])
+@pytest.mark.parametrize('binding', ['license', 'website', 'privacy', 'support', 'legal-notices'])
 @pytest.mark.parametrize('fault', ['', 'missing', 'disabled', 'hidden', 'no-action',
     'focus-only', 'ambiguous', 'duplicate', 'wrong-owner', 'inactive', 'defunct', 'clipped',
     'product', 'version'])
@@ -74,7 +75,7 @@ def test_overlay_license_reads_only_fresh_owned_public_information(monkeypatch, 
 
 
 @pytest.mark.parametrize('fault', ['missing-about', 'wrong-owner', 'inactive-form', 'already-open'])
-@pytest.mark.parametrize('binding', ['license', 'website', 'privacy'])
+@pytest.mark.parametrize('binding', ['license', 'website', 'privacy', 'support', 'legal-notices'])
 def test_overlay_about_entry_refuses_before_menu_input(monkeypatch, fault, binding):
     ui, owner, window, about, _ = about_tree(monkeypatch, opened=fault == 'already-open')
     ui.activate_id = Mock()
@@ -88,16 +89,65 @@ def test_overlay_about_entry_refuses_before_menu_input(monkeypatch, fault, bindi
     ui.activate_id.assert_not_called()
 
 
-def test_overlay_link_rechecks_current_owner_and_state_without_input(monkeypatch):
+@pytest.mark.parametrize('binding', ['website', 'privacy', 'support', 'legal-notices'])
+def test_overlay_link_rechecks_current_owner_and_state_without_input(monkeypatch, binding):
     ui, owner, _, _, link = about_tree(monkeypatch)
-    link.identity = 'about-website-value'
-    ui.read_overlay_link('1.1', 'website')
+    link.identity = 'about-' + binding + '-value'
+    ui.read_overlay_link('1.1', binding)
     link.states.discard('sensitive')
-    with pytest.raises(a.UiError): ui.read_overlay_link('1.1', 'website')
+    with pytest.raises(a.UiError): ui.read_overlay_link('1.1', binding)
     link.states.add('sensitive')
     owner.identity = a.KIOSK_APPLICATION
-    with pytest.raises(a.UiError): ui.read_overlay_link('1.1', 'website')
+    with pytest.raises(a.UiError): ui.read_overlay_link('1.1', binding)
     link.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'missing', 'disabled', 'hidden', 'no-action',
+    'ambiguous', 'duplicate', 'wrong-owner', 'already-open', 'stale'])
+def test_overlay_help_and_about_use_fresh_owned_menu_without_following_help(monkeypatch, fault):
+    ui, owner, window, about, _ = about_tree(monkeypatch, opened=fault == 'already-open')
+    help_link = Node(identity='kiosk-menu-item-help', role='menu item')
+    window.children.append(help_link)
+    help_link.parent = window
+    ui.activate_id = Mock()
+    if fault == 'missing': help_link.identity = ''
+    if fault == 'disabled': help_link.states.discard('sensitive')
+    if fault == 'hidden': help_link.states.discard('visible')
+    if fault == 'no-action': help_link.get_action_iface = lambda: None
+    if fault == 'ambiguous': help_link.action.get_n_actions = lambda: 2
+    if fault == 'duplicate':
+        duplicate = Node(identity=help_link.identity, role='menu item')
+        duplicate.parent = window
+        window.children.append(duplicate)
+    if fault == 'wrong-owner': owner.identity = a.KIOSK_APPLICATION
+    if fault and fault != 'stale':
+        with pytest.raises(a.UiError): ui.run('overlay-help-read', '1.1')
+        assert not any(call.args[0] == 'kiosk-menu-item-about' for call in ui.activate_id.call_args_list)
+        if fault in ('wrong-owner', 'already-open'): ui.activate_id.assert_not_called()
+    else:
+        result = ui.run('overlay-help-read', '1.1')
+        observer = UiObservations(Mock())
+        observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+        assert observer.observe('overlay-help-read') == result
+        ui.activate_id.assert_called_once_with('kiosk-menu-button', action_name='menu.popup')
+        ui.activate_id.reset_mock()
+        if fault == 'stale':
+            help_link.states.discard('sensitive')
+            with pytest.raises(a.UiError): ui.run('overlay-information-about', '1.1')
+            ui.activate_id.assert_not_called()
+        else:
+            def opened(identity):
+                assert identity == 'kiosk-menu-item-about'
+                window.children.append(about)
+                about.parent = window
+                # The substituted input must expire its pre-input observation,
+                # just as AccessibleUI's real public action does.
+                ui.invalidate_observation()
+            ui.activate_id.side_effect = opened
+            ui.window_ready_to_close = Mock()
+            ui.run('overlay-information-about', '1.1')
+            ui.activate_id.assert_called_once_with('kiosk-menu-item-about')
+    help_link.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['', 'still-open', 'wrong-owner', 'missing-form', 'inactive-form'])
@@ -113,7 +163,8 @@ def test_overlay_close_requires_complete_absence_and_active_same_owner(monkeypat
 
 @pytest.mark.parametrize('selector,qualification,plan', [
     (check, OverlayLicenseQualification, PLAN),
-    (browser_check, OverlayBrowserLinksQualification, BROWSER_LINKS_PLAN)])
+    (browser_check, OverlayBrowserLinksQualification, BROWSER_LINKS_PLAN),
+    (information_check, OverlayInformationQualification, INFORMATION_PLAN)])
 def test_registration_and_independent_fragment(monkeypatch, selector, qualification, plan):
     calls = []
     monkeypatch.setattr(selector, 'smoke', lambda **kw: calls.append(kw) or 0)
@@ -128,12 +179,18 @@ def test_registration_and_independent_fragment(monkeypatch, selector, qualificat
     assert not (a.OVERLAY_ABOUT_OPERATIONS & a.KIOSK_SESSION_OPERATIONS)
     assert overlay_license_read('other-')['other-license-read'] == 'ui:overlay-license-read'
     assert overlay_license_read('other-', links='browser-links')['other-privacy-read'] == 'ui:overlay-privacy-read'
+    independent = overlay_license_read('other-', links='information')
+    assert list(independent.values()) == ['ui:overlay-help-read', 'ui:overlay-information-about',
+        'ui:overlay-website-read', 'ui:overlay-privacy-read', 'ui:overlay-support-read',
+        'ui:overlay-license-read', 'ui:overlay-legal-notices-read',
+        'ui:overlay-about-close-ready', 'ui:overlay-about-closed', 'ui:overlay-valid-fraction-soft-read']
     with pytest.raises(EvidenceError): overlay_license_read(links='unknown')
 
 
+@pytest.mark.parametrize('source_plan', [PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN])
 @pytest.mark.parametrize('fault', ['', 'changed', 'mutated', 'missing', 'replay'])
-def test_real_recorder_compares_renamed_form_before_durable_reply(tmp_path, fault):
-    plan = replace(PLAN, screen_tags={'capture': 'ui:overlay-valid-fraction-soft-read',
+def test_real_recorder_compares_renamed_form_before_durable_reply(tmp_path, fault, source_plan):
+    plan = replace(source_plan, screen_tags={'capture': 'ui:overlay-valid-fraction-soft-read',
         'compare': 'ui:overlay-valid-fraction-soft-read'},
         request_checks={'compare': ('capture', 'overlay-about:changed-form', 'unchanged_form')},
         invocations=(), challenges={}, assertions_after={}, phases={}, advance_after={}, balance_checks={})

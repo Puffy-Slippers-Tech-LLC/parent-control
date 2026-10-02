@@ -38,10 +38,13 @@ def test_overlay_about_license_shared_reader_and_unchanged_form(
     version = json.loads((ROOT / 'data/app.json').read_text())['version']
     reader.run('overlay-about-refused', version)
     for _ in range(2):
-        reader.run('overlay-about-open', version)
+        reader.run('overlay-help-read', version)
+        reader.run('overlay-information-about', version)
         reader.run('overlay-license-read', version)
         reader.run('overlay-website-read', version)
         reader.run('overlay-privacy-read', version)
+        reader.run('overlay-support-read', version)
+        reader.run('overlay-legal-notices-read', version)
         reader.run('overlay-about-close-ready', version)
         key_combo(reader, 'about-dialog', '<Alt>F4', state=reader.api.StateType.ACTIVE)
         reader.run('overlay-about-closed', version)

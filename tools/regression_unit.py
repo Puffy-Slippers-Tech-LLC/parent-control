@@ -214,10 +214,13 @@ from regression_ui import Bucket
 # The added challenge/installed-journey cleanup rows retain the same isolation.
 # Overlay Cancel case checks use private evidence/doubles and reaped Perl workers;
 # verification-only action selection adds no shared resource or cleanup lifetime.
+# Overlay About uses process-local public-tree doubles, private evidence and
+# bounded reaped Perl workers, with no live VM/display or shared mutable state.
 REVIEWED = frozenset("""
 localization
 e2e_shell_panel
 e2e_overlay_valid_choices
+e2e_overlay_license
 e2e_overlay_cancel
 vm_internet_cleanup_safety baseline_fixtures_cleanup_safety
 about_dialog accessible_e2e_ui accessible_observation adapters app_policy app_termination appsnapshot_cleanup_safety apt_removal_notice

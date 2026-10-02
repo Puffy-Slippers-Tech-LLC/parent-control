@@ -333,6 +333,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_shell_panel'], ['check_e2e_shell_panel.py'],
             ['check_e2e_overlay_valid_choices'], ['check_e2e_overlay_valid_choices.py'],
             ['check_e2e_overlay_choices'], ['check_e2e_overlay_choices.py'],
+            ['check_e2e_overlay_license'], ['check_e2e_overlay_license.py'],
             ['check_e2e_fresh_desktop'], ['check_e2e_fresh_desktop.py'],
             ['check_e2e_desktop_keyring'], ['check_e2e_desktop_keyring.py'],
             ['check_e2e_shell_search_results'], ['check_e2e_shell_search_results.py'],
@@ -435,6 +436,7 @@ def qualification_artifact_command(root, category, args):
     output = str(named_input(fixture_source=True) if args in (
         ['check_e2e_overlay_valid_choices'], ['check_e2e_overlay_valid_choices.py'],
         ['check_e2e_overlay_choices'], ['check_e2e_overlay_choices.py'],
+        ['check_e2e_overlay_license'], ['check_e2e_overlay_license.py'],
         ['check_e2e_native_fixtures'], ['check_e2e_native_fixtures.py'],
         ['check_e2e_native_grid_usable'], ['check_e2e_native_grid_usable.py'],
         ['check_e2e_native_app'], ['check_e2e_native_app.py'],

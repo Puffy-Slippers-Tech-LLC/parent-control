@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **185oa — [Read overlay About and check its license link](E2E-Tasks/185oa-overlay-license.md)**.
+Next task: **185ob — [Check overlay website and privacy links](E2E-Tasks/185ob-overlay-browser-links.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

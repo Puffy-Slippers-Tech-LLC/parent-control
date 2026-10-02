@@ -10,7 +10,45 @@ use onpc_password ();
 use onpc_desktop_session ();
 use onpc_app_rows ();
 use onpc_request_exit ();
+use onpc_about ();
 use testapi ();
+
+sub overlay_license {
+    onpc_progress::operation('Qualifying overlay About information and license clickability');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'overlay-license:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-license', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('wrong-entry-refused');
+    $journey->seen('allowance-configured');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    overlay_entry($journey, 'direct', 'command');
+    prepare($journey, 'open', 'open', 'default',
+        'fixture-child', 'fixture-parent', 75, 1, 'overlay');
+    my $entry = $journey->seen('missing-about-refused');
+    # Fresh wrong-stage proof must refuse before opening any window.
+    my $wrong = onpc_journey->new(exchange => $exchange, prefix => 'overlay-license-wrong', review => 0);
+    $wrong->{last_observation} = {stage => 'missing-about-refused', reply => $entry};
+    my $accepted = eval { onpc_about::overlay_license($wrong, $entry, 'open-estimate', ''); 1 };
+    die 'overlay-license:wrong-proof-accepted' if $accepted;
+    die 'overlay-license:wrong-proof-refusal' unless $@ =~ /journey:stale-observation/;
+    my $returned = onpc_about::overlay_license($journey, $entry, 'missing-about-refused', '');
+    onpc_about::overlay_license($journey, $returned, 'form-returned', 'independent-');
+    $journey->seen('cancel');
+    $journey->seen('returned');
+    $journey->finish();
+}
 
 sub overlay_valid_choices {
     onpc_progress::operation('Qualifying valid overlay choices and unchanged app activity after Cancel');

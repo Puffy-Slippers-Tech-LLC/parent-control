@@ -7,6 +7,19 @@ phase transitions. Each call returns a fresh mapping owned by its caller.
 from private_artifacts import require
 
 
+def overlay_license_read(prefix=''):
+    """Owned About read/close fragment; callers declare preserved form endpoints."""
+    import re
+    require(type(prefix) is str and re.fullmatch(r'(?:[a-z][a-z0-9-]*-)?', prefix),
+            'journey:overlay-about-binding')
+    return {prefix + stage: 'ui:' + operation for stage, operation in (
+        ('about-open', 'overlay-about-open'),
+        ('license-read', 'overlay-license-read'),
+        ('about-close-ready', 'overlay-about-close-ready'),
+        ('about-closed', 'overlay-about-closed'),
+        ('form-returned', 'overlay-valid-fraction-soft-read'))}
+
+
 def native_usable_app(route, *, child='other-child'):
     """FLOW08 finite native usable scope; caller owns stages and later activity."""
     require(route in ('command', 'grid'), 'journey:native-route')

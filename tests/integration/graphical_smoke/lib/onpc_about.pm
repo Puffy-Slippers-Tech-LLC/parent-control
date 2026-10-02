@@ -5,6 +5,20 @@ use onpc_progress ();
 use onpc_window ();
 
 # ABOUT01/02: owned About information and link clickability; no external launch.
+sub overlay_license {
+    onpc_progress::operation('Reading overlay About/license and returning to unchanged choices');
+    my ($journey, $proof, $entry, $invocation) = @_;
+    die 'overlay-about:binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
+        && $entry =~ /\A[a-z][a-z0-9-]*\z/ && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
+    $journey->consume_observation($entry, $proof);
+    for my $stage ('about-open', 'license-read') {
+        $journey->consume_observation($invocation . $stage, $journey->seen($invocation . $stage));
+    }
+    $journey->consume_observation($invocation . 'about-closed', onpc_window::close(
+        $journey, 'overlay-about', $journey->seen($invocation . 'about-close-ready'), $invocation));
+    return $journey->seen($invocation . 'form-returned');
+}
+
 sub open_about {
     onpc_progress::operation('Opening About');
     my ($journey, $selected) = @_;

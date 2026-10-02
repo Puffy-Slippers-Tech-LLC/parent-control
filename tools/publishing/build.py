@@ -31,8 +31,8 @@ $mailto = '';
 def source_inputs(root):
     version = subprocess.check_output(
         ['/usr/bin/dpkg-parsechangelog', '-S', 'Version'], cwd=root, text=True).strip()
-    if not re.fullmatch(r'[0-9]+\.[0-9]+\+ppa[1-9][0-9]*~ubuntu26\.04\.1', version):
-        raise ValueError('expected a resolute PPA version')
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\+(?:ppa[1-9][0-9]*|local1)~ubuntu26\.04\.1', version):
+        raise ValueError('expected a resolute PPA or private local version')
     prefix = f'oh-no-parent-control_{version}'
     dsc = root.parent / f'{prefix}.dsc'
     if dsc.is_symlink() or not dsc.is_file():

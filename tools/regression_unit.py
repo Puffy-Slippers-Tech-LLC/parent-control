@@ -7,6 +7,13 @@ shared pytest/Hypothesis caches and aggregate retention in every unit worker.
 Unknown modules fail closed to exclusive execution; new modules must receive an
 isolation/resource review and classification before their work is complete.
 
+Private-version and updateversion regressions use tiny private metadata trees,
+synchronously waited Make/dpkg children and stub builders. Publishing fixtures
+retain their private Git remotes and mocked network/signing; local-source DSC
+checks retain private byte fixtures and mocked sbuild. Existing bump_version,
+build_package, publish, publishing_tests and ppa_build compatible classifications
+still apply; no live package installation, build, service or shared cache is used.
+
 Unified preference/language tests use tiny private temporary records and
 process-local account/storage doubles. Their concurrency case owns two finite
 threads, releases its private gate in finally, and joins both before returning.

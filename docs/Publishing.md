@@ -1,13 +1,58 @@
 # Publish an app upgrade
 
+Prepare and test the candidate on `main` before publishing. Add the next product
+entry to [`VersionHistory.md`](VersionHistory.md), then run:
+
+```sh
+make updateversion
+```
+
+This takes no parameters. It reads the newest history version (including an
+undated draft), updates `data/app.json` and the Debian changelog for private
+builds, and automatically builds **both Debian and RPM** packages from one frozen
+source snapshot. For product 1.3, the private Debian version is
+`1.3+local1~ubuntu26.04.1`; RPM uses Version `1.3` and the configured `RPM_RELEASE`
+(default `0.1.dev`). Outputs are in `output/deb/` and `output/rpm/`.
+Both builders' prerequisites must already be installed; a failure in either
+fails the command and retains successful artifacts. Metadata remains prepared
+if a build fails. Development setup uses `./setup.sh --dependencies-only` for
+Debian prerequisites and `./setup.sh --rpm-build-tools` for the Fedora builder;
+builds do not install them. Fix the prerequisite or build failure and rerun the command.
+Repeated runs rebuild the same product version, refresh changed private release
+notes, and do not duplicate unchanged changelog entries. An already prepared
+official version keeps its existing Debian revision. Older history versions
+are refused. `make build` rebuilds the current metadata without selecting a
+version; `make build PACKAGE_FORMAT=deb` selects only Debian.
+
+On a supported **test computer** with official 1.2 installed, retain its settings
+and install the private 1.3 candidate from this checkout with its build output:
+
+```sh
+make install
+```
+
+On Ubuntu this selects the exact built Debian version from the changelog and
+uses APT; on Fedora it selects the latest built product RPM and uses DNF.
+These are thin package-manager wrappers. All provisioning, migration, activation
+and notices belong to the packages' dependencies and lifecycle scripts, shared
+with channel installation. Do not remove or purge 1.2 before this upgrade.
+Check retained settings, readiness and the reported activation requirements as
+described under [Upgrade acceptance](#upgrade-acceptance). Restore the test
+computer's pre-upgrade snapshot to repeat 1.2→1.3; reinstalling 1.3 tests a
+different transition. Local installation exercises package upgrade behavior;
+it does not exercise Software Updater discovering a release in a channel index.
+Do not install the product on the development host just to build packages.
+
 Run all local tests from the development checkout before publishing:
 
 ```sh
 make test-all-verify
 ```
 
-Prepare and commit the release inputs on `main`, including the dated release
-history entry. Create `releases/vX.Y` from that commit and check it out in a
+Finalize the history date and notes, rerun `make updateversion` and applicable
+tests if inputs changed, then commit the release inputs on `main`, including
+`data/app.json`, `debian/changelog` and the dated history entry.
+Create `releases/vX.Y` from that commit and check it out in a
 separate enlistment. For example, for version 1.3 with a linked worktree:
 
 ```sh
@@ -31,9 +76,13 @@ From the release checkout, run:
 make publish
 ```
 
-It takes no parameters and publishes the newest entry in
+It takes no parameters and publishes the **already prepared product version** in
 [`VersionHistory.md`](VersionHistory.md) end to end. It requires a clean
-`releases/vX.Y` branch matching that entry. Running it is the release
+`releases/vX.Y` branch matching that entry and `data/app.json`. It does not bump
+the product version: private 1.3 is published as official 1.3. It allocates only
+the unused Debian/PPA revision, ordinarily `1.3+ppa1~ubuntu26.04.1`, which sorts
+above `1.3+local1~ubuntu26.04.1`. Publication supports Debian only; RPM channel
+publishing is not implemented. Running it is the release
 decision: it creates signed source and tags in the public Git repository and
 uploads the signed source package to the configured Launchpad PPA. Editing or
 testing the publishing tool does not authorize a live release.
@@ -85,13 +134,18 @@ Use this format, with at least two entries:
 - Initial release.
 ```
 
-The newest version must be numerically greater than `data/app.json`; the second
-must exactly equal that current product version. All history versions must be
+The newest version must exactly equal `data/app.json` when publishing; run
+`make updateversion` before committing the candidate. The second entry is the
+preceding product release. All history versions must be
 unique and descend in `x.y` order. Dates must be valid `YYYY-MM-DD` dates and the
 new entry must contain a change bullet. Section headings and the newest entry's
 notes become the Debian/PPA changelog, with Markdown styling removed.
 
-The app version becomes the newest history version. The Debian version adds
+`make updateversion` sets the app version to the newest history version, accepting
+an undated top heading such as `## v1.3 -` for private builds. All older headings
+must be dated; the newest notes must contain a change bullet. Publication requires
+every heading to be dated and does not change the prepared app version.
+The official Debian version adds
 the next unused PPA suffix: product `1.1` ordinarily becomes
 `1.1+ppa1~ubuntu26.04.1`. The publisher checks Launchpad history, including deleted
 and superseded sources, fetched public tags, and the existing Debian changelog.
@@ -140,13 +194,10 @@ licenses, Debian metadata and required build helpers. It excludes development
 docs, `tests/`, previews, agent configuration and internal tools. Uncommitted
 product edits are included; unrelated edits and their whitespace do not block
 packaging. Copying rejects changes to the selected inputs during the snapshot.
-When the history announces a newer, dated version, the snapshot receives the
-generated app version and changelog. An undated next-version heading is a draft:
-local tests retain the current package metadata and print that choice. Actual
-publishing still requires the dated release history. After a release, local
-tests also use current metadata.
-The real checkout is unchanged. The PPA revision is a local candidate; publication
-still allocates the unused revision from remote history.
+The snapshot uses the same private metadata preparation as `make updateversion`,
+including an undated next-version draft. After a release it retains the existing
+official metadata. The real checkout is unchanged. Publication still requires
+dated release history and allocates the unused PPA revision from remote history.
 
 It builds unsigned source, verifies upload manifests and archive contents against
 the snapshot, runs source Lintian, builds that DSC in clean resolute/amd64 `sbuild`
@@ -175,8 +226,9 @@ version uniqueness and publication-state checks remain part of delivery.
 ## Publication and completion
 
 The publisher validates prerequisites and credentials in the release enlistment,
-creates an isolated `/tmp/onpc-release-*` staging checkout, updates the product version and Debian
-changelog, and signs the release commit and both version tags. It then:
+creates an isolated `/tmp/onpc-release-*` staging checkout, preserves the prepared
+product version, updates the Debian changelog with its allocated PPA revision,
+and signs the release commit and both version tags. It then:
 
 1. Builds and signs the source upload, verifies the publisher signatures and
    SHA-256 manifests, and checks archived bytes, symlinks and executable modes
@@ -218,8 +270,9 @@ while retaining a separate full test-input identity for acceptance evidence.
 
 ## Bring release metadata back to main
 
-The generated release commit changes `data/app.json` and `debian/changelog`.
-Release notes were already committed on main before branching. After the source
+The generated release commit changes `debian/changelog` to the official PPA
+revision. The product version and release notes were already committed on main
+before branching. After the source
 push and upload attempt, the publisher prepares a signed cherry-pick in a
 temporary clone of the confirmed main checkout. It incorporates remote main
 through a fast-forward, pushes the updated main without force, then fast-forwards
@@ -245,8 +298,9 @@ candidate is being applied, the publisher stops rather than overwriting it; pres
 and resolve the reported condition before retrying.
 
 Before preparing the next release, main must contain the preceding release's
-metadata. Add the next newer history entry above it, commit the new release
-inputs, and create the next release branch. If Launchpad rejects a source or a
+metadata. Add the next newer history entry above it, run `make updateversion`,
+complete private upgrade testing, commit the new release inputs, and create the
+next release branch. If Launchpad rejects a source or a
 build fails, resolve that failure with a newer product release as described
 below; preserve the submitted version and tags.
 
@@ -327,8 +381,9 @@ than treating historical rehearsal results as acceptance.
 
 ## Upgrade acceptance
 
-`make publish` performs the product/version changes itself; do not manually
-bump `data/app.json` or `debian/changelog` first. Every release, including a
+`make updateversion` prepares the product version for private upgrade testing
+before publication. `make publish` requires that version to match the latest
+dated history entry and changes only the Debian/PPA revision. Every release, including a
 packaging correction, needs a newer product entry in `VersionHistory.md`.
 The publisher chooses an unused PPA revision and creates both signed tags.
 Published tags and accepted upload versions are never reused or replaced.

@@ -35,7 +35,9 @@ make test-all
 `make test-all-verify` is a compatibility alias; all VM verification is metadata-only. These commands
 include uncommitted changes in a private source snapshot, require no signing
 credentials, and never push or upload. Each invocation builds fresh source and
-binary artifacts. Commit the application changes and run `make publish` when
+binary artifacts. Prepare the candidate with `make updateversion` for private
+Debian/RPM upgrade testing, then commit the application changes and version
+metadata and run `make publish` when
 ready to release; see [Publishing](Publishing.md) for its separate requirements.
 
 Each build attempt creates a new `/tmp/onpc-ppa-check-*` directory containing
@@ -50,8 +52,8 @@ The test utility verifies unsigned upload manifests and the archive against its
 frozen snapshot before the builder checks the DSC/archive size and SHA-256 and
 copies the exact input bytes. The publisher separately authenticates signed
 release artifacts at delivery time.
-It accepts only this project's native source package and resolute PPA version
-format. Working-tree edits are included when the snapshot is created; later
+It accepts only this project's native source package and resolute PPA or private
+`X.Y+local1~ubuntu26.04.1` version format. Working-tree edits are included when the snapshot is created; later
 edits require another test run.
 
 The build uses an amd64 host, Ubuntu resolute, standard archive components,

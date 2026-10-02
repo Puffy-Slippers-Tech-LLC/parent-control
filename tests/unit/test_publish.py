@@ -34,7 +34,7 @@ NOTES = ('## v1.1 — 2026-09-11\n### Bug Fixes\n'
 
 
 @pytest.mark.parametrize('text,current,reason', [
-    (NOTES, '1.1', 'higher'), (NOTES, '0.9', 'second'),
+    (NOTES, '1.0', 'updateversion'), (NOTES, '0.9', 'equal'),
     (NOTES.replace('v1.0', 'v1.1'), '1.0', 'unique'),
     (NOTES.replace('v1.1', 'v01.1'), '1.0', 'leading'),
     (NOTES.replace('## v1.0', '### v1.0'), '1.0', 'at least two'),
@@ -48,7 +48,7 @@ def test_history_errors_fail_closed(text, current, reason):
 
 
 def test_numeric_order_and_changelog_preserve_only_latest_notes(tmp_path):
-    product, body = publish.history_entry(NOTES.replace('1.1', '1.10').replace('1.0', '1.9'), '1.9')
+    product, body = publish.history_entry(NOTES.replace('1.1', '1.10').replace('1.0', '1.9'), '1.10')
     assert product == '1.10'
     changelog = publish.changelog_entry('1.10+ppa1~ubuntu26.04.1', body)
     assert '  Bug Fixes\n  * Parent App: Fixed small screens.' in changelog
@@ -58,6 +58,16 @@ def test_numeric_order_and_changelog_preserve_only_latest_notes(tmp_path):
     result = subprocess.run(['dpkg-parsechangelog', '-l', str(path), '-S', 'Version'],
                             capture_output=True, text=True, check=True)
     assert result.stdout.strip() == '1.10+ppa1~ubuntu26.04.1'
+
+
+def test_publish_refuses_an_unprepared_product_before_external_work(repository, monkeypatch):
+    git(repository, 'add', publish.HISTORY)
+    git(repository, 'commit', '-m', 'unprepared candidate')
+    git(repository, 'switch', '-c', 'releases/v1.1')
+    monkeypatch.setattr(publish, 'confirm_main_update', lambda *args: pytest.fail('main pause started'))
+    monkeypatch.setattr(publish, 'prepare', lambda *args: pytest.fail('external work started'))
+    with pytest.raises(ValueError, match='updateversion'):
+        publish.publish(repository)
 
 
 def test_environment_and_noninteractive_subprocess_do_not_leak_secrets(monkeypatch, tmp_path):
@@ -102,7 +112,8 @@ def repository(tmp_path):
 
 @pytest.fixture
 def release_repository(repository):
-    git(repository, 'add', publish.HISTORY)
+    (repository / 'data/app.json').write_text('{"version": "1.1"}\n')
+    git(repository, 'add', publish.HISTORY, 'data/app.json')
     git(repository, 'commit', '-m', 'release inputs')
     git(repository, 'switch', '-c', 'releases/v1.1')
     return repository
@@ -111,7 +122,7 @@ def release_repository(repository):
 @pytest.mark.usefixtures('release_repository')
 def test_source_gate_requires_committed_inputs(repository):
     _, notes, current = publish.source_state(repository)
-    assert notes == NOTES and current == '1.0'
+    assert notes == NOTES and current == '1.1'
     (repository / 'private-unrelated-file').write_text('local content')
     with pytest.raises(ValueError, match='commit all release inputs'):
         publish.source_state(repository)
@@ -119,7 +130,8 @@ def test_source_gate_requires_committed_inputs(repository):
 
 @pytest.mark.parametrize('branch', ['main', 'feature', 'releases/v01.1', None, 'releases/v1.2'])
 def test_wrong_branch_stops_before_preparation(repository, monkeypatch, branch):
-    git(repository, 'add', publish.HISTORY)
+    (repository / 'data/app.json').write_text('{"version": "1.1"}\n')
+    git(repository, 'add', publish.HISTORY, 'data/app.json')
     git(repository, 'commit', '-m', 'notes')
     if branch is None:
         git(repository, 'checkout', '--detach')
@@ -158,7 +170,9 @@ def test_finish_fast_forwards_real_git_with_committed_history(repository, tmp_pa
     (checkout / 'docs').mkdir(exist_ok=True)
     (checkout / publish.HISTORY).write_text(NOTES)
     (checkout / 'data/app.json').write_text('{"version": "1.1"}\n')
-    git(checkout, 'add', publish.HISTORY, 'data/app.json')
+    (checkout / 'debian').mkdir()
+    (checkout / 'debian/changelog').write_text(publish.changelog_entry('1.1+ppa1~ubuntu26.04.1', '- Published.'))
+    git(checkout, 'add', publish.HISTORY, 'data/app.json', 'debian/changelog')
     git(checkout, 'commit', '-m', 'release')
     revision = git(checkout, 'rev-parse', 'HEAD')
     git(repository, 'remote', 'add', 'origin', str(checkout))
@@ -732,7 +746,8 @@ def test_dput_uses_only_generated_configuration_without_user_hooks(tmp_path):
 def test_prepare_uses_real_isolated_git_and_only_the_new_history_entry(repository, tmp_path, monkeypatch, remote_branch):
     (repository / 'debian').mkdir()
     previous = publish.changelog_entry('1.0+ppa6~ubuntu26.04.1', '- Earlier package correction.')
-    (repository / 'debian/changelog').write_text(previous)
+    private = publish.changelog_entry('1.1+local1~ubuntu26.04.1', '- Private candidate.')
+    (repository / 'debian/changelog').write_text(private + previous)
     (repository / '.gitignore').write_text('.envrc\noutput/\n')
     (repository / '.envrc').write_text('private fixture; never copied')
     git(repository, 'add', 'debian/changelog', '.gitignore')
@@ -783,13 +798,15 @@ def test_prepare_uses_real_isolated_git_and_only_the_new_history_entry(repositor
     assert state['version'] == '1.1+ppa1~ubuntu26.04.1'
     assert state['branch'] == 'releases/v1.1'
     assert json.loads((checkout / 'data/app.json').read_text())['version'] == '1.1'
+    assert (checkout / 'data/app.json').read_bytes() == (repository / 'data/app.json').read_bytes()
+    assert git(checkout, 'diff', base, 'HEAD', '--', 'data/app.json') == ''
     changelog = (checkout / 'debian/changelog').read_text()
     assert changelog.endswith(previous) and changelog.count('Fixed small screens.') == 1
     assert 'Initial release.' not in changelog
     assert not (checkout / '.envrc').exists()
     assert not git(checkout, 'status', '--porcelain')
     assert git(repository, 'rev-parse', 'HEAD') == base
-    assert (repository / 'debian/changelog').read_text() == previous
+    assert (repository / 'debian/changelog').read_text() == private + previous
     assert git(remote, 'rev-parse', 'main') == main
 
 
@@ -1068,7 +1085,12 @@ def test_main_pause_confirmation_refuses_without_writes(main_update_candidate, m
 
 
 def test_declining_publish_stops_before_preparation(main_update_candidate, monkeypatch):
-    _, root, _, _, _ = main_update_candidate
+    target, root, _, _, _ = main_update_candidate
+    (target / 'data/app.json').write_text('{"version": "1.1"}\n')
+    git(target, 'add', 'data/app.json')
+    git(target, 'commit', '-m', 'prepare candidate version on main')
+    git(root, 'fetch', str(target), 'main')
+    git(root, 'merge', '--ff-only', 'FETCH_HEAD')
     monkeypatch.setattr('builtins.input', lambda prompt: 'no')
     monkeypatch.setattr(publish, 'prepare', lambda *args: pytest.fail('preparation before confirmation'))
     monkeypatch.setattr(publish, 'sources', lambda *args: pytest.fail('network before confirmation'))

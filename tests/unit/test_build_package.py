@@ -7,6 +7,22 @@ from tools import build_package
 from tests.support.paths import ROOT
 
 
+@pytest.mark.parametrize('status', [0, 7])
+def test_updateversion_prepares_before_building_both_and_stops_on_failure(tmp_path, status):
+    (tmp_path / 'tools').mkdir()
+    (tmp_path / 'tools/bump_version.py').write_text(
+        f'import sys\nprint("prepare", *sys.argv[1:], flush=True)\nsys.exit({status})\n')
+    stub_make = tmp_path / 'make-stub'
+    stub_make.write_text('#!/bin/sh\nprintf "build %s\\n" "$*"\n')
+    stub_make.chmod(0o755)
+    result = subprocess.run(['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'),
+                             'updateversion', 'PACKAGE_FORMAT=deb', f'MAKE={stub_make}'],
+                            cwd=tmp_path, capture_output=True, text=True)
+    assert bool(result.returncode) == bool(status), result.stderr
+    assert result.stdout.splitlines() == (['prepare --latest'] if status else
+        ['prepare --latest', 'build --no-print-directory build PACKAGE_FORMAT=both'])
+
+
 @pytest.mark.parametrize('fail', [False, True])
 def test_build_isolates_cleanup_and_preserves_checkout(tmp_path, monkeypatch, fail):
     checkout = tmp_path / 'checkout'

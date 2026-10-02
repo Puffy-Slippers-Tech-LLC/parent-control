@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager, redirect_stdout, redirect_stderr
-from datetime import date, datetime, timezone
-from email.utils import format_datetime
+from datetime import datetime, timezone
 import fcntl
 import gzip
 import hashlib
@@ -18,7 +17,6 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-import textwrap
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
@@ -27,7 +25,7 @@ from urllib.request import Request, urlopen
 # Direct execution uses isolated Python; import only this maintained checkout.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools.publishing import source as release
-from tools.bump_version import parse_product_version
+from tools.bump_version import parse_product_version, history_notes, format_changelog
 
 ROOT = Path(__file__).resolve().parents[1]
 HISTORY = 'docs/VersionHistory.md'
@@ -112,47 +110,16 @@ def command(*args, cwd=ROOT, log=None, timeout=300, temporary_directory=None):
 
 
 def history_entry(text, current):
-    """Strict top-level version records; preserve section headings and bullets."""
-    headings = list(re.finditer(r'^## (.+)$', text, re.M))
-    if len(headings) < 2:
-        raise ValueError('VersionHistory.md needs at least two ## vX.Y — YYYY-MM-DD entries')
-    versions = []
-    for heading in headings:
-        match = re.fullmatch(r'v([0-9]+\.[0-9]+) (?:—|-) ([0-9]{4}-[0-9]{2}-[0-9]{2})', heading[1])
-        if not match:
-            raise ValueError('invalid VersionHistory.md heading; expected ## vX.Y — YYYY-MM-DD')
-        versions.append((match[1], parse_product_version(match[1])))
-        date.fromisoformat(match[2])
-    if any(a[1] <= b[1] for a, b in zip(versions, versions[1:])):
-        raise ValueError('VersionHistory.md versions must be unique and newest first')
-    if versions[0][1] <= parse_product_version(current):
-        raise ValueError('top VersionHistory.md version must be higher than the current app version')
-    if versions[1][0] != current:
-        raise ValueError('second VersionHistory.md version must equal the current app version')
-    body = text[headings[0].end():headings[1].start()].strip()
-    if not re.search(r'^[-*] \S', body, re.M):
-        raise ValueError('new version entry needs at least one change bullet')
-    if any(ord(char) < 32 and char not in '\n\t' for char in body) or '\x7f' in body:
-        raise ValueError('version notes contain control characters')
-    return versions[0][0], body
+    """Publication consumes the already prepared, dated product version."""
+    product, body = history_notes(text)
+    parse_product_version(current)
+    if product != current:
+        raise ValueError('top VersionHistory.md version must equal the current app version; run make updateversion first')
+    return product, body
 
 
 def changelog_entry(version, body):
-    lines = []
-    for line in body.splitlines():
-        line = re.sub(r'^#{3,6}\s+', '', line.strip())
-        line = line.replace('**', '').replace('`', '')
-        if not line:
-            lines.append('')
-            continue
-        bullet = bool(re.match(r'^[-*]\s+', line))
-        line = re.sub(r'^[-*]\s+', '', line)
-        lines.extend(textwrap.wrap(line, width=78, initial_indent='  * ' if bullet else '  ',
-                                   subsequent_indent='    ', break_long_words=False,
-                                   break_on_hyphens=False))
-    stamp = format_datetime(datetime.now(timezone.utc))
-    return (f'{release.PACKAGE} ({version}) resolute; urgency=medium\n\n'
-            + '\n'.join(lines) + f'\n\n -- {release.NAME} <{release.EMAIL}>  {stamp}\n\n')
+    return format_changelog(version, body, release.NAME, release.EMAIL)
 
 
 def digest(path):
@@ -311,6 +278,9 @@ def preflight(root, log, branch):
 
 
 def prepare(root, base, history, current, product, notes, directory):
+    if product != current:
+        raise ValueError('publish cannot change the product version; run make updateversion first')
+    command('make', 'check-release-version', cwd=root)
     checkout = directory / 'source'
     log = directory / 'release.log'
     branch = publishing_branch(root, product)
@@ -336,7 +306,6 @@ def prepare(root, base, history, current, product, notes, directory):
         raise ValueError('release tag already exists; published tags cannot be reused')
     configure_signing(checkout, root)
     (checkout / HISTORY).write_text(history, encoding='utf-8')
-    (checkout / 'data/app.json').write_text(json.dumps({'version': product}, indent=2) + '\n')
     changelog = checkout / 'debian/changelog'
     changelog.write_text(changelog_entry(version, notes) + changelog.read_text(), encoding='utf-8')
     command('git', 'add', '--', HISTORY, 'data/app.json', 'debian/changelog', cwd=checkout)

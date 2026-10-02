@@ -9,11 +9,11 @@ import pytest
 from tools.publishing import build as ppa_build
 
 
-@pytest.fixture
-def release(tmp_path, monkeypatch):
+@pytest.fixture(params=['1.0+ppa6~ubuntu26.04.1', '1.3+local1~ubuntu26.04.1'])
+def release(tmp_path, monkeypatch, request):
     root = tmp_path / 'source'
     root.mkdir()
-    version = '1.0+ppa6~ubuntu26.04.1'
+    version = request.param
     prefix = f'oh-no-parent-control_{version}'
     content = b'archive bytes'
     (tmp_path / f'{prefix}.tar.xz').write_bytes(content)

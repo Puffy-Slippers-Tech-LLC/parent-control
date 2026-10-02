@@ -1,9 +1,9 @@
 ## v1.3 -
 ### New Features
-Localization: Supports 62 languages, including RTL
+- Localization: Supports 62 languages, including RTL
 
 ### Fedora Workstation 44 Readiness
-Across the board: Fixed a few blocking issues across fdpolicy import, SELinux, Broker. Basic testing proves the product is working end to end (yeah!). Next step: more manual testing and crazy automation coverage.
+- Across the board: Fixed a few blocking issues across fdpolicy import, SELinux, Broker. Basic testing proves the product is working end to end (yeah!). Next step: more manual testing and crazy automation coverage. Don't get excited too early. 10% effort on product, 90% on testing, matches my 30yr experience.
 
 ## v1.2 - 2026-09-29
 ### Bug Fixes

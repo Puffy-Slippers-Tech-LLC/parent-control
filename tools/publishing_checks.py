@@ -7,7 +7,6 @@ from contextlib import redirect_stderr, redirect_stdout
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import sys
@@ -16,6 +15,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools import publish, package_inputs
+from tools.bump_version import update_from_history
 from tools import test_retention
 from tools.publishing import build, source
 
@@ -32,26 +32,10 @@ def snapshot(root, checkout, log):
               'user.email=publishing-tests@invalid', '-c', 'commit.gpgsign=false',
               'commit', '-q', '--allow-empty', '-m')
     publish.command(*commit, 'Local publishing test inputs', cwd=checkout, log=log)
-    # Build the upcoming release metadata when history announces a new version.
-    # Ordinary regression runs also work after a release, with current metadata.
-    current = json.loads((checkout / 'data/app.json').read_text())['version']
-    # Release notes are consumed to generate metadata, never shipped as docs.
-    history = ((root / publish.HISTORY).read_text() if (root / publish.HISTORY).exists()
-               else f'## v{current} ')
-    draft = re.fullmatch(r'## v([0-9]+\.[0-9]+)(?: (?:—|-))?',
-                         history.partition('\n')[0].strip())
-    if draft and publish.parse_product_version(draft[1]) > publish.parse_product_version(current):
-        # Local regression builds can run while the next release notes are a
-        # draft. Keep the real package metadata; only actual publishing requires
-        # the new entry's date and promotes it to a release.
-        print(f'test-publish: undated release draft; testing current version {current}', flush=True)
-    elif not history.startswith(f'## v{current} '):
-        product, notes = publish.history_entry(history, current)
-        old = publish.command('dpkg-parsechangelog', '-S', 'Version', cwd=checkout)
-        version = source.next_version(product, [old])
-        (checkout / 'data/app.json').write_text(json.dumps({'version': product}, indent=2) + '\n')
-        changelog = checkout / 'debian/changelog'
-        changelog.write_text(publish.changelog_entry(version, notes) + changelog.read_text())
+    # Use the same private version preparation as updateversion, even for drafts.
+    # Notes are consumed from the checkout and never shipped in the package.
+    if (root / publish.HISTORY).exists():
+        update_from_history(checkout, (root / publish.HISTORY).read_text(encoding='utf-8'))
     publish.command('git', 'add', '--all', cwd=checkout, log=log)
     publish.command('git', 'diff', '--cached', '--check', cwd=checkout, log=log)
     publish.command(*commit, 'Local publishing test snapshot', cwd=checkout, log=log)

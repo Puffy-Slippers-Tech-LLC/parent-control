@@ -19,6 +19,56 @@ from tests.support.paths import ROOT
 
 
 class BumpVersionTests(unittest.TestCase):
+    def test_latest_draft_prepares_upgrade_and_repeated_runs_preserve_metadata(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'data').mkdir()
+            (root / 'debian').mkdir()
+            (root / 'docs').mkdir()
+            metadata = root / 'data/app.json'
+            metadata.write_text('{"version": "1.2"}\n')
+            changelog = root / 'debian/changelog'
+            previous = version_tool.format_changelog('1.2+ppa1~ubuntu26.04.1', '- Previous.')
+            changelog.write_text(previous)
+            history = root / 'docs/VersionHistory.md'
+            history.write_text('## v1.3 -\n### Features\n- Localization.\n- Private -- candidate.\n\n'
+                               '## v1.2 — 2026-09-29\n- Previous.\n')
+            version_tool.update_from_history(root)
+            first = changelog.read_text()
+            self.assertEqual(json.loads(metadata.read_text()), {'version': '1.3'})
+            self.assertTrue(first.startswith('oh-no-parent-control (1.3+local1~ubuntu26.04.1)'))
+            self.assertTrue(first.endswith(previous))
+            for other, relation in [('1.2+ppa1~ubuntu26.04.1', 'gt'),
+                                    ('1.3+ppa1~ubuntu26.04.1', 'lt')]:
+                subprocess.run(['dpkg', '--compare-versions', '1.3+local1~ubuntu26.04.1',
+                                relation, other], check=True)
+            version_tool.update_from_history(root)
+            self.assertEqual(changelog.read_text(), first)
+            history.write_text(history.read_text().replace('Localization.', 'More localization.'))
+            version_tool.update_from_history(root)
+            refreshed = changelog.read_text()
+            self.assertIn('More localization.', refreshed)
+            self.assertEqual(refreshed.count('(1.3+local1~ubuntu26.04.1)'), 1)
+            self.assertTrue(refreshed.endswith(previous))
+            changelog.write_text(version_tool.format_changelog('1.3+ppa1~ubuntu26.04.1', '- Published.') + refreshed)
+            official = changelog.read_bytes()
+            version_tool.update_from_history(root)
+            self.assertEqual(changelog.read_bytes(), official)
+
+    def test_latest_refuses_downgrade_without_changing_files(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'data').mkdir()
+            (root / 'debian').mkdir()
+            metadata = root / 'data/app.json'
+            metadata.write_text('{"version": "1.4"}\n')
+            changelog = root / 'debian/changelog'
+            changelog.write_text(version_tool.format_changelog('1.4+local1~ubuntu26.04.1', '- Candidate.'))
+            before = (metadata.read_bytes(), changelog.read_bytes())
+            with self.assertRaisesRegex(VersionError, 'downgrade'):
+                version_tool.update_from_history(root, '## v1.3 -\n- Older.\n\n## v1.2 — 2026-09-29\n- Previous.\n')
+            self.assertEqual((metadata.read_bytes(), changelog.read_bytes()), before)
+
     def test_debian_build_always_checks_release_metadata(self):
         rules = (ROOT / "debian/rules").read_text(encoding="utf-8")
         self.assertIn("override_dh_auto_build:\n\t$(MAKE) check-release-version", rules)

@@ -825,6 +825,8 @@ class RequestContent(MetalBoard):
             selected.set_active(True)
             self._custom_row.set_visible(selected.duration_seconds is None)
             custom = request.get("last_custom_minutes", MIN_CUSTOM_MINUTES)
+            if isinstance(custom, float) and custom.is_integer():
+                custom = int(custom)
             set_text(self._custom_entry, 'text', str(custom))
             self._allow_soft.set_active(bool(request.get("allow_soft_blocked_apps", False)))
             self._pending_approver_uid = request.get("last_selected_approver_uid", 0)

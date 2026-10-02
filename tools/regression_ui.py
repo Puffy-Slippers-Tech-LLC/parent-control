@@ -34,6 +34,9 @@ from pathlib import PurePosixPath
 # Overlay valid-choice checks reuse the Request behavior bucket's private GTK
 # preview/display/bus and waited Perl input blocks, with its owned cleanup.
 # They introduce no shared setting, file, process or service lifetime.
+# Child interaction waits dispatch bounded work on the existing private bus;
+# no inspection listeners/sources or new process owners remain. Nested Shell
+# retains its whole-module bucket and existing resource reservation.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

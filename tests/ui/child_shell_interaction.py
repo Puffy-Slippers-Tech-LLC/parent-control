@@ -25,16 +25,8 @@ from tests.support.keyboard import deliver
 
 Atspi.set_timeout(2000, 5000)
 
-EVENTS = (
-    "object:children-changed",
-    "object:property-change:accessible-id",
-    "object:state-changed:checked",
-    "object:state-changed:focused",
-    "object:state-changed:showing",
-    "window:create",
-    "window:destroy",
-)
 TIMEOUT_SECONDS = float(os.environ.get("ONPC_CHILD_INTERACTION_TIMEOUT_SECONDS", "15"))
+_WAIT_ACTIVE = False
 EVENTS_PATH = Path(os.environ["ONPC_CHILD_OVERLAY_EVENTS_PATH"])
 SNAPSHOT_PATH = Path(os.environ["ONPC_CHILD_OVERLAY_A11Y_PATH"])
 X_KEYCODE_ESCAPE = 9
@@ -163,7 +155,7 @@ def _activate_overlay_cancel():
     overlay_ui = _overlay_automation()
     if overlay_ui is None:
         raise AssertionError("The live request overlay application was not published")
-    overlay_ui.complete_read_wait = _wait
+    overlay_ui.complete_read_wait = _wait_for_complete_read
     overlay_ui.complete_request_language_setup()
     overlay_ui.activate(OVERLAY_CANCEL_ID)
 
@@ -206,72 +198,49 @@ def _snapshot():
 
 
 def _wait(predicate, description):
-    loop = GLib.MainLoop()
-    result = {"value": None}
+    global _WAIT_ACTIVE
+    previous_wait = _WAIT_ACTIVE
+    _WAIT_ACTIVE = True
     deadline = time.monotonic() + TIMEOUT_SECONDS
-
-    def inspect(*_args):
-        try:
-            value = predicate()
-        except AutomationError as error:
-            if str(error) != "automation:incomplete-tree":
-                raise
-            value = None
-        except (AttributeError, GLib.Error):
-            value = None
-        # Atspi.Accessible proxies may be falsey even when they reference a
-        # real actor. Predicates use None/False as their only not-ready values,
-        # so retain a discovered accessible object without asking its truthiness.
-        if value is not None and value is not False:
-            result["value"] = value
-            loop.quit()
-        return GLib.SOURCE_CONTINUE
-
-    def deadline_check():
-        if time.monotonic() >= deadline:
-            loop.quit()
-            return GLib.SOURCE_REMOVE
-        return GLib.SOURCE_CONTINUE
-
-    # Event-triggered inspections must run once. Returning SOURCE_CONTINUE
-    # here leaves an idle callback for every accessibility event, including
-    # callbacks that query windows destroyed during the reopen scenario.
-    # Coalesce events and remove the pending callback when this wait ends.
-    pending_inspection = {"source": None}
-
-    def inspect_event():
-        pending_inspection["source"] = None
-        inspect()
-        return GLib.SOURCE_REMOVE
-
-    def schedule_inspection(*_args):
-        if pending_inspection["source"] is None:
-            pending_inspection["source"] = GLib.idle_add(inspect_event)
-
-    listener = Atspi.EventListener.new(schedule_inspection)
-    registered = [event for event in EVENTS if listener.register(event)]
-    inspection_source = GLib.timeout_add(50, inspect)
-    deadline_source = GLib.timeout_add(100, deadline_check)
     try:
-        inspect()
-        if result["value"] is None:
-            loop.run()
+        while time.monotonic() < deadline:
+            try:
+                value = predicate()
+            except AutomationError as error:
+                if str(error) != "automation:incomplete-tree":
+                    raise
+                value = None
+            except (AttributeError, GLib.Error):
+                value = None
+            # Atspi.Accessible proxies may be falsey despite referring to a
+            # real actor. None/False are the only not-ready predicate values.
+            if value is not None and value is not False:
+                return value
+            # Keep predicates and exceptions on the Python stack, as in the
+            # host UI fixture. A nested GLib loop can dispatch another wait's
+            # inspection sources and swallow failures in those callbacks.
+            for _ in range(32):
+                if time.monotonic() >= deadline:
+                    break
+                if not GLib.MainContext.default().iteration(False):
+                    break
+            time.sleep(min(0.05, max(0, deadline - time.monotonic())))
     finally:
-        for source_id in (inspection_source, deadline_source, pending_inspection["source"]):
-            if source_id is None:
-                continue
-            source = GLib.MainContext.default().find_source_by_id(source_id)
-            if source is not None:
-                source.destroy()
-        for event in registered:
-            listener.deregister(event)
-    if result["value"] is None:
-        raise AssertionError(
-            f"Timed out waiting for {description}.\n"
-            f"Launch records: {_launch_records()!r}\n"
-            f"Redacted accessibility snapshot:\n{_snapshot()}"
-        )
-    return result["value"]
+        _WAIT_ACTIVE = previous_wait
+    raise AssertionError(
+        f"Timed out waiting for {description}.\n"
+        f"Launch records: {_launch_records()!r}\n"
+        f"Redacted accessibility snapshot:\n{_snapshot()}"
+    )
+
+
+def _wait_for_complete_read(predicate, description):
+    # An enclosing result wait owns the retry and its original deadline.
+    # Propagate an incomplete read to it instead of opening a second wait
+    # that can reenter the same predicate or restart its timeout budget.
+    if _WAIT_ACTIVE:
+        return predicate()
+    return _wait(predicate, description)
 
 
 # Shared semantic actions perform several fresh public-tree reads before and
@@ -279,24 +248,29 @@ def _wait(predicate, description):
 # so a provider object replaced between traversals cannot abort before input or
 # leave a confirmed focus result unobserved.  Automation still latches uncertain
 # input and never replays an action whose delivery is unknown.
-UI.complete_read_wait = _wait
+UI.complete_read_wait = _wait_for_complete_read
 
 
 def _prepare_indicator_input():
     # The owned public ID is the input recipient. No Shell state mutation or
     # overview shortcut is allowed to manufacture reachability.
+    print("interaction input=indicator-reacquire", flush=True)
     button = _wait(_find_request_button, "the ID-addressed Shell request indicator")
+    print("interaction input=indicator-focus", flush=True)
     UI.focus(REQUEST_BUTTON_ID)
     _wait(
         lambda: _state(_find_request_button(), Atspi.StateType.FOCUSED),
         "keyboard focus on the Shell request indicator",
     )
+    print("interaction input=indicator-focus-confirmed", flush=True)
     return button
 
 
 def _press_recipient_key(input_backend, identity, keycode):
+    print(f"interaction input=key-start id={identity} keycode={keycode}", flush=True)
     deliver(UI, identity, Atspi.StateType.FOCUSED,
             lambda: _press_key(input_backend, keycode))
+    print(f"interaction input=key-delivered id={identity} keycode={keycode}", flush=True)
 
 
 def _one_overlay(expected_launches):

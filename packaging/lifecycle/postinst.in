@@ -185,10 +185,21 @@ if [ "$1" = configure ]; then
         fapolicyd.service \
         malcontent-timerd.service \
         malcontent-timer-extension-agent.service >/dev/null
-    if [ "${child_trust_backend:-none}" = changed ] &&
-       [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
-        echo 'oh-no-parent-control: reboot and retry configuration to load the new child trust backend; preserving active desktops' >&2
+    trust_deferred=0
+    trust_guard=/run/oh-no-parent-control-child-trust-reboot
+    if [ -L "$trust_guard" ] ||
+       { [ -e "$trust_guard" ] &&
+         { [ ! -f "$trust_guard" ] || [ "$(stat -c '%u:%a' "$trust_guard")" != 0:600 ]; }; }; then
+        echo 'oh-no-parent-control: refusing substituted child trust activation guard' >&2
         exit 1
+    fi
+    if { [ "${child_trust_backend:-none}" = changed ] || [ -f "$trust_guard" ]; } &&
+       [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
+        # /run expires on reboot. Both broker entry points honor this guard;
+        # the new backend and exact trust gate load at the next daemon start.
+        install -o root -g root -m 0600 /dev/null "$trust_guard"
+        trust_deferred=1
+        echo 'oh-no-parent-control: child trust activation deferred until reboot; preserving active desktops' >&2
     fi
     @service_command@ start \
         fapolicyd.service \
@@ -197,15 +208,21 @@ if [ "$1" = configure ]; then
     # Startup consumes the trust file on a clean install. A running daemon
     # needs an explicit refresh on upgrades/reinstalls, before Shell activation.
     # Respect package-service policy when startup has been deferred.
-    if [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
+    if [ "$trust_deferred" -eq 0 ] &&
+       [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
         /usr/sbin/fapolicyd-cli --update
         /usr/libexec/oh-no-parent-control-package-activation wait-child-trust
+@trust_complete@
+        rm -f "$trust_guard"
     fi
+    if [ "$trust_deferred" -eq 0 ]; then
 @readiness_start@
+    fi
     # Migration stops the broker even on an unchanged reinstall. Ensure it is
     # running after every configure, without restarting an already-active
     # broker unless the changed payload requires reconciliation.
     broker_action=start
+    impacts=
     pending=/var/lib/oh-no-parent-control/package-activation-pending
     if [ -f "$pending" ]; then
         previous=/var/lib/oh-no-parent-control/previous-package-activation.json
@@ -220,16 +237,22 @@ if [ "$1" = configure ]; then
                 broker_action=restart
                 ;;
         esac
-        case "$impacts" in
-            *reboot*)
-@reboot_install@
-                ;;
-        esac
     fi
-    # Keep the startup exclusion on every earlier failure, including a queued
-    # trust update that never committed. The broker may now safely auto-start.
+    if [ "$trust_deferred" -eq 1 ]; then
+        impacts="$impacts reboot"
+    fi
+    case "$impacts" in
+        *reboot*)
+@reboot_install@
+            ;;
+    esac
+    # Migration/provisioning succeeded. Release their exclusion; deferred trust
+    # keeps its separate boot-scoped broker guard until reboot. Other failures
+    # above retain the migration marker and the activation comparison for retry.
     rm -f /var/lib/oh-no-parent-control/migration-in-progress
-    activate_broker "$broker_action"
+    if [ "$trust_deferred" -eq 0 ]; then
+        activate_broker "$broker_action"
+    fi
     # Preserve the comparison on failure so a configure retry repeats the
     # required activation and cannot lose a pending reboot requirement.
     if [ -f "$pending" ]; then

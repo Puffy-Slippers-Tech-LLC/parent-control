@@ -1,4 +1,5 @@
 import json
+import os
 import runpy
 import subprocess
 import tempfile
@@ -56,6 +57,7 @@ def test_child_file_backend_is_enabled_reversibly_only_when_missing(tmp_path, ba
     for attempt in range(2):
         action = prepare(config, record)
         assert action == ('changed' if backend == 'debdb' and attempt == 0 else 'none')
+        _activation['complete_child_trust_backend'](record)
     if backend == 'debdb':
         assert (record / 'before').read_bytes() == original
         assert config.read_bytes() == (record / 'after').read_bytes()
@@ -70,6 +72,83 @@ def test_child_file_backend_is_enabled_reversibly_only_when_missing(tmp_path, ba
     else:
         assert config.read_bytes() == original
         assert not record.exists()
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+def test_backend_activation_survives_same_boot_retry_and_recovers_legacy_failure(tmp_path, legacy):
+    prepare = _activation['prepare_child_trust_backend']
+    config, record = tmp_path / 'config', tmp_path / 'record'
+    original = b'trust = debdb\n'
+    config.write_bytes(original)
+    old_boot = '11111111-1111-1111-1111-111111111111'
+    new_boot = '22222222-2222-2222-2222-222222222222'
+    if legacy:
+        record.mkdir()
+        (record / 'before').write_bytes(original)
+        (record / 'after').write_bytes(original.replace(b'debdb', b'debdb,file'))
+        config.write_bytes((record / 'after').read_bytes())
+    assert prepare(config, record, old_boot) == 'changed'
+    assert prepare(config, record, old_boot) == 'changed'
+    assert (record / 'activation').read_text().strip() == old_boot
+    assert prepare(config, record, new_boot) == 'none'
+    _activation['complete_child_trust_backend'](record)
+    assert prepare(config, record, old_boot) == 'none'
+    # Restoring the original configuration requires activation again.
+    config.write_bytes(original)
+    assert prepare(config, record, new_boot) == 'changed'
+
+
+@pytest.mark.parametrize('fault', ['symlink', 'invalid'])
+def test_backend_activation_refuses_substituted_receipt(tmp_path, fault):
+    prepare = _activation['prepare_child_trust_backend']
+    config, record = tmp_path / 'config', tmp_path / 'record'
+    config.write_text('trust = debdb\n')
+    prepare(config, record)
+    receipt = record / 'activation'
+    if fault == 'symlink':
+        receipt.unlink()
+        receipt.symlink_to(config)
+    else:
+        receipt.write_text('invalid\n')
+    with pytest.raises(ValueError):
+        prepare(config, record)
+    assert config.read_text() == 'trust = debdb,file\n'
+
+
+@pytest.mark.parametrize('failed_flush', range(1, 9))
+def test_backend_durability_failure_preserves_rollback_and_allows_retry(
+        tmp_path, monkeypatch, failed_flush):
+    prepare = _activation['prepare_child_trust_backend']
+    config, record = tmp_path / 'config', tmp_path / 'record'
+    original, replacement = b'trust = debdb\n', b'trust = debdb,file\n'
+    config.write_bytes(original)
+    boot = '11111111-1111-1111-1111-111111111111'
+    real_fsync = os.fsync
+    calls = 0
+
+    def fail_flush(descriptor):
+        nonlocal calls
+        calls += 1
+        if calls == failed_flush:
+            raise OSError('injected persistence failure')
+        real_fsync(descriptor)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(prepare.__globals__['os'], 'fsync', fail_flush)
+        with pytest.raises(OSError, match='persistence failure'):
+            prepare(config, record, boot)
+    # The final directory flush follows replacement; every earlier failure
+    # must leave the original configuration intact. Rollback is already durable
+    # when replacement happens, and retry completes either interrupted state.
+    assert config.read_bytes() == (replacement if failed_flush == 8 else original)
+    if config.read_bytes() == replacement:
+        assert (record / 'before').read_bytes() == original
+        assert (record / 'after').read_bytes() == replacement
+        assert (record / 'activation').read_text().strip() == boot
+    assert prepare(config, record, boot) == 'changed'
+    assert config.read_bytes() == replacement
+    assert (record / 'before').read_bytes() == original
+    assert (record / 'activation').read_text().strip() == boot
 
 
 @pytest.mark.parametrize('fault', ['symlink', 'record-link', 'source', 'duplicate', 'inactive-trust'])

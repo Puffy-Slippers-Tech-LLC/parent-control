@@ -65,6 +65,8 @@ def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_
         '    if args.command == "prepare-child-trust-backend":\n'
         '        print("none")\n'
         '        raise SystemExit(0)\n'
+        '    if args.command == "complete-child-trust-backend":\n'
+        '        raise SystemExit(0)\n'
         '    if args.command == "wait-child-trust":\n'
         '        import os\n'
         '        raise SystemExit(int(os.environ.get("TRUST_READY_STATUS", "0")))')
@@ -391,7 +393,9 @@ def test_dbus_startup_exclusion_survives_until_trust_is_ready(package_machine):
     launcher = root / 'broker-launcher'
     source = (ROOT / 'broker/oh-no-parent-control-broker').read_text()
     source = source.replace('/var/lib/oh-no-parent-control', str(state))
-    launcher.write_text(source.split('sys.path.insert', 1)[0] + 'raise SystemExit(0)\n')
+    source = source.replace('/run/oh-no-parent-control-child-trust-reboot',
+                            str(root / 'run/oh-no-parent-control-child-trust-reboot'))
+    launcher.write_text(source.split('# Check trust', 1)[0] + 'raise SystemExit(0)\n')
     unit = (ROOT / 'data/systemd/oh-no-parent-control-broker.service').read_text()
     assert 'ConditionPathExists=!/var/lib/oh-no-parent-control/migration-in-progress' in unit
     helper = root / 'usr/libexec/oh-no-parent-control-package-activation'
@@ -420,13 +424,135 @@ def test_backend_change_preserves_active_desktops_and_configuration_guard(packag
     result = run(TRUST_BACKEND_ACTION='changed', FAPOLICYD_ACTIVE_STATUS='0' if active else '3')
     commands = (root / 'commands').read_text()
     assert 'restart fapolicyd.service' not in commands
+    assert result.returncode == 0, result.stderr
+    assert not (state / 'migration-in-progress').exists()
+    assert not (state / 'package-activation-pending').exists()
     if active:
-        assert result.returncode != 0
-        assert 'reboot and retry configuration' in result.stderr
-        assert (state / 'migration-in-progress').exists()
+        assert 'activation deferred until reboot' in result.stderr
+        guard = root / 'run/oh-no-parent-control-child-trust-reboot'
+        assert guard.is_file()
+        assert guard.stat().st_mode & 0o777 == 0o600
+        assert (root / 'run/reboot-required').exists()
+        assert (root / 'run/reboot-required.pkgs').read_text().splitlines() == ['oh-no-parent-control']
+        assert REBOOT_NOTICE in result.stderr
         assert 'wait-child-trust' not in commands
+        assert f'systemctl --system restart {BROKER}' not in commands
+        assert f'systemctl --system start {BROKER}' not in commands
+        # An unchanged same-boot reconfigure must retain the activation guard.
+        assert run().returncode == 0
+        assert guard.exists()
+        assert (root / 'run/reboot-required.pkgs').read_text().splitlines() == ['oh-no-parent-control']
     else:
+        # This double keeps the daemon stopped after the package-service call.
+        assert 'deb-systemd-invoke start fapolicyd.service' in commands
+        assert not (root / 'run/oh-no-parent-control-child-trust-reboot').exists()
+
+
+def test_backend_acknowledgement_failure_blocks_activation(package_machine):
+    root, state, run = package_machine
+    result = run(TRUST_COMPLETE_STATUS='7')
+    assert result.returncode == 7
+    assert (state / 'migration-in-progress').exists()
+    assert (state / 'package-activation-pending').exists()
+    assert f'systemctl --system restart {BROKER}' not in (root / 'commands').read_text()
+    assert run().returncode == 0
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+@pytest.mark.parametrize('active', [False, True])
+def test_real_backend_upgrade_completes_and_broker_guard_expires_on_reboot(package_machine, legacy, active):
+    root, state, run = package_machine
+    # The real helper also compares manifests. Give it valid equal manifests
+    # so only the backend transition can require a reboot in this scenario.
+    manifest = json.dumps({'version': 1, 'files': []})
+    (state / 'previous-package-activation.json').write_text(manifest)
+    (root / 'usr/share/oh-no-parent-control/package-activation.json').write_text(manifest)
+    config = root / 'etc/fapolicyd/fapolicyd.conf'
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text('trust = debdb\n')
+    receipt = state / 'child-trust-backend'
+    if legacy:
+        receipt.mkdir()
+        (receipt / 'before').write_bytes(config.read_bytes())
+        config.write_text('trust = debdb,file\n')
+        (receipt / 'after').write_bytes(config.read_bytes())
+    boot = root / 'boot-id'
+    boot.write_text('11111111-1111-1111-1111-111111111111\n')
+    helper = root / 'usr/libexec/oh-no-parent-control-package-activation'
+    helper.unlink()
+    source = (ROOT / 'packaging/package_activation.py').read_text()
+    source = source.replace('/etc/fapolicyd/fapolicyd.conf', str(config))
+    source = source.replace('/var/lib/oh-no-parent-control/child-trust-backend', str(receipt))
+    source = source.replace('/proc/sys/kernel/random/boot_id', str(boot))
+    # Only the live database is doubled; configuration and receipts run for real.
+    source = source.replace('    args = parser.parse_args()',
+        '    args = parser.parse_args()\n'
+        '    if args.command == "wait-child-trust":\n'
+        '        import os\n'
+        '        raise SystemExit(int(os.environ.get("TRUST_READY_STATUS", "0")))')
+    helper.write_text(f'#!{sys.executable}\n' + source.split('\n', 1)[1])
+    helper.chmod(0o755)
+    launcher = root / 'broker-launcher'
+    source = (ROOT / 'broker/oh-no-parent-control-broker').read_text()
+    source = source.replace('/var/lib/oh-no-parent-control', str(state))
+    guard = root / 'run/oh-no-parent-control-child-trust-reboot'
+    source = source.replace('/run/oh-no-parent-control-child-trust-reboot', str(guard))
+    source = source.replace('/usr/libexec/oh-no-parent-control-package-activation', str(helper))
+    launcher.write_text(source.split('sys.path.insert', 1)[0] + 'raise SystemExit(0)\n')
+    for _ in range(2):
+        result = run(IMPACTS='', FAPOLICYD_ACTIVE_STATUS='0' if active else '3',
+                     FAPOLICYD_STARTS='1')
         assert result.returncode == 0, result.stderr
+        assert 'PASS:' in result.stdout
+        assert guard.exists() == active
+        blocked = subprocess.run([sys.executable, str(launcher)], capture_output=True)
+        if active:
+            assert blocked.returncode != 0
+            assert b'child trust activation requires a reboot' in blocked.stderr
+        else:
+            assert blocked.returncode == 0, blocked.stderr
+            assert (receipt / 'activation').read_text() == 'ready\n'
+            commands = (root / 'commands').read_text()
+            assert f'systemctl --system start {BROKER}' in commands
+            assert 'fapolicyd-cli --update' in commands
+            assert not (root / 'run/reboot-required').exists()
+    # Reboot clears volatile state; successful postinst already released migration.
+    assert not (state / 'migration-in-progress').exists()
+    if active:
+        guard.unlink()
+    boot.write_text('22222222-2222-2222-2222-222222222222\n')
+    assert subprocess.run([sys.executable, str(launcher)], capture_output=True).returncode == 0
+    # Expiring the guard is insufficient if live exact trust is still missing.
+    import os
+    blocked = subprocess.run([sys.executable, str(launcher)], capture_output=True,
+                             env={**os.environ, 'TRUST_READY_STATUS': '7'})
+    assert blocked.returncode != 0
+    assert b'child trust database is not ready' in blocked.stderr
+    result = run(IMPACTS='')
+    assert result.returncode == 0, result.stderr
+    assert (receipt / 'activation').read_text() == 'ready\n'
+    assert not guard.exists()
+
+
+def test_deferred_backend_notifier_failure_remains_retryable(package_machine):
+    root, state, run = package_machine
+    result = run(TRUST_BACKEND_ACTION='changed', NOTIFIER_STATUS='7')
+    assert result.returncode == 7
+    assert (state / 'migration-in-progress').exists()
+    assert (state / 'package-activation-pending').exists()
+    assert (root / 'run/oh-no-parent-control-child-trust-reboot').exists()
+    assert run().returncode == 0
+
+
+def test_substituted_deferred_backend_guard_is_preserved(package_machine):
+    root, state, run = package_machine
+    sentinel = root / 'sentinel'
+    sentinel.write_text('preserve\n')
+    (root / 'run/oh-no-parent-control-child-trust-reboot').symlink_to(sentinel)
+    result = run(TRUST_BACKEND_ACTION='changed')
+    assert result.returncode != 0
+    assert sentinel.read_text() == 'preserve\n'
+    assert (state / 'migration-in-progress').exists()
 
 
 def test_deferred_daemon_start_does_not_request_trust_refresh(package_machine):

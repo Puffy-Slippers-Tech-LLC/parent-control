@@ -159,6 +159,10 @@ prepare_package_notice() {
     /usr/libexec/oh-no-parent-control-package-notice --configured
 
 # @readiness_start@
+    :
+
+# @trust_complete@
+        /usr/libexec/oh-no-parent-control-package-activation complete-child-trust-backend
 
 # @readiness_remove@
 

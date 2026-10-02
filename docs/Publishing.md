@@ -668,7 +668,7 @@ The notification wiring activates during package configuration (`none`); it
 does not itself change the reboot classifications or saved application data.
 
 The broker remains a static, D-Bus-activated unit. Migration stops it even for an
-unchanged reinstall, so every successful configuration requests a broker start;
+unchanged reinstall, so successful configuration normally requests a broker start;
 `process-restart` and `session-renewal` instead request a restart to reassert
 policy if a client already activated it. The maintainer script consults
 `policy-rc.d` before invoking systemd directly, because `deb-systemd-invoke`
@@ -678,6 +678,15 @@ are retained on failure for a configuration retry. Debhelper's automatic starts
 and upgrade restarts are disabled to avoid a second activation attempt.
 These maintainer-script changes activate during package configuration (`none`);
 they introduce no boot integration or saved-data migration.
+
+The exception is activation of Ubuntu's newly enabled child file-trust backend
+while fapolicyd is running. Configuration succeeds, requests a reboot, and defers
+the broker under a volatile guard; reboot loads the backend and verifies the
+exact shipped trust records before graphical login. The package handles
+same-boot retries and earlier failed configurations through an owned activation
+receipt. See [trust activation](SystemDesign/Lifecycle.md#startup-login-and-update-lifecycle).
+The additional fapolicyd startup check ships in its existing drop-in and is
+classified `reboot`; it introduces no preference-schema migration.
 
 The Fedora-only `oh-no-parent-control-execution-policy-ready.service` is also
 `reboot`: it owns the same fail-closed display-manager startup boundary without

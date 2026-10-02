@@ -82,6 +82,25 @@ class BrokerServiceUnitTests(unittest.TestCase):
             fallback.index(canary), fallback.index("allow perm=any all : all")
         )
 
+    def test_boot_checks_child_trust_before_admitting_graphical_logins(self):
+        source = FAPOLICYD_DROP_IN.read_text()
+        checks = [line.partition('=')[2] for line in source.splitlines()
+                  if line.startswith('ExecStartPost=')]
+        self.assertEqual(checks, [
+            '/usr/libexec/oh-no-parent-control-execution-policy-ready',
+            '/usr/libexec/oh-no-parent-control-package-activation wait-child-trust',
+        ])
+        self.assertIn('TimeoutStartSec=180', source)
+        self.assertIn('ConditionPathExists=!/run/oh-no-parent-control-child-trust-reboot',
+                      BROKER_UNIT.read_text())
+
+    def test_broker_start_budget_allows_the_child_trust_deadline(self):
+        unit = configparser.ConfigParser(strict=False, interpolation=None)
+        unit.read(BROKER_UNIT, encoding='utf-8')
+        # The launcher can spend 125 seconds awaiting the helper before it
+        # constructs the broker and acquires its D-Bus name.
+        self.assertGreater(int(unit['Service']['TimeoutStartSec']), 125)
+
 
 if __name__ == "__main__":
     unittest.main()

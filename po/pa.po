@@ -139,6 +139,15 @@ msgstr "ਐਪ ਹੱਦਾਂ"
 msgid "Search installed apps"
 msgstr "ਸਥਾਪਤ ਐਪਾਂ ਖੋਜੋ"
 
+msgid "Restart required"
+msgstr "ਮੁੜ ਚਾਲੂ ਕਰਨਾ ਲਾਜ਼ਮੀ ਹੈ"
+
+msgid "Reboot now"
+msgstr "ਹੁਣੇ ਮੁੜ ਚਾਲੂ ਕਰੋ"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "ਉਤਪਾਦ ਦਾ ਅੱਪਡੇਟ ਇੰਸਟਾਲ ਕੀਤਾ ਗਿਆ ਹੈ। Oh No! Parent Control ਦੇ ਠੀਕ ਤਰ੍ਹਾਂ ਕੰਮ ਕਰਨ ਲਈ ਕੰਪਿਊਟਰ ਮੁੜ ਚਾਲੂ ਕਰੋ।"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "ਭਾਸ਼ਾਵਾਂ ਖੋਜੋ"

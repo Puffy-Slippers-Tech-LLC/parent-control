@@ -10,6 +10,103 @@ from common.oh_no_parent_control_ui import feedback_transport as transport
 from oh_no_parent_control_kiosk.main import RequestWindow
 
 
+@pytest.mark.parametrize('failure', (None, 'connect', 'dispatch', 'reply'))
+def test_reboot_uses_unprivileged_async_logind_and_reports_failure(monkeypatch, failure):
+    from gi.repository import Gio
+    from common.oh_no_parent_control_ui.errors import request_reboot
+    connection, done = Mock(), Mock()
+    error = PermissionError('private detail')
+    connect = Mock()
+    monkeypatch.setattr(Gio, 'bus_get', connect)
+    monkeypatch.setattr(Gio, 'bus_get_finish', Mock(
+        return_value=connection, side_effect=error if failure == 'connect' else None))
+    connection.call.side_effect = error if failure == 'dispatch' else None
+    connection.call_finish.side_effect = error if failure == 'reply' else None
+    request_reboot(done)
+    assert connect.call_args.args[:2] == (Gio.BusType.SYSTEM, None)
+    done.assert_not_called()
+    connect.call_args.args[2](None, object())
+    if failure not in ('connect', 'dispatch'):
+        args = connection.call.call_args.args
+        assert args[:4] == ('org.freedesktop.login1', '/org/freedesktop/login1',
+                            'org.freedesktop.login1.Manager', 'Reboot')
+        assert args[4].unpack() == (True,)
+        assert args[6:9] == (Gio.DBusCallFlags.NONE, 120_000, None)
+        done.assert_not_called()
+        args[9](connection, object())
+    done.assert_called_once_with(error if failure else None)
+    connection.call_sync.assert_not_called()
+
+
+@pytest.mark.parametrize('standalone', (False, True))
+def test_update_dialog_default_close_red_reboot_coalescing_and_failure(monkeypatch, standalone):
+    from gi.repository import Gtk
+    from common.oh_no_parent_control_ui import errors, accessibility, translation_widgets
+    parent = SimpleNamespace()
+    dialog, message, status = Mock(), Mock(), Mock()
+    widgets = iter((dialog, message, status))
+    localized = Mock(side_effect=lambda *args, **kwargs: next(widgets))
+    monkeypatch.setattr(translation_widgets, 'localized', localized)
+    monkeypatch.setattr(translation_widgets, 'set_text', Mock())
+    monkeypatch.setattr(Gtk, 'HeaderBar', Mock())
+    monkeypatch.setattr(accessibility, 'set_automation_id', Mock())
+    monkeypatch.setattr(accessibility, 'add_identified_window_controls', Mock())
+    close, reboot = Mock(), Mock()
+    buttons = Mock(side_effect=(close, reboot))
+    monkeypatch.setattr(accessibility, 'add_dialog_button', buttons)
+    request, dismissed = Mock(), Mock()
+    monkeypatch.setattr(errors, 'request_reboot', request)
+    options = {'application': parent} if standalone else {'parent': parent}
+    assert errors.show_update_required(**options, on_close=dismissed) is dialog
+    assert localized.call_args_list[0].kwargs['modal'] is True
+    assert localized.call_args_list[0].kwargs['transient_for'] is (None if standalone else parent)
+    if standalone:
+        assert localized.call_args_list[0].kwargs['application'] is parent
+    assert buttons.call_args.kwargs['css_class'] == 'destructive-action'
+    dialog.set_default_response.assert_called_once_with(Gtk.ResponseType.CLOSE)
+    callbacks = {call.args[0]: call.args[1] for call in dialog.connect.call_args_list}
+    assert errors.show_update_required(**options) is dialog
+    assert localized.call_count == 3
+    request.assert_not_called()
+    callbacks['response'](dialog, Gtk.ResponseType.ACCEPT)
+    callbacks['response'](dialog, Gtk.ResponseType.ACCEPT)
+    request.assert_called_once()
+    assert callbacks['close-request']() is True
+    reboot.set_sensitive.assert_called_with(False)
+    dialog.destroy.assert_not_called()
+    request.call_args.args[0](PermissionError('private detail'))
+    reboot.set_sensitive.assert_called_with(True)
+    assert callbacks['close-request']() is False
+    status.set_visible.assert_called_with(True)
+    dismissed.assert_not_called()
+    callbacks['response'](dialog, Gtk.ResponseType.CLOSE)
+    dialog.destroy.assert_called_once()
+    dismissed.assert_called_once()
+    assert parent._update_required_dialog is None
+
+
+@pytest.mark.parametrize('overlay', (False, True))
+def test_reboot_result_does_not_become_generic_error_on_late_failure(monkeypatch, overlay):
+    from gi.repository import Gio
+    from common.oh_no_parent_control_ui import messages as m
+    import oh_no_parent_control_kiosk.main as kiosk
+    monkeypatch.setattr(kiosk, 'set_text', Mock())
+    modal = Mock()
+    monkeypatch.setattr(kiosk, 'show_update_required', modal)
+    window = SimpleNamespace(_child_overlay=overlay, _stack=Mock(), _result_action=Mock(),
+                             _show_result=Mock(), _errors=Mock(), _estimate_closed=False)
+    window._show_error = lambda error: RequestWindow._show_error(window, error)
+    error = Gio.DBusError.new_for_dbus_error(
+        'com.puffyslippers.OhNoParentControl1.Error.RebootRequired', 'private detail')
+    window._show_error(error)
+    RequestWindow._language_failed(window, RuntimeError('late unavailable'))
+    assert window._reboot_required is True
+    assert modal.call_count == 2
+    window._show_result.assert_called_with(m.RESTART_REQUIRED, m.RESTART_TO_FINISH_UPDATING)
+    window._stack.set_sensitive.assert_called_with(True)
+    window._errors.capture.assert_not_called()
+
+
 @pytest.mark.parametrize("component", ("Kiosk App", "Child App", "Parent App"))
 def test_error_report_component_copy_and_exception_chain(component, caplog):
     cause = ValueError("internal /private/path user@example.test")

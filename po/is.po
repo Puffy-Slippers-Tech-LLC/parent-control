@@ -139,6 +139,15 @@ msgstr "Forritatakmarkanir"
 msgid "Search installed apps"
 msgstr "Leita að uppsettum forritum"
 
+msgid "Restart required"
+msgstr "Endurræsing nauðsynleg"
+
+msgid "Reboot now"
+msgstr "Endurræsa núna"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Uppfærsla á vörunni hefur verið sett upp. Endurræstu tölvuna svo Oh No! Parent Control virki rétt."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Leita að tungumálum"

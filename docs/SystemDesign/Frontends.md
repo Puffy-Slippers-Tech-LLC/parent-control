@@ -270,6 +270,25 @@ work. This module owns the chooser surfaces and their public UI identities.
 
 ## Parent controls and shared information
 
+Parent presents a loading window before checking broker permission on a worker;
+reactivation reuses it and closing it prevents a late reply from reopening UI.
+Only the broker's exact `Error.RebootRequired` status opens the shared update
+modal in Parent, kiosk and child overlay. It is not inferred from generic
+service errors or the operating system's global reboot marker. Parent startup
+shows only the update dialog instead of constructing another notice or management
+window; Close exits the app. Request forms retain a restart result and their
+ordinary exit action.
+Repeated callbacks reuse one modal and cannot overwrite the known reboot reason
+with a generic language-loading failure.
+
+The modal defaults to Close, which does not reboot. **Reboot now** uses GTK's
+standard `destructive-action` style and asynchronously calls logind's public
+`Reboot(true)` as the frontend user. Normal system authorization and inhibitor
+policy remain in force; no product privilege grant or forced-reboot fallback is
+added. Pending requests disable repeated activation; refusal shows a localized
+error and restores the choices. Tests substitute only this transport, never
+rebooting the development host. The notice and button share all 62 catalogues.
+
 Manually launching `/usr/bin/oh-no-parent-control-parent` as a standard user
 shows a branded **Administrator Required** notice with the packaged app logo,
 explaining that an administrator must

@@ -86,6 +86,44 @@ class ParentWindowHarness:
 
 
 class ParentWindowTests(unittest.TestCase):
+    def test_startup_presents_before_worker_and_coalesces_reactivation(self):
+        from parent.oh_no_parent_control_parent.main import Application
+        import parent.oh_no_parent_control_parent.main as main
+        window = mock.Mock()
+        app = SimpleNamespace(_startup_window=None, _client_factory=mock.Mock(),
+                              _startup_notice=mock.Mock(return_value=(window, None)),
+                              _startup_closed=mock.Mock(), _startup_finished=mock.Mock())
+        with (mock.patch.object(main.threading, 'Thread') as thread,
+              mock.patch.object(main, '_can_start') as check,
+              mock.patch.object(main.GLib, 'idle_add') as idle):
+            thread.return_value.start.side_effect = lambda: window.present.assert_called_once()
+            Application._check_startup(app)
+            Application._check_startup(app)
+            thread.assert_called_once()
+            check.assert_not_called()
+            thread.call_args.kwargs['target']()
+            check.assert_called_once()
+            idle.assert_called_once_with(app._startup_finished, None)
+
+    def test_startup_completion_respects_close_and_holds_during_window_transition(self):
+        from parent.oh_no_parent_control_parent.main import Application
+        for cancelled in (False, True):
+            window = mock.Mock()
+            app = SimpleNamespace(_startup_window=window, _startup_cancelled=cancelled,
+                                  hold=mock.Mock(), release=mock.Mock(), do_activate=mock.Mock())
+            error = RuntimeError('synthetic startup failure')
+            Application._startup_finished(app, error)
+            if cancelled:
+                app.do_activate.assert_not_called()
+                window.destroy.assert_not_called()
+            else:
+                self.assertTrue(app._startup_checked)
+                self.assertIs(app._startup_error, error)
+                app.hold.assert_called_once()
+                app.release.assert_called_once()
+                window.destroy.assert_called_once()
+                app.do_activate.assert_called_once()
+
     def setUp(self):
         from tests.support.objects import set_plain_text, plain_accessible_text
         for name, replacement in [('set_text', set_plain_text),

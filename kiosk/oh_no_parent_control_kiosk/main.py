@@ -33,6 +33,7 @@ from common.oh_no_parent_control_ui.accessibility import describe_control, set_a
 from common.oh_no_parent_control_ui.duration import format_duration
 from common.oh_no_parent_control_ui.errors import (
     ErrorHandler, install_exception_hooks, show_startup_error,
+    broker_reboot_required, show_update_required,
 )
 
 from .model import RequestState, public_error
@@ -1257,6 +1258,9 @@ class RequestWindow(Adw.ApplicationWindow):
     def _language_failed(self, error):
         self._language_loading = False
         if not self._estimate_closed:
+            if broker_reboot_required(error) or getattr(self, '_reboot_required', False):
+                self._show_error(error)
+                return
             self._language_load_failed = True
             self._stack.set_sensitive(True)
             set_automation_id(self._language_readiness, "kiosk-language-load-error")
@@ -1874,6 +1878,14 @@ class RequestWindow(Adw.ApplicationWindow):
         self._request_content.set_controls_sensitive(enabled)
 
     def _show_error(self, error):
+        if broker_reboot_required(error) or getattr(self, '_reboot_required', False):
+            self._reboot_required = True
+            self._stack.set_sensitive(True)
+            if self._child_overlay:
+                set_text(self._result_action, 'label', m.CLOSE)
+            self._show_result(m.RESTART_REQUIRED, m.RESTART_TO_FINISH_UPDATING)
+            show_update_required(self)
+            return
         title, detail = public_error(error, child_overlay=self._child_overlay)
         if self._child_overlay:
             set_text(self._result_action, 'label', m.CLOSE)

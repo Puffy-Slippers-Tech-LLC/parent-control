@@ -4,6 +4,7 @@ import json
 import logging
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 from common.oh_no_parent_control_ui.diagnostic_events import record_payload
+from common.oh_no_parent_control_ui.errors import broker_reboot_required
 
 import gi
 
@@ -20,12 +21,6 @@ def management_access_denied(error):
     """Distinguish the broker's explicit authorization refusal from outages."""
     return (isinstance(error, GLib.Error) and
             Gio.DBusError.get_remote_error(error) == f"{BUS_NAME}.Error.AccessDenied")
-
-
-def broker_reboot_required(error):
-    """Recognize only the broker's explicit package-activation restriction."""
-    return (isinstance(error, GLib.Error) and
-            Gio.DBusError.get_remote_error(error) == f"{BUS_NAME}.Error.RebootRequired")
 
 
 class BrokerClient:

@@ -139,6 +139,15 @@ msgstr "एप सीमा"
 msgid "Search installed apps"
 msgstr "स्थापित एपहरू खोज्नुहोस्"
 
+msgid "Restart required"
+msgstr "पुनः सुरु गर्न आवश्यक छ"
+
+msgid "Reboot now"
+msgstr "अहिले पुनः सुरु गर्नुहोस्"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "उत्पादनको अद्यावधिक स्थापना गरिएको छ। Oh No! Parent Control ले ठीकसँग काम गर्न कम्प्युटर पुनः सुरु गर्नुहोस्।"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "भाषाहरू खोज्नुहोस्"

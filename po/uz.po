@@ -140,6 +140,15 @@ msgstr "Ilova cheklovlari"
 msgid "Search installed apps"
 msgstr "Oʻrnatilgan ilovalarni qidirish"
 
+msgid "Restart required"
+msgstr "Qayta ishga tushirish zarur"
+
+msgid "Reboot now"
+msgstr "Hozir qayta ishga tushirish"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Mahsulot yangilanishi o‘rnatildi. Oh No! Parent Control to‘g‘ri ishlashi uchun kompyuterni qayta ishga tushiring."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Tillarni qidirish"

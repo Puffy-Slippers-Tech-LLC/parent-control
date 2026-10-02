@@ -139,6 +139,15 @@ msgstr "Uygulama Sınırları"
 msgid "Search installed apps"
 msgstr "Yüklü uygulamaları ara"
 
+msgid "Restart required"
+msgstr "Yeniden başlatma gerekli"
+
+msgid "Reboot now"
+msgstr "Şimdi yeniden başlat"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Bir ürün güncellemesi yüklendi. Oh No! Parent Control uygulamasının düzgün çalışması için bilgisayarı yeniden başlatın."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Dil ara"

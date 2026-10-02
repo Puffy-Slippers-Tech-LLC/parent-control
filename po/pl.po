@@ -15,6 +15,15 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
 
+msgid "Restart required"
+msgstr "Wymagane ponowne uruchomienie"
+
+msgid "Reboot now"
+msgstr "Uruchom ponownie teraz"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Zainstalowano aktualizację produktu. Uruchom ponownie komputer, aby Oh No! Parent Control działał poprawnie."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Szukaj języków"

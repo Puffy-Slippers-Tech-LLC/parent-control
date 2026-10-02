@@ -139,6 +139,15 @@ msgstr "Sovellusrajoitukset"
 msgid "Search installed apps"
 msgstr "Etsi asennettuja sovelluksia"
 
+msgid "Restart required"
+msgstr "Uudelleenkäynnistys tarvitaan"
+
+msgid "Reboot now"
+msgstr "Käynnistä uudelleen nyt"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Tuotepäivitys on asennettu. Käynnistä tietokone uudelleen, jotta Oh No! Parent Control toimii oikein."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Etsi kieliä"

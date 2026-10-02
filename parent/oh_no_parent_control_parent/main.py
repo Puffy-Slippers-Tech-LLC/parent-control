@@ -38,7 +38,7 @@ from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui.feedback import FeedbackDialog
 from common.oh_no_parent_control_ui.errors import (
     ErrorHandler, GENERIC_TITLE, GENERIC_DETAIL, install_exception_hooks,
-    show_startup_error,
+    show_startup_error, show_update_required,
 )
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
@@ -1276,6 +1276,9 @@ class ParentWindow(Adw.ApplicationWindow):
         self._feedback_dialog.present()
 
     def _show_error(self, error, detail=GENERIC_DETAIL, *, on_close=None):
+        if broker_reboot_required(error):
+            show_update_required(self, on_close=self.close)
+            return
         self._toast(detail)
         if not getattr(self, "_errors", None):
             self._errors = ErrorHandler(self, "Parent App")
@@ -2344,7 +2347,6 @@ class Application(Adw.Application):
         self._startup_checked = not check_startup or startup_error is not None
         self._startup_window = None
         self._startup_cancelled = False
-        self._startup_feedback = None
         install_exception_hooks(self, "Parent App")
         self._preview = preview
         # Component tests inject a scripted broker through the same constructor
@@ -2501,21 +2503,7 @@ class Application(Adw.Application):
         return GLib.SOURCE_REMOVE
 
     def _show_reboot_required(self):
-        window = self.get_active_window()
-        if window is None:
-            window, actions = self._startup_notice(
-                'parent-reboot-window', m.RESTART_REQUIRED, m.RESTART_TO_FINISH_UPDATING)
-            feedback = localized(Gtk.Button, label=m.SEND_FEEDBACK)
-            set_automation_id(feedback, 'parent-reboot-feedback')
-
-            def show_feedback(*_args):
-                if self._startup_feedback is None:
-                    self._startup_feedback = FeedbackDialog(window)
-                self._startup_feedback.present()
-
-            feedback.connect('clicked', show_feedback)
-            actions.prepend(feedback)
-        window.present()
+        show_update_required(application=self, on_close=self.quit)
 
     def _ensure_stylesheet(self, window):
         if self._css_provider is None:

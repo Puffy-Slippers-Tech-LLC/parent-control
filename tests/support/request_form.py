@@ -4,10 +4,11 @@ from tests.support.events import read_events
 
 
 def launch_request(launch_ui, tmp_path, *, overlay, scenario="normal", selections_path=None,
-                   wait_for_application=False):
+                   wait_for_application=False, complete_language_setup=True):
     path = tmp_path / f"request-{overlay}-{scenario}.jsonl"
     application, _log = launch_ui(
         "request_component_preview", wait_for_application=wait_for_application,
+        complete_language_setup=complete_language_setup,
         environment_overrides={
             "ONPC_REQUEST_COMPONENT_EVENTS_PATH": str(path),
             "ONPC_REQUEST_COMPONENT_OVERLAY": "1" if overlay else "0",

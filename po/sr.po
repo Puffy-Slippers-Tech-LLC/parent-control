@@ -139,6 +139,15 @@ msgstr "Ограничења апликација"
 msgid "Search installed apps"
 msgstr "Претражи инсталиране апликације"
 
+msgid "Restart required"
+msgstr "Потребно је поновно покретање"
+
+msgid "Reboot now"
+msgstr "Поново покрени сада"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Инсталирано је ажурирање производа. Поново покрените рачунар да би Oh No! Parent Control исправно радио."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Претражи језике"

@@ -48,6 +48,10 @@ class ScriptedParentBroker:
 
     def list_users(self):
         self._record("list_users")
+        if self._mode == 'startup-reboot':
+            from gi.repository import Gio
+            raise Gio.DBusError.new_for_dbus_error(
+                'com.puffyslippers.OhNoParentControl1.Error.RebootRequired', 'private detail')
         if self._mode == "no-users":
             return []
         if self._mode in {"denied", "unavailable"}:
@@ -265,9 +269,12 @@ if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "attachment-items":
 
 
 startup_error = None
+from tests.support.update_required import install_reboot_stub
+install_reboot_stub(ScriptedParentBroker()._record)
 if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "startup-denied":
     from gi.repository import Gio
     startup_error = Gio.DBusError.new_for_dbus_error(
         "com.puffyslippers.OhNoParentControl1.Error.AccessDenied", "private-account-detail")
-application = Application(client_factory=ScriptedParentBroker, startup_error=startup_error)
+application = Application(client_factory=ScriptedParentBroker, startup_error=startup_error,
+                          check_startup=os.environ.get('ONPC_PARENT_COMPONENT_SCENARIO') == 'startup-reboot')
 raise SystemExit(application.run([sys.argv[0]]))

@@ -14,6 +14,15 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid "Restart required"
+msgstr "Restart required"
+
+msgid "Reboot now"
+msgstr "Reboot now"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Search languages"

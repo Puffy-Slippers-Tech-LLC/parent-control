@@ -139,6 +139,15 @@ msgstr "Alkalmazáskorlátok"
 msgid "Search installed apps"
 msgstr "Telepített alkalmazások keresése"
 
+msgid "Restart required"
+msgstr "Újraindítás szükséges"
+
+msgid "Reboot now"
+msgstr "Újraindítás most"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Termékfrissítés lett telepítve. Indítsa újra a számítógépet az Oh No! Parent Control megfelelő működéséhez."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Nyelvek keresése"

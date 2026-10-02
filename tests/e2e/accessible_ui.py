@@ -898,6 +898,8 @@ def owned_surface_id(identity):
     if identity in ('child-request-tooltip', 'child-countdown-menu'):
         return None  # Shell chrome siblings; application ownership is checked separately.
     for prefix, surface in (
+        ('update-required-', 'update-required-dialog'),
+        ('parent-startup-', 'parent-startup-window'),
         ('parent-access-denied-', 'parent-access-denied-window'),
         ('parent-revoke-', 'parent-revoke-dialog'),
         ('parent-match-rule-', 'parent-match-rule-dialog'),
@@ -951,7 +953,8 @@ def owned_applications(identity):
         return (KIOSK_APPLICATION, CHILD_APPLICATION)
     if identity.startswith('preview-viewer-'):
         return ('com.puffyslippers.ScreenPreview',)
-    if identity.startswith(('language-', 'about-', 'feedback-', 'startup-error-', 'error-report-')):
+    if identity.startswith(('language-', 'about-', 'feedback-', 'startup-error-', 'error-report-',
+                            'update-required-')):
         return PRODUCT_APPLICATIONS
     return ()
 
@@ -1685,7 +1688,8 @@ class AccessibleUI:
         primary = ((f'onpc-fixture-{"-".join(app_id.split(".")[-2:])}',)
                    if app_id.startswith('com.puffyslippers.ONPCFixture.') else
                    ('watch-window',) if app_id in self.owned_applications('watch-window') else
-                   ('parent-window', 'parent-access-denied-window', 'startup-error-window')
+                   ('parent-window', 'parent-access-denied-window', 'startup-error-window',
+                    'parent-startup-window')
                    if app_id == PARENT_APPLICATION else
                    ('kiosk-request-window', 'startup-error-window')
                    if app_id in (KIOSK_APPLICATION, CHILD_APPLICATION) else
@@ -1694,6 +1698,8 @@ class AccessibleUI:
         if identity in primary:
             return
         expected = (('feedback-dialog',) if identity == 'feedback-privacy-dialog' else
+                    ('parent-window', 'kiosk-request-window')
+                    if identity == 'update-required-dialog' else
                     ('parent-window',) if identity in ('parent-revoke-dialog', 'parent-match-rule-dialog') else
                     ('parent-window', 'kiosk-request-window') if identity == 'language-dialog' else
                     ('kiosk-request-window',) if identity == 'preview-screen-dialog' else
@@ -1718,6 +1724,14 @@ class AccessibleUI:
             if relation.get_relation_type() == self.api.RelationType.CONTROLLED_BY:
                 parents.extend(relation.get_target(index)
                                for index in range(relation.get_n_targets()))
+        # Parent startup has no management window while policy is unavailable.
+        # Its sole update dialog belongs directly to the application. Transient
+        # notices still require their ordinary originating-window relation.
+        if identity == 'update-required-dialog' and app_id == PARENT_APPLICATION and not parents:
+            require(surface.get_parent() == application and not containers
+                    and not any(identify(node) in primary for node in app_nodes),
+                    'ui:wrong-surface-owner')
+            return
         # Repository surfaces deliberately remove CONTROLLED_BY when they
         # unmap. A complete negative observation may still see the hidden GTK
         # accessible briefly, so its application scope proves ownership while

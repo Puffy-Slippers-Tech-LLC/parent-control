@@ -496,7 +496,7 @@ def test_real_backend_upgrade_completes_and_broker_guard_expires_on_reboot(packa
     source = (ROOT / 'broker/oh-no-parent-control-broker').read_text()
     source = source.replace('/var/lib/oh-no-parent-control', str(state))
     guard = root / 'run/oh-no-parent-control-child-trust-reboot'
-    source = source.replace('/run/oh-no-parent-control-child-trust-reboot', str(guard))
+    source = source.replace('/run/', str(root / 'run') + '/')
     source = source.replace('/usr/libexec/oh-no-parent-control-package-activation', str(helper))
     launcher.write_text(source.split('sys.path.insert', 1)[0] +
                         'print("diagnostics-only" if diagnostics_only else "policy-ready")\n')
@@ -534,6 +534,12 @@ def test_real_backend_upgrade_completes_and_broker_guard_expires_on_reboot(packa
     assert result.returncode == 0, result.stderr
     assert (receipt / 'activation').read_text() == 'ready\n'
     assert not guard.exists()
+    # An unrelated OS update must not put this broker into diagnostics-only mode.
+    (root / 'run/reboot-required').write_text('System restart required\n')
+    (root / 'run/reboot-required.pkgs').write_text('linux-image-generic\nlibc6\n')
+    allowed = subprocess.run([sys.executable, str(launcher)], capture_output=True)
+    assert allowed.returncode == 0, allowed.stderr
+    assert allowed.stdout.strip() == b'policy-ready'
 
 
 def test_deferred_backend_notifier_failure_remains_retryable(package_machine):

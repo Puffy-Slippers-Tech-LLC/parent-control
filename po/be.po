@@ -139,6 +139,15 @@ msgstr "Абмежаванні праграм"
 msgid "Search installed apps"
 msgstr "Пошук усталяваных праграм"
 
+msgid "Restart required"
+msgstr "Патрабуецца перазагрузка"
+
+msgid "Reboot now"
+msgstr "Перазагрузіць зараз"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Усталявана абнаўленне прадукту. Перазагрузіце камп’ютар, каб Oh No! Parent Control працаваў належным чынам."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Пошук моў"

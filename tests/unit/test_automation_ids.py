@@ -52,8 +52,9 @@ class Node:
     def get_relation_set(self): return getattr(self, 'relations', ())
 
 
-def adapter(root, **kwargs):
-    root = product_tree(root)
+def adapter(root, *, infer_application=True, **kwargs):
+    if infer_application:
+        root = product_tree(root)
     return Automation(SimpleNamespace(
         Action=SimpleNamespace(get_action_name=lambda interface, index:
                                interface.get_action_name(index),
@@ -87,6 +88,54 @@ def test_spectator_ids_are_scoped_to_the_owned_window_and_application():
     ui.application_ids = lambda: {WATCH_APPLICATION}
     ui.application_owners = lambda: {WATCH_APPLICATION: {100}}
     assert ui.find("e2e-watch-progress") is progress
+
+
+@pytest.mark.parametrize('surface', ('parent-window', 'kiosk-request-window'))
+@pytest.mark.parametrize('wrong_owner', (False, True))
+def test_update_modal_has_a_product_owner_and_scoped_controls(surface, wrong_owner):
+    assert owned_surface_id('update-required-reboot') == 'update-required-dialog'
+    assert owned_surface_id('parent-startup-window-close') == 'parent-startup-window'
+    parent = Node(surface)
+    target = Node('update-required-reboot')
+    dialog = Node('update-required-dialog', [target])
+    app = ('com.puffyslippers.OhNoParentControl' if surface == 'kiosk-request-window'
+           else 'com.puffyslippers.OhNoParentControl.Parent')
+    application = Node(app, [parent, dialog])
+    owner = Node('foreign-window') if wrong_owner else parent
+    dialog.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
+                                       get_n_targets=lambda: 1, get_target=lambda _index: owner)]
+    ui = adapter(application)
+    if wrong_owner:
+        with pytest.raises(AutomationError, match='surface-owner'):
+            ui.activate('update-required-reboot')
+        target.action.do_action.assert_not_called()
+    else:
+        assert ui.target('update-required-reboot') is target
+
+
+@pytest.mark.parametrize('application_id', (
+    'com.puffyslippers.OhNoParentControl.Parent',
+    'com.puffyslippers.OhNoParentControl',
+    'com.puffyslippers.OhNoParentControl.ChildRequest'))
+@pytest.mark.parametrize('other_window', (False, True))
+def test_only_parent_can_own_a_standalone_update_dialog(application_id, other_window):
+    target = Node('update-required-reboot')
+    dialog = Node('update-required-dialog', [target])
+    children = [dialog]
+    if other_window:
+        children.append(Node('parent-window' if application_id.endswith('.Parent')
+                             else 'kiosk-request-window'))
+    application = Node(application_id, children)
+    dialog.get_parent = lambda: application
+    # This test supplies the complete application boundary, including Child's
+    # ID, rather than asking product_tree to infer an application for controls.
+    ui = adapter(application, infer_application=False)
+    if application_id.endswith('.Parent') and not other_window:
+        assert ui.target('update-required-reboot') is target
+    else:
+        with pytest.raises(AutomationError, match='surface-owner'):
+            ui.activate('update-required-reboot')
+        target.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('name', [vm_name(), vm_name(1)])

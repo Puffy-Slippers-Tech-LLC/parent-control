@@ -138,6 +138,15 @@ msgstr ""
 msgid "Search installed apps"
 msgstr ""
 
+msgid "Restart required"
+msgstr ""
+
+msgid "Reboot now"
+msgstr ""
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr ""
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr ""

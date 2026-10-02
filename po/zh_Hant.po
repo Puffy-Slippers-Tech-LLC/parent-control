@@ -140,6 +140,15 @@ msgstr "應用程式限制"
 msgid "Search installed apps"
 msgstr "搜尋已安裝的應用程式"
 
+msgid "Restart required"
+msgstr "需要重新啟動"
+
+msgid "Reboot now"
+msgstr "立即重新啟動"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "已安裝產品更新。請重新啟動電腦，讓 Oh No! Parent Control 正常運作。"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "搜尋語言"

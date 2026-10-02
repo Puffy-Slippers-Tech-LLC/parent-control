@@ -117,6 +117,8 @@ and waited Perl workers. Their new recorder plan uses function-private files;
 unit and cleanup scheduling retain the existing compatible classifications.
 Response read-retry probes add only private in-memory trees and bounded waits;
 they introduce no shared resource or process ownership.
+Child interaction wait probes execute the source functions with private clock
+and GLib doubles; child_preview remains compatible without a real bus/display.
 """
 
 # TIME01 tests add only immutable synthetic trees, process-local account/session,

@@ -39,7 +39,8 @@ def test_real_case_recorder_startup_uses_shared_journey_and_verify_only(monkeypa
     execute(recorder, context)
     context.credentials.provision.assert_called_once()
     assert PLAN.balance_checks == {'allowance-configured': 900}
-    assert PLAN.activity_checks == {'activity-returned': ('activity-capture', 'same')}
+    assert PLAN.activity_checks == {stage: ('activity-capture', 'same')
+                                   for stage in ('activity-returned', 'resumed-opened')}
 
 
 @pytest.mark.parametrize('include_refusal', [True, False])
@@ -64,7 +65,8 @@ def test_shared_fixture_action_selection_preserves_verification_owner(monkeypatc
 
 
 @pytest.mark.parametrize('fault', [None, 'window', 'draft', 'missing', 'replay', 'mutated-capture'])
-def test_case_activity_check_precedes_reply_and_resumed_input(tmp_path, fault):
+@pytest.mark.parametrize('stage', ['activity-returned', 'resumed-opened'])
+def test_case_activity_check_precedes_reply_and_resumed_input(tmp_path, fault, stage):
     journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), Mock(), PLAN,
                                   actions=fixture_actions(include_refusal=False))
     value = {'binding': 'native-primary', 'pid': 123, 'endpoint': [':1.50', '/accessible/1'],
@@ -75,21 +77,21 @@ def test_case_activity_check_precedes_reply_and_resumed_input(tmp_path, fault):
     if fault == 'window': current['endpoint'][1] = '/replacement'
     if fault in ('draft', 'mutated-capture'): current['state']['draft'] = 'changed'
     if fault == 'mutated-capture': value['state']['draft'] = 'changed'
-    if fault == 'replay': journey.check_activity('activity-returned', {'ui': {'activity': current}})
-    journey.steps = [{'stage': stage} for stage in PLAN.stages[:PLAN.stages.index('activity-returned')]]
+    if fault == 'replay': journey.check_activity(stage, {'ui': {'activity': current}})
+    journey.steps = [{'stage': earlier} for earlier in PLAN.stages[:PLAN.stages.index(stage)]]
     journey.boot = 'a' * 64
     journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
         'operation': 'overlay-native-activity', 'outcome': 'passed', 'interface': 'AT-SPI',
         'activity': current}))
-    (tmp_path / 'activity-returned.request.json').write_text(json.dumps({
-        'stage': 'activity-returned', 'screenshot': None}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({
+        'stage': stage, 'screenshot': None}))
     if fault:
         with pytest.raises(EvidenceError): journey.step(Mock())
-        assert not (tmp_path / 'activity-returned.reply.json').exists()
+        assert not (tmp_path / (stage + '.reply.json')).exists()
         assert journey.failed
     else:
         journey.step(Mock())
-        assert (tmp_path / 'activity-returned.reply.json').exists()
+        assert (tmp_path / (stage + '.reply.json')).exists()
         assert journey.steps[-1]['comparison']['same_window'] is True
 
 

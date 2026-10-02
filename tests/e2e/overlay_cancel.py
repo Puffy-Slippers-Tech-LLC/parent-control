@@ -11,8 +11,8 @@ EXIT_SCREENS = {
     'cancel': 'ui:overlay-request-cancel',
     'cancel-returned': 'ui:overlay-desktop',
     'activity-returned': 'ui:overlay-native-activity',
-    'resumed-opened': 'ui:overlay-native-opened',
-    'resumed-submit': 'ui:overlay-native-submit',
+    'resumed-opened': 'ui:overlay-native-activity',
+    'resumed-submit': 'ui:overlay-native-resubmit',
     'resumed-submitted': 'ui:overlay-native-submitted',
     'activity-close': 'ui:overlay-native-close',
     'activity-closed': 'ui:overlay-native-closed',
@@ -48,7 +48,8 @@ PLAN = JourneyPlan(
         'child-login': ('child', 'fresh-child-recipient-qualified', 'fresh-child-recipient-rechecked'),
     },
     balance_checks={'allowance-configured': 900},
-    activity_checks={'activity-returned': ('activity-capture', 'same')},
+    activity_checks={stage: ('activity-capture', 'same')
+                     for stage in ('activity-returned', 'resumed-opened')},
     assertions_after={'resumed-submitted': 'visible-result'},
 )
 

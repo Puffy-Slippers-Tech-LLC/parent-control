@@ -158,11 +158,23 @@ def test_feedback_editor_and_actions_remain_reachable(
     ui.activate("parent-feedback-button")
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
                               "feedback opens")
-    feedback_editor(ui, wait_for_accessible_state)
+    editor = feedback_editor(ui, wait_for_accessible_state)
     ui.activate("feedback-format-style")
-    wait_for_accessible_state(lambda: ui.showing("feedback-format-heading-2"),
-                              "heading style can be revealed")
+    wait_for_accessible_state(
+        lambda: ui.state("feedback-format-style", ui.api.StateType.EXPANDED),
+        "heading style menu opens",
+    )
+    # The last option can be clipped by the editor viewport. Activation checks
+    # ownership, VISIBLE, sensitivity and its public action without requiring
+    # SHOWING or adding scrolling before the action.
     ui.activate("feedback-format-heading-2")
+    wait_for_accessible_state(
+        lambda: not ui.state("feedback-format-style", ui.api.StateType.EXPANDED)
+        and [node.get_attributes().get("level")
+             for node in ui.nodes(ui.target(editor), strict=True)
+             if node.get_role_name() == "heading"] == ["2"],
+        "editor exposes Heading 2 and its style menu closes",
+    )
     for identity in ("feedback-close", "feedback-send"):
         ui.reveal(identity)
     key = hashlib.sha256(b"sample-4.txt\0test attachment").hexdigest()[:16]

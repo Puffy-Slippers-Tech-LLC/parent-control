@@ -188,17 +188,43 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertNotIn("open-menu-symbolic", source)
 
     def test_result_action_matches_request_and_cancel_button_width(self):
-        source = KIOSK_MAIN.read_text(encoding="utf-8")
-        content = KIOSK_CONTENT.read_text(encoding="utf-8")
-
-        self.assertIn("self._result_action = localized(ArmoredButton,", source)
-        self.assertIn("hexpand=True, armor_kind=\"request\"", source)
-        self.assertIn("self._result_action.set_margin_start(10)", source)
-        self.assertIn("self._result_action.set_margin_end(10)", source)
-        self.assertIn("self._request.set_margin_start(3)", content)
-        self.assertIn("self._request.set_margin_end(3)", content)
-        self.assertIn("self._cancel.set_margin_start(3)", content)
-        self.assertIn("self._cancel.set_margin_end(3)", content)
+        # Keep the runner's existing selector. The developer approved the
+        # current button decoration and requires public IDs, not geometry.
+        for path, widget, identity, callback in (
+            (KIOSK_MAIN, "self._result_action", "kiosk-result-action",
+             "self._result_dismissed"),
+            (KIOSK_CONTENT, "self._request", "kiosk-request-submit", "on_request"),
+            (KIOSK_CONTENT, "self._cancel", "kiosk-request-cancel", "on_cancel"),
+        ):
+            with self.subTest(identity=identity):
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+                calls = [node for node in ast.walk(tree)
+                         if isinstance(node, ast.Call)]
+                identified_widgets = [
+                    ast.unparse(call.args[0])
+                    for call in calls
+                    if isinstance(call.func, ast.Name)
+                    and call.func.id == "describe_control"
+                    and call.args
+                    and any(
+                        keyword.arg == "automation_id"
+                        and isinstance(keyword.value, ast.Constant)
+                        and keyword.value.value == identity
+                        for keyword in call.keywords
+                    )
+                ]
+                self.assertEqual(identified_widgets, [widget])
+                click_callbacks = [
+                    ast.unparse(call.args[1])
+                    for call in calls
+                    if isinstance(call.func, ast.Attribute)
+                    and call.func.attr == "connect"
+                    and ast.unparse(call.func.value) == widget
+                    and len(call.args) >= 2
+                    and isinstance(call.args[0], ast.Constant)
+                    and call.args[0].value == "clicked"
+                ]
+                self.assertEqual(click_callbacks, [callback])
 
     def test_result_title_reserves_space_for_pixel_font_ink(self):
         css = (ROOT / "kiosk/oh_no_parent_control_kiosk/style.css").read_text(

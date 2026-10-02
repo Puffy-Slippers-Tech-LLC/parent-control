@@ -2,7 +2,7 @@
 from installed_journey import JourneyPlan
 from journey_blocks import fresh_desktop, parent_management, native_usable_app, overlay_entry
 from native_fixtures import fixture_actions
-from request_flow import prepared_request
+from request_flow import prepared_request, overlay_authentication
 from request_composition import KioskRequestJourney
 
 CHILD_SCREENS = {
@@ -14,11 +14,7 @@ CHILD_SCREENS = {
     **prepared_request(prefix='open', entry='open', initial='default',
                        child='fixture-child', approver='fixture-parent', duration_seconds=75,
                        allow_soft=True, surface='overlay'),
-    'approval-open': 'ui:overlay-shell-open',
-    'approval-qualified': 'ui:overlay-shell-qualified',
-    'approval-rechecked': 'ui:overlay-shell-rechecked',
-    'approval-submit-ready': 'ui:overlay-shell-submit-ready',
-    'approval-success': 'ui:overlay-approval-success',
+    **overlay_authentication(result='approval', prefix='approval'),
     'returned': 'ui:overlay-desktop',
     'activity-returned': 'ui:overlay-native-activity',
     'activity-close': 'ui:overlay-native-close', 'activity-closed': 'ui:overlay-native-closed',

@@ -128,6 +128,14 @@ these observations. Protected descendants are still excluded before querying.
 
 ## Extend without hiding the scenario
 
+Shell authentication declarations reuse `request_flow.overlay_authentication`
+for Cancel or fixed approval, paired with `onpc_request_flow::shell_cancel` /
+`shell_approve`. Tasks 048c/048d compose this fragment with
+`KioskRequestJourney`; form preservation, desktop return, activity endpoints and
+assertion phases remain caller-owned. Declaration checkpoint renaming alone
+does not parameterize the approval worker or qualify another request/provider
+binding; use the [catalogue scope](../../docs/TestAutomation/E2E-Building-Blocks.md#overlay-approval-and-automatic-return-qualification).
+
 E2E declaration fragments and worker execution have matching shared owners:
 `journey_blocks.parent_reopen` / `onpc_lifecycle::reopen` for LIFE01,
 `request_flow.daily_station_entry` / `onpc_request_flow::daily_station_entry`

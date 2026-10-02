@@ -1,7 +1,7 @@
 """048c: one independently prepared Shell challenge and password-free Cancel."""
 from installed_journey import JourneyPlan
 from journey_blocks import fresh_desktop, parent_management, overlay_entry
-from request_flow import prepared_request
+from request_flow import prepared_request, overlay_authentication
 from request_composition import KioskRequestJourney
 
 CHILD_SCREENS = {
@@ -11,8 +11,7 @@ CHILD_SCREENS = {
     **prepared_request(prefix='open', entry='open', initial='default',
                        child='fixture-child', approver='fixture-parent', duration_seconds=75,
                        allow_soft=True, surface='overlay'),
-    'shell-cancel-ready': 'ui:overlay-shell-cancel-ready',
-    'shell-dismissed': 'ui:overlay-shell-dismissed',
+    **overlay_authentication(result='cancel', prefix='shell'),
     'form-returned': 'ui:overlay-valid-fraction-soft-read',
     'cancel': 'ui:overlay-request-cancel', 'returned': 'ui:overlay-desktop',
 }

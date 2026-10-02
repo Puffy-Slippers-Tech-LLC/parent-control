@@ -68,6 +68,32 @@ def daily_station_entry():
     }
 
 
+def overlay_authentication(*, result, prefix):
+    """Declare Shell authentication separately from form/destination readback.
+
+    Requires the prepared fixed overlay request. Cancel returns prompt absence;
+    approval returns explicit success. The caller owns preserved choices,
+    automatic desktop return and activity comparisons. Renaming checkpoints
+    does not qualify another request or provider tuple.
+    """
+    import re
+    require(result in ('cancel', 'approval'), 'overlay-authentication:result')
+    require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
+            'overlay-authentication:prefix')
+    if result == 'cancel':
+        return {
+            prefix + '-cancel-ready': 'ui:overlay-shell-cancel-ready',
+            prefix + '-dismissed': 'ui:overlay-shell-dismissed',
+        }
+    return {
+        prefix + '-open': 'ui:overlay-shell-open',
+        prefix + '-qualified': 'ui:overlay-shell-qualified',
+        prefix + '-rechecked': 'ui:overlay-shell-rechecked',
+        prefix + '-submit-ready': 'ui:overlay-shell-submit-ready',
+        prefix + '-success': 'ui:overlay-approval-success',
+    }
+
+
 CHOICES = dict(child='fixture-child', approver='fixture-parent', duration_seconds=75, allow_soft=True)
 SCREENS = {
     **fresh_desktop('parent'), **parent_management(),

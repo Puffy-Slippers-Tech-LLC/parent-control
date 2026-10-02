@@ -33,7 +33,7 @@ APIS = {
                         'CataloguePolicyJourney'},
     'journey_checks': {'allowed_app_rows', 'installed_accounts'},
     'real_interval': {'interval_action'},
-    'request_flow': {'prepared_request', 'daily_station_entry'},
+    'request_flow': {'prepared_request', 'daily_station_entry', 'overlay_authentication'},
     'kiosk_approved_flow': {'approved_request', 'obtain_time'},
     'approval_flow': {'rejected_request'},
     'request_composition': {'KioskRequestJourney'},

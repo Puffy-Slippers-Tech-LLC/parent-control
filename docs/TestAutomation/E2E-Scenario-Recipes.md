@@ -939,6 +939,14 @@ Case 192 uses `kiosk_about.PLAN`,
 `request_composition.KioskRequestJourney` and `onpc_kiosk_about::run`; case 193 uses
 `command_help.PLAN`. Current executable status belongs in the inventory.
 
+Overlay information uses `journey_blocks.overlay_license_read(links='information')`
+and `onpc_about::overlay_license` with the same finite binding. The fragment
+checks Help, enters owned About from the open menu, reads website, privacy,
+support, license and legal-notices clickability, then closes only About and
+reads the returned form. `overlay_license.INFORMATION_PLAN` qualifies independent
+entries; case 191 supplies its own entry, finite choices, capture/return
+endpoints and phases through `KioskRequestJourney.request_checks`.
+
 **Read Help, About and command usage on each surface.** Cases 190, 191, 192, 193.
 
 Bindings: surface = parent-links / child-overlay / kiosk / command-help.

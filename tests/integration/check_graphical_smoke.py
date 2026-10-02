@@ -1029,7 +1029,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(challenge_profile in ('parent', 'fresh-child', 'fresh-child-denied',
                                   'countdown-enabled', 'countdown-off', 'shell-panel',
                                   'overlay-valid-choices', 'overlay-choices', 'overlay-license',
-                                  'overlay-browser-links') and
+                                  'overlay-browser-links', 'overlay-information') and
             (challenge_profile == 'parent' or challenges is True), 'smoke:challenge-profile')
     require(type(challenges) is bool and (not challenges or (
             assets is not None and provision_credentials and fresh_desktop is None
@@ -1456,7 +1456,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 'overlay-valid-choices': 'installed-overlay-valid-choices-qualification',
                 'overlay-choices': 'installed-overlay-choices-qualification',
                 'overlay-license': 'installed-overlay-license-qualification',
-                'overlay-browser-links': 'installed-overlay-browser-links-qualification'}[challenge_profile]
+                'overlay-browser-links': 'installed-overlay-browser-links-qualification',
+                'overlay-information': 'installed-overlay-information-qualification'}[challenge_profile]
         if product_free_entry:
             result['scope'] = 'product-free-entry-qualification'
         if package_authority:
@@ -1586,7 +1587,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         FreshChildAllowedQualification, FreshChildDeniedQualification,
                         CountdownQualification, CountdownOffQualification, ShellPanelQualification,
                         OverlayValidChoicesQualification, OverlayChoicesQualification, OverlayLicenseQualification,
-                        OverlayBrowserLinksQualification)
+                        OverlayBrowserLinksQualification, OverlayInformationQualification)
                     qualification_class = {'parent': ChallengesQualification,
                         'fresh-child': FreshChildAllowedQualification,
                         'fresh-child-denied': FreshChildDeniedQualification,
@@ -1596,7 +1597,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         'overlay-valid-choices': OverlayValidChoicesQualification,
                         'overlay-choices': OverlayChoicesQualification,
                         'overlay-license': OverlayLicenseQualification,
-                        'overlay-browser-links': OverlayBrowserLinksQualification}[challenge_profile]
+                        'overlay-browser-links': OverlayBrowserLinksQualification,
+                        'overlay-information': OverlayInformationQualification}[challenge_profile]
                 if gdm_product_free:
                     from parent_setup_qualification import GdmProductFreeQualification
                     qualification_class = GdmProductFreeQualification

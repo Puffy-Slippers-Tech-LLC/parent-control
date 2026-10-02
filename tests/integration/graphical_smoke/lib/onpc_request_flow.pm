@@ -19,8 +19,9 @@ sub overlay_license {
     $links //= 'license';
     die 'overlay-license:arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
-    die 'overlay-about:links' unless $links eq 'license' || $links eq 'browser-links';
-    my $prefix = $links eq 'license' ? 'overlay-license' : 'overlay-browser-links';
+    die 'overlay-about:links' unless $links eq 'license' || $links eq 'browser-links' || $links eq 'information';
+    my $prefix = $links eq 'license' ? 'overlay-license' : $links eq 'browser-links'
+        ? 'overlay-browser-links' : 'overlay-information';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => $prefix, review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
@@ -57,6 +58,12 @@ sub overlay_browser_links {
     onpc_progress::operation('Qualifying overlay website and privacy clickability');
     die 'overlay-browser-links:arguments' unless @_ == 3;
     return overlay_license(@_, 'browser-links');
+}
+
+sub overlay_information {
+    onpc_progress::operation('Qualifying all offered overlay information links and unchanged choices');
+    die 'overlay-information:arguments' unless @_ == 3;
+    return overlay_license(@_, 'information');
 }
 
 sub overlay_valid_choices {

@@ -62,6 +62,23 @@ BROWSER_LINKS_PLAN = JourneyPlan(
 )
 
 
+INFORMATION_CHILD_SCREENS = {**CHILD_ENTRY, **overlay_license_read(links='information'),
+    **overlay_license_read('independent-', links='information'), **CHILD_EXIT}
+INFORMATION_SCREENS = {**PARENT_SCREENS, **INFORMATION_CHILD_SCREENS}
+INFORMATION_PLAN = JourneyPlan(
+    prefix='overlay-information', worker_mode='overlay_information', screen_tags=INFORMATION_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+        **{stage: 'step-1' for stage in INFORMATION_SCREENS}, 'installed-greeter': 'start',
+        **{stage: 'step-2' for stage in INFORMATION_CHILD_SCREENS}},
+    advance_after=PLAN.advance_after, invocations=PLAN.invocations,
+    challenges=PLAN.challenges, balance_checks=PLAN.balance_checks,
+    request_checks=PLAN.request_checks,
+    assertions_after={**{link + '-read': 'clickable-' + link
+        for link in ('help', 'website', 'privacy', 'support', 'license', 'legal-notices')},
+        'form-returned': 'unchanged-form', 'independent-form-returned': 'independent-unchanged-form'},
+)
+
+
 class OverlayLicenseJourney(KioskRequestJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions)

@@ -102,7 +102,8 @@ OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
 OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
-    'overlay-website-read', 'overlay-privacy-read',
+    'overlay-website-read', 'overlay-privacy-read', 'overlay-support-read',
+    'overlay-legal-notices-read', 'overlay-help-read', 'overlay-information-about',
     'overlay-about-close-ready', 'overlay-about-closed', 'overlay-about-refused'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_ABOUT_OPERATIONS
 OPERATIONS |= OVERLAY_ABOUT_OPERATIONS | frozenset({'parent-overlay-about-refused'})
@@ -3951,9 +3952,20 @@ class AccessibleUI:
                 'ui:overlay-about-entry')
         return window
 
-    def open_overlay_about(self):
+    def check_overlay_help(self):
+        """INFO01: check the child-owned Help action without activating it."""
         self.overlay_about_scope(opened=False)
         self.activate_id('kiosk-menu-button', action_name='menu.popup')
+        return self.clickable_link('kiosk-menu-item-help',
+            root=self.overlay_about_scope(opened=False))
+
+    def open_overlay_about(self, *, menu_open=False):
+        self.overlay_about_scope(opened=False)
+        if menu_open:
+            self.clickable_link('kiosk-menu-item-help',
+                root=self.overlay_about_scope(opened=False))
+        else:
+            self.activate_id('kiosk-menu-button', action_name='menu.popup')
         self.activate_id('kiosk-menu-item-about')
         self.window_ready_to_close('about')
         self.overlay_about_scope(opened=True)
@@ -3962,7 +3974,8 @@ class AccessibleUI:
         return self.read_overlay_link(version, 'license')
 
     def read_overlay_link(self, version, link):
-        require(link in ('license', 'website', 'privacy'), 'ui:overlay-link-binding')
+        require(link in ('license', 'website', 'privacy', 'support', 'legal-notices'),
+                'ui:overlay-link-binding')
         root = self.overlay_about_scope(opened=True)
         self.read_label(root, 'about-product', maximum=80)
         self.read_label(root, 'about-version', maximum=80, expected=version)
@@ -8918,10 +8931,15 @@ class AccessibleUI:
                 raise UiError('ui:overlay-about-wrong-entry-accepted')
         elif operation == 'overlay-about-open':
             self.open_overlay_about()
+        elif operation == 'overlay-help-read':
+            self.check_overlay_help()
+        elif operation == 'overlay-information-about':
+            self.open_overlay_about(menu_open=True)
         elif operation == 'overlay-license-read':
             self.read_overlay_license(version)
-        elif operation in ('overlay-website-read', 'overlay-privacy-read'):
-            self.read_overlay_link(version, operation.split('-')[1])
+        elif operation in ('overlay-website-read', 'overlay-privacy-read',
+                           'overlay-support-read', 'overlay-legal-notices-read'):
+            self.read_overlay_link(version, operation.removeprefix('overlay-').removesuffix('-read'))
         elif operation == 'overlay-about-close-ready':
             self.overlay_about_scope(opened=True)
         elif operation == 'overlay-about-closed':

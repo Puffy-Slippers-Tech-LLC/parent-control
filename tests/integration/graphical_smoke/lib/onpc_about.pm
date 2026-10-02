@@ -11,9 +11,12 @@ sub overlay_license {
     $links //= 'license';
     die 'overlay-about:binding' unless (@_ == 4 || @_ == 5) && ref($journey) eq 'onpc_journey'
         && $entry =~ /\A[a-z][a-z0-9-]*\z/ && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
-    die 'overlay-about:links' unless $links eq 'license' || $links eq 'browser-links';
+    die 'overlay-about:links' unless $links eq 'license' || $links eq 'browser-links' || $links eq 'information';
     $journey->consume_observation($entry, $proof);
-    for my $stage ('about-open', ($links eq 'license' ? ('license-read') : ('website-read', 'privacy-read'))) {
+    my @reads = $links eq 'license' ? ('license-read') : $links eq 'browser-links'
+        ? ('website-read', 'privacy-read')
+        : ('website-read', 'privacy-read', 'support-read', 'license-read', 'legal-notices-read');
+    for my $stage (($links eq 'information' ? ('help-read') : ()), 'about-open', @reads) {
         $journey->consume_observation($invocation . $stage, $journey->seen($invocation . $stage));
     }
     $journey->consume_observation($invocation . 'about-closed', onpc_window::close(

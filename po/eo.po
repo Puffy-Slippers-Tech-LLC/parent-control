@@ -139,6 +139,21 @@ msgstr "Aplikaĵaj limigoj"
 msgid "Search installed apps"
 msgstr "Serĉi instalitajn aplikaĵojn"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "Ĉu doni al %(target)s aliron?\nPetita tempo: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "Ĉu doni al %(target)s aliron?\nPetita tempo: %(duration)s.\nPermesu provizore malblokeblajn aplikaĵojn dum ĉi tiu permeso."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Restartigo necesas"
 

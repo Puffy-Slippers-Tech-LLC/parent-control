@@ -139,6 +139,21 @@ msgstr "מגבלות יישומים"
 msgid "Search installed apps"
 msgstr "חיפוש יישומים מותקנים"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "להעניק גישה ל־%(target)s?\nהזמן המבוקש: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "להעניק גישה ל־%(target)s?\nהזמן המבוקש: %(duration)s.\nלאפשר יישומים החסומים עם אפשרות להיתר זמני למשך ההרשאה הזאת."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "נדרשת הפעלה מחדש"
 

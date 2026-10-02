@@ -139,6 +139,21 @@ msgstr "앱 제한"
 msgid "Search installed apps"
 msgstr "설치된 앱 검색"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "%(target)s에게 접근을 허용할까요?\n요청한 시간: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "%(target)s에게 접근을 허용할까요?\n요청한 시간: %(duration)s.\n이번 허용 기간에는 임시 허용이 가능한 차단 앱을 허용합니다."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "다시 시작 필요"
 

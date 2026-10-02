@@ -139,6 +139,21 @@ msgstr "Batas Aplikasi"
 msgid "Search installed apps"
 msgstr "Cari aplikasi terpasang"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "Berikan akses kepada %(target)s?\nWaktu yang diminta: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "Berikan akses kepada %(target)s?\nWaktu yang diminta: %(duration)s.\nIzinkan aplikasi terblokir yang dapat diizinkan sementara selama pemberian akses ini."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Perlu memulai ulang"
 

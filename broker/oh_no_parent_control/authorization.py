@@ -33,7 +33,7 @@ class PolkitAuthorizer:
         self.connection = connection
 
     def check(self, request_kind, sender, correlation_id, target_label,
-              approver_username, requested_duration, allow_soft_blocked_apps):
+              approver_username, message):
         try:
             action_id = REQUEST_ACTION_IDS[request_kind]
         except KeyError as error:
@@ -44,10 +44,7 @@ class PolkitAuthorizer:
             {
                 "target-account": target_label,
                 "approver-user": approver_username,
-                "requested-duration": requested_duration,
-                "soft-blocked-apps": (
-                    " and allow soft blocked apps" if allow_soft_blocked_apps else ""
-                ),
+                "polkit.message": message,
             },
             1,  # AllowUserInteraction; no retained authorization.
             f"oh-no-parent-control-{correlation_id}",

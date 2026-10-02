@@ -19,10 +19,10 @@ class Authorizer:
         self.callback = callback
 
     def check(self, request_kind, sender, correlation_id, target_label, approver_username,
-              requested_duration, allow_soft_blocked_apps):
+              message):
         self.calls.append((
             request_kind, sender, correlation_id, target_label, approver_username,
-            requested_duration, allow_soft_blocked_apps,
+            message,
         ))
         if self.callback:
             self.callback()

@@ -140,6 +140,21 @@ msgstr "應用程式限制"
 msgid "Search installed apps"
 msgstr "搜尋已安裝的應用程式"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "允許 %(target)s 存取嗎？\n請求時長：%(duration)s。"
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "允許 %(target)s 存取嗎？\n請求時長：%(duration)s。\n在本次授權期間允許使用可暫時解除封鎖的應用程式。"
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr "、"
+
 msgid "Restart required"
 msgstr "需要重新啟動"
 

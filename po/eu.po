@@ -139,6 +139,21 @@ msgstr "Aplikazioen mugak"
 msgid "Search installed apps"
 msgstr "Bilatu instalatutako aplikazioak"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "%(target)s kontuari sarbidea eman?\nEskatutako denbora: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "%(target)s kontuari sarbidea eman?\nEskatutako denbora: %(duration)s.\nBaimen honek iraun bitartean, baimendu aldi baterako ken daitekeen blokeoa duten aplikazioak."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Berrabiarazi egin behar da"
 

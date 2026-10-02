@@ -139,6 +139,21 @@ msgstr "செயலி வரம்புகள்"
 msgid "Search installed apps"
 msgstr "நிறுவப்பட்ட செயலிகளைத் தேடவும்"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "%(target)s-க்கு அணுகலை அனுமதிக்கவா?\nகோரிய நேரம்: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "%(target)s-க்கு அணுகலை அனுமதிக்கவா?\nகோரிய நேரம்: %(duration)s.\nஇந்த அனுமதியின் காலத்தில் தற்காலிகமாகத் தடையை நீக்கக்கூடிய செயலிகளை அனுமதிக்கவும்."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "மறுதொடக்கம் தேவை"
 

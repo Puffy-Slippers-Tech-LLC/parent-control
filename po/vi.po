@@ -139,6 +139,21 @@ msgstr "Giới hạn ứng dụng"
 msgid "Search installed apps"
 msgstr "Tìm ứng dụng đã cài đặt"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "Cấp quyền truy cập cho %(target)s?\nThời gian yêu cầu: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "Cấp quyền truy cập cho %(target)s?\nThời gian yêu cầu: %(duration)s.\nCho phép các ứng dụng bị chặn nhưng có thể cho phép tạm thời trong thời gian cấp quyền này."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Cần khởi động lại"
 

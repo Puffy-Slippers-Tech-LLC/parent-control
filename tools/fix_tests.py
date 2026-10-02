@@ -352,8 +352,8 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         nonlocal round_number
         round_number = number
 
-    def progress(category, status):
-        publish_repair_status(run, round_number, category, categories, status)
+    def progress(category, status, *, model=None):
+        publish_repair_status(run, round_number, category, categories, status, model=model)
 
     def cancel(*_):
         (run / 'cancel').touch(mode=0o600)
@@ -459,8 +459,8 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             check_stop()
             check_budget()
             sessions = case_sessions.get(failure_key, 0) + 1
-            progress('', 'fixing errors')
             agent_model, agent_effort = (app_model, APP_EFFORT) if classification else (model, effort)
+            progress('', 'fixing errors', model=agent_model)
             phase = 'repair review' if classification else 'classify and repair'
             print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort}); '
                   f'case session {sessions}/{MAX_REPAIR_SESSIONS}', flush=True)

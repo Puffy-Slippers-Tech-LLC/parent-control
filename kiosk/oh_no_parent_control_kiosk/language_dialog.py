@@ -107,6 +107,8 @@ class LanguageDialog(Gtk.Window):
         set_automation_id(self._error, "language-error")
         content.append(self._error)
         actions = Gtk.Box(spacing=12, homogeneous=True)
+        # Keep Save and Cancel in place while the candidate changes direction.
+        fixed_direction(actions, Gtk.TextDirection.LTR)
         self._cancel = localized(ArmoredButton, label=m.CANCEL)
         describe_control(self._cancel, m.CANCEL, m.CANCEL,
                          automation_id="language-cancel")

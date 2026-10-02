@@ -219,6 +219,43 @@ def test_parent_first_run_shared_helper_saves_with_cancel_visible(
     assert_no_policy_or_request_writes(path)
 
 
+@pytest.mark.parametrize('language', ('ug', 'ur', 'ar', 'de'))
+def test_parent_development_preview_translates_visible_labels(
+        launch_ui, automation, wait_for_accessible_state, language):
+    ui, wait = automation, wait_for_accessible_state
+    launch_ui('parent_preview', complete_language_setup=False,
+              environment_overrides={'LANGUAGE': 'en_US.UTF-8', 'LC_ALL': 'C.UTF-8'})
+    wait(lambda: ui.showing('language-dialog'), 'development preview chooser opens')
+    heading, save = (EXPANDED_LANGUAGES[language][1:3] if language in EXPANDED_LANGUAGES
+                     else LANGUAGES[language][2:4])
+    ui.reader.choose_language('parent', language)
+    wait(lambda: ui.text('language-title') == heading, 'candidate translates the visible heading')
+    assert save in public_label_names(ui, 'language-continue')
+    ui.reader.save_language('parent')
+    screen = EXPANDED_LANGUAGES[language][4] if language in EXPANDED_LANGUAGES else LANGUAGES[language][5]
+    wait(lambda: ui.text('parent-screen-limit-toggle') == screen, 'preview uses saved language')
+    translated_tab = {'ug': 'ئېكران چەكلىمىلىرى', 'ur': 'اسکرین کی حدود',
+                      'ar': 'قيود الشاشة', 'de': 'Bildschirmzeit'}[language]
+    assert translated_tab in public_label_names(ui, 'parent-page-screen-limits')
+    ui.reader.open_language_preferences('parent')
+    ui.reader.choose_language('parent', 'en')
+    ui.reader.save_language('parent')
+    wait(lambda: 'Screen Limits' in public_label_names(ui, 'parent-page-screen-limits'),
+         'preview returns its visible labels to English')
+    ui.reader.open_language_preferences('parent')
+    ui.reader.choose_language('parent', language)
+    ui.reader.save_language('parent')
+    wait(lambda: translated_tab in public_label_names(ui, 'parent-page-screen-limits'),
+         'saving from Preferences retranslates the existing main window')
+    headings = {
+        'ug': ('ئېكران ۋاقىت چەكلىمىسى', 'كۈندىلىك ۋاقىت مىقدارى', 'بۈگۈنكى قالغان ۋاقىت'),
+        'ur': ('اسکرین ٹائم کی حد', 'روزانہ کا مختص وقت', 'آج کا باقی وقت'),
+        'ar': ('حد وقت استخدام الشاشة', 'الحصة اليومية للوقت', 'الوقت المتبقي اليوم'),
+        'de': ('Bildschirmzeit begrenzen', 'Tägliches Zeitkontingent', 'Heute verbleibende Zeit'),
+    }[language]
+    assert set(headings) <= set(public_label_names(ui, 'parent-screen-limits-page'))
+
+
 @pytest.mark.parametrize('surface', SURFACES)
 @pytest.mark.parametrize('language', EXPANDED_LANGUAGES)
 def test_expanded_catalogue_choices_save_with_translated_text(

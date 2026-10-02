@@ -29,7 +29,10 @@ class AboutDialogTests(unittest.TestCase):
             encoding="utf-8")
 
         self.assertIn('Gtk.LinkButton.new_with_label(uri, value)', source)
-        self.assertIn('"security-high-symbolic", "Privacy"', source)
+        self.assertIn('"security-high-symbolic", m.PRIVACY', source)
+        messages = (ROOT / "common/oh_no_parent_control_ui/messages.py").read_text(
+            encoding="utf-8")
+        self.assertIn("PRIVACY = gettext('Privacy')", messages)
 
     def test_gtk_about_logo_uses_launcher_art_at_the_original_display_size(self):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(

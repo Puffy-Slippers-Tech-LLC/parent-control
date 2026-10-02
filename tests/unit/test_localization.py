@@ -261,6 +261,68 @@ def test_catalogue_choices_have_unique_ids_names_and_packaged_metadata(productio
     }
 
 
+@pytest.mark.parametrize('language', [identity for identity, _name in SUPPORTED_LANGUAGES])
+@pytest.mark.parametrize('surface', ['child', 'kiosk'])
+def test_polkit_request_uses_child_catalogue_and_complete_prompt(
+        production_catalogues, monkeypatch, language, surface):
+    from oh_no_parent_control import core
+    from tests.support.broker import Authorizer, Preferences, make_broker
+    from common.oh_no_parent_control_ui import messages as m
+
+    preferences = Preferences()
+    preferences.values[1001]['parent_control_enabled'] = True
+    preferences.update_language(1001, language)
+    # Neither the kiosk, approver, nor another child's preference owns the prompt.
+    for uid in (991, 1002, 1003):
+        preferences.update_language(uid, 'de' if language == 'fr' else 'fr')
+    loaded = []
+
+    def load(saved):
+        loaded.append(saved)
+        return load_translations(saved, localedir=production_catalogues)
+
+    monkeypatch.setattr(core, 'load_translations', load)
+    authorizer = Authorizer('denied')
+    broker = make_broker(authorizer=authorizer, preferences=preferences)
+    translations = load_translations(language, localedir=production_catalogues)
+    before_env, before_locale = os.environ.copy(), locale.setlocale(locale.LC_ALL)
+    for seconds in (0, 6, 60, 3600, 3666, 7322, 86400):
+        for allow_soft in (False, True):
+            if surface == 'child':
+                result = broker.request_own_access(1001, ':1.42', 1003, seconds, allow_soft)
+            else:
+                result = broker.request_access(991, ':1.42', 1001, 1003, seconds, allow_soft)
+            assert result[1] == 'denied'
+            kind, sender, _correlation, target, approver, message = authorizer.calls[-1]
+            assert (kind, sender, target, approver) == (surface, ':1.42', 'Child', 'admin')
+            duration = core.format_requested_duration(seconds, translations)
+            template = m.POLKIT_GRANT_SOFT_APPS if allow_soft else m.POLKIT_GRANT
+            assert message == translations.gettext(template.source) % {
+                'target': '$(target-account)', 'duration': duration,
+            }
+            if language != 'en':
+                assert not message.startswith('Grant '), language
+            if seconds == 0:
+                assert translations.gettext('Rest of the day') in message
+    assert loaded == [language] * 14
+    assert os.environ == before_env
+    assert locale.setlocale(locale.LC_ALL) == before_locale
+
+
+@pytest.mark.parametrize('language,seconds,expected', [
+    ('de', 3666, '1 Stunde, 1 Minute, 6 Sekunden'),
+    ('ru', 7322, '2 часа, 2 минуты, 2 секунды'),
+    ('ru', 5 * 3600 + 5 * 60 + 5, '5 часов, 5 минут, 5 секунд'),
+    ('en', 6, '6 seconds'),
+    ('zz-future', 60, '1 minute'),
+    ('', 0, 'Rest of the day'),
+])
+def test_polkit_duration_plural_wording_and_fallback(production_catalogues, language, seconds, expected):
+    from oh_no_parent_control.core import format_requested_duration
+    assert format_requested_duration(
+        seconds, load_translations(language, localedir=production_catalogues)) == expected
+
+
 @pytest.mark.parametrize('query,expected', [
     ('', {'pt', 'pt-BR', 'ru', 'sr-Latn'}),
     ('  gUÊS  ', {'pt', 'pt-BR'}),

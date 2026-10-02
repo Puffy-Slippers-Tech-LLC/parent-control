@@ -139,6 +139,21 @@ msgstr "Абмежаванні праграм"
 msgid "Search installed apps"
 msgstr "Пошук усталяваных праграм"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "Даць доступ %(target)s?\nЗапытаны час: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "Даць доступ %(target)s?\nЗапытаны час: %(duration)s.\nДазволіць заблакіраваныя праграмы з магчымасцю часовага дазволу на час гэтага дазволу."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Патрабуецца перазагрузка"
 

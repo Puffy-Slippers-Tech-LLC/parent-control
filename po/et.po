@@ -139,6 +139,21 @@ msgstr "Rakenduste piirangud"
 msgid "Search installed apps"
 msgstr "Otsi paigaldatud rakendusi"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "Kas anda kontole %(target)s juurdepääs?\nTaotletud aeg: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "Kas anda kontole %(target)s juurdepääs?\nTaotletud aeg: %(duration)s.\nLuba selle loa ajaks ajutiselt lubatavad blokeeritud rakendused."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Vajalik on taaskäivitamine"
 

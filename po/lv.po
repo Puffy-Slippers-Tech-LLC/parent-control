@@ -139,6 +139,21 @@ msgstr "Lietotņu ierobežojumi"
 msgid "Search installed apps"
 msgstr "Meklēt instalētās lietotnes"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "Piešķirt piekļuvi kontam %(target)s?\nPieprasītais laiks: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "Piešķirt piekļuvi kontam %(target)s?\nPieprasītais laiks: %(duration)s.\nŠīs atļaujas laikā atļaut bloķētas lietotnes, kuras var īslaicīgi atļaut."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Nepieciešama pārstartēšana"
 

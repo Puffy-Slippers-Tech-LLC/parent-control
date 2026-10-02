@@ -139,6 +139,21 @@ msgstr "Limite pentru aplicații"
 msgid "Search installed apps"
 msgstr "Caută aplicații instalate"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "Acordați acces pentru %(target)s?\nTimp solicitat: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "Acordați acces pentru %(target)s?\nTimp solicitat: %(duration)s.\nPermiteți aplicațiile blocate condiționat pe durata acestei aprobări."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Este necesară repornirea"
 

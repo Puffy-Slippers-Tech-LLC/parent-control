@@ -139,6 +139,21 @@ msgstr "Uygulama Sınırları"
 msgid "Search installed apps"
 msgstr "Yüklü uygulamaları ara"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "%(target)s için erişim izni verilsin mi?\nİstenen süre: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "%(target)s için erişim izni verilsin mi?\nİstenen süre: %(duration)s.\nBu izin süresince geçici izin verilebilen engellenmiş uygulamalara izin ver."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Yeniden başlatma gerekli"
 

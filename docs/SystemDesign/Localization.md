@@ -39,11 +39,16 @@ selected in a request form.
 | Child request overlay | Same child as the panel | Request Preferences |
 | Dedicated kiosk | Selected child | Request Preferences |
 | Shared About, feedback and error windows | Owning frontend account | Inherit the frontend translation context |
+| Product-owned PolicyKit approval message | Signed-in child, or selected child in kiosk | Same saved child preference as the request form |
 
 The broker authenticates the caller and stores language intent. Frontends resolve
 that intent against the language catalogue, load message catalogues and render
-text. The broker never chooses a language from its own root-session environment
-or translates policy, protocol values or diagnostics.
+text. For the product-owned PolicyKit approval message, the broker loads the same
+GTK-independent private translation context using the validated target child's
+saved language. It supplies no root-session language: an empty or unsupported
+selection defaults to English under the existing resolver, and missing entries
+retain English source fallback. It never translates policy, protocol values or
+diagnostics.
 
 All normal localization works offline. Catalogues are trusted package assets,
 with no runtime download, remote translation service or user-supplied catalogue.
@@ -440,7 +445,16 @@ About, help labels, feedback controls, validation, request results and user-faci
 error explanations inherit the caller's context. Error categories and diagnostic
 payloads stay stable. User-written reports, account names, filenames and external
 application names remain data. Product locale does not relabel the desktop's
-application catalogue, GDM, Polkit authentication dialog or other system-owned UI.
+application catalogue, GDM or other system-owned UI. The broker translates only
+the product-owned PolicyKit approval message through the supported
+`polkit.message` detail. Complete prompts cover requested time, rest-of-day and
+optional soft-app access; duration units use shared gettext plural rules and a
+localized list separator. The account label remains a separate validated detail
+for PolicyKit's single-pass property expansion. The normal authentication agent
+continues to own its labels, buttons and errors, using its session language.
+No custom agent or process, session or OS locale change is involved. A language
+change during authentication does not recreate the prompt or invalidate approval;
+the next request reads the latest saved selection.
 
 ## Formatting, layout and accessibility
 

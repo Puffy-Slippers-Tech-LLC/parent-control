@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
+from common.oh_no_parent_control_ui import messages as m
+from common.oh_no_parent_control_ui.localization import load_translations
+import gettext
 from .grant_diagnostics import GrantDiagnostics
 from .execution_policy import ExecutionPolicyError
 import re
@@ -80,8 +83,7 @@ class TimeStatus:
 
 class Authorizer(Protocol):
     def check(self, request_kind: str, sender: str, correlation_id: str, target_label: str,
-              approver_username: str, requested_duration: str,
-              allow_soft_blocked_apps: bool) -> str: ...
+              approver_username: str, message: str) -> str: ...
 
 
 class Accounts(Protocol):
@@ -154,17 +156,20 @@ def seconds_until_local_midnight(now: datetime) -> int:
     return seconds
 
 
-def format_requested_duration(duration_seconds: int) -> str:
-    """Return the kiosk-selected duration as concise human-readable text."""
+def format_requested_duration(duration_seconds: int, translations=None) -> str:
+    """Render validated request seconds using the child's private context."""
+    if translations is None:
+        translations = gettext.NullTranslations()
     if duration_seconds == 0:
-        return "the rest of the day"
+        return m.REST_OF_DAY.render(translations)
     hours, remainder = divmod(duration_seconds, 60 * 60)
     minutes, seconds = divmod(remainder, 60)
     parts = []
-    for value, singular in ((hours, "hour"), (minutes, "minute"), (seconds, "second")):
+    for value, message in ((hours, m.hour_count), (minutes, m.minute_count),
+                           (seconds, m.second_count)):
         if value:
-            parts.append(f"{value} {singular}{'' if value == 1 else 's'}")
-    return ", ".join(parts)
+            parts.append(message(value).render(translations))
+    return m.DURATION_LIST_SEPARATOR.render(translations).join(parts)
 
 
 class Broker:
@@ -1089,10 +1094,21 @@ class Broker:
                 kind=request_kind,
             )
 
+            language = (self.get_own_language(caller_uid) if request_kind == "child"
+                        else self.get_child_language(caller_uid, target.uid))
+            translations = load_translations(language)
+            template = (m.POLKIT_GRANT_SOFT_APPS if allow_soft_blocked_apps
+                        else m.POLKIT_GRANT)
+            # Polkit expands details once, after translation. Keep the account
+            # label in its own detail so literal $(...) in user data cannot be
+            # interpreted as message properties.
+            message = (template % {
+                "target": "$(target-account)",
+                "duration": format_requested_duration(duration_seconds, translations),
+            }).render(translations)
             outcome = self._authorizer.check(
                 request_kind, sender, correlation_id, target.label, approver.username,
-                format_requested_duration(duration_seconds),
-                allow_soft_blocked_apps,
+                message,
             )
             if outcome not in {"approved", "denied", "cancelled"}:
                 raise BackendFailure("authorizer returned an invalid outcome")

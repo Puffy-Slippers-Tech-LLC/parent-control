@@ -139,6 +139,21 @@ msgstr "Sovellusrajoitukset"
 msgid "Search installed apps"
 msgstr "Etsi asennettuja sovelluksia"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "Myönnetäänkö tilille %(target)s käyttöoikeus?\nPyydetty aika: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "Myönnetäänkö tilille %(target)s käyttöoikeus?\nPyydetty aika: %(duration)s.\nSalli ehdollisesti estetyt sovellukset tämän luvan ajaksi."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Uudelleenkäynnistys tarvitaan"
 

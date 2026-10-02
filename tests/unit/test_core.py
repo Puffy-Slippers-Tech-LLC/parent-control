@@ -223,7 +223,17 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(format_requested_duration(3 * 60 * 60 + 2 * 60), "3 hours, 2 minutes")
         self.assertEqual(format_requested_duration(60), "1 minute")
         self.assertEqual(format_requested_duration(6), "6 seconds")
-        self.assertEqual(format_requested_duration(0), "the rest of the day")
+        self.assertEqual(format_requested_duration(0), "Rest of the day")
+
+    def test_authorization_label_is_data_not_polkit_message_syntax(self):
+        accounts, authorizer = Accounts(), Authorizer("denied")
+        accounts.users[1001] = UserAccount(
+            1001, "child", "Zoë <&> $(approver-user)", False, False, True)
+        broker = make_broker(accounts=accounts, authorizer=authorizer)
+        broker.request_access(991, ":1.42", 1001, 1003, 0, False)
+        call = authorizer.calls[0]
+        self.assertEqual(call[3:5], ("Zoë <&> $(approver-user)", "admin"))
+        self.assertEqual(call[5], "Grant $(target-account) access?\nRequested time: Rest of the day.")
 
     def test_remaining_time_formula_uses_later_backend_expiry_then_adds_grant(self):
         self.assertEqual(calculate_active_extension_seconds(31 * 60, 10 * 60, 5 * 60),

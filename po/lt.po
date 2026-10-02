@@ -139,6 +139,21 @@ msgstr "Programų apribojimai"
 msgid "Search installed apps"
 msgstr "Ieškoti įdiegtų programų"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "Suteikti prieigą paskyrai %(target)s?\nPrašomas laikas: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "Suteikti prieigą paskyrai %(target)s?\nPrašomas laikas: %(duration)s.\nŠio leidimo laikotarpiu leisti programas, kurias galima laikinai atblokuoti."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Reikia paleisti iš naujo"
 

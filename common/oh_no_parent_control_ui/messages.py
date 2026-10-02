@@ -303,6 +303,13 @@ COMPACT_HOURS = gettext('%(count)dh')
 COMPACT_MINUTES = gettext('%(count)dm')
 COMPACT_SECONDS = gettext('%(count)ds')
 REST_OF_DAY = gettext('Rest of the day')
+# Translators: Product-owned PolicyKit prompt. target is an account label;
+# duration is a localized duration or the translated Rest of the day label.
+# Keep each complete prompt together; the authentication agent owns its controls.
+POLKIT_GRANT = gettext('Grant %(target)s access?\nRequested time: %(duration)s.')
+POLKIT_GRANT_SOFT_APPS = gettext('Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant.')
+# Translators: Separator between nonzero hour, minute and second duration units.
+DURATION_LIST_SEPARATOR = pgettext('duration list separator', ', ')
 SELECT_ACCOUNT = gettext('Select an account to manage')
 SELECT_ADMINISTRATOR = gettext('Select an approving administrator')
 SELECT_DURATION = gettext('Select a duration')

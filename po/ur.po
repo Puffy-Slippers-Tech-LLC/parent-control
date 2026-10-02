@@ -139,6 +139,21 @@ msgstr "ایپس کی حدود"
 msgid "Search installed apps"
 msgstr "نصب شدہ ایپس تلاش کریں"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "کیا %(target)s کو رسائی دی جائے؟\nدرخواست کردہ وقت: %(duration)s۔"
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "کیا %(target)s کو رسائی دی جائے؟\nدرخواست کردہ وقت: %(duration)s۔\nاس اجازت کی مدت میں عارضی اجازت کی اہل مسدود ایپس کو اجازت دیں۔"
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr "، "
+
 msgid "Restart required"
 msgstr "دوبارہ شروع کرنا ضروری ہے"
 

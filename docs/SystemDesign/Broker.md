@@ -169,6 +169,18 @@ duration, approver, target, and saved preference snapshot before invoking a
 dedicated interactive Polkit action.
 
 The broker supplies the selected administrator username as an action detail.
+It also supplies the complete product-owned approval message through PolicyKit's
+supported [`polkit.message` detail](https://polkit.pages.freedesktop.org/polkit/eggdbus-interface-org.freedesktop.PolicyKit1.Authority.html).
+The GTK-independent shared gettext loader uses the signed-in child's saved
+language for child requests and the selected child's saved language for kiosk
+requests. Message operands come only from broker-validated request data. Duration
+units and plurals, rest-of-day and optional soft-app access are translated across
+the supported catalogue. The account label stays in `target-account`, expanded
+once by PolicyKit after translation so user data is not interpreted as properties.
+Empty/unsupported selections and missing entries preserve the shared loader's
+English fallback without consulting the root service locale. Agent-owned
+authentication labels, buttons and errors retain their normal session language;
+see [localization ownership](Localization.md#responsibilities-and-language-ownership).
 The installed Polkit administrator rule restricts the challenge to exactly that
 identity, so the standard agent shows one password prompt without a second
 identity-selection page. The action uses `auth_admin`, implies no AccountsService

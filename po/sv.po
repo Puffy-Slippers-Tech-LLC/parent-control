@@ -139,6 +139,21 @@ msgstr "Appbegränsningar"
 msgid "Search installed apps"
 msgstr "Sök bland installerade appar"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "Ge %(target)s åtkomst?\nBegärd tid: %(duration)s."
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "Ge %(target)s åtkomst?\nBegärd tid: %(duration)s.\nTillåt mjukt blockerade appar under detta tillstånd."
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "Omstart krävs"
 

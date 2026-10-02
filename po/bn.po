@@ -139,6 +139,21 @@ msgstr "অ্যাপের সীমা"
 msgid "Search installed apps"
 msgstr "ইনস্টল করা অ্যাপ খুঁজুন"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "%(target)s-কে প্রবেশাধিকার দেবেন?\nঅনুরোধ করা সময়: %(duration)s।"
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "%(target)s-কে প্রবেশাধিকার দেবেন?\nঅনুরোধ করা সময়: %(duration)s।\nএই অনুমতির সময় সাময়িকভাবে অনুমতিযোগ্য অবরুদ্ধ অ্যাপ ব্যবহারের অনুমতি দিন।"
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr ", "
+
 msgid "Restart required"
 msgstr "পুনরায় চালু করা প্রয়োজন"
 

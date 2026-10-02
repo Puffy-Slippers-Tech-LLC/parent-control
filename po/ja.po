@@ -15,6 +15,21 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+#. Complete product-owned PolicyKit authorization prompt.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s."
+msgstr "%(target)s にアクセスを許可しますか？\nリクエストされた時間：%(duration)s。"
+
+#. Complete prompt including temporary access to soft blocked apps.
+#, python-format
+msgid "Grant %(target)s access?\nRequested time: %(duration)s.\nAllow soft blocked apps for this grant."
+msgstr "%(target)s にアクセスを許可しますか？\nリクエストされた時間：%(duration)s。\nこの許可の期間中は一時的にブロックを解除できるアプリを許可します。"
+
+#. Separator between nonzero duration units.
+msgctxt "duration list separator"
+msgid ", "
+msgstr "、"
+
 msgid "Restart required"
 msgstr "再起動が必要です"
 

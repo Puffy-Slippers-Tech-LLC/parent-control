@@ -230,6 +230,10 @@ from regression_ui import Bucket
 # lifetimes; no new module, shared resource or cleanup classification is needed.
 # Shell prompt tests use process-local protected-tree/session doubles, private
 # recorder files and bounded waited Perl children; no live VM, GUI or shared state.
+# Shell approval extends these existing modules with protected field doubles,
+# private recorder evidence and waited Perl workers; classifications still hold.
+# Approval readiness streams and Enter acknowledgements reuse those private
+# files and synchronous doubles; no observer thread, live bus or shared owner.
 REVIEWED = frozenset("""
 localization
 e2e_overlay_prompt

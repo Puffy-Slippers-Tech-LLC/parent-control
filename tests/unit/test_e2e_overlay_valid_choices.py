@@ -17,6 +17,7 @@ from installed_journey import JourneyPlan, matched_screens
 from overlay_valid_choices import PLAN, OverlayValidChoicesJourney
 from overlay_choices import PLAN as CHOICES_PLAN, OverlayChoicesJourney
 from overlay_prompt import PLAN as PROMPT_PLAN, OverlayPromptJourney
+from overlay_approved_exit import PLAN as APPROVED_PLAN, OverlayApprovedExitJourney
 from overlay_license import PLAN as LICENSE_PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN, OverlayLicenseJourney
 from overlay_about import PLAN as ABOUT_CASE_PLAN
 from request_flow import prepared_request
@@ -32,6 +33,7 @@ from ui_observations import UiObservations, RequestObservation, OPERATION_LABELS
 @pytest.mark.parametrize('plan,journey_type', [(PLAN, OverlayValidChoicesJourney),
                                             (CHOICES_PLAN, OverlayChoicesJourney),
                                             (PROMPT_PLAN, OverlayPromptJourney),
+                                            (APPROVED_PLAN, OverlayApprovedExitJourney),
                                             (LICENSE_PLAN, OverlayLicenseJourney),
                                             (BROWSER_LINKS_PLAN, OverlayLicenseJourney),
                                             (INFORMATION_PLAN, OverlayLicenseJourney)])
@@ -290,7 +292,7 @@ def test_real_recorder_step_compares_renamed_activity_before_reply(tmp_path, fau
 
 
 @pytest.mark.parametrize('plan,fault', [(plan, fault) for plan in (
-    PLAN, CHOICES_PLAN, PROMPT_PLAN, LICENSE_PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN, ABOUT_CASE_PLAN)
+    PLAN, CHOICES_PLAN, PROMPT_PLAN, APPROVED_PLAN, LICENSE_PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN, ABOUT_CASE_PLAN)
                                       for fault in ('', *plan.screen_tags)])
 def test_actual_worker_order_titles_and_failure_stop(tmp_path, plan, fault):
     program = r'''
@@ -311,7 +313,11 @@ no warnings 'redefine';
 *onpc_journey::finish = sub { push @events, ['finish'] };
 my $ok = eval {
     onpc_request_flow::overlay_valid_choices(sub {
-        my ($stage) = @_; push @events, ['seen', $stage]; die 'refused' if $stage eq $fault;
+        my ($stage, $shot, $input) = @_; push @events, ['seen', $stage]; die 'refused' if $stage eq $fault;
+        if (defined($input)) {
+            $input->({stage => $stage, token => 'a' x 32, source => 'a' x 64,
+                       child => 'child', binding => 'overlay-approve', values => ['ret']});
+        }
         my $reply = {observed => $stage, ($stage =~ /(?:greeter|picker-opened)$/ ? (ui_focused => JSON::PP::true) : ())};
         for my $id (keys %$challenges) {
             my ($role, $first, $second) = @{$challenges->{$id}};
@@ -329,6 +335,10 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     if plan is ABOUT_CASE_PLAN:
         program = program.replace('require onpc_request_flow;', 'require onpc_parent_about;').replace(
             'onpc_request_flow::overlay_valid_choices(', 'onpc_parent_about::run_overlay(')
+    elif plan is APPROVED_PLAN:
+        program = program.replace('onpc_request_flow::overlay_valid_choices(',
+                                  'onpc_request_flow::overlay_prompt(').replace(
+                                      '}, $declared, $challenges);', '}, $declared, $challenges, "approval");')
     else:
         program = program.replace('onpc_request_flow::overlay_valid_choices(',
                                   'onpc_request_flow::' + plan.worker_mode + '(')
@@ -349,7 +359,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         (tmp_path / 'testresults').mkdir()
         (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
         assert len(matched_screens(tmp_path, plan, observations)) == len(expected)
-        assert sum(event[0] == 'password' for event in result['events']) == 2
+        assert sum(event[0] == 'password' for event in result['events']) == (3 if plan is APPROVED_PLAN else 2)
         assert [event[1] for event in result['events'] if event[0] == 'text'] == (
             ['1.25', '1.25', '0.09'] if plan is CHOICES_PLAN else ['1.25'])
         if plan is CHOICES_PLAN:

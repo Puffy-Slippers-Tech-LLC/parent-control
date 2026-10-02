@@ -236,6 +236,7 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
                                      'check_e2e_native_grid_usable', 'check_e2e_native_grid_usable.py',
                                      'check_e2e_native_app', 'check_e2e_native_app.py',
                                      'check_e2e_app_activity', 'check_e2e_app_activity.py',
+                                     'check_e2e_overlay_approved_exit', 'check_e2e_overlay_approved_exit.py',
                                      'check_e2e_read_overlay_about_and_links',
                                      'check_e2e_read_overlay_about_and_links.py'])
 def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, selector):
@@ -250,6 +251,7 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
         commands.python_file(ROOT, 'tools/build_test_artifacts.py', '--output', str(output)))
     if selector.startswith(('check_e2e_native_fixtures', 'check_e2e_native_grid_usable',
                             'check_e2e_native_app', 'check_e2e_app_activity',
+                            'check_e2e_overlay_approved_exit',
                             'check_e2e_match_editor', 'check_e2e_policy',
                             'check_e2e_read_overlay_about_and_links')):
         named.assert_called_once_with(fixture_source=True)
@@ -261,7 +263,9 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_read_overlay_about_and_links',
-                                     'check_e2e_read_overlay_about_and_links.py'])
+                                     'check_e2e_read_overlay_about_and_links.py',
+                                     'check_e2e_overlay_approved_exit',
+                                     'check_e2e_overlay_approved_exit.py'])
 def test_overlay_information_reuses_valid_existing_fixture_inputs(monkeypatch, selector):
     import test_storage
     output = ROOT / 'output/test-runs/host/allocations/onpc-overlay-information-input'

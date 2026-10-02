@@ -32,6 +32,7 @@ import kiosk_about
 import overlay_about
 import mate_prompt
 import overlay_prompt
+import overlay_approved_exit
 import kiosk_multiple
 import kiosk_approval
 import auth_result
@@ -253,7 +254,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  kiosk_multiple.INELIGIBLE_PLAN, kiosk_multiple.INELIGIBLE_CASE_PLAN,
                                  restricted_station_about.PLAN, fresh_thirty_allowance.PLAN,
                                  fresh_thirty_allowance.JORDAN_PLAN, kiosk_about.PLAN, overlay_about.PLAN,
-                                 overlay_prompt.PLAN, INTERVAL_RECORDER_PLAN],
+                                 overlay_prompt.PLAN, overlay_approved_exit.PLAN, INTERVAL_RECORDER_PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -274,7 +275,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',
                               'flow-rejection', 'flow-cancel', 'kiosk-multiple', 'multiple-case',
                               'ineligible-profile', 'ineligible-case', 'station-about', 'fresh-thirty-allowance',
-                              'jordan-thirty-allowance', 'station-about-case', 'overlay-about-case', 'overlay-prompt', 'real-interval'])
+                              'jordan-thirty-allowance', 'station-about-case', 'overlay-about-case', 'overlay-prompt', 'overlay-approved-exit', 'real-interval'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, journey_inventory, plan, failure):
@@ -461,7 +462,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 'observed_monotonic_ns': len(boot_bindings)}
         if plan in (fresh_child_allowed.PLAN, fresh_child_denied.PLAN,
                     countdown_qualification.PLAN, countdown_qualification.OFF_PLAN,
-                    shell_panel.PLAN, overlay_prompt.PLAN) and state['stage'] == 'allowance-configured':
+                    shell_panel.PLAN, overlay_prompt.PLAN, overlay_approved_exit.PLAN) and state['stage'] == 'allowance-configured':
             seconds = 0 if plan is fresh_child_denied.PLAN else 900
             text = '15 minutes' if seconds else '0 seconds'
             result['time_explanation'] = {
@@ -532,7 +533,12 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                     'observed_monotonic_ns': 2_000_000_000}
             if operation == 'child-countdown-present':
                 result['countdown'].update(text='00:16', observed_monotonic_ns=12_000_000_000)
-        if plan in (overlay_about.PLAN, overlay_prompt.PLAN):
+        if plan is overlay_approved_exit.PLAN and operation == 'overlay-native-activity':
+            result['activity'] = {'binding': 'native-primary', 'pid': 123,
+                'endpoint': [':1.2', '/fixture'], 'state': {
+                    'draft': 'ONPC fixture draft', 'submitted': 'ONPC fixture draft',
+                    'score': 'Moves: 0; token: 0'}}
+        if plan in (overlay_about.PLAN, overlay_prompt.PLAN, overlay_approved_exit.PLAN):
             if operation == 'time-explanation-setup-thirty-read':
                 result['time_explanation'] = {'child': 'fixture-child',
                     'daily': {'seconds': 1800, 'precision_seconds': 1},
@@ -544,7 +550,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 result['valid_choice'] = {'request': {'surface': 'child-overlay',
                     'child': 'fixture-child', 'approver': 'fixture-parent',
                     'duration_seconds': seconds, 'custom_text': custom, 'allow_soft': soft},
-                    'estimate': {'kind': 'fixed', 'seconds': (900 if plan is overlay_prompt.PLAN else 1800) + seconds},
+                    'estimate': {'kind': 'fixed', 'seconds': (1800 if plan is overlay_about.PLAN else 900) + seconds},
                     'observed_monotonic_ns': 2_000_000_000}
         return result
     def accessibility_input(operation, terminal, mode='checked', *, worker_input=None, child=None):
@@ -558,7 +564,16 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
             {'stage': state['stage'], 'token': token}))
         return {**observe_ui('parent-custom-save-trace'), 'token': token}
 
+    def shell_success(worker_input):
+        worker_input('a' * 32, 'a' * 64)
+        proof = json.loads((directory / (state['stage'] + '.input.json')).read_bytes())
+        assert proof['binding'] == 'overlay-approve' and proof['values'] == ['ret']
+        (directory / (state['stage'] + '.input-done.json')).write_text(json.dumps(
+            {'stage': state['stage'], 'token': 'a' * 32}))
+        return observe_ui('overlay-approval-success')
+
     ui_observer = SimpleNamespace(
+        observe_shell_success=shell_success, shell_approval_identity='a' * 64,
         boot_proof='b' * 64, observe=observe_ui,
         start_trace=lambda binding=None: {**observe_ui('feedback-trace-start'), 'token': 'a' * 32, 'ready': True},
         poll_trace=Mock(),
@@ -692,6 +707,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         fresh_thirty_allowance.FreshThirtyAllowanceJourney
                         if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN)
                         else overlay_prompt.OverlayPromptJourney if plan is overlay_prompt.PLAN
+                        else overlay_approved_exit.OverlayApprovedExitJourney if plan is overlay_approved_exit.PLAN
                         else kiosk_approved.KioskRequestJourney if plan is kiosk_approved.PLAN
                         else journeys.InstalledJourney)
         if failure:

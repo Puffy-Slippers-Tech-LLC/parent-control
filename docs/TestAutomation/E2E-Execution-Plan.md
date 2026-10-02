@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **048d — [Qualify overlay approval and automatic return](E2E-Tasks/048d-overlay-approved-exit.md)**.
+Next task: **048f — [Observe overlay password rejection and Cancel](E2E-Tasks/048f-overlay-rejection.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

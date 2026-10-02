@@ -33,6 +33,11 @@ RESPONSE_BYTE_LIMITS = {
 OPERATION_LABELS = {
     'overlay-shell-cancel-ready': 'Qualifying the real Shell request and fresh Cancel recipient',
     'overlay-shell-dismissed': 'Independently requiring Shell challenge disappearance',
+    'overlay-shell-open': 'Opening and qualifying the declared Shell approval challenge',
+    'overlay-shell-qualified': 'Freshly qualifying the Shell password recipient',
+    'overlay-shell-rechecked': 'Rechecking the same empty Shell password recipient',
+    'overlay-shell-submit-ready': 'Guarding one submission to the filled Shell challenge',
+    'overlay-approval-success': 'Reading explicit approval before automatic overlay exit',
     **{operation: 'Checking the intended child graphical login recipient'
        for operation in accessible_ui.CHILD_GREETER_OPERATIONS},
     'fresh-child-desktop': 'Independently observing the usable intended child desktop',
@@ -773,11 +778,44 @@ class UiObservations:
         print(line, file=sys.stderr, flush=True)
         watch_activity.event(line)
 
+    def observe_shell_success(self, worker_input):
+        """Keep the owned observer live while releasing one guarded Enter."""
+        require(callable(worker_input) and not getattr(self, 'shell_success_input', None),
+                'ui:shell-input-binding')
+        self.shell_success_input = worker_input
+        self.shell_success_ready = False
+        try:
+            result = self.observe('overlay-approval-success')
+            require(self.shell_success_ready, 'ui:shell-input-missing')
+            return result
+        except BaseException:
+            self.challenge_failed = True
+            raise
+        finally:
+            self.shell_success_input = None
+
+    def shell_success_readiness(self, value):
+        import time
+        require(not self.challenge_failed and callable(getattr(self, 'shell_success_input', None))
+                and not self.shell_success_ready
+                and value == {'event': 'overlay-approval-ready',
+                              'challenge_id': self.shell_approval_identity,
+                              'boot_sha256': self.boot_guard}
+                and bool(self.boot_guard)
+                and time.monotonic() - self.shell_approval_checked < 30,
+                'ui:shell-input-readiness')
+        self.shell_success_ready = True  # Consume before durable publication.
+        token = self.shell_approval_identity[:32]
+        self.trace_sink(token, 0, value)
+        require(time.monotonic() - self.shell_approval_checked < 30, 'ui:shell-stale-proof')
+        self.shell_success_input(token, self.shell_approval_identity)
+
     def call(self, argv, operation, *, input=None):
         # Overlay readback uses the same form reader and diagnostic stream as
         # the station, while retaining its separate child-session binding.
         form_diagnostics = (operation in accessible_ui.KIOSK_SESSION_OPERATIONS
                             or operation in accessible_ui.SHELL_PROMPT_OPERATIONS
+                            or operation in accessible_ui.SHELL_APPROVAL_OPERATIONS
                             or operation in accessible_ui.OVERLAY_VALID_OPERATIONS
                             or operation in accessible_ui.OVERLAY_INVALID_OPERATIONS
                             or operation in ('overlay-request-form', 'overlay-panel-reveal-ready'))
@@ -811,7 +849,11 @@ class UiObservations:
                 line, _, rest = pending.partition(b'\n')
                 pending[:] = rest
                 value = json.loads(line)
-                if type(value) is dict and value.get('event') == 'accessibility-trace-ready':
+                if type(value) is dict and value.get('event') == 'overlay-approval-ready':
+                    require(operation == 'overlay-approval-success' and not results,
+                            'ui:shell-input-readiness')
+                    self.shell_success_readiness(value)
+                elif type(value) is dict and value.get('event') == 'accessibility-trace-ready':
                     require(event_trace and not results, 'ui:trace-readiness')
                     self.accessibility_ready(value)
                 elif type(value) is dict and value.get('event') == 'kiosk-form-observation':
@@ -862,6 +904,20 @@ class UiObservations:
         require(operation in accessible_ui.OPERATIONS, 'ui:operation')
         with watch_activity.operation(OPERATION_LABELS[operation]):
             try:
+                shell_index = getattr(self, 'shell_approval_index', 0)
+                if 0 < shell_index < len(accessible_ui.SHELL_APPROVAL_ORDER):
+                    require(operation in accessible_ui.SHELL_APPROVAL_OPERATIONS,
+                            'ui:shell-intervening-operation')
+                if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS:
+                    require(not self.challenge_failed, 'ui:challenge-previous-failure')
+                    order = accessible_ui.SHELL_APPROVAL_ORDER
+                    require(shell_index < len(order) and operation == order[shell_index],
+                            'ui:shell-order')
+                    if shell_index:
+                        require(time.monotonic() - self.shell_approval_checked < 30,
+                                'ui:shell-stale-proof')
+                    self.shell_approval_index = shell_index + 1
+                    self.shell_approval_checked = time.monotonic()
                 if 0 < getattr(self, 'mate_approval_index', 0) < 4:
                     if operation not in accessible_ui.MATE_APPROVAL_OPERATIONS:
                         self.challenge_failed = True
@@ -891,11 +947,18 @@ class UiObservations:
                 if operation in accessible_ui.MATE_OPERATIONS | accessible_ui.SHELL_PROMPT_OPERATIONS:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
                 result = self._observe(operation, **({'child': child} if child else {}))
+                if operation == 'overlay-shell-open':
+                    # Opening includes request submission, prompt discovery and
+                    # refusal qualification. It grants no password authority;
+                    # age the forthcoming recipient proofs from this completed
+                    # boundary, retaining their own acquisition-start clocks.
+                    self.shell_approval_checked = time.monotonic()
                 self.last_mate_operation = operation
                 return result
             except BaseException:
                 if operation in (accessible_ui.MATE_OPERATIONS | accessible_ui.MATE_APPROVAL_OPERATIONS
-                                 | accessible_ui.SHELL_PROMPT_OPERATIONS):
+                                 | accessible_ui.SHELL_PROMPT_OPERATIONS | accessible_ui.SHELL_APPROVAL_OPERATIONS
+                                 ) or 0 < getattr(self, 'shell_approval_index', 0) < len(accessible_ui.SHELL_APPROVAL_ORDER):
                     self.challenge_failed = True
                 raise
 
@@ -956,6 +1019,8 @@ class UiObservations:
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation not in (
                 'kiosk-mate-open', 'kiosk-mate-rejection-open'):
             binding = [self.boot_guard or '', self.mate_approval_identity]
+        if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation != 'overlay-shell-open':
+            binding = [self.boot_guard or '', self.shell_approval_identity]
         if self.accessibility_trace is not None:
             trace = self.accessibility_trace
             require(operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',
@@ -1120,6 +1185,29 @@ class UiObservations:
                     self.mate_approval_identity = value['challenge_id']
                 else:
                     require(value['challenge_id'] == self.mate_approval_identity, 'ui:mate-replacement')
+            expected['approval'] = value
+        if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'approval'}, 'ui:shell-response')
+            value = result['approval']
+            if operation == 'overlay-approval-success':
+                require(value == {'approved': True, 'form_success': True}
+                        and all(type(item) is bool for item in value.values()), 'ui:shell-result')
+            else:
+                opening = operation == 'overlay-shell-open'
+                require(type(value) is dict and set(value) == (
+                    {'challenge_id', 'provider', 'rejected_proofs'} if opening else {'challenge_id'}),
+                    'ui:shell-response')
+                identity = value['challenge_id']
+                require(type(identity) is str and re.fullmatch(r'[0-9a-f]{64}', identity), 'ui:shell-identity')
+                if opening:
+                    accessible_ui.validate_shell_metadata(value['provider'])
+                    require(value['rejected_proofs'] == list(accessible_ui.SHELL_PROMPT_REFUSALS),
+                            'ui:shell-refusals')
+                    require(identity not in self.challenges, 'ui:challenge-replay')
+                    self.challenges.add(identity)
+                    self.shell_approval_identity = identity
+                else:
+                    require(identity == self.shell_approval_identity, 'ui:shell-replacement')
             expected['approval'] = value
         if operation == 'parent-initial-selection':
             require(type(result) is dict and set(result) == {*expected, 'selection'}

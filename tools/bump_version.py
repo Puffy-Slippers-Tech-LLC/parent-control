@@ -4,11 +4,14 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date, datetime, timezone
+from email.utils import format_datetime
 import json
 import os
 import re
 import subprocess
 import tempfile
+import textwrap
 from pathlib import Path
 
 
@@ -19,6 +22,93 @@ VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 
 class VersionError(ValueError):
     """The requested release violates the repository version policy."""
+
+
+def history_notes(text: str, *, allow_draft: bool = False) -> tuple[str, str]:
+    """Read descending release records; only the newest may be an undated draft."""
+    headings = list(re.finditer(r'^## (.+)$', text, re.M))
+    if len(headings) < 2:
+        raise VersionError('VersionHistory.md needs at least two ## vX.Y — YYYY-MM-DD entries')
+    versions = []
+    for index, heading in enumerate(headings):
+        match = re.fullmatch(r'v([0-9]+\.[0-9]+) (?:—|-) ([0-9]{4}-[0-9]{2}-[0-9]{2})', heading[1])
+        draft = (re.fullmatch(r'v([0-9]+\.[0-9]+)(?: (?:—|-))?', heading[1].strip())
+                 if allow_draft and index == 0 else None)
+        if match is None and draft is None:
+            raise VersionError('invalid VersionHistory.md heading; expected ## vX.Y — YYYY-MM-DD')
+        version = (match or draft)[1]
+        versions.append((version, parse_product_version(version)))
+        if match:
+            try:
+                date.fromisoformat(match[2])
+            except ValueError as error:
+                raise VersionError('invalid VersionHistory.md date') from error
+    if any(a[1] <= b[1] for a, b in zip(versions, versions[1:])):
+        raise VersionError('VersionHistory.md versions must be unique and newest first')
+    body = text[headings[0].end():headings[1].start()].strip()
+    if not re.search(r'^[-*] \S', body, re.M):
+        raise VersionError('new version entry needs at least one change bullet')
+    if any(ord(char) < 32 and char not in '\n\t' for char in body) or '\x7f' in body:
+        raise VersionError('version notes contain control characters')
+    return versions[0][0], body
+
+
+def format_changelog(version: str, body: str,
+                     name: str = 'Puffy Slippers Tech LLC',
+                     email: str = 'dev@tech.puffyslippers.com') -> str:
+    lines = []
+    for line in body.splitlines():
+        line = re.sub(r'^#{3,6}\s+', '', line.strip())
+        line = line.replace('**', '').replace('`', '')
+        if not line:
+            lines.append('')
+            continue
+        bullet = bool(re.match(r'^[-*]\s+', line))
+        line = re.sub(r'^[-*]\s+', '', line)
+        lines.extend(textwrap.wrap(line, width=78, initial_indent='  * ' if bullet else '  ',
+                                   subsequent_indent='    ', break_long_words=False,
+                                   break_on_hyphens=False))
+    stamp = format_datetime(datetime.now(timezone.utc))
+    return (f'oh-no-parent-control ({version}) resolute; urgency=medium\n\n'
+            + '\n'.join(lines) + f'\n\n -- {name} <{email}>  {stamp}\n\n')
+
+
+def update_from_history(root: Path, text: str | None = None) -> str:
+    """Prepare private metadata, without publishing or advancing an existing release."""
+    product, notes = history_notes(
+        text if text is not None else (root / 'docs/VersionHistory.md').read_text(encoding='utf-8'),
+        allow_draft=True)
+    metadata = root / 'data/app.json'
+    current = json.loads(metadata.read_text(encoding='utf-8'))
+    if not isinstance(current, dict) or set(current) != {'version'}:
+        raise VersionError('app metadata must contain only the product version')
+    if parse_product_version(product) < parse_product_version(current['version']):
+        raise VersionError('VersionHistory.md must not downgrade the current app version')
+    changelog = root / 'debian/changelog'
+    previous = changelog.read_text(encoding='utf-8')
+    header = re.match(r'oh-no-parent-control \(([^)]+)\) ', previous)
+    if header is None:
+        raise VersionError('invalid Debian changelog header')
+    old = header[1]
+    if not (old == current['version'] or old.startswith(current['version'] + '+')):
+        raise VersionError('Debian package version must equal the product version or add a + suffix')
+    private = f'{product}+local1~ubuntu26.04.1'
+    if product == current['version'] and old != private:
+        print(f'Version {product} already prepared; retaining package version {old}.')
+        return product
+    entry = format_changelog(private, notes)
+    if old == private:
+        # Refresh candidate notes, but preserve timestamps for unchanged inputs.
+        end = re.search(r'^ -- .*\n(?:\n|$)', previous, re.M)
+        if end is None:
+            raise VersionError('invalid Debian changelog trailer')
+        if previous[:end.start()] == entry[:entry.rindex('\n -- ') + 1]:
+            return product
+        previous = previous[end.end():]
+    replace_text_atomically(changelog, entry + previous)
+    replace_text_atomically(metadata, staged_metadata(product))
+    print(f'Prepared private product {product} ({private}).')
+    return product
 
 
 def parse_product_version(value: object) -> tuple[int, int]:
@@ -109,6 +199,8 @@ def main() -> int:
         description="Prepare an increasing x.y product release."
     )
     parser.add_argument("version", nargs="?", help="new product version in x.y form")
+    parser.add_argument('--latest', action='store_true',
+                        help='prepare the latest VersionHistory.md version for private builds')
     parser.add_argument(
         "--check", action="store_true",
         help="verify that product and Debian package versions agree",
@@ -119,7 +211,11 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        if args.check:
+        if args.latest:
+            if args.check or args.version is not None or args.change is not None:
+                raise VersionError('--latest does not accept other options')
+            update_from_history(ROOT)
+        elif args.check:
             if args.version is not None or args.change is not None:
                 raise VersionError("--check does not accept a version or change message")
             check_repository()

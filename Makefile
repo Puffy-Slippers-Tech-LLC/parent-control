@@ -135,13 +135,17 @@ PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.
 	rpm/oh-no-parent-control.spec.in rpm/Containerfile
 PACKAGE_SOURCE_FILES += tools/export_messages.py
 
-.PHONY: publish bump-version build install installdeb installrpm uninstalldeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: publish updateversion bump-version build install installdeb installrpm uninstalldeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
 
 bump-version:
 	@test -n "$(VERSION)" || (echo 'Usage: make bump-version VERSION=x.y [CHANGE="description"]' >&2; exit 2)
 	@$(PYTHON) tools/bump_version.py "$(VERSION)" $(if $(CHANGE),--change "$(CHANGE)",)
+
+updateversion:
+	@$(PYTHON) -B tools/bump_version.py --latest
+	@$(MAKE) --no-print-directory build PACKAGE_FORMAT=both
 
 .PHONY: package-source-files
 .PHONY: watch

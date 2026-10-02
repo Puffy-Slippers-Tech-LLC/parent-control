@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.mark.parametrize('release_date,expected_version', [
     (' — 2026-09-11', '1.1'), (' - 2026-09-11', '1.1'),
-    ('', '1.0'), (' -', '1.0'), (' —', '1.0'),
+    ('', '1.1'), (' -', '1.1'), (' —', '1.1'),
 ])
 def test_snapshot_includes_working_changes_and_prepares_history_without_mutating_checkout(
         tmp_path, release_date, expected_version):
@@ -54,10 +54,11 @@ def test_snapshot_includes_working_changes_and_prepares_history_without_mutating
     assert not (copied / 'tests').exists()
     assert not (copied / 'tools').exists()
     assert json.loads((copied / 'data/app.json').read_text())['version'] == expected_version
-    if expected_version == '1.0':
-        assert (copied / 'debian/changelog').read_bytes() == (root / 'debian/changelog').read_bytes()
+    assert (copied / 'debian/changelog').read_text().startswith(
+        'oh-no-parent-control (1.1+local1~ubuntu26.04.1)')
+    if not release_date.endswith('2026-09-11'):
         with pytest.raises(ValueError, match='invalid VersionHistory.md heading'):
-            publish.history_entry((root / 'docs/VersionHistory.md').read_text(), '1.0')
+            publish.history_entry((root / 'docs/VersionHistory.md').read_text(), '1.1')
     assert json.loads((root / 'data/app.json').read_text())['version'] == '1.0'
     assert publish.command('git', 'status', '--porcelain', cwd=root) == before
     assert publish.command('git', 'status', '--porcelain', cwd=copied) == ''

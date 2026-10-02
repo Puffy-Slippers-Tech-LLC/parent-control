@@ -98,20 +98,22 @@ or Git configuration. Missing system prerequisites still require normal setup.
 ## Build and install locally
 
 ```sh
-make check-release-version
-make build
+make updateversion
 ```
 
-`make build` builds Debian and Fedora RPM packages in parallel from one frozen
+`make updateversion` prepares the latest product version from
+`docs/VersionHistory.md` and builds Debian and Fedora RPM packages in parallel from one frozen
 source snapshot. Outputs are under `output/deb/` and `output/rpm/`. Both backend
 prerequisites are required; failure in either makes the command fail while
-retaining successful artifacts. Run tests separately. See
+retaining successful artifacts. `make build` rebuilds the current version.
+Run tests separately. See [Publishing](docs/Publishing.md) for private upgrade
+testing and publication without another product-version bump, and
 [Fedora packaging](docs/Fedora-Packaging.md) for prerequisites, focused commands,
 local VM qualification and the future COPR recipe.
 
 | Task | Command |
 | --- | --- |
-| Install the built package on this machine | `make installdeb` |
+| Install the built package on a test machine | `make install` |
 | Remove the installed package | `make uninstalldeb` |
 | Package the child extension separately | `make pack-extension` |
 | Install the development extension for the current user | `./setup.sh --install-extension` |

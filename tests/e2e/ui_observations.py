@@ -31,6 +31,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'overlay-shell-cancel-ready': 'Qualifying the real Shell request and fresh Cancel recipient',
+    'overlay-shell-dismissed': 'Independently requiring Shell challenge disappearance',
     **{operation: 'Checking the intended child graphical login recipient'
        for operation in accessible_ui.CHILD_GREETER_OPERATIONS},
     'fresh-child-desktop': 'Independently observing the usable intended child desktop',
@@ -775,6 +777,7 @@ class UiObservations:
         # Overlay readback uses the same form reader and diagnostic stream as
         # the station, while retaining its separate child-session binding.
         form_diagnostics = (operation in accessible_ui.KIOSK_SESSION_OPERATIONS
+                            or operation in accessible_ui.SHELL_PROMPT_OPERATIONS
                             or operation in accessible_ui.OVERLAY_VALID_OPERATIONS
                             or operation in accessible_ui.OVERLAY_INVALID_OPERATIONS
                             or operation in ('overlay-request-form', 'overlay-panel-reveal-ready'))
@@ -885,13 +888,14 @@ class UiObservations:
                         require(time.monotonic() - self.mate_approval_checked < 30, 'ui:mate-stale-proof')
                     self.mate_approval_index = index + 1
                     self.mate_approval_checked = time.monotonic()
-                if operation in accessible_ui.MATE_OPERATIONS:
+                if operation in accessible_ui.MATE_OPERATIONS | accessible_ui.SHELL_PROMPT_OPERATIONS:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
                 result = self._observe(operation, **({'child': child} if child else {}))
                 self.last_mate_operation = operation
                 return result
             except BaseException:
-                if operation in accessible_ui.MATE_OPERATIONS | accessible_ui.MATE_APPROVAL_OPERATIONS:
+                if operation in (accessible_ui.MATE_OPERATIONS | accessible_ui.MATE_APPROVAL_OPERATIONS
+                                 | accessible_ui.SHELL_PROMPT_OPERATIONS):
                     self.challenge_failed = True
                 raise
 
@@ -1490,6 +1494,22 @@ class UiObservations:
                     and result['save'] == accessible_ui.PARENT_SAVE_OPERATIONS[operation],
                     'ui:parent-save-response')
             expected['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
+        if operation in accessible_ui.SHELL_PROMPT_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'shell_prompt'}, 'ui:shell-response')
+            value = result['shell_prompt']
+            projection = {'child': 'fixture-child', 'approver': 'fixture-parent',
+                          'duration_seconds': 75, 'allow_soft': True, 'cancel_ready': True,
+                          'same_challenge_rechecked': True,
+                          'rejected_proofs': list(accessible_ui.SHELL_PROMPT_REFUSALS)}
+            require(type(value) is dict and set(value) == {*projection, 'provider', 'challenge_id'}
+                    and all(value[key] == item and type(value[key]) is type(item)
+                            for key, item in projection.items()), 'ui:shell-response')
+            accessible_ui.validate_shell_metadata(value['provider'])
+            identity = value['challenge_id']
+            require(type(identity) is str and re.fullmatch(r'[0-9a-f]{64}', identity), 'ui:challenge')
+            require(not self.challenge_failed and identity not in self.challenges, 'ui:challenge-replay')
+            self.challenges.add(identity)
+            expected['shell_prompt'] = value
         if operation in accessible_ui.MATE_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'mate'}, 'ui:mate-response')
             value = result['mate']

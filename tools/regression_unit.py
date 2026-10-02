@@ -222,8 +222,11 @@ from regression_ui import Bucket
 # bounded reaped Perl workers, with no live VM/display or shared mutable state.
 # Website/privacy reader and worker-order matrices extend those same private
 # lifetimes; no new module, shared resource or cleanup classification is needed.
+# Shell prompt tests use process-local protected-tree/session doubles, private
+# recorder files and bounded waited Perl children; no live VM, GUI or shared state.
 REVIEWED = frozenset("""
 localization
+e2e_overlay_prompt
 e2e_shell_panel
 e2e_overlay_valid_choices
 e2e_overlay_license

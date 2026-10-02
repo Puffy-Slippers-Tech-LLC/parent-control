@@ -333,6 +333,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_shell_panel'], ['check_e2e_shell_panel.py'],
             ['check_e2e_overlay_valid_choices'], ['check_e2e_overlay_valid_choices.py'],
             ['check_e2e_overlay_choices'], ['check_e2e_overlay_choices.py'],
+            ['check_e2e_overlay_prompt'], ['check_e2e_overlay_prompt.py'],
             ['check_e2e_overlay_license'], ['check_e2e_overlay_license.py'],
             ['check_e2e_overlay_browser_links'], ['check_e2e_overlay_browser_links.py'],
             ['check_e2e_read_overlay_about_and_links'], ['check_e2e_read_overlay_about_and_links.py'],

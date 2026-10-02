@@ -113,6 +113,41 @@ sub enter_kiosk_mate_password {
     return 1;
 }
 
+# Separate fixed Shell authority: Cancel qualification grants no secret input.
+# Same sealed leaf and terminal latch; two durable fresh controller proofs are
+# consumed in order and the final reply is consumed before reading the secret.
+sub enter_overlay_shell_password {
+    onpc_progress::operation('Qualifying the overlay approval password recipient');
+    my ($journey) = @_;
+    die "secret:input-refused\n" if $failed;
+    my $ok = eval {
+        my $id = 'overlay-shell-approval';
+        die 'secret:challenge' unless @_ == 1 && ref($journey) eq 'onpc_journey'
+            && ($journey->{prefix} // '') eq 'overlay-approved-exit'
+            && !$journey->{review} && !$challenges_used{$id};
+        $challenges_used{$id} = 1;
+        $authentication_started = $functional_started = $functional_input_started = 1;
+        die 'secret:console' unless testapi::current_console() eq 'sut';
+        die 'secret:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
+        my $proof;
+        for my $stage ('approval-qualified', 'approval-rechecked') {
+            $proof = $journey->seen($stage);
+            die 'secret:recipient' unless ref($proof) eq 'HASH' && keys(%$proof) == 1
+                && ($proof->{observed} // '') eq $stage;
+        }
+        $active_challenge = {journey => $journey, id => $id, role => 'parent',
+                             stage => 'approval-rechecked', proof => $proof};
+        type_fixture_secret('parent', $journey, $proof, $id);
+        1;
+    };
+    unless ($ok) {
+        $failed = 1;
+        undef $active_challenge;
+        die "secret:input-failed\n";
+    }
+    return 1;
+}
+
 sub enter_standard_gdm_password {
     onpc_progress::operation('Qualifying the standard-account password recipient');
     return _enter_functional_gdm_password('other-child', @_);

@@ -11,6 +11,9 @@ import pytest
 import accessible_ui as a
 import check_e2e_overlay_prompt as selector
 from overlay_prompt import PLAN, OverlayPromptJourney
+from overlay_approved_exit import PLAN as APPROVED_PLAN
+from overlay_approved_exit import OverlayApprovedExitJourney
+from parent_setup_qualification import OverlayApprovedExitQualification
 from parent_setup_qualification import OverlayPromptQualification, KioskEntryQualification
 from private_artifacts import EvidenceError
 from tests.support.accessible_ui import Node, ui_for
@@ -93,7 +96,8 @@ def proof_value():
 
 
 @pytest.mark.parametrize('fault', [None, 'replacement', 'uncertain-submit', 'wrong-form'])
-def test_real_open_sequence_rechecks_before_releasing_keyboard_input(monkeypatch, capsys, fault):
+@pytest.mark.parametrize('operation', ['overlay-shell-cancel-ready', 'overlay-shell-open'])
+def test_real_open_sequence_rechecks_before_releasing_keyboard_input(monkeypatch, capsys, fault, operation):
     ui, desktop, owner, dialog, field, cancel, *_ = prompt(monkeypatch)
     # A fullscreen overlay need not expose Shell's Activities control. The
     # application still owns the forthcoming prompt on the child's public bus.
@@ -121,11 +125,15 @@ def test_real_open_sequence_rechecks_before_releasing_keyboard_input(monkeypatch
         return result
     ui.shell_prompt_refusals = refusals
     if fault:
-        with pytest.raises((a.UiError, RuntimeError)): ui.run('overlay-shell-cancel-ready', '')
-        with pytest.raises(a.UiError): ui.run('overlay-shell-cancel-ready', '')
+        with pytest.raises((a.UiError, RuntimeError)): ui.run(operation, '')
+        with pytest.raises(a.UiError): ui.run(operation, '')
     else:
-        result = ui.run('overlay-shell-cancel-ready', '')
-        assert result == proof_value()
+        result = ui.run(operation, '')
+        expected = (proof_value() if operation == 'overlay-shell-cancel-ready' else {
+            'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'approval': {
+                'challenge_id': 'a' * 64, 'provider': proof_value()['shell_prompt']['provider'],
+                'rejected_proofs': list(a.SHELL_PROMPT_REFUSALS)}})
+        assert result == expected
         raw = capsys.readouterr().out.encode() + (json.dumps(result) + '\n').encode()
         transport = Mock(commands=SimpleNamespace(progress=None))
         def call(*_args, on_output, **_kwargs):
@@ -133,8 +141,8 @@ def test_real_open_sequence_rechecks_before_releasing_keyboard_input(monkeypatch
             return raw
         transport.call.side_effect = call
         observer = UiObservations(transport)
-        assert observer.observe('overlay-shell-cancel-ready') == result
-        with pytest.raises(Exception, match='ui:challenge-replay'): observer.observe('overlay-shell-cancel-ready')
+        assert observer.observe(operation) == result
+        with pytest.raises(Exception, match='ui:(challenge-replay|shell-order)'): observer.observe(operation)
         assert observer.challenge_failed
     assert submit.action.do_action.call_count == (0 if fault == 'wrong-form' else 1)
     cancel.action.do_action.assert_not_called()
@@ -184,6 +192,312 @@ def test_registration_reuses_owned_snapshot_envelope():
     assert operations <= a.OPERATIONS & OPERATION_LABELS.keys()
     assert a.SHELL_PROMPT_OPERATIONS <= a.CHILD_DESKTOP_OPERATIONS
     assert not a.SHELL_PROMPT_OPERATIONS & a.KIOSK_SESSION_OPERATIONS
+
+
+def test_approval_registration_retains_owned_envelope(monkeypatch):
+    import check_e2e_overlay_approved_exit as approved_selector
+    smoke = Mock(return_value=0)
+    monkeypatch.setattr(approved_selector, 'smoke', smoke)
+    named = Mock(return_value='owned-input')
+    monkeypatch.setattr(approved_selector, 'named_input', named)
+    assert approved_selector.main() == 0
+    named.assert_called_once_with(fixture_source=True)
+    smoke.assert_called_once_with(assets='owned-input', provision_credentials=True,
+                                 challenges=True, challenge_profile='overlay-approved-exit')
+    context = SimpleNamespace()
+    journey = OverlayApprovedExitQualification.journey(context, Mock())
+    assert journey.plan is APPROVED_PLAN
+    assert context.installed_snapshot.startswith('onpc-v')
+    assert OverlayApprovedExitQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
+    assert {tag[3:] for tag in APPROVED_PLAN.screen_tags.values() if tag.startswith('ui:')} <= a.OPERATIONS & OPERATION_LABELS.keys()
+    assert a.SHELL_APPROVAL_OPERATIONS <= a.CHILD_DESKTOP_OPERATIONS
+    assert not a.SHELL_APPROVAL_OPERATIONS & a.KIOSK_SESSION_OPERATIONS
+
+
+@pytest.mark.parametrize('fault', [None, 'replacement', 'recipient', 'empty', 'unfocused', 'stale'])
+def test_approval_filled_submit_guard_never_delivers_input(monkeypatch, fault):
+    ui, _, _, _, field, cancel, recipient, _ = prompt(monkeypatch)
+    ui.expected_mate_challenge = 'a' * 64
+    ui.mate_challenge_identity = Mock(return_value=('b' if fault == 'replacement' else 'a') * 64)
+    field.length = 0 if fault == 'empty' else 12
+    if fault == 'recipient': recipient.name = a.OTHER_PARENT
+    if fault == 'unfocused': field.states.discard('focused')
+    if fault == 'stale': field.states.add('defunct')
+    if fault:
+        with pytest.raises(a.UiError): ui.run('overlay-shell-submit-ready', '')
+    else:
+        assert ui.run('overlay-shell-submit-ready', '')['approval'] == {'challenge_id': 'a' * 64}
+    with pytest.raises(a.UiError, match='uncertain'): ui.run('overlay-shell-submit-ready', '')
+    cancel.get_action_iface.assert_not_called()
+    field.get_description.assert_not_called()
+    field.get_child_count.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-owner', 'empty', 'unfocused', 'replaced',
+                                  'duplicate', 'denied', 'hidden', 'missing', 'closing-query'])
+def test_success_observer_is_ready_before_submit_and_reads_only_owned_window(monkeypatch, fault):
+    ui, desktop, owner, dialog, field, *_ = prompt(monkeypatch)
+    field.length = 12
+    window = Node(identity='kiosk-request-window')
+    app = Node('Child Request', 'application', identity=a.CHILD_APPLICATION, children=[window])
+    desktop.children.append(app)
+    app.get_parent = lambda: desktop
+    window.get_parent = lambda: app
+    ui.expected_mate_challenge = 'a' * 64
+    ui.trace_boot = 'c' * 64
+    ui.mate_challenge_identity = Mock(return_value='a' * 64)
+    if fault == 'wrong-owner': app.identity = a.KIOSK_APPLICATION
+    if fault == 'empty': field.length = 0
+    if fault == 'unfocused': field.states.discard('focused')
+    if fault == 'replaced': ui.expected_mate_challenge = 'b' * 64
+    released = []
+    original = ui.read_snapshot
+
+    def snapshot(root=None, **kwargs):
+        if released:
+            assert root is window, 'late full-desktop read can miss the three-second result'
+        return original(root, **kwargs)
+
+    def publish(line, **kwargs):
+        event = json.loads(line)
+        assert event == {'event': 'overlay-approval-ready', 'challenge_id': 'a' * 64,
+                         'boot_sha256': 'c' * 64}
+        assert not released
+        released.append(True)
+        owner.children.remove(dialog)
+        title = Node('Time granted', 'label', identity='kiosk-result-title')
+        window.children.append(Node(identity='kiosk-result-page', children=[title]))
+        if fault == 'duplicate': window.children.append(Node(identity='kiosk-result-title'))
+        if fault == 'denied': title.name = 'Request denied'
+        if fault == 'hidden': title.states.discard('showing')
+        if fault == 'missing': window.children.clear()
+
+    ui.read_snapshot = snapshot
+    monkeypatch.setattr('builtins.print', publish)
+    prompt_kind = ui.system_prompt_kind
+    closing_reads = []
+    def read_prompt(**kwargs):
+        if not released:
+            return prompt_kind(**kwargs)
+        closing_reads.append(True)
+        if fault == 'closing-query' and len(closing_reads) == 1:
+            raise RuntimeError('owned overlay closed during read')
+        return None
+    ui.query_errors = (RuntimeError,)
+    if fault == 'closing-query': ui.timeout = 1
+    ui.system_prompt_kind = read_prompt
+    if fault and fault != 'closing-query':
+        with pytest.raises(a.UiError): ui.run('overlay-approval-success', '')
+    else:
+        assert ui.run('overlay-approval-success', '')['approval'] == {
+            'approved': True, 'form_success': True}
+    assert released == ([] if fault in ('wrong-owner', 'empty', 'unfocused', 'replaced') else [True])
+    if fault == 'closing-query': assert len(closing_reads) == 2
+    with pytest.raises(a.UiError, match='uncertain'): ui.run('overlay-approval-success', '')
+
+
+@pytest.mark.parametrize('fault', [None, 'boot', 'challenge', 'duplicate', 'missing',
+                                  'stale', 'recording', 'input', 'extra'])
+def test_live_observer_readiness_is_durable_bound_and_single_use(monkeypatch, fault):
+    transport = Mock(commands=SimpleNamespace(progress=None))
+    observer = UiObservations(transport)
+    observer.shell_approval_index = 4
+    observer.shell_approval_identity = 'a' * 64
+    observer.shell_approval_checked = a.time.monotonic()
+    observer.boot_guard = 'c' * 64
+    events = []
+
+    def retain(*args):
+        events.append('durable')
+        if fault == 'recording': raise OSError('recording')
+
+    def submit(token, source):
+        assert token == 'a' * 32 and source == 'a' * 64
+        events.append('enter')
+        if fault == 'input': raise RuntimeError('uncertain')
+
+    observer.trace_sink = retain
+    def call(_argv, *, on_output, **kwargs):
+        ready = {'event': 'overlay-approval-ready', 'challenge_id': 'a' * 64,
+                 'boot_sha256': 'c' * 64}
+        if fault == 'boot': ready['boot_sha256'] = 'd' * 64
+        if fault == 'challenge': ready['challenge_id'] = 'd' * 64
+        if fault == 'extra': ready['unexpected'] = True
+        if fault == 'stale': observer.shell_approval_checked -= 31
+        if fault != 'missing': on_output((json.dumps(ready) + '\n').encode())
+        if fault == 'duplicate': on_output((json.dumps(ready) + '\n').encode())
+        result = {'operation': 'overlay-approval-success', 'outcome': 'passed',
+                  'interface': 'AT-SPI', 'boot_sha256': 'c' * 64,
+                  'approval': {'approved': True, 'form_success': True}}
+        on_output((json.dumps(result) + '\n').encode())
+    transport.call.side_effect = call
+    if fault:
+        with pytest.raises((EvidenceError, OSError, RuntimeError)):
+            observer.observe_shell_success(submit)
+        assert observer.challenge_failed
+    else:
+        assert observer.observe_shell_success(submit)['approval']['form_success']
+        assert events == ['durable', 'enter']
+    assert events.count('enter') == (1 if fault in (None, 'duplicate', 'input') else 0)
+    assert observer.shell_success_input is None
+    before = list(events)
+    with pytest.raises(EvidenceError): observer.observe_shell_success(submit)
+    assert events == before
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'binding', 'source', 'values', 'duplicate', 'input'])
+def test_worker_enter_waits_for_observer_and_never_replays(fault):
+    program = r'''
+use strict; use warnings; use JSON::PP;
+our $fault = shift @ARGV; our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { }
+sub send_key { push @main::events, 'enter'; die 'uncertain' if $main::fault eq 'input'; }
+package main;
+require onpc_request_flow;
+no warnings 'redefine';
+*onpc_password::enter_overlay_shell_password = sub { push @events, 'password'; };
+my $journey = onpc_journey->new(prefix => 'overlay-approved-exit', review => 0,
+    exchange => sub {
+        my ($stage, $shot, $input) = @_; push @events, $stage;
+        if (defined($input) && $fault ne 'missing') {
+            push @events, 'observer-ready';
+            my $proof = {stage => $stage, token => 'a' x 32, source => 'a' x 64,
+                         child => 'child', binding => 'overlay-approve', values => ['ret']};
+            $proof->{binding} = 'custom-rapid' if $fault eq 'binding';
+            $proof->{source} = 'b' x 64 if $fault eq 'source';
+            $proof->{values} = ['ret', 'ret'] if $fault eq 'values';
+            $input->($proof);
+            $input->($proof) if $fault eq 'duplicate';
+        }
+        return {observed => $stage};
+    });
+my $ok = eval { onpc_request_flow::shell_approve($journey); 1 };
+my $before = scalar @events;
+my $retry = eval { onpc_request_flow::shell_approve($journey); 1 };
+print encode_json({ok => $ok ? 1 : 0, retry => $retry ? 1 : 0,
+                   before => $before, events => \@events});
+'''
+    value = json.loads(run_perl(program, fault or '').stdout)
+    assert bool(value['ok']) == (fault is None)
+    assert not value['retry'] and len(value['events']) == value['before']
+    assert value['events'].count('enter') == (1 if fault in (None, 'duplicate', 'input') else 0)
+    if 'enter' in value['events']:
+        assert value['events'].index('observer-ready') < value['events'].index('enter')
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'token', 'stage', 'symlink'])
+def test_shell_rendezvous_uses_owned_evidence_and_requires_exact_ack(tmp_path, fault):
+    journey = OverlayApprovedExitJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.publish_trace_input('approval-success', 'a' * 32, 'a' * 64)
+    assert json.loads((tmp_path / 'approval-success.input.json').read_bytes()) == {
+        'stage': 'approval-success', 'token': 'a' * 32, 'source': 'a' * 64,
+        'child': 'child', 'binding': 'overlay-approve', 'values': ['ret']}
+    with pytest.raises(EvidenceError, match='replay'):
+        journey.publish_trace_input('approval-success', 'a' * 32, 'a' * 64)
+    with pytest.raises(EvidenceError, match='plan'):
+        journey.publish_trace_input('approval-submit-ready', 'a' * 32, 'a' * 64)
+    done = tmp_path / 'approval-success.input-done.json'
+    if fault != 'missing':
+        value = {'stage': 'wrong' if fault == 'stage' else 'approval-success',
+                 'token': ('b' if fault == 'token' else 'a') * 32}
+        if fault == 'symlink':
+            target = tmp_path / 'foreign.json'
+            target.write_text(json.dumps(value))
+            done.symlink_to(target)
+        else:
+            done.write_text(json.dumps(value))
+    if fault:
+        with pytest.raises(EvidenceError, match='incomplete'):
+            journey.verify_trace_input('approval-success', 'a' * 32)
+    else:
+        journey.verify_trace_input('approval-success', 'a' * 32)
+
+
+@pytest.mark.parametrize('fault', [None, 'changed', 'replay', 'intervening', 'order', 'stale', 'extra', 'provider', 'refusals'])
+def test_approval_decoder_enforces_same_challenge_order_and_terminal_failure(fault):
+    observer = UiObservations(Mock())
+    def call(_argv, operation, **_kwargs):
+        value = {'challenge_id': ('b' if fault == 'changed' and operation == 'overlay-shell-rechecked' else 'a') * 64}
+        if operation == 'overlay-shell-open':
+            value.update(provider=proof_value()['shell_prompt']['provider'],
+                         rejected_proofs=list(a.SHELL_PROMPT_REFUSALS))
+            if fault == 'provider': value['provider']['locale'] = ''
+            if fault == 'extra': value['raw'] = 'private label'
+            if fault == 'refusals': value['rejected_proofs'].pop()
+        if operation == 'overlay-approval-success': value = {'approved': True, 'form_success': True}
+        return json.dumps({'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                           'approval': value, **({'boot_sha256': 'c' * 64}
+                               if operation in a.SHELL_APPROVAL_ORDER[1:] else {})}).encode(), []
+    observer.call = Mock(side_effect=call)
+    if fault in ('extra', 'provider', 'refusals'):
+        with pytest.raises(Exception): observer.observe('overlay-shell-open')
+    else:
+        observer.observe('overlay-shell-open')
+        if fault:
+            if fault == 'changed': observer.observe('overlay-shell-qualified')
+            if fault == 'stale': observer.shell_approval_checked = float('-inf')
+            operation = {'changed': 'overlay-shell-rechecked', 'replay': 'overlay-shell-open',
+                         'intervening': 'desktop', 'order': 'overlay-shell-submit-ready',
+                         'stale': 'overlay-shell-qualified'}[fault]
+            with pytest.raises(Exception): observer.observe(operation)
+        else:
+            for operation in a.SHELL_APPROVAL_ORDER[1:]: observer.observe(operation)
+    if fault:
+        assert observer.challenge_failed
+        calls = observer.call.call_count
+        with pytest.raises(Exception): observer.observe('overlay-shell-qualified')
+        assert observer.call.call_count == calls
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-owner', 'denied', 'prompt', 'missing'])
+def test_approval_success_requires_child_owned_public_result(monkeypatch, fault):
+    title = Node('Request denied' if fault == 'denied' else 'Time granted', 'label',
+                 identity='kiosk-result-title')
+    page = Node(identity='kiosk-result-page', children=[title])
+    window = Node(identity='kiosk-request-window', children=[page])
+    # Build through the shared fixture's existing product owner, then bind the
+    # actual child application without triggering its automatic kiosk wrapper.
+    app = Node('Child Request', 'application', identity=a.KIOSK_APPLICATION, children=[window])
+    ui = ui_for(Node('desktop', 'desktop frame', children=[app]))
+    if fault != 'wrong-owner': app.identity = a.CHILD_APPLICATION
+    ui.require_child_overlay_session = Mock()
+    if fault == 'prompt': ui.system_prompt_kind = Mock(return_value='shell-polkit')
+    if fault == 'missing': window.children.clear()
+    if fault:
+        with pytest.raises(a.UiError): ui.kiosk_approval_success(overlay=True)
+    else:
+        assert ui.kiosk_approval_success(overlay=True) == {'approved': True, 'form_success': True}
+
+
+@pytest.mark.parametrize('delay', ['opening', 'recipient', 'between-proofs'])
+def test_shell_opening_work_does_not_age_future_recipient_authority(monkeypatch, delay):
+    import time
+    clock = [100.0]
+    monkeypatch.setattr(time, 'monotonic', lambda: clock[0])
+    observer = UiObservations(Mock())
+    def observe(operation):
+        if operation == ('overlay-shell-open' if delay == 'opening' else 'overlay-shell-qualified'):
+            clock[0] += 31
+        return {'operation': operation}
+    observer._observe = Mock(side_effect=observe)
+    observer.observe('overlay-shell-open')
+    observer.observe('overlay-shell-qualified')
+    if delay == 'between-proofs':
+        clock[0] += 30
+    if delay == 'opening':
+        for operation in a.SHELL_APPROVAL_ORDER[2:]:
+            observer.observe(operation)
+        assert not observer.challenge_failed
+        assert observer._observe.call_count == len(a.SHELL_APPROVAL_ORDER)
+    else:
+        with pytest.raises(EvidenceError, match='ui:shell-stale-proof'):
+            observer.observe('overlay-shell-rechecked')
+        assert observer.challenge_failed
+        with pytest.raises(EvidenceError, match='ui:challenge-previous-failure'):
+            observer.observe('overlay-shell-rechecked')
+        assert observer._observe.call_count == 2
 
 
 @pytest.mark.parametrize('failure', [None, 0, 1])

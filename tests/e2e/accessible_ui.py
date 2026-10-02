@@ -659,6 +659,12 @@ MATE_REFUSALS = ('wrong-agent', 'owner', 'recipient', 'child', 'duration', 'apps
                  'multiple-fields', 'hidden', 'disabled', 'unfocused', 'nonempty',
                  'stale', 'replaced')
 SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready'})
+SHELL_APPROVAL_ORDER = ('overlay-shell-open', 'overlay-shell-qualified',
+                        'overlay-shell-rechecked', 'overlay-shell-submit-ready',
+                        'overlay-approval-success')
+SHELL_APPROVAL_OPERATIONS = frozenset(SHELL_APPROVAL_ORDER)
+OPERATIONS |= SHELL_APPROVAL_OPERATIONS
+CHILD_DESKTOP_OPERATIONS |= SHELL_APPROVAL_OPERATIONS
 OPERATIONS |= {'overlay-shell-dismissed'}
 CHILD_DESKTOP_OPERATIONS |= {'overlay-shell-dismissed'}
 SHELL_PROMPT_REFUSALS = ('wrong-agent', 'session', *MATE_REFUSALS[1:])
@@ -7256,19 +7262,49 @@ class AccessibleUI:
                    [(node.bus, node.path) for node in challenge]]
         return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
 
-    def kiosk_approval_success(self, *, immediate=False):
+    def kiosk_approval_success(self, *, immediate=False, overlay=False, pinned=None):
         """REQUEST11: explicit owned success, never prompt disappearance alone."""
+        if overlay:
+            self.require_child_overlay_session()
         def success():
             self.invalidate_observation()
-            window = self.snapshot_owned_target('kiosk-request-window', check_prompt=False)
+            window = (pinned[1] if pinned else
+                      self.snapshot_owned_target('kiosk-request-window', check_prompt=False))
             if window is None:
                 return False
-            title = self.find_id('kiosk-result-title', root=window)
-            page = self.find_id('kiosk-result-page', root=window)
+            if pinned:
+                owner = pinned[0]
+                require(overlay and public_automation_id(owner) == CHILD_APPLICATION
+                        and window.get_parent() == owner
+                        and window.get_process_id() == owner.get_process_id()
+                        and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                    for node in pinned), 'ui:overlay-success-owner')
+                nodes, edges, identities, _facts = self.read_snapshot(window, protect_text=True)
+                require(self.snapshot_matches('kiosk-request-window', nodes, identities=identities)
+                        == window, 'ui:overlay-success-owner')
+                title = self.snapshot_matches('kiosk-result-title', nodes, identities=identities)
+                page = self.snapshot_matches('kiosk-result-page', nodes, identities=identities)
+                if title is not None and page is not None:
+                    require(title in self.snapshot_scope(nodes, edges, page)
+                            and all(node.get_process_id() == owner.get_process_id()
+                                    and not self.has_state(node, self.api.StateType.DEFUNCT)
+                                    for node in (title, page)), 'ui:overlay-success-owner')
+            elif overlay:
+                nodes, edges, identities, _facts = self.read_snapshot(protect_text=True)
+                owner = self.snapshot_matches(CHILD_APPLICATION, nodes, showing=False,
+                                              identities=identities)
+                require(owner is not None and window in self.snapshot_scope(nodes, edges, owner),
+                        'ui:overlay-success-owner')
+            if not pinned:
+                title = self.find_id('kiosk-result-title', root=window)
+                page = self.find_id('kiosk-result-page', root=window)
             if title is None or page is None or not self.showing(title) or not self.showing(page):
                 return False
-            require(title.get_name() == 'Request approved', 'ui:kiosk-approval-result')
-            require(self.system_prompt_kind() is None, 'ui:kiosk-approval-prompt')
+            require(title.get_name() == ('Time granted' if overlay else 'Request approved'),
+                    'ui:kiosk-approval-result')
+            # Latch the brief public result before a slower desktop-wide scan.
+            if not pinned:
+                require(self.system_prompt_kind() is None, 'ui:kiosk-approval-prompt')
             if immediate:
                 action = self.find_id('kiosk-result-action', root=page)
                 require(action is not None and self.has_state(action, self.api.StateType.VISIBLE)
@@ -7277,6 +7313,12 @@ class AccessibleUI:
                 return action
             return True
         action = self.wait(success, 'kiosk-approval-success', prompt_in_predicate=True)
+        if pinned:
+            self.invalidate_observation()
+            # The short result may close its window during this desktop scan.
+            # Retry only the read, retaining the latched result and single input.
+            self.wait(lambda: self.system_prompt_kind() is None,
+                      'kiosk-approval-prompt', prompt_in_predicate=True)
         if immediate:
             self._invoke_target(action)
         return {'approved': True, 'form_success': True, **({'immediate_exit': True} if immediate else {})}
@@ -7405,7 +7447,7 @@ class AccessibleUI:
                 'ui:shell-owner')
         return owner
 
-    def shell_prompt(self, pid, uid, *, observation=None, challenge=None):
+    def shell_prompt(self, pid, uid, *, observation=None, challenge=None, filled=False):
         """Shell-only AUTH01: active child session, exact public request/recipient.
 
         Shell 50 displays the AccountsService real name, not MATE's PAM label:
@@ -7442,7 +7484,12 @@ class AccessibleUI:
         fields = [node for node in controls if facts[node]['role'] == 'password text']
         require(len(fields) == 1, 'ui:shell-field-ambiguous')
         field = fields[0]
-        self.validate_mate_field(self.mate_field_proof(field, facts), provider='shell')
+        proof = self.mate_field_proof(field, facts)
+        if filled:
+            require(type(proof['length']) is int and 1 <= proof['length'] <= 256,
+                    'ui:shell-field-empty')
+            proof = {**proof, 'length': 0}
+        self.validate_mate_field(proof, provider='shell')
         buttons = [node for node in controls if facts[node]['role'] in ('push button', 'button')
                    and facts[node]['showing'] and facts[node]['name'] == 'Cancel']
         require(len(buttons) == 1 and self.has_state(buttons[0], self.api.StateType.SENSITIVE),
@@ -7530,6 +7577,61 @@ class AccessibleUI:
                     'approver': APPROVER_IDENTITIES[PARENT], 'duration_seconds': 75,
                     'allow_soft': True, 'cancel_ready': True, 'same_challenge_rechecked': True,
                     'rejected_proofs': rejected, 'challenge_id': identity}
+        except BaseException:
+            self.input_uncertain = True
+            raise
+
+    def overlay_shell_approval(self, operation):
+        """Fresh Shell proofs; password and one Enter remain worker-owned."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        require(operation in SHELL_APPROVAL_OPERATIONS, 'ui:shell-binding')
+        self.require_child_overlay_session()
+        try:
+            opening = operation == 'overlay-shell-open'
+            if opening:
+                self.kiosk_valid_choice('overlay-valid-fraction-soft-read')
+            self.invalidate_observation()
+            observation = self.read_snapshot(protect_text=True)
+            owner = self.shell_prompt_owner(observation)
+            pid, uid = owner.get_process_id(), os.getuid()
+            if opening:
+                nodes, edges, _identities, facts = observation
+                require(self.system_prompt_kind(observation=(nodes, edges, facts)) is None,
+                        'ui:shell-already-open')
+                self._invoke_target(self.kiosk_valid_target('kiosk-request-submit', overlay=True))
+                challenge = self.wait(lambda: self.shell_prompt(pid, uid), 'shell-prompt',
+                                      prompt_in_predicate=True)
+                rejected = self.shell_prompt_refusals(pid, uid, challenge)
+                self.shell_prompt(pid, uid, challenge=challenge)
+                return {'challenge_id': self.mate_challenge_identity(pid, challenge),
+                        'provider': self._shell_provider_metadata(owner),
+                        'rejected_proofs': rejected}
+            challenge = self.shell_prompt(pid, uid, observation=observation,
+                                          filled=operation in ('overlay-shell-submit-ready',
+                                                               'overlay-approval-success'))
+            require(challenge is not None, 'ui:shell-missing')
+            identity = self.mate_challenge_identity(pid, challenge)
+            require(identity == self.expected_mate_challenge, 'ui:shell-replacement')
+            if operation == 'overlay-approval-success':
+                nodes, edges, identities, _facts = observation
+                app = self.snapshot_matches(CHILD_APPLICATION, nodes, identities=identities)
+                require(app is not None, 'ui:overlay-success-owner')
+                window = self.snapshot_matches('kiosk-request-window',
+                    self.snapshot_scope(nodes, edges, app), identities=identities)
+                require(window is not None and window.get_parent() == app
+                        and window.get_process_id() == app.get_process_id()
+                        and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                    for node in (app, window))
+                        and self.showing(window), 'ui:overlay-success-owner')
+                self.input_uncertain = True
+                # The worker receives authority only while this observer is
+                # already running. Hidden result controls may appear later.
+                print(json.dumps({'event': 'overlay-approval-ready',
+                                  'challenge_id': identity, 'boot_sha256': self.trace_boot},
+                                 sort_keys=True), flush=True)
+                return self.kiosk_approval_success(overlay=True, pinned=(app, window))
+            self.input_uncertain = operation == 'overlay-shell-submit-ready'
+            return {'challenge_id': identity}
         except BaseException:
             self.input_uncertain = True
             raise
@@ -9300,6 +9402,8 @@ class AccessibleUI:
             result['request'] = self.collapse_kiosk_child_choices()
         elif operation == 'overlay-shell-cancel-ready':
             result['shell_prompt'] = self.overlay_shell_cancel_ready()
+        elif operation in SHELL_APPROVAL_OPERATIONS:
+            result['approval'] = self.overlay_shell_approval(operation)
         elif operation == 'overlay-shell-dismissed':
             self.require_child_overlay_session()
             def absent():
@@ -9736,7 +9840,7 @@ def main():
     ui.expected_trace_source = (ui.trace_request if sys.argv[1] == 'parent-toggle-enabled' else None)
     ui.expected_mate_challenge = sys.argv[4] if len(sys.argv) == 5 and not trace_argument else None
     require(ui.expected_mate_challenge is None or (
-        sys.argv[1] in MATE_APPROVAL_OPERATIONS and
+        sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)

@@ -68,10 +68,11 @@ sub overlay_information {
 
 sub overlay_prompt {
     onpc_progress::operation('Qualifying one real Shell prompt and preserved form after Cancel');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'overlay-prompt:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+    my ($exchange, $declared, $challenges, $approval) = @_;
+    die 'overlay-prompt:arguments' unless (@_ == 3 || @_ == 4 && $approval eq 'approval') && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-prompt', review => 0);
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => $approval ? 'overlay-approved-exit' : 'overlay-prompt', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -86,14 +87,65 @@ sub overlay_prompt {
     onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    my $activity;
+    if ($approval) {
+        $activity = onpc_journey->new(
+            exchange => sub { $exchange->('activity-' . $_[0], $_[1]) },
+            prefix => 'overlay-approved-exit-activity', review => 0);
+        onpc_app_rows::native_usable_app($activity, 'command', $activity->seen('desktop'));
+        onpc_app_rows::native_read_activity($activity, 'capture');
+    }
     overlay_entry($journey, 'direct', 'command');
     $journey->seen('wrong-surface-refused');
     prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
-    shell_cancel($journey, 'shell-cancel-ready', 'shell-dismissed');
-    $journey->seen('form-returned');
-    $journey->seen('cancel');
+    if ($approval) {
+        shell_approve($journey);
+    } else {
+        shell_cancel($journey, 'shell-cancel-ready', 'shell-dismissed');
+        $journey->seen('form-returned');
+        $journey->seen('cancel');
+    }
     $journey->seen('returned');
+    if ($approval) {
+        onpc_app_rows::native_read_activity($activity, 'returned');
+        onpc_app_rows::native_finish_app($activity);
+    }
     $journey->finish();
+}
+
+sub shell_approve {
+    onpc_progress::operation('Approving the declared overlay request once');
+    my ($journey) = @_;
+    die 'shell-approve:binding' unless @_ == 1 && ref($journey) eq 'onpc_journey'
+        && ($journey->{prefix} // '') eq 'overlay-approved-exit';
+    die 'shell-approve:replay' if $journey->{shell_approval_started} || $journey->{invocation_failed};
+    $journey->{shell_approval_started} = 1;
+    my $ok = eval {
+        $journey->consume_observation('approval-open', $journey->seen('approval-open'));
+        onpc_password::enter_overlay_shell_password($journey);
+        $journey->consume_observation('approval-submit-ready', $journey->seen('approval-submit-ready'));
+        my $submitted = 0;
+        my $result = $journey->seen('approval-success', sub {
+            my ($proof) = @_;
+            die 'shell-approve:input-proof' unless !$submitted && ref($proof) eq 'HASH'
+                && keys(%$proof) == 6 && ($proof->{stage} // '') eq 'approval-success'
+                && ($proof->{binding} // '') eq 'overlay-approve'
+                && ($proof->{child} // '') eq 'child'
+                && ($proof->{source} // '') =~ /\A[0-9a-f]{64}\z/
+                && ($proof->{token} // '') eq substr($proof->{source}, 0, 32)
+                && ref($proof->{values}) eq 'ARRAY' && @{$proof->{values}} == 1
+                && $proof->{values}[0] eq 'ret';
+            $submitted = 1;
+            testapi::send_key('ret');
+        });
+        die 'shell-approve:input-missing' unless $submitted;
+        $journey->consume_observation('approval-success', $result);
+        1;
+    };
+    unless ($ok) {
+        $journey->{invocation_failed} = 1;
+        die $@;
+    }
 }
 
 # Shell's documented Escape binding is its ordinary Cancel action. Consume a

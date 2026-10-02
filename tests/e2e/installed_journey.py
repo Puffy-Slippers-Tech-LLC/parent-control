@@ -353,7 +353,8 @@ class InstalledJourney:
 
     def publish_trace_input(self, stage, token, source):
         """Release one focused keyboard batch while the owned observer runs."""
-        require(self.plan.screen_tags.get(stage) == 'ui:parent-custom-save-trace'
+        shell = self.plan.screen_tags.get(stage) == 'ui:overlay-approval-success'
+        require((shell or self.plan.screen_tags.get(stage) == 'ui:parent-custom-save-trace')
                 and re.fullmatch(r'[0-9a-f]{32}', token)
                 and re.fullmatch(r'[0-9a-f]{64}', source), 'ui:trace-input-plan')
         pending = self.context.directory / (stage + '.input.tmp')
@@ -362,7 +363,8 @@ class InstalledJourney:
         with pending.open('x') as stream:
             json.dump({'stage': stage, 'token': token, 'source': source,
                        'child': self.plan.child_bindings.get(stage, 'child'),
-                       'binding': 'custom-rapid', 'values': list(self.plan.keyboard_inputs[stage])}, stream)
+                       'binding': 'overlay-approve' if shell else 'custom-rapid',
+                       'values': ['ret'] if shell else list(self.plan.keyboard_inputs[stage])}, stream)
             stream.flush()
             os.fsync(stream.fileno())
         pending.rename(destination)
@@ -486,7 +488,13 @@ class InstalledJourney:
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
                 challenge = plan.challenge_at(stage)
-                if tag == 'ui:parent-custom-save-trace':
+                if tag == 'ui:overlay-approval-success':
+                    def worker_input(token, source):
+                        guard()
+                        self.publish_trace_input(stage, token, source)
+                    observed['ui'] = self.ui.observe_shell_success(worker_input)
+                    self.verify_trace_input(stage, self.ui.shell_approval_identity[:32])
+                elif tag == 'ui:parent-custom-save-trace':
                     def worker_input(token, source):
                         guard()
                         self.publish_trace_input(stage, token, source)

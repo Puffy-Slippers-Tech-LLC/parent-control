@@ -10,6 +10,10 @@ fixtures and external resources have been reviewed; never omit their cases.
 # challenges and installed-journey remain compatible in cleanup and unit scopes.
 # Panel focus/Enter order checks reuse challenges' same waited Perl API double
 # and private evidence; no new process, display, bus or shared cleanup resource.
+# Shell approval adds sealed-input doubles and private installed-recorder files
+# to challenges/installed-journey; both unit and cleanup overlap remain compatible.
+# The approval observer rendezvous uses the same attempt-private input/ack files
+# and synchronous transport doubles; it adds no independent cleanup lifetime.
 
 # Explicit VM-name forwarding retains private journals and process-local API
 # doubles; cleanup checks add no real guest, desktop, socket or shared cache.

@@ -653,6 +653,16 @@ class OverlayPromptQualification(ChallengesQualification):
         return OverlayPromptJourney(context, progress)
 
 
+class OverlayApprovedExitQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from overlay_approved_exit import OverlayApprovedExitJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return OverlayApprovedExitJourney(context, progress)
+
+
 class OverlayChoicesQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

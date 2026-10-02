@@ -45,6 +45,19 @@ The finite `links='browser-links'` fragment checks website and privacy through
 `AccessibleUI.read_overlay_link`, with the same independent entry/return
 boundaries; `overlay_license.BROWSER_LINKS_PLAN` declares its comparisons.
 
+`AccessibleUI.allowance_preset` owns the PARENT05 observation scope for both
+direct preview calls and registered operations. Composed child, control, save
+and label checks reuse a complete tree until input or a pending/failed read
+invalidates it. Each independent call starts fresh; cancellation discards the
+scope and retains any uncertain-input latch. The scope adds no process, bus,
+storage or cleanup owner, so existing unit and UI parallel classifications apply.
+
+Shared kiosk/overlay duration selection waits for the ID-resolved control's
+public pressed state after its single activation. An accepted action may still
+be completing; every retry reacquires ownership and readiness before the exact
+form readback. Missing results, cancellation and ownership changes remain
+terminal and never replay the input.
+
 Parent, kiosk and child-overlay entry use
 `AccessibleUI.complete_language_setup` through the parent/request wrappers.
 It resolves the owned startup
@@ -101,6 +114,12 @@ for live ownership/transport/recovery and the [E2E contracts](../e2e/README.md)
 for real graphical input, credentials, private collection and evidence gates.
 These development helpers activate on the next invocation; there is no product
 integration or saved-data migration.
+
+Complete public snapshots batch live `Accessible.Name` queries for already
+discovered nodes. Those values live only within the same observation as the
+structural facts and expire on input, retry, reset and snapshot exit. Ordinary
+`get_name()` result reads remain uncached; provider `GetItems` names never supply
+these observations. Protected descendants are still excluded before querying.
 
 ## Extend without hiding the scenario
 

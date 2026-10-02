@@ -24,6 +24,194 @@ import test_commands
 from system_progress import Progress
 
 
+def test_ui_timings_preserve_nested_calls_failures_and_private_arguments():
+    from tests.support.ui_timing import Timings
+    now = [10.0]
+    events = []
+    timings = Timings(lambda kind, **fields: events.append((kind, fields)), lambda: now[0])
+    timings.begin('test.py::case', 'call')
+    error = KeyboardInterrupt('private-error')
+
+    def inner(secret):
+        assert secret == 'private-value'
+        now[0] += 2
+        raise error
+
+    measured = timings.wrap(inner, 'atspi.rpc')
+    with pytest.raises(KeyboardInterrupt) as caught:
+        with timings.measure('reader.snapshot'):
+            now[0] += 1
+            measured('private-value')
+    assert caught.value is error
+    timings.publish('end')
+    evidence = events[-1][1]
+    assert evidence['elapsed_seconds'] == 3
+    assert evidence['active'] == []
+    assert evidence['operations']['reader.snapshot'] == dict(
+        count=1, errors=1, seconds=3, self_seconds=1, max_seconds=3)
+    assert evidence['operations']['atspi.rpc']['seconds'] == 2
+    assert 'private-' not in str(events)
+
+
+def test_ui_timings_checkpoint_active_operations_and_reset_phases():
+    from tests.support.ui_timing import Timings
+    now = [0.0]
+    events = []
+    timings = Timings(lambda kind, **fields: events.append(fields), lambda: now[0])
+    timings.begin('case', 'setup')
+    with timings.measure('reader.snapshot'):
+        with timings.measure('atspi.rpc'):
+            now[0] = 6
+        assert events[-1]['status'] == 'progress'
+        assert events[-1]['active'] == [{'operation': 'reader.snapshot', 'elapsed_seconds': 6}]
+    assert 'reader.snapshot' not in events[-1]['operations']
+    timings.begin('case', 'call')
+    assert events[-1]['operations'] == {}
+    sentinel = object()
+    assert timings.wrap(lambda: sentinel, 'input.action')() is sentinel
+    assert events[-1]['started'] == 6
+
+
+def test_ui_trace_retains_nested_operation_identity_and_existing_reader_timing():
+    from tests.support.ui_timing import Timings
+    from tests.e2e.accessible_ui import AccessibleUI
+    events, existing = [], []
+    recorder = Timings(lambda kind, **fields: events.append((kind, fields)))
+    reader = AccessibleUI(object(), root=lambda: None, timing=existing.append)
+    reader._run = lambda *args, **kwargs: 42
+    wrapped = recorder.wrap_reader_run(AccessibleUI.run)
+    with recorder.span('gui.block'):
+        assert wrapped(reader, 'child-picker-opened', 'private version') == 42
+    trace = [fields for kind, fields in events if kind == 'ui-trace']
+    assert [event['status'] for event in trace] == ['begin', 'begin', 'end', 'end']
+    assert trace[1]['parent'] == trace[0]['span']
+    assert trace[1]['registered_operation'] == 'child-picker-opened'
+    timing = next(fields for kind, fields in events if kind == 'ui-reader-timing')
+    assert timing['span'] == trace[1]['span']
+    assert timing['tree_reads'] == 0
+    assert len(existing) == 1
+    assert reader.timing == existing.append
+    assert 'private version' not in str(events)
+
+
+def test_ui_trace_stage_time_and_operation_deltas_are_scoped():
+    from tests.support.ui_timing import Timings
+    events, now = [], [0.0]
+    recorder = Timings(lambda kind, **fields: events.append(fields), lambda: now[0])
+    with recorder.measure('atspi.rpc'):
+        now[0] += 10
+    with recorder.span('host.wait', predicate='test.py:1') as checkpoint:
+        checkpoint('predicate', 1)
+        with recorder.measure('atspi.rpc'):
+            now[0] += 2
+        checkpoint('pending', 1)
+        checkpoint('sleep', 1)
+        now[0] += .05
+        checkpoint('predicate', 2)
+        now[0] += 1
+        checkpoint('ready', 2)
+    result = events[-1]
+    assert result['stages']['predicate'] == 3
+    assert result['stages']['sleep'] == pytest.approx(.05)
+    assert result['operations']['atspi.rpc']['count'] == 1
+    assert result['operations']['atspi.rpc']['seconds'] == 2
+    assert result['elapsed_seconds'] == pytest.approx(3.05)
+
+
+def test_ui_timing_iterator_measures_consumption_and_forwards_owned_close():
+    from tests.support.ui_timing import Timings
+    now, closed = [0.0], []
+    recorder = Timings(lambda *args, **kwargs: None, lambda: now[0])
+    def nodes():
+        try:
+            now[0] += 1
+            yield 42
+            raise AssertionError('must not consume more nodes')
+        finally:
+            closed.append(True)
+    iterator = recorder.wrap_iterator(nodes, 'reader.traversal')()
+    assert not recorder.metrics
+    assert next(iterator) == 42
+    now[0] += 2
+    iterator.close()
+    assert closed == [True]
+    assert recorder.metrics['reader.traversal']['seconds'] == 3
+    assert recorder.metrics['reader.traversal']['count'] == 1
+    assert recorder.stack == []
+
+
+@pytest.mark.parametrize('suppress', [False, True])
+def test_ui_timing_lifecycle_preserves_exit_protocol(suppress):
+    from tests.support.ui_timing import Timings
+    timings = Timings(lambda *args, **kwargs: None)
+    error = ValueError('original')
+    entered, exited = [], []
+
+    class Manager:
+        def __enter__(self):
+            entered.append(True)
+            return 42
+
+        def __exit__(self, *args):
+            exited.append(args)
+            return suppress
+
+    try:
+        with timings.lifecycle(Manager(), 'preview') as value:
+            assert value == 42
+            raise error
+    except ValueError as caught:
+        assert not suppress and caught is error
+    else:
+        assert suppress
+    assert entered == [True]
+    assert len(exited) == 1 and exited[0][:2] == (ValueError, error)
+    with timings.lifecycle(Manager(), 'preview'):
+        pass
+    assert exited[-1] == (None, None, None)
+
+
+def test_ui_timings_escape_case_capture_and_close_owned_descriptor(tmp_path):
+    from tools.test_storage import scratch_descriptors
+    root = Path(__file__).resolve().parents[2]
+    (tmp_path / 'conftest.py').write_text('''
+import os
+import pytest
+from tests.support.ui_timing import Timings
+timings = None
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_setup(item):
+    global timings
+    timings = Timings.retained()
+    timings.begin(item.nodeid, 'setup')
+    yield
+@pytest.fixture
+def record():
+    return timings
+def pytest_sessionfinish(session, exitstatus):
+    descriptor = timings.stream.fileno()
+    assert not os.get_inheritable(descriptor)
+    timings.close()
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
+''')
+    (tmp_path / 'test_sample.py').write_text('''
+def test_capture(record):
+    print('private-test-output')
+    with record.measure('reader.snapshot'):
+        pass
+    record.publish('progress')
+''')
+    result = subprocess.run([sys.executable, '-m', 'pytest', '-q', str(tmp_path)],
+        env=dict(os.environ, PYTHONPATH=str(root)), stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, timeout=30, pass_fds=scratch_descriptors())
+    output = result.stdout.decode()
+    assert result.returncode == 0, output
+    assert '"status": "progress"' in output
+    assert '"reader.snapshot"' in output
+    assert 'private-test-output' not in output
+
+
 @pytest.fixture
 def report(tmp_path):
     result = regression.Report(tmp_path)

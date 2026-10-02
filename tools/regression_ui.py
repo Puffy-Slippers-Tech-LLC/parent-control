@@ -37,6 +37,12 @@ from pathlib import PurePosixPath
 # Child interaction waits dispatch bounded work on the existing private bus;
 # no inspection listeners/sources or new process owners remain. Nested Shell
 # retains its whole-module bucket and existing resource reservation.
+# Timing hooks retain bounded per-phase aggregates in the existing category
+# stream through one non-inheritable pipe duplicate closed at session end.
+# Wrappers/counters are worker-local, with no threads/files or UI reads; preview
+# ownership, cleanup and all bucket reservations remain unchanged.
+# Correlated operation/wait spans use the same stream and bounded nesting-local
+# counters. They add no poller/thread, event dispatch, input or resource owner.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

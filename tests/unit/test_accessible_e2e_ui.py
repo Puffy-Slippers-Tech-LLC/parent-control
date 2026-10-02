@@ -1113,23 +1113,19 @@ def test_allowance_selection_waits_for_popup_labels_to_disappear(monkeypatch):
     choices = Node(identity='parent-daily-limit-choices', children=[choice])
     custom = Node('Custom amount', 'label')
     allowance.children = [label]
-    inputs = []
+    def open_picker(_index):
+        allowance.children = [label, choices, custom]
+        return True
 
-    def activate(identity):
-        inputs.append(identity)
-        if identity == 'parent-daily-limit-selector':
-            allowance.children = [label, choices, custom]
-        else:
-            assert identity == 'parent-daily-limit-0'
-        # Selection returns before GTK removes the popover's accessible labels.
-
-    ui.activate_id = activate
+    allowance.action.do_action.side_effect = open_picker
+    # Selection returns before GTK removes the popover's accessible labels.
     ui.timeout = 1
     settle = Mock(side_effect=lambda _seconds: setattr(allowance, 'children', [label]))
     monkeypatch.setattr(accessible_ui.time, 'sleep', settle)
     assert ui.allowance_preset(accessible_ui.CHILD, 0, action='select') == {
         'minutes': 0, 'saved': True}
-    assert len(inputs) == 2
+    allowance.action.do_action.assert_called_once_with(0)
+    choice.action.do_action.assert_called_once_with(0)
     settle.assert_called_once()
 
 
@@ -1142,11 +1138,14 @@ def test_allowance_reopen_reads_open_picker_without_replaying_popup():
     custom = Node('Custom amount', 'label')
     allowance.children = [label]
     # The public menu.popup action opens; invoking it again does not close.
-    ui.activate_id = Mock(side_effect=lambda identity: setattr(
-        allowance, 'children', [label, choices, custom]))
+    def open_picker(_index):
+        allowance.children = [label, choices, custom]
+        return True
+    allowance.action.do_action.side_effect = open_picker
     assert ui.allowance_preset(accessible_ui.CHILD, 0, action='reopen') == {
         'minutes': 0, 'saved': True}
-    ui.activate_id.assert_called_once_with('parent-daily-limit-selector')
+    allowance.action.do_action.assert_called_once_with(0)
+    choice.action.do_action.assert_not_called()
     assert ui.showing(choice)
 
 

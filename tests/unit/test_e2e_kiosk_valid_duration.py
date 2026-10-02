@@ -557,6 +557,51 @@ def test_input_without_valid_result_is_terminal(fault):
     target.action.do_action.assert_called_once()
 
 
+@pytest.mark.parametrize('result', ['selected', 'unchanged', 'wrong-owner', 'duplicate',
+                                  'conflicting-selection', 'cancelled'])
+def test_duration_selection_waits_for_owned_pressed_state_without_replay(monkeypatch, result):
+    ui, _status, _custom = valid_form()
+    target = ui.find_id('kiosk-duration-300')
+    form = ui.find_id('kiosk-request-form')
+    select = target.action.do_action.side_effect
+    target.action.do_action.side_effect = None  # Accepted, but not completed yet.
+    ui.timeout = .4
+    now = [0.0]
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+    def settle(delay):
+        assert not ui._observation_cache
+        now[0] += delay
+        if result == 'selected':
+            select(0)
+        elif result == 'wrong-owner':
+            ui.owner_pids = lambda: {999}
+        elif result == 'duplicate':
+            form.children.append(Node(identity=target.identity))
+        elif result == 'conflicting-selection':
+            select(0)
+            ui.find_id('kiosk-duration-900').states.add('pressed')
+        elif result == 'cancelled':
+            raise KeyboardInterrupt()
+    monkeypatch.setattr(accessible_ui.time, 'sleep', settle)
+    if result == 'selected':
+        observed = ui.run('kiosk-valid-preset-select', '')
+        assert observed['valid_choice']['request']['duration_seconds'] == 300
+        assert now[0] == .2
+    else:
+        expected = {'unchanged': 'timeout:kiosk-duration-selected',
+                    'wrong-owner': 'wrong-owner', 'duplicate': 'ambiguous-automation-id',
+                    'conflicting-selection': 'kiosk-duration-selection',
+                    'cancelled': None}[result]
+        with pytest.raises(KeyboardInterrupt if result == 'cancelled' else UiError,
+                           match=expected):
+            ui.run('kiosk-valid-preset-select', '')
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.run('kiosk-valid-preset-select', '')
+        assert now[0] <= .4
+    target.action.do_action.assert_called_once_with(0)
+    assert ui._observation_cache is None
+
+
 def test_custom_value_is_exact_and_foreign_text_is_not_returned():
     ui, _, custom = valid_form()
     ui.kiosk_valid_choice('kiosk-valid-custom-open')

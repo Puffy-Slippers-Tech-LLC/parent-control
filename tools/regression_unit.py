@@ -404,6 +404,11 @@ write_e2e write_e2e_cleanup_safety
 # widgets only; they add no timers, threads, filesystem or display resources.
 # Public AT-SPI transport tests use in-memory RPC/connection doubles only;
 # traversal caches and object identities are local to each test instance.
+# UI timing regressions in test_regression use in-memory clocks/sinks and
+# synchronous doubles plus one waited pytest subprocess in private tmp_path.
+# Its pipe descriptor closes at session end; no display, bus or shared file.
+# Wait-trace retry/deadline/interrupt tests use in-memory predicates and clocks;
+# tracing preserves the unit and UI inventory resource classifications.
 # Parent continuous-activity checks mock session identity, privilege transitions
 # and gsettings calls; diagnostic checks mock the read-only screen-saver query.
 # Neither touches the host session, settings, bus or display.

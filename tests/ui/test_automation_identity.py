@@ -131,6 +131,14 @@ for language, native_name in SUPPORTED_LANGUAGES:
     assert original['language-title'].get_direction() == expected_direction
     assert original['language-search'].get_direction() == expected_direction
     assert original['language-list'].get_direction() == expected_direction
+    # Candidate previews must not move Save into Cancel's previous position.
+    # Keep the action row's order fixed while translating each button normally.
+    actions = original['language-continue'].get_parent()
+    assert actions.get_direction() == Gtk.TextDirection.LTR
+    assert actions.get_first_child() is original['language-cancel']
+    assert original['language-cancel'].get_next_sibling() is original['language-continue']
+    assert original['language-continue'].get_direction() == expected_direction
+    assert original['language-cancel'].get_direction() == expected_direction
     # The native-name rows retain their visual order and individual script,
     # even when the candidate changes the surrounding dialog direction.
     assert choice.get_direction() == Gtk.TextDirection.RTL

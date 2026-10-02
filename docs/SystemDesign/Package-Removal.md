@@ -130,6 +130,8 @@ owning packages' control; removal never performs APT autoremove.
 Activation, migration, ownership, and uninstall records are removed only after
 successful cleanup. Failed cleanup keeps the records needed for retry; aborted
 first unpack removes only its attempt's bookkeeping.
+Successful removal also clears the volatile child-trust reboot guard. The
+backend activation receipt is removed with its owned rollback directory.
 
 Retention means the Parent App can reload the saved choices. It does not mean
 reinstall replays all removal-cleared AccountsService values: broker startup

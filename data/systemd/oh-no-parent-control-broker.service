@@ -2,6 +2,7 @@
 Description=Oh No! Parent Control request broker
 Documentation=https://github.com/Puffy-Slippers-Tech-LLC/parent-control/blob/main/docs/System-Design.md
 ConditionPathExists=!/var/lib/oh-no-parent-control/migration-in-progress
+ConditionPathExists=!/run/oh-no-parent-control-child-trust-reboot
 Wants=fapolicyd.service
 After=fapolicyd.service
 
@@ -44,4 +45,6 @@ RestrictNamespaces=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
 SystemCallArchitectures=native
+# Allow the launcher's bounded 120-second trust wait plus broker construction.
+TimeoutStartSec=180
 TimeoutStopSec=5

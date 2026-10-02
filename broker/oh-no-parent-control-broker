@@ -1,9 +1,22 @@
 #!/usr/bin/python3
 import sys
+import subprocess
 from pathlib import Path
 
 if Path("/var/lib/oh-no-parent-control/migration-in-progress").exists():
     raise SystemExit("onpc.service: saved-data migration is incomplete")
+if Path("/run/oh-no-parent-control-child-trust-reboot").exists():
+    raise SystemExit("onpc.service: child trust activation requires a reboot")
+
+# Check trust even when systemd's Wants dependency failed, or this launcher is
+# invoked directly. The boot-scoped guard alone cannot establish readiness.
+try:
+    subprocess.run(
+        ["/usr/libexec/oh-no-parent-control-package-activation", "wait-child-trust"],
+        stdin=subprocess.DEVNULL, check=True, timeout=125,
+    )
+except (OSError, subprocess.SubprocessError):
+    raise SystemExit("onpc.service: child trust database is not ready") from None
 
 sys.path.insert(0, "/usr/lib/oh-no-parent-control/broker")
 sys.path.insert(0, "/usr/lib/oh-no-parent-control")

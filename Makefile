@@ -382,15 +382,15 @@ check: check-source
 	@$(MAKE) --no-print-directory check-unit
 	@tools/run-tests component tests/component -m component
 
-preview-kiosk:
+preview-kiosk: translations
 	# The preview watches kiosk assets and source files; no manual relaunch is needed.
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.preview
 
-preview-child-overlay:
+preview-child-overlay: translations
 	# The child overlay is the kiosk GUI in overlay mode, with the current child locked.
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.preview --child-overlay
 
-preview-parent:
+preview-parent: translations
 	# The preview watches parent source and CSS files; no backend or installation is needed.
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=parent $(PYTHON) -m oh_no_parent_control_parent.main --preview
 

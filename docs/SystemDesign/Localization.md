@@ -361,6 +361,9 @@ the gateway's inner rails. Smaller contexts show fewer rows and retain scrolling
 
 Both chooser lists scroll, keeping the heading and Save/Cancel actions outside
 the scrolling list. Native-name text direction follows catalogue metadata.
+The action row keeps Cancel on the left and Save on the right when previewing
+any language, so switching direction cannot move Cancel into Save's position.
+The button text follows the candidate language's direction.
 
 Parent uses its native GTK dialog; the kiosk and overlay share their separate
 metal-board dialog. Both share catalogue and resolution logic. Save commits the

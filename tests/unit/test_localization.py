@@ -176,6 +176,28 @@ def test_build_refuses_broken_format_without_replacing_catalogue(catalogues):
     assert not Path(str(target) + ".tmp").exists()
 
 
+@pytest.mark.parametrize('target', ['preview-parent', 'preview-kiosk', 'preview-child-overlay'])
+def test_gtk_preview_compiles_and_refreshes_catalogues(tmp_path, target):
+    po = tmp_path / 'po'
+    po.mkdir()
+    source = po / 'ug.po'
+    header = (ROOT / 'po/en.po').read_text(encoding='utf-8').replace('Language: en', 'Language: ug')
+    source.write_text(header + '\nmsgid "Hello"\nmsgstr "First translation"\n')
+    destination = tmp_path / 'locale'
+    catalogue = destination / 'ug/LC_MESSAGES' / f'{DOMAIN}.mo'
+    for expected in ('First translation', 'Updated translation'):
+        source.write_text(header + f'\nmsgid "Hello"\nmsgstr "{expected}"\n')
+        if catalogue.exists():
+            # Force a stale MO without depending on filesystem clock precision.
+            os.utime(catalogue, (1, 1))
+        # Exercise prerequisite generation without opening a GUI.
+        result = make_catalogues(tmp_path, target, 'PYTHON=true', f'LOCALE_OUTPUT={destination}')
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert catalogue.is_file()
+        with catalogue.open('rb') as stream:
+            assert gettext.GNUTranslations(stream).gettext('Hello') == expected
+
+
 def test_extraction_includes_marked_python_and_javascript_only(tmp_path):
     (tmp_path / "messages.py").write_text('''
 # Translators: A button action.

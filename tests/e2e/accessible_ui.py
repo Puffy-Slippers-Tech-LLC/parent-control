@@ -101,6 +101,10 @@ CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | frozenset({'child-command-launc
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
+OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
+    'overlay-about-close-ready', 'overlay-about-closed', 'overlay-about-refused'})
+CHILD_DESKTOP_OPERATIONS |= OVERLAY_ABOUT_OPERATIONS
+OPERATIONS |= OVERLAY_ABOUT_OPERATIONS | frozenset({'parent-overlay-about-refused'})
 OPERATIONS |= frozenset({'overlay-wrong-account-refused'})
 CHILD_GREETER_OPERATIONS = frozenset({
     'gdm-child-list', 'gdm-child-focused', 'gdm-child-wrong-recipient-refused',
@@ -3895,6 +3899,46 @@ class AccessibleUI:
         require(self.snapshot_owned_target('about-dialog', observation=observation) is None,
                 'ui:kiosk-about-already-open')
         return window
+
+    def overlay_about_scope(self, *, opened):
+        """Fresh child-owned form or active About; never borrow another surface."""
+        self.require_child_overlay_session()
+        observation = self.read_snapshot()
+        nodes, edges, identities, _facts = observation
+        application = self.snapshot_matches(CHILD_APPLICATION, nodes, identities=identities)
+        require(application is not None, 'ui:overlay-about-entry')
+        window = self.snapshot_owned_target('kiosk-request-window',
+            observation=observation, check_prompt=True)
+        require(window is not None and window in self.snapshot_scope(nodes, edges, application),
+                'ui:overlay-about-entry')
+        require(self.snapshot_owned_target('kiosk-request-form', root=window,
+            observation=observation) is not None, 'ui:overlay-about-entry')
+        about = self.snapshot_owned_target('about-dialog', observation=observation)
+        if opened:
+            require(about is not None and about in self.snapshot_scope(nodes, edges, application)
+                and self.has_state(about, self.api.StateType.ACTIVE), 'ui:overlay-about-entry')
+            return about
+        require(about is None and self.has_state(window, self.api.StateType.ACTIVE),
+                'ui:overlay-about-entry')
+        return window
+
+    def open_overlay_about(self):
+        self.overlay_about_scope(opened=False)
+        self.activate_id('kiosk-menu-button', action_name='menu.popup')
+        self.activate_id('kiosk-menu-item-about')
+        self.window_ready_to_close('about')
+        self.overlay_about_scope(opened=True)
+
+    def read_overlay_license(self, version):
+        root = self.overlay_about_scope(opened=True)
+        self.read_label(root, 'about-product', maximum=80)
+        self.read_label(root, 'about-version', maximum=80, expected=version)
+        return self.clickable_link('about-license-value', root=root)
+
+    def overlay_about_closed(self):
+        self.wait(lambda: self.absent_id('about-dialog', within='kiosk-request-window'),
+                  'overlay-about-close')
+        self.overlay_about_scope(opened=False)
 
     def open_kiosk_about(self):
         """Open the real station menu/About controls once from valid entry."""
@@ -8817,6 +8861,30 @@ class AccessibleUI:
                 raise UiError('ui:kiosk-about-refusal-missing')
         elif operation == 'kiosk-about-open':
             self.open_kiosk_about()
+        elif operation == 'parent-overlay-about-refused':
+            self.parent()
+            try:
+                self.open_overlay_about()
+            except UiError as error:
+                require(str(error) == 'ui:overlay-account', 'ui:overlay-about-refusal')
+            else:
+                raise UiError('ui:overlay-about-wrong-entry-accepted')
+        elif operation == 'overlay-about-open':
+            self.open_overlay_about()
+        elif operation == 'overlay-license-read':
+            self.read_overlay_license(version)
+        elif operation == 'overlay-about-close-ready':
+            self.overlay_about_scope(opened=True)
+        elif operation == 'overlay-about-closed':
+            self.overlay_about_closed()
+        elif operation == 'overlay-about-refused':
+            self.overlay_about_scope(opened=False)
+            try:
+                self.read_overlay_license(version)
+            except UiError as error:
+                require(str(error) == 'ui:overlay-about-entry', 'ui:overlay-about-refusal')
+            else:
+                raise UiError('ui:overlay-about-missing-entry-accepted')
         elif operation == 'kiosk-about-read':
             self.read_kiosk_about(version)
         elif operation == 'kiosk-about-close-ready':

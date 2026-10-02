@@ -39,7 +39,7 @@ WORKER_APIS = {
     'onpc_desktop_session': {'switch_user'},
     'onpc_window': {'close'},
     'onpc_about': {'open_about', 'read_help', 'open_from_help', 'open_license',
-                   'check_link', 'return_to_parent'},
+                   'check_link', 'return_to_parent', 'overlay_license'},
     'onpc_documentation': {'read'},
     'onpc_request_flow': {'prepare', 'reject', 'approve', 'overlay_entry', 'daily_station_entry'},
     'onpc_station': {'restrictions'},
@@ -67,6 +67,7 @@ def test_ready_modules_only_declare_and_compose_shared_apis(path):
 def test_overlay_valid_choices_only_composes_shared_apis():
     assert not composition_errors((ROOT / 'tests/e2e/overlay_valid_choices.py').read_text(), CASE_MODULES)
     assert not composition_errors((ROOT / 'tests/e2e/overlay_choices.py').read_text(), CASE_MODULES)
+    assert not composition_errors((ROOT / 'tests/e2e/overlay_license.py').read_text(), CASE_MODULES)
 
 
 def test_accessibility_trace_qualification_declares_shared_input_binding():

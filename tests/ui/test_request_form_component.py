@@ -12,6 +12,40 @@ from tests.support.request_form import launch_request, calls, events
 pytestmark = pytest.mark.ui
 
 
+def test_overlay_about_license_shared_reader_and_unchanged_form(
+        launch_ui, automation, wait_for_accessible_state, monkeypatch):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
+    from tests.support.gui_blocks import run_block
+    from tests.support.keyboard import key_combo
+    from tests.support.paths import ROOT
+
+    launch_ui('child_overlay_preview')
+    ui = automation
+    wait_for_accessible_state(lambda: ui.find('kiosk-request-submit') is not None,
+                              'overlay form available')
+    reader = AccessibleUI(ui.api, timeout=15, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners, application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002, PARENT: 1000, OTHER_PARENT: 1010},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    monkeypatch.setattr(reader, 'require_child_overlay_session', lambda: None)
+    for operation in ('overlay-valid-approver-select', 'overlay-valid-custom-open'):
+        reader.run(operation, '')
+    run_block(reader, 'replace', 'overlay-fraction')
+    reader.run('overlay-valid-fraction-soft-select', '')
+    before = reader.run('overlay-valid-fraction-soft-read', '')['valid_choice']['request']
+    version = json.loads((ROOT / 'data/app.json').read_text())['version']
+    reader.run('overlay-about-refused', version)
+    for _ in range(2):
+        reader.run('overlay-about-open', version)
+        reader.run('overlay-license-read', version)
+        reader.run('overlay-about-close-ready', version)
+        key_combo(reader, 'about-dialog', '<Alt>F4', state=reader.api.StateType.ACTIVE)
+        reader.run('overlay-about-closed', version)
+        assert reader.run('overlay-valid-fraction-soft-read', '')['valid_choice']['request'] == before
+
+
 @pytest.mark.parametrize('exit_action', ('cancel', 'escape'))
 def test_shared_overlay_choice_adapter_and_fractional_text_on_native_gtk(
         launch_ui, automation, wait_for_accessible_state, monkeypatch, exit_action):

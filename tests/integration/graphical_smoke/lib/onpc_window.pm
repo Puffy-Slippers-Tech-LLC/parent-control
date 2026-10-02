@@ -14,6 +14,7 @@ sub close {
         license => ['license', 'license-closed'],
         about => ['about-returned', 'parent-returned'],
         'station-about' => ['about-close-ready', 'about-closed'],
+        'overlay-about' => ['about-close-ready', 'about-closed'],
         'management-denied' => ['management-denied', 'denial-closed'],
         parent => ['close-ready', 'closed'],
         feedback => ['feedback-draft-reread', 'feedback-draft-closed'],

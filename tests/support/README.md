@@ -36,6 +36,12 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 ## Host and guest boundaries
 
+Overlay About reads reuse `journey_blocks.overlay_license_read`,
+`onpc_about::overlay_license` and the shared `AccessibleUI.clickable_link` reader.
+The child-owned About scope and close proof precede normal Alt-F4; fresh absence
+and active form return precede caller-declared immutable request comparisons in
+`KioskRequestJourney`. Host and installed workers never activate these links.
+
 Parent, kiosk and child-overlay entry use
 `AccessibleUI.complete_language_setup` through the parent/request wrappers.
 It resolves the owned startup

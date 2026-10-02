@@ -16,6 +16,7 @@ import check_e2e_overlay_choices as choices_check
 from installed_journey import JourneyPlan, matched_screens
 from overlay_valid_choices import PLAN, OverlayValidChoicesJourney
 from overlay_choices import PLAN as CHOICES_PLAN, OverlayChoicesJourney
+from overlay_license import PLAN as LICENSE_PLAN, OverlayLicenseJourney
 from request_flow import prepared_request
 from parent_setup_qualification import OverlayValidChoicesQualification, KioskEntryQualification
 from parent_setup_qualification import OverlayChoicesQualification
@@ -27,7 +28,8 @@ from ui_observations import UiObservations, RequestObservation, OPERATION_LABELS
 
 
 @pytest.mark.parametrize('plan,journey_type', [(PLAN, OverlayValidChoicesJourney),
-                                            (CHOICES_PLAN, OverlayChoicesJourney)])
+                                            (CHOICES_PLAN, OverlayChoicesJourney),
+                                            (LICENSE_PLAN, OverlayLicenseJourney)])
 def test_real_recorder_startup_accepts_plan_and_actions(tmp_path, monkeypatch, plan, journey_type):
     import installed_journey
     recorder = MagicMock()
@@ -35,7 +37,8 @@ def test_real_recorder_startup_accepts_plan_and_actions(tmp_path, monkeypatch, p
         commands=Mock(), verified=SimpleNamespace(inputs={}))
     def worker(**kw):
         assert kw['guarded_observe'].__self__.plan is plan
-        assert set(kw['guarded_observe'].__self__.actions) == {'native-refuse', 'native-verify'}
+        assert set(kw['guarded_observe'].__self__.actions) == (
+            set() if plan is LICENSE_PLAN else {'native-refuse', 'native-verify'})
         return {'shutdown_verified': True, 'worker_stopped': True, 'callback_closed': True, 'outcome': 'passed'}
     context.run_worker = worker
     monkeypatch.setattr(journey_type, 'validate', lambda self: [])
@@ -280,7 +283,7 @@ def test_real_recorder_step_compares_renamed_activity_before_reply(tmp_path, fau
         assert journey.steps[-1]['comparison']['same_window'] is True
 
 
-@pytest.mark.parametrize('plan,fault', [(plan, fault) for plan in (PLAN, CHOICES_PLAN)
+@pytest.mark.parametrize('plan,fault', [(plan, fault) for plan in (PLAN, CHOICES_PLAN, LICENSE_PLAN)
                                       for fault in ('', *plan.screen_tags)])
 def test_actual_worker_order_titles_and_failure_stop(tmp_path, plan, fault):
     program = r'''
@@ -337,7 +340,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         assert len(matched_screens(tmp_path, plan, observations)) == len(expected)
         assert sum(event[0] == 'password' for event in result['events']) == 2
         assert [event[1] for event in result['events'] if event[0] == 'text'] == (
-            ['1.25'] if plan is PLAN else ['1.25', '1.25', '0.09'])
+            ['1.25', '1.25', '0.09'] if plan is CHOICES_PLAN else ['1.25'])
         if plan is CHOICES_PLAN:
             assert sum(event == ['key', 'esc'] for event in result['events']) == 1
 

@@ -780,13 +780,13 @@ def test_repair_status_replaces_failed_category_and_retry(tmp_path):
     summary = 'Category: e2e (1/1) | Overall - 41% (9/1/24) | Shutdown finished'
     fix_tests.atomic(tmp_path / 'test-controller.json', [
         {'key': 'e2e', 'lines': [summary]}])
-    for _ in range(2):
-        publish_repair_status(tmp_path, 1, '', categories, 'fixing errors')
+    for model in ('gpt-6.1-sol', 'gpt-6-astra'):
+        publish_repair_status(tmp_path, 1, '', categories, 'fixing errors', model=model)
         steps = read_progress(tmp_path)
         assert len(steps) == 1
         assert steps[0]['lines'] == [
             'Round 1: Category: e2e (2/2) | ' + summary.partition(' | ')[2],
-            'Status: fixing errors']
+            f'Status: fixing errors ({model})']
     fix_tests.atomic(tmp_path / 'test-controller.json', [])
     publish_repair_status(tmp_path, 1, 'e2e', categories, 'Running tests')
     assert len(read_progress(tmp_path)) == 1

@@ -215,6 +215,7 @@ case "$name" in
         ;;
     oh-no-parent-control-package-activation)
         if [ "$*" = prepare-child-trust-backend ]; then printf '%s\n' "${TRUST_BACKEND_ACTION:-none}"; exit 0; fi
+        if [ "$*" = complete-child-trust-backend ]; then exit "${TRUST_COMPLETE_STATUS:-0}"; fi
         if [ "$*" = wait-child-trust ]; then exit "${TRUST_READY_STATUS:-0}"; fi
         printf '%s\n' "$IMPACTS" ;;
     fagenrules) exit "${RULE_COMPILE_STATUS:-0}" ;;
@@ -240,7 +241,9 @@ case "$name" in
             'stop oh-no-parent-control-broker.service')
                 if [ "${BROKER_STOP_REFUSED:-0}" != 1 ]; then rm -f "$AUDIT_ROOT/broker-active"; fi
                 ;;
-            'is-active --quiet fapolicyd.service') exit "${FAPOLICYD_ACTIVE_STATUS:-0}" ;;
+            'is-active --quiet fapolicyd.service')
+                if [ -f "$AUDIT_ROOT/fapolicyd-active" ]; then exit 0; fi
+                exit "${FAPOLICYD_ACTIVE_STATUS:-0}" ;;
             'start oh-no-parent-control-execution-policy-ready.service')
                 test -f "$AUDIT_ROOT/canary-loaded" || exit 92
                 exit "${READINESS_STATUS:-0}"
@@ -255,6 +258,11 @@ case "$name" in
     deb-systemd-invoke)
         # Reproduce the installed helper's behavior for an inactive static unit.
         case "$*" in
+            'start fapolicyd.service '*)
+                if [ "${FAPOLICYD_STARTS:-0}" = 1 ]; then
+                    touch "$AUDIT_ROOT/fapolicyd-active"
+                fi
+                ;;
             'stop oh-no-parent-control-broker.service')
                 if [ "${BROKER_STOP_REFUSED:-0}" != 1 ]; then rm -f "$AUDIT_ROOT/broker-active"; fi
                 ;;

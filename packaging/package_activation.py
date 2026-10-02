@@ -24,6 +24,7 @@ LEVELS = ("none", "process-restart", "session-renewal", "reboot")
 MANIFEST_VERSION = 1
 EXTENSION_PATH = Path('usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com')
 EXTENSION_TRUST_PATH = Path('usr/share/oh-no-parent-control/child-extension.trust')
+BOOT_ID_PATTERN = r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}'
 
 
 def activation_for(path: str) -> str:
@@ -212,7 +213,8 @@ def changed_impacts(old_path: Path, new_path: Path) -> list[str]:
 
 def prepare_child_trust_backend(
         config=Path('/etc/fapolicyd/fapolicyd.conf'),
-        record=Path('/var/lib/oh-no-parent-control/child-trust-backend')):
+        record=Path('/var/lib/oh-no-parent-control/child-trust-backend'),
+        boot_id=None):
     """Enable file trust for Ubuntu's debdb-only default, with exact rollback.
 
     debdb omits a package during its own postinst. Do not change an already
@@ -271,28 +273,90 @@ def prepare_child_trust_backend(
         try:
             shutil.copy2(config, temporary / 'before')
             (temporary / 'after').write_bytes(after)
+            # Rollback bytes must survive before the live configuration can
+            # change. Sync the containing directory as well as both files.
+            for name in ('before', 'after'):
+                with (temporary / name).open('rb') as stream:
+                    os.fsync(stream.fileno())
+            sync_directory(temporary)
             temporary.rename(record)
         finally:
             if temporary.exists():
                 shutil.rmtree(temporary)
+    # Remember activation separately from the on-disk edit. A configure retry
+    # in this boot must not mistake the edited file for a loaded backend. Older
+    # ownership records lack this receipt; conservatively defer them once too.
+    if boot_id is None:
+        boot_id = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+    if not re.fullmatch(BOOT_ID_PATTERN, boot_id):
+        raise ValueError('invalid child trust activation boot')
+    activation = record / 'activation'
+    if activation.exists() or activation.is_symlink():
+        regular(activation)
+        status = activation.read_text().strip()
+        if status != 'ready' and not re.fullmatch(BOOT_ID_PATTERN, status):
+            raise ValueError('invalid child trust activation receipt')
+    else:
+        status = None
+    if current != after or status is None:
+        write_child_trust_activation(record, boot_id)
+        status = boot_id
     if current != after:
+        metadata = config.stat()
         descriptor, temporary = tempfile.mkstemp(prefix='.onpc-trust-', dir=config.parent)
         try:
             with os.fdopen(descriptor, 'wb') as stream:
                 stream.write(after)
                 stream.flush()
+                os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
+                os.fchmod(stream.fileno(), metadata.st_mode & 0o777)
                 os.fsync(stream.fileno())
-            metadata = config.stat()
-            os.chmod(temporary, metadata.st_mode & 0o777)
-            os.chown(temporary, metadata.st_uid, metadata.st_gid)
             os.replace(temporary, config)
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
-    # The caller must not restart a live daemon: its display-manager dependency
-    # could log out unrelated desktops. Live exact-record readiness also guards
-    # retries made before a required reboot has loaded the new backend.
-    return 'changed' if current != after else 'none'
+    # Also finish an interrupted rename's durability on a configure retry.
+    sync_directory(config.parent)
+    return 'changed' if status == boot_id else 'none'
+
+
+def sync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def write_child_trust_activation(record: Path, status: str) -> None:
+    """Atomically retain a backend activation receipt beside rollback data."""
+    # The rollback directory may itself have just been renamed into place.
+    # Sync its parent before any caller replaces the live configuration.
+    sync_directory(record.parent)
+    descriptor, temporary = tempfile.mkstemp(prefix='.activation-', dir=record)
+    try:
+        with os.fdopen(descriptor, 'w') as stream:
+            stream.write(status + '\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, record / 'activation')
+        sync_directory(record)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def complete_child_trust_backend(
+        record=Path('/var/lib/oh-no-parent-control/child-trust-backend')) -> None:
+    """Acknowledge a backend only after postinst verifies live exact trust."""
+    if record.is_symlink() or record.parent.is_symlink():
+        raise ValueError('unsafe child trust activation directory')
+    if not record.exists():
+        return  # The distribution already enabled file trust.
+    activation = record / 'activation'
+    if activation.is_symlink() or not activation.is_file():
+        raise ValueError('unsafe child trust activation receipt')
+    write_child_trust_activation(record, 'ready')
 
 
 class ChildTrustDeadline(TimeoutError):
@@ -357,6 +421,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser('prepare-child-trust-backend')
+    commands.add_parser('complete-child-trust-backend')
     generate_parser = commands.add_parser("generate")
     generate_parser.add_argument("--root", type=Path, required=True)
     generate_parser.add_argument("--output", type=Path, required=True)
@@ -378,6 +443,11 @@ def main() -> None:
             print(prepare_child_trust_backend())
         except (OSError, ValueError):
             raise SystemExit('oh-no-parent-control: child file trust backend cannot be configured safely') from None
+    elif args.command == 'complete-child-trust-backend':
+        try:
+            complete_child_trust_backend()
+        except (OSError, ValueError):
+            raise SystemExit('oh-no-parent-control: child trust activation cannot be recorded safely') from None
     else:
         try:
             wait_child_trust()

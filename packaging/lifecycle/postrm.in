@@ -253,6 +253,7 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
         fi
     fi
     rm -f \
+        /run/oh-no-parent-control-child-trust-reboot \
         /var/lib/oh-no-parent-control/migration-in-progress \
         /var/lib/oh-no-parent-control/package-activation-pending \
         /var/lib/oh-no-parent-control/previous-package-activation.json \

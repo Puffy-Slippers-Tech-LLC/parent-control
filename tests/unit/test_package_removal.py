@@ -10,6 +10,13 @@ from tests.support.paths import ROOT
 from tests.support.package_scripts import Machine, machine
 
 
+def test_removal_clears_deferred_child_trust_guard(machine):
+    guard = machine.write('run/oh-no-parent-control-child-trust-reboot')
+    result = machine.run('postrm', 'remove')
+    assert result.returncode == 0, result.stderr
+    assert not guard.exists()
+
+
 @pytest.mark.parametrize('changed', [False, True])
 @pytest.mark.parametrize('active', [False, True])
 def test_removal_restores_only_unchanged_owned_trust_backend(machine, changed, active):

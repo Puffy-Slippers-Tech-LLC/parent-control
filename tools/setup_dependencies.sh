@@ -33,7 +33,9 @@ if [[ "${1-}" == '--rpm-build-tools' ]]; then
     install_rpm_build_tools
     exit 0
 fi
-"${apt_get[@]}" install -y software-properties-common
+if ! command -v add-apt-repository >/dev/null 2>&1; then
+    "${apt_get[@]}" install -y software-properties-common
+fi
 add-apt-repository -y universe
 "${apt_get[@]}" update
 "${apt_get[@]}" install -y \
@@ -64,6 +66,7 @@ add-apt-repository -y universe
     gir1.2-webkit-6.0 \
     gnome-shell=50.1-0ubuntu1.2 \
     inotify-tools=4.25.9.0-1 \
+    libfeature-compat-try-perl=0.05-1 \
     gjs=1.88.0-1 \
     libpam0g-dev=1.7.0-5ubuntu3.2 \
     libglib2.0-bin \
@@ -79,7 +82,7 @@ add-apt-repository -y universe
     mutter-dev-bin=50.1-0ubuntu2.4 \
     nodejs=22.22.1+dfsg+~cs22.19.15-1ubuntu1 \
     openssh-client=1:10.2p1-2ubuntu3.6 \
-    openssl=3.5.5-1ubuntu3.5 \
+    openssl=3.5.5-1ubuntu3.7 \
     pipewire=1.6.2-1ubuntu1.2 \
     wireplumber \
     gstreamer1.0-pipewire \
@@ -102,11 +105,10 @@ add-apt-repository -y universe
     shellcheck=0.11.0-2
 
 # The graphical backend does not need recommended host networking services or
-# a separate VNC server. Feature::Compat::Try is used by the packaged entry
-# point but is missing from this os-autoinst package's dependency declaration.
+# a separate VNC server. Feature::Compat::Try is included with the build
+# prerequisites above because os-autoinst omits that dependency.
 "${apt_get[@]}" install -y --no-install-recommends \
     os-autoinst=5.1768577300.b85e4864-1 \
-    libfeature-compat-try-perl=0.05-1 \
     util-linux=2.41.3-3ubuntu2.2 \
     iproute2=6.19.0-1ubuntu1.1
 

@@ -34,7 +34,7 @@ def publish_progress(run, key, lines, *, replaces=()):
     temporary.replace(run / 'controller.json')
 
 
-def publish_repair_status(run, round_number, category, categories, status):
+def publish_repair_status(run, round_number, category, categories, status, *, model=None):
     """Update one category entry through testing, repair and retries."""
     previous = repair_progress(run, read_progress(run))
     key = f'{round_number}:{category}'
@@ -44,6 +44,8 @@ def publish_repair_status(run, round_number, category, categories, status):
     if status == 'fixing errors' and previous:
         key = previous[-1]['key']
         summary = previous[-1]['lines'][0]
+    if status == 'fixing errors' and model:
+        status += f' ({model})'
     publish_progress(run, key, [summary, 'Status: ' + status])
 
 

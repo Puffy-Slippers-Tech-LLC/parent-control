@@ -7,6 +7,13 @@ shared pytest/Hypothesis caches and aggregate retention in every unit worker.
 Unknown modules fail closed to exclusive execution; new modules must receive an
 isolation/resource review and classification before their work is complete.
 
+Child trust upgrade/retry/boot regressions use tiny private pytest machine trees,
+synthetic boot IDs, and synchronously waited relocated maintainer-script/helper
+children. They read immutable unit/launcher sources and mock every live service
+and database command. Existing package_activation, package_configuration,
+package_removal and systemd_unit classifications remain compatible; no shared
+path, cache, socket, VM, privileged write or new process lifetime is introduced.
+
 Private-version and updateversion regressions use tiny private metadata trees,
 synchronously waited Make/dpkg children and stub builders. Publishing fixtures
 retain their private Git remotes and mocked network/signing; local-source DSC

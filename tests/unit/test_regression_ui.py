@@ -39,6 +39,27 @@ def test_established_identity_and_fixture_gui_modules_are_parallel_buckets():
     ]
 
 
+def test_about_checks_do_not_share_preview_matrix_deadline():
+    preview = [f'tests/ui/test_preview_smoke.py::test_matrix[{index}]'
+               for index in range(41)]
+    about = [f'tests/ui/test_about_release.py::test_about_displays_release_notices[{surface}]'
+             for surface in ('parent', 'kiosk', 'child-overlay')]
+
+    plan = buckets([*about, *preview])
+
+    assert len(plan) == 2
+    assert plan[0].nodeids == tuple(preview)
+    assert plan[1].nodeids == tuple(about)
+    assert plan[0].kind != plan[1].kind
+    # Separate, reviewed workers retain normal resource admission; neither
+    # module falls back to exclusive execution or shares the other's session.
+    from regression_resources import DEMANDS, PARALLEL, compatible
+    assert all(bucket.kind in PARALLEL for bucket in plan)
+    assert all(DEMANDS[bucket.kind] == DEMANDS['ui'] for bucket in plan)
+    assert compatible(plan[0].kind, plan[1].kind)
+    assert compatible(plan[1].kind, plan[0].kind)
+
+
 @pytest.mark.parametrize('nodes', [None, [], ['tests/ui/test_a.py::test_a'] * 2,
     ['tests/unit/test_a.py::test_a'], ['tests/ui/../test_a.py::test_a'],
     ['/tests/ui/test_a.py::test_a'], ['tests/ui/test_a.py']])

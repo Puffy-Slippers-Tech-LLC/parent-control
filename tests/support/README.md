@@ -41,6 +41,9 @@ Overlay About reads reuse `journey_blocks.overlay_license_read`,
 The child-owned About scope and close proof precede normal Alt-F4; fresh absence
 and active form return precede caller-declared immutable request comparisons in
 `KioskRequestJourney`. Host and installed workers never activate these links.
+The finite `links='browser-links'` fragment checks website and privacy through
+`AccessibleUI.read_overlay_link`, with the same independent entry/return
+boundaries; `overlay_license.BROWSER_LINKS_PLAN` declares its comparisons.
 
 Parent, kiosk and child-overlay entry use
 `AccessibleUI.complete_language_setup` through the parent/request wrappers.

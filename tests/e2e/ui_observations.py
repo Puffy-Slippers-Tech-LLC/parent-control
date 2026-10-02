@@ -83,6 +83,8 @@ OPERATION_LABELS = {
     'parent-overlay-about-refused': 'Refusing overlay About entry from Parent management',
     'overlay-about-open': 'Opening the child overlay About window',
     'overlay-license-read': 'Reading overlay product/version and clickable license without activation',
+    'overlay-website-read': 'Checking the owned overlay website link without activation',
+    'overlay-privacy-read': 'Checking the owned overlay privacy link without activation',
     'overlay-about-close-ready': 'Rechecking the active child-owned About before closing',
     'overlay-about-closed': 'Observing About absent and the unchanged child form returned',
     'overlay-about-refused': 'Refusing license reading while overlay About is absent',

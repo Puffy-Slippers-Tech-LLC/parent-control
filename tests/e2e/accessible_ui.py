@@ -102,6 +102,7 @@ OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
 OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
+    'overlay-website-read', 'overlay-privacy-read',
     'overlay-about-close-ready', 'overlay-about-closed', 'overlay-about-refused'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_ABOUT_OPERATIONS
 OPERATIONS |= OVERLAY_ABOUT_OPERATIONS | frozenset({'parent-overlay-about-refused'})
@@ -3930,10 +3931,14 @@ class AccessibleUI:
         self.overlay_about_scope(opened=True)
 
     def read_overlay_license(self, version):
+        return self.read_overlay_link(version, 'license')
+
+    def read_overlay_link(self, version, link):
+        require(link in ('license', 'website', 'privacy'), 'ui:overlay-link-binding')
         root = self.overlay_about_scope(opened=True)
         self.read_label(root, 'about-product', maximum=80)
         self.read_label(root, 'about-version', maximum=80, expected=version)
-        return self.clickable_link('about-license-value', root=root)
+        return self.clickable_link('about-' + link + '-value', root=root)
 
     def overlay_about_closed(self):
         self.wait(lambda: self.absent_id('about-dialog', within='kiosk-request-window'),
@@ -8873,6 +8878,8 @@ class AccessibleUI:
             self.open_overlay_about()
         elif operation == 'overlay-license-read':
             self.read_overlay_license(version)
+        elif operation in ('overlay-website-read', 'overlay-privacy-read'):
+            self.read_overlay_link(version, operation.split('-')[1])
         elif operation == 'overlay-about-close-ready':
             self.overlay_about_scope(opened=True)
         elif operation == 'overlay-about-closed':

@@ -36,6 +36,20 @@ and unchanged form return; it does not repeat local layout or content permutatio
 Bind overlay About and the offered information controls. Reuse the shared About
 and clickable-link readers; retain the request form's earlier observation.
 
+Start at `AccessibleUI.overlay_about_scope`, `open_overlay_about` and
+`read_overlay_link` in `tests/e2e/accessible_ui.py`. License and website/privacy
+use the finite `journey_blocks.overlay_license_read` /
+`onpc_about::overlay_license` binding (`links='license'` or `'browser-links'`).
+`overlay_license.PLAN` and `BROWSER_LINKS_PLAN` in
+`tests/e2e/overlay_license.py` declare the entry, independent read and immutable
+`KioskRequestJourney.request_checks` return endpoints;
+`onpc_request_flow::overlay_license` / `overlay_browser_links` qualify them.
+Extend the shared finite reader/fragment for the remaining links rather than
+copying entry/close mechanics. Relevant host owners are
+`tests/unit/test_e2e_overlay_license.py`,
+`tests/unit/test_e2e_overlay_valid_choices.py` and
+`tests/ui/test_request_form_component.py::test_overlay_about_license_shared_reader_and_unchanged_form`.
+
 Resolve each control afresh on the owned child-session surface. Stop at
 visible/enabled state and a usable public activation action. Do not invoke
 links, inspect their URIs, validate handlers or read external destinations.

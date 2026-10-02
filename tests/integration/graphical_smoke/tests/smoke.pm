@@ -163,6 +163,12 @@ sub run {
         onpc_request_flow::overlay_license(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{overlay_browser_links}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::overlay_browser_links(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{overlay_valid_choices}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

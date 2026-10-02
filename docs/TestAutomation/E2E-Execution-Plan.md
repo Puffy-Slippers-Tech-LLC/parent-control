@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **048f — [Observe overlay password rejection and Cancel](E2E-Tasks/048f-overlay-rejection.md)**.
+Next task: **300 — [Installed personal-language acceptance](E2E-Tasks/300-localization.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

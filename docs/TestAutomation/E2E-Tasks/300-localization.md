@@ -1,17 +1,21 @@
 # 300 — Installed personal-language acceptance
 
-Follow the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Follow the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract),
+[capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance)
 and [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
-This task is queued for future implementation at the developer's request;
+This task is active at the developer's request;
 no installed qualification or scenario completion is claimed.
 
 Required tasks: none (Baseline).
+
+Estimate: 40–60 minutes.
+Session exception: The installed persistence and account-isolation history spans relaunches and renewed sessions, retaining independent language choices and unchanged policy results throughout.
 
 ## Scope
 
 Use [Localization](../../SystemDesign/Localization.md#validation-contract) and
 [personal language selection](../../SystemDesign/Frontends.md#personal-language-selection)
-as the behavior owners. Use only `en`, `de`, and `zh-Hans`, with different
+as the behavior owners. Use `en`, `de`, `zh-Hans`, and `he` (Hebrew), with different
 choices for the administrator, child and kiosk accounts. The overlay and panel
 share the child's choice; selecting a child or approver never transfers language
 ownership. All language interactions use public controls, without direct writes
@@ -56,11 +60,26 @@ must never supply installed persistence or authorization evidence.
    must retain the same public request and policy behavior.
 5. Reopen independent accounts to confirm persistence/isolation using public
    selected values and product results. Run offline to establish that packaged
-   catalogues work without downloads, including German and CJK text.
+   catalogues work without downloads, including German, CJK and Hebrew text.
+6. Explicitly validate Hebrew RTL presentation on installed Parent, child
+   overlay, child panel (including its tooltip/menu) and kiosk, plus inherited
+   About and feedback dialogs. Switch from English to Hebrew and back through
+   public Preferences; observe RTL direction and logical alignment in Hebrew,
+   restored LTR direction in English and legible, unclipped Hebrew text. Check
+   mixed Hebrew/Latin text, account/application names, numeric durations and
+   synthetic draft/reply content for correct bidirectional presentation and
+   unchanged values. Verify usable keyboard navigation, stable public control
+   IDs and matching translated visible/accessibility labels in both directions.
+   Preserve selections, drafts, focus and policy/countdown behavior throughout;
+   another RTL language or host-only layout evidence does not replace this
+   installed Hebrew acceptance. Keep exhaustive scale/layout permutations with
+   [UI coverage](../UI-and-E2E-Coverage.md).
 
-## Future entry
+## Implementation entry
 
 Before implementation, allocate stable scenario IDs, recipes, worker bindings
 and any prerequisite qualification tasks under the execution plan's sizing and
-ordering contract. No executable selector is registered by this brief. Leave
-this row unchecked until that future work and installed acceptance are complete.
+ordering contract. Insert any newly identified prerequisite immediately before
+its consumer and split independent capability work before implementation. No
+executable selector is registered by this brief. Leave this row unchecked until
+that work and installed acceptance are complete.

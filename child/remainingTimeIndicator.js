@@ -174,7 +174,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 () => this._syncCountdownAnimationSetting());
         }
 
-        this._sync();
+        this.refreshLanguage();
         this._queueLayoutSync();
         if (!this._preview)
             this._refreshEstimate();
@@ -194,6 +194,18 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
     refreshLanguage() {
         if (this._destroyed) return;
+        const direction = this._translations?.direction === 'rtl'
+            ? St.TextDirection.RTL : St.TextDirection.LTR;
+        const applyDirection = actor => {
+            actor.set_text_direction?.(direction);
+            for (const child of actor.get_children()) applyDirection(child);
+        };
+        // Only our actors change direction; the host Shell keeps its session locale.
+        applyDirection(this);
+        applyDirection(this._tooltip);
+        if (this._contextMenu) applyDirection(this._contextMenu.actor);
+        this._tooltip.set_style(this._translations?.direction === 'rtl'
+            ? 'text-align: right;' : 'text-align: left;');
         describeControl(this._requestButton, 'child-request-button', this._appName,
             this._text('PANEL_DESCRIPTION'));
         if (this._countdownAnimationItem) {

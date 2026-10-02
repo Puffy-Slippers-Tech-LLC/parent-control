@@ -287,37 +287,63 @@ process.stdout.write(JSON.stringify(locales.map(locale => supportedLanguage(loca
 
 
 def test_all_shipped_messages_preserve_operands_and_python_shell_plural_parity(production_catalogues):
+    import ast
     import json
     import re
-    from tools.export_messages import export
-    messages = export(ROOT / 'common/oh_no_parent_control_ui/messages.py')
+    # Use the POT rather than only the exported Shell dictionary: production
+    # call sites also have contextual and inline messages outside that export.
+    messages = []
+    for block in (ROOT / 'po/oh-no-parent-control.pot').read_text(encoding='utf-8').split('\n\n'):
+        fields, active = {}, None
+        for line in block.splitlines():
+            match = re.match(r'^(msgctxt|msgid|msgid_plural) (".*")$', line)
+            if match:
+                active = match[1]
+                fields[active] = ast.literal_eval(match[2])
+            elif line.startswith('"') and active:
+                fields[active] += ast.literal_eval(line)
+            elif not line.startswith('#'):
+                active = None
+        if fields.get('msgid'):
+            messages.append((fields.get('msgctxt'), [fields['msgid']] +
+                             ([fields['msgid_plural']] if 'msgid_plural' in fields else [])))
     placeholder = re.compile(r'%\(([^)]+)\)([sdg])')
     lookups, expected = [], []
-    for language in ('de', 'es', 'fr', 'pt-BR', 'zh-Hans', 'ru', 'it', 'pl', 'ja'):
+    for language, _name in SUPPORTED_LANGUAGES:
+        if language == 'en':
+            continue
         translations = load_translations(language, localedir=production_catalogues)
         path = production_catalogues / language.replace('-', '_') / 'LC_MESSAGES' / (DOMAIN + '.mo')
-        for key, source in messages.items():
-            forms = source if isinstance(source, list) else [source]
-            counts = (0, 1, 2, 5, 11, 21, 22, 25, 101) if len(forms) == 2 else (1,)
+        for context, forms in messages:
+            key = (context, forms[0])
+            # Cover every residue in the catalogue's integer plural rules,
+            # including Arabic's six forms and Slavic teen/hundred boundaries.
+            counts = (*range(201), 1000, 1000000) if len(forms) == 2 else (1,)
+            indexes = set()
             for count in counts:
                 # Missing entries must not silently pass via source fallback.
-                catalog_key = (forms[0], translations.plural(count)) if len(forms) == 2 else forms[0]
+                source_key = context + '\x04' + forms[0] if context else forms[0]
+                catalog_key = (source_key, translations.plural(count)) if len(forms) == 2 else source_key
+                if len(forms) == 2:
+                    indexes.add(translations.plural(count))
                 assert translations._catalog.get(catalog_key), (language, key, count)
-                translated = (translations.ngettext(*forms, count) if len(forms) == 2
+                translated = (translations.npgettext(context, *forms, count) if context and len(forms) == 2
+                              else translations.pgettext(context, forms[0]) if context
+                              else translations.ngettext(*forms, count) if len(forms) == 2
                               else translations.gettext(forms[0]))
                 assert sorted(placeholder.findall(translated)) == sorted(placeholder.findall(forms[0])), (language, key)
+                assert re.findall(r'</?[A-Za-z][^>]*>|&(?:[A-Za-z]+|#[0-9]+);', translated) == re.findall(
+                    r'</?[A-Za-z][^>]*>|&(?:[A-Za-z]+|#[0-9]+);', forms[0]), (language, key, 'markup')
+                if 'Oh No! Parent Control' in forms[0]:
+                    assert 'Oh No! Parent Control' in translated, (language, key, 'branding')
                 values = {name: 'Zoë <&>' if kind == 's' else count
                           for name, kind in placeholder.findall(forms[0])}
                 assert isinstance(translated % values, str), (language, key)
-                lookups.append([str(path), forms, count])
+                lookups.append([str(path), forms, count, context])
                 expected.append(translated)
-        context, source = 'fractional hours below two', '%(count)g hours'
-        assert translations._catalog.get(context + '\x04' + source), language
-        translated = translations.pgettext(context, source)
-        assert placeholder.findall(translated) == [('count', 'g')]
-        assert isinstance(translated % {'count': 1.5}, str)
-        lookups.append([str(path), [source], 1, context])
-        expected.append(translated)
+            if len(forms) == 2:
+                nplurals = int(re.search(r'nplurals\s*=\s*(\d+)', translations.info()['plural-forms'])[1])
+                assert indexes == set(range(nplurals)), (language, key, indexes)
     script = '''
 import {readFileSync} from 'node:fs';
 import {Catalogue} from './child/gettext.mjs';
@@ -325,7 +351,8 @@ const cache = new Map();
 const results = JSON.parse(readFileSync(0, 'utf8')).map(([path, forms, n, context]) => {
     if (!cache.has(path)) cache.set(path, new Catalogue(readFileSync(path)));
     const catalogue = cache.get(path);
-    return context ? catalogue.pgettext(context, forms[0])
+    return context && forms.length === 2 ? catalogue.npgettext(context, ...forms, n)
+        : context ? catalogue.pgettext(context, forms[0])
         : forms.length === 2 ? catalogue.ngettext(...forms, n) : catalogue.gettext(forms[0]);
 });
 process.stdout.write(JSON.stringify(results));
@@ -346,7 +373,8 @@ const cache = new Map();
 const results = JSON.parse(new TextDecoder().decode(read(ARGV[0]))).map(([path, forms, n, context]) => {
     if (!cache.has(path)) cache.set(path, new Catalogue(read(path)));
     const catalogue = cache.get(path);
-    return context ? catalogue.pgettext(context, forms[0])
+    return context && forms.length === 2 ? catalogue.npgettext(context, ...forms, n)
+        : context ? catalogue.pgettext(context, forms[0])
         : forms.length === 2 ? catalogue.ngettext(...forms, n) : catalogue.gettext(forms[0]);
 });
 print(JSON.stringify(results));

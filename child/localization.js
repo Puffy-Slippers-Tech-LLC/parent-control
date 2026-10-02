@@ -34,6 +34,8 @@ export class TranslationContext {
             catalogue = new Catalogue();
         }
         this.catalogue = catalogue;
+        this.language = id;
+        this.direction = this.languages.find(language => language.id === id)?.direction ?? 'ltr';
     }
 
     refresh(changed, failed) {

@@ -329,6 +329,11 @@ of a native language name or product language ID, ignoring case and allowing
 `*` and `?` wildcards. Clearing the search restores catalogue order; filtering
 preserves the candidate selection. The viewport aims to show the first ten
 languages without scrolling, with remaining choices available by scrolling.
+Escape clears the search from anywhere in the dialog without dismissing it or
+changing the candidate selection. Search publishes a translated accessible name
+and description, native editable text semantics and a stable `language-search`
+ID. Filtered-out choices leave the accessible tree and keyboard navigation;
+the list, visible language choices and actions retain native keyboard focus.
 Parent caps the dialog to its hosting monitor; the request chooser caps it to
 the gateway's inner rails. Smaller contexts show fewer rows and retain scrolling.
 

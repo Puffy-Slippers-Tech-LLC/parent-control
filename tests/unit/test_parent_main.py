@@ -442,6 +442,28 @@ class ParentWindowTests(unittest.TestCase):
         self.assertTrue(_can_start(AuthorizedClient))
         self.assertFalse(_can_start(DeniedClient))
 
+    def test_startup_logs_outcome_and_wait_without_exception_text(self):
+        from gi.repository import Gio
+        from common.oh_no_parent_control_ui.diagnostic_events import decode
+        from parent.oh_no_parent_control_parent.client import BUS_NAME
+        for name, outcome in ((None, 'ready'),
+                (f'{BUS_NAME}.Error.RebootRequired', 'reboot-required'),
+                (f'{BUS_NAME}.Error.AccessDenied', 'access-denied'),
+                ('org.freedesktop.DBus.Error.TimedOut', 'unavailable')):
+            client = mock.Mock()
+            error = Gio.DBusError.new_for_dbus_error(name, 'private-account-detail') if name else None
+            client.list_users.side_effect = error
+            received = []
+            with (mock.patch('parent.oh_no_parent_control_parent.main.time.monotonic',
+                             side_effect=[100, 125]), self.assertLogs('onpc.parent', 'INFO') as logs):
+                self.assertEqual(_can_start(lambda: client, received.append), name is None)
+            records = [decode(record.onpc_payload) for record in logs.records]
+            self.assertEqual([record['fields'] for record in records], [
+                {'outcome': 'started', 'elapsed_ms': 0},
+                {'outcome': outcome, 'elapsed_ms': 25000}])
+            self.assertNotIn('private-account-detail', str(logs.output))
+            self.assertEqual(received, [error] if name else [])
+
     def test_app_policy_states_keep_the_original_three_state_visuals(self):
         self.assertEqual(
             [(state["id"], state["icon"], state["css"]) for state in STATES],

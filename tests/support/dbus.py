@@ -244,7 +244,7 @@ def close_connection(connection):
 
 
 @contextmanager
-def broker_service(dbusmock_system, dbusmock_session, tmp_path):
+def broker_service(dbusmock_system, dbusmock_session, tmp_path, *, diagnostics_only=False):
     """Own each acquired connection/service even when setup stops before yield."""
     with ExitStack() as owned:
         server = open_bus(dbusmock_system.address)
@@ -276,7 +276,7 @@ def broker_service(dbusmock_system, dbusmock_session, tmp_path):
             policy_rescan_interval_seconds=None,
         )
         writer = DailyLogWriter(tmp_path / "logs", now=dependencies.now)
-        service = Service(server, writer, dependencies=dependencies)
+        service = Service(server, writer, dependencies=dependencies, diagnostics_only=diagnostics_only)
         owned.callback(service.close)
         service.register()
         client = open_bus(dbusmock_system.address)

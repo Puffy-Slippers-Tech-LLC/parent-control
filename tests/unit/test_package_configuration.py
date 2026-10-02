@@ -498,7 +498,8 @@ def test_real_backend_upgrade_completes_and_broker_guard_expires_on_reboot(packa
     guard = root / 'run/oh-no-parent-control-child-trust-reboot'
     source = source.replace('/run/oh-no-parent-control-child-trust-reboot', str(guard))
     source = source.replace('/usr/libexec/oh-no-parent-control-package-activation', str(helper))
-    launcher.write_text(source.split('sys.path.insert', 1)[0] + 'raise SystemExit(0)\n')
+    launcher.write_text(source.split('sys.path.insert', 1)[0] +
+                        'print("diagnostics-only" if diagnostics_only else "policy-ready")\n')
     for _ in range(2):
         result = run(IMPACTS='', FAPOLICYD_ACTIVE_STATUS='0' if active else '3',
                      FAPOLICYD_STARTS='1')
@@ -507,10 +508,11 @@ def test_real_backend_upgrade_completes_and_broker_guard_expires_on_reboot(packa
         assert guard.exists() == active
         blocked = subprocess.run([sys.executable, str(launcher)], capture_output=True)
         if active:
-            assert blocked.returncode != 0
-            assert b'child trust activation requires a reboot' in blocked.stderr
+            assert blocked.returncode == 0, blocked.stderr
+            assert blocked.stdout.strip() == b'diagnostics-only'
         else:
             assert blocked.returncode == 0, blocked.stderr
+            assert blocked.stdout.strip() == b'policy-ready'
             assert (receipt / 'activation').read_text() == 'ready\n'
             commands = (root / 'commands').read_text()
             assert f'systemctl --system start {BROKER}' in commands

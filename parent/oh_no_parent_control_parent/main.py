@@ -14,6 +14,7 @@ from common.oh_no_parent_control_ui.diagnostic_events import configure_console, 
 import os
 import sys
 import threading
+import time
 from pathlib import Path
 
 import gi
@@ -41,7 +42,7 @@ from common.oh_no_parent_control_ui.errors import (
 )
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
-from .client import BrokerClient, configure_logging, management_access_denied
+from .client import BrokerClient, configure_logging, management_access_denied, broker_reboot_required
 from .language_dialog import LanguageDialog
 
 LOG = get_logger("parent")
@@ -2336,9 +2337,14 @@ class ParentWindow(Adw.ApplicationWindow):
 
 
 class Application(Adw.Application):
-    def __init__(self, *, preview=False, client_factory=None, startup_error=None):
+    def __init__(self, *, preview=False, client_factory=None, startup_error=None,
+                 check_startup=False):
         super().__init__(application_id="com.puffyslippers.OhNoParentControl.Parent")
         self._startup_error = startup_error
+        self._startup_checked = not check_startup or startup_error is not None
+        self._startup_window = None
+        self._startup_cancelled = False
+        self._startup_feedback = None
         install_exception_hooks(self, "Parent App")
         self._preview = preview
         # Component tests inject a scripted broker through the same constructor
@@ -2404,7 +2410,13 @@ class Application(Adw.Application):
         return GLib.SOURCE_REMOVE
 
     def do_activate(self):
+        if not self._startup_checked:
+            self._check_startup()
+            return
         if self._startup_error is not None:
+            if broker_reboot_required(self._startup_error):
+                self._show_reboot_required()
+                return
             if management_access_denied(self._startup_error):
                 self._show_management_denied()
                 return
@@ -2416,6 +2428,93 @@ class Application(Adw.Application):
         self._ensure_stylesheet(window)
         if self._preview:
             self._watch_preview_files()
+        window.present()
+
+    def _startup_notice(self, identity, title, detail=None, *, loading=False):
+        window = localized(Adw.ApplicationWindow, application=self, title=app_name(),
+                           default_width=560, default_height=300)
+        set_automation_id(window, identity)
+        self._ensure_stylesheet(window)
+        toolbar = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        add_identified_window_controls(header, identity + '-window-controls')
+        toolbar.add_top_bar(header)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20,
+                         margin_top=24, margin_bottom=24, margin_start=24, margin_end=24)
+        if loading:
+            content.append(Adw.Spinner(height_request=32, halign=Gtk.Align.CENTER))
+        heading = localized(Gtk.Label, label=title, wrap=True, css_classes=['title-2'])
+        set_automation_id(heading, identity + '-heading')
+        content.append(heading)
+        if detail is not None:
+            explanation = localized(Gtk.Label, label=detail, wrap=True, vexpand=True)
+            set_automation_id(explanation, identity + '-message')
+            content.append(explanation)
+        actions = Gtk.Box(spacing=12, halign=Gtk.Align.END, valign=Gtk.Align.END, vexpand=True)
+        close = localized(Gtk.Button, label=m.CLOSE)
+        set_automation_id(close, identity + '-close')
+        close.connect('clicked', lambda *_: window.close())
+        actions.append(close)
+        content.append(actions)
+        toolbar.set_content(content)
+        window.set_content(toolbar)
+        window.set_default_widget(close)
+        return window, actions
+
+    def _check_startup(self):
+        if self._startup_window is not None:
+            self._startup_window.present()
+            return
+        window, _actions = self._startup_notice('parent-startup-window', m.LOADING, loading=True)
+        self._startup_window = window
+        window.connect('close-request', self._startup_closed)
+        window.present()
+
+        def check():
+            errors = []
+            _can_start(self._client_factory, errors.append)
+            GLib.idle_add(self._startup_finished, errors[0] if errors else None)
+
+        try:
+            threading.Thread(target=check, daemon=True, name='parent-startup').start()
+        except Exception as error:
+            self._startup_finished(error)
+
+    def _startup_closed(self, *_args):
+        self._startup_cancelled = True
+        return False
+
+    def _startup_finished(self, error):
+        if self._startup_cancelled:
+            return GLib.SOURCE_REMOVE
+        self._startup_checked = True
+        self._startup_error = error
+        # Keep the application alive while replacing its only window. Closing
+        # the loading window manually never permits a late reply to reopen it.
+        self.hold()
+        try:
+            self._startup_window.destroy()
+            self._startup_window = None
+            self.do_activate()
+        finally:
+            self.release()
+        return GLib.SOURCE_REMOVE
+
+    def _show_reboot_required(self):
+        window = self.get_active_window()
+        if window is None:
+            window, actions = self._startup_notice(
+                'parent-reboot-window', m.RESTART_REQUIRED, m.RESTART_TO_FINISH_UPDATING)
+            feedback = localized(Gtk.Button, label=m.SEND_FEEDBACK)
+            set_automation_id(feedback, 'parent-reboot-feedback')
+
+            def show_feedback(*_args):
+                if self._startup_feedback is None:
+                    self._startup_feedback = FeedbackDialog(window)
+                self._startup_feedback.present()
+
+            feedback.connect('clicked', show_feedback)
+            actions.prepend(feedback)
         window.present()
 
     def _ensure_stylesheet(self, window):
@@ -2487,16 +2586,24 @@ class Application(Adw.Application):
 
 
 def _can_start(client_factory=BrokerClient, on_error=None):
-    # Do this before creating a GTK window so manually invoking the launcher
-    # does not expose the Parent App to a standard account.  ListManagedUsers
+    # Do this before creating management controls so manually invoking the
+    # launcher does not expose them to a standard account. ListManagedUsers
     # is deliberately broker-authorized and therefore uses the same
     # AccountsService role source as all management operations.
+    started = time.monotonic()
+    LOG.info("parent.startup-check", outcome="started", elapsed_ms=0)
     try:
         client_factory().list_users()
     except Exception as error:
+        outcome = ("reboot-required" if broker_reboot_required(error) else
+                   "access-denied" if management_access_denied(error) else "unavailable")
+        LOG.warning("parent.startup-check", outcome=outcome,
+                    elapsed_ms=min(2**31 - 1, max(0, int((time.monotonic() - started) * 1000))))
         if on_error is not None:
             on_error(error)
         return False
+    LOG.info("parent.startup-check", outcome="ready",
+             elapsed_ms=min(2**31 - 1, max(0, int((time.monotonic() - started) * 1000))))
     return True
 
 
@@ -2515,13 +2622,9 @@ def main(argv=None):
         configure_logging()
     else:
         configure_console()
-    startup_errors = []
-    if not args.preview and not _can_start(on_error=startup_errors.append):
-        LOG.warning("parent.021")
     log_version()
     LOG.info("parent.022")
-    return Application(preview=args.preview,
-                       startup_error=startup_errors[0] if startup_errors else None).run([sys.argv[0]])
+    return Application(preview=args.preview, check_startup=not args.preview).run([sys.argv[0]])
 
 
 if __name__ == "__main__":

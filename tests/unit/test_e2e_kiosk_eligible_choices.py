@@ -141,6 +141,72 @@ def test_child_selection_confirms_account_before_first_run_language_input(fault)
     choices.children[0].action.do_action.assert_called_once()
 
 
+@pytest.mark.parametrize('field', ['child', 'approver'])
+@pytest.mark.parametrize('inspect_only', [True, False])
+@pytest.mark.parametrize('fault', [None, 'save-failed', 'still-disabled'])
+def test_account_input_completes_startup_language_before_opening_selector(
+        field, inspect_only, fault):
+    ui, selector, choices, expected = accounts_form(field)
+    window = ui.find_id('kiosk-request-window')
+    ready = ui.find_id('kiosk-language-ready')
+    button = Node(identity='language-continue')
+    dialog = Node(identity='language-dialog', children=[button])
+    dialog.parent = window
+    window.children.remove(ready)
+    window.children.append(dialog)
+    selector.states.discard('sensitive')
+    events = []
+
+    def save(_):
+        events.append('save')
+        selector.action.do_action.assert_not_called()
+        for choice in choices.children:
+            choice.action.do_action.assert_not_called()
+        if fault != 'save-failed':
+            window.children.remove(dialog)
+            window.children.append(ready)
+            if fault != 'still-disabled':
+                selector.states.add('sensitive')
+        return True
+
+    open_choices = selector.action.do_action.side_effect
+
+    def open_selector(index):
+        events.append('open')
+        assert dialog not in window.children and ready in window.children
+        assert ui.input_uncertain  # This new selector action is now latched.
+        return open_choices(index)
+
+    button.action.do_action.side_effect = save
+    selector.action.do_action.side_effect = open_selector
+    if fault:
+        with pytest.raises(UiError, match=('timeout:language-saved' if fault == 'save-failed'
+                                          else 'kiosk-account-unavailable')):
+            ui.select_kiosk_account(field, expected[0], expected=expected,
+                                    inspect_only=inspect_only)
+        assert events == ['save']
+        if fault == 'save-failed':
+            assert ui.input_uncertain
+            with pytest.raises(UiError, match='uncertain-input'):
+                ui.select_kiosk_account(field, expected[0], expected=expected,
+                                        inspect_only=inspect_only)
+        selector.action.do_action.assert_not_called()
+        for choice in choices.children:
+            choice.action.do_action.assert_not_called()
+    else:
+        result = ui.select_kiosk_account(field, expected[0], expected=expected,
+                                        inspect_only=inspect_only)
+        assert events == ['save', 'open'] and not ui.input_uncertain
+        selector.action.do_action.assert_called_once()
+        assert choices.children[0].action.do_action.call_count == int(not inspect_only)
+        choices.children[1].action.do_action.assert_not_called()
+        if inspect_only:
+            assert result is None and 'showing' in choices.states
+        else:
+            assert result['request_enabled'] and 'showing' not in choices.states
+    button.action.do_action.assert_called_once()
+
+
 @pytest.mark.parametrize('fault', ['missing', 'extra', 'duplicate', 'wrong-label',
                                  'disabled', 'hidden', 'wrong-owner', 'wrong-surface'])
 def test_bad_offered_set_never_commits(fault):

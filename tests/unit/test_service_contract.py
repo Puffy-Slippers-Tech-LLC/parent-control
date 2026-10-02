@@ -1,11 +1,102 @@
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ElementTree
+from io import BytesIO
+from zipfile import ZipFile
+
+from common.oh_no_parent_control_ui.diagnostic_bundle import validate_bundle
+from common.oh_no_parent_control_ui.diagnostic_events import encode, event
+from oh_no_parent_control.logs import DailyLogWriter
+from oh_no_parent_control.core import AccessDenied
 
 from oh_no_parent_control.service import INTROSPECTION_XML, Service
 
 
 from tests.support.paths import ROOT
+
+
+def test_reboot_diagnostics_mode_never_starts_or_dispatches_policy(tmp_path):
+    from oh_no_parent_control.service import GLib, BUS_NAME
+    dependencies = mock.Mock()
+    dependencies.credentials.uid.return_value = 1000
+    connection = mock.Mock()
+    service = Service(connection, DailyLogWriter(tmp_path),
+                      dependencies=dependencies, diagnostics_only=True)
+    service.register()
+    assert service._policy_rescan_thread is None
+    connection.signal_subscribe.assert_not_called()
+    dependencies.accounts.sync_execution_policy.assert_not_called()
+    service.broker.refresh_enabled_extensions.assert_not_called()
+    service.broker.clear_live_session_runtime_caps.assert_not_called()
+    service.broker.reset_mock()
+    for method in signatures(INTROSPECTION_XML).keys() - {'LogEvent', 'ExportDiagnosticLogs'}:
+        invocation = mock.Mock()
+        service._method_call(None, ':1.42', None, None, method,
+                             GLib.Variant('()', ()), invocation)
+        invocation.return_value.assert_not_called()
+        invocation.return_dbus_error.assert_called_once_with(
+            BUS_NAME + '.Error.RebootRequired', 'child trust activation requires a reboot')
+    assert not service.broker.mock_calls
+    service.close()
+    connection.signal_unsubscribe.assert_not_called()
+    connection.unregister_object.assert_called_once()
+
+
+def test_reboot_mode_collects_real_report_and_rechecks_role(tmp_path):
+    from oh_no_parent_control.service import GLib, BUS_NAME
+    dependencies = mock.Mock()
+    dependencies.credentials.uid.return_value = 1000
+    writer = DailyLogWriter(tmp_path)
+    service = Service(mock.Mock(), writer, dependencies=dependencies, diagnostics_only=True)
+    # History from the previous broker remains available, and frontends can
+    # record their startup/feedback failures while policy is unavailable.
+    writer.write('broker', 'INFO', encode(event('runtime.version', {'version': '1.2'})))
+    logged = mock.Mock()
+    service._method_call(None, ':1.42', None, None, 'LogEvent',
+        GLib.Variant('(sss)', ('parent', 'WARNING', encode(event('parent.021')))), logged)
+    logged.return_value.assert_called_once_with(None)
+    service.broker.authorize_log_component.assert_called_once_with(1000, 'parent')
+    service._health_snapshot = mock.Mock(return_value={})
+    for revoke in (False, True):
+        service.broker.authorize_diagnostic_export.side_effect = (
+            [None, AccessDenied('denied')] if revoke else None)
+        invocation = mock.Mock()
+        with (mock.patch('oh_no_parent_control.service.threading.Thread') as thread,
+              mock.patch('oh_no_parent_control.service.GLib.idle_add') as idle):
+            service._method_call(None, ':1.42', None, None, 'ExportDiagnosticLogs',
+                                 None, invocation)
+            thread.assert_called_once()
+            service._export_logs_worker(invocation, 1000)
+        callback, reply, uid, data = idle.call_args.args
+        validate_bundle(data)
+        with ZipFile(BytesIO(data)) as archive:
+            text = ''.join(archive.read(name).decode() for name in archive.namelist())
+        assert 'version=1.2' in text
+        assert 'parent.021' in text
+        callback(reply, uid, data)
+        assert not service._diagnostic_export_lock.locked()
+        if revoke:
+            invocation.return_value.assert_not_called()
+            invocation.return_dbus_error.assert_called_once_with(
+                BUS_NAME + '.Error.AccessDenied', 'denied')
+        else:
+            invocation.return_dbus_error.assert_not_called()
+            invocation.return_value.assert_called_once()
+    service.broker.collect_extension_diagnostics.assert_not_called()
+    service.close()
+
+
+def test_reboot_mode_production_graph_has_no_enforcement_adapters(tmp_path):
+    with (mock.patch('oh_no_parent_control.service.production_dependencies') as production,
+          mock.patch('oh_no_parent_control.service.CallerCredentials'),
+          mock.patch('oh_no_parent_control.service.AccountsService') as accounts):
+        service = Service(mock.Mock(), DailyLogWriter(tmp_path), diagnostics_only=True)
+    production.assert_not_called()
+    assert service.broker._accounts is accounts.return_value
+    assert service.broker._preferences is None
+    assert service.broker._extensions is None
+    assert service.broker._running_apps is None
+    service.close()
 
 
 def signatures(xml):

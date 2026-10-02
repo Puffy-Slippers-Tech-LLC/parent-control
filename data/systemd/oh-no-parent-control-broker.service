@@ -2,7 +2,8 @@
 Description=Oh No! Parent Control request broker
 Documentation=https://github.com/Puffy-Slippers-Tech-LLC/parent-control/blob/main/docs/System-Design.md
 ConditionPathExists=!/var/lib/oh-no-parent-control/migration-in-progress
-ConditionPathExists=!/run/oh-no-parent-control-child-trust-reboot
+# The launcher keeps policy operations blocked while child trust needs reboot,
+# but admits role-checked logging and export so that the outage is reportable.
 Wants=fapolicyd.service
 After=fapolicyd.service
 

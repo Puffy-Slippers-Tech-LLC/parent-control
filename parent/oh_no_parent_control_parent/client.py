@@ -22,6 +22,12 @@ def management_access_denied(error):
             Gio.DBusError.get_remote_error(error) == f"{BUS_NAME}.Error.AccessDenied")
 
 
+def broker_reboot_required(error):
+    """Recognize only the broker's explicit package-activation restriction."""
+    return (isinstance(error, GLib.Error) and
+            Gio.DBusError.get_remote_error(error) == f"{BUS_NAME}.Error.RebootRequired")
+
+
 class BrokerClient:
     def __init__(self, connection=None):
         self.connection = connection or Gio.bus_get_sync(Gio.BusType.SYSTEM, None)

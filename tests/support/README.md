@@ -73,7 +73,11 @@ consumers. Existing cases therefore retain their original scope. Preview launch
 owns the existing process and private bus as before; setup adds no new resource,
 storage or cleanup lifetime and leaves the existing parallel classifications intact.
 
-Request account selection first confirms the chosen public UID and selector
+Before opening an account selector, request account selection checks startup
+language readiness in its owned snapshot. If setup is pending, it uses the shared
+language helper and reacquires the selector after confirmed completion; a selector
+that remains disabled still refuses input.
+After choosing an account, it first confirms the chosen public UID and selector
 description, with the offered list closed, in a fresh owned snapshot. A newly
 selected child's language dialog may disable the form; this read does not require
 enabled controls. Only that proof permits the shared language helper's separate

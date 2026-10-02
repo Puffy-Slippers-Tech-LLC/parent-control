@@ -265,6 +265,61 @@ def test_baseline_accepts_any_listed_parent_without_input(uids):
         node.component.grab_focus.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', [None, 'save-failed', 'load-failed'])
+def test_baseline_completes_startup_language_before_parent_readback_and_cancel(fault):
+    ui, selector = baseline_form([5432])
+    window = ui.find_id('kiosk-request-window')
+    ready = ui.find_id('kiosk-language-ready')
+    cancel = ui.find_id('kiosk-request-cancel')
+    window.children.remove(ready)
+    cancel.states.discard('sensitive')
+    button = Node(identity='language-continue')
+    dialog = Node(identity='language-dialog', children=[button])
+    dialog.parent = window
+    window.children.append(dialog)
+    ui.kiosk_account_snapshot = Mock(wraps=ui.kiosk_account_snapshot)
+
+    def save(_):
+        ui.kiosk_account_snapshot.assert_not_called()
+        cancel.action.do_action.assert_not_called()
+        if fault != 'save-failed':
+            window.children.remove(dialog)
+            window.children.append(ready)
+            cancel.states.add('sensitive')
+        return True
+
+    button.action.do_action.side_effect = save
+    if fault == 'load-failed':
+        window.children.remove(dialog)
+        error = Node(identity='kiosk-language-load-error')
+        error.parent = window
+        window.children.append(error)
+
+    if fault:
+        with pytest.raises(UiError, match=('timeout:language-saved' if fault == 'save-failed'
+                                          else 'language-load-failed')):
+            ui.run('kiosk-approver-baseline', '')
+        ui.kiosk_account_snapshot.assert_not_called()
+        cancel.action.do_action.assert_not_called()
+        if fault == 'save-failed':
+            assert ui.input_uncertain
+            with pytest.raises(UiError, match='uncertain-input'):
+                ui.run('kiosk-approver-baseline', '')
+            button.action.do_action.assert_called_once()
+        else:
+            button.action.do_action.assert_not_called()
+    else:
+        result = ui.run('kiosk-approver-baseline', '')
+        assert result['approver_uids'] == [5432]
+        assert dialog not in window.children and ready in window.children
+        assert not ui.input_uncertain
+        button.action.do_action.assert_called_once()
+        ui.kiosk_account_snapshot.assert_called_once_with('approver', require_enabled=False)
+        ui.run('kiosk-request-cancel', '')
+        cancel.action.do_action.assert_called_once()
+    selector.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', ['empty', 'missing-selection', 'bad-id',
                                   'low-uid', 'high-uid',
                                   'hidden-selected', 'duplicate-selected',

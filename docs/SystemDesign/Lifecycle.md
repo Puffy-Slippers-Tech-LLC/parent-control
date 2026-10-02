@@ -92,8 +92,11 @@ file-enabled configurations, including Fedora's default, are unchanged.
 If this changes a running daemon's backend, configuration completes successfully
 and records the normal Ubuntu reboot request. Restarting its display-manager
 prerequisite could log out unrelated desktops, so a root-owned mode-`0600`
-`/run/oh-no-parent-control-child-trust-reboot` guard prevents both systemd and
-direct launcher broker activation for that boot. Migration completes and its
+`/run/oh-no-parent-control-child-trust-reboot` guard prevents policy activation
+for that boot. Both systemd and the direct launcher may start the broker's
+[diagnostics-only mode](Logging-and-Feedback.md#investigation-coverage), which
+retains role-checked log collection without starting enforcement or session
+operations. Migration completes and its
 separate exclusion is released; reboot automatically expires the runtime guard
 and starts fapolicyd with the new backend and exact trust readiness gate. No
 manual package-configuration retry is required. An activation receipt alongside

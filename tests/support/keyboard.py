@@ -27,10 +27,24 @@ def press_key(ui, identity, key, *, state):
     deliver(ui, identity, state, lambda: rawinput.pressKey(key))
 
 
-def key_combo(ui, identity, keys, *, state):
-    """Press one ordinary chord after a fresh ID and recipient-state check."""
+def key_combo(ui, identity, keys, *, state, post_delay=None):
+    """Press one guarded chord; a shorter pause requires caller result polling."""
+    if post_delay is not None and (type(post_delay) not in (int, float)
+                                  or not 0 <= post_delay <= 0.25):
+        raise ValueError('Keyboard post-action delay must be between 0 and 0.25 seconds')
     from dogtail import rawinput
-    deliver(ui, identity, state, lambda: rawinput.keyCombo(keys))
+    def send():
+        if post_delay is None:
+            rawinput.keyCombo(keys)
+            return
+        from dogtail.config import config
+        previous = config.action_delay
+        try:
+            config.action_delay = post_delay
+            rawinput.keyCombo(keys)
+        finally:
+            config.action_delay = previous
+    deliver(ui, identity, state, send)
 
 
 def repeat_cursor(ui, identity, keys, count):

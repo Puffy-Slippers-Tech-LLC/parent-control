@@ -58,6 +58,56 @@ def test_cursor_batches_refuse_unbounded_or_transition_input(keys, count):
         repeat_cursor(None, 'owned-editor', keys, count)
 
 
+@pytest.mark.parametrize('fault', ['', 'recipient', 'partial', 'uncertain', 'cancelled'])
+@pytest.mark.parametrize('post_delay', [None, 0.05])
+def test_keyboard_chord_pacing_restores_defaults_and_preserves_single_use(
+        monkeypatch, fault, post_delay):
+    # Process-local input/config doubles; no real keyboard, display or sleep.
+    from unittest.mock import Mock
+    from tests.support import keyboard
+    configuration = ModuleType('dogtail.config')
+    configuration.config = SimpleNamespace(action_delay=1)
+    monkeypatch.setitem(sys.modules, 'dogtail.config', configuration)
+    deliveries = []
+    def send(keys):
+        deliveries.append((keys, configuration.config.action_delay))
+        if fault == 'partial':
+            raise RuntimeError('partial delivery')
+        if fault == 'cancelled':
+            raise KeyboardInterrupt()
+    dogtail = ModuleType('dogtail')
+    dogtail.rawinput = SimpleNamespace(keyCombo=send)
+    monkeypatch.setitem(sys.modules, 'dogtail', dogtail)
+    node = Mock()
+    node.get_state_set.return_value.contains.return_value = fault != 'recipient'
+    ui = SimpleNamespace(input_uncertain=fault == 'uncertain', id_target=Mock(return_value=node))
+    def deliver():
+        keyboard.key_combo(ui, 'owned-popup', 'Escape', state='active', post_delay=post_delay)
+    if fault:
+        with pytest.raises((AssertionError, RuntimeError, KeyboardInterrupt)):
+            deliver()
+    else:
+        deliver()
+        assert not ui.input_uncertain
+    expected = [('Escape', 1 if post_delay is None else post_delay)]
+    assert deliveries == ([] if fault in ('recipient', 'uncertain') else expected)
+    assert configuration.config.action_delay == 1
+    if fault in ('partial', 'cancelled'):
+        assert ui.input_uncertain
+        with pytest.raises(AssertionError, match='uncertain'):
+            deliver()
+        assert deliveries == expected
+    if fault != 'uncertain':
+        ui.id_target.assert_called_once_with('owned-popup')
+
+
+@pytest.mark.parametrize('delay', [-1, 1, float('nan'), True, '0.05'])
+def test_keyboard_chord_refuses_invalid_post_delay_before_input(delay):
+    from tests.support import keyboard
+    with pytest.raises(ValueError, match='post-action delay'):
+        keyboard.key_combo(None, 'owned-popup', 'Escape', state='active', post_delay=delay)
+
+
 @pytest.mark.parametrize('failure', [False, True])
 def test_paced_keyboard_input_is_single_use_and_latches_partial_delivery(monkeypatch, failure):
     # Process-local doubles only; no real input, delay, display or added resource.

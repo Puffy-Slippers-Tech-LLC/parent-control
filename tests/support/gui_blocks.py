@@ -80,6 +80,7 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
         raise ValueError('Invalid GUI block')
     observations = {}
     identity = 'feedback-editor-input'
+    filter_read = False
     for event, group in groupby(events):
         if event[0] == 'key' and event[1] in ('right', 'left', 'shift-right'):
             # Same ordered keys and subsequent exact selection proof as the VM;
@@ -90,6 +91,8 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
             if event[0] == 'observe':
                 stage = event[1]
                 operation = operations[stage].removeprefix('ui:') if operations is not None else stage
+                filter_read = (operation in FILTER_OPERATIONS
+                               and FILTER_OPERATIONS[operation][2] == 'read')
                 if operation in TEXT_OPERATIONS:
                     binding, action = TEXT_OPERATIONS[operation]
                     identity = ('feedback-editor-input' if action == 'anchor'
@@ -105,10 +108,27 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
                 elif operation in ('feedback-draft-reread', 'parent-report-read'):
                     identity = 'feedback-dialog'
                 bound_child = child_bindings.get(stage) if child_bindings is not None else child
-                observations[stage] = ui.run(operation, '', **({'child': bound_child} if bound_child else {}))
+                binding = {'child': bound_child} if bound_child else {}
+                if operation in FILTER_OPERATIONS and FILTER_OPERATIONS[operation][2] == 'closed':
+                    # The popup can retire during the closure operation's
+                    # initial child/page proof. Retry that complete read under
+                    # the existing deadline, never the preceding Escape input.
+                    observations[stage] = ui.wait(
+                        lambda: ui.run(operation, '', **binding),
+                        'host-filter-closed', prompt_in_predicate=True)
+                else:
+                    observations[stage] = ui.run(operation, '', **binding)
             elif event[0] == 'key':
+                # Filter composites immediately poll exact popup absence after
+                # Escape. Dogtail's default one-second post-key sleep adds three
+                # minutes to the five query matrices without proving closure.
+                # Keep delivery pacing; the existing closed observation remains
+                # the gate before any subsequent input.
+                pacing = {'post_delay': 0.05} if filter_read and event[1] == 'esc' else {}
                 keyboard.key_combo(ui, identity, _KEYS[event[1]],
-                    state=ui.api.StateType.ACTIVE if event[1] in ('esc', 'alt-f4') else ui.api.StateType.FOCUSED)
+                    state=ui.api.StateType.ACTIVE if event[1] in ('esc', 'alt-f4') else ui.api.StateType.FOCUSED,
+                    **pacing)
+                filter_read = False
             elif event[0] == 'text':
                 keyboard.type_text(ui, identity, event[1], interval=event[2] / 1000)
             else:

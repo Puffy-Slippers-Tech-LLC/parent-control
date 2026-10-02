@@ -1333,6 +1333,53 @@ def test_host_gui_blocks_share_worker_input_and_stop_at_refused_observation(monk
         assert events[-1] == ('observe', 'text-scalar-body-smoke-read')
 
 
+@pytest.mark.parametrize('fault', ['', 'filter-access-rule-3-read',
+                                  'filter-access-rule-3-closed', 'transient-closed'])
+def test_host_filter_escape_uses_result_polling_and_keeps_closure_gate(monkeypatch, fault):
+    from tests.support import gui_blocks
+    events = []
+    ui = ui_for(Node())
+    ui.timeout = 1
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _: None)
+    def observe(stage, version):
+        events.append(('observe', stage))
+        if stage == fault:
+            raise ValueError('refused')
+        if (fault == 'transient-closed' and stage.endswith('-closed')
+                and events.count(('observe', stage)) == 1):
+            raise accessible_ui.UiError('ui:incomplete-tree')
+        return {'stage': stage}
+    ui.run = observe
+    bounded_wait = ui.wait
+    def wait(predicate, code, **options):
+        events.append(('wait', code, options))
+        return bounded_wait(predicate, code, **options)
+    ui.wait = wait
+    monkeypatch.setattr(gui_blocks.keyboard, 'key_combo',
+        lambda _ui, identity, key, **options: events.append(('key', identity, key, options)))
+    def execute():
+        gui_blocks.run_block(ui, 'filter', 'access-rule', '3', 'filter-access-rule-3')
+        events.append(('next-input',))
+    if fault.startswith('filter-'):
+        with pytest.raises(ValueError, match='refused'):
+            execute()
+        assert events[-1] == ('observe', fault)
+        assert ('next-input',) not in events
+    else:
+        execute()
+        assert events[-2:] == [('observe', 'filter-access-rule-3-closed'), ('next-input',)]
+    keys = [event for event in events if event[0] == 'key']
+    assert keys == ([] if fault.endswith('-read') else [
+        ('key', 'parent-window', 'Escape', {'state': 'active', 'post_delay': 0.05})])
+    assert [event for event in events if event[0] == 'wait'] == (
+        [] if fault.endswith('-read') else [
+            ('wait', 'host-filter-closed', {'prompt_in_predicate': True})])
+    assert events[:5] == [('observe', 'filter-access-rule-3-' + action)
+                         for action in ('open', 'allowed', 'conditional', 'permanent', 'read')]
+    assert events.count(('observe', 'filter-access-rule-3-closed')) == (
+        0 if fault.endswith('-read') else 2 if fault == 'transient-closed' else 1)
+
+
 @pytest.mark.parametrize('fragment', ['window', 'privacy'])
 @pytest.mark.parametrize('prefix', ['', 'independent-'])
 def test_review_fragments_match_declarations_and_stop_before_later_input(fragment, prefix):

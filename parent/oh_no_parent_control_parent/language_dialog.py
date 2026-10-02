@@ -93,6 +93,9 @@ class LanguageDialog(Gtk.Window):
         set_automation_id(self._error, "language-error")
         content.append(self._error)
         actions = Gtk.Box(spacing=12, homogeneous=True, hexpand=True)
+        # Previewing an RTL candidate must not swap Save and Cancel under the
+        # pointer. Button text still follows the candidate's own direction.
+        fixed_direction(actions, Gtk.TextDirection.LTR)
         self._cancel = localized(Gtk.Button, label=m.CANCEL,
                                  css_classes=["parent-language-cancel"])
         describe_control(self._cancel, m.CANCEL, m.CANCEL,

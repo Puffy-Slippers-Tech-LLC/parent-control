@@ -15,10 +15,13 @@ use testapi ();
 
 sub overlay_license {
     onpc_progress::operation('Qualifying overlay About information and license clickability');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'overlay-license:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+    my ($exchange, $declared, $challenges, $links) = @_;
+    $links //= 'license';
+    die 'overlay-license:arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-license', review => 0);
+    die 'overlay-about:links' unless $links eq 'license' || $links eq 'browser-links';
+    my $prefix = $links eq 'license' ? 'overlay-license' : 'overlay-browser-links';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => $prefix, review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -40,14 +43,20 @@ sub overlay_license {
     # Fresh wrong-stage proof must refuse before opening any window.
     my $wrong = onpc_journey->new(exchange => $exchange, prefix => 'overlay-license-wrong', review => 0);
     $wrong->{last_observation} = {stage => 'missing-about-refused', reply => $entry};
-    my $accepted = eval { onpc_about::overlay_license($wrong, $entry, 'open-estimate', ''); 1 };
+    my $accepted = eval { onpc_about::overlay_license($wrong, $entry, 'open-estimate', '', $links); 1 };
     die 'overlay-license:wrong-proof-accepted' if $accepted;
     die 'overlay-license:wrong-proof-refusal' unless $@ =~ /journey:stale-observation/;
-    my $returned = onpc_about::overlay_license($journey, $entry, 'missing-about-refused', '');
-    onpc_about::overlay_license($journey, $returned, 'form-returned', 'independent-');
+    my $returned = onpc_about::overlay_license($journey, $entry, 'missing-about-refused', '', $links);
+    onpc_about::overlay_license($journey, $returned, 'form-returned', 'independent-', $links);
     $journey->seen('cancel');
     $journey->seen('returned');
     $journey->finish();
+}
+
+sub overlay_browser_links {
+    onpc_progress::operation('Qualifying overlay website and privacy clickability');
+    die 'overlay-browser-links:arguments' unless @_ == 3;
+    return overlay_license(@_, 'browser-links');
 }
 
 sub overlay_valid_choices {

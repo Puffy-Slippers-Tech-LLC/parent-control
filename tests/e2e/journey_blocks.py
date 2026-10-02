@@ -7,14 +7,17 @@ phase transitions. Each call returns a fresh mapping owned by its caller.
 from private_artifacts import require
 
 
-def overlay_license_read(prefix=''):
+def overlay_license_read(prefix='', *, links='license'):
     """Owned About read/close fragment; callers declare preserved form endpoints."""
     import re
     require(type(prefix) is str and re.fullmatch(r'(?:[a-z][a-z0-9-]*-)?', prefix),
             'journey:overlay-about-binding')
+    require(links in ('license', 'browser-links'), 'journey:overlay-about-links')
+    reads = (('license-read', 'overlay-license-read'),) if links == 'license' else (
+        ('website-read', 'overlay-website-read'), ('privacy-read', 'overlay-privacy-read'))
     return {prefix + stage: 'ui:' + operation for stage, operation in (
         ('about-open', 'overlay-about-open'),
-        ('license-read', 'overlay-license-read'),
+        *reads,
         ('about-close-ready', 'overlay-about-close-ready'),
         ('about-closed', 'overlay-about-closed'),
         ('form-returned', 'overlay-valid-fraction-soft-read'))}

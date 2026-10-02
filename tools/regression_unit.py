@@ -216,6 +216,8 @@ from regression_ui import Bucket
 # verification-only action selection adds no shared resource or cleanup lifetime.
 # Overlay About uses process-local public-tree doubles, private evidence and
 # bounded reaped Perl workers, with no live VM/display or shared mutable state.
+# Website/privacy reader and worker-order matrices extend those same private
+# lifetimes; no new module, shared resource or cleanup classification is needed.
 REVIEWED = frozenset("""
 localization
 e2e_shell_panel

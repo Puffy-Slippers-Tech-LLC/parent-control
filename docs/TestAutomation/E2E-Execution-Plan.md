@@ -19,15 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **049 — [E2E-015: child-overlay-cancel](E2E-Tasks/049-case-44.md)**.
-
-Task 049 is registered. The retained live failure in
-`20261002T000903Z-04982ddf` was traced to a test composition defect: after setup
-submitted the draft, `resumed-opened` incorrectly required its unsubmitted state.
-The repaired composition reads and compares retained activity before a guarded
-deliberate resubmission and independent result readback. The earlier scoped
-stale-node exit correction remains. Complete host validation, case 44 and affected
-kiosk cases 47/49, then close out. Keep this pointer until all acceptance passes.
+Next task: **049b — [E2E-015: child-overlay-escape](E2E-Tasks/049b-case-45.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

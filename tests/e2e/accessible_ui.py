@@ -7555,9 +7555,41 @@ class AccessibleUI:
         self.input_uncertain = True
         self.invalidate_observation()
         canonical = CHILD_IDENTITIES if field == 'child' else APPROVER_IDENTITIES
-        result = self.kiosk_request_form(enabled=enabled, expected_selection=(field, canonical[name]),
-                                         duration_seconds=duration_seconds, custom_text=custom_text,
-                                         overlay=overlay)
+
+        def selected():
+            # A child change can open its first-run language dialog and disable
+            # the underlying form. Confirm this input's result before allowing
+            # the shared language helper to enter a separate Continue action.
+            selector, form, observation = self.kiosk_account_snapshot(
+                field, require_enabled=False, overlay=overlay)
+            nodes, edges, identities, _facts = observation
+            scope = self.snapshot_scope(nodes, edges, selector)
+            matches = [node for node in scope if identities[node].startswith(
+                f'kiosk-{field}-selected-') and self.showing(node)]
+            require(len(matches) <= 1, 'ui:kiosk-selected-account')
+            wanted = next(identity.replace('-choice-', '-selected-', 1)
+                          for identity, label in bindings.items() if label == name)
+            if not matches or identities[matches[0]] != wanted:
+                return None
+            selector.clear_cache_single()
+            if ' '.join(selector.get_description().split()) != f'Selected account: {name}.':
+                return None
+            if self.snapshot_owned_target(f'kiosk-{field}-choices', root=form,
+                                          observation=observation) is not None:
+                return None
+            return True
+
+        try:
+            self.wait(selected, 'kiosk-request-form', prompt_in_predicate=True)
+            self.input_uncertain = False
+            result = self.kiosk_request_form(enabled=enabled, expected_selection=(field, canonical[name]),
+                                             duration_seconds=duration_seconds, custom_text=custom_text,
+                                             overlay=overlay)
+        except BaseException:
+            # Missing selection, language completion or complete form proof
+            # remains terminal, even after a separately confirmed action.
+            self.input_uncertain = True
+            raise
         self.input_uncertain = False
         return result
 
@@ -7933,12 +7965,19 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(instance == 'primary', 'ui:native-binding')
         require(child in (CHILD, EXISTING_CHILD), 'ui:native-child-binding')
-        require_active_launch_session()
-        if child == CHILD:
-            self.require_child_overlay_session()
-        self.desktop_result(child, 'success')
-        require(self.native_app_closed(), 'ui:native-window-exists')
-        self.handle_system_prompt()
+        def ready():
+            require_active_launch_session()
+            if child == CHILD:
+                self.require_child_overlay_session()
+            self.desktop_result(child, 'success')
+            require(self.native_app_closed(), 'ui:native-window-exists')
+            self.handle_system_prompt()
+            return True
+
+        # A disappearing AT-SPI object invalidates the whole preflight read.
+        # Reacquire it within the existing deadline before any launch input;
+        # complete negative/ownership results still refuse immediately.
+        self.wait(ready, 'native-launch-ready', prompt_in_predicate=True)
         self.input_uncertain = True
         subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
@@ -9401,11 +9440,52 @@ def main():
     print(json.dumps(result, sort_keys=True), flush=True)
 
 
+def adapter_failure_diagnostic(error):
+    """Bounded static call sites and query kinds, never values or exception text.
+
+    The isolated stdin payload has no checkout paths. Its observer frames are
+    identified by their module globals; embedded helpers have fixed module names.
+    """
+    locations, queries = [], []
+    trace = error.__traceback__
+    while trace is not None:
+        frame = trace.tb_frame
+        module = ('accessible_ui' if frame.f_globals is globals() else
+                  frame.f_globals.get('__name__'))
+        if module in ('accessible_ui', 'public_atspi', 'fixture_ui'):
+            locations.append({'module': module, 'function': frame.f_code.co_name,
+                              'line': trace.tb_lineno})
+        trace = trace.tb_next
+    for note in getattr(error, '__notes__', ()):
+        if type(note) is not str:
+            continue
+        parts = note.split(':')
+        if (len(parts) >= 3 and parts[0] == 'public-atspi-query'
+                and parts[1] in (
+                    'org.freedesktop.DBus', 'org.freedesktop.DBus.Properties',
+                    'org.a11y.atspi.Accessible', 'org.a11y.atspi.Cache',
+                    'org.a11y.atspi.Component', 'org.a11y.atspi.Text',
+                    'org.a11y.atspi.Action', 'org.a11y.atspi.EditableText',
+                    'org.a11y.atspi.Selection')
+                and parts[2] in (
+                    'Get', 'GetAll', 'GetItems', 'GetAttributes', 'GetState',
+                    'GetChildAtIndex', 'GetChildren', 'GetApplication',
+                    'GetRole', 'GetRoleName', 'GetLocalizedRoleName', 'GetText',
+                    'GetName', 'GetConnectionUnixProcessID', 'GetNameOwner',
+                    'GrabFocus', 'DoAction', 'SetTextContents', 'SelectChild')):
+            queries.append({'interface': parts[1], 'method': parts[2]})
+    return {'event': 'ui-adapter-failure', 'locations': locations[-12:],
+            'queries': queries[-8:]}
+
+
 if __name__ == '__main__':
     try:
         main()
     except Exception as error:
         # No raw UI tree, account names, document contents or D-Bus errors.
+        if not isinstance(error, UiError):
+            print(json.dumps(adapter_failure_diagnostic(error), sort_keys=True),
+                  file=sys.stderr, flush=True)
         print(str(error) if isinstance(error, UiError) else 'ui:adapter-failed:' + type(error).__name__,
               file=sys.stderr, flush=True)
         raise SystemExit(1)

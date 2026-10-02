@@ -35,6 +35,43 @@ def test_observer_payload_runs_without_checkout_imports(tmp_path):
     assert result.stderr == b'ui:arguments\n'
 
 
+def test_adapter_failure_payload_reports_static_sites_without_private_values(tmp_path):
+    """Exercise the actual isolated payload's terminal exception handler."""
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps({
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI',
+    }).encode()))
+    UiObservations(transport).observe('desktop')
+    # A pre-input public reader error, with private canaries in all raw fields.
+    replacement = '''
+    def fail_read(self, operation, version, child=None):
+        error = RuntimeError('PRIVATE_DOCUMENT_AND_ACCOUNT')
+        error.add_note('public-atspi-query:org.a11y.atspi.Accessible:GetState:PRIVATE_OBJECT')
+        error.add_note('public-atspi-query:PRIVATE_INTERFACE:PRIVATE_METHOD')
+        error.add_note('PRIVATE_PASSWORD')
+        raise error
+    AccessibleUI._run = fail_read
+    AccessibleUI(SimpleNamespace()).run('native-command-launch', '')
+'''
+    # Keep the synthetic exception inside the real outer handler.
+    lines = replacement.splitlines()
+    injected = '    try:\n        from types import SimpleNamespace\n' + '\n'.join(
+        '    ' + line for line in lines if line) + '\n'
+    original = transport.call.call_args.kwargs['input'].decode()
+    payload = original.replace('    try:\n        main()\n', injected)
+    result = subprocess.run(['/usr/bin/python3', '-I', '-'], input=payload.encode(),
+                            cwd=tmp_path, capture_output=True, timeout=10)
+    assert result.returncode == 1 and result.stdout == b''
+    diagnostic, refusal = result.stderr.decode().splitlines()
+    value = json.loads(diagnostic)
+    assert value['event'] == 'ui-adapter-failure'
+    assert [site['function'] for site in value['locations']][-2:] == ['run', 'fail_read']
+    assert all(site['module'] == 'accessible_ui' and type(site['line']) is int
+               for site in value['locations'])
+    assert value['queries'] == [{'interface': 'org.a11y.atspi.Accessible', 'method': 'GetState'}]
+    assert refusal == 'ui:adapter-failed:RuntimeError'
+    assert 'PRIVATE_' not in result.stderr.decode()
+
+
 @pytest.mark.parametrize('expected', ['', 'b' * 64])
 def test_ui_boot_guard_shares_one_transport_call_without_changing_ui_projection(expected):
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({

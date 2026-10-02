@@ -46,6 +46,19 @@ consumers. Existing cases therefore retain their original scope. Preview launch
 owns the existing process and private bus as before; setup adds no new resource,
 storage or cleanup lifetime and leaves the existing parallel classifications intact.
 
+Request account selection first confirms the chosen public UID and selector
+description, with the offered list closed, in a fresh owned snapshot. A newly
+selected child's language dialog may disable the form; this read does not require
+enabled controls. Only that proof permits the shared language helper's separate
+Continue input. Missing selection, language completion or full form readback
+keeps the selection terminal and prevents replay.
+
+Native command launch acquires its session, desktop, window-absence and prompt
+proofs inside the shared bounded read wait. A query error discards that complete
+observation and retries only the preflight; a complete refusal remains terminal.
+The launch command runs once outside the wait, with the uncertain-input latch
+set before submission and independent window/activity readback afterward.
+
 Dedicated chooser checks opt out of automatic setup with
 `launch_ui(..., complete_language_setup=False)`. The host and future installed
 language tests reuse `AccessibleUI.language_scope`, `open_language_preferences`,

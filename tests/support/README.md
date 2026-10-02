@@ -53,6 +53,13 @@ enabled controls. Only that proof permits the shared language helper's separate
 Continue input. Missing selection, language completion or full form readback
 keeps the selection terminal and prevents replay.
 
+Account selection acquires its initial complete snapshot through the bounded
+read wait. A defunct node discards the whole request observation; the same wait
+may reacquire before input or during offered/selected-value readback, retaining
+the original deadline. Persistent staleness refuses, and no selector or choice
+action runs inside a retry predicate. Fresh ownership, prompt and usability
+checks still apply after reacquisition.
+
 Native command launch acquires its session, desktop, window-absence and prompt
 proofs inside the shared bounded read wait. A query error discards that complete
 observation and retries only the preflight; a complete refusal remains terminal.

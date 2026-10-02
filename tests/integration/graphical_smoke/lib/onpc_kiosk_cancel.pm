@@ -7,15 +7,17 @@ use onpc_parent ();
 use onpc_desktop_session ();
 use onpc_app_rows ();
 use onpc_request_flow ();
+use onpc_request_exit ();
 use onpc_journey ();
 
 sub run {
     onpc_progress::operation('Preparing a kiosk request and taking its declared exit');
     my ($exchange, $exit, $declared, $challenges) = @_;
     $exit //= 'cancel';
-    die 'kiosk-cancel:arguments' unless (@_ == 1 || @_ == 4 && ($exit eq 'approved' || $exit eq 'overlay'))
+    die 'kiosk-cancel:arguments' unless (@_ == 1 || @_ == 4 && ($exit eq 'approved' || $exit eq 'overlay' || $exit eq 'overlay-escape'))
         && ref($exchange) eq 'CODE';
-    return overlay_cancel($exchange, $declared, $challenges) if $exit eq 'overlay';
+    return overlay_cancel($exchange, $declared, $challenges,
+        $exit eq 'overlay-escape' ? 'escape' : 'cancel') if $exit =~ /^overlay/;
     my $journey = onpc_journey->new(exchange => $exchange,
         prefix => $exit eq 'approved' ? 'kiosk-approval' : 'kiosk-cancel', review => 0);
     if ($exit eq 'approved') {
@@ -42,11 +44,14 @@ sub run {
 }
 
 sub overlay_cancel {
-    onpc_progress::operation('Cancelling the child overlay and resuming the original activity');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'overlay-cancel:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
-        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-cancel', review => 0);
+    onpc_progress::operation('Exiting the child overlay and resuming the original activity');
+    my ($exchange, $declared, $challenges, $exit) = @_;
+    $exit //= 'cancel';
+    die 'overlay-cancel:arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ($exit eq 'cancel' || $exit eq 'escape');
+    my $prefix = 'overlay-' . $exit;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => $prefix, review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -61,17 +66,21 @@ sub overlay_cancel {
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
     my $activity = onpc_journey->new(exchange => sub { $exchange->('activity-' . $_[0], $_[1]) },
-        prefix => 'overlay-cancel-activity', review => 0);
+        prefix => $prefix . '-activity', review => 0);
     onpc_app_rows::native_usable_app($activity, 'command', $activity->seen('desktop'));
     onpc_app_rows::native_read_activity($activity, 'capture');
     onpc_request_flow::overlay_entry($journey, 'direct', 'command');
     onpc_request_flow::prepare($journey, 'open', 'open', 'default',
         'fixture-child', 'fixture-parent', 75, 1, 'overlay');
-    $journey->consume_observation('cancel', $journey->seen('cancel'));
-    $journey->consume_observation('cancel-returned', $journey->seen('cancel-returned'));
+    if ($exit eq 'escape') {
+        onpc_request_exit::escape($journey);
+    } else {
+        $journey->consume_observation('cancel', $journey->seen('cancel'));
+        $journey->consume_observation('cancel-returned', $journey->seen('cancel-returned'));
+    }
     onpc_app_rows::native_read_activity($activity, 'returned');
     my $resumed = onpc_journey->new(exchange => sub { $exchange->('resumed-' . $_[0], $_[1]) },
-        prefix => 'overlay-cancel-resumed', review => 0);
+        prefix => $prefix . '-resumed', review => 0);
     onpc_app_rows::native_use_app($resumed, $resumed->seen('opened'));
     onpc_app_rows::native_finish_app($activity);
     $journey->finish();

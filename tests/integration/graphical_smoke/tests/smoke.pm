@@ -175,6 +175,12 @@ sub run {
         onpc_request_flow::overlay_information(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{overlay_about}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent_about::run_overlay(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{overlay_valid_choices}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

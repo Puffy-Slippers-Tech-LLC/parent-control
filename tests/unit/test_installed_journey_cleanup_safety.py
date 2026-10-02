@@ -29,6 +29,7 @@ import request_duration
 import request_flow
 import restricted_station_about
 import kiosk_about
+import overlay_about
 import mate_prompt
 import kiosk_multiple
 import kiosk_approval
@@ -250,7 +251,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  kiosk_multiple.PLAN, kiosk_multiple.CASE_PLAN,
                                  kiosk_multiple.INELIGIBLE_PLAN, kiosk_multiple.INELIGIBLE_CASE_PLAN,
                                  restricted_station_about.PLAN, fresh_thirty_allowance.PLAN,
-                                 fresh_thirty_allowance.JORDAN_PLAN, kiosk_about.PLAN,
+                                 fresh_thirty_allowance.JORDAN_PLAN, kiosk_about.PLAN, overlay_about.PLAN,
                                  INTERVAL_RECORDER_PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
@@ -272,7 +273,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',
                               'flow-rejection', 'flow-cancel', 'kiosk-multiple', 'multiple-case',
                               'ineligible-profile', 'ineligible-case', 'station-about', 'fresh-thirty-allowance',
-                              'jordan-thirty-allowance', 'station-about-case', 'real-interval'])
+                              'jordan-thirty-allowance', 'station-about-case', 'overlay-about-case', 'real-interval'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, journey_inventory, plan, failure):
@@ -289,6 +290,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         selector = 'E2E-042/command-help'
     if plan is kiosk_about.PLAN:
         selector = 'E2E-042/kiosk'
+    if plan is overlay_about.PLAN:
+        selector = 'E2E-042/child-overlay'
     if plan is search_filters.PLAN:
         selector = 'E2E-041/search-filters'
     if plan is parent_information.PLAN:
@@ -528,6 +531,20 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                     'observed_monotonic_ns': 2_000_000_000}
             if operation == 'child-countdown-present':
                 result['countdown'].update(text='00:16', observed_monotonic_ns=12_000_000_000)
+        if plan is overlay_about.PLAN:
+            if operation == 'time-explanation-setup-thirty-read':
+                result['time_explanation'] = {'child': 'fixture-child',
+                    'daily': {'seconds': 1800, 'precision_seconds': 1},
+                    'one_time': {'seconds': 0, 'precision_seconds': 1},
+                    'total': {'seconds': 1800, 'precision_seconds': 1},
+                    'observed_monotonic_ns': 1_000_000_000}
+            if operation in accessible_ui.OVERLAY_VALID_REQUESTS:
+                seconds, custom, soft = accessible_ui.OVERLAY_VALID_REQUESTS[operation]
+                result['valid_choice'] = {'request': {'surface': 'child-overlay',
+                    'child': 'fixture-child', 'approver': 'fixture-parent',
+                    'duration_seconds': seconds, 'custom_text': custom, 'allow_soft': soft},
+                    'estimate': {'kind': 'fixed', 'seconds': 1800 + seconds},
+                    'observed_monotonic_ns': 2_000_000_000}
         return result
     def accessibility_input(operation, terminal, mode='checked', *, worker_input=None, child=None):
         if worker_input is None:
@@ -677,13 +694,19 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         else journeys.InstalledJourney)
         if failure:
             with pytest.raises((OSError, RuntimeError)):
-                journeys.record_installed_journey(recorder, context, plan, actions=actions,
-                                                  journey_type=journey_type)
+                if plan is overlay_about.PLAN:
+                    overlay_about.execute(recorder, context)
+                else:
+                    journeys.record_installed_journey(recorder, context, plan, actions=actions,
+                                                      journey_type=journey_type)
             assert acknowledged == list(plan.stages[:plan.stages.index(boundary)])
             assert recorder.records[0]['failures']
         else:
-            journeys.record_installed_journey(recorder, context, plan, actions=actions,
-                                              journey_type=journey_type)
+            if plan is overlay_about.PLAN:
+                overlay_about.execute(recorder, context)
+            else:
+                journeys.record_installed_journey(recorder, context, plan, actions=actions,
+                                                  journey_type=journey_type)
             assert acknowledged == list(plan.stages)
             steps = recorder.records[0]['steps']
             expected_steps = ['setup', 'start', 'step-1', 'step-2']
@@ -700,7 +723,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 expected_steps.append('step-3')
                 actions['prepare-ineligible-approver'].assert_called_once()
             elif plan in (command_help.PLAN, restricted_station.PLAN, kiosk_multiple.CASE_PLAN,
-                          kiosk_about.PLAN, parent_information.PLAN, search_filters.PLAN):
+                          kiosk_about.PLAN, overlay_about.PLAN, parent_information.PLAN, search_filters.PLAN):
                 expected_steps.append('step-3')
             assert [s['step_id'] for s in steps] == [*expected_steps, 'end']
             assert all(s['outcome'] == 'passed' for s in steps)

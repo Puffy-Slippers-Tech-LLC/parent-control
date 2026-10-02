@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">19243</span>/<span style="color: gray">0</span>/19243 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">19639</span>/<span style="color: gray">0</span>/19639 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">151</span>/<span style="color: gray">0</span>/151 | Checks broker behavior through a private D-Bus without changing the host system. |
-| UI | <span style="color: green">260</span>/<span style="color: gray">0</span>/260 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
+| UI | <span style="color: green">261</span>/<span style="color: gray">0</span>/261 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">4</span>/<span style="color: gray">0</span>/4 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">124</span>/<span style="color: gray">0</span>/124 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">32</span>/<span style="color: gray">210</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">20059</span>/<span style="color: gray">210</span>/20269** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">127</span>/<span style="color: gray">0</span>/127 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">33</span>/<span style="color: gray">209</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">20460</span>/<span style="color: gray">209</span>/20669** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">31</span>/<span style="color: gray">210</span>/241 |
+| customer-journey | <span style="color: green">32</span>/<span style="color: gray">209</span>/241 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -63,6 +63,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [161](#scenario-161) | Revoke when there is no active grant (balance: zero total) | `E2E-036/zero-total` | ready |
 | [184](#scenario-184) | Search the app list and edit match rules (flow: search filters) | `E2E-041/search-filters` | ready |
 | [190](#scenario-190) | Read Help, About and command usage on each surface (surface: parent links) | `E2E-042/parent-links` | ready |
+| [191](#scenario-191) | Read Help, About and command usage on each surface (surface: child overlay) | `E2E-042/child-overlay` | ready |
 | [192](#scenario-192) | Read Help, About and command usage on each surface (surface: kiosk) | `E2E-042/kiosk` | ready |
 | [193](#scenario-193) | Read Help, About and command usage on each surface (surface: command help) | `E2E-042/command-help` | ready |
 | [205](#scenario-205) | Review or decline an error report (surface: parent) | `E2E-045/parent` | ready |
@@ -216,7 +217,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[187](#scenario-187)</span> | <span style="color: gray">Search the app list and edit match rules (flow: shared launchers)</span> | <span style="color: gray">`E2E-041/shared-launchers`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[188](#scenario-188)</span> | <span style="color: gray">Search the app list and edit match rules (flow: special paths)</span> | <span style="color: gray">`E2E-041/special-paths`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[189](#scenario-189)</span> | <span style="color: gray">Search the app list and edit match rules (flow: pattern files)</span> | <span style="color: gray">`E2E-041/pattern-files`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[191](#scenario-191)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: child overlay)</span> | <span style="color: gray">`E2E-042/child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[194](#scenario-194)</span> | <span style="color: gray">Use local controls and approvals while offline (surface: child overlay)</span> | <span style="color: gray">`E2E-043/child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[195](#scenario-195)</span> | <span style="color: gray">Use local controls and approvals while offline (surface: kiosk)</span> | <span style="color: gray">`E2E-043/kiosk`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[196](#scenario-196)</span> | <span style="color: gray">Use time across local day and daylight-saving boundaries (calendar: ordinary; time: daily reset)</span> | <span style="color: gray">`E2E-044/ordinary-daily-reset`</span> | <span style="color: gray">pending</span> |
@@ -664,6 +664,20 @@ Variant: flow: search filters
 Case: `E2E-042/parent-links` · Category: customer-journey · Status: **ready**
 
 Variant: surface: parent links
+
+**Steps:**
+
+- For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, sign in as the parent and qualify the desktop.
+- For Parent/overlay, check Help, website, privacy, support, license and legal links are clickable without invoking them or inspecting their URIs or destinations. Read owned About information. Kiosk reads information without external actions. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
+- Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
+
+### Scenario 191
+
+**Read Help, About and command usage on each surface (surface: child overlay)**
+
+Case: `E2E-042/child-overlay` · Category: customer-journey · Status: **ready**
+
+Variant: surface: child overlay
 
 **Steps:**
 
@@ -3731,26 +3745,6 @@ Variant: flow: pattern files
 - Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
 - Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests own full search/filter and local editor matrices. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 191
-
-**Read Help, About and command usage on each surface (surface: child overlay)**
-
-Case: `E2E-042/child-overlay` · Category: customer-journey · Status: **pending**
-
-Variant: surface: child overlay
-
-**Steps:**
-
-- For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, sign in as the parent and qualify the desktop.
-- For Parent/overlay, check Help, website, privacy, support, license and legal links are clickable without invoking them or inspecting their URIs or destinations. Read owned About information. Kiosk reads information without external actions. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account.
-- Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

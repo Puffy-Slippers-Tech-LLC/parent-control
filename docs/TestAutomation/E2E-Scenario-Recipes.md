@@ -947,6 +947,14 @@ reads the returned form. `overlay_license.INFORMATION_PLAN` qualifies independen
 entries; case 191 supplies its own entry, finite choices, capture/return
 endpoints and phases through `KioskRequestJourney.request_checks`.
 
+Case 191 declares `overlay_about.PLAN` and `onpc_parent_about::run_overlay`. Fresh
+Parent entry saves a 30-minute allowance with limits on, then fresh child entry
+opens the overlay directly. FLOW04 selects Jamie, custom 1.25 minutes and soft
+apps included before capture. The information fragment checks Help and all five
+About links, closes only About and compares the captured form. Normal Cancel
+returns to the child desktop. Setup/capture, information and unchanged-form
+return occupy separate recorder phases; no qualification lifecycle is imported.
+
 **Read Help, About and command usage on each surface.** Cases 190, 191, 192, 193.
 
 Bindings: surface = parent-links / child-overlay / kiosk / command-help.

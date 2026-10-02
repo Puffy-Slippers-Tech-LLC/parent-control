@@ -14,6 +14,8 @@ import check_e2e_overlay_license as check
 import check_e2e_overlay_browser_links as browser_check
 import check_e2e_read_overlay_about_and_links as information_check
 from overlay_license import PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN, OverlayLicenseJourney
+from overlay_about import PLAN as ABOUT_CASE_PLAN
+from request_composition import KioskRequestJourney
 from journey_blocks import overlay_license_read
 from parent_setup_qualification import OverlayLicenseQualification, KioskEntryQualification
 from parent_setup_qualification import OverlayBrowserLinksQualification, OverlayInformationQualification
@@ -187,14 +189,14 @@ def test_registration_and_independent_fragment(monkeypatch, selector, qualificat
     with pytest.raises(EvidenceError): overlay_license_read(links='unknown')
 
 
-@pytest.mark.parametrize('source_plan', [PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN])
+@pytest.mark.parametrize('source_plan', [PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN, ABOUT_CASE_PLAN])
 @pytest.mark.parametrize('fault', ['', 'changed', 'mutated', 'missing', 'replay'])
 def test_real_recorder_compares_renamed_form_before_durable_reply(tmp_path, fault, source_plan):
     plan = replace(source_plan, screen_tags={'capture': 'ui:overlay-valid-fraction-soft-read',
         'compare': 'ui:overlay-valid-fraction-soft-read'},
         request_checks={'compare': ('capture', 'overlay-about:changed-form', 'unchanged_form')},
         invocations=(), challenges={}, assertions_after={}, phases={}, advance_after={}, balance_checks={})
-    journey = OverlayLicenseJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
+    journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
     value = {'surface': 'child-overlay', 'child': 'fixture-child', 'approver': 'fixture-parent',
         'duration_seconds': 75, 'custom_text': '1.25', 'allow_soft': True}
     if fault != 'missing': journey.check_preserved_request('capture', {'ui': {'valid_choice': {'request': value}}})

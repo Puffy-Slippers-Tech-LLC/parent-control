@@ -178,7 +178,7 @@ def test_ready_binding_phases_assertions_and_worker_are_registered(monkeypatch, 
     branches = re.findall(r'if \(\$ready->\{(\w+)\}\) \{(.*?)\n    \}', dispatch, re.S)
     branch = [body for mode, body in branches if mode == plan.worker_mode]
     assert len(branch) == 1, plan.worker_mode
-    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_none|run_links|search_filters|parent_error_report)\(', branch[0])
+    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_none|run_links|run_overlay|search_filters|parent_error_report)\(', branch[0])
     assert len(workers) == 1, plan.worker_mode
     source = (ROOT / 'tests/integration/graphical_smoke/lib' / (workers[0] + '.pm')).read_text()
     # Logging is harmless; raw input, process/file I/O and provider selection
@@ -187,8 +187,8 @@ def test_ready_binding_phases_assertions_and_worker_are_registered(monkeypatch, 
 
 
 @pytest.mark.parametrize('scenario,variant', [
-    (s, v) for s, v in READY if v['coverage_id'] in (47, 48, 50, 51, 52, 192)
-], ids=['47', '48', '50', '51', '52', '192'])
+    (s, v) for s, v in READY if v['coverage_id'] in (47, 48, 50, 51, 52, 191, 192)
+], ids=['47', '48', '50', '51', '52', '191', '192'])
 def test_ready_requests_use_shared_comparisons_with_declared_endpoints(monkeypatch, scenario, variant):
     from request_composition import KioskRequestJourney
     _, plan, options = capture_composition(monkeypatch, variant)
@@ -196,10 +196,12 @@ def test_ready_requests_use_shared_comparisons_with_declared_endpoints(monkeypat
     expected = ({'flow-preserved': ('flow-before', 'approval-flow:changed-form', 'preserved_choices')}
                 if variant['coverage_id'] in (51, 52) else
                 {'form-returned': ('open-estimate', 'kiosk-about:changed-form', 'unchanged_form')}
-                if variant['coverage_id'] == 192 else {})
+                if variant['coverage_id'] == 192 else
+                {'form-returned': ('captured-form', 'overlay-about:changed-form', 'unchanged_form')}
+                if variant['coverage_id'] == 191 else {})
     assert plan.request_checks == expected
     assert plan.balance_checks == ({'allowance-configured': 1800}
-                                   if variant['coverage_id'] == 192 else {})
+                                   if variant['coverage_id'] in (191, 192) else {})
 
 
 def test_ready_catalogue_case_uses_the_shared_engine_with_recipe_endpoints(monkeypatch):

@@ -207,6 +207,10 @@ from regression_ui import Bucket
 # Production-language parity adds bounded, reaped Node and GJS children reading those
 # private MO files. Payload comparisons reuse the existing fixture admission
 # and DESTDIR; neither addition introduces shared mutable state.
+# The expanded catalogue adds small private MO headers and a bounded, reaped
+# Node resolver parity check; existing localization/payload classifications apply.
+# Expanded language-action guards retain finite case inputs, process-local
+# accessibility doubles and independent checked-state/readback assertions.
 # Overlay/panel checks use process-local accessibility/session doubles and
 # bounded, reaped Perl children; evidence stays in each pytest tmp_path.
 # Overlay invalid/Escape/FLOW04 checks extend that same lifetime and introduce

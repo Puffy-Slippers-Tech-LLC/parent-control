@@ -69,6 +69,60 @@ def assert_surface_language(ui, wait, surface, language):
 
 
 @pytest.mark.parametrize('surface', SURFACES)
+@pytest.mark.parametrize('dpi_scale', (1, 1.25))
+def test_language_search_is_accessible_and_keyboard_operable(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, surface,
+        request_display_scale, dpi_scale):
+    from tests.support.automation_ids import audit_product_controls
+    from tests.support.keyboard import key_combo, press_key, type_text
+
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, surface)
+    wait(lambda: ui.showing('language-search'), 'search is publicly accessible')
+    inventory = audit_product_controls(ui, 'language-dialog')
+    search = inventory['language-search']
+    assert search.get_name() == 'Search languages'
+    assert search.get_description() == 'Search languages'
+    assert search.get_role_name() == 'entry'
+    assert search.get_text_iface() is not None
+    assert search.get_state_set().contains(ui.api.StateType.EDITABLE)
+    ui.focus('language-search')
+    type_text(ui, 'language-search', 'PORT*BR')
+    wait(lambda: ui.content('language-search') == 'PORT*BR'
+         and ui.showing('language-choice-pt-br')
+         and ui.absent('language-choice-en', within='language-dialog'),
+         'typing filters without Enter and removes hidden choices from accessibility')
+    assert not committed(path)
+    press_key(ui, 'language-search', 'Tab', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.state('language-choice-pt-br', ui.api.StateType.FOCUSED),
+         'Tab reaches the matching language')
+    press_key(ui, 'language-choice-pt-br', 'space', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.state('language-choice-pt-br', ui.api.StateType.CHECKED)
+         and ui.text('language-search') == 'Pesquisar idiomas',
+         'keyboard selection updates accessible labels in the preview language')
+    assert ui.target('language-search').get_description() == 'Pesquisar idiomas'
+    ui.focus('language-search')
+    key_combo(ui, 'language-search', '<Control>a', state=ui.api.StateType.FOCUSED)
+    press_key(ui, 'language-search', 'BackSpace', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.content('language-search') == ''
+         and ui.find('language-choice-fur') is not None,
+         'clearing restores the complete accessible list')
+    ui.focus('language-choice-fur')
+    assert ui.showing('language-choice-fur'), 'last language is keyboard reachable'
+    ui.focus('language-search')
+    type_text(ui, 'language-search', 'no such language')
+    wait(lambda: ui.absent('language-choice-pt-br', within='language-dialog'),
+         'empty search result removes the selected row from accessibility')
+    assert ui.state('language-search', ui.api.StateType.FOCUSED)
+    press_key(ui, 'language-search', 'Tab', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.state('language-cancel', ui.api.StateType.FOCUSED),
+         'Tab skips hidden choices and reaches Cancel')
+    ui.reader.cancel_language(frontend(surface))
+    assert not committed(path)
+    assert_no_policy_or_request_writes(path)
+
+
+@pytest.mark.parametrize('surface', SURFACES)
 @pytest.mark.parametrize('language', LANGUAGES)
 def test_first_run_defaults_and_save_waits_for_commit(
         launch_ui, automation, wait_for_accessible_state, tmp_path, surface, language):
@@ -98,7 +152,7 @@ def test_first_run_defaults_and_save_waits_for_commit(
                          for event in read_events(path)), 'save reaches the fixture')
         assert ui.showing('language-dialog')
         assert not committed(path)
-        disabled = ('language-continue', choice, 'language-cancel')
+        disabled = ('language-continue', choice, 'language-cancel', 'language-search')
         for identity in disabled:
             assert not ui.state(identity, ui.api.StateType.SENSITIVE)
     finally:
@@ -124,6 +178,32 @@ def test_parent_first_run_shared_helper_saves_with_cancel_visible(
     ui.complete_parent_language_setup()
     assert committed(path) == ['en']
     assert_surface_language(ui, wait, 'parent', 'en')
+    assert_no_policy_or_request_writes(path)
+
+
+@pytest.mark.parametrize('surface', SURFACES)
+@pytest.mark.parametrize('language,native_name', [('fur', 'Furlan'), ('ar', 'العربية')])
+def test_expanded_catalogue_choices_save_with_english_fallback(
+        launch_ui, automation, wait_for_accessible_state, tmp_path,
+        surface, language, native_name):
+    """The last choice and an RTL native name work before message translation."""
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, surface, language='en')
+    scope = frontend(surface)
+    wait(lambda: ui.showing(scope + '-language-ready'), 'saved startup ready')
+    ui.reader.open_language_preferences(scope)
+    choice = 'language-choice-' + language.lower()
+    assert ui.text(choice) == native_name
+    ui.reader.choose_language(scope, language)
+    assert ui.text('language-title') == 'Choose your language'
+    assert ui.text('language-continue') == 'Save'
+    ui.reader.save_language(scope)
+    assert committed(path) == [language]
+    assert_surface_language(ui, wait, surface, 'en')
+    ui.reader.open_language_preferences(scope)
+    assert ui.state(choice, ui.api.StateType.CHECKED)
+    assert ui.text(choice) == native_name
+    ui.reader.cancel_language(scope)
     assert_no_policy_or_request_writes(path)
 
 
@@ -231,6 +311,7 @@ def test_failed_save_retains_candidate_and_active_language_then_retries(
     assert ui.state('language-choice-de', ui.api.StateType.CHECKED)
     assert ui.state('language-choice-de', ui.api.StateType.SENSITIVE)
     assert ui.state('language-continue', ui.api.StateType.SENSITIVE)
+    assert ui.state('language-search', ui.api.StateType.SENSITIVE)
     assert ui.text('language-title') == LANGUAGES['de'][2]
     assert not committed(path)
     assert ui.state('language-cancel', ui.api.StateType.SENSITIVE)

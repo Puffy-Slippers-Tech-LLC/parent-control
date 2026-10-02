@@ -14,6 +14,7 @@ Implementation entry points: [localization.py](../../common/oh_no_parent_control
 [deferred messages](../../common/oh_no_parent_control_ui/message.py),
 [GTK bindings](../../common/oh_no_parent_control_ui/translation_widgets.py),
 [Shell translation context](../../child/localization.js),
+[Shell locale resolver](../../child/languages.mjs),
 [MO decoder](../../child/gettext.mjs),
 [languages.py](../../common/oh_no_parent_control_ui/languages.py),
 [language catalogue](../../common/oh_no_parent_control_ui/languages.json),
@@ -58,6 +59,38 @@ display names. Python reads it without GTK; the same JSON is packaged with the
 Shell extension. Native names remain recognizable regardless of the active UI
 language and are not translated into that language.
 
+The catalogue is a hardcoded ordered list of 62 choices. Its first ten are the
+requested priority order: English, German, Spanish, French, Brazilian Portuguese,
+Simplified Chinese, Russian, Italian, Polish and Japanese. Remaining choices
+follow the published sequence in the
+[W3Techs content-language survey](https://w3techs.com/technologies/overview/content_language),
+with additional Portuguese, Chinese and Serbian variants beside the corresponding
+language's remaining position. Website content is an indirect prioritization
+proxy, not a measurement of Ubuntu/Linux users' language market share. Neither
+the requested percentage estimates nor inferred Linux percentages are stored.
+Consumers preserve JSON order; they do not sort names or fetch rankings at runtime.
+
+Coverage was selected on 2026-10-01 using the official
+[GNOME language list](https://l10n.gnome.org/languages/) and
+[GNOME 50 UI statistics](https://l10n.gnome.org/releases/gnome-50/), the project's
+desktop baseline. It includes the languages with at least 80% UI translation
+coverage in that reference, consolidating English regional variants and Chinese
+regional variants into the product's script choices. Arabic, Bengali, Croatian,
+Estonian, Icelandic, Malayalam, Marathi, Malay, Punjabi, Tamil, Telugu, Urdu and
+Vietnamese add regional coverage below that threshold. GNOME completion measures
+translation coverage, not user population.
+
+Delivery is split into catalogue and translation tasks. The original ten choices
+retain their existing coverage, including English source fallback. The other 52
+have PO scaffolds with UTF-8 and language/plural metadata, plus the search-box
+label. Their other messages currently fall back to English. Full translation is
+pending. Catalogue availability must not be reported as completed translation.
+The PO headers cite GNOME team plural metadata; Uzbek uses the invariant
+single-form convention where the reference leaves its rule unspecified.
+Arabic, Persian, Hebrew, Uyghur and Urdu have `direction: "rtl"` metadata for
+native-name labels. Other entries default to `ltr`. Translated RTL surfaces still
+require the direction and layout review below during the translation task.
+
 | Product ID | Native name | Gettext locale directory |
 | --- | --- | --- |
 | `en` | English | `en` |
@@ -70,6 +103,58 @@ language and are not translated into that language.
 | `it` | Italiano | `it` |
 | `pl` | Polski | `pl` |
 | `ja` | 日本語 | `ja` |
+| `pt` | Português | `pt` |
+| `nl` | Nederlands | `nl` |
+| `tr` | Türkçe | `tr` |
+| `zh-Hant` | 中文（繁體） | `zh_Hant` |
+| `id` | Bahasa Indonesia | `id` |
+| `fa` | فارسی | `fa` |
+| `cs` | Čeština | `cs` |
+| `vi` | Tiếng Việt | `vi` |
+| `ko` | 한국어 | `ko` |
+| `uk` | Українська | `uk` |
+| `ar` | العربية | `ar` |
+| `hu` | Magyar | `hu` |
+| `sv` | Svenska | `sv` |
+| `ro` | Română | `ro` |
+| `el` | Ελληνικά | `el` |
+| `da` | Dansk | `da` |
+| `fi` | Suomi | `fi` |
+| `he` | עברית | `he` |
+| `sk` | Slovenčina | `sk` |
+| `th` | ไทย | `th` |
+| `bg` | Български | `bg` |
+| `hr` | Hrvatski | `hr` |
+| `sr` | Српски | `sr` |
+| `sr-Latn` | Srpski (latinica) | `sr_Latn` |
+| `nb` | Norsk bokmål | `nb` |
+| `lt` | Lietuvių | `lt` |
+| `sl` | Slovenščina | `sl` |
+| `ca` | Català | `ca` |
+| `et` | Eesti | `et` |
+| `lv` | Latviešu | `lv` |
+| `bn` | বাংলা | `bn` |
+| `hi` | हिन्दी | `hi` |
+| `ka` | ქართული | `ka` |
+| `is` | Íslenska | `is` |
+| `ms` | Bahasa Melayu | `ms` |
+| `uz` | Oʻzbekcha | `uz` |
+| `kk` | Қазақша | `kk` |
+| `eu` | Euskara | `eu` |
+| `gl` | Galego | `gl` |
+| `ur` | اردو | `ur` |
+| `mr` | मराठी | `mr` |
+| `nn` | Norsk nynorsk | `nn` |
+| `ta` | தமிழ் | `ta` |
+| `ne` | नेपाली | `ne` |
+| `be` | Беларуская | `be` |
+| `te` | తెలుగు | `te` |
+| `ml` | മലയാളം | `ml` |
+| `pa` | ਪੰਜਾਬੀ | `pa` |
+| `eo` | Esperanto | `eo` |
+| `ug` | ئۇيغۇرچە | `ug` |
+| `oc` | Occitan | `oc` |
+| `fur` | Furlan | `fur` |
 
 Resolution uses the saved language when nonempty. An empty value uses the primary
 frontend session message language, supplied by `GLib.get_language_names()` for
@@ -78,11 +163,24 @@ later session-language entries. A nonempty unsupported saved ID also resolves to
 English and remains preserved in storage. With no frontend session language
 supplied, resolution defaults to English.
 
-Regional and script variants collapse by base language to the single product
-choice. For example, `fr-CA` resolves to `fr`, Portuguese variants resolve to
-`pt-BR`, and Chinese variants resolve to `zh-Hans`. This is an explicit catalogue
-policy, including the choice of Simplified Chinese. Supporting separate regional
-or script translations requires updating the resolver and catalogue together.
+Exact catalogue IDs resolve first, case-insensitively. Remaining regional variants
+collapse by base language except for these explicit choices, implemented with
+matching Python and Shell resolvers:
+
+- Portuguese uses `pt` by default, including `pt-PT`; `pt-BR` selects Brazilian Portuguese.
+- Chinese uses an explicit `Hans` or `Hant` script before region. Taiwan, Hong Kong
+  and Macao select `zh-Hant` when no script is supplied; other regions and bare
+  `zh` select `zh-Hans`.
+- Serbian uses Cyrillic `sr` by default; `sr-Latn`, POSIX `@latin`, and the legacy
+  `sh` alias select `sr-Latn`.
+- Norwegian `no` maps to Bokmål `nb`; Nynorsk `nn` stays separate. Legacy `iw`
+  maps to Hebrew `he`, and `in` maps to Indonesian `id`.
+
+POSIX session locales may contain underscores, encoding suffixes and modifiers;
+saved preference syntax remains the broker's hyphenated-ID contract. Existing
+saved `pt-BR` and `zh-Hans` selections retain their identity. For example, `fr-CA`
+still resolves to `fr`. Adding further distinct variants requires updating both
+resolvers and their parity checks together.
 
 Product IDs use hyphens; gettext directories use underscores. Only resolved
 catalogue IDs become filesystem search components. Saved values and locale
@@ -226,6 +324,17 @@ with the resolved primary session language selected. The chooser displays native
 language names in catalogue order, using the same heading for initial setup and
 subsequent visits.
 
+Both choosers filter as the user types in the search box. Search matches any part
+of a native language name or product language ID, ignoring case and allowing
+`*` and `?` wildcards. Clearing the search restores catalogue order; filtering
+preserves the candidate selection. The viewport aims to show the first ten
+languages without scrolling, with remaining choices available by scrolling.
+Parent caps the dialog to its hosting monitor; the request chooser caps it to
+the gateway's inner rails. Smaller contexts show fewer rows and retain scrolling.
+
+Both chooser lists scroll, keeping the heading and Save/Cancel actions outside
+the scrolling list. Native-name text direction follows catalogue metadata.
+
 Parent uses its native GTK dialog; the kiosk and overlay share their separate
 metal-board dialog. Both share catalogue and resolution logic. Save commits the
 selected explicit product ID through `SetOwnLanguage` (or kiosk-only
@@ -235,7 +344,7 @@ writing or applying the candidate, leaving the chooser to appear on the next
 launch while the preference remains empty. Kiosk and overlay also always offer
 Cancel; kiosk prompts again when that child is next selected while unset.
 Cancel never writes the candidate or applies it to the owning frontend.
-Saving disables the choices, Save and Cancel to
+Saving disables search, the choices, Save and Cancel to
 prevent duplicate submissions. A failure retains the choice, displays an error
 and enables retry.
 

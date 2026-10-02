@@ -60,7 +60,7 @@ ACTIVATION_MANIFEST_PATHS += $(DATADIR)/oh-no-parent-control/00-oh-no-parent-con
 endif
 CHILD_DIR := child
 EXTENSION_SOURCES := accessibility.js branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
-EXTENSION_SOURCES += gettext.mjs localization.js
+EXTENSION_SOURCES += gettext.mjs languages.mjs localization.js
 # Explicit production modules prevent preview/test helpers from entering the package.
 COMMON_SOURCES := __init__.py about.py accessibility.py gtk_automation.py app_policy.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py languages.py languages.json localization.py
 COMMON_SOURCES += message.py messages.py translation_widgets.py

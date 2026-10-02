@@ -138,6 +138,10 @@ msgstr ""
 msgid "Search installed apps"
 msgstr ""
 
+#. Shared message: SEARCH_LANGUAGES
+msgid "Search languages"
+msgstr ""
+
 #. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
 msgid "Filter the selected child's available applications."
 msgstr ""

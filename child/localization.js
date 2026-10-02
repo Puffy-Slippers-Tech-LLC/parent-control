@@ -1,6 +1,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {Catalogue} from './gettext.mjs';
+import {supportedLanguage} from './languages.mjs';
 
 const DOMAIN = 'oh-no-parent-control';
 const BUS = 'com.puffyslippers.OhNoParentControl1';
@@ -23,8 +24,7 @@ export class TranslationContext {
 
     apply(saved) {
         const locale = saved || GLib.get_language_names()[0] || 'en';
-        const base = locale.split(/[.@]/)[0].replaceAll('_', '-').split('-')[0].toLowerCase();
-        const id = this.languages.find(language => language.id.split('-')[0] === base)?.id || 'en';
+        const id = supportedLanguage(locale, this.languages);
         const path = `${this.directory}/locale/${id.replaceAll('-', '_')}/LC_MESSAGES/${DOMAIN}.mo`;
         let catalogue;
         try {

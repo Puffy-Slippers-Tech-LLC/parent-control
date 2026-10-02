@@ -31,6 +31,10 @@ from pathlib import PurePosixPath
 # Chooser preview/modal checks use one waited GTK child, a NON_UNIQUE application
 # and two windows on that same private display/bus, including fullscreen focus.
 # They add no shared cache, setting, file, service or cleanup owner.
+# The 62-choice catalogue matrix retains that one owned GTK child and private
+# display; scrolling/native-name direction checks add no resource lifetime.
+# Expanded-choice Save/fallback cases reuse the Request behavior bucket's owned
+# preview and private event files, without network or host locale changes.
 # Overlay valid-choice checks reuse the Request behavior bucket's private GTK
 # preview/display/bus and waited Perl input blocks, with its owned cleanup.
 # They introduce no shared setting, file, process or service lifetime.

@@ -412,12 +412,13 @@ def test_owned_gtk_surfaces_share_the_core_identity_publisher(monkeypatch):
 
 def test_owned_control_inventory_supports_product_spectator_and_fixture_namespaces():
     for surface_identity in (
-        "parent-window", "watch-window", "onpc-fixture-native-primary",
+        "parent-window", "language-dialog", "watch-window", "onpc-fixture-native-primary",
     ):
         control = Node(surface_identity + "-submit")
         control.get_role_name = lambda: "button"
         surface = Node(surface_identity, [control])
-        ui = adapter(surface)
+        ui = adapter(Node("parent-window", [surface])
+                     if surface_identity == "language-dialog" else surface)
         root = None if surface_identity != "onpc-fixture-native-primary" else surface
         identities = audit_owned_controls(ui, surface_identity, root=root)
         assert identities[control.identity] is control
@@ -427,6 +428,20 @@ def test_owned_control_inventory_supports_product_spectator_and_fixture_namespac
     root = Node("watch-window", [missing])
     with pytest.raises(AssertionError, match="owned controls without public IDs"):
         audit_owned_controls(adapter(root), "watch-window")
+
+
+def test_language_inventory_rejects_anonymous_radio_buttons_and_duplicate_ids():
+    radio = Node("")
+    radio.get_role_name = lambda: "radio button"
+    surface = Node("language-dialog", [radio])
+    ui = adapter(Node("parent-window", [surface]))
+    with pytest.raises(AssertionError, match="owned controls without public IDs"):
+        audit_owned_controls(ui, "language-dialog")
+    radio.identity = "language-choice-en"
+    assert audit_owned_controls(ui, "language-dialog")[radio.identity] is radio
+    surface.children.append(Node("language-choice-en"))
+    with pytest.raises(AssertionError, match="duplicate public ID"):
+        audit_owned_controls(ui, "language-dialog")
 
 
 def test_toolkit_title_buttons_require_an_identified_window_controls_owner():

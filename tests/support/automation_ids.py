@@ -6,7 +6,7 @@ from tests.e2e.accessible_ui import UiError, public_automation_id
 
 
 _CONTROL_ROLES = frozenset({
-    "button", "push button", "toggle button", "check box", "combo box",
+    "button", "push button", "toggle button", "check box", "radio button", "combo box",
     "entry", "password text", "link", "scroll bar", "slider",
 })
 _COMPOUND_ROLES = _CONTROL_ROLES | frozenset({"scroll pane"})
@@ -14,7 +14,7 @@ _PRESENTATION_ROLES = frozenset({"label", "text", "image", "panel", "grouping"})
 _EMBEDDED_TOOLKIT_SURFACES = frozenset({"feedback-webview"})
 _OWNED_ID = re.compile(
     r"(?:"
-    r"(?:about|child|error-report|feedback|kiosk|parent|preview-screen|preview-viewer|startup-error)-"
+    r"(?:about|child|error-report|feedback|kiosk|language|parent|preview-screen|preview-viewer|startup-error)-"
     r"[a-z0-9]+(?:-[a-z0-9]+)*"
     r"|(?:(?:e2e|ui)-)?watch-[a-z0-9]+(?:-[a-z0-9]+)*"
     r"|onpc-fixture-(?:native|flatpak|snap|game)-(?:primary|secondary)"

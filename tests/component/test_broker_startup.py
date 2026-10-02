@@ -1,13 +1,19 @@
 """Runtime startup ordering on the established, independently owned private bus."""
 
 import json
+from io import BytesIO
+import logging
 import time
 from unittest import mock
+from zipfile import ZipFile
 
 import pytest
 from gi.repository import Gio, GLib
 
 from oh_no_parent_control.logs import DailyLogWriter
+from oh_no_parent_control.logs import BrokerFileHandler
+from common.oh_no_parent_control_ui.diagnostic_bundle import validate_bundle
+from common.oh_no_parent_control_ui.diagnostic_events import encode, event
 from oh_no_parent_control.adapters import AccountsService
 from oh_no_parent_control.core import AccessDenied, UserAccount
 from oh_no_parent_control.execution_policy import FapolicydPolicy
@@ -15,6 +21,40 @@ from oh_no_parent_control.service import Service
 from tests.support.dbus import (
     RecordingAccounts, RecordingBroker, broker_service, call, close_connection, open_bus,
 )
+
+
+def test_pending_reboot_exports_customer_evidence_over_private_bus(
+        dbusmock_system, dbusmock_session, tmp_path):
+    with broker_service(dbusmock_system, dbusmock_session, tmp_path,
+                        diagnostics_only=True) as harness:
+        handler = BrokerFileHandler(harness.writer)
+        logger = logging.getLogger('onpc')
+        old_level = logger.level
+        logger.setLevel(logging.INFO)
+        logger.addHandler(handler)
+        try:
+            with pytest.raises(GLib.Error) as caught:
+                call(harness.client, 'ListManagedUsers', None, '(a(uss))')
+            assert Gio.DBusError.get_remote_error(caught.value).endswith('.Error.RebootRequired')
+            call(harness.client, 'LogEvent', GLib.Variant('(sss)', (
+                'parent', 'WARNING', encode(event('parent.startup-check', {
+                    'outcome': 'reboot-required', 'elapsed_ms': 25})))), '()')
+            reply = call(harness.client, 'ExportDiagnosticLogs', None, '(ay)')
+            data = bytes(reply.unpack()[0])
+            validate_bundle(data)
+            with ZipFile(BytesIO(data)) as archive:
+                report = ''.join(archive.read(name).decode() for name in archive.namelist())
+            assert 'package upgrade deferred child trust backend activation until reboot' in report
+            assert 'outcome=reboot-required elapsed_ms=25' in report
+            assert 'broker ready' not in report
+            assert harness.accounts.sync_count == 0
+            operations = [name for name, _args in harness.broker.calls]
+            assert operations.count('authorize_diagnostic_export') == 2
+            assert not set(operations) & {'refresh_enabled_extensions',
+                'clear_live_session_runtime_caps', 'observe_grants', 'list_managed_users'}
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(old_level)
 
 
 @pytest.mark.parametrize('name', ['Other Client.AppImage', 'Other,Client.AppImage'])

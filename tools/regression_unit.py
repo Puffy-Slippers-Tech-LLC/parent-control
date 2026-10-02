@@ -1,5 +1,12 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Diagnostics-only broker cases retain process-local credentials/bus/thread doubles
+and small private pytest log directories. Upgrade guard cases retain their
+existing relocated, synchronously waited launcher processes. No system bus,
+installed service, shared log directory or new cleanup lifetime is used; the
+service_contract, diagnostic_privacy, systemd_unit and package_configuration
+modules retain compatible overlap.
+
 The reviewed modules use process-local doubles, read-only checkout inputs and
 private temporary trees. Their real subprocesses use private outputs, relocated
 system paths, private sockets or recorded child identities. The launcher disables

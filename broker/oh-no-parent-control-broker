@@ -5,18 +5,19 @@ from pathlib import Path
 
 if Path("/var/lib/oh-no-parent-control/migration-in-progress").exists():
     raise SystemExit("onpc.service: saved-data migration is incomplete")
-if Path("/run/oh-no-parent-control-child-trust-reboot").exists():
-    raise SystemExit("onpc.service: child trust activation requires a reboot")
+diagnostics_only = Path("/run/oh-no-parent-control-child-trust-reboot").exists()
 
 # Check trust even when systemd's Wants dependency failed, or this launcher is
 # invoked directly. The boot-scoped guard alone cannot establish readiness.
-try:
-    subprocess.run(
-        ["/usr/libexec/oh-no-parent-control-package-activation", "wait-child-trust"],
-        stdin=subprocess.DEVNULL, check=True, timeout=125,
-    )
-except (OSError, subprocess.SubprocessError):
-    raise SystemExit("onpc.service: child trust database is not ready") from None
+# While that guard is present, the service admits only LogEvent and export.
+if not diagnostics_only:
+    try:
+        subprocess.run(
+            ["/usr/libexec/oh-no-parent-control-package-activation", "wait-child-trust"],
+            stdin=subprocess.DEVNULL, check=True, timeout=125,
+        )
+    except (OSError, subprocess.SubprocessError):
+        raise SystemExit("onpc.service: child trust database is not ready") from None
 
 sys.path.insert(0, "/usr/lib/oh-no-parent-control/broker")
 sys.path.insert(0, "/usr/lib/oh-no-parent-control")
@@ -29,4 +30,4 @@ except Exception:
     sys.stderr.write("onpc.runtime startup failed\n")
     raise SystemExit(1) from None
 
-raise SystemExit(run_cli(main))
+raise SystemExit(run_cli(lambda: main(diagnostics_only=diagnostics_only)))

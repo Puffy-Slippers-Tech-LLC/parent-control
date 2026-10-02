@@ -19,6 +19,13 @@ the broker. The system-bus policy permits callers to reach the service; the brok
 not possession of the bus name or a client executable, is the authorization
 boundary.
 
+During the child-trust upgrade reboot guard, the same service admits only
+`LogEvent` and `ExportDiagnosticLogs`, with their normal authorization and
+privacy checks. All other methods return `Error.RebootRequired`. This
+[diagnostics-only mode](Logging-and-Feedback.md#investigation-coverage) owns no
+enforcement adapters, subscriptions or policy workers and does not claim
+management readiness.
+
 ## Broker layers
 
 The broker is divided into these layers:

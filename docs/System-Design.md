@@ -192,12 +192,15 @@ requests broker reconciliation asynchronously. A nonzero expired grant restores
 strict app policy; a current grant or zero-duration record is a no-op. This
 is not a compositor barrier preventing all desktop use before reconciliation.
 
-Broker startup reconciles live AccountsService filters, reasserts enabled
+Normal broker startup reconciles live AccountsService filters, reasserts enabled
 extensions, and attempts existing graphical-session runtime-cap cleanup before
 registering its D-Bus object. It does not replay every saved preference into
 AccountsService. Separately, Ubuntu display-manager startup requires fapolicyd's
 boot canary and exact child-module trust readiness. The broker launcher also
-checks exact trust and honors the boot-scoped upgrade activation guard.
+checks exact trust and honors the boot-scoped upgrade activation guard. While
+that guard is present, only role-checked logging and export are available in
+[diagnostics-only mode](SystemDesign/Logging-and-Feedback.md#investigation-coverage);
+policy methods and the startup-readiness witness refuse with `RebootRequired`.
 GDM does not have a broker-readiness dependency.
 
 An isolated executable or wildcard-directory rendering failure omits only the

@@ -8,6 +8,7 @@ from parent.oh_no_parent_control_parent.client import (
     OBJECT_PATH,
     BrokerClient,
     management_access_denied,
+    broker_reboot_required,
 )
 
 
@@ -49,6 +50,14 @@ class FakeConnection:
 
 
 class ParentClientTests(unittest.TestCase):
+    def test_reboot_required_requires_exact_broker_error_identity(self):
+        for name in (f'{BUS_NAME}.Error.RebootRequired', f'{BUS_NAME}.Error.Failed',
+                     'org.freedesktop.DBus.Error.RebootRequired'):
+            error = Gio.DBusError.new_for_dbus_error(name, 'private-account-detail')
+            self.assertEqual(broker_reboot_required(error),
+                             name == f'{BUS_NAME}.Error.RebootRequired')
+        self.assertFalse(broker_reboot_required(RuntimeError('RebootRequired')))
+
     def test_personal_language_uses_caller_scoped_api_without_child_uid(self):
         connection = FakeConnection()
         client = BrokerClient(connection)

@@ -32,6 +32,24 @@ class PrivateError(Exception):
         raise AssertionError("Exception text must not be inspected")
 
 
+def test_pending_reboot_cause_survives_customer_export_without_machine_identity(tmp_path, caplog):
+    writer = DailyLogWriter(tmp_path)
+    handler = BrokerFileHandler(writer)
+    with caplog.at_level('WARNING'):
+        events.get_logger('service').warning('service.diagnostics-only')
+    for record in caplog.records:
+        handler.emit(record)
+    data = writer.snapshot()
+    validate_bundle(data)
+    with ZipFile(BytesIO(data)) as archive:
+        report = ''.join(archive.read(name).decode() for name in archive.namelist())
+    assert 'package upgrade deferred child trust backend activation until reboot' in report
+    assert 'only diagnostic logging and export are available' in report
+    assert 'diagnostic.rejected' not in report
+    with pytest.raises(ValueError):
+        events.event('service.diagnostics-only', {'private': SECRET})
+
+
 @pytest.mark.parametrize("marker,reason", [
     ("failed to commit changes to dconf: org.freedesktop.DBus.Error.ServiceUnknown", "dconf-service-missing"),
     ("failed to commit changes to dconf: org.freedesktop.DBus.Error.Spawn.ExecFailed", "dconf-service-start-failed"),

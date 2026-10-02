@@ -207,13 +207,40 @@ def production_dependencies(connection) -> ServiceDependencies:
 
 
 class Service:
-    def __init__(self, connection, log_writer, *, dependencies=None):
+    diagnostics_only = False
+
+    def __init__(self, connection, log_writer, *, dependencies=None, diagnostics_only=False):
         # Real monotonic time, independent of injected policy/usage clocks.
         self._startup_times = {"started_ns": time.monotonic_ns()}
         self.connection = connection
+        self.diagnostics_only = diagnostics_only
         self._diagnostic_export_lock = threading.Lock()
         self._grant_observation_lock = threading.Lock()
-        dependencies = dependencies or production_dependencies(connection)
+        if dependencies is None and diagnostics_only:
+            # Only live identity/configuration reads are needed for the existing
+            # diagnostic permissions. Do not construct enforcement adapters.
+            credentials = CallerCredentials(connection)
+            accounts = AccountsService(connection)
+            self.credentials = credentials
+            self.accounts = accounts
+            self.broker = Broker(lambda: config.load(CONFIG_PATH), None, accounts)
+        else:
+            dependencies = dependencies or production_dependencies(connection)
+            self._compose_broker(dependencies)
+        self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
+        self.log_writer = log_writer
+        self._registration_id = None
+        self._app_filter_signal_id = None
+        self._grant_signal_id = None
+        self._policy_rescan_stop = threading.Event()
+        self._policy_rescan_thread = None
+        if diagnostics_only:
+            # No policy reconciliation, extension activation, cap cleanup,
+            # subscriptions or background workers are safe before this reboot.
+            return
+        self._start_policy(dependencies)
+
+    def _compose_broker(self, dependencies):
         self.credentials = dependencies.credentials
         self.accounts = dependencies.accounts
         self.broker = dependencies.broker_factory(
@@ -229,6 +256,8 @@ class Service:
             now=dependencies.now,
             caller_alive=self.credentials.alive,
         )
+
+    def _start_policy(self, dependencies):
         # Rules persist across broker restarts, then are reconciled against
         # AccountsService before accepting calls so deleted or changed users
         # cannot inherit stale execution policy.
@@ -246,8 +275,6 @@ class Service:
             if cap_uids:
                 LOG.info("service.003", child_count=len(cap_uids))
         self._startup_times["caps_attempted_ns"] = time.monotonic_ns()
-        self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
-        self.log_writer = log_writer
         self._app_filter_signal_id = self.connection.signal_subscribe(
             ACCOUNTS_NAME, PROPERTIES_INTERFACE, "PropertiesChanged",
             None, APP_FILTER_INTERFACE, Gio.DBusSignalFlags.NONE,
@@ -257,11 +284,9 @@ class Service:
         # reconciliation only admits newly discovered safe nonmatches after
         # they have been classified.  A dropped filesystem notification can
         # therefore cause inconvenience, never a wildcard bypass.
-        self._policy_rescan_stop = threading.Event()
         self._policy_rescan_interval_seconds = (
             dependencies.policy_rescan_interval_seconds
         )
-        self._policy_rescan_thread = None
         if self._policy_rescan_interval_seconds is not None:
             self._policy_rescan_thread = threading.Thread(
                 target=self._periodic_policy_rescan,
@@ -269,7 +294,6 @@ class Service:
                 daemon=True,
             )
             self._policy_rescan_thread.start()
-        self._registration_id = None
         self._grant_signal_id = self.connection.signal_subscribe(
             ACCOUNTS_NAME, PROPERTIES_INTERFACE, "PropertiesChanged",
             None, "com.endlessm.ParentalControls.SessionLimits",
@@ -354,6 +378,9 @@ class Service:
             self._registration_id = None
             raise RuntimeError("D-Bus object registration failed")
         self._startup_times["register_finished_ns"] = time.monotonic_ns()
+        if self.diagnostics_only:
+            LOG.warning("service.diagnostics-only")
+            return
         start = self._startup_times["started_ns"]
         LOG.info("service.ready",
                  policy_ms=(self._startup_times["policy_ready_ns"] - start) // 1_000_000,
@@ -387,6 +414,14 @@ class Service:
             deferred_reply = False
             if method not in ("LogEvent", "CalculateOwnRemainingTime"):
                 LOG.info("service.006", method=method)
+            if self.diagnostics_only and method not in ("LogEvent", "ExportDiagnosticLogs"):
+                # Name ownership indicates transport availability, not policy
+                # readiness. No management/readiness method may report success.
+                LOG.warning("service.diagnostics-only")
+                invocation.return_dbus_error(
+                    f"{BUS_NAME}.Error.RebootRequired", "child trust activation requires a reboot",
+                )
+                return
             if method == "GetOwnLanguage":
                 language = self.broker.get_own_language(caller_uid)
                 invocation.return_value(GLib.Variant("(s)", (language,)))
@@ -559,7 +594,10 @@ class Service:
         data = None
         try:
             try:
-                self.broker.collect_extension_diagnostics()
+                if not self.diagnostics_only:
+                    self.broker.collect_extension_diagnostics()
+                else:
+                    LOG.warning("service.diagnostics-only")
             except Exception:
                 get_logger("extension-manager").warning(
                     "extension-manager.load-observation", outcome="unavailable")
@@ -664,7 +702,7 @@ class Service:
         return GLib.SOURCE_REMOVE
 
 
-def main():
+def main(*, diagnostics_only=False):
     if os.geteuid() != 0:
         configure_console()
         LOG.critical("service.022")
@@ -679,10 +717,11 @@ def main():
 
     def on_bus_acquired(_connection, _name):
         try:
-            service = Service(_connection, log_writer)
+            service = Service(_connection, log_writer, diagnostics_only=diagnostics_only)
             service.register()
             service_holder.append(service)
-            LOG.info("service.024")
+            if not diagnostics_only:
+                LOG.info("service.024")
         except Exception as error:
             startup_failed.append(True)
             record_exception(error)

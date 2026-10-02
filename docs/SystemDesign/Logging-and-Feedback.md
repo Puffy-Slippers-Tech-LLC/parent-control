@@ -147,6 +147,35 @@ configuration.
 
 ### Investigation coverage
 
+While an upgrade's child-trust reboot guard is present, the broker starts in
+diagnostics-only mode. The existing role checks still authorize `LogEvent` and
+`ExportDiagnosticLogs`, including the export's second check before delivery.
+The service reads retained structured history and accepts new frontend events,
+without constructing enforcement adapters, reconciling policy, changing child
+sessions or starting policy/grant observers. All other methods, including the
+startup-timing witness, return `Error.RebootRequired`; bus-name ownership alone
+must not be interpreted as policy readiness. Migration exclusion remains intact.
+
+The fieldless `service.diagnostics-only` event explains that package configuration
+deferred child trust backend activation until reboot and that policy operations
+remain unavailable. It is recorded at diagnostic registration, rejected policy
+calls and collection. Its source is the launcher's fixed boot-guard check, never
+journal text, an account, a path supplied by a caller or an exception message.
+It makes this upgrade outage explainable from a customer archive. No historical
+failure time is invented for older logs whose broker was stopped. This route
+does not recover exports from unrelated broker import failures or incomplete
+saved-data migration. Ship the launcher, unit, service and additive catalogue
+together; their activation is `process-restart`, with frontend catalogue readers
+renewed on launch. No saved-data migration or portal change is required.
+
+Parent records `parent.startup-check` before and after its broker permission
+check, with bounded monotonic wait duration and a closed outcome: ready, access
+denied, reboot required or unavailable. Only exact broker error identities select
+the specific outcomes; arbitrary D-Bus names and exception text are excluded.
+Together with the broker's restriction event, this separates a launch waiting
+on activation from an authorized management window. Records whose delivery
+failed while the old broker was absent cannot be reconstructed retroactively.
+
 The broker records dispatch outcomes, authorization and cancellation categories,
 grant arithmetic, write/readback verification, revocation, rollback, extension
 activation, execution-policy reconciliation, application termination counts,

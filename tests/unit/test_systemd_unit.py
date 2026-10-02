@@ -91,7 +91,11 @@ class BrokerServiceUnitTests(unittest.TestCase):
             '/usr/libexec/oh-no-parent-control-package-activation wait-child-trust',
         ])
         self.assertIn('TimeoutStartSec=180', source)
-        self.assertIn('ConditionPathExists=!/run/oh-no-parent-control-child-trust-reboot',
+        # Trust gates policy in the launcher/service, while diagnostics must
+        # remain activatable to explain the pending reboot to support.
+        self.assertNotIn('ConditionPathExists=!/run/oh-no-parent-control-child-trust-reboot',
+                         BROKER_UNIT.read_text())
+        self.assertIn('ConditionPathExists=!/var/lib/oh-no-parent-control/migration-in-progress',
                       BROKER_UNIT.read_text())
 
     def test_broker_start_budget_allows_the_child_trust_deadline(self):

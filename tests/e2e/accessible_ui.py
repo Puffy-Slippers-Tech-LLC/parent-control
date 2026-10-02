@@ -7819,6 +7819,11 @@ class AccessibleUI:
         proves the nonempty starting state; OS fixture setup discovers all
         eligible accounts before locking. Its UID binds that setup to this form.
         """
+        # This entry bypasses kiosk_request_form's startup gate. Complete the
+        # child's language setup before publishing a baseline that permits
+        # account locking and the subsequent request-form Cancel input.
+        self.complete_request_language_setup()
+
         def observe():
             selector, _form, observation = self.kiosk_account_snapshot(
                 'approver', require_enabled=False)
@@ -7885,8 +7890,18 @@ class AccessibleUI:
             require(identity not in bindings, 'ui:duplicate-choice-identity')
             bindings[identity] = label
         selector, form, observation = self.wait(
-            lambda: self.kiosk_account_snapshot(field, overlay=overlay),
+            lambda: self.kiosk_account_snapshot(field, require_enabled=False, overlay=overlay),
             'kiosk-account-snapshot', prompt_in_predicate=True)
+        if self.snapshot_owned_target('kiosk-language-ready', observation=observation) is None:
+            # First station entry can leave the current child's setup open.
+            # Complete it before requiring an enabled account selector, then
+            # reacquire after that separate input and its confirmed result.
+            self.complete_request_language_setup()
+            selector, form, observation = self.wait(
+                lambda: self.kiosk_account_snapshot(field, overlay=overlay),
+                'kiosk-account-snapshot', prompt_in_predicate=True)
+        require(self.has_state(selector, self.api.StateType.SENSITIVE),
+                'ui:kiosk-account-unavailable')
         if inspect_only:
             require(self.snapshot_owned_target(
                 f'kiosk-{field}-choices', root=form, observation=observation) is None,

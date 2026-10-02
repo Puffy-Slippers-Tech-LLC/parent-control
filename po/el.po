@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Greek message catalogue.
 # Plural metadata reference: https://l10n.gnome.org/teams/el/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: OpenAI translation draft\n"
 "Language-Team: Ελληνικά\n"
 "Language: el\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1549 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Υπόλοιπο ημερήσιου χρόνου: <b>%(daily)s</b>\nΥπόλοιπο εφάπαξ παραχώρησης: <b>%(grant)s</b>\n<b>Υπολειπόμενος χρόνος: %(remaining)s</b> — η μεγαλύτερη από τις δύο τιμές."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Πάντα επιτρεπόμενη"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Πλήρως αποκλεισμένη"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Υπό όρους αποκλεισμένη"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Αντιστοίχιση μοτίβου"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Αντιστοιχίζει ονόματα αρχείων με έκδοση χρησιμοποιώντας χαρακτήρα μπαλαντέρ."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Ακριβής διαδρομή εκτέλεσης"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Αντιστοιχίζει μόνο αυτήν την ακριβή διαδρομή εκτελέσιμου."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Δεν ήταν δυνατή η εφαρμογή ορισμένων περιορισμών εφαρμογών. Οι επηρεαζόμενες εφαρμογές ή οι ενημερωμένες εκδόσεις ενδέχεται να παραμείνουν χωρίς περιορισμούς. Οι άλλες ρυθμίσεις παραμένουν διαθέσιμες και η προσπάθεια εφαρμογής των αποθηκευμένων κανόνων θα επαναληφθεί αυτόματα."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Επιλεγμένο παιδί: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Δεν έχει επιλεγεί λογαριασμός παιδιού."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Επιλεγμένο παιδί"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Μενού εφαρμογής γονέα"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Ανοίξτε προτιμήσεις, βοήθεια και πληροφορίες προϊόντος."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Σχόλια"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Στείλτε σχόλια για την εφαρμογή."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Επιλέξτε το παιδί του οποίου εμφανίζονται ο χρόνος οθόνης και οι κανόνες εφαρμογών."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Ανάκληση εφάπαξ πρόσβασης"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Αφαιρέστε την ενεργή εφάπαξ άδεια του επιλεγμένου παιδιού μετά από επιβεβαίωση."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Περιορισμοί οθόνης"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Όριο χρόνου οθόνης"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Ενεργοποιήστε ή απενεργοποιήστε τον ημερήσιο έλεγχο χρόνου οθόνης για το επιλεγμένο παιδί."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Ημερήσιος επιτρεπόμενος χρόνος"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Επιλέξτε τον ημερήσιο επιτρεπόμενο χρόνο οθόνης του επιλεγμένου παιδιού."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Προσαρμοσμένος ημερήσιος χρόνος"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Εισαγάγετε ακέραιο αριθμό λεπτών από μηδέν έως 1439."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Υπολειπόμενος χρόνος σήμερα"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Αναπτύξτε ή συμπτύξτε τον υπολογισμό του υπολοίπου ημερήσιου και εφάπαξ χρόνου."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Περιορισμοί εφαρμογών"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Αναζήτηση εγκατεστημένων εφαρμογών"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Αναζήτηση γλωσσών"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Φιλτράρετε τις διαθέσιμες εφαρμογές του επιλεγμένου παιδιού."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Όνομα εφαρμογής &amp; λεπτομέρειες"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Απόκρυψη υπολογισμού υπολειπόμενου χρόνου"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Συμπτύξτε τις λεπτομέρειες υπολογισμού του υπολειπόμενου χρόνου."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "Φιλτράρισμα %(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Υπόμνημα κανόνων"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Αναπτύξτε ή συμπτύξτε το υπόμνημα πρόσβασης εφαρμογών και κανόνων αντιστοίχισης."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "Κανόνας αντιστοίχισης για %(app_name)s"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Επιλέξτε αν ο αποθηκευμένος κανόνας αυτής της εφαρμογής αντιστοιχίζει ακριβή διαδρομή ή μοτίβο ονόματος αρχείου με έκδοση."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "Δεν ήταν δυνατή η φόρτωση της εφαρμογής γονέα. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "Ανακαλεί τις εφάπαξ άδειες χρόνου οθόνης και πρόσβασης εφαρμογών που δόθηκαν στο παιδί %(child_name)s."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Φόρτωση…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "Δεν ήταν δυνατή η φόρτωση των εγκατεστημένων εφαρμογών. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Μη διαθέσιμο"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "Δεν ήταν δυνατή η φόρτωση του υπολειπόμενου χρόνου. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nΕπηρεαζόμενες εφαρμογές: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Η κατάσταση των περιορισμών εφαρμογών δεν είναι διαθέσιμη. Αυτόματη επανάληψη προσπάθειας."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Ακύρωση"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Ανάκληση άδειας"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Η εφάπαξ άδεια ανακλήθηκε"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Προσαρμοσμένη ποσότητα…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Προσαρμοσμένη ποσότητα"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Εισαγάγετε προσαρμοσμένο ημερήσιο επιτρεπόμενο χρόνο σε λεπτά."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Εισαγάγετε ακέραιο αριθμό από 0 έως 1439."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "Κανόνας αντιστοίχισης για %(row_app_name)s"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Τρέχων κανόνας αντιστοίχισης: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Επαναφορά προεπιλογής"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Αποθήκευση"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Κανόνας αντιστοίχισης εφαρμογής"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Εισαγάγετε ακριβή διαδρομή εκτέλεσης ή μοτίβο ονόματος αρχείου με έκδοση."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Δεν ήταν δυνατή η αποθήκευση: %(setting)s. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Λογαριασμός παιδιού: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "Διαχειριστείτε τον χρόνο οθόνης και τους κανόνες εφαρμογών για %(label)s."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "Λογότυπο %(app_name)s"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Προτιμήσεις"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Βοήθεια"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "Περί"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Μενού"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Λογαριασμός παιδιού"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Ανακαλεί εφάπαξ άδειες χρόνου οθόνης και πρόσβασης εφαρμογών."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Δεν βρέθηκε διαδραστικός λογαριασμός χωρίς δικαιώματα διαχειριστή."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "Εμφανίστε τη σελίδα %(label)s."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Όριο χρόνου οθόνης"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Ενεργοποίηση / απενεργοποίηση ορίου χρόνου οθόνης"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Ημερήσιος επιτρεπόμενος χρόνος"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Υπολειπόμενος χρόνος σήμερα"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Χρόνος που απομένει για σήμερα"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Κανόνας αντιστοίχισης"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Κανόνας πρόσβασης"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Απόκρυψη υπολογισμού"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Φιλτράρισμα κατά %(label)s"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Σύντομος οδηγός κανόνων πρόσβασης και αντιστοίχισης"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Εμφάνιση υπομνήματος"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Πρόσβαση εφαρμογών (τι συμβαίνει)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Κανόνας αντιστοίχισης (πώς αντιστοιχίζονται οι εφαρμογές)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Κατανόηση κανόνων πρόσβασης και αντιστοίχισης"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Απόκρυψη υπομνήματος"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "Δεν ήταν δυνατή η φόρτωση της προτίμησης γλώσσας σας. Ανοίξτε τις Προτιμήσεις για να δοκιμάσετε ξανά."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Επεξεργασία κανόνα αντιστοίχισης"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "Κανόνας πρόσβασης για %(app_name)s: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Ορίστε τον κανόνα πρόσβασης του επιλεγμένου παιδιού για %(app_name)s σε %(state_label)s."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Δεν ήταν δυνατός ο έλεγχος της κατάστασης περιορισμών εφαρμογών. Οι άλλες ρυθμίσεις παραμένουν διαθέσιμες."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Ανάκληση εφάπαξ άδειας;"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Αυτό θα ανακαλέσει τον εφάπαξ χρόνο οθόνης και την πρόσβαση σε υπό όρους αποκλεισμένες εφαρμογές που δόθηκαν στο παιδί %(child_name)s, θα κλείσει τις αποκλεισμένες εφαρμογές του που εκτελούνται και θα κλειδώσει την επιφάνεια εργασίας του όταν δεν απομένει χρόνος. Ο υπόλοιπος ημερήσιος επιτρεπόμενος χρόνος του δεν επηρεάζεται."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Διατηρήστε την τρέχουσα εφάπαξ άδεια."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Ανακαλέστε την εφάπαξ άδεια του επιλεγμένου παιδιού."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Ορίστε τον ημερήσιο επιτρεπόμενο χρόνο του επιλεγμένου παιδιού σε %(daily_limit_label_minutes)s."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Προσαρμοσμένη τιμή"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Επεξεργασία κανόνα αντιστοίχισης"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Κλείσιμο"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Κλείστε την ειδοποίηση απαίτησης διαχειριστή."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Καμία)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Ανάκληση εφάπαξ άδειας"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Ανάκληση"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "λεπτά"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Εγκατεστημένες εφαρμογές"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Εκκινητές επιφάνειας εργασίας, AppImage, Flatpak, Snap και συστήματος"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Εικονίδιο"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Φόρτωση εγκατεστημένων εφαρμογών…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Πώς υπολογίζεται"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Υπόμνημα"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "Η εφαρμογή μπορεί πάντα να χρησιμοποιείται"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "Η εφαρμογή είναι πλήρως αποκλεισμένη και μπορεί να επιτραπεί μόνο από διαχειριστές"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "Η εφαρμογή είναι αποκλεισμένη και μπορεί να δοθεί εφάπαξ παράταση κατόπιν αιτήματος του παιδιού, αν είναι ενεργό το όριο χρόνου"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Αντιστοίχιση με μοτίβο\n για διαδρομές εκτέλεσης με μεταβαλλόμενους αριθμούς έκδοσης (π.χ., Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Αντιστοιχίζει την ακριβή διαδρομή εφαρμογής\n(π.χ., /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Δεν ήταν δυνατή η ανανέωση των λογαριασμών παιδιών. Αυτόματη επανάληψη προσπάθειας."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Δεν βρέθηκαν διαδραστικοί χρήστες χωρίς δικαιώματα διαχειριστή"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Μη έγκυρος ημερήσιος χρόνος. Εισαγάγετε ακέραιο αριθμό από 0 έως 1439."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Χρησιμοποιήστε ακριβή διαδρομή εκτέλεσης ή συμπεριλάβετε * για μοτίβο ονόματος αρχείου με έκδοση."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Απαιτείται πρόσβαση διαχειριστή"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Απαιτείται διαχειριστής"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Μόνο διαχειριστής μπορεί να διαχειρίζεται τον γονικό έλεγχο.\nΣυνδεθείτε με λογαριασμό διαχειριστή για να ανοίξετε την εφαρμογή γονέα."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Μόνο διαχειριστής μπορεί να διαχειρίζεται τον γονικό έλεγχο. Συνδεθείτε με λογαριασμό διαχειριστή για να ανοίξετε την εφαρμογή γονέα."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "άλλη εφαρμογή"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "Απαιτείται κανόνας αντιστοίχισης"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Η ακριβής αντιστοίχιση πρέπει να είναι η διαδρομή εκτέλεσης αυτής της εφαρμογής"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Συνέχεια"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Αποθηκεύστε την προτίμηση γλώσσας σας."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Δεν ήταν δυνατή η αποθήκευση της γλώσσας σας. Δοκιμάστε ξανά."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Γλώσσα"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Επιλέξτε τη γλώσσα σας"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Μπορείτε να την αλλάξετε στις προτιμήσεις"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "Επιλέξτε %(name)s."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Παραχωρήθηκε χρόνος"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Παραχωρήθηκε χρόνος, Κλείσιμο"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Εκτιμώμενος υπολειπόμενος χρόνος αν εγκριθεί: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Ελέγξτε την αναφορά σφάλματος πριν κλείσετε ή επιστρέψετε στη σύνδεση."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "ΠΡΟΤΙΜΗΣΕΙΣ"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Επιλέξτε τη γλώσσα σας."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "ΠΕΡΙ"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Εμφανίστε το όνομα του προϊόντος, την έκδοση και τις νομικές πληροφορίες."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Σίγαση ήχου οθόνης αιτήματος"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Ενεργοποιήστε ή απενεργοποιήστε την αστραπή και τον ήχο βροντής."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Μενού οθόνης αιτήματος"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Ανοίξτε προτιμήσεις, βοήθεια και πληροφορίες προϊόντος για αυτήν την οθόνη αιτήματος."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Επιστροφή στη σύνδεση"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Κλείστε την οθόνη αποτελέσματος ή επιστρέψτε στην οθόνη σύνδεσης."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Αναφορά αυτού του σφάλματος"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Υπολογισμός εκτίμησης χρόνου…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "ΒΟΗΘΕΙΑ"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Ανοίξτε τον ιστότοπο του προϊόντος στο πρόγραμμα περιήγησης."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Σίγαση ήχου και απενεργοποίηση αστραπής"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Επαναφορά ήχου και αστραπής"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Επαναφορά ήχου οθόνης αιτήματος"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Αν εγκριθεί, πρόσβαση μέχρι τα μεσάνυχτα."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Η εκτίμηση χρόνου δεν είναι διαθέσιμη"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "Δεν ήταν δυνατή η φόρτωση του εκτιμώμενου υπολειπόμενου χρόνου."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Δεν ήταν δυνατή η αποθήκευση των ρυθμίσεων"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "Δεν ήταν δυνατή η αποθήκευση των επιλογών αιτήματός σας. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Δεν ήταν δυνατή η αποθήκευση της προτίμησης ήχου σας. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "Δεν ήταν δυνατή η αποθήκευση των προτιμήσεων αιτήματός σας. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Το αίτημα εγκρίθηκε"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Το αίτημα απορρίφθηκε"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Παιδί"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Γονέας που εγκρίνει"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Υπεύθυνος έγκρισης"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Προσαρμοσμένη διάρκεια σε λεπτά"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Εισαγάγετε ζητούμενη διάρκεια από 0.1 έως 1440 λεπτά."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Να επιτρέπονται υπό όρους αποκλεισμένες εφαρμογές"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Επιλέξτε αν αυτό το αίτημα επιτρέπει προσωρινά υπό όρους αποκλεισμένες εφαρμογές."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Αίτημα πρόσβασης"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Υποβάλετε την επιλεγμένη διάρκεια και την επιλογή πρόσβασης εφαρμογών για έγκριση."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Ακύρωση αιτήματος"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Κλείστε αυτήν την οθόνη αιτήματος χωρίς να ζητήσετε επιπλέον χρόνο."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Φόρτωση λογαριασμών…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Φόρτωση λεπτομερειών αιτήματος…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "ΑΙΤΗΜΑ"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Το όριο οθόνης δεν είναι ενεργοποιημένο στην εφαρμογή γονέα"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "ΑΚΥΡΩΣΗ"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "Αίτημα για %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "Επιλέξτε %(label)s ως ζητούμενη διάρκεια επιπλέον χρόνου οθόνης."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Δεν υπάρχουν διαθέσιμοι τοπικοί τυπικοί λογαριασμοί. Δημιουργήστε έναν και ανοίξτε ξανά αυτήν την οθόνη."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Δεν υπάρχουν διαθέσιμοι τοπικοί διαδραστικοί λογαριασμοί διαχειριστή."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Αναμονή έγκρισης…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "Το αίτημα δεν είναι διαθέσιμο"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "Δεν ήταν δυνατή η ολοκλήρωση του αιτήματος. Επιστρέψτε στη σύνδεση και δοκιμάστε ξανά αργότερα."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "Δεν ήταν δυνατή η ολοκλήρωση του αιτήματος. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Έκδοση %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Ιστότοπος"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Απόρρητο"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Πολιτική απορρήτου"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Υποστήριξη"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Άδεια χρήσης"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Νομικές ανακοινώσεις"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Ανακοινώσεις για την ενσωμάτωση Malcontent και τις παρεχόμενες γραμματοσειρές"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Χρησιμοποιεί την υπηρεσία γονικού ελέγχου Malcontent, που εγκαθίσταται ξεχωριστά, μέσω δημόσιων API συστήματος. Δεν συνδέεται με τους δημιουργούς του Malcontent ή το GNOME ούτε έχει την έγκρισή τους."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Βοηθάμε τις οικογένειες να αναπτύξουν υγιείς ψηφιακές συνήθειες."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Μπορείτε να κλείσετε αυτόν τον διάλογο· οι επαναπροσπάθειες συνεχίζονται όσο η εφαρμογή είναι ανοικτή."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Τα σχόλιά σας στάλθηκαν επιτυχώς. Ευχαριστούμε που μας βοηθάτε να βελτιώσουμε την εφαρμογή."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "Email απάντησης (προαιρετικό)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Προσθέστε τη διεύθυνση email σας αν θέλετε απάντηση."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Προσθήκη αρχείων"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Επισυνάψτε έως 5 αρχεία στα σχόλιά σας."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Επανάληψη συλλογής διαγνωστικών"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Δοκιμάστε ξανά τη συλλογή του διαγνωστικού συνημμένου."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Λήψη"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Αποθηκεύστε ZIP που περιέχει αναγνώσιμη διαγνωστική αναφορά και επικυρωμένα τεχνικά συμβάντα."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Εμφανίστε πληροφορίες απορρήτου για σχόλια και συνημμένα."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Αποστολή χωρίς καταγραφές"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Στείλτε τα σχόλια χωρίς το διαγνωστικό συνημμένο."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Κλείστε τη φόρμα σχολίων, διατηρώντας το πρόχειρο σε αυτήν την εφαρμογή."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Αποστολή σχολίων"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Υποβάλετε τα σχόλια και τα επιλεγμένα συνημμένα."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nΟι διαγνωστικές καταγραφές δεν συλλέγουν ονόματα λογαριασμών, διευθύνσεις email, περιεχόμενα αρχείων, ακατέργαστα ημερολόγια συστήματος ή μηνύματα εξαιρέσεων. Τα αυτόματα διαγνωστικά περιέχουν επικυρωμένα τεχνικά συμβάντα, ελέγχους λειτουργίας και πληροφορίες συστήματος: εκδόσεις λειτουργικού συστήματος και εξαρτήσεων, ζώνη ώρας, τύπο συνεδρίας και συνολικούς αριθμούς λογαριασμών. Τα ονόματα και το προσαρμοσμένο κείμενο έκδοσης παραλείπονται ή αντικαθίστανται μη αναστρέψιμα· οι ταυτότητες δεν κατακερματίζονται ποτέ. Τα δικά σας σχόλια, το email απάντησης και τα επιλεγμένα αρχεία είναι ξεχωριστά και μπορεί να περιέχουν προσωπικές πληροφορίες. Ελέγξτε τα πριν από την αποστολή."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Προβολή πλήρους ενημέρωσης απορρήτου"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Ανοίξτε την ενημέρωση απορρήτου του Oh No! Parent Control στο πρόγραμμα περιήγησης."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Διακοπή αποστολής και κλείσιμο"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Μπορείτε να διακόψετε την αποστολή και να κλείσετε αυτήν την αναφορά."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Τα σχόλια υποβλήθηκαν."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Αυτή η υποβολή δεν μπορεί πλέον να επαναληφθεί εντός του χρονικού ορίου επανάληψής της. Η προηγούμενη προσπάθεια μπορεί να πέτυχε. Η εκ νέου αποστολή μπορεί να δημιουργήσει διπλότυπο."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "Τα συνημμένα είναι πολύ μεγάλα. Αφαιρέστε αρχεία ή καταγραφές και δοκιμάστε ξανά."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Δεν ήταν δυνατή η προετοιμασία των καταγραφών. Μπορείτε να στείλετε αυτά τα σχόλια χωρίς το συνημμένο."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "Τα σχόλια δεν έγιναν αποδεκτά. Το πρόχειρό σας διατηρήθηκε. Ελέγξτε τα σχόλια και τη διεύθυνση απάντησης πριν στείλετε ξανά."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Η υποβολή διακόπηκε. Το πρόχειρό σας διατηρήθηκε. Η προηγούμενη προσπάθεια μπορεί να πέτυχε."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "Η αποστολή δεν είναι ακόμη διαθέσιμη. Το πρόχειρό σας διατηρήθηκε."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nΕνδέχεται να επικοινωνήσουμε μαζί σας στη διεύθυνση email που δώσατε αν έχουμε συμπληρωματικές ερωτήσεις."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Συμπεριλάβετε διαγνωστική αναφορά με επικυρωμένα τεχνικά συμβάντα και ελέγχους λειτουργίας. Οι προσωπικές πληροφορίες αποκλείονται από αυτήν την αναφορά."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Ανάγνωση συνημμένων…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Συνημμένα (προαιρετικά)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Συλλογή διαγνωστικών πληροφοριών..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "Τελευταίες 3 ημερομηνίες καταγραφών · Αρχείο ZIP"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Αφαίρεση καταγραφών"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Επανάληψη συλλογής"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Αποθηκεύστε συμπιεσμένες καταγραφές για να τις εξετάσετε πριν από την αποστολή"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Απόρρητο σχολίων"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Κλείστε τις πληροφορίες απορρήτου των σχολίων."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Διακόψτε την αναφορά σε αναμονή και κλείστε την."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Εκ νέου υποβολή (πιθανό διπλότυπο)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Υποβάλετε ξανά τα αποθηκευμένα σχόλια όταν το προηγούμενο αποτέλεσμα είναι αβέβαιο."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Ευχαριστούμε για τα σχόλιά σας!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Κλείστε την επιβεβαίωση σχολίων."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Τα διαγνωστικά δεν είναι διαθέσιμα"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Επαναλάβετε τη συλλογή ή στείλτε χωρίς διαγνωστικά."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Προσθήκη καταγραφών"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Αφαίρεση"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Προσθήκη συνημμένων στα σχόλια"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Επισυνάψτε έως %(transport_MAX_ATTACHMENT_COUNT)s αρχεία."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Η προεπισκόπηση δεν είναι διαθέσιμη"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Συνημμένο αρχείο"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "Αφαίρεση %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Αφαιρέστε αυτό το αρχείο από τα σχόλια."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Οι καταγραφές είναι έτοιμες για έλεγχο"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Λήψη διαγνωστικών καταγραφών"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Λήφθηκε · Έτοιμο για εξέταση"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Βοηθήστε μας να βελτιώσουμε την εφαρμογή"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Ανώνυμα από προεπιλογή"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Προσθέστε το email σας αν θέλετε απάντηση. Διαφορετικά, τα σχόλιά σας είναι ανώνυμα."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Δεν επισυνάφθηκαν καταγραφές"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "Τελευταίες 3 ημερομηνίες καταγραφών · Πληροφορίες συστήματος · Αρχείο ZIP"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Τα σχόλιά σας μπορούν να σταλούν χωρίς καταγραφές."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Αφαίρεση συνημμένου"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Δεν ήταν δυνατή η αποθήκευση των καταγραφών. Δοκιμάστε άλλη τοποθεσία."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Ελέγξτε τις λεπτομέρειες σφάλματος παρακάτω πριν από την αποστολή."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Μοιραστείτε ένα πρόβλημα, μια πρόταση ή μια ιδέα."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Δεν ήταν δυνατή η επιλογή συνημμένων. Δοκιμάστε ξανά."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Δεν ήταν δυνατή η ανάγνωση ενός ή περισσότερων συνημμένων. Δοκιμάστε άλλα αρχεία."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "Δεν ήταν δυνατή η επιλογή τοποθεσίας λήψης. Δοκιμάστε ξανά."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Κάτι πήγε στραβά"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "Δεν ήταν δυνατή η ολοκλήρωση της ενέργειας. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Η αναφορά σφάλματος δεν είναι διαθέσιμη"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "Δεν ήταν δυνατό το άνοιγμα του διαλόγου σχολίων. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Κλείστε την ειδοποίηση αναφοράς σφάλματος."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "Τα σχόλια, οι διευθύνσεις email απάντησης, τα συνημμένα και οι διαγνωστικές καταγραφές αποστέλλονται με email στην υποστήριξη. Η διατήρηση εξαρτάται από το γραμματοκιβώτιο υποστήριξής μας και τους παρόχους υπηρεσιών, συμπεριλαμβανομένων των πολιτικών αντιγράφων ασφαλείας τους. Προς το παρόν δεν εγγυόμαστε διαγραφή εντός συγκεκριμένου διαστήματος."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Εισαγάγετε τίτλο σχολίων σε μία γραμμή με έως 200 χαρακτήρες."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Εισαγάγετε τα σχόλιά σας."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Τα σχόλιά σας περιέχουν μη υποστηριζόμενο κρυφό χαρακτήρα. Πληκτρολογήστε τα ξανά και δοκιμάστε ξανά."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "Τα σχόλια πρέπει να έχουν έως 5 000 χαρακτήρες UTF-16 (ορισμένα emoji μετρούν ως δύο)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "Τα μορφοποιημένα σχόλια είναι πολύ σύνθετα. Αφαιρέστε μέρος της μορφοποίησης και δοκιμάστε ξανά."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Εισαγάγετε μόνο μια διεύθυνση email απάντησης ή αφήστε το κενό."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "Η έκδοση της εφαρμογής δεν είναι έγκυρη. Ενημερώστε την εφαρμογή."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Επισυνάψτε έως %(MAX_ATTACHMENT_COUNT)s αρχεία."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Ένα ή περισσότερα συνημμένα δεν είναι έγκυρα."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Κάθε συνημμένο πρέπει να είναι 5 MB ή μικρότερο."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Τα συνημμένα και οι διαγνωστικές καταγραφές πρέπει να έχουν συνολικό μέγεθος έως 8 MB."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)d ω"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)d λ"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)d δ"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Υπόλοιπο ημέρας"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Επιλέξτε λογαριασμό για διαχείριση"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Επιλέξτε διαχειριστή για έγκριση"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Επιλέξτε διάρκεια"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Εισαγάγετε αριθμό από %(minimum)s έως %(maximum)s λεπτά."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Ημερήσιος επιτρεπόμενος χρόνος: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Επιλεγμένος ημερήσιος επιτρεπόμενος χρόνος: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Προετοιμασία σχολίων… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Αποστολή σχολίων… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Χωρίς εγγύηση."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Ανοίξτε τις πληροφορίες προϊόντος: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Επιλέξτε συνημμένο με έγκυρο όνομα αρχείου."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Επιλέξτε συνημμένο με συντομότερο έγκυρο όνομα αρχείου."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Τα σχόλιά σας"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Γράψτε και μορφοποιήστε σχόλια. Χρησιμοποιήστε τη γραμμή εργαλείων για επικεφαλίδες, έντονα, πλάγια, υπογράμμιση, λίστες, παραθέματα, κώδικα, συνδέσμους, συνημμένα και αφαίρεση μορφοποίησης."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Περιγράψτε την ιδέα σας ή τι συνέβη και τι περιμένατε..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Στυλ κειμένου"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Κανονικό κείμενο"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Επικεφαλίδα 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Επικεφαλίδα 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Έντονα"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Πλάγια"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Υπογράμμιση"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Διαγράμμιση"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Αριθμημένη λίστα"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Λίστα με κουκκίδες"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Παράθεμα"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Μπλοκ κώδικα"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Εισαγωγή συνδέσμου"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Προσθήκη συνημμένου"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Αφαίρεση μορφοποίησης"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Μορφοποίηση σχολίων"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Προορισμός συνδέσμου"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Επεξεργαστής συνδέσμου"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Άνοιγμα προεπισκόπησης συνδέσμου"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Αποθήκευση συνδέσμου"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Αφαίρεση συνδέσμου"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "στοιχείο αριθμημένης λίστας"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "στοιχείο λίστας με κουκκίδες"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Κίνηση αντίστροφης μέτρησης ενός λεπτού"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Ενεργοποιήστε ή απενεργοποιήστε την οπτική κίνηση αντίστροφης μέτρησης κατά το τελευταίο λεπτό."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Διαβάστε τον υπολειπόμενο χρόνο ή ανοίξτε τη φόρμα αιτήματος για περισσότερο χρόνο. Ανοίξτε το μενού περιβάλλοντος για τις ρυθμίσεις κίνησης αντίστροφης μέτρησης."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Υπολειπόμενος χρόνος: %(time)s\n• Κάντε κλικ για να ζητήσετε περισσότερο χρόνο για αυτήν τη συνεδρία.\n• Κάντε δεξί κλικ για περισσότερες επιλογές."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Αίτημα χρόνου, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Εμφάνιση περισσότερων επιλογών λογαριασμού"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Εμφανίστε τις προηγούμενες ή επόμενες επιλογές λογαριασμού."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Επιλέξτε λογαριασμό."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Επιλεγμένος λογαριασμός: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Επιλέξτε ποιοι κανόνες εμφανίζονται στη λίστα εφαρμογών."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Εμφανίστε εφαρμογές με αυτόν τον κανόνα."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Κύλιση οθόνης αιτήματος"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "Κυλήστε την οθόνη αιτήματος όταν το περιεχόμενο υπερβαίνει τον διαθέσιμο χώρο."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d λεπτό"
+msgstr[1] "%(count)d λεπτά"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g ώρα"
+msgstr[1] "%(count)g ώρες"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d δευτερόλεπτο"
+msgstr[1] "%(count)d δευτερόλεπτα"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d συνημμένο αρχείο έτοιμο."
+msgstr[1] "%(count)d συνημμένα αρχεία έτοιμα."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d byte"
+msgstr[1] "%(count)d byte"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Δεν ήταν δυνατή η επιβεβαίωση υποβολής. Επανάληψη σε %(count)d δευτερόλεπτο…"
+msgstr[1] "Δεν ήταν δυνατή η επιβεβαίωση υποβολής. Επανάληψη σε %(count)d δευτερόλεπτα…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Δεν ήταν δυνατή η αποθήκευση της εφάπαξ άδειας. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Δεν ήταν δυνατή η αποθήκευση των ρυθμίσεων χρόνου οθόνης. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Δεν ήταν δυνατή η αποθήκευση της πρόσβασης εφαρμογών. Δοκιμάστε ξανά αργότερα."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Επεξεργασία συνδέσμου"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Κατηγορίες σφαλμάτων: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "Για %(name)s"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g ώρες"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g ώρες"

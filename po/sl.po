@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Slovenian message catalogue.
 # Plural metadata reference: https://l10n.gnome.org/teams/sl/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: OpenAI translation draft\n"
 "Language-Team: Slovenščina\n"
 "Language: sl\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1561 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=4; plural=(n%100==1 ? 1 : n%100==2 ? 2 : n%100==3 || n%100==4 ? 3 : 0);\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Preostali dnevno dovoljen čas: <b>%(daily)s</b>\nPreostali enkratni čas: <b>%(grant)s</b>\n<b>Preostali čas: %(remaining)s</b> — večja od obeh vrednosti."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Vedno dovoljeno"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Popolnoma blokirano"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Blokirano, mogoče začasno dovoliti"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Ujemanje z vzorcem"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Ujema se z imeni datotek z različicami z uporabo nadomestnega znaka."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Natančna pot izvršljive datoteke"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Ujema se samo s to natančno potjo izvršljive datoteke."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Nekaterih omejitev aplikacij ni bilo mogoče uveljaviti. Prizadete aplikacije ali posodobljene različice morda niso omejene. Druge možnosti upravljanja so še vedno na voljo, shranjena pravila pa se bodo samodejno poskušala uveljaviti znova."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Izbrani otrok: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Izbran ni noben otroški račun."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Izbrani otrok"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Meni aplikacije za starše"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Odprite nastavitve, pomoč in informacije o izdelku."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Povratne informacije"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Pošljite povratne informacije o aplikaciji."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Izberite otroka, katerega čas uporabe zaslona in pravila aplikacij so prikazani."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Prekliči enkratni dostop"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Po potrditvi odstranite aktivno enkratno dovoljenje izbranega otroka."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Omejitve zaslona"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Omejitev časa uporabe zaslona"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Omogočite ali onemogočite dnevni nadzor časa uporabe zaslona za izbranega otroka."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Dnevno dovoljen čas"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Izberite dnevno dovoljen čas uporabe zaslona za izbranega otroka."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Dnevno dovoljen čas po meri"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Vnesite celo število minut od nič do vključno 1439."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Današnji preostali čas"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Razširite ali strnite izračun preostalega dnevnega in enkratnega časa."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Omejitve aplikacij"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Iskanje nameščenih aplikacij"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Iskanje jezikov"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Filtrirajte aplikacije, ki so na voljo izbranemu otroku."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Ime aplikacije &amp; podrobnosti"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Skrij izračun preostalega časa"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Strnite podrobnosti izračuna preostalega časa."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "Filtriraj %(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Razlaga pravil"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Razširite ali strnite razlago dostopa do aplikacij in pravil ujemanja."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "Pravilo ujemanja za %(app_name)s"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Izberite, ali shranjeno pravilo te aplikacije ustreza natančni poti ali vzorcu imena datoteke z različico."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "Aplikacije za starše ni bilo mogoče naložiti. Poskusite znova pozneje."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "Prekliče enkratna dovoljenja za čas uporabe zaslona in dostop do aplikacij, dodeljena otroku %(child_name)s."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Nalaganje…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "Nameščenih aplikacij ni bilo mogoče naložiti. Poskusite znova pozneje."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Ni na voljo"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "Preostalega časa ni bilo mogoče naložiti. Poskusite znova pozneje."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nPrizadete aplikacije: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Stanje omejitev aplikacij ni na voljo. Samodejni ponovni poskus."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Prekliči"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Prekliči dovoljenje"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Enkratno dovoljenje preklicano"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Vrednost po meri…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Vrednost po meri"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Vnesite dnevno dovoljen čas po meri v minutah."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Vnesite celo število od 0 do vključno 1439."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "Pravilo ujemanja za %(row_app_name)s"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Trenutno pravilo ujemanja: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Ponastavi na privzeto"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Shrani"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Pravilo ujemanja aplikacije"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Vnesite natančno pot izvajanja ali vzorec imena datoteke z različico."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Nastavitve %(setting)s ni bilo mogoče shraniti. Poskusite znova pozneje."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Otroški račun: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "Upravljajte čas uporabe zaslona in pravila aplikacij za %(label)s."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "Logotip %(app_name)s"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Nastavitve"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Pomoč"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "O programu"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Meni"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Otroški račun"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Prekliče enkratna dovoljenja za čas uporabe zaslona in dostop do aplikacij."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Najden ni bil noben interaktivni račun brez skrbniških pravic."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "Prikažite stran %(label)s."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Omejitev časa uporabe zaslona"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Vklop / izklop omejitve časa uporabe zaslona"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Dnevno dovoljen čas"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Današnji preostali čas"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Preostali čas za danes"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Pravilo ujemanja"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Pravilo dostopa"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Skrij izračun"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Filtriraj po %(label)s"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Kratek pregled pravil dostopa in ujemanja"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Prikaži razlago"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Dostop do aplikacije (kaj se zgodi)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Pravilo ujemanja (kako se aplikacije prepoznajo)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Razumevanje pravil dostopa in ujemanja"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Skrij razlago"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "Vaše jezikovne nastavitve ni bilo mogoče naložiti. Odprite Nastavitve in poskusite znova."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Uredi pravilo ujemanja"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "Pravilo dostopa za %(app_name)s: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Nastavite pravilo dostopa izbranega otroka za %(app_name)s na %(state_label)s."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Stanja omejitev aplikacij ni bilo mogoče preveriti. Druge možnosti upravljanja so še vedno na voljo."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Prekličem enkratno dovoljenje?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "S tem boste preklicali enkratni čas uporabe zaslona in dostop do blokiranih aplikacij, ki jih je mogoče začasno odblokirati, dodeljena otroku %(child_name)s, zaprli otrokove delujoče blokirane aplikacije in zaklenili njegovo namizje, ko ne bo več časa. To ne vpliva na njegov preostali dnevno dovoljen čas."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Ohranite trenutno enkratno dovoljenje."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Prekličite enkratno dovoljenje izbranega otroka."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Nastavite dnevno dovoljen čas izbranega otroka na %(daily_limit_label_minutes)s."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Vrednost po meri"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Uredi pravilo ujemanja"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Zapri"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Zaprite obvestilo, da so potrebne skrbniške pravice."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Brez)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Prekliči enkratno dovoljenje"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Prekliči"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "minute"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Nameščene aplikacije"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Zaganjalniki za namizje, AppImage, Flatpak, Snap in sistem"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Ikona"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Nalaganje nameščenih aplikacij…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Kako se izračuna"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Razlaga"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "Aplikacijo je vedno mogoče uporabljati"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "Aplikacija je popolnoma blokirana in jo lahko dovolijo samo skrbniki"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "Aplikacija je blokirana in lahko na otrokovo zahtevo prejme enkratno podaljšanje, če je omogočena časovna omejitev"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Ujemanje po vzorcu\n za poti izvajanja s spreminjajočimi se številkami različic (npr. Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Ujemanje z natančno potjo aplikacije\n(npr. /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Otroških računov ni bilo mogoče osvežiti. Samodejni ponovni poskus."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Najden ni bil noben interaktivni uporabnik brez skrbniških pravic"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Neveljaven dnevno dovoljen čas. Vnesite celo število od 0 do vključno 1439."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Uporabite natančno pot izvajanja ali vključite * za vzorec imena datoteke z različico."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Potrebne so skrbniške pravice"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Potreben je skrbnik"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Samo skrbnik lahko upravlja starševski nadzor.\nZa odpiranje aplikacije za starše se prijavite s skrbniškim računom."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Samo skrbnik lahko upravlja starševski nadzor. Za odpiranje aplikacije za starše se prijavite s skrbniškim računom."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "druga aplikacija"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "Potrebno je pravilo ujemanja"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Natančno ujemanje mora biti pot izvajanja te aplikacije"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Nadaljuj"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Shranite jezikovno nastavitev."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Vašega jezika ni bilo mogoče shraniti. Poskusite znova."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Jezik"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Izberite jezik"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Spremenite ga lahko v nastavitvah"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "Izberite %(name)s."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Čas dodeljen"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Čas dodeljen, zapri"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Predvideni preostali čas ob odobritvi: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Preglejte poročilo o napaki, preden ga zaprete ali se vrnete na prijavo."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "NASTAVITVE"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Izberite jezik."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "O PROGRAMU"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Prikažite ime izdelka, različico in pravne informacije."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Utišaj zvok zaslona z zahtevo"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Vklopite ali izklopite blisk in njegov zvok grmenja."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Meni zaslona z zahtevo"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Odprite nastavitve, pomoč in informacije o izdelku za ta zaslon z zahtevo."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Nazaj na prijavo"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Zaprite zaslon z rezultatom ali se vrnite na prijavni zaslon."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Prijavi to napako"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Izračun predvidenega časa…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "POMOČ"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Odprite spletno mesto izdelka v brskalniku."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Utišaj zvok in izklopi blisk"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Vklopi zvok in blisk"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Vklopi zvok zaslona z zahtevo"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Če bo odobreno, dostop do polnoči."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Predvideni čas ni na voljo"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "Predvidenega preostalega časa ni bilo mogoče naložiti."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Nastavitev ni bilo mogoče shraniti"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "Vaših izbir za zahtevo ni bilo mogoče shraniti. Poskusite znova pozneje."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Vaše zvočne nastavitve ni bilo mogoče shraniti. Poskusite znova pozneje."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "Vaših nastavitev za zahtevo ni bilo mogoče shraniti. Poskusite znova pozneje."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Zahteva odobrena"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Zahteva zavrnjena"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Otrok"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Starš, ki odobri"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Odobritelj"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Trajanje po meri v minutah"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Vnesite zahtevano trajanje od 0.1 do vključno 1440 minut."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Dovoli aplikacije, ki jih je mogoče začasno odblokirati"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Izberite, ali ta zahteva začasno dovoli dostop do aplikacij, ki jih je mogoče začasno odblokirati."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Zahtevaj dostop"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Pošljite izbrano trajanje in izbiro dostopa do aplikacij v odobritev."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Prekliči zahtevo"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Zaprite ta zaslon z zahtevo brez zahteve za dodaten čas."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Nalaganje računov…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Nalaganje podrobnosti zahteve…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "ZAHTEVAJ"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Omejitev zaslona ni omogočena v aplikaciji za starše"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "PREKLIČI"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "Zahtevaj %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "Izberite %(label)s kot zahtevano trajanje dodatnega časa uporabe zaslona."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Ni lokalnih običajnih računov. Ustvarite enega in znova odprite ta zaslon."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Ni lokalnih interaktivnih skrbniških računov."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Čakanje na odobritev…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "Zahteva ni na voljo"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "Zahteve ni bilo mogoče dokončati. Vrnite se na prijavo in poskusite znova pozneje."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "Zahteve ni bilo mogoče dokončati. Poskusite znova pozneje."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Različica %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Spletno mesto"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Zasebnost"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Pravilnik o zasebnosti"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Podpora"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Licenca"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Pravna obvestila"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Obvestila o integraciji Malcontent in priloženih pisavah"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Uporablja ločeno nameščeno storitev starševskega nadzora Malcontent prek javnih sistemskih API-jev. Ni povezana z avtorji Malcontent ali GNOME in je ne podpirajo."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Pomagamo družinam razvijati zdrave digitalne navade."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "To pogovorno okno lahko zaprete; ponovni poskusi se nadaljujejo, dokler je aplikacija odprta."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Vaše povratne informacije so bile uspešno poslane. Hvala za pomoč pri izboljšanju aplikacije."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "E-pošta za odgovor (neobvezno)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Dodajte svoj e-poštni naslov, če želite odgovor."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Dodaj datoteke"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Povratnim informacijam priložite do 5 datotek."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Ponovi zbiranje diagnostike"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Znova poskusite zbrati diagnostično prilogo."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Prenesi"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Shranite ZIP z berljivim diagnostičnim poročilom in preverjenimi tehničnimi dogodki."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Prikažite informacije o zasebnosti povratnih informacij in prilog."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Pošlji brez dnevnikov"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Pošljite povratne informacije brez diagnostične priloge."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Zaprite obrazec za povratne informacije in ohranite osnutek v tej aplikaciji."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Pošlji povratne informacije"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Pošljite povratne informacije in izbrane priloge."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nDiagnostični dnevniki ne zbirajo imen računov, e-poštnih naslovov, vsebine datotek, surovih sistemskih dnevnikov ali sporočil izjem. Samodejna diagnostika vsebuje preverjene tehnične dogodke, preverjanja stanja in sistemske informacije: različice OS in odvisnosti, časovni pas, vrsto seje in skupno število računov. Imena in besedilo različic po meri so izpuščeni ali nepovratno zamenjani; identitete se nikoli ne pretvarjajo v zgoščene vrednosti. Vaše povratne informacije, e-pošta za odgovor in izbrane datoteke so ločene in lahko vsebujejo osebne podatke. Pred pošiljanjem jih preglejte."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Ogled celotnega obvestila o zasebnosti"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Odprite obvestilo o zasebnosti Oh No! Parent Control v brskalniku."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Ustavi pošiljanje in zapri"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Pošiljanje lahko ustavite in zaprete to poročilo."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Povratne informacije poslane."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Tega pošiljanja ni več mogoče ponoviti znotraj njegovega obdobja ponovnih poskusov. Prejšnji poskus je morda uspel. Ponovno pošiljanje lahko ustvari dvojnik."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "Priloge so prevelike. Odstranite datoteke ali dnevnike in poskusite znova."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Dnevnikov ni bilo mogoče pripraviti. Te povratne informacije lahko pošljete brez priloge."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "Povratne informacije niso bile sprejete. Vaš osnutek je ohranjen. Pred ponovnim pošiljanjem preverite povratne informacije in naslov za odgovor."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Pošiljanje ustavljeno. Vaš osnutek je ohranjen. Prejšnji poskus je morda uspel."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "Pošiljanje še ni na voljo. Vaš osnutek je ohranjen."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nČe bomo imeli dodatna vprašanja, vas lahko kontaktiramo na navedeni e-poštni naslov."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Vključite diagnostično poročilo s preverjenimi tehničnimi dogodki in preverjanji stanja. Osebni podatki so izključeni iz tega poročila."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Branje prilog…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Priloge (neobvezno)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Zbiranje diagnostičnih informacij…"
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "Zadnji 3 datumi dnevnikov · Arhiv ZIP"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Odstrani dnevnike"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Ponovi zbiranje"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Shranite stisnjene dnevnike, da jih pregledate pred pošiljanjem"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Zasebnost povratnih informacij"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Zaprite informacije o zasebnosti povratnih informacij."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Ustavite čakajoče poročilo in ga zaprite."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Pošlji znova (mogoč dvojnik)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Znova pošljite ohranjene povratne informacije, ko je prejšnji rezultat negotov."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Hvala za povratne informacije!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Zaprite potrditev povratnih informacij."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Diagnostika ni na voljo"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Ponovite zbiranje ali pošljite brez diagnostike."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Dodaj dnevnike"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Odstrani"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Dodaj priloge povratnim informacijam"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Priložite največ %(transport_MAX_ATTACHMENT_COUNT)s datotek."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Predogled ni na voljo"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Datotečna priloga"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "Odstrani %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Odstranite to datoteko iz povratnih informacij."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Dnevniki pripravljeni za pregled"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Prenesi diagnostične dnevnike"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Preneseno · Pripravljeno za pregled"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Pomagajte nam izboljšati aplikacijo"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Privzeto anonimno"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Dodajte e-pošto, če želite odgovor. Sicer so vaše povratne informacije anonimne."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Ni priloženih dnevnikov"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "Zadnji 3 datumi dnevnikov · Sistemske informacije · Arhiv ZIP"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Povratne informacije lahko pošljete brez dnevnikov."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Odstrani prilogo"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Dnevnikov ni bilo mogoče shraniti. Poskusite drugo mesto."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Pred pošiljanjem preglejte spodnje podrobnosti napake."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Opišite težavo, predlog ali zamisel."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Prilog ni bilo mogoče izbrati. Poskusite znova."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Ene ali več prilog ni bilo mogoče prebrati. Poskusite druge datoteke."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "Mesta za prenos ni bilo mogoče izbrati. Poskusite znova."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Prišlo je do napake"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "Operacije ni bilo mogoče dokončati. Poskusite znova pozneje."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Poročilo o napaki ni na voljo"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "Pogovornega okna za povratne informacije ni bilo mogoče odpreti. Poskusite znova pozneje."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Zaprite obvestilo o poročilu o napaki."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "Povratne informacije, e-poštni naslovi za odgovor, priloge in diagnostični dnevniki se po e-pošti pošljejo podpori. Hramba je odvisna od našega podpornega poštnega predala in ponudnikov storitev, vključno z njihovimi pravilniki o varnostnih kopijah. Trenutno ne zagotavljamo izbrisa v določenem obdobju."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Vnesite enovrstični naslov povratnih informacij z največ 200 znaki."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Vnesite povratne informacije."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Vaše povratne informacije vsebujejo nepodprt skriti znak. Vnesite jih znova in poskusite ponovno."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "Povratne informacije lahko vsebujejo največ 5.000 znakov UTF-16 (nekateri emodžiji štejejo kot dva)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "Oblikovane povratne informacije so prezapletene. Odstranite nekaj oblikovanja in poskusite znova."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Vnesite samo e-poštni naslov za odgovor ali pustite prazno."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "Različica aplikacije ni veljavna. Posodobite aplikacijo."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Priložite največ %(MAX_ATTACHMENT_COUNT)s datotek."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Ena ali več prilog ni veljavnih."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Vsaka priloga mora biti velika največ 5 MB."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Skupna velikost prilog in diagnostičnih dnevnikov mora biti največ 8 MB."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)d h"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)d min"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)d s"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Preostanek dneva"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Izberite račun za upravljanje"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Izberite skrbnika za odobritev"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Izberite trajanje"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Vnesite število od %(minimum)s do %(maximum)s minut."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Dnevno dovoljen čas: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Izbrani dnevno dovoljen čas: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Priprava povratnih informacij… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Pošiljanje povratnih informacij… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Brez jamstva."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Odprite informacije o izdelku: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Izberite prilogo z veljavnim imenom datoteke."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Izberite prilogo s krajšim veljavnim imenom datoteke."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Vaše povratne informacije"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Pišite in oblikujte povratne informacije. Uporabite orodno vrstico za naslove, krepko, ležeče, podčrtano, sezname, citate, kodo, povezave, priloge in odstranjevanje oblikovanja."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Opišite svojo zamisel ali kaj se je zgodilo in kaj ste pričakovali…"
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Slog besedila"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Navadno besedilo"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Naslov 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Naslov 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Krepko"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Ležeče"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Podčrtano"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Prečrtano"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Oštevilčen seznam"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Označen seznam"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Citat"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Blok kode"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Vstavi povezavo"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Dodaj prilogo"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Odstrani oblikovanje"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Oblikovanje povratnih informacij"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Cilj povezave"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Urejevalnik povezav"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Odpri predogled povezave"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Shrani povezavo"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Odstrani povezavo"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "element oštevilčenega seznama"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "element označenega seznama"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Enominutna animacija odštevanja"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Omogočite ali onemogočite vidno animacijo odštevanja v zadnji minuti."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Preberite preostali čas ali odprite obrazec za zahtevo za več časa. Odprite kontekstni meni za nastavitve animacije odštevanja."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Preostali čas: %(time)s\n• Kliknite za zahtevo za več časa za to sejo.\n• Z desno tipko kliknite za več možnosti."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Zahtevaj čas, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Prikaži več izbir računov"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Prikažite prejšnje ali naslednje izbire računov."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Izberite račun."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Izbrani račun: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Izberite, katera pravila so prikazana na seznamu aplikacij."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Prikažite aplikacije s tem pravilom."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Drsenje zaslona z zahtevo"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "Pomikajte zaslon z zahtevo, ko je njegova vsebina prevelika."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d minut"
+msgstr[1] "%(count)d minuta"
+msgstr[2] "%(count)d minuti"
+msgstr[3] "%(count)d minute"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g ur"
+msgstr[1] "%(count)g ura"
+msgstr[2] "%(count)g uri"
+msgstr[3] "%(count)g ure"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d sekund"
+msgstr[1] "%(count)d sekunda"
+msgstr[2] "%(count)d sekundi"
+msgstr[3] "%(count)d sekunde"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "Pripravljenih je %(count)d datotečnih prilog."
+msgstr[1] "Pripravljena je %(count)d datotečna priloga."
+msgstr[2] "Pripravljeni sta %(count)d datotečni prilogi."
+msgstr[3] "Pripravljene so %(count)d datotečne priloge."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d bajtov"
+msgstr[1] "%(count)d bajt"
+msgstr[2] "%(count)d bajta"
+msgstr[3] "%(count)d bajti"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Pošiljanja ni bilo mogoče potrditi. Ponovni poskus čez %(count)d sekund…"
+msgstr[1] "Pošiljanja ni bilo mogoče potrditi. Ponovni poskus čez %(count)d sekundo…"
+msgstr[2] "Pošiljanja ni bilo mogoče potrditi. Ponovni poskus čez %(count)d sekundi…"
+msgstr[3] "Pošiljanja ni bilo mogoče potrditi. Ponovni poskus čez %(count)d sekunde…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Enkratnega dovoljenja ni bilo mogoče shraniti. Poskusite znova pozneje."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Nastavitev časa uporabe zaslona ni bilo mogoče shraniti. Poskusite znova pozneje."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Dostopa do aplikacij ni bilo mogoče shraniti. Poskusite znova pozneje."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Uredi povezavo"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Kategorije napak: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "Za %(name)s"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g ure"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g ure"

@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Complete translation against the current shared message template.
 # Plural metadata reference: https://l10n.gnome.org/teams/fur/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: Project translation contributors\n"
 "Language-Team: Furlan\n"
 "Language: fur\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1549 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Timp di ogni dì che al reste: <b>%(daily)s</b>\nPermès une volte sole che al reste: <b>%(grant)s</b>\n<b>Timp che al reste: %(remaining)s</b> — il plui grant dai doi valôrs."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Simpri permetût"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Bloc complet"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Bloc che si pues gjavâ par un timp"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Corispondence par model"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Al confronte i nons dai files cun version doprant un caratar universâl."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Percors di esecuzion precîs"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Al corispuint dome a chest percors precîs dal file eseguibil."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Cualchi limit des aplicazions nol à podût jessi aplicât. Lis aplicazions interessadis o lis versions inzornadis a puedin jessi cence restrizions. I altris controi a restin disponibii e lis regulis salvadis a vignaran tornadis a provâ in automatic."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Frut sielt: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Nissun account di frut al è sielt."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Frut sielt"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Menù de aplicazion pai gjenitôrs"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Vierç preferencis, jutori e informazions sul prodot."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Coments"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Invie coments su la aplicazion."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Sielç il frut che si mostrin il so timp di schermi e la sô politiche des aplicazions."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Revoche l'acès une volte sole"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Gjave il permès atîf une volte sole dal frut sielt dopo de conferme."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Limits di schermi"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Limit dal timp di schermi"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Ative o disative il control di ogni dì dal timp di schermi pal frut sielt."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Timp permetût di ogni dì"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Sielç il timp di schermi permetût di ogni dì pal frut sielt."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Timp di ogni dì personalizât"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Inserìs un numar intîr di minûts di zero a 1439."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Timp che al reste vuê"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Slargje o strenç il calcul dal timp di ogni dì e une volte sole che al reste."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Limits des aplicazions"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Cîr aplicazions instaladis"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Cîr lenghis"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Filtre lis aplicazions disponibilis dal frut sielt."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Non de aplicazion &amp; detais"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Plate il calcul dal timp che al reste"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Strenç i detais dal calcul dal timp che al reste."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "Filtre %(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Legjende des regulis"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Slargje o strenç la legjende des regulis di acès e corispondence des aplicazions."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "Regule di corispondence di %(app_name)s"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Sielç se la regule salvade di cheste aplicazion e corispuint a un percors precîs o a un model dal non dal file cun version."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "La aplicazion pai gjenitôrs no à podût jessi cjariade. Torne prove plui indenant."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "Al revoche i permès une volte sole di timp di schermi e di acès aes aplicazions dâts a %(child_name)s."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Daûr a cjariâ…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "Lis aplicazions instaladis no àn podût jessi cjariadis. Torne prove plui indenant."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "No disponibil"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "Il timp che al reste nol à podût jessi cjariât. Torne prove plui indenant."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nAplicazions interessadis: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Il stât dai limits des aplicazions nol è disponibil. Si torne a provâ in automatic."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Anule"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Revoche il permès"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Permès une volte sole revocât"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Cuantitât personalizade…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Cuantitât personalizade"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Inserìs il timp permetût di ogni dì personalizât in minûts."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Inserìs un numar intîr di 0 a 1439."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "Regule di corispondence di %(row_app_name)s"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Regule di corispondence atuâl: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Torne ai valôrs predefinîts"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Salve"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Regule di corispondence de aplicazion"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Inserìs un percors di esecuzion precîs o un model dal non dal file cun version."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Impussibil salvâ %(setting)s. Torne prove plui indenant."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Account dal frut: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "Gjestìs il timp di schermi e la politiche des aplicazions di %(label)s."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "Logo di %(app_name)s"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Preferencis"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Jutori"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "Informazions"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Menù"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Account dal frut"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Al revoche i permès une volte sole di timp di schermi e di acès aes aplicazions."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Nissun account interatîf che nol sedi di aministradôr al è stât cjatât."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "Mostre la pagjine %(label)s."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Limit dal timp di schermi"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Ative / disative il limit dal timp di schermi"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Timp permetût di ogni dì"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Timp che al reste vuê"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Timp restât par vuê"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Regule di corispondence"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Regule di acès"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Plate il calcul"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Filtre par %(label)s"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Riferiment rapid pes regulis di acès e corispondence"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Mostre la legjende"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Acès aes aplicazions (ce che al sucêt)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Regule di corispondence (cemût che si confrontin lis aplicazions)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Capî lis regulis di acès e corispondence"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Plate la legjende"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "La tô preference di lenghe no à podût jessi cjariade. Vierç Preferencis par tornâ a provâ."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Modifiche la regule di corispondence"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "Regule di acès di %(app_name)s: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Met la regule di acès dal frut sielt par %(app_name)s a %(state_label)s."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Impussibil verificâ il stât dai limits des aplicazions. I altris controi a restin disponibii."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Revocâ il permès une volte sole?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Chest al revocarà il timp di schermi une volte sole e l'acès aes aplicazions blocadis che si puedin sblocâ par un timp dâts a %(child_name)s, al siararà lis sôs aplicazions blocadis in esecuzion e al blocarà il so scritori cuant che nol reste timp. Il so timp permetût di ogni dì che al reste nol cambie."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Manten il permès une volte sole atuâl."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Revoche il permès une volte sole dal frut sielt."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Met il timp permetût di ogni dì dal frut sielt a %(daily_limit_label_minutes)s."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Valôr personalizât"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Modifiche la regule di corispondence"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Siere"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Siere l'avîs che al covente un aministradôr."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Nissun)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Revoche il permès une volte sole"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Revoche"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "minûts"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Aplicazions instaladis"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Inviadôrs di scritori, AppImage, Flatpak, Snap e di sisteme"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Icone"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Daûr a cjariâ lis aplicazions instaladis…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Cemût che si calcule"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Legjende"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "La aplicazion si pues doprâ simpri"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "La aplicazion e je blocade dal dut e dome i aministradôrs a puedin permetile"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "La aplicazion e je blocade e si pues dâ une estension une volte sole par domande dal frut se il limit di timp al è atîf"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Al corispuint par model\n par includi percors di esecuzion cun numars di version che a cambiin (p.e., Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Al corispuint al percors precîs de aplicazion\n(p.e., /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Impussibil inzornâ i accounts dai fruts. Si torne a provâ in automatic."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Nissun utent interatîf che nol sedi aministradôr al è stât cjatât"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Timp permetût di ogni dì no valit. Inserìs un numar intîr di 0 a 1439."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Dopre un percors di esecuzion precîs, o inclût * par un model dal non dal file cun version."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Al covente l'acès di aministradôr"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Al covente un aministradôr"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Dome un aministradôr al pues gjestî i controi pai gjenitôrs.\nJentre cuntun account di aministradôr par vierzi la aplicazion pai gjenitôrs."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Dome un aministradôr al pues gjestî i controi pai gjenitôrs. Jentre cuntun account di aministradôr par vierzi la aplicazion pai gjenitôrs."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "une altre aplicazion"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "E covente une regule di corispondence"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Une corispondence precise e scugne jessi il percors di esecuzion di cheste aplicazion"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Continue"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Salve la tô preference di lenghe."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Impussibil salvâ la tô lenghe. Torne prove."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Lenghe"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Sielç la tô lenghe"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Tu puedis cambiâle tes preferencis"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "Sielç %(name)s."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Timp dât"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Timp dât, Siere"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Timp restât stimât se aprovât: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Controle un rapuart di erôr prime di sierâ o tornâ a jentrâ."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "PREFERENCIS"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Sielç la tô lenghe."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "INFORMAZIONS"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Mostre non dal prodot, version e informazions legâls."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Disative il sun de schermade di domande"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Ative o disative i lampi e il sun dal ton."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Menù de schermade di domande"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Vierç preferencis, jutori e informazions sul prodot par cheste schermade di domande."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Torne a jentrâ"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Siere la schermade dal risultât o torne ae schermade di acès."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Segnale chest erôr"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Daûr a calcolâ la stime dal timp…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "JUTORI"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Vierç il sît web dal prodot tal navigadôr."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Disative sun e lampi"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Ative sun e lampi"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Ative il sun de schermade di domande"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Se aprovât, acès fin a miegegnot."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Stime dal timp no disponibile"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "Il timp restât stimât nol à podût jessi cjariât."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Impussibil salvâ lis impostazions"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "Impussibil salvâ lis tôs sieltis de domande. Torne prove plui indenant."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Impussibil salvâ la tô preference di sun. Torne prove plui indenant."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "Impussibil salvâ lis tôs preferencis di domande. Torne prove plui indenant."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Domande aprovade"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Domande refudade"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Frut"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Gjenitôr che al aprove"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Aprovadôr"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Durade personalizade in minûts"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Inserìs une durade domandade di 0.1 a 1440 minûts."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Permet lis aplicazions blocadis che si puedin sblocâ par un timp"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Sielç se cheste domande e permet par un timp lis aplicazions blocadis che si puedin sblocâ par un timp."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Domande acès"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Invie la durade sielte e la sielte di acès aes aplicazions pe aprovazion."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Anule la domande"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Siere cheste schermade di domande cence domandâ timp in plui."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Daûr a cjariâ i accounts…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Daûr a cjariâ i detais de domande…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "DOMANDE"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Il limit di schermi nol è atîf te aplicazion pai gjenitôrs"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "ANULE"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "Domande %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "Sielç %(label)s tant che durade di timp di schermi in plui domandade."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Nissun account standard locâl al è disponibil. Cree un e torne a vierzi cheste schermade."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Nissun account locâl interatîf di aministradôr al è disponibil."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "In spiete de aprovazion…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "Domande no disponibile"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "Impussibil completâ la domande. Torne a jentrâ e prove plui indenant."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "Impussibil completâ la domande. Torne prove plui indenant."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Version %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Sît web"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Riservatece"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Politiche di riservatece"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Supuart"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Licence"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Avîs legâi"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Avîs di integrazion cun Malcontent e dai caratars includûts"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Al dopre il servizi di control pai gjenitôrs Malcontent, instalât a part, traviers lis API publichis dal sisteme. Nol è leât ai autôrs di Malcontent o a GNOME, ni aprovât di lôr."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Judâ lis fameis a creâ abitudins digjitâls sanis."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Tu puedis sierâ chest dialic; lis provis a continuin intant che la aplicazion e reste vierte."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "I tiei coments a son stâts inviâts cun sucès. Ti ringraziìn pal jutori a miorâ la aplicazion."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "E-mail pe rispueste (opzionâl)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Zonte la tô direzion e-mail se tu vuelis une rispueste."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Zonte files"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Zonte fin a 5 files ai tiei coments."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Torne a cjapâ sù i dâts diagnostics"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Torne a provâ a cjapâ sù la zonte diagnostiche."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Discjame"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Salve un ZIP cun un rapuart diagnostic leibil e events tecnics verificâts."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Mostre informazions di riservatece su coments e zontis."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Invie cence regjistris"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Invie i coments cence la zonte diagnostiche."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Siere il formulari dai coments mantenint il aboz in cheste aplicazion."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Invie coments"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Invie i coments e lis zontis sieltis."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nI regjistris diagnostics no cjapin sù nons di accounts, direzions e-mail, contignûts dai files, gjornâi di sisteme grês o messaçs di ecezion. La diagnostiche automatiche e conten events tecnics verificâts, controi di funzionament e informazions di sisteme: versions dal sisteme operatîf e des dipendencis, fûs orari, gjenar di session e numars complessîfs di accounts. I nons e il test di version personalizât a vegnin ometûts o sostituîts in maniere irreversibile; lis identitâts no vegnin mai convertidis in hash. I tiei coments, la e-mail pe rispueste e i files sielts a son separâts e a puedin contignî informazions personâls. Controleju prime di inviâ."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Viôt l'avîs di riservatece complet"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Vierç l'avîs di riservatece di Oh No! Parent Control tal tô navigadôr."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Ferme l'inviament e siere"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Tu puedis fermâ l'inviament e sierâ chest rapuart."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Coments inviâts."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Chest inviament nol pues plui jessi tornât a provâ tal so interval di riprove. La prove precedente e pues jessi rivade a bon fin. Tornâ a inviâ al pues creâ un dopli inviament."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "Lis zontis a son masse grandis. Gjave files o regjistris e torne prove."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Impussibil preparâ i regjistris. Tu puedis inviâ chescj coments cence la zonte."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "I coments no son stâts acetâts. Il tô aboz al è conservât. Controle i tiei coments e la direzion pe rispueste prime di tornâ a inviâ."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Inviament fermât. Il tô aboz al è conservât. La prove precedente e pues jessi rivade a bon fin."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "L'inviament nol è ancjemò disponibil. Il tô aboz al è conservât."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nO podìn contatâti ae direzion e-mail che tu âs dât se o vin domandis in plui."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Inclût un rapuart diagnostic cun events tecnics verificâts e controi di funzionament. Lis informazions personâls a son esclududis di chest rapuart."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Daûr a lei lis zontis…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Zontis (opzionâls)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Daûr a cjapâ sù informazions diagnostichis..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "Ultimis 3 datis dai regjistris · Archivi ZIP"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Gjave regjistris"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Torne a cjapâ sù"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Salve i regjistris comprimûts par esaminâju prime di inviâ"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Riservatece dai coments"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Siere lis informazions di riservatece dai coments."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Ferme il rapuart in spiete e siere."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Torne a inviâ (al pues duplicâ)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Torne a inviâ i coments conservâts cuant che il risultât precedent nol è sigûr."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Graciis pai tiei coments!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Siere la conferme dai coments."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Diagnostiche no disponibile"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Torne a cjapâ sù o invie cence diagnostiche."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Zonte regjistris"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Gjave"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Zonte zontis ai coments"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Zonte al massim %(transport_MAX_ATTACHMENT_COUNT)s files."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Anteprime no disponibile"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "File zontât"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "Gjave %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Gjave chest file dai coments."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Regjistris pronts pal control"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Discjame regjistris diagnostics"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Discjamât · Pront pal esam"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Judinus a miorâ lis robis"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Anonim par impostazion predefinide"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Zonte la tô e-mail se tu vuelis une rispueste. Se no, i tiei coments a son anonims."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Nissun regjistri zontât"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "Ultimis 3 datis dai regjistris · Informazions di sisteme · Archivi ZIP"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "I tiei coments a puedin jessi inviâts cence regjistris."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Gjave la zonte"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Impussibil salvâ i regjistris. Prove un altri puest."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Controle i detais dal erôr chi sot prime di inviâ."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Condivît un probleme, un sugjeriment o une idee."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Impussibil sielzi lis zontis. Torne prove."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Impussibil lei une o plui zontis. Prove altris files."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "Impussibil sielzi il puest di discjariament. Torne prove."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Alc al è lât stuart"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "Impussibil completâ la operazion. Torne prove plui indenant."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Rapuart di erôr no disponibil"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "Impussibil vierzi il dialic dai coments. Torne prove plui indenant."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Siere l'avîs dal rapuart di erôr."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "I coments, lis direzions e-mail pe rispueste, lis zontis e i regjistris diagnostics a vegnin inviâts par e-mail al supuart. La conservazion e dipent de nestre casele di pueste dal supuart e dai furnidôrs di servizis, includudis lis lôr politichis di copiis di sigurece. Pal moment no garantìn la eliminazion dentri di un interval fis."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Inserìs un titul dai coments di une sole rie cun al massim 200 caratars."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Inserìs i tiei coments."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "I tiei coments a contegnin un caratar platât no supuartât. Torne scrivilu e prove."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "I coments a scugnin vê al massim 5.000 caratars UTF-16 (cualchi emoji al conte par doi)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "I coments formatâts a son masse complicâts. Gjave un pôc di formatazion e torne prove."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Inserìs dome une direzion e-mail pe rispueste o lasse vueit."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "La version de aplicazion no je valide. Inzorne la aplicazion."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Zonte al massim %(MAX_ATTACHMENT_COUNT)s files."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Une o plui zontis no son validis."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Ogni zonte e scugne jessi di 5 MB o mancul."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Lis zontis e i regjistris diagnostics a scugnin jessi in dut 8 MB o mancul."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)dh"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)dm"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)ds"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Il rest de zornade"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Sielç un account di gjestî"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Sielç un aministradôr che al aprove"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Sielç une durade"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Inserìs un numar di %(minimum)s a %(maximum)s minûts."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Timp permetût di ogni dì: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Timp permetût di ogni dì sielt: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Daûr a preparâ i coments… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Daûr a inviâ i coments… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Nissune garanzie."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Vierç lis informazions sul prodot: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Sielç une zonte cuntun non di file valit."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Sielç une zonte cuntun non di file valit plui curt."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "I tiei coments"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Scrîf e formate i coments. Dopre la sbare dai imprescj par intestazions, neret, corsîf, sotlineât, listis, citazions, codiç, colegaments, zontis e gjavâ la formatazion."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Descrîf la tô idee o ce che al è sucedût e ce che tu ti spietavis..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Stîl dal test"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Test normâl"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Intestazion 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Intestazion 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Neret"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Corsîf"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Sotlineât"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Sbarrât"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Liste numerade"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Liste cun ponts"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Citazion"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Bloc di codiç"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Inserìs un colegament"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Zonte une zonte"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Gjave la formatazion"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Formatazion dai coments"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Destinazion dal colegament"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Editôr dai colegaments"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Vierç l'anteprime dal colegament"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Salve il colegament"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Gjave il colegament"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "element de liste numerade"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "element de liste cun ponts"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Animazion di conte ae rovesse di un minût"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Ative o disative la animazion visuâl di conte ae rovesse tal ultin minût."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Lei il timp che al reste o vierç il formulari par domandâ plui timp. Vierç il menù di contest pes impostazions de animazion di conte ae rovesse."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Timp che al reste: %(time)s\n• Fâs clic par domandâ plui timp par cheste session.\n• Fâs clic di drete par altris opzions."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Domande timp, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Mostre plui sieltis di accounts"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Mostre lis sieltis di accounts precedentis o successivis."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Sielç un account."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Account sielt: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Sielç cualis regulis che a vegnin mostradis te liste des aplicazions."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Mostre lis aplicazions cun cheste regule."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Scoriment de schermade di domande"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "Fâs scori la schermade di domande cuant che il contignût nol sta dentri."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d minût"
+msgstr[1] "%(count)d minûts"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g ore"
+msgstr[1] "%(count)g oris"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d secont"
+msgstr[1] "%(count)d seconts"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d file zontât pront."
+msgstr[1] "%(count)d files zontâts pronts."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d byte"
+msgstr[1] "%(count)d bytes"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Impussibil confermâ l'inviament. Si torne a provâ fra %(count)d secont…"
+msgstr[1] "Impussibil confermâ l'inviament. Si torne a provâ fra %(count)d seconts…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Impussibil salvâ il permès une volte sole. Torne prove plui indenant."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Impussibil salvâ lis impostazions dal timp di schermi. Torne prove plui indenant."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Impussibil salvâ l'acès aes aplicazions. Torne prove plui indenant."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Modifiche il colegament"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Categoriis di erôr: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "Par %(name)s"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g oris"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g oris"

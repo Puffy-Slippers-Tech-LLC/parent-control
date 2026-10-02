@@ -31,7 +31,7 @@ msgstr "Strikte blokita"
 
 #. Shared message: SOFT_BLOCKED
 msgid "Soft Blocked"
-msgstr "Provizore malblokebla"
+msgstr "Blokita, provizore malblokebla"
 
 #. Shared message: PATTERN_MATCH
 msgid "Pattern Match"
@@ -1127,7 +1127,7 @@ msgstr "Reviziu la subajn erardetalojn antaŭ sendi."
 
 #. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
 msgid "Share a problem, suggestion, or idea."
-msgstr "Dividu problemon, sugeston aŭ ideon."
+msgstr "Rakontu pri problemo, sugesto aŭ ideo."
 
 #. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
 msgid "Could not choose attachments. Try again."

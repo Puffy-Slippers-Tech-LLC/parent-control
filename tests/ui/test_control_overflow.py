@@ -21,7 +21,9 @@ def open_parent(launch_ui, ui, wait, *, environment=None):
          "Parent controls load")
 
 
-@pytest.mark.parametrize('language', ['de', 'ru', 'zh-Hans'])
+@pytest.mark.parametrize('language', ['de', 'ru', 'zh-Hans', 'zh-Hant', 'pt',
+                                    'ar', 'fa', 'he', 'ug', 'ur', 'bn', 'hi', 'ta',
+                                    'th', 'ka', 'te', 'ml', 'pa'])
 @pytest.mark.parametrize('dpi_scale', [1.25])
 def test_language_switch_preserves_parent_selection_numeric_draft_and_filters(
         launch_ui, automation, wait_for_accessible_state, request_display_scale,

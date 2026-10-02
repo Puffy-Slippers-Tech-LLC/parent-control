@@ -15,6 +15,7 @@ from accessible_ui import (KIOSK_SESSION_OPERATIONS, PARENT_APPLICATION, UiError
 from private_artifacts import EvidenceError
 from ui_observations import UiObservations
 from tests.support.accessible_ui import Node, TEST_PROMPT_CONTRACTS, ui_for
+from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES
 
 
 def test_observer_payload_runs_without_checkout_imports(tmp_path):
@@ -2928,7 +2929,8 @@ def test_language_helper_leaves_preferences_open_after_startup(surface):
 
 
 @pytest.mark.parametrize('surface', ['parent', 'kiosk'])
-@pytest.mark.parametrize('language', ['en', 'de', 'zh-Hans', 'fur', 'ar'])
+@pytest.mark.parametrize('language', ['en', 'de', 'zh-Hans', 'zh-Hant', 'pt',
+                                    'fur', 'ar', 'fa', 'he', 'ug', 'ur', 'bn', 'hi'])
 def test_language_candidate_requires_checked_readback_without_replay(surface, language):
     choice = Node(identity='language-choice-' + language.lower())
     dialog = Node(identity='language-dialog', children=[choice])
@@ -2946,7 +2948,7 @@ def test_language_candidate_requires_checked_readback_without_replay(surface, la
 
 
 @pytest.mark.parametrize('surface', ['parent', 'kiosk'])
-@pytest.mark.parametrize('language', ['en', 'de', 'zh-Hans', 'fur', 'ar'])
+@pytest.mark.parametrize('language', [language for language, _ in SUPPORTED_LANGUAGES])
 def test_language_candidate_uses_ids_and_independent_checked_state(surface, language):
     choice = Node('an unrelated translated name', identity='language-choice-' + language.lower())
     ui = ui_for(Node(identity='parent-window' if surface == 'parent' else 'kiosk-request-window',
@@ -2960,6 +2962,17 @@ def test_language_candidate_uses_ids_and_independent_checked_state(surface, lang
     ui.choose_language(surface, language)
     assert not ui.input_uncertain and ui.application_ids is None
     choice.action.do_action.assert_called_once_with(0)
+
+
+@pytest.mark.parametrize('language', ['xx', 'EN', 'en/foo', '../ar', 'ar.UTF-8'])
+def test_language_candidate_rejects_unlisted_identity_before_input(language):
+    choice = Node(identity='language-choice-' + language.lower())
+    ui = ui_for(Node(identity='parent-window', children=[
+        Node(identity='language-dialog', children=[choice])]))
+    with pytest.raises(UiError, match='ui:language-test-choice'):
+        ui.choose_language('parent', language)
+    assert not ui.input_uncertain and ui.application_ids is None
+    choice.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('surface', ['parent', 'kiosk'])

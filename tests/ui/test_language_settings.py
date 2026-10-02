@@ -20,6 +20,30 @@ LANGUAGES = {
     'zh-Hans': ('zh_CN.UTF-8', '中文（简体）', '选择语言', '保存',
                 '保存语言偏好设置。', '限制屏幕时间', '提交请求', '暂时无法提交请求'),
 }
+# Literal meanings reviewed independently of the catalog author and runtime.
+EXPANDED_LANGUAGES = {
+    'ar': ('العربية', 'اختر لغتك', 'حفظ', 'احفظ تفضيل اللغة لديك.',
+           'حد وقت استخدام الشاشة', 'طلب'),
+    'fa': ('فارسی', 'زبان خود را انتخاب کنید', 'ذخیره', 'ترجیح زبان خود را ذخیره کنید.',
+           'محدودیت زمان استفاده از صفحه', 'درخواست'),
+    'he': ('עברית', 'בחירת השפה שלך', 'שמירה', 'שמירת העדפת השפה שלך.',
+           'מגבלת זמן מסך', 'בקשה'),
+    'pt': ('Português', 'Escolha a sua língua', 'Guardar', 'Guardar a sua preferência de língua.',
+           'Limite de tempo de ecrã', 'SOLICITAR'),
+    'zh-Hant': ('中文（繁體）', '選擇語言', '儲存', '儲存語言偏好設定。', '限制螢幕時間', '提交請求'),
+    'bn': ('বাংলা', 'আপনার ভাষা বেছে নিন', 'সংরক্ষণ', 'আপনার ভাষার পছন্দ সংরক্ষণ করুন।',
+           'স্ক্রিন সময়ের সীমা', 'অনুরোধ'),
+    'hi': ('हिन्दी', 'अपनी भाषा चुनें', 'सहेजें', 'अपनी भाषा की प्राथमिकता सहेजें।',
+           'स्क्रीन समय सीमा', 'अनुरोध'),
+    'ug': ('ئۇيغۇرچە', 'تىلىڭىزنى تاللاڭ', 'ساقلاش', 'تىل مايىللىقىڭىزنى ساقلاڭ.',
+           'ئېكران ۋاقىت چەكلىمىسى', 'تەلەپ'),
+    'ur': ('اردو', 'اپنی زبان منتخب کریں', 'محفوظ کریں', 'اپنی زبان کی ترجیح محفوظ کریں۔',
+           'اسکرین ٹائم کی حد', 'درخواست'),
+    'fur': ('Furlan', 'Sielç la tô lenghe', 'Salve', 'Salve la tô preference di lenghe.',
+            'Limit dal timp di schermi', 'DOMANDE'),
+    'ta': ('தமிழ்', 'உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்', 'சேமிக்கவும்',
+           'உங்கள் மொழி விருப்பத்தைச் சேமிக்கவும்.', 'திரை நேர வரம்பு', 'கோரிக்கை'),
+}
 
 
 def launch_language(launch_ui, tmp_path, surface, *, language='', session='en',
@@ -196,12 +220,13 @@ def test_parent_first_run_shared_helper_saves_with_cancel_visible(
 
 
 @pytest.mark.parametrize('surface', SURFACES)
-@pytest.mark.parametrize('language,native_name', [('fur', 'Furlan'), ('ar', 'العربية')])
-def test_expanded_catalogue_choices_save_with_english_fallback(
+@pytest.mark.parametrize('language', EXPANDED_LANGUAGES)
+def test_expanded_catalogue_choices_save_with_translated_text(
         launch_ui, automation, wait_for_accessible_state, tmp_path,
-        surface, language, native_name):
-    """The last choice and an RTL native name work before message translation."""
+        surface, language):
+    """Translated visible/accessibility labels and native names survive Save."""
     ui, wait = automation, wait_for_accessible_state
+    native_name, heading, save, description, screen, request = EXPANDED_LANGUAGES[language]
     path = launch_language(launch_ui, tmp_path, surface, language='en')
     scope = frontend(surface)
     wait(lambda: ui.showing(scope + '-language-ready'), 'saved startup ready')
@@ -209,11 +234,14 @@ def test_expanded_catalogue_choices_save_with_english_fallback(
     choice = 'language-choice-' + language.lower()
     assert ui.text(choice) == native_name
     ui.reader.choose_language(scope, language)
-    assert ui.text('language-title') == 'Choose your language'
-    assert ui.text('language-continue') == 'Save'
+    assert ui.text('language-title') == heading
+    assert ui.text('language-continue') == save
+    assert ui.target('language-continue').get_description() == description
     ui.reader.save_language(scope)
     assert committed(path) == [language]
-    assert_surface_language(ui, wait, surface, 'en')
+    identity = 'parent-screen-limit-toggle' if surface == 'parent' else 'kiosk-request-submit'
+    wait(lambda: ui.text(identity) == (screen if surface == 'parent' else request),
+         'surface uses independently verified translated text')
     ui.reader.open_language_preferences(scope)
     assert ui.state(choice, ui.api.StateType.CHECKED)
     assert ui.text(choice) == native_name

@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Complete translation against the current shared message template.
 # Plural metadata reference: https://l10n.gnome.org/teams/be/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: Project translation contributors\n"
 "Language-Team: Беларуская\n"
 "Language: be\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1555 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Астатак штодзённай нормы: <b>%(daily)s</b>\nАстатак аднаразовага дазволу: <b>%(grant)s</b>\n<b>Засталося часу: %(remaining)s</b> — большае з двух значэнняў."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Заўсёды дазволена"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Цалкам заблакіравана"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Блакіраванне з магчымасцю часовага дазволу"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Супадзенне па шаблоне"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Супастаўляе назвы файлаў з версіямі з дапамогай падстаноўнага знака."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Дакладны шлях выканання"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Супадае толькі з гэтым дакладным шляхам да выканальнага файла."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Некаторыя абмежаванні праграм не ўдалося ўжыць. Закранутыя праграмы або абноўленыя версіі могуць застацца без абмежаванняў. Іншыя сродкі кіравання даступныя, а спробы ўжыць захаваныя правілы будуць аўтаматычна паўтарацца."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Выбранае дзіця: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Уліковы запіс дзіцяці не выбраны."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Выбранае дзіця"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Меню праграмы для бацькоў"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Адкрыйце налады, даведку і звесткі пра прадукт."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Водгук"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Адпраўце водгук пра праграму."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Выберыце дзіця, чый час перад экранам і правілы праграм будуць паказаны."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Адклікаць аднаразовы доступ"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Выдаліце актыўны аднаразовы дазвол выбранага дзіцяці пасля пацвярджэння."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Абмежаванні экрана"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Абмежаванне часу перад экранам"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Уключыце або выключыце штодзённае кіраванне часам перад экранам для выбранага дзіцяці."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Штодзённая норма часу"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Выберыце штодзённую норму часу перад экранам для выбранага дзіцяці."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Уласная штодзённая норма"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Увядзіце цэлую колькасць хвілін ад нуля да 1439."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Астатак часу на сёння"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Разгарніце або згарніце разлік астатку штодзённага і аднаразовага часу."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Абмежаванні праграм"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Пошук усталяваных праграм"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Пошук моў"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Адфільтруйце даступныя праграмы выбранага дзіцяці."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Назва праграмы &amp; падрабязнасці"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Схаваць разлік астатку часу"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Згарніце падрабязнасці разліку астатку часу."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "Фільтраваць %(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Тлумачэнне правіл"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Разгарніце або згарніце тлумачэнне доступу да праграм і правіл супадзення."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "Правіла супадзення для %(app_name)s"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Выберыце, ці супадае захаванае правіла гэтай праграмы з дакладным шляхам або з шаблонам назвы файла з версіяй."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "Праграму для бацькоў не ўдалося загрузіць. Паспрабуйце пазней."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "Адклікае аднаразовыя дазволы на час перад экранам і доступ да праграм, выдадзеныя %(child_name)s."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Загрузка…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "Усталяваныя праграмы не ўдалося загрузіць. Паспрабуйце пазней."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Недаступна"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "Астатак часу не ўдалося загрузіць. Паспрабуйце пазней."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nЗакранутыя праграмы: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Стан абмежаванняў праграм недаступны. Спроба будзе аўтаматычна паўторана."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Скасаваць"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Адклікаць дазвол"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Аднаразовы дазвол адкліканы"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Уласная колькасць…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Уласная колькасць"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Увядзіце ўласную штодзённую норму ў хвілінах."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Увядзіце цэлы лік ад 0 да 1439."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "Правіла супадзення для %(row_app_name)s"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Бягучае правіла супадзення: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Аднавіць прадвызначанае"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Захаваць"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Правіла супадзення праграмы"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Увядзіце дакладны шлях выканання або шаблон назвы файла з версіяй."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Не ўдалося захаваць %(setting)s. Паспрабуйце пазней."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Уліковы запіс дзіцяці: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "Кіруйце часам перад экранам і правіламі праграм для %(label)s."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "Лагатып %(app_name)s"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Налады"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Даведка"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "Пра праграму"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Меню"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Уліковы запіс дзіцяці"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Адклікае аднаразовыя дазволы на час перад экранам і доступ да праграм."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Інтэрактыўны ўліковы запіс без правоў адміністратара не знойдзены."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "Пакажыце старонку %(label)s."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Абмежаванне часу перад экранам"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Уключыць / выключыць абмежаванне часу перад экранам"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Штодзённая норма часу"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Астатак часу на сёння"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Час, які застаўся на сёння"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Правіла супадзення"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Правіла доступу"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Схаваць разлік"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Фільтраваць па %(label)s"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Кароткая даведка пра правілы доступу і супадзення"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Паказаць тлумачэнне"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Доступ да праграм (што адбываецца)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Правіла супадзення (як супастаўляюцца праграмы)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Разуменне правіл доступу і супадзення"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Схаваць тлумачэнне"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "Не ўдалося загрузіць вашу моўную наладу. Адкрыйце Налады, каб паўтарыць спробу."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Змяніць правіла супадзення"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "Правіла доступу для %(app_name)s: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Усталюйце правіла доступу выбранага дзіцяці да %(app_name)s у %(state_label)s."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Стан абмежаванняў праграм не ўдалося праверыць. Іншыя сродкі кіравання даступныя."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Адклікаць аднаразовы дазвол?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Гэта адкліча аднаразовы час перад экранам і доступ да заблакіраваных праграм з магчымасцю часовага дазволу, выдадзеныя %(child_name)s, закрые яго запушчаныя заблакіраваныя праграмы і заблакіруе яго працоўны стол, калі часу не застанецца. Яго астатак штодзённай нормы часу не зменіцца."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Пакіньце бягучы аднаразовы дазвол."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Адклічце аднаразовы дазвол выбранага дзіцяці."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Усталюйце штодзённую норму выбранага дзіцяці ў %(daily_limit_label_minutes)s."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Уласнае значэнне"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Змяніць правіла супадзення"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Закрыць"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Закрыйце паведамленне пра неабходнасць адміністратара."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Няма)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Адклікаць аднаразовы дазвол"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Адклікаць"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "хвіліны"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Усталяваныя праграмы"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Сродкі запуску працоўнага стала, AppImage, Flatpak, Snap і сістэмы"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Значок"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Загрузка ўсталяваных праграм…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Як гэта разлічваецца"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Тлумачэнне"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "Праграму можна выкарыстоўваць заўсёды"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "Праграма цалкам заблакіравана і можа быць дазволена толькі адміністратарамі"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "Праграма заблакіравана і можа атрымаць аднаразовае падаўжэнне па запыце дзіцяці, калі абмежаванне часу ўключана"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Супадае па шаблоне\n для шляхоў выканання са зменлівымі нумарамі версій (напрыклад, Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Супадае з дакладным шляхам праграмы\n(напрыклад, /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Не ўдалося абнавіць уліковыя запісы дзяцей. Спроба будзе аўтаматычна паўторана."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Інтэрактыўныя карыстальнікі без правоў адміністратара не знойдзены"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Няправільная штодзённая норма. Увядзіце цэлы лік ад 0 да 1439."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Выкарыстайце дакладны шлях выканання або дадайце * для шаблона назвы файла з версіяй."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Патрэбны доступ адміністратара"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Патрэбны адміністратар"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Кіраваць бацькоўскім кантролем можа толькі адміністратар.\nУвайдзіце праз уліковы запіс адміністратара, каб адкрыць праграму для бацькоў."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Кіраваць бацькоўскім кантролем можа толькі адміністратар. Увайдзіце праз уліковы запіс адміністратара, каб адкрыць праграму для бацькоў."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "іншая праграма"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "Патрэбна правіла супадзення"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Дакладнае супадзенне павінна быць шляхам выканання гэтай праграмы"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Працягнуць"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Захавайце вашу моўную наладу."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Не ўдалося захаваць вашу мову. Паўтарыце спробу."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Мова"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Выберыце вашу мову"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Яе можна змяніць у наладах"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "Выберыце %(name)s."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Час выдадзены"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Час выдадзены, Закрыць"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Чаканы астатак часу пры ўхваленні: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Праглядзіце справаздачу пра памылку перад закрыццём або вяртаннем да ўваходу."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "НАЛАДЫ"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Выберыце вашу мову."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "ПРА ПРАГРАМУ"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Пакажыце назву, версію і юрыдычныя звесткі пра прадукт."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Выключыць гук экрана запыту"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Уключыце або выключыце маланкі і гук грому."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Меню экрана запыту"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Адкрыйце налады, даведку і звесткі пра прадукт для гэтага экрана запыту."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Вярнуцца да ўваходу"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Закрыйце экран выніку або вярніцеся да экрана ўваходу."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Паведаміць пра гэтую памылку"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Разлік чаканага часу…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "ДАВЕДКА"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Адкрыйце сайт прадукту ў браўзеры."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Выключыць гук і маланкі"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Уключыць гук і маланкі"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Уключыць гук экрана запыту"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Пры ўхваленні — доступ да поўначы."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Ацэнка часу недаступная"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "Не ўдалося загрузіць чаканы астатак часу."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Не ўдалося захаваць налады"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "Не ўдалося захаваць выбраныя параметры вашага запыту. Паспрабуйце пазней."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Не ўдалося захаваць вашу наладу гуку. Паспрабуйце пазней."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "Не ўдалося захаваць налады вашага запыту. Паспрабуйце пазней."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Запыт ухвалены"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Запыт адхілены"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Дзіця"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Бацька або маці, якія ўхваляюць"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Асоба, якая ўхваляе"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Уласная працягласць у хвілінах"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Увядзіце запытаную працягласць ад 0.1 да 1440 хвілін."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Дазволіць заблакіраваныя праграмы з магчымасцю часовага дазволу"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Выберыце, ці дае гэты запыт часовы доступ да заблакіраваных праграм з магчымасцю часовага дазволу."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Запытаць доступ"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Адпраўце выбраную працягласць і параметр доступу да праграм на ўхваленне."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Скасаваць запыт"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Закрыйце гэты экран запыту, не запытваючы дадатковага часу."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Загрузка ўліковых запісаў…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Загрузка звестак пра запыт…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "ЗАПЫТАЦЬ"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Абмежаванне часу перад экранам не ўключана ў праграме для бацькоў"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "СКАСАВАЦЬ"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "Запытаць %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "Выберыце %(label)s як запытаную працягласць дадатковага часу перад экранам."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Няма даступных мясцовых звычайных уліковых запісаў. Стварыце адзін і зноў адкрыйце гэты экран."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Няма даступных мясцовых інтэрактыўных уліковых запісаў адміністратара."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Чаканне ўхвалення…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "Запыт недаступны"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "Не ўдалося выканаць запыт. Вярніцеся да ўваходу і паспрабуйце пазней."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "Не ўдалося выканаць запыт. Паспрабуйце пазней."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Версія %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Сайт"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Прыватнасць"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Палітыка прыватнасці"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Падтрымка"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Ліцэнзія"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Юрыдычныя паведамленні"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Паведамленні пра інтэграцыю з Malcontent і ўключаныя шрыфты"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Выкарыстоўвае асобна ўсталяваную службу бацькоўскага кантролю Malcontent праз публічныя сістэмныя API. Не звязана з аўтарамі Malcontent або GNOME і не мае іх ухвалення."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Дапамагаем сем'ям фарміраваць здаровыя лічбавыя звычкі."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Можна закрыць гэты дыялог; спробы будуць працягвацца, пакуль праграма адкрыта."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Ваш водгук паспяхова адпраўлены. Дзякуем за дапамогу ў паляпшэнні праграмы."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "Электронная пошта для адказу (неабавязкова)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Дадайце ваш адрас электроннай пошты, калі жадаеце адказу."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Дадаць файлы"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Далучыце да вашага водгуку да 5 файлаў."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Паўтарыць збор дыягностыкі"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Паспрабуйце сабраць дыягнастычнае ўкладанне яшчэ раз."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Спампаваць"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Захавайце ZIP з чытэльнай дыягнастычнай справаздачай і праверанымі тэхнічнымі падзеямі."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Пакажыце звесткі пра прыватнасць водгуку і ўкладанняў."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Адправіць без журналаў"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Адпраўце водгук без дыягнастычнага ўкладання."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Закрыйце форму водгуку, захаваўшы чарнавік у гэтай праграме."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Адправіць водгук"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Адпраўце водгук і выбраныя ўкладанні."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nДыягнастычныя журналы не збіраюць назвы ўліковых запісаў, адрасы электроннай пошты, змесціва файлаў, неапрацаваныя сістэмныя журналы або паведамленні пра выключэнні. Аўтаматычная дыягностыка змяшчае правераныя тэхнічныя падзеі, праверкі стану і сістэмныя звесткі: версіі аперацыйнай сістэмы і залежнасцей, часавы пояс, тып сеанса і агульныя колькасці ўліковых запісаў. Імёны і ўласны тэкст версіі прапускаюцца або незваротна замяняюцца; ідэнтычнасці ніколі не хэшуюцца. Ваш водгук, электронная пошта для адказу і выбраныя файлы асобныя і могуць змяшчаць асабістыя звесткі. Праглядзіце іх перад адпраўкай."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Праглядзець поўнае паведамленне пра прыватнасць"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Адкрыйце паведамленне пра прыватнасць Oh No! Parent Control у вашым браўзеры."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Спыніць адпраўку і закрыць"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Можна спыніць адпраўку і закрыць гэтую справаздачу."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Водгук адпраўлены."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Гэтую адпраўку больш нельга паўтарыць у межах яе перыяду паўторных спроб. Папярэдняя спроба магла завяршыцца паспяхова. Паўторная адпраўка можа стварыць дублікат."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "Укладанні занадта вялікія. Выдаліце файлы або журналы і паўтарыце спробу."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Не ўдалося падрыхтаваць журналы. Можна адправіць гэты водгук без укладання."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "Водгук не прыняты. Ваш чарнавік захаваны. Праверце водгук і адрас для адказу перад паўторнай адпраўкай."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Адпраўка спынена. Ваш чарнавік захаваны. Папярэдняя спроба магла завяршыцца паспяхова."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "Адпраўка пакуль недаступная. Ваш чарнавік захаваны."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nМы можам звязацца з вамі праз указаны адрас электроннай пошты, калі ўзнікнуць дадатковыя пытанні."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Далучыце дыягнастычную справаздачу з праверанымі тэхнічнымі падзеямі і праверкамі стану. Асабістыя звесткі выключаны з гэтай справаздачы."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Чытанне ўкладанняў…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Укладанні (неабавязкова)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Збор дыягнастычных звестак..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "Апошнія 3 даты журналаў · Архіў ZIP"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Выдаліць журналы"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Паўтарыць збор"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Захавайце сціснутыя журналы для вывучэння перад адпраўкай"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Прыватнасць водгуку"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Закрыйце звесткі пра прыватнасць водгуку."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Спыніце справаздачу ў чаканні і закрыйце яе."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Адправіць паўторна (магчымы дублікат)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Адпраўце захаваны водгук паўторна, калі папярэдні вынік няпэўны."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Дзякуем за ваш водгук!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Закрыйце пацвярджэнне водгуку."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Дыягностыка недаступная"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Паўтарыце збор або адпраўце без дыягностыкі."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Дадаць журналы"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Выдаліць"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Дадаць укладанні да водгуку"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Далучыце не больш за %(transport_MAX_ATTACHMENT_COUNT)s файлаў."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Папярэдні прагляд недаступны"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Файлавае ўкладанне"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "Выдаліць %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Выдаліце гэты файл з водгуку."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Журналы гатовыя да прагляду"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Спампаваць дыягнастычныя журналы"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Спампавана · Гатова да вывучэння"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Дапамажыце нам палепшыць праграму"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Ананімна па змаўчанні"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Дадайце вашу электронную пошту, калі жадаеце адказу. Інакш ваш водгук ананімны."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Журналы не далучаны"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "Апошнія 3 даты журналаў · Звесткі пра сістэму · Архіў ZIP"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Ваш водгук можна адправіць без журналаў."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Выдаліць укладанне"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Не ўдалося захаваць журналы. Паспрабуйце іншае месца."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Праглядзіце ніжэй звесткі пра памылку перад адпраўкай."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Падзяліцеся праблемай, прапановай або ідэяй."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Не ўдалося выбраць укладанні. Паўтарыце спробу."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Не ўдалося прачытаць адно або некалькі ўкладанняў. Паспрабуйце іншыя файлы."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "Не ўдалося выбраць месца спампоўвання. Паўтарыце спробу."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Узнікла памылка"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "Не ўдалося завяршыць дзеянне. Паспрабуйце пазней."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Справаздача пра памылку недаступная"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "Не ўдалося адкрыць дыялог водгуку. Паспрабуйце пазней."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Закрыйце паведамленне пра справаздачу аб памылцы."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "Водгукі, адрасы электроннай пошты для адказу, укладанні і дыягнастычныя журналы адпраўляюцца падтрымцы па электроннай пошце. Тэрмін захоўвання залежыць ад нашай паштовай скрыні падтрымкі і пастаўшчыкоў паслуг, уключаючы іх палітыкі рэзервовага капіравання. Цяпер мы не гарантуем выдалення ў фіксаваны тэрмін."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Увядзіце аднарадковы загаловак водгуку даўжынёй не больш за 200 сімвалаў."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Увядзіце ваш водгук."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Ваш водгук змяшчае непадтрыманы схаваны сімвал. Увядзіце яго нанова і паўтарыце спробу."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "Водгук павінен змяшчаць не больш за 5 000 сімвалаў UTF-16 (некаторыя эмодзі лічацца за два)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "Фарматаванне водгуку занадта складанае. Выдаліце частку фарматавання і паўтарыце спробу."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Увядзіце толькі адрас электроннай пошты для адказу або пакіньце поле пустым."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "Версія праграмы няправільная. Абнавіце праграму."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Далучыце не больш за %(MAX_ATTACHMENT_COUNT)s файлаў."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Адно або некалькі ўкладанняў няправільныя."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Кожнае ўкладанне павінна быць памерам не больш за 5 MB."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Укладанні і дыягнастычныя журналы разам павінны быць памерам не больш за 8 MB."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)dг"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)dхв"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)dс"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Да канца дня"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Выберыце ўліковы запіс для кіравання"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Выберыце адміністратара для ўхвалення"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Выберыце працягласць"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Увядзіце лік ад %(minimum)s да %(maximum)s хвілін."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Штодзённая норма: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Выбраная штодзённая норма: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Падрыхтоўка водгуку… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Адпраўка водгуку… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Без гарантыі."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Адкрыйце звесткі пра прадукт: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Выберыце ўкладанне з правільнай назвай файла."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Выберыце ўкладанне з карацейшай правільнай назвай файла."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Ваш водгук"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Пішыце і фарматуйце водгук. Выкарыстоўвайце панэль інструментаў для загалоўкаў, тлустага, курсіву, падкрэслівання, спісаў, цытат, кода, спасылак, укладанняў і выдалення фарматавання."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Апішыце вашу ідэю або тое, што адбылося і чаго вы чакалі..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Стыль тэксту"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Звычайны тэкст"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Загаловак 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Загаловак 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Тлусты"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Курсіў"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Падкрэслены"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Закрэслены"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Нумараваны спіс"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Маркіраваны спіс"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Цытата"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Блок кода"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Уставіць спасылку"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Дадаць укладанне"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Выдаліць фарматаванне"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Фарматаванне водгуку"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Мэта спасылкі"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Рэдактар спасылкі"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Адкрыць папярэдні прагляд спасылкі"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Захаваць спасылку"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Выдаліць спасылку"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "элемент нумараванага спіса"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "элемент маркіраванага спіса"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Анімацыя адліку адной хвіліны"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Уключыце або выключыце бачную анімацыю адліку ў апошнюю хвіліну."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Прачытайце астатак часу або адкрыйце форму запыту дадатковага часу. Адкрыйце кантэкстнае меню для налад анімацыі адліку."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Засталося часу: %(time)s\n• Націсніце, каб запытаць дадатковы час для гэтага сеанса.\n• Націсніце правай кнопкай для іншых параметраў."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Запытаць час, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Паказаць больш уліковых запісаў"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Пакажыце папярэднія або наступныя варыянты ўліковых запісаў."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Выберыце ўліковы запіс."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Выбраны ўліковы запіс: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Выберыце, якія правілы паказваюцца ў спісе праграм."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Пакажыце праграмы з гэтым правілам."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Пракрутка экрана запыту"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "Пракручвайце экран запыту, калі змесціва не змяшчаецца."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d хвіліна"
+msgstr[1] "%(count)d хвіліны"
+msgstr[2] "%(count)d хвілін"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g гадзіна"
+msgstr[1] "%(count)g гадзіны"
+msgstr[2] "%(count)g гадзін"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d секунда"
+msgstr[1] "%(count)d секунды"
+msgstr[2] "%(count)d секунд"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d файлавае ўкладанне гатова."
+msgstr[1] "%(count)d файлавыя ўкладанні гатовыя."
+msgstr[2] "%(count)d файлавых укладанняў гатова."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d байт"
+msgstr[1] "%(count)d байты"
+msgstr[2] "%(count)d байтаў"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Не ўдалося пацвердзіць адпраўку. Паўторная спроба праз %(count)d секунду…"
+msgstr[1] "Не ўдалося пацвердзіць адпраўку. Паўторная спроба праз %(count)d секунды…"
+msgstr[2] "Не ўдалося пацвердзіць адпраўку. Паўторная спроба праз %(count)d секунд…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Не ўдалося захаваць аднаразовы дазвол. Паспрабуйце пазней."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Не ўдалося захаваць налады часу перад экранам. Паспрабуйце пазней."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Не ўдалося захаваць доступ да праграм. Паспрабуйце пазней."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Змяніць спасылку"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Катэгорыі памылак: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "Для %(name)s"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s КБ"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s МБ"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g гадзіны"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g гадзіны"

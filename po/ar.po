@@ -427,7 +427,7 @@ msgstr "إلغاء المنحة لمرة واحدة؟"
 #. Preserve named operands and any markup; operands are supplied by the owning UI.
 #, python-format
 msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
-msgstr "سيؤدي هذا إلى إلغاء وقت الشاشة لمرة واحدة والوصول المؤقت إلى التطبيقات المحظورة الممنوح لـ %(child_name)s، وإغلاق تطبيقاته المحظورة قيد التشغيل، وقفل سطح مكتبه عند نفاد الوقت. لن تتأثر حصته اليومية المتبقية."
+msgstr "سيؤدي هذا إلى إلغاء وقت الشاشة لمرة واحدة والوصول إلى التطبيقات المحظورة مع إمكانية السماح المؤقت الممنوح لـ %(child_name)s، وإغلاق تطبيقاته المحظورة قيد التشغيل، وقفل سطح مكتبه عند نفاد الوقت. لن تتأثر حصته اليومية المتبقية."
 
 #. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
 msgid "Keep the current one-time grant."
@@ -737,11 +737,11 @@ msgstr "أدخل مدة مطلوبة من 0.1 إلى 1440 دقيقة."
 
 #. Shared message: ALLOW_SOFT_BLOCKED_APPS
 msgid "Allow soft blocked apps"
-msgstr "السماح المؤقت بالتطبيقات المحظورة"
+msgstr "السماح بالتطبيقات المحظورة مع إمكانية السماح المؤقت"
 
 #. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
 msgid "Choose whether this request temporarily allows soft blocked apps."
-msgstr "اختر ما إذا كان هذا الطلب يسمح مؤقتًا بالتطبيقات المحظورة القابلة للسماح."
+msgstr "اختر ما إذا كان هذا الطلب يسمح مؤقتًا بالتطبيقات المحظورة مع إمكانية السماح المؤقت."
 
 #. Shared message: REQUEST_ACCESS
 msgid "Request access"
@@ -923,7 +923,7 @@ msgstr "أرسل الملاحظات والمرفقات المحددة."
 
 #. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
 msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
-msgstr "\n\nلا تجمع سجلات التشخيص أسماء الحسابات أو عناوين البريد الإلكتروني أو محتويات الملفات أو سجلات النظام الخام أو رسائل الاستثناءات. تتضمن التشخيصات التلقائية أحداثًا تقنية تم التحقق منها وفحوص السلامة ومعلومات النظام: إصدارات نظام التشغيل والتبعيات والمنطقة الزمنية ونوع الجلسة وأعداد الحسابات الإجمالية. تُحذف الأسماء ونصوص الإصدارات المخصصة أو تُستبدل بصورة لا يمكن عكسها؛ ولا تُحوّل الهويات أبدًا إلى تجزئات. ملاحظاتك وعنوان بريد الرد والملفات المحددة منفصلة وقد تحتوي على معلومات شخصية. راجعها قبل الإرسال."
+msgstr "\n\nلا تجمع سجلات التشخيص أسماء الحسابات أو عناوين البريد الإلكتروني أو محتويات الملفات أو سجلات النظام الخام أو رسائل الاستثناءات. تتضمن التشخيصات التلقائية أحداثًا تقنية تم التحقق منها وفحوص سلامة النظام ومعلومات النظام: إصدارات نظام التشغيل والتبعيات والمنطقة الزمنية ونوع الجلسة وأعداد الحسابات الإجمالية. تُحذف الأسماء ونصوص الإصدارات المخصصة أو تُستبدل بصورة لا يمكن عكسها؛ ولا تُحوّل الهويات أبدًا إلى تجزئات. ملاحظاتك وعنوان بريد الرد والملفات المحددة منفصلة وقد تحتوي على معلومات شخصية. راجعها قبل الإرسال."
 
 #. Shared message: VIEW_FULL_PRIVACY_NOTICE
 msgid "View full privacy notice"
@@ -975,7 +975,7 @@ msgstr "\n\nقد نتواصل معك على عنوان البريد الإلكت
 
 #. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
 msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
-msgstr "ضمّن تقريرًا تشخيصيًا يحتوي على أحداث تقنية تم التحقق منها وفحوص السلامة. تُستبعد المعلومات الشخصية من هذا التقرير."
+msgstr "ضمّن تقريرًا تشخيصيًا يحتوي على أحداث تقنية تم التحقق منها وفحوص سلامة النظام. تُستبعد المعلومات الشخصية من هذا التقرير."
 
 #. Shared message: READING_ATTACHMENTS
 msgid "Reading attachments…"
@@ -1205,11 +1205,11 @@ msgstr "مرفق واحد أو أكثر غير صالح."
 
 #. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
 msgid "Each attachment must be 5 MB or smaller."
-msgstr "يجب ألا يتجاوز حجم كل مرفق 5 MB."
+msgstr "يجب ألا يتجاوز حجم كل مرفق 5 ميغابايت."
 
 #. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
 msgid "Attachments and diagnostic logs must total 8 MB or less."
-msgstr "يجب ألا يتجاوز الحجم الإجمالي للمرفقات وسجلات التشخيص 8 MB."
+msgstr "يجب ألا يتجاوز الحجم الإجمالي للمرفقات وسجلات التشخيص 8 ميغابايت."
 
 #. Shared message: COMPACT_HOURS
 #. Preserve named operands and any markup; operands are supplied by the owning UI.
@@ -1476,7 +1476,7 @@ msgid "%(count)d minute"
 msgid_plural "%(count)d minutes"
 msgstr[0] "%(count)d دقيقة"
 msgstr[1] "%(count)d دقيقة"
-msgstr[2] "%(count)d دقيقتان"
+msgstr[2] "دقيقتان (%(count)d)"
 msgstr[3] "%(count)d دقائق"
 msgstr[4] "%(count)d دقيقة"
 msgstr[5] "%(count)d دقيقة"
@@ -1488,7 +1488,7 @@ msgid "%(count)g hour"
 msgid_plural "%(count)g hours"
 msgstr[0] "%(count)g ساعة"
 msgstr[1] "%(count)g ساعة"
-msgstr[2] "%(count)g ساعتان"
+msgstr[2] "ساعتان (%(count)g)"
 msgstr[3] "%(count)g ساعات"
 msgstr[4] "%(count)g ساعة"
 msgstr[5] "%(count)g ساعة"
@@ -1500,7 +1500,7 @@ msgid "%(count)d second"
 msgid_plural "%(count)d seconds"
 msgstr[0] "%(count)d ثانية"
 msgstr[1] "%(count)d ثانية"
-msgstr[2] "%(count)d ثانيتان"
+msgstr[2] "ثانيتان (%(count)d)"
 msgstr[3] "%(count)d ثوانٍ"
 msgstr[4] "%(count)d ثانية"
 msgstr[5] "%(count)d ثانية"
@@ -1512,7 +1512,7 @@ msgid "%(count)d file attachment ready."
 msgid_plural "%(count)d file attachments ready."
 msgstr[0] "%(count)d مرفقات ملفات جاهزة."
 msgstr[1] "%(count)d مرفق ملف جاهز."
-msgstr[2] "%(count)d مرفقا ملف جاهزان."
+msgstr[2] "مرفقا ملف جاهزان (%(count)d)."
 msgstr[3] "%(count)d مرفقات ملفات جاهزة."
 msgstr[4] "%(count)d مرفق ملف جاهز."
 msgstr[5] "%(count)d مرفق ملف جاهز."
@@ -1524,7 +1524,7 @@ msgid "%(count)d byte"
 msgid_plural "%(count)d bytes"
 msgstr[0] "%(count)d بايت"
 msgstr[1] "%(count)d بايت"
-msgstr[2] "%(count)d بايتان"
+msgstr[2] "بايتان (%(count)d)"
 msgstr[3] "%(count)d بايتات"
 msgstr[4] "%(count)d بايتًا"
 msgstr[5] "%(count)d بايت"
@@ -1536,7 +1536,7 @@ msgid "Could not confirm submission. Retrying in %(count)d second…"
 msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
 msgstr[0] "تعذر تأكيد الإرسال. ستُعاد المحاولة خلال %(count)d ثانية…"
 msgstr[1] "تعذر تأكيد الإرسال. ستُعاد المحاولة خلال %(count)d ثانية…"
-msgstr[2] "تعذر تأكيد الإرسال. ستُعاد المحاولة خلال %(count)d ثانيتين…"
+msgstr[2] "تعذر تأكيد الإرسال. ستُعاد المحاولة خلال ثانيتين (%(count)d)…"
 msgstr[3] "تعذر تأكيد الإرسال. ستُعاد المحاولة خلال %(count)d ثوانٍ…"
 msgstr[4] "تعذر تأكيد الإرسال. ستُعاد المحاولة خلال %(count)d ثانية…"
 msgstr[5] "تعذر تأكيد الإرسال. ستُعاد المحاولة خلال %(count)d ثانية…"

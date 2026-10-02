@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Norwegian Bokmål message catalogue.
 # Plural metadata reference: https://l10n.gnome.org/teams/nb/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: OpenAI translation draft\n"
 "Language-Team: Norsk bokmål\n"
 "Language: nb\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1549 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Gjenværende daglig tid: <b>%(daily)s</b>\nGjenværende engangstid: <b>%(grant)s</b>\n<b>Gjenværende tid: %(remaining)s</b> — den største av de to verdiene."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Alltid tillatt"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Helt blokkert"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Betinget blokkert"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Mønstertreff"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Samsvarer med filnavn med versjonsnummer ved hjelp av et jokertegn."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Nøyaktig kjørbar filbane"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Samsvarer bare med denne nøyaktige banen til den kjørbare filen."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Enkelte appbegrensninger kunne ikke tas i bruk. Berørte apper eller oppdaterte versjoner kan være uten begrensninger. Andre kontroller er fortsatt tilgjengelige, og lagrede regler vil automatisk bli forsøkt brukt på nytt."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Valgt barn: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Ingen barnekonto er valgt."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Valgt barn"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Meny for foreldreappen"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Åpne innstillinger, hjelp og produktinformasjon."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Tilbakemelding"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Send tilbakemelding om appen."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Velg barnet som skjermtiden og appreglene vises for."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Trekk tilbake engangstilgang"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Fjern det valgte barnets aktive engangstilgang etter bekreftelse."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Skjermbegrensninger"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Skjermtidsgrense"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Aktiver eller deaktiver daglig skjermtidskontroll for det valgte barnet."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Daglig tidskvote"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Velg det valgte barnets daglige skjermtidskvote."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Egendefinert daglig tidskvote"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Skriv inn et helt antall minutter fra null til og med 1439."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Gjenværende tid i dag"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Vis eller skjul beregningen av gjenværende daglig tid og engangstid."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Appbegrensninger"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Søk i installerte apper"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Søk etter språk"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Filtrer appene som er tilgjengelige for det valgte barnet."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Appnavn &amp; detaljer"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Skjul beregning av gjenværende tid"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Skjul detaljene i beregningen av gjenværende tid."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "Filtrer %(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Regelforklaring"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Vis eller skjul forklaringen av apptilgang og samsvarsregler."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "Samsvarsregel for %(app_name)s"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Velg om appens lagrede regel skal samsvare med en nøyaktig bane eller et filnavnmønster med versjonsnummer."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "Foreldreappen kunne ikke lastes inn. Prøv igjen senere."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "Trekker tilbake engangstillatelser for skjermtid og apptilgang som er gitt til %(child_name)s."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Laster inn…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "Installerte apper kunne ikke lastes inn. Prøv igjen senere."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Utilgjengelig"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "Gjenværende tid kunne ikke lastes inn. Prøv igjen senere."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nBerørte apper: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Status for appbegrensninger er utilgjengelig. Prøver automatisk igjen."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Avbryt"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Trekk tilbake tillatelse"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Engangstillatelse trukket tilbake"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Egendefinert verdi…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Egendefinert verdi"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Angi en egendefinert daglig tidskvote i minutter."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Skriv inn et helt tall fra 0 til og med 1439."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "Samsvarsregel for %(row_app_name)s"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Gjeldende samsvarsregel: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Tilbakestill til standard"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Lagre"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Appens samsvarsregel"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Angi en nøyaktig kjøringsbane eller et filnavnmønster med versjonsnummer."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Kunne ikke lagre %(setting)s. Prøv igjen senere."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Barnekonto: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "Administrer skjermtid og appregler for %(label)s."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "Logo for %(app_name)s"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Innstillinger"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Hjelp"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "Om"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Meny"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Barnekonto"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Trekker tilbake engangstillatelser for skjermtid og apptilgang."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Fant ingen interaktiv konto uten administratorrettigheter."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "Vis siden %(label)s."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Skjermtidsgrense"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Slå skjermtidsgrensen på eller av"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Daglig tidskvote"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Gjenværende tid i dag"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Tid igjen i dag"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Samsvarsregel"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Tilgangsregel"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Skjul beregning"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Filtrer etter %(label)s"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Hurtigoversikt over tilgangsregler og samsvarsregler"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Vis forklaring"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Apptilgang (hva som skjer)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Samsvarsregel (hvordan apper gjenkjennes)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Forstå tilgangsregler og samsvarsregler"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Skjul forklaring"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "Språkinnstillingen din kunne ikke lastes inn. Åpne Innstillinger for å prøve igjen."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Rediger samsvarsregel"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "Tilgangsregel for %(app_name)s: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Sett det valgte barnets tilgangsregel for %(app_name)s til %(state_label)s."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Status for appbegrensninger kunne ikke kontrolleres. Andre kontroller er fortsatt tilgjengelige."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Trekk tilbake engangstillatelse?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Dette vil trekke tilbake engangsskjermtid og tilgang til betinget blokkerte apper som er gitt til %(child_name)s, lukke barnets blokkerte apper som kjører, og låse barnets skrivebord når det ikke er tid igjen. Barnets gjenværende daglige tidskvote påvirkes ikke."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Behold den gjeldende engangstillatelsen."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Trekk tilbake det valgte barnets engangstillatelse."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Sett det valgte barnets daglige tidskvote til %(daily_limit_label_minutes)s."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Egendefinert verdi"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Rediger samsvarsregel"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Lukk"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Lukk varselet om at administratorrettigheter kreves."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Ingen)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Trekk tilbake engangstillatelse"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Trekk tilbake"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "minutter"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Installerte apper"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Startprogrammer for skrivebordet, AppImage, Flatpak, Snap og systemet"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Ikon"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Laster inn installerte apper…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Slik beregnes det"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Forklaring"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "Appen kan alltid brukes"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "Appen er helt blokkert og kan bare tillates av administratorer"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "Appen er blokkert og kan få en engangsutvidelse etter en forespørsel fra barnet hvis tidsgrensen er aktivert"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Samsvarer etter mønster\n for å dekke kjøringsbaner med skiftende versjonsnumre (f.eks. Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Samsvarer med nøyaktig appbane\n(f.eks. /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Barnekontoene kunne ikke oppdateres. Prøver automatisk igjen."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Fant ingen interaktive brukere uten administratorrettigheter"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Ugyldig daglig tidskvote. Skriv inn et helt tall fra 0 til og med 1439."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Bruk en nøyaktig kjøringsbane, eller inkluder * for et filnavnmønster med versjonsnummer."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Administratorrettigheter kreves"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Administrator kreves"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Bare en administrator kan administrere foreldrekontroll.\nLogg inn med en administratorkonto for å åpne foreldreappen."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Bare en administrator kan administrere foreldrekontroll. Logg inn med en administratorkonto for å åpne foreldreappen."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "en annen app"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "En samsvarsregel kreves"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Et nøyaktig samsvar må være denne appens kjøringsbane"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Fortsett"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Lagre språkinnstillingen din."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Språket ditt kunne ikke lagres. Prøv igjen."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Språk"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Velg språk"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Du kan endre det i innstillingene"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "Velg %(name)s."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Tid innvilget"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Tid innvilget, lukk"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Anslått gjenværende tid ved godkjenning: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Se gjennom en feilrapport før du lukker eller går tilbake til innlogging."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "INNSTILLINGER"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Velg språk."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "OM"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Vis produktnavn, versjon og juridisk informasjon."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Demp lyden på forespørselsskjermen"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Slå lynet og tordenlyden på eller av."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Meny på forespørselsskjermen"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Åpne innstillinger, hjelp og produktinformasjon for denne forespørselsskjermen."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Tilbake til innlogging"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Lukk resultatskjermen eller gå tilbake til innloggingsskjermen."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Rapporter denne feilen"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Beregner tidsanslag…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "HJELP"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Åpne produktets nettsted i nettleseren."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Demp lyd og lyn"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Aktiver lyd og lyn"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Aktiver lyden på forespørselsskjermen"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Ved godkjenning får du tilgang frem til midnatt."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Tidsanslag utilgjengelig"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "Anslått gjenværende tid kunne ikke lastes inn."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Innstillingene kunne ikke lagres"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "Forespørselsvalgene dine kunne ikke lagres. Prøv igjen senere."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Lydinnstillingen din kunne ikke lagres. Prøv igjen senere."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "Forespørselsinnstillingene dine kunne ikke lagres. Prøv igjen senere."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Forespørsel godkjent"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Forespørsel avslått"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Barn"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Forelder som godkjenner"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Godkjenner"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Egendefinert varighet i minutter"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Angi en ønsket varighet fra 0.1 til og med 1440 minutter."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Tillat betinget blokkerte apper"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Velg om denne forespørselen midlertidig tillater betinget blokkerte apper."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Be om tilgang"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Send den valgte varigheten og apptilgangsvalget til godkjenning."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Avbryt forespørsel"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Lukk denne forespørselsskjermen uten å be om mer tid."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Laster inn kontoer…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Laster inn forespørselsdetaljer…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "BE OM TILGANG"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Skjermtidsgrensen er ikke aktivert i foreldreappen"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "AVBRYT"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "Be om %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "Velg %(label)s som ønsket varighet for ekstra skjermtid."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Ingen lokale standardkontoer er tilgjengelige. Opprett en og åpne deretter denne skjermen på nytt."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Ingen lokale interaktive administratorkontoer er tilgjengelige."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Venter på godkjenning…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "Forespørsel utilgjengelig"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "Forespørselen kunne ikke fullføres. Gå tilbake til innlogging og prøv igjen senere."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "Forespørselen kunne ikke fullføres. Prøv igjen senere."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Versjon %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Nettsted"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Personvern"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Personvernerklæring"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Brukerstøtte"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Lisens"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Juridiske merknader"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Merknader om Malcontent-integrasjon og medfølgende skrifter"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Bruker den separat installerte foreldrekontrolltjenesten Malcontent gjennom offentlige system-API-er. Ingen tilknytning til eller godkjenning fra forfatterne av Malcontent eller GNOME."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Hjelper familier med å utvikle sunne digitale vaner."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Du kan lukke denne dialogen; nye forsøk fortsetter mens appen er åpen."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Tilbakemeldingen din ble sendt. Takk for at du hjelper oss med å forbedre appen."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "E-post for svar (valgfritt)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Legg til e-postadressen din hvis du ønsker et svar."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Legg til filer"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Legg ved opptil 5 filer i tilbakemeldingen."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Prøv innsamling av diagnostikk på nytt"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Prøv å samle inn diagnostikkvedlegget på nytt."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Last ned"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Lagre en ZIP-fil med en lesbar diagnostikkrapport og validerte tekniske hendelser."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Vis personverninformasjon om tilbakemeldinger og vedlegg."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Send uten logger"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Send tilbakemeldingen uten diagnostikkvedlegget."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Lukk tilbakemeldingsskjemaet og behold utkastet i denne appen."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Send tilbakemelding"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Send tilbakemeldingen og de valgte vedleggene."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nDiagnostikklogger samler ikke inn kontonavn, e-postadresser, filinnhold, rå systemjournaler eller unntaksmeldinger. Automatisk diagnostikk inneholder validerte tekniske hendelser, helsesjekker og systeminformasjon: versjoner av operativsystemet og avhengigheter, tidssone, økttype og samlet antall kontoer. Navn og egendefinert versjonstekst utelates eller erstattes irreversibelt; identiteter hashes aldri. Din egen tilbakemelding, e-postadressen for svar og de valgte filene er separate og kan inneholde personopplysninger. Se gjennom dem før du sender."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Se fullstendig personvernerklæring"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Åpne personvernerklæringen for Oh No! Parent Control i nettleseren."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Stopp sendingen og lukk"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Du kan stoppe sendingen og lukke denne rapporten."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Tilbakemelding sendt."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Denne innsendingen kan ikke lenger forsøkes på nytt innenfor perioden for nye forsøk. Det forrige forsøket kan ha lykkes. Hvis du sender på nytt, kan det bli en duplikatinnsending."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "Vedleggene er for store. Fjern filer eller logger og prøv igjen."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Loggene kunne ikke klargjøres. Du kan sende denne tilbakemeldingen uten vedlegget."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "Tilbakemeldingen ble ikke godtatt. Utkastet ditt er bevart. Kontroller tilbakemeldingen og svaradressen før du sender på nytt."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Innsendingen stoppet. Utkastet ditt er bevart. Det forrige forsøket kan ha lykkes."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "Sending er ikke tilgjengelig ennå. Utkastet ditt er bevart."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nVi kan kontakte deg på e-postadressen du oppga hvis vi har oppfølgingsspørsmål."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Ta med en diagnostikkrapport med validerte tekniske hendelser og helsesjekker. Personopplysninger er utelatt fra denne rapporten."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Leser vedlegg…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Vedlegg (valgfritt)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Samler inn diagnostisk informasjon…"
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "De 3 siste loggdatoene · ZIP-arkiv"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Fjern logger"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Prøv innsamling på nytt"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Lagre komprimerte logger for å undersøke dem før sending"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Personvern for tilbakemeldinger"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Lukk personverninformasjonen om tilbakemeldinger."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Stopp den ventende rapporten og lukk den."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Send på nytt (kan gi duplikat)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Send den bevarte tilbakemeldingen på nytt når det tidligere resultatet er usikkert."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Takk for tilbakemeldingen!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Lukk bekreftelsen på tilbakemeldingen."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Diagnostikk utilgjengelig"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Prøv innsamling på nytt eller send uten diagnostikk."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Legg til logger"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Fjern"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Legg til vedlegg i tilbakemeldingen"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Legg ved høyst %(transport_MAX_ATTACHMENT_COUNT)s filer."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Forhåndsvisning er ikke tilgjengelig"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Filvedlegg"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "Fjern %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Fjern denne filen fra tilbakemeldingen."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Logger klare til gjennomgang"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Last ned diagnostikklogger"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Lastet ned · Klare til å undersøkes"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Hjelp oss med å forbedre appen"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Anonym som standard"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Legg til e-postadressen din hvis du ønsker svar. Ellers er tilbakemeldingen din anonym."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Ingen logger vedlagt"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "De 3 siste loggdatoene · Systeminformasjon · ZIP-arkiv"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Tilbakemeldingen din kan sendes uten logger."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Fjern vedlegg"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Kunne ikke lagre logger. Prøv et annet sted."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Se gjennom feildetaljene nedenfor før du sender."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Fortell om et problem, et forslag eller en idé."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Kunne ikke velge vedlegg. Prøv igjen."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Kunne ikke lese ett eller flere vedlegg. Prøv andre filer."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "Kunne ikke velge et nedlastingssted. Prøv igjen."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Noe gikk galt"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "Handlingen kunne ikke fullføres. Prøv igjen senere."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Feilrapport utilgjengelig"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "Tilbakemeldingsdialogen kunne ikke åpnes. Prøv igjen senere."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Lukk varselet om feilrapporten."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "Tilbakemeldinger, e-postadresser for svar, vedlegg og diagnostikklogger sendes til brukerstøtte via e-post. Lagringstiden avhenger av postkassen for brukerstøtte og tjenesteleverandørene våre, inkludert sikkerhetskopieringsreglene deres. Vi garanterer foreløpig ikke sletting innen en fast periode."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Skriv inn en tilbakemeldingstittel på én linje med høyst 200 tegn."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Skriv inn tilbakemeldingen din."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Tilbakemeldingen din inneholder et skjult tegn som ikke støttes. Skriv den på nytt og prøv igjen."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "Tilbakemeldingen kan være på høyst 5 000 UTF-16-tegn (noen emojier teller som to)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "Den formaterte tilbakemeldingen er for kompleks. Fjern noe formatering og prøv igjen."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Angi bare e-postadressen for svar, eller la feltet stå tomt."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "Appversjonen er ugyldig. Oppdater appen."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Legg ved høyst %(MAX_ATTACHMENT_COUNT)s filer."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Ett eller flere vedlegg er ugyldige."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Hvert vedlegg må være på 5 MB eller mindre."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Vedlegg og diagnostikklogger må til sammen være på 8 MB eller mindre."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)d t"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)d min"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)d s"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Resten av dagen"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Velg en konto å administrere"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Velg en administrator som skal godkjenne"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Velg en varighet"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Skriv inn et tall fra %(minimum)s til %(maximum)s minutter."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Daglig tidskvote: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Valgt daglig tidskvote: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Klargjør tilbakemelding… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Sender tilbakemelding… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Ingen garanti."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Åpne produktinformasjonen: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Velg et vedlegg med et gyldig filnavn."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Velg et vedlegg med et kortere gyldig filnavn."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Tilbakemeldingen din"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Skriv og formater tilbakemeldingen. Bruk verktøylinjen for overskrifter, fet skrift, kursiv, understreking, lister, sitater, kode, lenker, vedlegg og fjerning av formatering."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Beskriv ideen din, eller hva som skjedde og hva du forventet…"
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Tekststil"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Vanlig tekst"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Overskrift 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Overskrift 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Fet"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Kursiv"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Understrek"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Gjennomstreking"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Nummerert liste"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Punktliste"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Sitat"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Kodeblokk"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Sett inn lenke"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Legg til vedlegg"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Fjern formatering"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Formatering av tilbakemelding"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Lenkemål"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Lenkeredigering"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Åpne forhåndsvisning av lenke"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Lagre lenke"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Fjern lenke"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "element i nummerert liste"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "element i punktliste"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Nedtellingsanimasjon i ett minutt"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Aktiver eller deaktiver den visuelle nedtellingsanimasjonen i det siste minuttet."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Les gjenværende tid eller åpne skjemaet for å be om mer tid. Åpne hurtigmenyen for innstillinger for nedtellingsanimasjon."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Gjenværende tid: %(time)s\n• Klikk for å be om mer tid for denne økten.\n• Høyreklikk for flere alternativer."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Be om tid, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Vis flere kontovalg"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Vis forrige eller neste kontovalg."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Velg en konto."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Valgt konto: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Velg hvilke regler som skal vises i applisten."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Vis apper med denne regelen."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Rulling på forespørselsskjermen"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "Rull forespørselsskjermen når innholdet ikke får plass."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d minutt"
+msgstr[1] "%(count)d minutter"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g time"
+msgstr[1] "%(count)g timer"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d sekund"
+msgstr[1] "%(count)d sekunder"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d filvedlegg klart."
+msgstr[1] "%(count)d filvedlegg klare."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d byte"
+msgstr[1] "%(count)d byte"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Kunne ikke bekrefte innsendingen. Prøver igjen om %(count)d sekund…"
+msgstr[1] "Kunne ikke bekrefte innsendingen. Prøver igjen om %(count)d sekunder…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Kunne ikke lagre engangstillatelsen. Prøv igjen senere."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Kunne ikke lagre skjermtidsinnstillingene. Prøv igjen senere."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Kunne ikke lagre apptilgangen. Prøv igjen senere."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Rediger lenke"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Feilkategorier: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "For %(name)s"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g timer"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g timer"

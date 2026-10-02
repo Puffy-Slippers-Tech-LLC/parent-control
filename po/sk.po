@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Slovak message catalogue.
 # Plural metadata reference: https://l10n.gnome.org/teams/sk/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: OpenAI translation draft\n"
 "Language-Team: Slovenčina\n"
 "Language: sk\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1555 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n==1) ? 1 : (n>=2 && n<=4) ? 2 : 0;\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Zostávajúci denný čas: <b>%(daily)s</b>\nZostávajúci jednorazovo udelený čas: <b>%(grant)s</b>\n<b>Zostávajúci čas: %(remaining)s</b> — väčšia z týchto dvoch hodnôt."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Vždy povolená"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Úplne blokovaná"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Podmienečne blokovaná"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Zhoda so vzorom"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Porovnáva názvy súborov s číslom verzie pomocou zástupného znaku."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Presná cesta spustenia"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Zodpovedá iba tejto presnej ceste k spustiteľnému súboru."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Niektoré obmedzenia aplikácií sa nepodarilo uplatniť. Dotknuté aplikácie alebo aktualizované verzie môžu zostať bez obmedzení. Ostatné ovládacie prvky sú dostupné a uložené pravidlá sa automaticky skúsia uplatniť znova."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Vybrané dieťa: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Nie je vybraný účet dieťaťa."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Vybrané dieťa"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Ponuka rodičovskej aplikácie"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Otvoriť nastavenia, pomocníka a informácie o produkte."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Spätná väzba"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Odoslať spätnú väzbu o aplikácii."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Vyberte dieťa, ktorého čas pred obrazovkou a pravidlá aplikácií sa zobrazia."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Odvolať jednorazový prístup"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Po potvrdení odstrániť aktívne jednorazové povolenie vybraného dieťaťa."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Obmedzenia obrazovky"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Časový limit obrazovky"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Zapnúť alebo vypnúť dennú kontrolu času pred obrazovkou pre vybrané dieťa."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Denný povolený čas"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Vyberte denný povolený čas pred obrazovkou pre vybrané dieťa."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Vlastný denný povolený čas"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Zadajte celý počet minút od nuly do 1439."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Zostávajúci čas na dnes"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Rozbaliť alebo zbaliť výpočet zostávajúceho denného a jednorazového času."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Obmedzenia aplikácií"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Hľadať nainštalované aplikácie"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Hľadať jazyky"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Filtrovať dostupné aplikácie vybraného dieťaťa."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Názov aplikácie &amp; podrobnosti"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Skryť výpočet zostávajúceho času"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Zbaliť podrobnosti výpočtu zostávajúceho času."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "Filtrovať %(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Vysvetlenie pravidiel"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Rozbaliť alebo zbaliť vysvetlenie prístupu k aplikáciám a pravidiel zhody."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "Pravidlo zhody pre %(app_name)s"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Vyberte, či uložené pravidlo tejto aplikácie zodpovedá presnej ceste alebo vzoru názvu súboru s číslom verzie."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "Rodičovskú aplikáciu sa nepodarilo načítať. Skúste to neskôr znova."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "Odvoláva jednorazové povolenia času pred obrazovkou a prístupu k aplikáciám udelené dieťaťu %(child_name)s."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Načítava sa…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "Nainštalované aplikácie sa nepodarilo načítať. Skúste to neskôr znova."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Nedostupné"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "Zostávajúci čas sa nepodarilo načítať. Skúste to neskôr znova."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nDotknuté aplikácie: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Stav obmedzení aplikácií nie je dostupný. Automaticky sa skúša znova."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Zrušiť"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Odvolať povolenie"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Jednorazové povolenie odvolané"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Vlastné množstvo…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Vlastné množstvo"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Zadajte vlastný denný povolený čas v minútach."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Zadajte celé číslo od 0 do 1439."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "Pravidlo zhody pre %(row_app_name)s"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Aktuálne pravidlo zhody: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Obnoviť predvolené"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Uložiť"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Pravidlo zhody aplikácie"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Zadajte presnú cestu spustenia alebo vzor názvu súboru s číslom verzie."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Nepodarilo sa uložiť %(setting)s. Skúste to neskôr znova."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Účet dieťaťa: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "Spravovať čas pred obrazovkou a pravidlá aplikácií pre %(label)s."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "Logo %(app_name)s"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Nastavenia"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Pomocník"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "O aplikácii"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Ponuka"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Účet dieťaťa"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Odvoláva jednorazové povolenia času pred obrazovkou a prístupu k aplikáciám."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Nenašiel sa interaktívny účet bez oprávnení správcu."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "Zobraziť stránku %(label)s."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Časový limit obrazovky"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Zapnúť / vypnúť časový limit obrazovky"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Denný povolený čas"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Zostávajúci čas na dnes"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Čas, ktorý zostáva na dnes"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Pravidlo zhody"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Pravidlo prístupu"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Skryť výpočet"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Filtrovať podľa %(label)s"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Stručný prehľad pravidiel prístupu a zhody"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Zobraziť vysvetlenie"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Prístup k aplikáciám (čo sa stane)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Pravidlo zhody (ako sa aplikácie porovnávajú)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Vysvetlenie pravidiel prístupu a zhody"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Skryť vysvetlenie"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "Vaše nastavenie jazyka sa nepodarilo načítať. Otvorte Nastavenia a skúste to znova."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Upraviť pravidlo zhody"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "Pravidlo prístupu pre %(app_name)s: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Nastaviť pravidlo prístupu vybraného dieťaťa pre %(app_name)s na %(state_label)s."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Stav obmedzení aplikácií sa nepodarilo skontrolovať. Ostatné ovládacie prvky sú dostupné."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Odvolať jednorazové povolenie?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Týmto sa odvolá jednorazový čas pred obrazovkou a prístup k podmienečne blokovaným aplikáciám udelené dieťaťu %(child_name)s, zatvoria sa jeho spustené blokované aplikácie a jeho pracovná plocha sa zamkne, keď nezostane žiadny čas. Jeho zostávajúci denný povolený čas sa nezmení."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Ponechať aktuálne jednorazové povolenie."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Odvolať jednorazové povolenie vybraného dieťaťa."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Nastaviť denný povolený čas vybraného dieťaťa na %(daily_limit_label_minutes)s."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Vlastná hodnota"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Upraviť pravidlo zhody"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Zavrieť"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Zavrieť oznámenie o požiadavke na správcu."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Žiadne)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Odvolať jednorazové povolenie"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Odvolať"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "minúty"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Nainštalované aplikácie"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Spúšťače pracovnej plochy, AppImage, Flatpak, Snap a systému"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Ikona"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Načítavajú sa nainštalované aplikácie…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Ako sa to počíta"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Vysvetlenie"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "Aplikáciu možno používať vždy"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "Aplikácia je úplne blokovaná a povoliť ju môžu iba správcovia"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "Aplikácia je blokovaná a na žiadosť dieťaťa možno jednorazovo predĺžiť prístup, ak je zapnutý časový limit"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Zhoda podľa vzoru\n zahŕňa cesty spustenia s meniacimi sa číslami verzií (napr. Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Zodpovedá presnej ceste aplikácie\n(napr. /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Účty detí sa nepodarilo obnoviť. Automaticky sa skúša znova."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Nenašli sa interaktívni používatelia bez oprávnení správcu"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Neplatný denný povolený čas. Zadajte celé číslo od 0 do 1439."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Použite presnú cestu spustenia alebo pridajte * pre vzor názvu súboru s číslom verzie."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Vyžaduje sa prístup správcu"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Vyžaduje sa správca"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Rodičovskú kontrolu môže spravovať iba správca.\nPrihláste sa účtom správcu, aby ste otvorili rodičovskú aplikáciu."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Rodičovskú kontrolu môže spravovať iba správca. Prihláste sa účtom správcu, aby ste otvorili rodičovskú aplikáciu."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "iná aplikácia"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "Vyžaduje sa pravidlo zhody"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Presná zhoda musí byť cestou spustenia tejto aplikácie"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Pokračovať"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Uložiť vaše nastavenie jazyka."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Váš jazyk sa nepodarilo uložiť. Skúste to znova."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Jazyk"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Vyberte si jazyk"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Môžete ho zmeniť v nastaveniach"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "Vybrať %(name)s."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Čas udelený"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Čas udelený, Zavrieť"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Odhad zostávajúceho času po schválení: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Pred zatvorením alebo návratom na prihlásenie skontrolujte správu o chybe."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "NASTAVENIA"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Vyberte si jazyk."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "O APLIKÁCII"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Zobraziť názov produktu, verziu a právne informácie."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Stlmiť zvuk obrazovky žiadosti"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Zapnúť alebo vypnúť blesk a zvuk hromu."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Ponuka obrazovky žiadosti"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Otvoriť nastavenia, pomocníka a informácie o produkte pre túto obrazovku žiadosti."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Späť na prihlásenie"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Zavrieť obrazovku výsledku alebo sa vrátiť na obrazovku prihlásenia."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Nahlásiť túto chybu"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Počíta sa odhad času…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "POMOCNÍK"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Otvoriť web produktu v prehliadači."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Vypnúť zvuk a blesk"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Zapnúť zvuk a blesk"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Zapnúť zvuk obrazovky žiadosti"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Po schválení prístup do polnoci."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Odhad času nie je dostupný"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "Odhad zostávajúceho času sa nepodarilo načítať."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Nastavenia sa nepodarilo uložiť"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "Vaše voľby žiadosti sa nepodarilo uložiť. Skúste to neskôr znova."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Vaše nastavenie zvuku sa nepodarilo uložiť. Skúste to neskôr znova."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "Vaše nastavenia žiadosti sa nepodarilo uložiť. Skúste to neskôr znova."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Žiadosť schválená"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Žiadosť zamietnutá"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Dieťa"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Schvaľujúci rodič"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Schvaľovateľ"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Vlastná dĺžka v minútach"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Zadajte požadovanú dĺžku od 0.1 do 1440 minút."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Povoliť podmienečne blokované aplikácie"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Vyberte, či táto žiadosť dočasne povoľuje podmienečne blokované aplikácie."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Požiadať o prístup"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Odoslať vybranú dĺžku a voľbu prístupu k aplikáciám na schválenie."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Zrušiť žiadosť"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Zavrieť túto obrazovku žiadosti bez požiadania o ďalší čas."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Načítavajú sa účty…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Načítavajú sa podrobnosti žiadosti…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "POŽIADAŤ"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Obmedzenie obrazovky nie je zapnuté v rodičovskej aplikácii"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "ZRUŠIŤ"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "Požiadať o %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "Vybrať %(label)s ako požadovanú dĺžku dodatočného času pred obrazovkou."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Nie sú dostupné miestne štandardné účty. Vytvorte jeden a znova otvorte túto obrazovku."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Nie sú dostupné miestne interaktívne účty správcov."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Čaká sa na schválenie…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "Žiadosť nie je dostupná"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "Žiadosť sa nepodarilo dokončiť. Vráťte sa na prihlásenie a skúste to neskôr znova."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "Žiadosť sa nepodarilo dokončiť. Skúste to neskôr znova."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Verzia %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Web"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Súkromie"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Zásady ochrany súkromia"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Podpora"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Licencia"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Právne oznámenia"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Oznámenia o integrácii Malcontent a dodaných písmach"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Používa samostatne nainštalovanú službu rodičovskej kontroly Malcontent cez verejné systémové API. Nie je prepojená s autormi Malcontent ani s GNOME a nemá ich podporu."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Pomáhame rodinám budovať zdravé digitálne návyky."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Tento dialóg môžete zavrieť; opakované pokusy pokračujú, kým je aplikácia otvorená."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Vaša spätná väzba bola úspešne odoslaná. Ďakujeme, že nám pomáhate zlepšovať aplikáciu."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "E-mail na odpoveď (voliteľné)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Ak chcete odpoveď, pridajte svoju e-mailovú adresu."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Pridať súbory"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Priložiť k spätnej väzbe najviac 5 súborov."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Zopakovať zber diagnostiky"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Skúsiť znova zozbierať diagnostickú prílohu."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Stiahnuť"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Uložiť ZIP s čitateľnou diagnostickou správou a overenými technickými udalosťami."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Zobraziť informácie o súkromí spätnej väzby a príloh."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Odoslať bez záznamov"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Odoslať spätnú väzbu bez diagnostickej prílohy."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Zavrieť formulár spätnej väzby a zachovať koncept v tejto aplikácii."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Odoslať spätnú väzbu"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Odoslať spätnú väzbu a vybrané prílohy."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nDiagnostické záznamy nezbierajú názvy účtov, e-mailové adresy, obsah súborov, nespracované systémové denníky ani správy o výnimkách. Automatická diagnostika obsahuje overené technické udalosti, kontroly stavu a systémové informácie: verzie operačného systému a závislostí, časové pásmo, typ relácie a celkové počty účtov. Mená a vlastný text verzie sa vynechávajú alebo nezvratne nahrádzajú; identity sa nikdy nehašujú. Vaša spätná väzba, e-mail na odpoveď a vybrané súbory sú samostatné a môžu obsahovať osobné údaje. Pred odoslaním ich skontrolujte."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Zobraziť úplné oznámenie o súkromí"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Otvoriť oznámenie o súkromí Oh No! Parent Control v prehliadači."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Zastaviť odosielanie a zavrieť"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Môžete zastaviť odosielanie a zavrieť túto správu."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Spätná väzba odoslaná."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Toto podanie už nemožno zopakovať v jeho časovom okne opakovania. Predchádzajúci pokus mohol uspieť. Opätovné odoslanie môže vytvoriť duplikát."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "Prílohy sú príliš veľké. Odstráňte súbory alebo záznamy a skúste to znova."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Záznamy sa nepodarilo pripraviť. Túto spätnú väzbu môžete odoslať bez prílohy."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "Spätná väzba nebola prijatá. Váš koncept je zachovaný. Pred opätovným odoslaním skontrolujte spätnú väzbu a adresu na odpoveď."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Odosielanie zastavené. Váš koncept je zachovaný. Predchádzajúci pokus mohol uspieť."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "Odosielanie ešte nie je dostupné. Váš koncept je zachovaný."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nAk budeme mať doplňujúce otázky, môžeme vás kontaktovať na uvedenej e-mailovej adrese."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Priložiť diagnostickú správu s overenými technickými udalosťami a kontrolami stavu. Táto správa neobsahuje osobné údaje."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Čítajú sa prílohy…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Prílohy (voliteľné)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Zbierajú sa diagnostické informácie..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "Posledné 3 dátumy záznamov · Archív ZIP"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Odstrániť záznamy"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Zopakovať zber"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Uložiť komprimované záznamy na kontrolu pred odoslaním"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Súkromie spätnej väzby"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Zavrieť informácie o súkromí spätnej väzby."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Zastaviť čakajúcu správu a zavrieť ju."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Odoslať znova (môže vytvoriť duplikát)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Znova odoslať zachovanú spätnú väzbu, keď je výsledok predchádzajúceho pokusu neistý."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Ďakujeme za spätnú väzbu!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Zavrieť potvrdenie spätnej väzby."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Diagnostika nie je dostupná"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Zopakujte zber alebo odošlite bez diagnostiky."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Pridať záznamy"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Odstrániť"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Pridať prílohy spätnej väzby"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Priložiť najviac %(transport_MAX_ATTACHMENT_COUNT)s súborov."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Ukážka nie je dostupná"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Súborová príloha"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "Odstrániť %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Odstrániť tento súbor zo spätnej väzby."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Záznamy pripravené na kontrolu"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Stiahnuť diagnostické záznamy"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Stiahnuté · Pripravené na kontrolu"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Pomôžte nám zlepšiť aplikáciu"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Predvolene anonymné"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Ak chcete odpoveď, pridajte e-mail. Inak je vaša spätná väzba anonymná."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Žiadne priložené záznamy"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "Posledné 3 dátumy záznamov · Systémové informácie · Archív ZIP"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Spätnú väzbu možno odoslať bez záznamov."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Odstrániť prílohu"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Záznamy sa nepodarilo uložiť. Skúste iné miesto."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Pred odoslaním skontrolujte podrobnosti chyby nižšie."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Podeľte sa o problém, návrh alebo nápad."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Prílohy sa nepodarilo vybrať. Skúste to znova."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Jednu alebo viac príloh sa nepodarilo prečítať. Skúste iné súbory."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "Miesto na stiahnutie sa nepodarilo vybrať. Skúste to znova."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Niečo sa pokazilo"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "Operáciu sa nepodarilo dokončiť. Skúste to neskôr znova."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Správa o chybe nie je dostupná"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "Dialóg spätnej väzby sa nepodarilo otvoriť. Skúste to neskôr znova."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Zavrieť oznámenie o správe chyby."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "Spätná väzba, e-mailové adresy na odpoveď, prílohy a diagnostické záznamy sa odosielajú e-mailom podpore. Doba uchovávania závisí od našej schránky podpory a poskytovateľov služieb vrátane ich pravidiel zálohovania. V súčasnosti nezaručujeme vymazanie v pevne stanovenej lehote."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Zadajte jednoriadkový názov spätnej väzby s najviac 200 znakmi."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Zadajte svoju spätnú väzbu."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Spätná väzba obsahuje nepodporovaný skrytý znak. Zadajte ju znova a skúste to znova."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "Spätná väzba môže mať najviac 5 000 znakov UTF-16 (niektoré emotikony sa počítajú ako dva)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "Formátovaná spätná väzba je príliš zložitá. Odstráňte časť formátovania a skúste to znova."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Zadajte iba e-mailovú adresu na odpoveď alebo nechajte pole prázdne."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "Verzia aplikácie je neplatná. Aktualizujte aplikáciu."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Priložiť najviac %(MAX_ATTACHMENT_COUNT)s súborov."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Jedna alebo viaceré prílohy sú neplatné."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Každá príloha musí mať najviac 5 MB."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Prílohy a diagnostické záznamy môžu mať spolu najviac 8 MB."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)d h"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)d min"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)d s"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Zvyšok dňa"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Vyberte účet na správu"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Vyberte správcu na schválenie"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Vyberte dĺžku"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Zadajte počet minút od %(minimum)s do %(maximum)s."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Denný povolený čas: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Vybraný denný povolený čas: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Pripravuje sa spätná väzba… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Odosiela sa spätná väzba… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Bez záruky."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Otvoriť informácie o produkte: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Vyberte prílohu s platným názvom súboru."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Vyberte prílohu s kratším platným názvom súboru."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Vaša spätná väzba"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Píšte a formátujte spätnú väzbu. Pomocou panela nástrojov pridávajte nadpisy, tučné písmo, kurzívu, podčiarknutie, zoznamy, citácie, kód, odkazy, prílohy alebo odstráňte formátovanie."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Opíšte svoj nápad alebo čo sa stalo a čo ste očakávali..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Štýl textu"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Normálny text"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Nadpis 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Nadpis 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Tučné"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Kurzíva"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Podčiarknuté"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Prečiarknuté"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Číslovaný zoznam"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Zoznam s odrážkami"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Citácia"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Blok kódu"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Vložiť odkaz"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Pridať prílohu"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Odstrániť formátovanie"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Formátovanie spätnej väzby"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Cieľ odkazu"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Editor odkazu"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Otvoriť ukážku odkazu"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Uložiť odkaz"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Odstrániť odkaz"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "položka číslovaného zoznamu"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "položka zoznamu s odrážkami"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Animácia minútového odpočítavania"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Zapnúť alebo vypnúť vizuálnu animáciu odpočítavania počas poslednej minúty."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Prečítajte si zostávajúci čas alebo otvorte formulár žiadosti o ďalší čas. Nastavenia animácie odpočítavania nájdete v kontextovej ponuke."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Zostávajúci čas: %(time)s\n• Kliknutím požiadajte o ďalší čas pre túto reláciu.\n• Kliknutím pravým tlačidlom zobrazíte ďalšie možnosti."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Požiadať o čas, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Zobraziť ďalšie účty"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Zobraziť predchádzajúce alebo nasledujúce účty."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Vyberte účet."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Vybraný účet: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Vyberte pravidlá, ktoré sa zobrazujú v zozname aplikácií."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Zobraziť aplikácie s týmto pravidlom."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Posúvanie obrazovky žiadosti"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "Posúvať obrazovku žiadosti, keď obsah presahuje jej priestor."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d minút"
+msgstr[1] "%(count)d minúta"
+msgstr[2] "%(count)d minúty"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g hodín"
+msgstr[1] "%(count)g hodina"
+msgstr[2] "%(count)g hodiny"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d sekúnd"
+msgstr[1] "%(count)d sekunda"
+msgstr[2] "%(count)d sekundy"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d súborových príloh je pripravených."
+msgstr[1] "%(count)d súborová príloha je pripravená."
+msgstr[2] "%(count)d súborové prílohy sú pripravené."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d bajtov"
+msgstr[1] "%(count)d bajt"
+msgstr[2] "%(count)d bajty"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Odoslanie sa nepodarilo potvrdiť. Ďalší pokus o %(count)d sekúnd…"
+msgstr[1] "Odoslanie sa nepodarilo potvrdiť. Ďalší pokus o %(count)d sekundu…"
+msgstr[2] "Odoslanie sa nepodarilo potvrdiť. Ďalší pokus o %(count)d sekundy…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Jednorazové povolenie sa nepodarilo uložiť. Skúste to neskôr znova."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Nastavenia času pred obrazovkou sa nepodarilo uložiť. Skúste to neskôr znova."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Prístup k aplikáciám sa nepodarilo uložiť. Skúste to neskôr znova."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Upraviť odkaz"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Kategórie chýb: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "Pre %(name)s"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s kB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g hodiny"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g hodiny"

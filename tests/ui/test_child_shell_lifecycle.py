@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import hashlib
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -214,6 +215,63 @@ def test_child_indicator_opens_one_shared_overlay_and_can_reopen(render_artifact
         + f"\n{diagnostic}"
     )
     _publish_success_artifacts(artifact_root, "interaction")
+
+
+def test_child_panel_refreshes_language_after_overlay_save(render_artifacts):
+    # Independently reviewed literal meanings; do not predict from runtime MO.
+    oracles = {
+        'ar': dict(request='طلب', panel='طلب الوقت، %(time)s',
+            countdown='رسوم متحركة للعد التنازلي لمدة دقيقة واحدة',
+            description='اقرأ الوقت المتبقي أو افتح نموذج طلب المزيد من الوقت. افتح القائمة السياقية لإعدادات رسوم العد التنازلي.'),
+        'fa': dict(request='درخواست', panel='درخواست زمان، %(time)s',
+            countdown='پویانمایی شمارش معکوس یک دقیقه‌ای',
+            description='زمان باقی‌مانده را بخوانید یا فرم درخواست زمان بیشتر را باز کنید. برای تنظیمات پویانمایی شمارش معکوس، منوی زمینه را باز کنید.'),
+        'he': dict(request='בקשה', panel='בקשת זמן, %(time)s',
+            countdown='הנפשת ספירה לאחור של דקה אחת',
+            description='קריאת הזמן שנותר או פתיחת טופס בקשה לזמן נוסף. פתיחת תפריט ההקשר להגדרות הנפשת הספירה לאחור.'),
+        'ug': dict(request='تەلەپ', panel='ۋاقىت تەلەپ قىلىش، %(time)s',
+            countdown='بىر مىنۇتلۇق تەتۈر ساناش جانلاندۇرۇمى',
+            description='قالغان ۋاقىتنى ئوقۇڭ ياكى تېخىمۇ كۆپ ۋاقىت تەلەپ قىلىش جەدۋىلىنى ئېچىڭ. تەتۈر ساناش جانلاندۇرۇم تەڭشەكلىرى ئۈچۈن مەزمۇن تىزىملىكىنى ئېچىڭ.'),
+        'ur': dict(request='درخواست', panel='وقت کی درخواست، %(time)s',
+            countdown='ایک منٹ کی الٹی گنتی کی حرکت',
+            description='باقی وقت پڑھیں یا مزید وقت کی درخواست کا فارم کھولیں۔ الٹی گنتی کی حرکت کی ترتیبات کے لیے سیاقی مینو کھولیں۔'),
+        'bn': dict(request='অনুরোধ', panel='সময়ের অনুরোধ, %(time)s',
+            countdown='এক মিনিটের উল্টো গণনার অ্যানিমেশন',
+            description='অবশিষ্ট সময় পড়ুন অথবা আরও সময়ের অনুরোধের ফর্ম খুলুন। উল্টো গণনার অ্যানিমেশনের সেটিংসের জন্য প্রসঙ্গ মেনু খুলুন।'),
+        'hi': dict(request='अनुरोध', panel='समय का अनुरोध, %(time)s',
+            countdown='एक मिनट की उलटी गिनती का एनीमेशन',
+            description='शेष समय पढ़ें या अधिक समय का अनुरोध करने का फ़ॉर्म खोलें। उलटी गिनती के एनीमेशन की सेटिंग के लिए संदर्भ मेनू खोलें।'),
+        'ta': dict(request='கோரிக்கை', panel='நேரத்தைக் கோரவும், %(time)s',
+            countdown='ஒரு நிமிட பின்னோக்கு எண்ணிக்கை அசைவூட்டம்',
+            description='மீதமுள்ள நேரத்தைப் படிக்கவும் அல்லது கூடுதல் நேரத்தைக் கோரும் படிவத்தைத் திறக்கவும். பின்னோக்கு எண்ணிக்கை அசைவூட்ட அமைப்புகளுக்குச் சூழல் பட்டியைத் திறக்கவும்.'),
+        'en': dict(request='REQUEST', panel='Request time, %(time)s',
+            countdown='One minute count down animation',
+            description='Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings.'),
+    }
+    artifact_root = _new_artifact_root('localization', render_artifacts)
+    environment = {
+        **os.environ,
+        'ONPC_CHILD_SHELL_ARTIFACT_DIR': str(artifact_root),
+        'ONPC_CHILD_SHELL_PYTHON': os.environ.get('PYTHON', sys.executable),
+        'ONPC_CHILD_SHELL_SCENARIO': 'indicator-interaction',
+        'ONPC_CHILD_LOCALIZATION_ORACLES': json.dumps(oracles),
+        'ONPC_PREVIEW_READY_TIMEOUT_SECONDS': '30',
+    }
+    result = run_child_shell(environment, timeout=600)
+    retained = _preserve_attempt_artifacts(artifact_root, 'localization')
+    shell_path = artifact_root / 'logs/child-preview-generation-1.log'
+    shell_log = shell_path.read_text(encoding='utf-8', errors='replace') if shell_path.exists() else '(missing)'
+    diagnostic = f'Artifacts: {retained}\n{result.stdout}\n{result.stderr}\n{shell_log}'
+    assert result.returncode == 0, diagnostic
+    assert 'Child panel localization cycle passed' in result.stdout, diagnostic
+    for language in oracles:
+        assert f'Child panel localization reviewed: {language}' in result.stdout, diagnostic
+        assert (artifact_root / 'screenshots' / f'language-{language}.png').is_file(), diagnostic
+    events = (artifact_root / 'request-overlay-events.tsv').read_text(encoding='utf-8')
+    assert events.count('request-launch\t') == len(oracles), diagnostic
+    logs = _assert_preview_evidence(artifact_root, 1, diagnostic)
+    assert not [failure for log in logs for failure in _extension_error_context(log)], diagnostic
+    _publish_success_artifacts(artifact_root, 'localization')
 
 
 def test_child_extension_reload_uses_only_a_controlled_copy(render_artifacts):

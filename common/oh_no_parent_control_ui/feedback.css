@@ -5,6 +5,16 @@
   font-family: Ubuntu, sans-serif;
 }
 
+/* Avoid mixing partially covered UI-font glyphs with shaped script fallback. */
+.feedback-dialog.onpc-readable-script,
+.feedback-dialog.onpc-readable-script label,
+.feedback-dialog.onpc-readable-script button,
+.feedback-dialog.onpc-readable-script entry,
+.feedback-dialog.onpc-readable-script text {
+  font-family: sans-serif;
+  letter-spacing: 0;
+}
+
 .feedback-header {
   min-height: 50px;
   background: transparent;

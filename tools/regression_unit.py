@@ -30,6 +30,9 @@ Public AT-SPI and observation-cache regressions use process-local bus doubles,
 mock clocks and immutable synthetic trees; they open no real sockets or displays.
 Language chooser action guards use those same in-memory trees and mocked actions;
 scope restoration and uncertain-input checks add no resource or cleanup lifetime.
+The complete supported-ID matrix reads immutable catalogue metadata and rejects
+unlisted IDs before input in those same synthetic trees; classification stays
+compatible, with no live UI, socket, setting or additional cleanup owner.
 Runtime timeout evidence tests mock all OS commands and use private pytest
 metadata; toggle entry tests keep bounded, waited Perl children and no live login.
 Both existing compatible unit classifications remain valid.
@@ -209,6 +212,9 @@ from regression_ui import Bucket
 # and DESTDIR; neither addition introduces shared mutable state.
 # The expanded catalogue adds small private MO headers and a bounded, reaped
 # Node resolver parity check; existing localization/payload classifications apply.
+# Full POT parity covers every non-English catalogue and bounded plural residues
+# in the same private MO tree. Node/GJS results and vectors remain pytest scratch;
+# no shared output, bus, display, network or new process lifetime is introduced.
 # Expanded language-action guards retain finite case inputs, process-local
 # accessibility doubles and independent checked-state/readback assertions.
 # Overlay/panel checks use process-local accessibility/session doubles and

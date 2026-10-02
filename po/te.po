@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Complete translation against the current shared message template.
 # Plural metadata reference: https://l10n.gnome.org/teams/te/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: Project translation contributors\n"
 "Language-Team: తెలుగు\n"
 "Language: te\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1549 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "మిగిలిన రోజువారీ కేటాయింపు: <b>%(daily)s</b>\nఒక్కసారి అనుమతిలో మిగిలిన సమయం: <b>%(grant)s</b>\n<b>మిగిలిన సమయం: %(remaining)s</b> — ఈ రెండింటిలో ఎక్కువ మొత్తం."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "ఎల్లప్పుడూ అనుమతించబడింది"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "పూర్తిగా నిరోధించబడింది"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "తాత్కాలికంగా తొలగించగల నిరోధం"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "నమూనాతో సరిపోలిక"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "వైల్డ్‌కార్డ్‌తో సంస్కరణలు ఉన్న ఫైల్ పేర్లను సరిపోలుస్తుంది."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "ఖచ్చితమైన అమలు పథం"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "ఈ అమలు చేయగల ఫైల్ యొక్క ఖచ్చితమైన పథంతో మాత్రమే సరిపోలుతుంది."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "కొన్ని యాప్ పరిమితులను అమలు చేయలేకపోయాము. ప్రభావిత యాప్‌లు లేదా నవీకరించిన సంస్కరణలకు పరిమితులు లేకపోవచ్చు. ఇతర నియంత్రణలు అందుబాటులో ఉన్నాయి; సేవ్ చేసిన నియమాలను స్వయంచాలకంగా మళ్లీ అమలు చేయడానికి ప్రయత్నిస్తాము."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "ఎంచుకున్న చిన్నారి: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "చిన్నారి ఖాతా ఏదీ ఎంచుకోలేదు."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "ఎంచుకున్న చిన్నారి"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "తల్లిదండ్రుల యాప్ మెను"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "ప్రాధాన్యతలు, సహాయం మరియు ఉత్పత్తి సమాచారం తెరవండి."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "అభిప్రాయం"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "యాప్ గురించి అభిప్రాయం పంపండి."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "ఎవరి తెర సమయం మరియు యాప్ విధానం చూపాలో ఆ చిన్నారిని ఎంచుకోండి."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "ఒక్కసారి ప్రవేశ అనుమతిని ఉపసంహరించండి"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "నిర్ధారణ తర్వాత ఎంచుకున్న చిన్నారి సక్రియ ఒక్కసారి అనుమతిని తొలగించండి."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "తెర పరిమితులు"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "తెర సమయ పరిమితి"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "ఎంచుకున్న చిన్నారి రోజువారీ తెర సమయ నియంత్రణను ప్రారంభించండి లేదా నిలిపివేయండి."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "రోజువారీ సమయ కేటాయింపు"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "ఎంచుకున్న చిన్నారి రోజువారీ తెర సమయ కేటాయింపును ఎంచుకోండి."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "అనుకూల రోజువారీ కేటాయింపు"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "సున్నా నుండి 1439 వరకు నిమిషాల పూర్ణ సంఖ్యను నమోదు చేయండి."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "ఈరోజు మిగిలిన సమయం"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "రోజువారీ మరియు ఒక్కసారి మిగిలిన సమయ గణనను విస్తరించండి లేదా కుదించండి."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "యాప్ పరిమితులు"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "ఇన్‌స్టాల్ చేసిన యాప్‌లను వెతకండి"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "భాషలను వెతకండి"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "ఎంచుకున్న చిన్నారి అందుబాటులో ఉన్న యాప్‌లను వడపోయండి."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "యాప్ పేరు &amp; వివరాలు"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "మిగిలిన సమయ గణనను దాచండి"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "మిగిలిన సమయ గణన వివరాలను కుదించండి."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "%(label)s వడపోయండి"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "విధాన వివరణ"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "యాప్ ప్రవేశం మరియు సరిపోలిక నియమాల వివరణను విస్తరించండి లేదా కుదించండి."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "%(app_name)s సరిపోలిక నియమం"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "ఈ యాప్ సేవ్ చేసిన నియమం ఖచ్చితమైన పథంతో లేదా సంస్కరణ ఉన్న ఫైల్ పేరు నమూనాతో సరిపోలాలో ఎంచుకోండి."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "తల్లిదండ్రుల యాప్‌ను లోడ్ చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "%(child_name)sకు ఇచ్చిన ఒక్కసారి తెర సమయం మరియు యాప్ ప్రవేశ అనుమతులను ఉపసంహరిస్తుంది."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "లోడ్ అవుతోంది…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "ఇన్‌స్టాల్ చేసిన యాప్‌లను లోడ్ చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "అందుబాటులో లేదు"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "మిగిలిన సమయాన్ని లోడ్ చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nప్రభావిత యాప్‌లు: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "యాప్ పరిమితుల స్థితి అందుబాటులో లేదు. స్వయంచాలకంగా మళ్లీ ప్రయత్నిస్తోంది."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "రద్దు"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "అనుమతిని ఉపసంహరించండి"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "ఒక్కసారి అనుమతి ఉపసంహరించబడింది"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "అనుకూల మొత్తం…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "అనుకూల మొత్తం"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "అనుకూల రోజువారీ కేటాయింపును నిమిషాల్లో నమోదు చేయండి."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "0 నుండి 1439 వరకు పూర్ణ సంఖ్యను నమోదు చేయండి."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "%(row_app_name)s సరిపోలిక నియమం"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "ప్రస్తుత సరిపోలిక నియమం: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "అప్రమేయానికి తిరిగి అమర్చండి"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "సేవ్ చేయండి"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "యాప్ సరిపోలిక నియమం"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "ఖచ్చితమైన అమలు పథం లేదా సంస్కరణ ఉన్న ఫైల్ పేరు నమూనాను నమోదు చేయండి."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "%(setting)s సేవ్ చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "చిన్నారి ఖాతా: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "%(label)s తెర సమయం మరియు యాప్ విధానాన్ని నిర్వహించండి."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "%(app_name)s లోగో"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "ప్రాధాన్యతలు"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "సహాయం"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "గురించి"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "మెను"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "చిన్నారి ఖాతా"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "ఒక్కసారి తెర సమయం మరియు యాప్ ప్రవేశ అనుమతులను ఉపసంహరిస్తుంది."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "నిర్వాహకుడు కాని పరస్పర చర్య చేసే ఖాతా ఏదీ కనబడలేదు."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "%(label)s పేజీని చూపండి."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "తెర సమయ పరిమితి"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "తెర సమయ పరిమితిని ప్రారంభించండి / నిలిపివేయండి"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "రోజువారీ సమయ కేటాయింపు"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "ఈరోజు మిగిలిన సమయం"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "ఈరోజుకు మిగిలిన సమయం"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "సరిపోలిక నియమం"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "ప్రవేశ నియమం"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "గణనను దాచండి"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "%(label)s ప్రకారం వడపోయండి"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "ప్రవేశ మరియు సరిపోలిక నియమాల సంక్షిప్త వివరణ"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "వివరణను చూపండి"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "యాప్ ప్రవేశం (ఏమి జరుగుతుంది)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "సరిపోలిక నియమం (యాప్‌లు ఎలా సరిపోలుతాయి)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "ప్రవేశ నియమాలు మరియు సరిపోలిక నియమాలను అర్థం చేసుకోవడం"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "వివరణను దాచండి"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "మీ భాష ప్రాధాన్యతను లోడ్ చేయలేకపోయాము. మళ్లీ ప్రయత్నించడానికి ప్రాధాన్యతలు తెరవండి."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "సరిపోలిక నియమాన్ని సవరించండి"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "%(app_name)s ప్రవేశ నియమం: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "ఎంచుకున్న చిన్నారి కోసం %(app_name)s ప్రవేశ నియమాన్ని %(state_label)sగా అమర్చండి."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "యాప్ పరిమితుల స్థితిని తనిఖీ చేయలేకపోయాము. ఇతర నియంత్రణలు అందుబాటులో ఉన్నాయి."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "ఒక్కసారి అనుమతిని ఉపసంహరించాలా?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "ఇది %(child_name)sకు ఇచ్చిన ఒక్కసారి తెర సమయం మరియు తాత్కాలికంగా నిరోధం తొలగించగల యాప్‌ల ప్రవేశాన్ని ఉపసంహరిస్తుంది, ఆ చిన్నారి అమలులో ఉన్న నిరోధిత యాప్‌లను మూసివేస్తుంది, సమయం మిగలకపోతే ఆ చిన్నారి డెస్క్‌టాప్‌ను లాక్ చేస్తుంది. చిన్నారి మిగిలిన రోజువారీ సమయ కేటాయింపుపై ప్రభావం ఉండదు."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "ప్రస్తుత ఒక్కసారి అనుమతిని ఉంచండి."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "ఎంచుకున్న చిన్నారి ఒక్కసారి అనుమతిని ఉపసంహరించండి."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "ఎంచుకున్న చిన్నారి రోజువారీ కేటాయింపును %(daily_limit_label_minutes)sగా అమర్చండి."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "అనుకూల విలువ"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "సరిపోలిక నియమాన్ని సవరించండి"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "మూసివేయండి"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "నిర్వాహకుడు అవసరమనే సూచనను మూసివేయండి."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(ఏదీ లేదు)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "ఒక్కసారి అనుమతిని ఉపసంహరించండి"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "ఉపసంహరించండి"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "నిమిషాలు"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "ఇన్‌స్టాల్ చేసిన యాప్‌లు"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "డెస్క్‌టాప్, AppImage, Flatpak, Snap మరియు వ్యవస్థ లాంచర్లు"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "చిహ్నం"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "ఇన్‌స్టాల్ చేసిన యాప్‌లు లోడ్ అవుతున్నాయి…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "ఎలా గణించబడుతుంది"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "వివరణ"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "యాప్‌ను ఎల్లప్పుడూ ఉపయోగించవచ్చు"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "యాప్ పూర్తిగా నిరోధించబడింది; నిర్వాహకులు మాత్రమే అనుమతించగలరు"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "యాప్ నిరోధించబడింది; సమయ పరిమితి ప్రారంభించబడితే చిన్నారి అభ్యర్థనపై ఒక్కసారి పొడిగింపు ఇవ్వవచ్చు"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "నమూనా ప్రకారం సరిపోలుస్తుంది\n మారే సంస్కరణ సంఖ్యలు ఉన్న అమలు పథాలను కూడా చేర్చడానికి (ఉదా., Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "యాప్ ఖచ్చితమైన పథంతో సరిపోలుతుంది\n(ఉదా., /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "చిన్నారుల ఖాతాలను తాజాపరచలేకపోయాము. స్వయంచాలకంగా మళ్లీ ప్రయత్నిస్తోంది."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "నిర్వాహకులు కాని పరస్పర చర్య చేసే వినియోగదారులు కనబడలేదు"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "రోజువారీ కేటాయింపు చెల్లదు. 0 నుండి 1439 వరకు పూర్ణ సంఖ్యను నమోదు చేయండి."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "ఖచ్చితమైన అమలు పథం వాడండి లేదా సంస్కరణ ఉన్న ఫైల్ పేరు నమూనా కోసం * చేర్చండి."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "నిర్వాహక ప్రవేశం అవసరం"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "నిర్వాహకుడు అవసరం"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "నిర్వాహకుడు మాత్రమే తల్లిదండ్రుల నియంత్రణలను నిర్వహించగలరు.\nతల్లిదండ్రుల యాప్ తెరవడానికి నిర్వాహక ఖాతాతో ప్రవేశించండి."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "నిర్వాహకుడు మాత్రమే తల్లిదండ్రుల నియంత్రణలను నిర్వహించగలరు. తల్లిదండ్రుల యాప్ తెరవడానికి నిర్వాహక ఖాతాతో ప్రవేశించండి."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "మరొక యాప్"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "సరిపోలిక నియమం అవసరం"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "ఖచ్చితమైన సరిపోలిక ఈ యాప్ అమలు పథమే కావాలి"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "కొనసాగించండి"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "మీ భాష ప్రాధాన్యతను సేవ్ చేయండి."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "మీ భాషను సేవ్ చేయలేకపోయాము. మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "భాష"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "మీ భాషను ఎంచుకోండి"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "దీన్ని ప్రాధాన్యతల్లో మార్చవచ్చు"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "%(name)s ఎంచుకోండి."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "సమయం ఇవ్వబడింది"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "సమయం ఇవ్వబడింది, మూసివేయండి"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "ఆమోదిస్తే అంచనా మిగిలిన సమయం: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "మూసివేయడానికి లేదా ప్రవేశ తెరకు తిరిగివెళ్లడానికి ముందు దోష నివేదికను సమీక్షించండి."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "ప్రాధాన్యతలు"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "మీ భాషను ఎంచుకోండి."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "గురించి"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "ఉత్పత్తి పేరు, సంస్కరణ మరియు చట్టపరమైన సమాచారం చూపండి."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "అభ్యర్థన తెర ధ్వనిని ఆపండి"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "మెరుపును మరియు ఉరుము ధ్వనిని ప్రారంభించండి లేదా ఆపండి."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "అభ్యర్థన తెర మెను"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "ఈ అభ్యర్థన తెర ప్రాధాన్యతలు, సహాయం మరియు ఉత్పత్తి సమాచారం తెరవండి."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "ప్రవేశ తెరకు తిరిగివెళ్లండి"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "ఫలిత తెరను మూసివేయండి లేదా ప్రవేశ తెరకు తిరిగివెళ్లండి."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "ఈ దోషాన్ని నివేదించండి"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "సమయ అంచనా గణించబడుతోంది…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "సహాయం"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "ఉత్పత్తి వెబ్‌సైట్‌ను బ్రౌజర్‌లో తెరవండి."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "ధ్వని మరియు మెరుపును ఆపండి"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "ధ్వని మరియు మెరుపును ప్రారంభించండి"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "అభ్యర్థన తెర ధ్వనిని ప్రారంభించండి"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "ఆమోదిస్తే, అర్ధరాత్రి వరకు ప్రవేశం."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "సమయ అంచనా అందుబాటులో లేదు"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "అంచనా మిగిలిన సమయాన్ని లోడ్ చేయలేకపోయాము."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "అమరికలను సేవ్ చేయలేకపోయాము"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "మీ అభ్యర్థన ఎంపికలను సేవ్ చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "మీ ధ్వని ప్రాధాన్యతను సేవ్ చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "మీ అభ్యర్థన ప్రాధాన్యతలను సేవ్ చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "అభ్యర్థన ఆమోదించబడింది"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "అభ్యర్థన తిరస్కరించబడింది"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "చిన్నారి"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "ఆమోదించే తల్లిదండ్రులు"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "ఆమోదించే వ్యక్తి"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "అనుకూల వ్యవధి నిమిషాల్లో"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "0.1 నుండి 1440 నిమిషాల వరకు అభ్యర్థించిన వ్యవధిని నమోదు చేయండి."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "తాత్కాలికంగా నిరోధం తొలగించగల యాప్‌లను అనుమతించండి"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "ఈ అభ్యర్థన తాత్కాలికంగా నిరోధం తొలగించగల యాప్‌లను తాత్కాలికంగా అనుమతించాలో ఎంచుకోండి."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "ప్రవేశాన్ని అభ్యర్థించండి"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "ఎంచుకున్న వ్యవధిని మరియు యాప్ ప్రవేశ ఎంపికను ఆమోదం కోసం సమర్పించండి."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "అభ్యర్థనను రద్దు చేయండి"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "అదనపు సమయం అభ్యర్థించకుండా ఈ అభ్యర్థన తెరను మూసివేయండి."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "ఖాతాలు లోడ్ అవుతున్నాయి…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "అభ్యర్థన వివరాలు లోడ్ అవుతున్నాయి…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "అభ్యర్థన"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "తల్లిదండ్రుల యాప్‌లో తెర పరిమితి ప్రారంభించబడలేదు"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "రద్దు"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "%(label)s అభ్యర్థించండి"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "అభ్యర్థించిన అదనపు తెర సమయ వ్యవధిగా %(label)s ఎంచుకోండి."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "స్థానిక సాధారణ ఖాతాలు అందుబాటులో లేవు. ఒకటి సృష్టించి ఈ తెరను మళ్లీ తెరవండి."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "స్థానిక పరస్పర చర్య చేసే నిర్వాహక ఖాతాలు అందుబాటులో లేవు."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "ఆమోదం కోసం ఎదురుచూస్తోంది…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "అభ్యర్థన అందుబాటులో లేదు"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "అభ్యర్థనను పూర్తి చేయలేకపోయాము. ప్రవేశ తెరకు తిరిగివెళ్లి తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "అభ్యర్థనను పూర్తి చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "సంస్కరణ %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "వెబ్‌సైట్"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "గోప్యత"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "గోప్యతా విధానం"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "సహాయం"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "లైసెన్స్"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "చట్టపరమైన సూచనలు"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Malcontent అనుసంధానం మరియు చేర్చిన ఫాంట్ల సూచనలు"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "వేరుగా ఇన్‌స్టాల్ చేసిన Malcontent తల్లిదండ్రుల నియంత్రణ సేవను బహిరంగ వ్యవస్థ APIల ద్వారా ఉపయోగిస్తుంది. Malcontent రచయితలతో లేదా GNOMEతో సంబంధం లేదు; వారి ఆమోదం పొందలేదు."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "కుటుంబాలకు ఆరోగ్యకరమైన డిజిటల్ అలవాట్లు పెంపొందించడానికి సహాయం."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "ఈ సంభాషణను మూసివేయవచ్చు; యాప్ తెరిచి ఉన్నంతవరకు పునఃప్రయత్నాలు కొనసాగుతాయి."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "మీ అభిప్రాయం విజయవంతంగా పంపబడింది. యాప్‌ను మెరుగుపరచడంలో మీ సహాయానికి ధన్యవాదాలు."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "ప్రత్యుత్తర ఇమెయిల్ (ఐచ్ఛికం)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "ప్రత్యుత్తరం కావాలంటే మీ ఇమెయిల్ చిరునామాను చేర్చండి."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "ఫైళ్లను చేర్చండి"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "మీ అభిప్రాయానికి గరిష్ఠంగా 5 ఫైళ్లను జతచేయండి."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "విశ్లేషణ సమాచార సేకరణను మళ్లీ ప్రయత్నించండి"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "విశ్లేషణ జతపత్రాన్ని మళ్లీ సేకరించడానికి ప్రయత్నించండి."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "డౌన్‌లోడ్ చేయండి"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "చదవగల విశ్లేషణ నివేదిక మరియు ధృవీకరించిన సాంకేతిక సంఘటనలు ఉన్న ZIPను సేవ్ చేయండి."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "అభిప్రాయం మరియు జతపత్రాల గోప్యతా సమాచారం చూపండి."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "లాగ్‌లు లేకుండా పంపండి"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "విశ్లేషణ జతపత్రం లేకుండా అభిప్రాయాన్ని పంపండి."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "ఈ యాప్‌లో చిత్తుప్రతిని ఉంచుతూ అభిప్రాయ ఫారమ్‌ను మూసివేయండి."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "అభిప్రాయం పంపండి"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "అభిప్రాయం మరియు ఎంచుకున్న జతపత్రాలను సమర్పించండి."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nవిశ్లేషణ లాగ్‌లు ఖాతా పేర్లు, ఇమెయిల్ చిరునామాలు, ఫైళ్ల విషయాలు, ముడి వ్యవస్థ జర్నళ్లు లేదా మినహాయింపు సందేశాలను సేకరించవు. స్వయంచాలక విశ్లేషణలో ధృవీకరించిన సాంకేతిక సంఘటనలు, వ్యవస్థ స్థితి తనిఖీలు మరియు వ్యవస్థ సమాచారం ఉంటాయి: ఆపరేటింగ్ సిస్టమ్ మరియు ఆధారాల సంస్కరణలు, సమయ మండలం, సెషన్ రకం మరియు మొత్తం ఖాతాల సంఖ్యలు. పేర్లు మరియు అనుకూల సంస్కరణ వచనం తొలగించబడతాయి లేదా తిరిగి మార్చలేని విధంగా భర్తీ చేయబడతాయి; గుర్తింపులు ఎప్పుడూ హ్యాష్ చేయబడవు. మీ స్వంత అభిప్రాయం, ప్రత్యుత్తర ఇమెయిల్ మరియు ఎంచుకున్న ఫైళ్లు వేరు; వాటిలో వ్యక్తిగత సమాచారం ఉండవచ్చు. పంపే ముందు వాటిని సమీక్షించండి."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "పూర్తి గోప్యతా సూచనను చూడండి"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "మీ బ్రౌజర్‌లో Oh No! Parent Control గోప్యతా సూచనను తెరవండి."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "పంపడం ఆపి మూసివేయండి"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "పంపడం ఆపి ఈ నివేదికను మూసివేయవచ్చు."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "అభిప్రాయం సమర్పించబడింది."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "ఈ సమర్పణను దాని పునఃప్రయత్న వ్యవధిలో ఇక మళ్లీ ప్రయత్నించలేరు. గత ప్రయత్నం విజయవంతమై ఉండవచ్చు. మళ్లీ పంపితే నకలు సమర్పణ జరగవచ్చు."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "జతపత్రాలు చాలా పెద్దవి. ఫైళ్లు లేదా లాగ్‌లను తొలగించి మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "లాగ్‌లను సిద్ధం చేయలేకపోయాము. జతపత్రం లేకుండా ఈ అభిప్రాయాన్ని పంపవచ్చు."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "అభిప్రాయం అంగీకరించబడలేదు. మీ చిత్తుప్రతి ఉంచబడింది. మళ్లీ పంపే ముందు అభిప్రాయం మరియు ప్రత్యుత్తర చిరునామాను తనిఖీ చేయండి."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "సమర్పణ ఆపబడింది. మీ చిత్తుప్రతి ఉంచబడింది. గత ప్రయత్నం విజయవంతమై ఉండవచ్చు."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "పంపడం ఇంకా అందుబాటులో లేదు. మీ చిత్తుప్రతి ఉంచబడింది."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nతదుపరి ప్రశ్నలు ఉంటే మీరు ఇచ్చిన ఇమెయిల్ చిరునామా ద్వారా మిమ్మల్ని సంప్రదించవచ్చు."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "ధృవీకరించిన సాంకేతిక సంఘటనలు మరియు వ్యవస్థ స్థితి తనిఖీలు ఉన్న విశ్లేషణ నివేదికను చేర్చండి. ఈ నివేదికలో వ్యక్తిగత సమాచారం చేర్చబడదు."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "జతపత్రాలను చదువుతోంది…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "జతపత్రాలు (ఐచ్ఛికం)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "విశ్లేషణ సమాచారం సేకరిస్తోంది..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "తాజా 3 లాగ్ తేదీలు · ZIP ఆర్కైవ్"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "లాగ్‌లను తొలగించండి"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "మళ్లీ సేకరించండి"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "పంపే ముందు పరిశీలించడానికి కుదించిన లాగ్‌లను సేవ్ చేయండి"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "అభిప్రాయ గోప్యత"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "అభిప్రాయ గోప్యతా సమాచారాన్ని మూసివేయండి."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "పెండింగ్ నివేదికను ఆపి మూసివేయండి."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "మళ్లీ సమర్పించండి (నకలు కావచ్చు)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "గత ఫలితం అనిశ్చితంగా ఉన్నప్పుడు ఉంచిన అభిప్రాయాన్ని మళ్లీ సమర్పించండి."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "మీ అభిప్రాయానికి ధన్యవాదాలు!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "అభిప్రాయ నిర్ధారణను మూసివేయండి."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "విశ్లేషణ అందుబాటులో లేదు"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "మళ్లీ సేకరించడానికి ప్రయత్నించండి లేదా విశ్లేషణ లేకుండా పంపండి."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "లాగ్‌లను చేర్చండి"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "తొలగించండి"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "అభిప్రాయ జతపత్రాలను చేర్చండి"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "గరిష్ఠంగా %(transport_MAX_ATTACHMENT_COUNT)s ఫైళ్లను జతచేయండి."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "ముందస్తు వీక్షణ అందుబాటులో లేదు"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "ఫైల్ జతపత్రం"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "%(attachment_name)s తొలగించండి"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "అభిప్రాయం నుండి ఈ ఫైల్‌ను తొలగించండి."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "సమీక్షకు లాగ్‌లు సిద్ధం"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "విశ్లేషణ లాగ్‌లను డౌన్‌లోడ్ చేయండి"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "డౌన్‌లోడ్ అయింది · పరిశీలనకు సిద్ధం"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "మెరుగుపరచడానికి మాకు సహాయపడండి"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "అప్రమేయంగా అనామకం"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "ప్రత్యుత్తరం కావాలంటే మీ ఇమెయిల్‌ను చేర్చండి. లేకపోతే మీ అభిప్రాయం అనామకం."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "లాగ్‌లు జతచేయలేదు"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "తాజా 3 లాగ్ తేదీలు · వ్యవస్థ సమాచారం · ZIP ఆర్కైవ్"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "మీ అభిప్రాయాన్ని లాగ్‌లు లేకుండా పంపవచ్చు."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "జతపత్రాన్ని తొలగించండి"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "లాగ్‌లను సేవ్ చేయలేకపోయాము. మరో స్థానాన్ని ప్రయత్నించండి."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "పంపే ముందు దిగువ దోష వివరాలను సమీక్షించండి."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "సమస్య, సూచన లేదా ఆలోచన పంచుకోండి."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "జతపత్రాలను ఎంచుకోలేకపోయాము. మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "ఒకటి లేదా ఎక్కువ జతపత్రాలను చదవలేకపోయాము. వేరే ఫైళ్లను ప్రయత్నించండి."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "డౌన్‌లోడ్ స్థానాన్ని ఎంచుకోలేకపోయాము. మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "ఏదో తప్పు జరిగింది"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "చర్యను పూర్తి చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "దోష నివేదిక అందుబాటులో లేదు"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "అభిప్రాయ సంభాషణను తెరవలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "దోష నివేదిక సూచనను మూసివేయండి."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "అభిప్రాయం, ప్రత్యుత్తర ఇమెయిల్ చిరునామాలు, జతపత్రాలు మరియు విశ్లేషణ లాగ్‌లు సహాయ బృందానికి ఇమెయిల్ చేయబడతాయి. నిల్వ వ్యవధి మా సహాయ మెయిల్‌బాక్స్ మరియు సేవా ప్రదాతలపై ఆధారపడి ఉంటుంది; వారి బ్యాకప్ విధానాలు కూడా ఇందులో భాగం. ప్రస్తుతం నిర్ణీత వ్యవధిలో తొలగింపుకు హామీ ఇవ్వము."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "గరిష్ఠంగా 200 అక్షరాల ఒక పంక్తి అభిప్రాయ శీర్షికను నమోదు చేయండి."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "మీ అభిప్రాయాన్ని నమోదు చేయండి."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "మీ అభిప్రాయంలో మద్దతు లేని దాచిన అక్షరం ఉంది. మళ్లీ టైప్ చేసి ప్రయత్నించండి."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "అభిప్రాయంలో గరిష్ఠంగా 5,000 UTF-16 అక్షరాలు ఉండాలి (కొన్ని ఎమోజీలను రెండుగా లెక్కిస్తారు)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "ఆకృతీకరించిన అభిప్రాయం చాలా క్లిష్టంగా ఉంది. కొంత ఆకృతీకరణ తొలగించి మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "కేవలం ప్రత్యుత్తర ఇమెయిల్ చిరునామా నమోదు చేయండి లేదా ఖాళీగా వదలండి."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "యాప్ సంస్కరణ చెల్లదు. యాప్‌ను నవీకరించండి."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "గరిష్ఠంగా %(MAX_ATTACHMENT_COUNT)s ఫైళ్లను జతచేయండి."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "ఒకటి లేదా ఎక్కువ జతపత్రాలు చెల్లవు."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "ప్రతి జతపత్రం 5 MB లేదా అంతకంటే చిన్నదిగా ఉండాలి."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "జతపత్రాలు మరియు విశ్లేషణ లాగ్‌ల మొత్తం పరిమాణం 8 MB లేదా తక్కువ ఉండాలి."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)dగం"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)dని"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)dసె"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "రోజులో మిగిలిన భాగం"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "నిర్వహించడానికి ఖాతాను ఎంచుకోండి"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "ఆమోదించే నిర్వాహకుడిని ఎంచుకోండి"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "వ్యవధిని ఎంచుకోండి"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "%(minimum)s నుండి %(maximum)s నిమిషాల వరకు సంఖ్యను నమోదు చేయండి."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "రోజువారీ కేటాయింపు: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "ఎంచుకున్న రోజువారీ కేటాయింపు: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "అభిప్రాయాన్ని సిద్ధం చేస్తోంది… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "అభిప్రాయాన్ని పంపుతోంది… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · హామీ లేదు."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "ఉత్పత్తి సమాచారాన్ని తెరవండి: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "చెల్లుబాటు అయ్యే ఫైల్ పేరు ఉన్న జతపత్రాన్ని ఎంచుకోండి."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "చిన్న చెల్లుబాటు అయ్యే ఫైల్ పేరు ఉన్న జతపత్రాన్ని ఎంచుకోండి."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "మీ అభిప్రాయం"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "అభిప్రాయం రాసి ఆకృతీకరించండి. శీర్షికలు, మందం, వాలు, కింద గీత, జాబితాలు, ఉల్లేఖనలు, కోడ్, లింక్‌లు, జతపత్రాలు మరియు ఆకృతీకరణ తొలగించడానికి సాధనపట్టీ వాడండి."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "మీ ఆలోచన లేదా ఏమి జరిగింది, ఏమి ఆశించారో వివరించండి..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "వచన శైలి"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "సాధారణ వచనం"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "శీర్షిక 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "శీర్షిక 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "మందమైన అక్షరాలు"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "వాలు"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "కింద గీత"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "మధ్య గీత"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "సంఖ్యల జాబితా"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "బుల్లెట్ల జాబితా"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "ఉల్లేఖన"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "కోడ్ విభాగం"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "లింక్ చేర్చండి"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "జతపత్రం చేర్చండి"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "ఆకృతీకరణ తొలగించండి"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "అభిప్రాయ ఆకృతీకరణ"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "లింక్ లక్ష్యం"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "లింక్ ఎడిటర్"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "లింక్ ముందస్తు వీక్షణ తెరవండి"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "లింక్ సేవ్ చేయండి"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "లింక్ తొలగించండి"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "సంఖ్యల జాబితా అంశం"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "బుల్లెట్ల జాబితా అంశం"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "ఒక నిమిషం వెనుకకు లెక్కించే యానిమేషన్"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "చివరి నిమిషంలో కనిపించే వెనుకకు లెక్కించే యానిమేషన్‌ను ప్రారంభించండి లేదా నిలిపివేయండి."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "మిగిలిన సమయం చదవండి లేదా మరింత సమయం అభ్యర్థించే ఫారమ్ తెరవండి. వెనుకకు లెక్కించే యానిమేషన్ అమరికల కోసం సందర్భ మెనును తెరవండి."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• మిగిలిన సమయం: %(time)s\n• ఈ సెషన్ కోసం మరింత సమయం అభ్యర్థించడానికి క్లిక్ చేయండి.\n• మరిన్ని ఎంపికల కోసం కుడి క్లిక్ చేయండి."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "సమయాన్ని అభ్యర్థించండి, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "మరిన్ని ఖాతా ఎంపికలు చూపండి"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "మునుపటి లేదా తదుపరి ఖాతా ఎంపికలను చూపండి."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "ఖాతాను ఎంచుకోండి."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "ఎంచుకున్న ఖాతా: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "యాప్ జాబితాలో ఏ నియమాలు చూపాలో ఎంచుకోండి."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "ఈ నియమం ఉన్న యాప్‌లను చూపండి."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "అభ్యర్థన తెర స్క్రోల్"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "విషయం సరిపోనప్పుడు అభ్యర్థన తెరను స్క్రోల్ చేయండి."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d నిమిషం"
+msgstr[1] "%(count)d నిమిషాలు"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g గంట"
+msgstr[1] "%(count)g గంటలు"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d సెకను"
+msgstr[1] "%(count)d సెకన్లు"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d ఫైల్ జతపత్రం సిద్ధం."
+msgstr[1] "%(count)d ఫైల్ జతపత్రాలు సిద్ధం."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d బైట్"
+msgstr[1] "%(count)d బైట్లు"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "సమర్పణను నిర్ధారించలేకపోయాము. %(count)d సెకనులో మళ్లీ ప్రయత్నిస్తాము…"
+msgstr[1] "సమర్పణను నిర్ధారించలేకపోయాము. %(count)d సెకన్లలో మళ్లీ ప్రయత్నిస్తాము…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "ఒక్కసారి అనుమతిని సేవ్ చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "తెర సమయ అమరికలను సేవ్ చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "యాప్ ప్రవేశాన్ని సేవ్ చేయలేకపోయాము. తర్వాత మళ్లీ ప్రయత్నించండి."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "లింక్ సవరించండి"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "దోష వర్గాలు: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "%(name)s కోసం"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g గంటలు"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g గంటలు"

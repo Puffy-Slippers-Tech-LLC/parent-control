@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Hungarian message catalogue.
 # Plural metadata reference: https://l10n.gnome.org/teams/hu/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: OpenAI translation draft\n"
 "Language-Team: Magyar\n"
 "Language: hu\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1549 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Hátralévő napi időkeret: <b>%(daily)s</b>\nHátralévő egyszeri engedélyezett idő: <b>%(grant)s</b>\n<b>Hátralévő idő: %(remaining)s</b> — a két érték közül a nagyobb."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Mindig engedélyezett"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Szigorúan tiltott"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Feltételesen tiltott"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Mintaillesztés"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Helyettesítő karakterrel illeszti a verziószámot tartalmazó fájlneveket."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Pontos indítási útvonal"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Csak ezt a pontos futtathatófájl-útvonalat illeszti."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Néhány alkalmazáskorlátozást nem sikerült alkalmazni. Az érintett alkalmazások vagy frissített verzióik korlátozás nélkül maradhatnak. A többi vezérlő elérhető, és a mentett szabályok alkalmazását a rendszer automatikusan újrapróbálja."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Kiválasztott gyermek: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Nincs kiválasztva gyermekfiók."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Kiválasztott gyermek"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Szülői alkalmazás menüje"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Beállítások, súgó és termékinformációk megnyitása."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Visszajelzés"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Visszajelzés küldése az alkalmazásról."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Válassza ki azt a gyermeket, akinek a képernyőideje és alkalmazásszabályai megjelennek."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Egyszeri hozzáférés visszavonása"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Megerősítés után eltávolítja a kiválasztott gyermek aktív egyszeri engedélyét."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Képernyőkorlátok"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Képernyőidő-korlát"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "A kiválasztott gyermek napi képernyőidő-szabályozásának be- vagy kikapcsolása."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Napi időkeret"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Válassza ki a kiválasztott gyermek napi képernyőidő-keretét."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Egyéni napi időkeret"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Adjon meg egész számú percet nullától 1439-ig."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Mai hátralévő idő"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "A napi és az egyszeri hátralévő idő számításának kibontása vagy összecsukása."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Alkalmazáskorlátok"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Telepített alkalmazások keresése"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Nyelvek keresése"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "A kiválasztott gyermek elérhető alkalmazásainak szűrése."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Alkalmazás neve &amp; részletei"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Hátralévő idő számításának elrejtése"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "A hátralévő idő számítási részleteinek összecsukása."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "%(label)s szűrése"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Szabálymagyarázat"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Az alkalmazás-hozzáférési és illesztési szabályok magyarázatának kibontása vagy összecsukása."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "%(app_name)s illesztési szabálya"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Válassza ki, hogy az alkalmazás mentett szabálya pontos útvonalat vagy verziószámos fájlnévmintát illesszen."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "A Szülői alkalmazást nem sikerült betölteni. Próbálja újra később."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "Visszavonja %(child_name)s egyszeri képernyőidő- és alkalmazás-hozzáférési engedélyeit."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Betöltés…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "A telepített alkalmazásokat nem sikerült betölteni. Próbálja újra később."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Nem érhető el"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "A hátralévő időt nem sikerült betölteni. Próbálja újra később."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nÉrintett alkalmazások: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Az alkalmazáskorlátok állapota nem érhető el. Automatikus újrapróbálkozás."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Mégse"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Engedély visszavonása"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Egyszeri engedély visszavonva"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Egyéni mennyiség…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Egyéni mennyiség"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Adjon meg egyéni napi időkeretet percben."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Adjon meg egész számot 0 és 1439 között."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "%(row_app_name)s illesztési szabálya"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Jelenlegi illesztési szabály: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Alapértelmezés visszaállítása"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Mentés"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Alkalmazás illesztési szabálya"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Adjon meg pontos indítási útvonalat vagy verziószámos fájlnévmintát."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Nem sikerült menteni: %(setting)s. Próbálja újra később."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Gyermekfiók: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "%(label)s képernyőidejének és alkalmazásszabályainak kezelése."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "%(app_name)s emblémája"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Beállítások"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Súgó"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "Névjegy"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Menü"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Gyermekfiók"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Visszavonja az egyszeri képernyőidő- és alkalmazás-hozzáférési engedélyeket."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Nem található interaktív, nem rendszergazdai fiók."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "A(z) %(label)s oldal megjelenítése."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Képernyőidő-korlát"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Képernyőidő-korlát be- / kikapcsolása"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Napi időkeret"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Mai hátralévő idő"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Mára hátralévő idő"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Illesztési szabály"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Hozzáférési szabály"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Számítás elrejtése"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Szűrés ez alapján: %(label)s"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Gyors útmutató a hozzáférési és illesztési szabályokhoz"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Magyarázat megjelenítése"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Alkalmazás-hozzáférés (mi történik)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Illesztési szabály (hogyan történik az illesztés)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "A hozzáférési és illesztési szabályok ismertetése"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Magyarázat elrejtése"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "A nyelvi beállítást nem sikerült betölteni. Az újrapróbálkozáshoz nyissa meg a Beállításokat."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Illesztési szabály szerkesztése"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "%(app_name)s hozzáférési szabálya: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "A kiválasztott gyermek %(app_name)s alkalmazáshoz tartozó hozzáférési szabályának beállítása erre: %(state_label)s."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Az alkalmazáskorlátok állapotát nem sikerült ellenőrizni. A többi vezérlő elérhető."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Visszavonja az egyszeri engedélyt?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Ez visszavonja %(child_name)s egyszeri képernyőidejét és a feltételesen tiltott alkalmazásokhoz adott hozzáférését, bezárja a futó tiltott alkalmazásait, és zárolja az asztalát, amikor elfogy az idő. A hátralévő napi időkerete nem változik."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "A jelenlegi egyszeri engedély megtartása."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "A kiválasztott gyermek egyszeri engedélyének visszavonása."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "A kiválasztott gyermek napi időkeretének beállítása erre: %(daily_limit_label_minutes)s."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Egyéni érték"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Illesztési szabály szerkesztése"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Bezárás"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "A rendszergazdai jogosultságot kérő értesítés bezárása."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Nincs)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Egyszeri engedély visszavonása"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Visszavonás"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "perc"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Telepített alkalmazások"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Asztali, AppImage-, Flatpak-, Snap- és rendszerindítók"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Ikon"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Telepített alkalmazások betöltése…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "A számítás menete"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Magyarázat"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "Az alkalmazás mindig használható"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "Az alkalmazás teljesen tiltott, és csak rendszergazdák engedélyezhetik"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "Az alkalmazás tiltott; a gyermek kérésére egyszeri hosszabbítás engedélyezhető, ha az időkorlát be van kapcsolva"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Minta alapján illeszt\n a változó verziószámú indítási útvonalakhoz (például Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Az alkalmazás pontos útvonalát illeszti\n(például /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "A gyermekfiókokat nem sikerült frissíteni. Automatikus újrapróbálkozás."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Nem találhatók interaktív, nem rendszergazdai felhasználók"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Érvénytelen napi időkeret. Adjon meg egész számot 0 és 1439 között."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Használjon pontos indítási útvonalat, vagy a verziószámos fájlnévmintához adjon meg * karaktert."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Rendszergazdai hozzáférés szükséges"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Rendszergazda szükséges"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Csak rendszergazda kezelheti a szülői felügyeletet.\nA Szülői alkalmazás megnyitásához jelentkezzen be rendszergazdai fiókkal."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Csak rendszergazda kezelheti a szülői felügyeletet. A Szülői alkalmazás megnyitásához jelentkezzen be rendszergazdai fiókkal."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "másik alkalmazás"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "Illesztési szabály szükséges"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "A pontos illesztésnek az alkalmazás indítási útvonalának kell lennie"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Folytatás"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Nyelvi beállítás mentése."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "A nyelvet nem sikerült menteni. Próbálja újra."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Nyelv"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Válasszon nyelvet"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "A beállításokban megváltoztathatja"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "%(name)s kiválasztása."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Idő engedélyezve"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Idő engedélyezve, Bezárás"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Becsült hátralévő idő jóváhagyás esetén: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Bezárás vagy a bejelentkezéshez való visszatérés előtt tekintse át a hibajelentést."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "BEÁLLÍTÁSOK"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Válasszon nyelvet."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "NÉVJEGY"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Terméknév, verzió és jogi információk megjelenítése."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Kérési képernyő hangjának némítása"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "A villámlás és a mennydörgés hangjának be- vagy kikapcsolása."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Kérési képernyő menüje"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Beállítások, súgó és termékinformációk megnyitása ehhez a kérési képernyőhöz."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Vissza a bejelentkezéshez"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Az eredményképernyő bezárása vagy visszatérés a bejelentkezési képernyőhöz."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Hiba jelentése"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Becsült idő számítása…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "SÚGÓ"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "A termék webhelyének megnyitása a böngészőben."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Hang és villámlás kikapcsolása"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Hang és villámlás bekapcsolása"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Kérési képernyő hangjának visszakapcsolása"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Jóváhagyás esetén hozzáférés éjfélig."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "A becsült idő nem érhető el"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "A becsült hátralévő időt nem sikerült betölteni."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "A beállításokat nem sikerült menteni"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "A kéréshez tartozó választásokat nem sikerült menteni. Próbálja újra később."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "A hangbeállítást nem sikerült menteni. Próbálja újra később."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "A kérési beállításokat nem sikerült menteni. Próbálja újra később."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Kérés jóváhagyva"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Kérés elutasítva"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Gyermek"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Jóváhagyó szülő"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Jóváhagyó"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Egyéni időtartam percben"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Adja meg a kért időtartamot 0.1 és 1440 perc között."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Feltételesen tiltott alkalmazások engedélyezése"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Válassza ki, hogy ez a kérés átmenetileg engedélyezze-e a feltételesen tiltott alkalmazásokat."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Hozzáférés kérése"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "A kiválasztott időtartam és alkalmazás-hozzáférési választás elküldése jóváhagyásra."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Kérés megszakítása"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "A kérési képernyő bezárása további idő kérése nélkül."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Fiókok betöltése…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Kérés részleteinek betöltése…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "KÉRÉS"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "A képernyőkorlát nincs bekapcsolva a Szülői alkalmazásban"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "MÉGSE"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "%(label)s kérése"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "%(label)s kiválasztása kért további képernyőidőként."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Nincs elérhető helyi normál felhasználói fiók. Hozzon létre egyet, majd nyissa meg újra ezt a képernyőt."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Nincs elérhető helyi interaktív rendszergazdai fiók."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Várakozás jóváhagyásra…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "A kérés nem érhető el"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "A kérést nem sikerült teljesíteni. Térjen vissza a bejelentkezéshez, és próbálja újra később."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "A kérést nem sikerült teljesíteni. Próbálja újra később."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Verzió: %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Webhely"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Adatvédelem"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Adatvédelmi szabályzat"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Támogatás"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Licenc"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Jogi közlemények"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "A Malcontent-integráció és a mellékelt betűkészletek közleményei"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "A külön telepített Malcontent szülői felügyeleti szolgáltatást nyilvános rendszer-API-kon keresztül használja. Nem áll kapcsolatban a Malcontent szerzőivel vagy a GNOME-mal, és azok nem támogatják."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Segítünk a családoknak egészséges digitális szokásokat kialakítani."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Bezárhatja ezt a párbeszédablakot; az újrapróbálkozások folytatódnak, amíg az alkalmazás nyitva van."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Visszajelzését sikeresen elküldtük. Köszönjük, hogy segít jobbá tenni az alkalmazást."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "Válaszhoz használt e-mail-cím (nem kötelező)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Adja meg e-mail-címét, ha választ szeretne kapni."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Fájlok hozzáadása"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Legfeljebb 5 fájlt csatolhat a visszajelzéséhez."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Diagnosztikai gyűjtés újrapróbálása"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "A diagnosztikai melléklet összegyűjtésének újrapróbálása."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Letöltés"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Olvasható diagnosztikai jelentést és ellenőrzött műszaki eseményeket tartalmazó ZIP mentése."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Visszajelzések és mellékletek adatvédelmi információinak megjelenítése."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Küldés naplók nélkül"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "A visszajelzés elküldése diagnosztikai melléklet nélkül."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "A visszajelzési űrlap bezárása a piszkozat megőrzésével az alkalmazásban."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Visszajelzés küldése"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "A visszajelzés és a kiválasztott mellékletek elküldése."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nA diagnosztikai naplók nem gyűjtenek fiókneveket, e-mail-címeket, fájltartalmakat, nyers rendszernaplókat vagy kivételüzeneteket. Az automatikus diagnosztika ellenőrzött műszaki eseményeket, állapotellenőrzéseket és rendszerinformációkat tartalmaz: az operációs rendszer és függőségei verzióját, az időzónát, a munkamenet típusát és az összesített fiókszámokat. A neveket és az egyéni verziószöveget kihagyjuk vagy visszafordíthatatlanul helyettesítjük; az azonosítókat soha nem hasheljük. Saját visszajelzése, a válaszhoz megadott e-mail-címe és kiválasztott fájljai külön adatok, amelyek személyes információkat tartalmazhatnak. Küldés előtt tekintse át őket."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Teljes adatvédelmi tájékoztató megtekintése"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Az Oh No! Parent Control adatvédelmi tájékoztatójának megnyitása a böngészőben."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Küldés leállítása és bezárás"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Leállíthatja a küldést, és bezárhatja ezt a jelentést."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Visszajelzés elküldve."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Ez a beküldés már nem próbálható újra az újrapróbálkozási időablakán belül. A korábbi kísérlet sikeres lehetett. Az újbóli küldés másolatot eredményezhet."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "A mellékletek túl nagyok. Távolítson el fájlokat vagy naplókat, és próbálja újra."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "A naplókat nem sikerült előkészíteni. Melléklet nélkül is elküldheti ezt a visszajelzést."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "A visszajelzést nem fogadtuk el. Piszkozata megmaradt. Újbóli küldés előtt ellenőrizze a visszajelzést és a válaszcímet."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "A beküldés leállítva. Piszkozata megmaradt. A korábbi kísérlet sikeres lehetett."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "A küldés még nem érhető el. Piszkozata megmaradt."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nTovábbi kérdések esetén felvehetjük Önnel a kapcsolatot a megadott e-mail-címen."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Ellenőrzött műszaki eseményeket és állapotellenőrzéseket tartalmazó diagnosztikai jelentés csatolása. A jelentés nem tartalmaz személyes információkat."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Mellékletek olvasása…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Mellékletek (nem kötelező)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Diagnosztikai információk gyűjtése..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "Legutóbbi 3 naplózási dátum · ZIP-archívum"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Naplók eltávolítása"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Gyűjtés újrapróbálása"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Tömörített naplók mentése küldés előtti ellenőrzéshez"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Visszajelzések adatvédelme"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "A visszajelzések adatvédelmi információinak bezárása."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "A függőben lévő jelentés leállítása és bezárása."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Újbóli beküldés (másolatot eredményezhet)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "A megőrzött visszajelzés újbóli beküldése, ha a korábbi eredmény bizonytalan."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Köszönjük a visszajelzését!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "A visszajelzés visszaigazolásának bezárása."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "A diagnosztika nem érhető el"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Próbálja újra a gyűjtést, vagy küldje el diagnosztika nélkül."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Naplók hozzáadása"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Eltávolítás"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Visszajelzési mellékletek hozzáadása"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Legfeljebb %(transport_MAX_ATTACHMENT_COUNT)s fájlt csatoljon."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Az előnézet nem érhető el"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Fájlmelléklet"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "%(attachment_name)s eltávolítása"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "A fájl eltávolítása a visszajelzésből."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "A naplók ellenőrzésre készek"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Diagnosztikai naplók letöltése"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Letöltve · Ellenőrzésre kész"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Segítsen jobbá tenni az alkalmazást"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Alapértelmezés szerint névtelen"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Adja meg e-mail-címét, ha választ szeretne kapni. Egyébként visszajelzése névtelen."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Nincsenek csatolt naplók"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "Legutóbbi 3 naplózási dátum · Rendszerinformációk · ZIP-archívum"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Visszajelzése naplók nélkül is elküldhető."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Melléklet eltávolítása"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "A naplókat nem sikerült menteni. Próbáljon másik helyet."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Küldés előtt tekintse át az alábbi hibarészleteket."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Osszon meg egy problémát, javaslatot vagy ötletet."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "A mellékleteket nem sikerült kiválasztani. Próbálja újra."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Egy vagy több mellékletet nem sikerült olvasni. Próbáljon más fájlokat."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "A letöltési helyet nem sikerült kiválasztani. Próbálja újra."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Hiba történt"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "A műveletet nem sikerült befejezni. Próbálja újra később."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "A hibajelentés nem érhető el"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "A visszajelzési párbeszédablakot nem sikerült megnyitni. Próbálja újra később."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "A hibajelentési értesítés bezárása."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "A visszajelzéseket, a válaszhoz megadott e-mail-címeket, a mellékleteket és a diagnosztikai naplókat e-mailben küldjük a támogatásnak. A megőrzés a támogatási postaládánktól és szolgáltatóinktól függ, beleértve a biztonsági mentési szabályaikat. Jelenleg nem garantáljuk a törlést meghatározott időn belül."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Adjon meg egysoros visszajelzési címet, legfeljebb 200 karakterrel."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Adja meg visszajelzését."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Visszajelzése nem támogatott rejtett karaktert tartalmaz. Gépelje be újra, és próbálja újra."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "A visszajelzés legfeljebb 5 000 UTF-16-karakter lehet (egyes emodzsik kettőnek számítanak)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "A formázott visszajelzés túl összetett. Távolítson el némi formázást, és próbálja újra."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Csak a válaszhoz használt e-mail-címet adja meg, vagy hagyja üresen."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "Az alkalmazás verziója érvénytelen. Frissítse az alkalmazást."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Legfeljebb %(MAX_ATTACHMENT_COUNT)s fájlt csatoljon."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Egy vagy több melléklet érvénytelen."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Minden melléklet legfeljebb 5 MB lehet."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "A mellékletek és diagnosztikai naplók összesen legfeljebb 8 MB méretűek lehetnek."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)d ó"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)d p"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)d mp"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "A nap hátralévő része"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Válasszon kezelendő fiókot"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Válasszon jóváhagyó rendszergazdát"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Válasszon időtartamot"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Adjon meg %(minimum)s és %(maximum)s közötti percszámot."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Napi időkeret: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Kiválasztott napi időkeret: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Visszajelzés előkészítése… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Visszajelzés küldése… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Nincs garancia."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Termékinformáció megnyitása: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Válasszon érvényes fájlnevű mellékletet."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Válasszon rövidebb, érvényes fájlnevű mellékletet."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Az Ön visszajelzése"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Írjon és formázzon visszajelzést. Az eszköztárral címsorokat, félkövér, dőlt és aláhúzott szöveget, listákat, idézeteket, kódot, hivatkozásokat és mellékleteket adhat hozzá, illetve eltávolíthatja a formázást."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Írja le ötletét, vagy azt, hogy mi történt és mire számított..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Szövegstílus"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Normál szöveg"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Címsor 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Címsor 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Félkövér"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Dőlt"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Aláhúzott"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Áthúzott"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Számozott lista"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Felsorolás"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Idézet"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Kódblokk"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Hivatkozás beszúrása"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Melléklet hozzáadása"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Formázás eltávolítása"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Visszajelzés formázása"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Hivatkozás célja"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Hivatkozásszerkesztő"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Hivatkozás előnézetének megnyitása"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Hivatkozás mentése"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Hivatkozás eltávolítása"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "számozott lista eleme"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "felsorolás eleme"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Egyperces visszaszámlálási animáció"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "A vizuális visszaszámlálási animáció be- vagy kikapcsolása az utolsó percben."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Olvassa le a hátralévő időt, vagy nyissa meg a további idő kérésére szolgáló űrlapot. A visszaszámlálási animáció beállításaihoz nyissa meg a helyi menüt."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Hátralévő idő: %(time)s\n• Kattintson további idő kéréséhez ebben a munkamenetben.\n• További lehetőségekhez kattintson a jobb gombbal."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Idő kérése, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "További fiókválasztási lehetőségek megjelenítése"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Az előző vagy következő fiókválasztási lehetőségek megjelenítése."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Válasszon fiókot."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Kiválasztott fiók: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Válassza ki, mely szabályok jelenjenek meg az alkalmazáslistában."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Az ilyen szabályú alkalmazások megjelenítése."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Kérési képernyő görgetése"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "A kérési képernyő görgetése, ha tartalma túlnyúlik a kereten."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d perc"
+msgstr[1] "%(count)d perc"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g óra"
+msgstr[1] "%(count)g óra"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d másodperc"
+msgstr[1] "%(count)d másodperc"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d fájlmelléklet kész."
+msgstr[1] "%(count)d fájlmelléklet kész."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d bájt"
+msgstr[1] "%(count)d bájt"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "A beküldést nem sikerült megerősíteni. Újrapróbálkozás %(count)d másodperc múlva…"
+msgstr[1] "A beküldést nem sikerült megerősíteni. Újrapróbálkozás %(count)d másodperc múlva…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Az egyszeri engedélyt nem sikerült menteni. Próbálja újra később."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "A képernyőidő-beállításokat nem sikerült menteni. Próbálja újra később."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Az alkalmazás-hozzáférést nem sikerült menteni. Próbálja újra később."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Hivatkozás szerkesztése"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Hibakategóriák: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "%(name)s számára"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g óra"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g óra"

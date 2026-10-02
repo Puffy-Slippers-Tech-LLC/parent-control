@@ -336,6 +336,10 @@ def test_all_shipped_messages_preserve_operands_and_python_shell_plural_parity(p
                     r'</?[A-Za-z][^>]*>|&(?:[A-Za-z]+|#[0-9]+);', forms[0]), (language, key, 'markup')
                 if 'Oh No! Parent Control' in forms[0]:
                     assert 'Oh No! Parent Control' in translated, (language, key, 'branding')
+                if forms[0] == 'Enter a requested duration from 0.1 through 1440 minutes.':
+                    # UI language does not change the accepted ASCII decimal
+                    # syntax or bounds. A localized comma would mislead users.
+                    assert '0.1' in translated and '1440' in translated, (language, key, 'numeric input')
                 values = {name: 'Zoë <&>' if kind == 's' else count
                           for name, kind in placeholder.findall(forms[0])}
                 assert isinstance(translated % values, str), (language, key)

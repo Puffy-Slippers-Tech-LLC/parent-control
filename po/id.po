@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Full message catalog translated against the current POT.
 # Plural metadata reference: https://l10n.gnome.org/teams/id/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: Translation team\n"
 "Language-Team: Bahasa Indonesia\n"
 "Language: id\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1543 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Sisa jatah harian: <b>%(daily)s</b>\nSisa izin satu kali: <b>%(grant)s</b>\n<b>Sisa waktu: %(remaining)s</b> — jumlah yang lebih besar di antara keduanya."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Selalu Diizinkan"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Diblokir Sepenuhnya"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Diblokir, Izin Sementara Dimungkinkan"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Pencocokan Pola"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Mencocokkan nama berkas berversi menggunakan karakter pengganti."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Jalur eksekusi persis"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Hanya cocok dengan jalur berkas yang dapat dieksekusi ini secara persis."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Beberapa batasan aplikasi tidak dapat diterapkan. Aplikasi yang terdampak atau versi yang diperbarui mungkin tidak dibatasi. Kontrol lain tetap tersedia, dan aturan tersimpan akan dicoba kembali secara otomatis."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Anak terpilih: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Tidak ada akun anak yang dipilih."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Anak terpilih"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Menu aplikasi orang tua"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Buka preferensi, bantuan, dan informasi produk."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Masukan"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Kirim masukan tentang aplikasi."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Pilih anak yang waktu layar dan kebijakan aplikasinya ditampilkan."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Cabut akses satu kali"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Hapus izin satu kali yang aktif untuk anak terpilih setelah konfirmasi."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Batas Layar"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Batas waktu layar"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Aktifkan atau nonaktifkan kontrol waktu layar harian untuk anak terpilih."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Jatah waktu harian"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Pilih jatah waktu layar harian anak terpilih."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Jatah harian khusus"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Masukkan jumlah menit berupa bilangan bulat dari nol hingga 1439."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Sisa waktu hari ini"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Perluas atau ciutkan perhitungan sisa waktu harian dan satu kali."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Batas Aplikasi"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Cari aplikasi terpasang"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Cari bahasa"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Saring aplikasi yang tersedia bagi anak terpilih."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Nama Aplikasi &amp; Detail"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Sembunyikan perhitungan sisa waktu"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Ciutkan detail perhitungan sisa waktu."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "Saring %(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Legenda kebijakan"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Perluas atau ciutkan legenda akses aplikasi dan aturan pencocokan."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "Aturan pencocokan %(app_name)s"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Pilih apakah aturan tersimpan aplikasi ini cocok dengan jalur persis atau pola nama berkas berversi."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "Aplikasi orang tua tidak dapat dimuat. Coba lagi nanti."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "Mencabut izin waktu layar dan akses aplikasi satu kali yang diberikan kepada %(child_name)s."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Memuat…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "Aplikasi terpasang tidak dapat dimuat. Coba lagi nanti."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Tidak tersedia"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "Sisa waktu tidak dapat dimuat. Coba lagi nanti."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nAplikasi terdampak: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Status batasan aplikasi tidak tersedia. Mencoba lagi secara otomatis."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Batal"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Cabut izin"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Izin satu kali dicabut"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Jumlah khusus…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Jumlah khusus"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Masukkan jatah harian khusus dalam menit."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Masukkan bilangan bulat dari 0 hingga 1439."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "Aturan pencocokan %(row_app_name)s"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Aturan pencocokan saat ini: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Kembalikan ke Bawaan"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Simpan"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Aturan pencocokan aplikasi"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Masukkan jalur eksekusi persis atau pola nama berkas berversi."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Tidak dapat menyimpan %(setting)s. Coba lagi nanti."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Akun anak: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "Kelola waktu layar dan kebijakan aplikasi untuk %(label)s."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "Logo %(app_name)s"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Preferensi"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Bantuan"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "Tentang"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Menu"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Akun anak"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Mencabut izin waktu layar dan akses aplikasi satu kali."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Tidak ditemukan akun interaktif nonadministrator."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "Tampilkan halaman %(label)s."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Batas Waktu Layar"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Aktifkan / nonaktifkan batas waktu layar"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Jatah Waktu Harian"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Sisa Waktu Hari Ini"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Waktu tersisa untuk hari ini"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Aturan Pencocokan"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Aturan Akses"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Sembunyikan perhitungan"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Saring berdasarkan %(label)s"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Referensi singkat aturan akses dan pencocokan"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Tampilkan legenda"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Akses Aplikasi (Apa yang terjadi)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Aturan Pencocokan (Cara aplikasi dicocokkan)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Memahami aturan akses dan pencocokan"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Sembunyikan legenda"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "Preferensi bahasa Anda tidak dapat dimuat. Buka Preferensi untuk mencoba lagi."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Sunting aturan pencocokan"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "Aturan akses %(app_name)s: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Atur aturan akses anak terpilih untuk %(app_name)s menjadi %(state_label)s."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Status batasan aplikasi tidak dapat diperiksa. Kontrol lain tetap tersedia."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Cabut izin satu kali?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Ini akan mencabut waktu layar satu kali dan akses ke aplikasi terblokir yang dapat diizinkan sementara yang diberikan kepada %(child_name)s, menutup aplikasi terblokir milik anak yang sedang berjalan, dan mengunci desktop anak saat tidak ada waktu tersisa. Sisa jatah waktu hariannya tidak terpengaruh."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Pertahankan izin satu kali saat ini."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Cabut izin satu kali anak terpilih."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Atur jatah harian anak terpilih menjadi %(daily_limit_label_minutes)s."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Nilai khusus"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Sunting Aturan Pencocokan"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Tutup"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Tutup pemberitahuan bahwa administrator diperlukan."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Tidak ada)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Cabut izin satu kali"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Cabut"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "menit"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Aplikasi terpasang"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Peluncur desktop, AppImage, Flatpak, Snap, dan sistem"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Ikon"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Memuat aplikasi terpasang…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Cara menghitungnya"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Legenda"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "Aplikasi selalu dapat digunakan"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "Aplikasi diblokir sepenuhnya dan hanya administrator yang dapat mengizinkannya"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "Aplikasi diblokir dan dapat diberi perpanjangan satu kali sesuai permintaan anak jika batas waktu diaktifkan"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Mencocokkan berdasarkan pola\n untuk mencakup jalur eksekusi dengan nomor versi yang berubah (misalnya Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Mencocokkan jalur aplikasi persis\n(misalnya /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Akun anak tidak dapat disegarkan. Mencoba lagi secara otomatis."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Tidak ditemukan pengguna interaktif nonadministrator"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Jatah harian tidak valid. Masukkan bilangan bulat dari 0 hingga 1439."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Gunakan jalur eksekusi persis, atau sertakan * untuk pola nama berkas berversi."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Akses administrator diperlukan"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Administrator Diperlukan"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Hanya administrator yang dapat mengelola kontrol orang tua.\nMasuk dengan akun administrator untuk membuka aplikasi orang tua."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Hanya administrator yang dapat mengelola kontrol orang tua. Masuk dengan akun administrator untuk membuka aplikasi orang tua."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "aplikasi lain"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "Aturan pencocokan diperlukan"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Pencocokan persis harus berupa jalur eksekusi aplikasi ini"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Lanjutkan"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Simpan preferensi bahasa Anda."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Bahasa Anda tidak dapat disimpan. Coba lagi."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Bahasa"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Pilih bahasa Anda"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Anda dapat mengubahnya di preferensi"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "Pilih %(name)s."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Waktu diberikan"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Waktu diberikan, Tutup"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Perkiraan sisa waktu jika disetujui: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Tinjau laporan kesalahan sebelum menutup atau kembali ke layar masuk."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "PREFERENSI"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Pilih bahasa Anda."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "TENTANG"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Tampilkan nama produk, versi, dan informasi hukum."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Bisukan suara layar permintaan"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Aktifkan atau nonaktifkan kilat dan suara gunturnya."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Menu layar permintaan"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Buka preferensi, bantuan, dan informasi produk untuk layar permintaan ini."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Kembali ke Layar Masuk"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Tutup layar hasil atau kembali ke layar masuk."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Laporkan kesalahan ini"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Menghitung perkiraan waktu…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "BANTUAN"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Buka situs web produk di peramban."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Nonaktifkan suara dan kilat"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Aktifkan suara dan kilat"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Aktifkan suara layar permintaan"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Jika disetujui, akses hingga tengah malam."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Perkiraan waktu tidak tersedia"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "Perkiraan sisa waktu tidak dapat dimuat."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Pengaturan tidak dapat disimpan"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "Pilihan permintaan Anda tidak dapat disimpan. Coba lagi nanti."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Preferensi suara Anda tidak dapat disimpan. Coba lagi nanti."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "Preferensi permintaan Anda tidak dapat disimpan. Coba lagi nanti."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Permintaan disetujui"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Permintaan ditolak"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Anak"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Orang tua yang menyetujui"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Pemberi persetujuan"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Durasi khusus dalam menit"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Masukkan durasi yang diminta dari 0.1 hingga 1440 menit."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Izinkan aplikasi terblokir yang dapat diizinkan sementara"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Pilih apakah permintaan ini mengizinkan sementara aplikasi terblokir yang dapat diizinkan sementara."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Minta akses"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Kirim durasi dan pilihan akses aplikasi yang dipilih untuk disetujui."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Batalkan permintaan"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Tutup layar permintaan ini tanpa meminta waktu tambahan."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Memuat akun…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Memuat detail permintaan…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "MINTA"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Batas layar tidak diaktifkan di aplikasi orang tua"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "BATAL"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "Minta %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "Pilih %(label)s sebagai durasi waktu layar tambahan yang diminta."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Tidak ada akun standar lokal yang tersedia. Buat akun, lalu buka kembali layar ini."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Tidak ada akun administrator interaktif lokal yang tersedia."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Menunggu persetujuan…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "Permintaan tidak tersedia"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "Permintaan tidak dapat diselesaikan. Kembali ke layar masuk dan coba lagi nanti."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "Permintaan tidak dapat diselesaikan. Coba lagi nanti."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Versi %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Situs web"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Privasi"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Kebijakan privasi"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Dukungan"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Lisensi"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Pemberitahuan hukum"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Pemberitahuan integrasi Malcontent dan fon yang disertakan"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Menggunakan layanan kontrol orang tua Malcontent yang dipasang terpisah melalui API sistem publik. Tidak berafiliasi dengan atau didukung oleh penulis Malcontent atau GNOME."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Membantu keluarga membangun kebiasaan digital yang sehat."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Anda dapat menutup dialog ini; percobaan ulang berlanjut selama aplikasi terbuka."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Masukan Anda berhasil dikirim. Terima kasih telah membantu kami menyempurnakan aplikasi."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "Email balasan (opsional)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Tambahkan alamat email Anda jika ingin mendapat balasan."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Tambahkan berkas"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Lampirkan hingga 5 berkas pada masukan Anda."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Coba ulang pengumpulan diagnostik"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Coba kumpulkan lampiran diagnostik lagi."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Unduh"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Simpan ZIP berisi laporan diagnostik yang dapat dibaca dan peristiwa teknis tervalidasi."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Tampilkan informasi privasi tentang masukan dan lampiran."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Kirim tanpa log"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Kirim masukan tanpa lampiran diagnostik."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Tutup formulir masukan sambil mempertahankan draf dalam aplikasi ini."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Kirim Masukan"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Kirim masukan dan lampiran terpilih."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nLog diagnostik tidak mengumpulkan nama akun, alamat email, isi berkas, jurnal sistem mentah, atau pesan pengecualian. Diagnostik otomatis berisi peristiwa teknis tervalidasi, pemeriksaan kondisi sistem, dan informasi sistem: versi sistem operasi dan dependensi, zona waktu, jenis sesi, dan jumlah akun agregat. Nama dan teks versi khusus dihilangkan atau diganti secara permanen sehingga tidak dapat dipulihkan; identitas tidak pernah di-hash. Masukan Anda sendiri, email balasan, dan berkas terpilih terpisah dan mungkin berisi informasi pribadi. Tinjau sebelum mengirim."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Lihat pemberitahuan privasi lengkap"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Buka pemberitahuan privasi Oh No! Parent Control di peramban Anda."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Hentikan pengiriman dan tutup"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Anda dapat menghentikan pengiriman dan menutup laporan ini."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Masukan dikirim."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Pengiriman ini tidak dapat dicoba ulang lagi dalam jendela percobaan ulangnya. Percobaan sebelumnya mungkin telah berhasil. Mengirim lagi dapat membuat kiriman duplikat."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "Lampiran terlalu besar. Hapus berkas atau log dan coba lagi."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Log tidak dapat disiapkan. Anda dapat mengirim masukan ini tanpa lampiran."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "Masukan tidak diterima. Draf Anda dipertahankan. Periksa masukan dan alamat balasan sebelum mengirim lagi."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Pengiriman dihentikan. Draf Anda dipertahankan. Percobaan sebelumnya mungkin telah berhasil."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "Pengiriman belum tersedia. Draf Anda dipertahankan."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nKami dapat menghubungi Anda melalui alamat email yang diberikan jika ada pertanyaan lanjutan."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Sertakan laporan diagnostik dengan peristiwa teknis tervalidasi dan pemeriksaan kondisi sistem. Informasi pribadi tidak disertakan dalam laporan ini."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Membaca lampiran…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Lampiran (opsional)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Mengumpulkan informasi diagnostik..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "3 tanggal log terbaru · Arsip ZIP"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Hapus log"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Coba kumpulkan lagi"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Simpan log terkompresi untuk memeriksanya sebelum mengirim"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Privasi masukan"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Tutup informasi privasi masukan."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Hentikan laporan tertunda dan tutup."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Kirim lagi (mungkin duplikat)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Kirim kembali masukan yang dipertahankan saat hasil sebelumnya belum pasti."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Terima kasih atas masukan Anda!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Tutup konfirmasi masukan."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Diagnostik tidak tersedia"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Coba kumpulkan lagi atau kirim tanpa diagnostik."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Tambahkan log"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Hapus"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Tambahkan lampiran masukan"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Lampirkan paling banyak %(transport_MAX_ATTACHMENT_COUNT)s berkas."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Pratinjau tidak tersedia"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Lampiran berkas"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "Hapus %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Hapus berkas ini dari masukan."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Log siap ditinjau"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Unduh log diagnostik"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Diunduh · Siap diperiksa"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Bantu kami menyempurnakannya"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Anonim secara bawaan"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Tambahkan email jika ingin mendapat balasan. Jika tidak, masukan Anda anonim."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Tidak ada log yang dilampirkan"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "3 tanggal log terbaru · Informasi sistem · Arsip ZIP"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Masukan Anda dapat dikirim tanpa log."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Hapus lampiran"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Tidak dapat menyimpan log. Coba lokasi lain."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Tinjau detail kesalahan di bawah sebelum mengirim."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Bagikan masalah, saran, atau ide."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Tidak dapat memilih lampiran. Coba lagi."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Tidak dapat membaca satu atau beberapa lampiran. Coba berkas lain."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "Tidak dapat memilih lokasi unduhan. Coba lagi."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Terjadi kesalahan"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "Operasi tidak dapat diselesaikan. Coba lagi nanti."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Laporan kesalahan tidak tersedia"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "Dialog masukan tidak dapat dibuka. Coba lagi nanti."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Tutup pemberitahuan laporan kesalahan."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "Masukan, alamat email balasan, lampiran, dan log diagnostik dikirim melalui email ke dukungan. Penyimpanan bergantung pada kotak surat dukungan dan penyedia layanan kami, termasuk kebijakan pencadangan mereka. Saat ini kami tidak menjamin penghapusan dalam jangka waktu tetap."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Masukkan judul masukan satu baris dengan paling banyak 200 karakter."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Masukkan masukan Anda."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Masukan Anda berisi karakter tersembunyi yang tidak didukung. Ketik ulang dan coba lagi."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "Masukan harus paling banyak 5.000 karakter UTF-16 (beberapa emoji dihitung sebagai dua)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "Masukan berformat terlalu rumit. Hapus sebagian format dan coba lagi."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Masukkan hanya alamat email balasan, atau biarkan kosong."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "Versi aplikasi tidak valid. Perbarui aplikasi."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Lampirkan paling banyak %(MAX_ATTACHMENT_COUNT)s berkas."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Satu atau beberapa lampiran tidak valid."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Setiap lampiran harus berukuran 5 MB atau lebih kecil."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Lampiran dan log diagnostik harus berjumlah 8 MB atau kurang."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)dj"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)dm"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)dd"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Sisa hari ini"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Pilih akun untuk dikelola"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Pilih administrator pemberi persetujuan"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Pilih durasi"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Masukkan angka dari %(minimum)s hingga %(maximum)s menit."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Jatah harian: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Jatah harian terpilih: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Menyiapkan masukan… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Mengirim masukan… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Tanpa jaminan."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Buka informasi produk: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Pilih lampiran dengan nama berkas yang valid."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Pilih lampiran dengan nama berkas yang lebih pendek dan valid."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Masukan Anda"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Tulis dan format masukan. Gunakan bilah alat untuk judul, tebal, miring, garis bawah, daftar, kutipan, kode, tautan, lampiran, dan menghapus format."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Jelaskan ide Anda, atau apa yang terjadi dan apa yang Anda harapkan..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Gaya teks"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Teks normal"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Judul 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Judul 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Tebal"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Miring"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Garis bawah"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Coret"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Daftar bernomor"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Daftar berpoin"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Kutipan"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Blok kode"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Sisipkan tautan"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Tambahkan lampiran"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Hapus format"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Format masukan"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Tujuan tautan"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Penyunting tautan"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Buka pratinjau tautan"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Simpan tautan"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Hapus tautan"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "butir daftar bernomor"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "butir daftar berpoin"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Animasi hitung mundur satu menit"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Aktifkan atau nonaktifkan animasi hitung mundur visual selama menit terakhir."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Baca sisa waktu atau buka formulir permintaan waktu tambahan. Buka menu konteks untuk pengaturan animasi hitung mundur."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Sisa waktu: %(time)s\n• Klik untuk meminta waktu tambahan untuk sesi ini.\n• Klik kanan untuk opsi lain."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Minta waktu, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Tampilkan pilihan akun lainnya"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Tampilkan pilihan akun sebelumnya atau berikutnya."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Pilih akun."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Akun terpilih: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Pilih aturan yang ditampilkan dalam daftar aplikasi."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Tampilkan aplikasi dengan aturan ini."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Pengguliran layar permintaan"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "Gulir layar permintaan saat isinya meluap."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d menit"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g jam"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d detik"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d lampiran berkas siap."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d bita"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Tidak dapat mengonfirmasi pengiriman. Mencoba lagi dalam %(count)d detik…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Tidak dapat menyimpan izin satu kali. Coba lagi nanti."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Tidak dapat menyimpan pengaturan waktu layar. Coba lagi nanti."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Tidak dapat menyimpan akses aplikasi. Coba lagi nanti."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Sunting tautan"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Kategori kesalahan: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "Untuk %(name)s"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g jam"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g jam"

@@ -72,6 +72,8 @@ class RichTextEditor(Gtk.Box):
         if not self._ready:
             return
         labels = self._labels(translations)
+        context = context_for(self)
+        labels.update(direction=context.direction, language=context.language)
         # JSON is a JavaScript value, never markup or a script assembled from data.
         self._view.evaluate_javascript(
             'window.feedbackEditor.labels(' + json.dumps(labels) + ');',
@@ -216,7 +218,10 @@ class RichTextEditor(Gtk.Box):
     def _document(self):
         quill_js = (ASSET_DIR / "quill.js").read_text(encoding="utf-8")
         quill_css = (ASSET_DIR / "quill.snow.css").read_text(encoding="utf-8")
-        initial_labels = json.dumps(self._labels(context_for(self).translations))
+        context = context_for(self)
+        labels = self._labels(context.translations)
+        labels.update(direction=context.direction, language=context.language)
+        initial_labels = json.dumps(labels)
         attachment_button = (
             '<button id="feedback-format-attachment" class="ql-attachment" type="button" '
             'aria-label="Add attachment">📎</button>'
@@ -245,20 +250,24 @@ body {{ display: flex; flex-direction: column; }}
             padding: 7px 10px; background: #fcfcfe; font: inherit; }}
 #feedback-format-toolbar::after {{ display: none; }}
 #feedback-format-toolbar .ql-formats {{ display: flex; align-items: center; margin: 0; }}
-#feedback-format-toolbar .ql-formats:nth-child(2) {{ padding-right: 8px;
-                                  border-right: 1px solid #dddde5; }}
-#feedback-format-toolbar .ql-formats:last-child {{ margin-left: auto; }}
+#feedback-format-toolbar .ql-formats:nth-child(2) {{ padding-inline-end: 8px;
+                                  border-inline-end: 1px solid #dddde5; }}
+#feedback-format-toolbar .ql-formats:last-child {{ margin-inline-start: auto; }}
 #feedback-format-toolbar button {{ width: 36px; height: 30px; padding: 6px 9px; border-radius: 5px; }}
 #feedback-format-toolbar button:hover {{ background: #efeaff; }}
 #feedback-format-toolbar .ql-picker {{ color: #343437; font: inherit; }}
-#feedback-format-toolbar .ql-picker.ql-header {{ width: 112px; height: 30px; }}
+#feedback-format-toolbar .ql-picker.ql-header {{ width: auto; min-width: 112px; height: auto;
+  max-width: calc(100vw - 40px); }}
 #feedback-format-toolbar .ql-picker-label {{ display: flex; align-items: center; padding: 0 10px;
                            border: 1px solid #e0e0e5; border-radius: 8px; background: white; }}
 #feedback-format-toolbar .ql-picker-label svg {{ right: 8px; }}
 #feedback-format-toolbar .ql-picker-label svg polygon {{ display: none; }}
 #feedback-format-toolbar .ql-picker-label::after {{ content: ''; width: 5px; height: 5px;
                                   border-right: 2px solid; border-bottom: 2px solid;
-                                  transform: rotate(45deg); margin: -3px 2px 0 auto; }}
+                                  transform: rotate(45deg); margin-block-start: -3px;
+                                  margin-inline-start: auto; margin-inline-end: 2px; }}
+#feedback-format-toolbar .ql-picker-label::before,
+#feedback-format-toolbar .ql-picker-item {{ white-space: normal; overflow-wrap: anywhere; }}
 /* Keep formatting choices inside even the shortest editor viewport. */
 #feedback-format-toolbar .ql-picker-options {{ border-radius: 8px; background: white;
   max-height: calc(100vh - 48px); overflow-y: auto; box-sizing: border-box; }}
@@ -269,7 +278,8 @@ body {{ display: flex; flex-direction: column; }}
 #feedback-format-toolbar .ql-active .ql-fill,
 #feedback-format-toolbar button:hover .ql-fill {{ fill: #7650ff; }}
 #feedback-editor-root {{ border: 0; flex: 1; min-height: 0; overflow: hidden; font: inherit; }}
-.ql-editor {{ min-height: 0; overflow-y: auto; padding: 14px 18px; line-height: 1.45; }}
+.ql-editor {{ min-height: 0; overflow-y: auto; padding: 14px 18px; line-height: 1.45;
+  text-align: start; }}
 .ql-editor.ql-blank::before {{ left: 18px; right: 18px; color: #8c8c9b; }}
 .ql-toolbar button:focus-visible, .ql-toolbar .ql-picker-label:focus-visible {{
   outline: 2px solid #7657f6; outline-offset: 2px;
@@ -277,7 +287,9 @@ body {{ display: flex; flex-direction: column; }}
 #feedback-format-toolbar .ql-attachment {{ padding: 3px 7px; font-size: 19px; line-height: 24px; }}
 #feedback-format-toolbar .ql-picker-label[data-label]::before,
 #feedback-format-toolbar .ql-picker-item[data-label]::before {{ content: attr(data-label) !important; }}
-.ql-tooltip a[data-label]::after {{ content: attr(data-label) !important; }}
+.ql-tooltip a.ql-action[data-label]::after {{ content: attr(data-label) !important; }}
+.ql-tooltip a.ql-remove[data-label]::before {{ content: attr(data-label) !important; }}
+.ql-tooltip a.ql-remove::after {{ content: none !important; }}
 .ql-tooltip[data-label]::before {{ content: attr(data-label) !important; }}
 </style></head><body>
 <div id="feedback-format-toolbar" role="toolbar">
@@ -329,6 +341,9 @@ function identify(selector, id) {{
 }}
 const editor = identify(
   '#feedback-editor-root .ql-editor', 'feedback-editor-input');
+// Draft direction follows its content, independently of the product's language.
+// Relabeling only changes the surrounding UI, never Quill formats or undo state.
+editor.setAttribute('dir', 'auto');
 const stylePicker = document.querySelector(
   '#feedback-format-toolbar .ql-picker.ql-header');
 if (!stylePicker)
@@ -412,6 +427,8 @@ quill.on('text-change', publish);
 window.feedbackEditor = {{
   labels(labels) {{
     translatedLabels = labels;
+    document.documentElement.setAttribute('dir', labels.direction);
+    document.documentElement.setAttribute('lang', labels.language);
     for (const [id, label] of Object.entries(labels)) {{
       const node = document.getElementById(id);
       if (!node) continue;

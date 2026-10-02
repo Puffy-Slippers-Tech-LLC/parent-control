@@ -97,19 +97,20 @@ class ParentWindowTests(unittest.TestCase):
     def test_session_language_collapses_variants_and_falls_back_to_english(self):
         for locale, expected in (
             ("en_GB.UTF-8", "en"), ("en-AU", "en"), ("de_DE@euro", "de"),
-            ("es_MX", "es"), ("fr_CA", "fr"), ("pt_PT.UTF-8", "pt-BR"),
-            ("pt-BR", "pt-BR"), ("zh_TW.UTF-8", "zh-Hans"),
+            ("es_MX", "es"), ("fr_CA", "fr"), ("pt_PT.UTF-8", "pt"),
+            ("pt-BR", "pt-BR"), ("zh_TW.UTF-8", "zh-Hant"),
             ("zh-Hans-CN", "zh-Hans"), ("ru_RU", "ru"), ("it_IT", "it"),
             ("pl_PL", "pl"), ("ja_JP", "ja"), ("DE_de", "de"),
-            ("ar_EG", "en"), ("C.UTF-8", "en"), ("POSIX", "en"), ("", "en"),
+            ("ar_EG", "ar"), ("C.UTF-8", "en"), ("POSIX", "en"), ("", "en"),
         ):
             with self.subTest(locale=locale):
                 self.assertEqual(supported_language(locale), expected)
-        self.assertEqual(session_language(["nl_NL", "de_DE", "C"]), "en")
+        self.assertEqual(session_language(["nl_NL", "de_DE", "C"]), "nl")
+        self.assertEqual(session_language(["zz_ZZ", "de_DE", "C"]), "en")
         self.assertEqual(session_language([]), "en")
-        self.assertEqual(selected_language("", ["pt_PT.UTF-8"]), "pt-BR")
+        self.assertEqual(selected_language("", ["pt_PT.UTF-8"]), "pt")
         self.assertEqual(selected_language("fr-CA", ["de_DE"]), "fr")
-        self.assertEqual(selected_language("", ["nl_NL", "fr_FR"]), "en")
+        self.assertEqual(selected_language("", ["nl_NL", "fr_FR"]), "nl")
 
     def test_language_read_only_prompts_for_empty_or_requested_preferences(self):
         for language, requested, prompt in (("", False, True), ("de", False, False),

@@ -2867,7 +2867,7 @@ def test_language_helper_leaves_preferences_open_after_startup(surface):
 
 
 @pytest.mark.parametrize('surface', ['parent', 'kiosk'])
-@pytest.mark.parametrize('language', ['en', 'de', 'zh-Hans'])
+@pytest.mark.parametrize('language', ['en', 'de', 'zh-Hans', 'fur', 'ar'])
 def test_language_candidate_requires_checked_readback_without_replay(surface, language):
     choice = Node(identity='language-choice-' + language.lower())
     dialog = Node(identity='language-dialog', children=[choice])
@@ -2885,7 +2885,7 @@ def test_language_candidate_requires_checked_readback_without_replay(surface, la
 
 
 @pytest.mark.parametrize('surface', ['parent', 'kiosk'])
-@pytest.mark.parametrize('language', ['en', 'de', 'zh-Hans'])
+@pytest.mark.parametrize('language', ['en', 'de', 'zh-Hans', 'fur', 'ar'])
 def test_language_candidate_uses_ids_and_independent_checked_state(surface, language):
     choice = Node('an unrelated translated name', identity='language-choice-' + language.lower())
     ui = ui_for(Node(identity='parent-window' if surface == 'parent' else 'kiosk-request-window',

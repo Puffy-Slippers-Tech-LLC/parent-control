@@ -12,7 +12,9 @@ from gi.repository import GLib, Gtk, Pango
 
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
-from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES, selected_language
+from common.oh_no_parent_control_ui.languages import (
+    SUPPORTED_LANGUAGES, language_direction, language_matches, selected_language,
+)
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon
 from .chrome import ArmoredButton, MetalBoard
 
@@ -45,7 +47,7 @@ class LanguageDialog(Gtk.Window):
         header.append(self._logo)
         self._heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
                                 hexpand=True)
-        title = localized(Gtk.Label, label=m.CHOOSE_YOUR_LANGUAGE, xalign=0,
+        title = localized(Gtk.Label, label=m.CHOOSE_YOUR_LANGUAGE, xalign=0, wrap=True,
                           css_classes=["oh-no-parent-control-language-title"])
         set_automation_id(title, "language-title")
         self._heading.append(title)
@@ -62,13 +64,20 @@ class LanguageDialog(Gtk.Window):
         header.append(self._heading)
         content.append(header)
 
+        self._search = localized(Gtk.SearchEntry, placeholder_text=m.SEARCH_LANGUAGES)
+        describe_control(self._search, m.SEARCH_LANGUAGES, m.SEARCH_LANGUAGES,
+                         automation_id="language-search")
+        self._search.connect("changed", self._filter_languages)
+        content.append(self._search)
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self._language_rows = []
         first = None
         for identity, name in SUPPORTED_LANGUAGES:
             choice = localized(Gtk.CheckButton)
             choice.set_direction(Gtk.TextDirection.RTL)
             label = localized(Gtk.Label, label=name, xalign=0, hexpand=True)
-            label.set_direction(Gtk.TextDirection.LTR)
+            label.set_direction(Gtk.TextDirection.RTL if language_direction(identity) == 'rtl'
+                                else Gtk.TextDirection.LTR)
             choice.set_child(label)
             if first is None:
                 first = choice
@@ -79,10 +88,11 @@ class LanguageDialog(Gtk.Window):
             choice.set_active(identity == self._selected)
             choice.connect("toggled", self._choose, identity)
             self._choices.append(choice)
+            self._language_rows.append((choice, identity, name))
         scroller = Gtk.ScrolledWindow(child=self._choices, vexpand=True,
                                       hscrollbar_policy=Gtk.PolicyType.NEVER,
                                       overlay_scrolling=False,
-                                      min_content_height=150)
+                                      min_content_height=1)
         self._scroller = scroller
         set_automation_id(scroller, "language-list")
         content.append(scroller)
@@ -110,6 +120,11 @@ class LanguageDialog(Gtk.Window):
         parent.connect_object("notify::is-active", LanguageDialog._parent_activated, self)
         self._size_to_gateway(self)
 
+    def _filter_languages(self, search):
+        for row, identity, name in self._language_rows:
+            row.set_visible(language_matches(search.get_text(), identity, name))
+        self._scroller.get_vadjustment().set_value(0)
+
     def _parent_activated(self, *_args):
         # Fullscreen preview compositors may raise the parent on an outside
         # click. Restore modal focus without hiding or recreating the chooser.
@@ -136,12 +151,17 @@ class LanguageDialog(Gtk.Window):
         parent = self.get_transient_for()
         width = max(400, self.get_child().measure(Gtk.Orientation.HORIZONTAL, -1)[0])
         list_width = width - 48  # Content's left and right margins.
-        # ScrolledWindow's natural height omits the full list. Replace that
-        # contribution with the language rows' measured height, not spare space.
+        if not self._search.get_text():
+            heights = [row.measure(Gtk.Orientation.VERTICAL, list_width)[1]
+                       for row, _identity, _name in self._language_rows]
+            self._list_height = (self._choices.measure(Gtk.Orientation.VERTICAL, list_width)[1]
+                                 - sum(heights[10:]))
+        # Aim for ten complete rows; the gateway bounds take priority on short
+        # displays. Filtering keeps this viewport stable while typing.
         natural_height = (
             self.get_child().measure(Gtk.Orientation.VERTICAL, width)[1]
             - self._scroller.measure(Gtk.Orientation.VERTICAL, list_width)[1]
-            + self._choices.measure(Gtk.Orientation.VERTICAL, list_width)[1]
+            + self._list_height
         )
         height = parent.get_height()
         if height <= 0:
@@ -169,6 +189,7 @@ class LanguageDialog(Gtk.Window):
         self._saving = True
         self._error.set_visible(False)
         self._choices.set_sensitive(False)
+        self._search.set_sensitive(False)
         self._continue.set_sensitive(False)
         self._cancel.set_sensitive(False)
         self._save(self._selected, self._success, self._failure)
@@ -186,7 +207,9 @@ class LanguageDialog(Gtk.Window):
     def _failure(self, _error):
         self._saving = False
         self._choices.set_sensitive(True)
+        self._search.set_sensitive(True)
         self._continue.set_sensitive(True)
         self._cancel.set_sensitive(True)
         set_text(self._error, 'label', m.YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN)
         self._error.set_visible(True)
+        self._size_to_gateway(self)

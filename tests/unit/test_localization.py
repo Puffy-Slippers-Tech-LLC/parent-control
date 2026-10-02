@@ -10,6 +10,9 @@ import subprocess
 import pytest
 
 from common.oh_no_parent_control_ui.localization import DOMAIN, load_translations
+from common.oh_no_parent_control_ui.languages import (
+    SUPPORTED_LANGUAGES, language_direction, language_matches, supported_language,
+)
 from tests.support.paths import ROOT
 
 
@@ -61,7 +64,9 @@ msgstr[1] "остались минуты"
 msgstr[2] "осталось минут"
 ''',
         "pt_BR": 'msgid "Hello"\nmsgstr "Olá"\n',
+        "pt": 'msgid "Hello"\nmsgstr "Olá, Portugal"\n',
         "zh_Hans": 'msgid "Hello"\nmsgstr "你好"\n',
+        "zh_Hant": 'msgid "Hello"\nmsgstr "您好"\n',
     }
     for language, messages in entries.items():
         metadata = header.replace('Language: en', f'Language: {language}')
@@ -80,13 +85,15 @@ msgstr[2] "осталось минут"
 @pytest.mark.parametrize("saved,session,expected", [
     ("fr-CA", ["de_DE"], "Bonjour"),
     ("", ["fr_CA.UTF-8", "C"], "Bonjour"),
-    ("pt-PT", [], "Olá"),
-    ("", ["pt_PT.UTF-8"], "Olá"),
-    ("zh-Hant-TW", [], "你好"),
-    ("", ["zh_TW.UTF-8"], "你好"),
+    ("pt-PT", [], "Olá, Portugal"),
+    ("", ["pt_PT.UTF-8"], "Olá, Portugal"),
+    ("pt-BR", [], "Olá"),
+    ("zh-Hant-TW", [], "您好"),
+    ("", ["zh_TW.UTF-8"], "您好"),
+    ("zh-Hans-TW", [], "你好"),
     ("de", ["fr_FR"], "Hello"),  # Supported choice, catalogue not shipped.
     ("zz-future", ["fr_FR"], "Hello"),
-    ("", ["nl_NL", "fr_FR"], "Hello"),
+    ("", ["zz_ZZ", "fr_FR"], "Hello"),
     ("../../fr", [], "Hello"),
     ("", [], "Hello"),
 ])
@@ -210,6 +217,73 @@ def production_catalogues(tmp_path_factory):
     result = make_catalogues(ROOT, 'translations', f'LOCALE_OUTPUT={destination}')
     assert result.returncode == 0, result.stdout + result.stderr
     return destination
+
+
+def test_catalogue_choices_have_unique_ids_names_and_packaged_metadata(production_catalogues):
+    import re
+    ids = [language for language, _name in SUPPORTED_LANGUAGES]
+    assert len(ids) == len(set(ids))
+    assert ids[:10] == ['en', 'de', 'es', 'fr', 'pt-BR', 'zh-Hans', 'ru', 'it', 'pl', 'ja']
+    for language, native_name in SUPPORTED_LANGUAGES:
+        assert re.fullmatch(r'[a-z]{2,3}(?:-[A-Za-z]{2,4})?', language)
+        assert native_name.strip() == native_name and native_name
+        assert language_direction(language) in ('ltr', 'rtl')
+        assert (ROOT / 'po' / (language.replace('-', '_') + '.po')).is_file()
+        translations = load_translations(language, localedir=production_catalogues)
+        assert isinstance(translations, gettext.GNUTranslations), language
+        assert translations.info()['language'] == language.replace('-', '_')
+        assert translations.gettext('Untranslated') == 'Untranslated'
+        assert translations.gettext('Search languages') != 'Search languages' or language == 'en'
+    assert {language for language in ids if language_direction(language) == 'rtl'} == {
+        'ar', 'fa', 'he', 'ug', 'ur',
+    }
+
+
+@pytest.mark.parametrize('query,expected', [
+    ('', {'pt', 'pt-BR', 'ru', 'sr-Latn'}),
+    ('  gUÊS  ', {'pt', 'pt-BR'}),
+    ('PORT*BR', {'pt-BR'}),
+    ('РУСС', {'ru'}),
+    ('sr-?atn', {'sr-Latn'}),
+    ('[', set()),
+    ('no such language', set()),
+])
+def test_language_search_matches_partial_native_names_and_ids(query, expected):
+    choices = [('pt', 'Português'), ('pt-BR', 'Português (Brasil)'),
+               ('ru', 'Русский'), ('sr-Latn', 'Srpski (latinica)')]
+    assert {identity for identity, name in choices
+            if language_matches(query, identity, name)} == expected
+
+
+def test_locale_resolution_matches_shell_and_preserves_distinct_variants():
+    import json
+    vectors = [(language, language) for language, _name in SUPPORTED_LANGUAGES]
+    vectors += [
+        ('pt_PT.UTF-8', 'pt'), ('pt_BR.UTF-8', 'pt-BR'), ('pt-AO', 'pt'),
+        ('zh_TW.UTF-8', 'zh-Hant'), ('zh_HK', 'zh-Hant'), ('zh-MO', 'zh-Hant'),
+        ('zh_CN', 'zh-Hans'), ('zh-SG', 'zh-Hans'), ('zh', 'zh-Hans'),
+        ('zh-Hans-TW', 'zh-Hans'), ('zh-Hant-CN', 'zh-Hant'),
+        ('sr_RS.UTF-8@latin', 'sr-Latn'), ('sr@latin', 'sr-Latn'),
+        ('sr-Latn-RS', 'sr-Latn'), ('sr-Cyrl-RS', 'sr'), ('sh', 'sr-Latn'),
+        ('nb_NO', 'nb'), ('nn_NO', 'nn'), ('no_NO', 'nb'),
+        ('iw_IL', 'he'), ('in_ID', 'id'), ('ar_EG', 'ar'), ('nl_NL', 'nl'),
+        ('en_GB', 'en'), ('fr-CA', 'fr'), ('DE_de', 'de'),
+        ('zz-future', 'en'), ('../../fr', 'en'), ('C.UTF-8', 'en'), ('', 'en'),
+    ]
+    for locale_name, expected in vectors:
+        assert supported_language(locale_name) == expected, locale_name
+    script = '''
+import {readFileSync} from 'node:fs';
+import {supportedLanguage} from './child/languages.mjs';
+const languages = JSON.parse(readFileSync('common/oh_no_parent_control_ui/languages.json', 'utf8'));
+const locales = JSON.parse(readFileSync(0, 'utf8'));
+process.stdout.write(JSON.stringify(locales.map(locale => supportedLanguage(locale, languages))));
+'''
+    result = subprocess.run(['node', '--input-type=module', '-e', script], cwd=ROOT,
+                            input=json.dumps([locale for locale, _expected in vectors]),
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == [expected for _locale, expected in vectors]
 
 
 def test_all_shipped_messages_preserve_operands_and_python_shell_plural_parity(production_catalogues):

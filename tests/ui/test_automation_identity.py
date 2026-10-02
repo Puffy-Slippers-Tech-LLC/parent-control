@@ -19,14 +19,19 @@ def test_language_chooser_previews_without_remapping_or_changing_owner(
     script = '''
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gio, GLib, Gtk
+gi.require_version('Gdk', '4.0')
+from gi.repository import Gdk, Gio, GLib, Gtk
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.translation_widgets import context_for, localized
-from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES
+from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES, language_direction
 from common.oh_no_parent_control_ui.localization import load_translations
 from FRONTEND.oh_no_parent_control_FRONTEND.language_dialog import LanguageDialog
 
 Gtk.init()
+provider = Gtk.CssProvider()
+provider.load_from_path('FRONTEND/oh_no_parent_control_FRONTEND/style.css')
+Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider,
+                                        Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 application = Gtk.Application(application_id='com.puffyslippers.LanguageModalTest',
                               flags=Gio.ApplicationFlags.NON_UNIQUE)
 application.register(None)
@@ -79,6 +84,34 @@ def controls(widget):
     return result
 
 original = controls(dialog)
+assert isinstance(original['language-list'], Gtk.ScrolledWindow)
+# Engineering layout check on real GTK allocations, with the production CSS.
+viewport = original['language-list'].get_vadjustment()
+top_ten_height = sum(original['language-choice-' + language.lower()].measure(
+    Gtk.Orientation.VERTICAL, original['language-list'].get_width())[1]
+    for language, _name in SUPPORTED_LANGUAGES[:10])
+assert viewport.get_page_size() >= top_ten_height, (viewport.get_page_size(), top_ten_height)
+assert viewport.get_upper() > viewport.get_page_size(), 'remaining languages cannot scroll'
+search = original['language-search']
+assert isinstance(search, Gtk.SearchEntry)
+size = dialog.get_default_size()
+for query, expected in [
+        ('GLI', {'en'}), ('PORT*BR', {'pt-BR'}), ('РУСС', {'ru'}),
+        ('中文', {'zh-Hans', 'zh-Hant'}), ('SR-?ATN', {'sr-Latn'}),
+        ('no such language', set())]:
+    search.set_text(query)
+    drain()
+    visible = {language for language, _name in SUPPORTED_LANGUAGES
+               if original['language-choice-' + language.lower()].get_visible()}
+    assert visible == expected, (query, visible, expected)
+    assert dialog._selected == 'en'
+    assert dialog.get_default_size() == size, 'typing resized the dialog'
+    assert controls(dialog) == original, 'search rebuilt controls'
+search.set_text('')
+drain()
+assert all(original['language-choice-' + language.lower()].get_visible()
+           for language, _name in SUPPORTED_LANGUAGES)
+assert not saves and not cancellations
 dialog._failure(None)
 for language, native_name in SUPPORTED_LANGUAGES:
     choice = original['language-choice-' + language.lower()]
@@ -89,8 +122,11 @@ for language, native_name in SUPPORTED_LANGUAGES:
     assert 'language-description' not in controls(dialog)
     assert original['language-continue'].get_label() == translations.gettext('Save')
     assert original['language-cancel'].get_label() == translations.gettext('Cancel')
+    assert search.get_placeholder_text() == translations.gettext('Search languages')
     assert original['language-error'].get_label() == translations.gettext('Your language could not be saved. Please try again.')
     assert choice.get_child().get_label() == native_name
+    expected_direction = Gtk.TextDirection.RTL if language_direction(language) == 'rtl' else Gtk.TextDirection.LTR
+    assert choice.get_child().get_direction() == expected_direction
     assert choice.get_active() and dialog._selected == language
     assert controls(dialog) == original, 'translation rebuilt controls'
     assert dialog.get_mapped() and events == ['map'], events

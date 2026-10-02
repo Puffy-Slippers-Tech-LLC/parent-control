@@ -207,10 +207,12 @@ and restore chooser focus if an outside click activates their parent. Outside
 clicks and window-manager close requests do not dismiss them; Save and Cancel
 own dismissal.
 Its default is the primary session message language from `GLib.get_language_names`,
-mapped by base language to the shared
+resolved against the shared
 [catalogue](../../common/oh_no_parent_control_ui/languages.json); unsupported locales
-use English. Regional and script variants collapse to the product's one choice,
-including Portuguese to `pt-BR` and Chinese to `zh-Hans`.
+use English. The [locale resolution policy](Localization.md#language-catalogue-and-resolution)
+owns regional/script choices and aliases, including separate Portuguese and
+Chinese variants. Both lists scroll through the catalogue's hardcoded priority
+order while keeping Save and Cancel outside the list.
 
 Parent fades its window shade in when the language chooser maps and out when it
 unmaps, respecting GTK's animation setting. After a successful save, the chooser
@@ -243,7 +245,8 @@ changes retain the visible form without sensitivity flashes or reconstruction.
 All dialogs reuse `selected_language` in the shared catalogue module for saved
 selection and session fallback. Request controls wait for startup language setup.
 
-Both dialog UIs publish `language-dialog`, `language-choice-<lowercase-id>`
+Both dialog UIs publish `language-dialog`, `language-search`, `language-list`,
+`language-choice-<lowercase-id>`
 and `language-continue` (the Save action), plus `language-cancel` on all surfaces,
 scoped to their owning
 application and window, with the

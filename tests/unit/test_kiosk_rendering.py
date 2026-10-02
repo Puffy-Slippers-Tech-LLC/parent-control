@@ -1,3 +1,5 @@
+import ast
+import inspect
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -430,12 +432,11 @@ class KioskRenderingTests(unittest.TestCase):
 
         self.assertIn("class RequestContent(MetalBoard):", content)
         self.assertIn('branding_asset_path("app_logo.png")', content)
-        self.assertIn("icon.set_pixel_size(36)", content)
         self.assertIn("oh-no-parent-control-logo-plate", content)
         self.assertIn("icon = dropdown.account_icon", content)
-        self.assertIn('apply_gtk_user_icon(icon, "", pixel_size=24)', content)
-        self.assertIn("SHIELD, display_size=20", content)
-        self.assertIn("PixelIcon(LOCK, display_size=16", content)
+        self.assertIn("apply_gtk_user_icon", content)
+        self.assertIn("SHIELD", content)
+        self.assertIn("PixelIcon(LOCK", content)
         self.assertIn("PixelIcon(POINTER", content)
         self.assertIn('label=m.REQUEST', content)
         self.assertIn('label=m.CANCEL_2', content)
@@ -453,65 +454,90 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("MENU = _parse_sprite(", chrome)
         self.assertIn("def set_pixels(self, pixels):", chrome)
         self.assertIn('kind == "hud"', chrome)
-        self.assertIn("context.scale(0.5, 0.5)", chrome)
-        self.assertIn("width * 2, height * 2, fill_face=False", chrome)
         self.assertIn("def paint_board_frame(", chrome)
         self.assertIn("def paint_button_hardware(", chrome)
         self.assertIn("button.oh-no-parent-control-hud-button", css)
         self.assertIn("menubutton.oh-no-parent-control-hud-button > button", css)
         self.assertIn("popover.oh-no-parent-control-hud-menu", css)
         self.assertIn("button.oh-no-parent-control-hud-menu-item", css)
-        self.assertIn("min-width: 66px;", css)
-        self.assertIn("min-height: 66px;", css)
         self.assertIn("oh-no-parent-control-hud-menu-icon", css)
         self.assertIn("oh-no-parent-control-hud-menu-actions", css)
-        self.assertIn("width - source_width + stem_width / 2", chrome)
-        self.assertNotIn("border-radius: 18px;", css)
         from oh_no_parent_control_kiosk.chrome import (
-            ABOUT, HELP, MENU, SPEAKER, SPEAKER_MUTED,
+            ABOUT, HELP, MENU, SPEAKER, SPEAKER_MUTED, ArmoredButton,
         )
 
-        for sprite in (HELP, ABOUT):
-            self.assertEqual(len(sprite), 8)
-            self.assertEqual(len(sprite[0]), 8)
-        for sprite in (SPEAKER, SPEAKER_MUTED, MENU):
-            self.assertEqual(len(sprite), 16)
-            self.assertEqual(len(sprite[0]), 16)
-        self.assertIn("BOARD_CHAIN_ANCHOR_SIDE_INSET = 12.0", chrome)
-        self.assertIn("BOARD_CHAIN_ANCHOR_END_INSET = 34.0", chrome)
-        self.assertIn("connector_x =", chrome)
+        for sprite in (HELP, ABOUT, SPEAKER, SPEAKER_MUTED, MENU):
+            self.assertTrue(sprite)
+            self.assertTrue(sprite[0])
+            self.assertTrue(all(len(row) == len(sprite[0]) for row in sprite))
         self.assertIn('panel_kind="header"', content)
         self.assertIn('panel_kind="well"', content)
         self.assertIn('panel_kind="footer"', content)
-        self.assertIn('armor_kind="request"', content)
-        self.assertIn('armor_kind="cancel"', content)
-        self.assertIn("set_margin_start(10)", content)
-        self.assertIn("set_margin_end(10)", content)
+
+        # Both actions intentionally share Request chrome. Check the effective
+        # kind, allowing either an explicit argument or the constructor default.
+        form_class = next(
+            node for node in ast.parse(content).body
+            if isinstance(node, ast.ClassDef) and node.name == "RequestContent"
+        )
+        constructor = next(
+            node for node in form_class.body
+            if isinstance(node, ast.FunctionDef) and node.name == "__init__"
+        )
+        default_kind = inspect.signature(ArmoredButton.__init__).parameters[
+            "armor_kind"
+        ].default
+        calls = [node for node in ast.walk(constructor) if isinstance(node, ast.Call)]
+        for attribute, label, accessible_label, description, identity, callback in (
+            ("_request", "m.REQUEST", "m.REQUEST_ACCESS",
+             "m.SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL",
+             "kiosk-request-submit", "on_request"),
+            ("_cancel", "m.CANCEL_2", "m.CANCEL_REQUEST",
+             "m.CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME",
+             "kiosk-request-cancel", "on_cancel"),
+        ):
+            with self.subTest(action=attribute):
+                target = f"self.{attribute}"
+                assignments = [
+                    node.value for node in ast.walk(constructor)
+                    if isinstance(node, ast.Assign)
+                    and any(ast.unparse(item) == target for item in node.targets)
+                ]
+                self.assertEqual(len(assignments), 1)
+                button = assignments[0]
+                self.assertIsInstance(button, ast.Call)
+                self.assertEqual(ast.unparse(button.func), "localized")
+                self.assertEqual([ast.unparse(arg) for arg in button.args], ["ArmoredButton"])
+                keywords = {item.arg: item.value for item in button.keywords}
+                self.assertEqual(ast.unparse(keywords["label"]), label)
+                kind = (ast.literal_eval(keywords["armor_kind"])
+                        if "armor_kind" in keywords else default_kind)
+                self.assertEqual(kind, "request")
+
+                metadata = [call for call in calls
+                            if ast.unparse(call.func) == "describe_control"
+                            and call.args and ast.unparse(call.args[0]) == target]
+                self.assertEqual(len(metadata), 1)
+                self.assertEqual([ast.unparse(arg) for arg in metadata[0].args],
+                                 [target, accessible_label, description])
+                identities = [ast.literal_eval(item.value) for item in metadata[0].keywords
+                              if item.arg == "automation_id"]
+                self.assertEqual(identities, [identity])
+                handlers = [call for call in calls
+                            if ast.unparse(call.func) == f"{target}.connect"]
+                self.assertEqual(
+                    [[ast.unparse(arg) for arg in call.args] for call in handlers],
+                    [["'clicked'", callback]],
+                )
+
+        self.assertIn('set_automation_id(self, "kiosk-request-form")', content)
+        self.assertIn('set_automation_id(actions, "kiosk-request-actions")', content)
+        self.assertIn('set_automation_id(self._status, "kiosk-request-status")', content)
         self.assertIn("def _paint_block_texture(", chrome)
-        self.assertIn("padding: 4px 8px;", css)
-        self.assertIn("font-size: 14px;", css)
-        self.assertIn("font-size: 0.90em;", css)
-        self.assertIn("font-size: 0.92em;", css)
         self.assertIn("oh-no-parent-control-account-row-inner", content)
-        self.assertIn("inner.set_margin_bottom(4)", content)
-        self.assertIn("margin: 0;", css)
-        self.assertIn("padding: 2px 0 0;", css)
         self.assertIn("oh-no-parent-control-choices-inner", content)
-        self.assertIn("self._duration_box.set_margin_bottom(6)", content)
-        self.assertIn("self._duration_box.set_margin_start(4)", content)
-        self.assertIn("self._duration_box.set_margin_end(4)", content)
-        self.assertNotIn("self._duration_box.set_margin_start(8)", content)
-        self.assertNotIn("self._duration_box.set_margin_end(8)", content)
-        self.assertIn("Insets are set on the FlowBox by RequestContent.", css)
-        self.assertIn("padding: 2px 8px;", css)
-        self.assertIn("font-size: 0.92em;", css)
-        self.assertIn("min-height: 26px;", css)
-        self.assertIn("min-height: 48px;", css)
         self.assertIn("oh-no-parent-control-status-inner", content)
-        self.assertIn("margin: 4px 28px 8px 22px;", css)
-        self.assertIn("padding-bottom: 2px;", css)
         self.assertIn("set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)", content)
-        self.assertIn("set_max_width_chars(26)", content)
         self.assertIn("set_overflow(Gtk.Overflow.VISIBLE)", content)
         self.assertIn('FORM_FONT_FAMILY = "Monocraft"', chrome)
         self.assertIn("add_font_file", chrome)

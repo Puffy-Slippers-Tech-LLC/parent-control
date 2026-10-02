@@ -106,8 +106,10 @@ def test_ignored_checkout_bytecode_invalidates_cleanup(tmp_path, monkeypatch, re
 
 
 def test_runtime_tracks_import_bytes_inventory_and_search_order(tmp_path, monkeypatch):
-    # Load the launcher before replacing import roots with the private fixture.
-    import test_launcher
+    # Resolve the launcher's lazy imports before restricting import roots to
+    # the dependency fixture. Keep the real environment capture in the check.
+    from test_launcher import environment
+    environment(tmp_path / 'checkout', scratch=False)
     first, second = tmp_path / 'first', tmp_path / 'second'
     first.mkdir()
     second.mkdir()
@@ -134,6 +136,10 @@ def test_runtime_tracks_import_bytes_inventory_and_search_order(tmp_path, monkey
 
 
 def test_overlapping_runtime_roots_hash_dependency_once(tmp_path, monkeypatch):
+    # Resolve the launcher's lazy imports before restricting import roots to
+    # the dependency fixture. Keep the real environment capture in the check.
+    from test_launcher import environment
+    environment(tmp_path / 'checkout', scratch=False)
     directory = tmp_path / 'lib'
     directory.mkdir()
     module = directory / 'dependency.py'

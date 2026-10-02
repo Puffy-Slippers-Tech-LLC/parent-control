@@ -195,8 +195,10 @@ is not a compositor barrier preventing all desktop use before reconciliation.
 Broker startup reconciles live AccountsService filters, reasserts enabled
 extensions, and attempts existing graphical-session runtime-cap cleanup before
 registering its D-Bus object. It does not replay every saved preference into
-AccountsService. Separately, display-manager startup requires fapolicyd's boot
-canary readiness. GDM does not have a broker-readiness dependency.
+AccountsService. Separately, Ubuntu display-manager startup requires fapolicyd's
+boot canary and exact child-module trust readiness. The broker launcher also
+checks exact trust and honors the boot-scoped upgrade activation guard.
+GDM does not have a broker-readiness dependency.
 
 An isolated executable or wildcard-directory rendering failure omits only the
 affected rule/group, retaining other app limits and saved patterns for retries.

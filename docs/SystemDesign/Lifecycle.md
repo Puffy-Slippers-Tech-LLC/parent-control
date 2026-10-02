@@ -60,7 +60,8 @@ readiness. Broker code activates with `process-restart`; this additive method
 adds no saved-data migration or GDM dependency.
 
 On Ubuntu, the packaged fapolicyd drop-in keeps the daemon in systemd's `activating` state
-until a root-owned canary execution is denied by the live kernel policy. The
+until a root-owned canary execution is denied by the live kernel policy and
+the exact packaged child-module trust records are present in its live database. The
 display manager requires completed fapolicyd startup, so a managed graphical
 login cannot begin while the daemon rebuilds its trust database. Readiness
 failure therefore fails closed before the login manager starts.
@@ -88,16 +89,33 @@ For that exact default, configuration enables the `file` backend, preserving
 the complete original configuration in an owned rollback directory. It refuses
 to activate pre-existing inactive administrator trust records. Already
 file-enabled configurations, including Fedora's default, are unchanged.
-If this changes a running daemon's backend, configuration fails closed with a
-reboot-and-retry instruction; restarting its display-manager prerequisite could
-log out unrelated desktops. Clean installation starts the daemon with the new
-backend. Removal restores the original configuration only when the owned
+If this changes a running daemon's backend, configuration completes successfully
+and records the normal Ubuntu reboot request. Restarting its display-manager
+prerequisite could log out unrelated desktops, so a root-owned mode-`0600`
+`/run/oh-no-parent-control-child-trust-reboot` guard prevents both systemd and
+direct launcher broker activation for that boot. Migration completes and its
+separate exclusion is released; reboot automatically expires the runtime guard
+and starts fapolicyd with the new backend and exact trust readiness gate. No
+manual package-configuration retry is required. An activation receipt alongside
+the backend rollback records retains the originating boot ID until live trust
+is confirmed or a new boot loads the configuration. Same-boot reconfiguration
+therefore cannot mistake the edited file for a loaded backend. Legacy ownership
+records without a receipt, including earlier failed installs, conservatively
+take this activation path once. Clean installation with a stopped daemon starts
+it with the new backend and acknowledges live trust in the same configuration.
+The broker launcher also verifies exact live trust before importing product
+code, covering direct execution and systemd's nonfatal `Wants` dependency. Its
+180-second service startup budget accommodates the 120-second trust deadline
+and subsequent broker construction. Rollback files, activation receipts and
+their containing directories are flushed before replacing the live backend
+configuration; the configuration directory is flushed after replacement too.
+Removal restores the original configuration only when the owned
 replacement is unchanged. Local edits are preserved and block automatic cleanup.
 Because the update request is asynchronous, configuration waits up to 120 seconds
 for both exact packaged path/size/hash records in the live trust database before
 activating the broker. Timeout preserves pending activation for configuration retry.
-The existing startup-exclusion marker remains present through this wait and
-earlier provisioning, including configuration retries without `preinst`.
+The existing startup-exclusion marker remains present through a same-boot trust
+wait and earlier provisioning, including configuration retries without `preinst`.
 D-Bus activation cannot bypass the trust gate; an existing broker is stopped
 and verified inactive before configuration proceeds.
 This database check does not establish a fresh Shell import or usable child UI.
@@ -107,7 +125,8 @@ The filter, language rules and enforcement mode stay unchanged. Trust generation
 never hashes mutable installed files or trusts a whole extension directory.
 Modified/substituted owned trust files block configuration/removal, and removal
 deletes only the package's records and refreshes the surviving daemon.
-The lifecycle change activates during configuration (`none`); a Shell that already
+The lifecycle decision activates during configuration (`none`); the added boot
+trust gate changes the fapolicyd startup drop-in (`reboot`). A Shell that already
 cached a failed import needs a new child session to retry it. Package configuration
 does not force logout.
 

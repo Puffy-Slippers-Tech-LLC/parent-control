@@ -53,6 +53,8 @@ prepare_package_notice() { :; }
 # @trust_label@
     restorecon -R /etc/fapolicyd/trust.d
 
+# @trust_complete@
+
 # @pam_enable@
     /usr/libexec/oh-no-parent-control-fedora-pam install
 

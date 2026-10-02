@@ -182,9 +182,15 @@ def test_ubuntu_retains_fapolicyd_execstartpost_readiness(production_payload):
         assert (system / relative).read_bytes() == (ROOT / 'data/systemd' / relative).read_bytes()
     assert not (system / 'oh-no-parent-control-execution-policy-ready.service').exists()
     assert not (production_payload / 'usr/share/oh-no-parent-control/00-oh-no-parent-control-canary.rules').exists()
-    daemon = configparser.ConfigParser(interpolation=None)
-    daemon.read(system / 'fapolicyd.service.d/oh-no-parent-control-readiness.conf')
-    assert daemon['Service']['ExecStartPost'] == '/usr/libexec/oh-no-parent-control-execution-policy-ready'
+    daemon = (system / 'fapolicyd.service.d/oh-no-parent-control-readiness.conf').read_text()
+    # systemd executes repeated ExecStartPost entries in order; ConfigParser
+    # rejects them in strict mode and otherwise keeps only the last command.
+    checks = [line.partition('=')[2] for line in daemon.splitlines()
+              if line.startswith('ExecStartPost=')]
+    assert checks == [
+        '/usr/libexec/oh-no-parent-control-execution-policy-ready',
+        '/usr/libexec/oh-no-parent-control-package-activation wait-child-trust',
+    ]
     display = configparser.ConfigParser(interpolation=None)
     display.read(system / 'display-manager.service.d/oh-no-parent-control.conf')
     assert display['Unit']['Requires'] == 'fapolicyd.service'

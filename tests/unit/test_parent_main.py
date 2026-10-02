@@ -116,13 +116,21 @@ class ParentWindowTests(unittest.TestCase):
                                              ("xx-future", False, False), ("fr", True, True)):
             with self.subTest(language=language, requested=requested):
                 window = SimpleNamespace(_closed=False, _language_requested=requested,
-                    _language_readiness=object(), _show_preferences=mock.Mock())
+                    _language_readiness=object(), _open_language_dialog=mock.Mock(),
+                    _apply_language=mock.Mock(return_value=True),
+                    _finish_startup=mock.Mock(), _language_shade=mock.Mock())
                 with mock.patch("parent.oh_no_parent_control_parent.main.set_automation_id") as identify:
                     ParentWindow._language_loaded(window, language)
                 self.assertEqual(window._own_language, language)
                 self.assertFalse(window._language_loading)
-                self.assertEqual(window._show_preferences.called, prompt)
+                window._apply_language.assert_called_once_with(language)
+                self.assertEqual(window._open_language_dialog.called, prompt)
+                self.assertEqual(window._finish_startup.called, not prompt)
                 self.assertEqual(identify.called, not prompt)
+                if not prompt:
+                    window._language_shade.set_reveal_child.assert_called_once_with(False)
+                    identify.assert_called_once_with(
+                        window._language_readiness, "parent-language-ready")
 
     def custom_save_window(self):
         class Window:
@@ -1063,6 +1071,7 @@ class ParentWindowTests(unittest.TestCase):
 
     def _assert_updated_launcher_policy(self, duplicate_default):
         from types import SimpleNamespace
+        from tests.support.objects import plain_accessible_text
 
         match_images = {match['id']: mock.Mock() for match in MATCH_RULES}
 
@@ -1100,12 +1109,19 @@ class ParentWindowTests(unittest.TestCase):
         window._loading = False
         window._daily_limit_minutes = lambda: 30
 
-        with mock.patch('parent.oh_no_parent_control_parent.main.set_automation_id') as set_automation_id:
+        with mock.patch('parent.oh_no_parent_control_parent.main.set_automation_id') as set_automation_id, \
+                mock.patch('common.oh_no_parent_control_ui.accessibility.accessible_text',
+                           plain_accessible_text):
             ParentWindow._apply_app_policies(window)
 
         row.policy_buttons['conditional'].set_active.assert_called_once_with(True)
         row.match_rule_button.set_tooltip_text.assert_called_once_with('Pattern Match')
         row.match_rule_button.set_child.assert_called_once_with(match_images['pattern'])
+        from gi.repository import Gtk
+        row.match_rule_button.update_property.assert_called_once_with(
+            [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+            ['Lunar Client match rule', 'Current match rule: /apps/Lunar Client-*.AppImage'],
+        )
         set_automation_id.assert_called_once_with(
             match_images['pattern'], 'parent-app-05aaf42b0b4804d4-match-pattern',
         )

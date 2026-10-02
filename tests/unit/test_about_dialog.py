@@ -17,7 +17,10 @@ class AboutDialogTests(unittest.TestCase):
         source = (ROOT / "common/oh_no_parent_control_ui/about.py").read_text(
             encoding="utf-8")
 
-        self.assertIn('_detail_row(None, "Website"', source)
+        self.assertIn('_detail_row(None, m.WEBSITE', source)
+        messages = (ROOT / "common/oh_no_parent_control_ui/messages.py").read_text(
+            encoding="utf-8")
+        self.assertIn("WEBSITE = gettext('Website')", messages)
         self.assertIn('icon_filename="company_icon_32.png"', source)
 
         with (ROOT / "data/company_icon_32.png").open("rb") as logo:

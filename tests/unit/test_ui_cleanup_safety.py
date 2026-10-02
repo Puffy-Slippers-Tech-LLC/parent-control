@@ -288,6 +288,11 @@ def test_timeout():
         if not status:
             return None
         (tmp_path / 'last-test.log').write_text(output.getvalue())
+        if status == 130:
+            # retained_main temporarily owns pytest's signal handlers. Forward
+            # an outer cancellation after owned cleanup, rather than asking
+            # for a timeout-failure handoff that an interrupted run cannot have.
+            raise KeyboardInterrupt('synthetic UI run interrupted')
         value = fix_tests.handoff(tmp_path)
         assert value['categories'] == ['ui']
         assert 'test infrastructure failed' in (reports[-1] / 'report.md').read_text()
@@ -308,6 +313,21 @@ def test_timeout():
                        round_changed=rounds.append)
     assert len(attempts) == 4 and len(repairs) == 1
     assert rounds == [1, 2, 3]
+    preserved.assert_called_once()
+
+    # Reproduce the outer stop arriving while the nested controller owns the
+    # signal handler. Cancellation must reach pytest without starting repair.
+    def interrupted(run):
+        run.control.interrupt()
+        execute(run)
+
+    cancelled_handoff = Mock(wraps=fix_tests.handoff)
+    monkeypatch.setattr(regression.Run, 'run', interrupted)
+    monkeypatch.setattr(fix_tests, 'handoff', cancelled_handoff)
+    with pytest.raises(KeyboardInterrupt, match='synthetic UI run interrupted'):
+        test('ui')
+    cancelled_handoff.assert_not_called()
+    assert len(repairs) == 1
     preserved.assert_called_once()
 
 

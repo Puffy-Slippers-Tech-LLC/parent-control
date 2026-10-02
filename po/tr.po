@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Full message catalog translated against the current POT.
 # Plural metadata reference: https://l10n.gnome.org/teams/tr/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: Translation team\n"
 "Language-Team: Türkçe\n"
 "Language: tr\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1543 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Kalan günlük süre hakkı: <b>%(daily)s</b>\nKalan tek seferlik izin: <b>%(grant)s</b>\n<b>Kalan süre: %(remaining)s</b> — iki miktarın büyük olanı."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Her zaman izinli"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Tamamen engellenmiş"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Engellenmiş, geçici izin verilebilir"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Desen eşleştirmesi"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Sürüm içeren dosya adlarını joker karakter kullanarak eşleştirir."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Tam yürütme yolu"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Yalnızca bu tam yürütülebilir dosya yolunu eşleştirir."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Bazı uygulama sınırları uygulanamadı. Etkilenen uygulamalar veya güncellenmiş sürümler sınırsız olabilir. Diğer denetimler kullanılabilir durumda ve kaydedilen kurallar otomatik olarak yeniden denenecek."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Seçilen çocuk: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Hiçbir çocuk hesabı seçilmedi."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Seçilen çocuk"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Ebeveyn uygulaması menüsü"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Tercihleri, yardımı ve ürün bilgilerini açın."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Geri bildirim"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Uygulama hakkında geri bildirim gönderin."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Ekran süresi ve uygulama ilkesi görüntülenecek çocuğu seçin."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Tek seferlik erişimi iptal et"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Onaydan sonra seçilen çocuğun etkin tek seferlik iznini kaldırın."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Ekran Sınırları"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Ekran süresi sınırı"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Seçilen çocuk için günlük ekran süresi denetimini etkinleştirin veya devre dışı bırakın."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Günlük süre hakkı"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Seçilen çocuğun günlük ekran süresi hakkını seçin."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Özel günlük süre hakkı"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Sıfır ile 1439 arasında tam sayı olarak dakika girin."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Bugün kalan süre"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Günlük ve tek seferlik kalan süre hesaplamasını genişletin veya daraltın."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Uygulama Sınırları"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Yüklü uygulamaları ara"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Dil ara"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Seçilen çocuğun kullanabileceği uygulamaları süzün."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Uygulama Adı &amp; Ayrıntı"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Kalan süre hesaplamasını gizle"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Kalan süre hesaplamasının ayrıntılarını daraltın."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "%(label)s süz"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "İlke açıklamaları"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Uygulama erişimi ve eşleştirme kuralı açıklamalarını genişletin veya daraltın."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "%(app_name)s eşleştirme kuralı"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Bu uygulamanın kaydedilmiş kuralının tam bir yolu mu yoksa sürüm içeren dosya adı desenini mi eşleştireceğini seçin."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "Ebeveyn uygulaması yüklenemedi. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "%(child_name)s için verilen tek seferlik ekran süresi ve uygulama erişimi izinlerini iptal eder."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Yükleniyor…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "Yüklü uygulamalar yüklenemedi. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Kullanılamıyor"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "Kalan süre yüklenemedi. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nEtkilenen uygulamalar: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Uygulama sınırı durumu kullanılamıyor. Otomatik olarak yeniden deneniyor."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "İptal"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "İzni iptal et"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Tek seferlik izin iptal edildi"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Özel miktar…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Özel miktar"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Dakika olarak özel günlük süre hakkı girin."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "0 ile 1439 arasında bir tam sayı girin."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "%(row_app_name)s eşleştirme kuralı"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Geçerli eşleştirme kuralı: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Varsayılana Sıfırla"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Kaydet"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Uygulama eşleştirme kuralı"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Tam yürütme yolu veya sürüm içeren dosya adı deseni girin."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "%(setting)s kaydedilemedi. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Çocuk hesabı: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "%(label)s için ekran süresini ve uygulama ilkesini yönetin."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "%(app_name)s logosu"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Tercihler"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Yardım"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "Hakkında"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Menü"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Çocuk hesabı"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Tek seferlik ekran süresi ve uygulama erişimi izinlerini iptal eder."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Yönetici olmayan etkileşimli bir hesap bulunamadı."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "%(label)s sayfasını gösterin."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Ekran Süresi Sınırı"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Ekran süresi sınırını aç / kapat"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Günlük Süre Hakkı"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Bugün Kalan Süre"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Bugün için kalan süre"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Eşleştirme Kuralı"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Erişim Kuralı"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Hesaplamayı gizle"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "%(label)s ile süz"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Erişim ve eşleştirme kuralları için kısa başvuru"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Açıklamaları göster"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Uygulama Erişimi (Ne olur)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Eşleştirme Kuralı (Uygulamalar nasıl eşleştirilir)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Erişim ve eşleştirme kurallarını anlama"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Açıklamaları gizle"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "Dil tercihiniz yüklenemedi. Yeniden denemek için Tercihler'i açın."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Eşleştirme kuralını düzenle"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "%(app_name)s erişim kuralı: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Seçilen çocuğun %(app_name)s erişim kuralını %(state_label)s olarak ayarlayın."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Uygulama sınırı durumu denetlenemedi. Diğer denetimler kullanılabilir durumda."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Tek seferlik izin iptal edilsin mi?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Bu işlem, %(child_name)s için verilen tek seferlik ekran süresini ve geçici izin verilebilen engellenmiş uygulamalara erişimi iptal eder, çocuğun çalışan engellenmiş uygulamalarını kapatır ve süre kalmadığında masaüstünü kilitler. Çocuğun kalan günlük süre hakkı etkilenmez."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Geçerli tek seferlik izni koruyun."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Seçilen çocuğun tek seferlik iznini iptal edin."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Seçilen çocuğun günlük süre hakkını %(daily_limit_label_minutes)s olarak ayarlayın."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Özel değer"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Eşleştirme Kuralını Düzenle"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Kapat"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Yönetici gereksinimi bildirimini kapatın."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Yok)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Tek seferlik izni iptal et"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "İptal et"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "dakika"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Yüklü uygulamalar"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Masaüstü, AppImage, Flatpak, Snap ve sistem başlatıcıları"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Simge"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Yüklü uygulamalar yükleniyor…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Nasıl hesaplanır"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Açıklamalar"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "Uygulama her zaman kullanılabilir"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "Uygulama tamamen engellenmiştir ve yalnızca yöneticiler izin verebilir"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "Uygulama engellenmiştir; süre sınırı etkinse çocuğun isteği üzerine tek seferlik uzatma verilebilir"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Desene göre eşleştirir\n değişen sürüm numaraları içeren yürütme yollarını kapsamak için (ör. Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Uygulamanın tam yolunu eşleştirir\n(ör. /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Çocuk hesapları yenilenemedi. Otomatik olarak yeniden deneniyor."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Yönetici olmayan etkileşimli kullanıcı bulunamadı"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Geçersiz günlük süre hakkı. 0 ile 1439 arasında bir tam sayı girin."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Tam yürütme yolu kullanın veya sürüm içeren dosya adı deseni için * ekleyin."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Yönetici erişimi gerekli"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Yönetici Gerekli"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Ebeveyn denetimlerini yalnızca bir yönetici yönetebilir.\nEbeveyn uygulamasını açmak için yönetici hesabıyla oturum açın."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Ebeveyn denetimlerini yalnızca bir yönetici yönetebilir. Ebeveyn uygulamasını açmak için yönetici hesabıyla oturum açın."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "başka bir uygulama"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "Bir eşleştirme kuralı gerekli"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Tam eşleştirme bu uygulamanın yürütme yolu olmalıdır"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Devam et"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Dil tercihinizi kaydedin."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Diliniz kaydedilemedi. Lütfen yeniden deneyin."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Dil"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Dilinizi seçin"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Tercihlerden değiştirebilirsiniz"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "%(name)s seçin."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Süre verildi"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Süre verildi, Kapat"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Onaylanırsa tahmini kalan süre: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Kapatmadan veya oturum açmaya dönmeden önce hata raporunu inceleyin."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "TERCİHLER"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Dilinizi seçin."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "HAKKINDA"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Ürün adını, sürümünü ve yasal bilgileri gösterin."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "İstek ekranının sesini kapat"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Şimşeği ve gök gürültüsü sesini açın veya kapatın."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "İstek ekranı menüsü"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Bu istek ekranı için tercihleri, yardımı ve ürün bilgilerini açın."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Oturum Açmaya Dön"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Sonuç ekranını kapatın veya oturum açma ekranına dönün."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Bu hatayı bildir"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Süre tahmini hesaplanıyor…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "YARDIM"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Ürünün web sitesini tarayıcıda açın."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Sesi ve şimşeği kapat"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Sesi ve şimşeği aç"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "İstek ekranının sesini aç"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Onaylanırsa gece yarısına kadar erişim."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Süre tahmini kullanılamıyor"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "Tahmini kalan süre yüklenemedi."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Ayarlar kaydedilemedi"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "İstek seçimleriniz kaydedilemedi. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Ses tercihiniz kaydedilemedi. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "İstek tercihleriniz kaydedilemedi. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "İstek onaylandı"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "İstek reddedildi"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Çocuk"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Onaylayan ebeveyn"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Onaylayan"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Dakika olarak özel süre"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "0.1 ile 1440 dakika arasında istenen süreyi girin."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Geçici izin verilebilen engellenmiş uygulamalara izin ver"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Bu isteğin geçici izin verilebilen engellenmiş uygulamalara geçici erişim sağlayıp sağlamayacağını seçin."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Erişim iste"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Seçilen süreyi ve uygulama erişimi seçimini onaya gönderin."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "İsteği iptal et"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Ek süre istemeden bu istek ekranını kapatın."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Hesaplar yükleniyor…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "İstek ayrıntıları yükleniyor…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "İSTEK"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Ebeveyn uygulamasında ekran sınırı etkin değil"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "İPTAL"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "%(label)s iste"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "%(label)s seçeneğini istenen ek ekran süresi olarak seçin."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Kullanılabilir yerel standart hesap yok. Bir hesap oluşturup bu ekranı yeniden açın."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Kullanılabilir yerel etkileşimli yönetici hesabı yok."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Onay bekleniyor…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "İstek kullanılamıyor"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "İstek tamamlanamadı. Lütfen oturum açmaya dönün ve daha sonra yeniden deneyin."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "İstek tamamlanamadı. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Sürüm %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Web sitesi"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Gizlilik"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Gizlilik ilkesi"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Destek"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Lisans"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Yasal bildirimler"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Malcontent bütünleştirmesi ve paketlenmiş yazı tipleri bildirimleri"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Ayrı olarak yüklenen Malcontent ebeveyn denetimleri hizmetini genel sistem API'leri aracılığıyla kullanır. Malcontent yazarları veya GNOME ile bağlantılı değildir ve onlar tarafından onaylanmamıştır."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Ailelerin sağlıklı dijital alışkanlıklar geliştirmesine yardımcı oluyoruz."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Bu iletişim kutusunu kapatabilirsiniz; uygulama açık olduğu sürece yeniden denemeler devam eder."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Geri bildiriminiz başarıyla gönderildi. Uygulamayı iyileştirmemize yardımcı olduğunuz için teşekkür ederiz."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "Yanıt e-postası (isteğe bağlı)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Yanıt almak isterseniz e-posta adresinizi ekleyin."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Dosya ekle"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Geri bildiriminize en fazla 5 dosya ekleyin."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Tanılama toplamayı yeniden dene"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Tanılama ekini yeniden toplamayı deneyin."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "İndir"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Okunabilir bir tanılama raporu ve doğrulanmış teknik olaylar içeren ZIP kaydedin."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Geri bildirim ve eklerle ilgili gizlilik bilgilerini gösterin."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Günlükler olmadan gönder"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Geri bildirimi tanılama eki olmadan gönderin."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Taslağı bu uygulamada koruyarak geri bildirim formunu kapatın."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Geri Bildirim Gönder"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Geri bildirimi ve seçilen ekleri gönderin."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nTanılama günlükleri hesap adlarını, e-posta adreslerini, dosya içeriklerini, ham sistem günlüklerini veya istisna iletilerini toplamaz. Otomatik tanılama, doğrulanmış teknik olayları, sistem sağlığı denetimlerini ve sistem bilgilerini içerir: işletim sistemi ve bağımlılık sürümleri, saat dilimi, oturum türü ve toplam hesap sayıları. Adlar ve özel sürüm metinleri çıkarılır veya geri alınamaz şekilde değiştirilir; kimliklere asla kriptografik özet (hash) işlemi uygulanmaz. Kendi geri bildiriminiz, yanıt e-postanız ve seçilen dosyalar ayrıdır ve kişisel bilgiler içerebilir. Göndermeden önce bunları inceleyin."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Tam gizlilik bildirimini görüntüle"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Oh No! Parent Control gizlilik bildirimini tarayıcınızda açın."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Göndermeyi durdur ve kapat"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Göndermeyi durdurup bu raporu kapatabilirsiniz."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Geri bildirim gönderildi."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Bu gönderim artık yeniden deneme süresi içinde yeniden denenemez. Önceki deneme başarılı olmuş olabilir. Yeniden göndermek bir kopya gönderebilir."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "Ekler çok büyük. Dosyaları veya günlükleri kaldırıp yeniden deneyin."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Günlükler hazırlanamadı. Bu geri bildirimi ek olmadan gönderebilirsiniz."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "Geri bildirim kabul edilmedi. Taslağınız korunuyor. Yeniden göndermeden önce geri bildiriminizi ve yanıt adresinizi denetleyin."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Gönderim durduruldu. Taslağınız korunuyor. Önceki deneme başarılı olmuş olabilir."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "Gönderme henüz kullanılabilir değil. Taslağınız korunuyor."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nEk sorularımız olursa verdiğiniz e-posta adresinden sizinle iletişime geçebiliriz."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Doğrulanmış teknik olaylar ve sistem sağlığı denetimleri içeren bir tanılama raporu ekleyin. Kişisel bilgiler bu rapora dahil edilmez."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Ekler okunuyor…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Ekler (isteğe bağlı)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Tanılama bilgileri toplanıyor..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "Son 3 günlük tarihi · ZIP arşivi"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Günlükleri kaldır"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Toplamayı yeniden dene"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Göndermeden önce incelemek için sıkıştırılmış günlükleri kaydedin"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Geri bildirim gizliliği"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Geri bildirim gizlilik bilgilerini kapatın."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Bekleyen raporu durdurup kapatın."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Yeniden gönder (yinelenebilir)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Önceki sonuç belirsizken korunan geri bildirimi yeniden gönderin."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Geri bildiriminiz için teşekkür ederiz!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Geri bildirim onayını kapatın."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Tanılama kullanılamıyor"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Toplamayı yeniden deneyin veya tanılama olmadan gönderin."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Günlük ekle"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Kaldır"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Geri bildirim ekleri ekle"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "En fazla %(transport_MAX_ATTACHMENT_COUNT)s dosya ekleyin."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Önizleme kullanılamıyor"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Dosya eki"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "%(attachment_name)s kaldır"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Bu dosyayı geri bildirimden kaldırın."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Günlükler incelemeye hazır"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Tanılama günlüklerini indir"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "İndirildi · İncelemeye hazır"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "İyileştirmemize yardım edin"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Varsayılan olarak anonim"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Yanıt almak isterseniz e-postanızı ekleyin. Aksi takdirde geri bildiriminiz anonimdir."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Günlük eklenmedi"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "Son 3 günlük tarihi · Sistem bilgileri · ZIP arşivi"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Geri bildiriminiz günlükler olmadan gönderilebilir."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Eki kaldır"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Günlükler kaydedilemedi. Başka bir konum deneyin."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Göndermeden önce aşağıdaki hata ayrıntılarını inceleyin."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Bir sorun, öneri veya fikir paylaşın."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Ekler seçilemedi. Yeniden deneyin."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Bir veya daha fazla ek okunamadı. Farklı dosyalar deneyin."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "İndirme konumu seçilemedi. Yeniden deneyin."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Bir şeyler ters gitti"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "İşlem tamamlanamadı. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Hata raporu kullanılamıyor"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "Geri bildirim iletişim kutusu açılamadı. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Hata raporu bildirimini kapatın."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "Geri bildirimler, yanıt e-posta adresleri, ekler ve tanılama günlükleri desteğe e-postayla gönderilir. Saklama süresi, destek posta kutumuza ve yedekleme ilkeleri de dahil olmak üzere hizmet sağlayıcılarımıza bağlıdır. Şu anda sabit bir süre içinde silinmeyi garanti etmiyoruz."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "En fazla 200 karakterlik tek satırlık bir geri bildirim başlığı girin."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Lütfen geri bildiriminizi girin."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Geri bildiriminiz desteklenmeyen gizli bir karakter içeriyor. Lütfen yeniden yazıp deneyin."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "Geri bildirim en fazla 5.000 UTF-16 karakter olmalıdır (bazı emojiler iki sayılır)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "Biçimlendirilmiş geri bildirim çok karmaşık. Biçimlendirmenin bir kısmını kaldırıp yeniden deneyin."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Yalnızca yanıt e-posta adresini girin veya boş bırakın."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "Uygulama sürümü geçersiz. Lütfen uygulamayı güncelleyin."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "En fazla %(MAX_ATTACHMENT_COUNT)s dosya ekleyin."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Bir veya daha fazla ek geçersiz."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Her ek 5 MB veya daha küçük olmalıdır."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Eklerin ve tanılama günlüklerinin toplamı 8 MB veya daha az olmalıdır."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)dsa"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)ddk"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)dsn"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Günün geri kalanı"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Yönetilecek hesabı seçin"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Onaylayan yöneticiyi seçin"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Bir süre seçin"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "%(minimum)s ile %(maximum)s dakika arasında bir sayı girin."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Günlük süre hakkı: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Seçilen günlük süre hakkı: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Geri bildirim hazırlanıyor… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Geri bildirim gönderiliyor… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Garanti yoktur."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Ürün bilgilerini açın: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Geçerli dosya adı olan bir ek seçin."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Daha kısa, geçerli dosya adı olan bir ek seçin."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Geri bildiriminiz"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Geri bildirim yazın ve biçimlendirin. Başlıklar, kalın, italik, altı çizili, listeler, alıntılar, kod, bağlantılar, ekler ve biçimlendirmeyi kaldırmak için araç çubuğunu kullanın."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Fikrinizi veya ne olduğunu ve ne beklediğinizi açıklayın..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Metin biçemi"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Normal metin"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Başlık 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Başlık 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Kalın"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "İtalik"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Altı çizili"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Üstü çizili"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Numaralı liste"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Madde işaretli liste"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Alıntı"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Kod bloğu"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Bağlantı ekle"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Ek ekle"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Biçimlendirmeyi kaldır"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Geri bildirim biçimlendirmesi"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Bağlantı hedefi"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Bağlantı düzenleyicisi"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Bağlantı önizlemesini aç"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Bağlantıyı kaydet"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Bağlantıyı kaldır"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "numaralı liste öğesi"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "madde işaretli liste öğesi"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Bir dakikalık geri sayım animasyonu"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Son dakikadaki görsel geri sayım animasyonunu etkinleştirin veya devre dışı bırakın."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Kalan süreyi okuyun veya daha fazla süre isteme formunu açın. Geri sayım animasyonu ayarları için bağlam menüsünü açın."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Kalan süre: %(time)s\n• Bu oturum için daha fazla süre istemek üzere tıklayın.\n• Daha fazla seçenek için sağ tıklayın."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Süre iste, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Daha fazla hesap seçeneği göster"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Önceki veya sonraki hesap seçeneklerini gösterin."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Bir hesap seçin."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Seçilen hesap: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Uygulama listesinde hangi kuralların gösterileceğini seçin."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Bu kurala sahip uygulamaları gösterin."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "İstek ekranı kaydırması"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "İçeriği taştığında istek ekranını kaydırın."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d dakika"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g saat"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d saniye"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d dosya eki hazır."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d bayt"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Gönderim doğrulanamadı. %(count)d saniye sonra yeniden denenecek…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Tek seferlik izin kaydedilemedi. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Ekran süresi ayarları kaydedilemedi. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Uygulama erişimi kaydedilemedi. Lütfen daha sonra yeniden deneyin."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Bağlantıyı düzenle"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Hata kategorileri: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "%(name)s için"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g saat"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g saat"

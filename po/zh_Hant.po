@@ -1,5 +1,5 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Traditional Chinese presentation catalogue for Oh No! Parent Control.
+# Traditional script and terminology reviewed against the shared source.
 # Plural metadata reference: https://l10n.gnome.org/teams/zh_TW/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: Codex\n"
 "Language-Team: 中文（繁體）\n"
 "Language: zh_Hant\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +16,1543 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "每日可用時間剩餘：<b>%(daily)s</b>\n臨時授權時間剩餘：<b>%(grant)s</b>\n<b>剩餘可用時間：%(remaining)s</b>，取兩者中的較大值。"
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "一律允許"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "完全封鎖"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "可暫時解除封鎖"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "模式比對"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "使用萬用字元比對帶版本號的檔案名稱。"
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "精確可執行檔案路徑"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "僅比對此可執行檔案的精確路徑。"
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "部分應用程式限制無法生效。相關應用程式或其更新版本可能不受限制。其他控制功能仍可使用，系統會自動重試已儲存的規則。"
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "已選擇的孩子：%(label)s。"
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "尚未選擇孩子的帳戶。"
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "已選擇的孩子"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "家長端選單"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "打開偏好設定、幫助和產品資訊。"
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "意見回饋"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "發送關於應用程式的意見回饋。"
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "選擇要查看螢幕時間和應用程式規則的孩子。"
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "撤銷臨時存取權限"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "確認後撤銷所選孩子當前的臨時授權。"
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "螢幕時間限制"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "限制螢幕時間"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "開啟或關閉所選孩子的每日螢幕時間限制。"
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "每日可用時間"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "選擇所選孩子每天可使用的螢幕時間。"
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "自訂每日可用時間"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "請輸入 0 到 1439 之間的整數分鐘數。"
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "今日剩餘時間"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "展開或收起每日剩餘時間和臨時授權剩餘時間的計算說明。"
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "應用程式限制"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "搜尋已安裝的應用程式"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "搜尋語言"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "篩選所選孩子可用的應用程式。"
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "應用程式名稱 &amp; 詳細資訊"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "隱藏剩餘時間計算說明"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "收起剩餘時間的計算詳情。"
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "篩選：%(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "規則說明"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "展開或收起應用程式存取規則和比對規則的說明。"
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "%(app_name)s 的比對規則"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "選擇此應用程式的規則是比對精確路徑，還是比對帶版本號的檔案名稱模式。"
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "家長端無法載入，請稍後重試。"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "撤銷授予 %(child_name)s 的臨時螢幕時間和應用程式存取權限。"
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "正在載入…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "無法載入已安裝的應用程式，請稍後重試。"
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "暫不可用"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "無法載入剩餘時間，請稍後重試。"
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\n受影響的應用程式：%(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "無法獲取應用程式限制狀態，系統會自動重試。"
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "取消"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "撤銷授權"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "已撤銷臨時授權"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "自訂時間長度…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "自訂時間長度"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "以分鐘為單位輸入自訂的每日可用時間。"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "請輸入 0 到 1439 之間的整數。"
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "%(row_app_name)s 的比對規則"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "當前比對規則：%(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "恢復預設設定"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "儲存"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "應用程式比對規則"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "請輸入精確的可執行檔案路徑，或帶版本號的檔案名稱模式。"
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "無法儲存：%(setting)s。請稍後重試。"
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "孩子的帳戶：%(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "管理 %(label)s 的螢幕時間和應用程式規則。"
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "%(app_name)s 標誌"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "偏好設定"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "幫助"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "關於"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "選單"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "孩子的帳戶"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "撤銷臨時螢幕時間和應用程式存取權限。"
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "未找到可交互登入的非管理員帳戶。"
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "顯示“%(label)s”頁面。"
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "限制螢幕時間"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "開啟或關閉螢幕時間限制"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "每日可用時間"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "今日剩餘時間"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "今天還可使用的時間"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "比對規則"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "存取規則"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "隱藏計算說明"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "按 %(label)s 篩選"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "存取規則和比對規則速查"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "顯示規則說明"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "應用程式存取權限（實際效果）"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "比對規則（如何識別應用程式）"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "了解存取規則和比對規則"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "隱藏規則說明"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "無法載入語言偏好設定，請打開“偏好設定”重試。"
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "編輯比對規則"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "%(app_name)s 的存取規則：%(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "將所選孩子對 %(app_name)s 的存取規則設為“%(state_label)s”。"
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "無法檢查應用程式限制狀態，其他控制功能仍可使用。"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "撤銷臨時授權？"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "這將撤銷授予 %(child_name)s 的一次性螢幕使用時間和對可暫時解除封鎖的應用程式的存取權限，關閉正在執行的已封鎖應用程式，並在沒有剩餘時間時鎖定桌面。剩餘的每日可用時間不受影響。"
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "保留當前的臨時授權。"
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "撤銷所選孩子的臨時授權。"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "將所選孩子的每日可用時間設為 %(daily_limit_label_minutes)s。"
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "自訂值"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "編輯比對規則"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "關閉"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "關閉需要管理員權限的提示。"
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "（無）"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "撤銷臨時授權"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "撤銷"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "分鐘"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "已安裝的應用程式"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "桌面、AppImage、Flatpak、Snap 和系統啟動項"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "圖標"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "正在載入已安裝的應用程式…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "時間計算方式"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "規則說明"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "應用程式始終可以使用"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "應用程式已完全封鎖，只有管理員才能允許使用。"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "應用程式已封鎖。啟用時間限制後，可依孩子的請求授予一次性延長使用權限。"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "通過模式比對版本號會變化的執行路徑\n（例如 Lunar Client-*-ow_*.AppImage）"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "比對應用程式的精確路徑\n（例如 /usr/bin/firefox）"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "無法重新整理孩子的帳戶清單，系統會自動重試。"
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "未找到可交互登入的非管理員帳戶。"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "每日可用時間無效，請輸入 0 到 1439 之間的整數。"
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "使用精確的可執行檔案路徑，或加入 * 來比對帶版本號的檔案名稱。"
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "需要管理員權限"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "需要管理員帳戶"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "只有管理員可以管理家長控制。\n請使用管理員帳戶登入以打開家長端。"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "只有管理員可以管理家長控制。\n請使用管理員帳戶登入以打開家長端。"
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "其他應用程式"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "請填寫比對規則"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "精確比對必須使用此應用程式的可執行檔案路徑"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "繼續"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "儲存語言偏好設定。"
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "無法儲存語言設定，請重試。"
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "語言"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "選擇語言"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "可以在偏好設定中更改"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "選擇 %(name)s。"
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "已獲得時間"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "已獲得時間 · 關閉"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "獲批後預計可用時間：%(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "在關閉或返回登入畫面前查看錯誤報告。"
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "偏好設定"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "選擇語言"
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "關於"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "顯示產品名稱、版本和法律資訊。"
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "靜音請求畫面"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "開啟或關閉閃電效果和雷聲。"
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "請求畫面選單"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "打開此請求畫面的偏好設定、幫助和產品資訊。"
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "返回登入畫面"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "關閉結果畫面或返回登入畫面。"
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "報告此錯誤"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "正在估算可用時間…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "幫助"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "在瀏覽器中打開產品網站。"
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "關閉聲音和閃電效果"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "開啟聲音和閃電效果"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "取消請求畫面靜音"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "獲批後可使用至午夜。"
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "無法估算時間"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "無法載入預計剩餘時間。"
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "無法儲存設定"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "無法儲存所選的請求選項，請稍後重試。"
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "無法儲存聲音偏好設定，請稍後重試。"
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "無法儲存請求偏好設定，請稍後重試。"
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "請求已獲核准"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "請求被拒絕"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "孩子"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "核准請求的家長"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "核准人"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "自訂時間長度（分鐘）"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "請輸入 0.1 到 1440 分鐘之間的時間長度。"
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "允許使用可暫時解除封鎖的應用程式"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "選擇此請求是否暫時允許使用可暫時解除封鎖的應用程式。"
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "請求存取權限"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "提交所選時間長度和應用程式存取選項以請求核准。"
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "取消請求"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "關閉請求畫面，不申請額外時間。"
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "正在載入帳戶…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "正在載入請求詳情…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "提交請求"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "家長端尚未啟用螢幕時間限制"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "取消"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "申請 %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "將所申請的額外螢幕時間設為 %(label)s。"
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "沒有可用的本地標準帳戶。請創建一個帳戶後重新打開此畫面。"
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "沒有可交互登入的本地管理員帳戶。"
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "正在等待核准…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "請求暫不可用"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "無法完成請求，請返回登入畫面後稍後重試。"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "無法完成請求，請稍後重試。"
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "版本 %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "網站"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "隱私權"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "隱私權政策"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "支援"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "授權條款"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "法律聲明"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Malcontent 整合及內附字型聲明"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "通過公開的系統 API 使用單獨安裝的 Malcontent 家長控制服務。本產品與 Malcontent 作者或 GNOME 無關聯，也未獲得他們的認可。"
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "幫助家庭培養健康的數位生活習慣。"
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "可以關閉此對話方塊；只要應用程式仍在執行，就會繼續重試。"
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "意見回饋已成功發送，感謝您幫助我們改進應用程式。"
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "回覆電子郵件（選填）"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "如需回覆，請填寫您的電子郵件地址。"
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "添加檔案"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "最多可為意見回饋添加 5 個附件。"
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "重新收集診斷資訊"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "重新嘗試準備診斷附件。"
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "下載"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "儲存包含可讀診斷報告和經過驗證的技術事件的 ZIP 檔案。"
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "顯示意見回饋和附件的隱私權說明。"
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "不附帶記錄發送"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "發送意見回饋，不附帶診斷附件。"
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "關閉意見回饋表單，並在此應用程式中保留草稿。"
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "發送意見回饋"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "提交意見回饋和所選附件。"
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\n診斷記錄不會收集帳戶名稱、電子郵件地址、檔案內容、原始系統記錄或異常訊息。自動診斷包含經過驗證的技術事件、運作狀況檢查和系統資訊：作業系統及相依項目版本、時區、會話類型和彙總帳戶數量。名稱和自訂版本文字會被省略或以不可逆的方式替換；身分資訊從不進行雜湊處理。您填寫的意見回饋、回覆電子郵件和所選檔案是獨立內容，可能包含個人資訊。請在發送前檢查。"
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "查看完整隱私權聲明"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "在瀏覽器中打開 Oh No! Parent Control 的隱私權聲明。"
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "停止發送並關閉"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "您可以停止發送並關閉此報告。"
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "意見回饋已提交。"
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "已超過允許重試的時間。上一次發送可能已成功，再次發送可能會重複提交。"
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "附件過大，請移除部分檔案或記錄後重試。"
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "無法準備記錄，您可以不附帶此附件發送意見回饋。"
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "意見回饋未被接受，草稿已保留。請檢查意見回饋內容和回覆電子郵件後再發送。"
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "發送已停止，草稿已保留。上一次發送可能已成功。"
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "發送功能暫不可用，草稿已保留。"
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\n如需進一步了解情況，我們可能會通過您提供的電子郵件聯繫您。"
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "附帶包含經過驗證的技術事件和運作狀況檢查的診斷報告。此報告不包含個人資訊。"
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "正在讀取附件…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "附件（選填）"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "正在收集診斷資訊…"
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "最近 3 個有記錄的日期 · ZIP 壓縮檔"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "移除記錄"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "重新收集"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "儲存壓縮記錄，以便在發送前查看"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "意見回饋隱私權說明"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "關閉意見回饋隱私權說明。"
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "停止正在發送的報告並關閉。"
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "再次提交（可能重複）"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "如果上一次發送結果不確定，可再次提交已保留的意見回饋。"
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "感謝您的意見回饋！"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "關閉意見回饋確認提示。"
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "診斷資訊不可用"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "請重新收集，或不附帶診斷資訊發送。"
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "添加記錄"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "移除"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "為意見回饋添加附件"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "最多可添加 %(transport_MAX_ATTACHMENT_COUNT)s 個檔案。"
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "無法預覽"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "檔案附件"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "移除 %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "從意見回饋中移除此檔案。"
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "記錄已準備好，可供查看"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "下載診斷記錄"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "已下載 · 可供查看"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "幫助我們改進應用程式"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "預設匿名"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "如需回覆，請填寫電子郵件；否則您的意見回饋將保持匿名。"
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "未附帶記錄"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "最近 3 個有記錄的日期 · 系統資訊 · ZIP 壓縮檔"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "您可以不附帶記錄發送意見回饋。"
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "移除附件"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "無法儲存記錄，請選擇其他位置。"
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "發送前請檢查下方的錯誤詳情。"
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "分享問題、建議或想法。"
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "無法選擇附件，請重試。"
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "部分附件無法讀取，請嘗試其他檔案。"
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "無法選擇下載位置，請重試。"
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "出現了問題"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "無法完成此操作，請稍後重試。"
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "錯誤報告不可用"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "無法打開意見回饋對話方塊，請稍後重試。"
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "關閉錯誤報告提示。"
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "意見回饋、回覆電子郵件地址、附件和診斷記錄會通過電子郵件發送給支援團隊。保留期限取決於我們的支援電子郵件和服務提供商，包括其備份政策。目前我們無法保證在固定期限內刪除這些資訊。"
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "請輸入單行意見回饋標題，最多 200 個字元。"
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "請輸入意見回饋內容。"
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "意見回饋中包含不受支援的隱藏字元，請重新輸入後重試。"
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "意見回饋最多可包含 5,000 個 UTF-16 字元（部分表情符號按兩個字元計算）。"
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "意見回饋格式過於複雜，請移除部分格式後重試。"
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "請僅填寫回覆電子郵件地址，或留空。"
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "應用程式版本無效，請更新應用程式。"
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "最多可添加 %(MAX_ATTACHMENT_COUNT)s 個檔案。"
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "部分附件無效。"
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "每個附件不得超過 5 MB。"
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "附件和診斷記錄的總大小不得超過 8 MB。"
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)d小時"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)d分鐘"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)d秒"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "今天剩餘時間"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "請選擇要管理的帳戶"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "請選擇核准請求的管理員"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "請選擇時間長度"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "請輸入 %(minimum)s 到 %(maximum)s 分鐘之間的數值。"
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "每日可用時間：%(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "已選擇的每日可用時間：%(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s（%(count)d）"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "正在準備意見回饋… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "正在發送意見回饋… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · 不提供任何擔保。"
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s：%(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "打開產品資訊：%(label)s。"
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "請選擇檔案名稱有效的附件。"
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "請選擇檔案名稱較短且有效的附件。"
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "您的意見回饋"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "撰寫意見回饋並設定格式。工具列提供標題、粗體、斜體、底線、清單、引用、程式碼、連結、附件和清除格式功能。"
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "請描述您的想法，或說明發生了什麼以及您期望的結果…"
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "文字樣式"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "正文"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "標題 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "標題 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "粗體"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "斜體"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "底線"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "刪除線"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "編號清單"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "項目符號清單"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "引用"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "程式碼區塊"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "插入連結"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "添加附件"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "清除格式"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "意見回饋格式設定"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "連結地址"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "連結編輯器"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "打開連結預覽"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "儲存連結"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "移除連結"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "編號清單項目"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "項目符號清單項目"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "最後一分鐘倒計時動畫"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "開啟或關閉最後一分鐘的倒計時動畫。"
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "查看剩餘時間或打開申請更多時間的表單。在右鍵選單中可設定倒計時動畫。"
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• 剩餘時間：%(time)s\n• 點擊可為本次會話申請更多時間。\n• 右鍵點擊可查看更多選項。"
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "申請時間，%(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "顯示更多帳戶"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "顯示上一組或下一組帳戶。"
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "請選擇帳戶。"
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "已選擇的帳戶：%(name)s。"
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "選擇應用程式清單中顯示哪些規則。"
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "顯示使用此規則的應用程式。"
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "捲動請求畫面"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "內容超出顯示區域時捲動請求畫面。"
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d 分鐘"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g 小時"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d 秒"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d 個檔案附件已準備好。"
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d 位元組"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "無法確認發送結果，將在 %(count)d 秒後重試…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "無法儲存臨時授權，請稍後重試。"
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "無法儲存螢幕時間設定，請稍後重試。"
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "無法儲存應用程式存取設定，請稍後重試。"
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "編輯連結"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "錯誤類別：%(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "為 %(name)s"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g 小時"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g 小時"

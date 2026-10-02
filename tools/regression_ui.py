@@ -33,7 +33,11 @@ from pathlib import PurePosixPath
 # They add no shared cache, setting, file, service or cleanup owner.
 # The 62-choice catalogue matrix retains that one owned GTK child and private
 # display; scrolling/native-name direction checks add no resource lifetime.
-# Expanded-choice Save/fallback cases reuse the Request behavior bucket's owned
+# RTL context/reversibility checks use one waited GTK child and unshown windows
+# on that same Identity private display; no extra bus, cache or cleanup owner.
+# Native script shaping uses one presented window in the same waited child and
+# private display; its attributes/layout checks add no process or cleanup owner.
+# Expanded-choice translated Save cases reuse the Request behavior bucket's owned
 # preview and private event files, without network or host locale changes.
 # Overlay valid-choice checks reuse the Request behavior bucket's private GTK
 # preview/display/bus and waited Perl input blocks, with its owned cleanup.
@@ -41,6 +45,10 @@ from pathlib import PurePosixPath
 # Child interaction waits dispatch bounded work on the existing private bus;
 # no inspection listeners/sources or new process owners remain. Nested Shell
 # retains its whole-module bucket and existing resource reservation.
+# The panel localization cycle reuses that guardian-owned nested Shell and its
+# serial overlay launches, public input/result guards and retained screenshots.
+# It adds no process owner or persistent host settings; its finite nine-language
+# cycle has an explicit 600-second child deadline within the same Shell bucket.
 # Timing hooks retain bounded per-phase aggregates in the existing category
 # stream through one non-inheritable pipe duplicate closed at session end.
 # Wrappers/counters are worker-local, with no threads/files or UI reads; preview

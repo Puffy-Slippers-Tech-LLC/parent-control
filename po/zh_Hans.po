@@ -149,7 +149,7 @@ msgstr "筛选所选孩子可用的应用。"
 
 #. Shared message: APP_NAME_AMP_DETAIL
 msgid "App Name &amp; Detail"
-msgstr "应用名称与详情"
+msgstr "应用名称 &amp; 详情"
 
 #. Shared message: HIDE_REMAINING_TIME_CALCULATION
 msgid "Hide remaining-time calculation"

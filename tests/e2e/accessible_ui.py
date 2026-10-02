@@ -2141,7 +2141,13 @@ class AccessibleUI:
 
     def choose_language(self, surface, language):
         # Finite customer input; never derive target identities from translated names.
-        require(language in ('en', 'de', 'fr', 'ru', 'pl', 'ja', 'zh-Hans', 'fur', 'ar'),
+        require(language in (
+            'en', 'de', 'es', 'fr', 'pt-BR', 'zh-Hans', 'ru', 'it', 'pl', 'ja',
+            'pt', 'nl', 'tr', 'zh-Hant', 'id', 'fa', 'cs', 'vi', 'ko', 'uk',
+            'ar', 'hu', 'sv', 'ro', 'el', 'da', 'fi', 'he', 'sk', 'th', 'bg',
+            'hr', 'sr', 'sr-Latn', 'nb', 'lt', 'sl', 'ca', 'et', 'lv', 'bn',
+            'hi', 'ka', 'is', 'ms', 'uz', 'kk', 'eu', 'gl', 'ur', 'mr', 'nn',
+            'ta', 'ne', 'be', 'te', 'ml', 'pa', 'eo', 'ug', 'oc', 'fur'),
                 'ui:language-test-choice')
         with self.language_scope(surface):
             identity = 'language-choice-' + language.lower()

@@ -149,7 +149,7 @@ msgstr "選択した子どもが使えるアプリを絞り込みます。"
 
 #. Shared message: APP_NAME_AMP_DETAIL
 msgid "App Name &amp; Detail"
-msgstr "アプリ名と詳細"
+msgstr "アプリ名 &amp; 詳細"
 
 #. Shared message: HIDE_REMAINING_TIME_CALCULATION
 msgid "Hide remaining-time calculation"

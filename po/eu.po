@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Complete translation against the current shared message template.
 # Plural metadata reference: https://l10n.gnome.org/teams/eu/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: Project translation contributors\n"
 "Language-Team: Euskara\n"
 "Language: eu\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1549 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Eguneko kuotatik geratzen dena: <b>%(daily)s</b>\nBehin bakarreko baimenetik geratzen dena: <b>%(grant)s</b>\n<b>Geratzen den denbora: %(remaining)s</b> — bi kopuruetako handiena."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Beti baimenduta"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Erabat blokeatuta"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Aldi baterako ken daitekeen blokeoa"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Ereduaren araberako parekatzea"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Bertsioa duten fitxategi-izenak komodin batekin parekatzen ditu."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Exekuzio-bide zehatza"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Fitxategi exekutagarriaren bide zehatz honekin soilik parekatzen da."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Ezin izan dira aplikazioen muga batzuk aplikatu. Eragindako aplikazioek edo eguneratutako bertsioek mugarik gabe jarrai dezakete. Gainerako kontrolak erabilgarri daude eta gordetako arauak aplikatzeko saiakerak automatikoki errepikatuko dira."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Hautatutako haurra: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Ez dago haurraren konturik hautatuta."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Hautatutako haurra"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Gurasoen aplikazioaren menua"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Ireki hobespenak, laguntza eta produktuaren informazioa."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Iritzia"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Bidali aplikazioari buruzko iritzia."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Aukeratu zein haurren pantaila-denbora eta aplikazioen politika erakutsiko diren."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Kendu behin bakarreko sarbidea"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Kendu hautatutako haurraren behin bakarreko baimen aktiboa berretsi ondoren."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Pantaila-mugak"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Pantaila-denboraren muga"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Gaitu edo desgaitu hautatutako haurraren eguneko pantaila-denboraren kontrola."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Eguneko denbora-kuota"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Aukeratu hautatutako haurraren eguneko pantaila-denboraren kuota."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Eguneko kuota pertsonalizatua"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Sartu zerotik 1439ra arteko minutu kopuru osoa."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Gaur geratzen den denbora"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Zabaldu edo tolestu eguneko eta behin bakarreko baimenetik geratzen den denboraren kalkulua."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Aplikazioen mugak"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Bilatu instalatutako aplikazioak"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Bilatu hizkuntzak"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Iragazi hautatutako haurraren aplikazio erabilgarriak."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Aplikazioaren izena &amp; xehetasunak"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Ezkutatu geratzen den denboraren kalkulua"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Tolestu geratzen den denboraren kalkuluaren xehetasunak."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "Iragazi %(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Politikaren legenda"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Zabaldu edo tolestu aplikazioen sarbidearen eta parekatze-arauen legenda."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "%(app_name)s aplikazioaren parekatze-araua"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Aukeratu aplikazio honen gordetako araua bide zehatz batekin edo bertsioa duen fitxategi-izenaren eredu batekin parekatzen den."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "Ezin izan da Gurasoen aplikazioa kargatu. Saiatu berriro geroago."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "%(child_name)s haurrari emandako behin bakarreko pantaila-denboraren eta aplikazioen sarbidearen baimenak kentzen ditu."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Kargatzen…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "Ezin izan dira instalatutako aplikazioak kargatu. Saiatu berriro geroago."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Ez dago erabilgarri"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "Ezin izan da geratzen den denbora kargatu. Saiatu berriro geroago."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nEragindako aplikazioak: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Aplikazioen mugen egoera ez dago erabilgarri. Automatikoki berriro saiatzen."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Utzi"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Kendu baimena"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Behin bakarreko baimena kendu da"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Kopuru pertsonalizatua…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Kopuru pertsonalizatua"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Sartu eguneko denbora-kuota pertsonalizatua minututan."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Sartu 0tik 1439ra arteko zenbaki osoa."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "%(row_app_name)s aplikazioaren parekatze-araua"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Uneko parekatze-araua: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Berrezarri lehenetsia"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Gorde"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Aplikazioaren parekatze-araua"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Sartu exekuzio-bide zehatza edo bertsioa duen fitxategi-izenaren eredua."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Ezin izan da %(setting)s gorde. Saiatu berriro geroago."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Haurraren kontua: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "Kudeatu %(label)s haurraren pantaila-denbora eta aplikazioen politika."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "%(app_name)s aplikazioaren logotipoa"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Hobespenak"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Laguntza"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "Honi buruz"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Menua"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Haurraren kontua"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Behin bakarreko pantaila-denboraren eta aplikazioen sarbidearen baimenak kentzen ditu."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Ez da administratzailea ez den kontu interaktiborik aurkitu."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "Erakutsi %(label)s orria."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Pantaila-denboraren muga"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Aktibatu / desaktibatu pantaila-denboraren muga"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Eguneko denbora-kuota"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Gaur geratzen den denbora"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Gaurko geratzen den denbora"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Parekatze-araua"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Sarbide-araua"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Ezkutatu kalkulua"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Iragazi %(label)s arabera"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Sarbide- eta parekatze-arauen erreferentzia laburra"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Erakutsi legenda"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Aplikazioen sarbidea (zer gertatzen den)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Parekatze-araua (aplikazioak nola parekatzen diren)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Sarbide-arauak eta parekatze-arauak ulertzea"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Ezkutatu legenda"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "Ezin izan da zure hizkuntza-hobespena kargatu. Ireki Hobespenak berriro saiatzeko."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Editatu parekatze-araua"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "%(app_name)s aplikazioaren sarbide-araua: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Ezarri hautatutako haurraren %(app_name)s aplikazioaren sarbide-araua %(state_label)s gisa."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Ezin izan da aplikazioen mugen egoera egiaztatu. Gainerako kontrolak erabilgarri daude."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Kendu behin bakarreko baimena?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Honek %(child_name)s haurrari emandako behin bakarreko pantaila-denbora eta aldi baterako ken daitekeen blokeoa duten aplikazioen sarbidea kenduko ditu, haren une honetan exekutatzen ari diren blokeatutako aplikazioak itxiko ditu eta haren mahaigaina blokeatuko du denborarik geratzen ez denean. Geratzen zaion eguneko denbora-kuota ez da aldatuko."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Mantendu uneko behin bakarreko baimena."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Kendu hautatutako haurraren behin bakarreko baimena."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Ezarri hautatutako haurraren eguneko kuota %(daily_limit_label_minutes)s gisa."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Balio pertsonalizatua"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Editatu parekatze-araua"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Itxi"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Itxi administratzailea behar dela dioen oharra."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Bat ere ez)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Kendu behin bakarreko baimena"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Kendu"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "minutu"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Instalatutako aplikazioak"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Mahaigaineko, AppImage, Flatpak, Snap eta sistemako abiarazleak"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Ikonoa"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Instalatutako aplikazioak kargatzen…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Nola kalkulatzen den"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Legenda"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "Aplikazioa beti erabil daiteke"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "Aplikazioa erabat blokeatuta dago eta administratzaileek soilik baimendu dezakete"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "Aplikazioa blokeatuta dago eta, denbora-muga gaituta badago, haurraren eskaerari behin bakarreko luzapena eman dakioke"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Ereduaren arabera parekatzen da\n bertsio-zenbaki aldakorrak dituzten exekuzio-bideak hartzeko (adib., Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Aplikazioaren bide zehatzarekin parekatzen da\n(adib., /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Ezin izan dira haurren kontuak freskatu. Automatikoki berriro saiatzen."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Ez da administratzailea ez den erabiltzaile interaktiborik aurkitu"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Eguneko kuota baliogabea. Sartu 0tik 1439ra arteko zenbaki osoa."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Erabili exekuzio-bide zehatza, edo sartu * bertsioa duen fitxategi-izenaren eredurako."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Administratzailearen sarbidea behar da"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Administratzailea behar da"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Administratzaile batek soilik kudea ditzake guraso-kontrolak.\nHasi saioa administratzaile-kontu batekin Gurasoen aplikazioa irekitzeko."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Administratzaile batek soilik kudea ditzake guraso-kontrolak. Hasi saioa administratzaile-kontu batekin Gurasoen aplikazioa irekitzeko."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "beste aplikazio bat"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "Parekatze-araua behar da"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Parekatze zehatzak aplikazio honen exekuzio-bidea izan behar du"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Jarraitu"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Gorde zure hizkuntza-hobespena."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Ezin izan da zure hizkuntza gorde. Saiatu berriro."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Hizkuntza"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Aukeratu zure hizkuntza"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Hobespenetan alda dezakezu"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "Hautatu %(name)s."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Denbora eman da"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Denbora eman da, Itxi"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Onartzen bada geratuko den denbora estimatua: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Berrikusi errore-txostena itxi edo saioa hasteko pantailara itzuli aurretik."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "HOBESPENAK"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Aukeratu zure hizkuntza."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "HONI BURUZ"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Erakutsi produktuaren izena, bertsioa eta lege-informazioa."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Isilarazi eskaera-pantailaren soinua"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Aktibatu edo desaktibatu tximistak eta haien trumoi-soinua."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Eskaera-pantailaren menua"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Ireki eskaera-pantaila honen hobespenak, laguntza eta produktuaren informazioa."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Itzuli saioa hasteko pantailara"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Itxi emaitzen pantaila edo itzuli saioa hasteko pantailara."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Jakinarazi errore hau"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Denboraren estimazioa kalkulatzen…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "LAGUNTZA"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Ireki produktuaren webgunea arakatzailean."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Desaktibatu soinua eta tximistak"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Aktibatu soinua eta tximistak"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Aktibatu eskaera-pantailaren soinua"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Onartzen bada, sarbidea gauerdira arte."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Denboraren estimazioa ez dago erabilgarri"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "Ezin izan da geratzen den denboraren estimazioa kargatu."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Ezin izan dira ezarpenak gorde"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "Ezin izan dira zure eskaeraren aukerak gorde. Saiatu berriro geroago."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Ezin izan da zure soinu-hobespena gorde. Saiatu berriro geroago."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "Ezin izan dira zure eskaera-hobespenak gorde. Saiatu berriro geroago."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Eskaera onartu da"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Eskaera ukatu da"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Haurra"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Onartzen duen gurasoa"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Onartzailea"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Iraupen pertsonalizatua minututan"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Sartu 0.1etik 1440 minutura arteko eskatutako iraupena."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Baimendu aldi baterako ken daitekeen blokeoa duten aplikazioak"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Aukeratu eskaera honek aldi baterako ken daitekeen blokeoa duten aplikazioak aldi baterako baimentzen dituen."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Eskatu sarbidea"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Bidali hautatutako iraupena eta aplikazioen sarbidearen aukera onartzeko."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Utzi eskaera"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Itxi eskaera-pantaila hau denbora gehiagorik eskatu gabe."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Kontuak kargatzen…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Eskaeraren xehetasunak kargatzen…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "ESKATU"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Pantaila-muga ez dago gaituta Gurasoen aplikazioan"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "UTZI"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "Eskatu %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "Hautatu %(label)s eskatutako pantaila-denbora gehigarriaren iraupen gisa."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Ez dago kontu arrunt lokal erabilgarririk. Sortu bat eta ireki pantaila hau berriro."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Ez dago administratzaile-kontu interaktibo lokal erabilgarririk."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Onarpenaren zain…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "Eskaera ez dago erabilgarri"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "Ezin izan da eskaera osatu. Itzuli saioa hasteko pantailara eta saiatu berriro geroago."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "Ezin izan da eskaera osatu. Saiatu berriro geroago."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "%(app_version)s bertsioa"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Webgunea"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Pribatutasuna"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Pribatutasun-politika"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Laguntza teknikoa"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Lizentzia"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Lege-oharrak"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Malcontent integrazioari eta bildutako letra-tipoei buruzko oharrak"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Bereiz instalatutako Malcontent guraso-kontrolen zerbitzua erabiltzen du sistemaren API publikoen bidez. Ez dago Malcontent egileei edo GNOMEri lotuta, eta ez du haien babesa."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Familiei ohitura digital osasungarriak eraikitzen laguntzen."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Elkarrizketa hau itxi dezakezu; saiakerek jarraituko dute aplikazioa irekita dagoen bitartean."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Zure iritzia behar bezala bidali da. Eskerrik asko aplikazioa hobetzeko emandako laguntzagatik."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "Erantzuteko helbide elektronikoa (aukerakoa)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Gehitu zure helbide elektronikoa erantzuna nahi baduzu."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Gehitu fitxategiak"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Erantsi gehienez 5 fitxategi zure iritziari."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Saiatu diagnostikoak berriro biltzen"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Saiatu diagnostiko-eranskina berriro biltzen."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Deskargatu"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Gorde ZIP bat diagnostiko-txosten irakurgarriarekin eta balioztatutako gertaera teknikoekin."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Erakutsi iritziaren eta eranskinen pribatutasun-informazioa."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Bidali erregistrorik gabe"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Bidali iritzia diagnostiko-eranskinik gabe."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Itxi iritzi-inprimakia zirriborroa aplikazio honetan mantenduz."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Bidali iritzia"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Bidali iritzia eta hautatutako eranskinak."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nDiagnostiko-erregistroek ez dituzte kontu-izenak, helbide elektronikoak, fitxategien edukiak, sistemaren egunkari gordinak edo salbuespen-mezuak biltzen. Diagnostiko automatikoek balioztatutako gertaera teknikoak, funtzionamenduaren egiaztapenak eta sistemaren informazioa dituzte: sistema eragilearen eta mendekotasunen bertsioak, ordu-eremua, saio mota eta kontuen kopuru agregatuak. Izenak eta bertsio-testu pertsonalizatua baztertu edo modu itzulezinean ordezten dira; identitateei ez zaie inoiz hashik aplikatzen. Zure iritzia, erantzuteko helbide elektronikoa eta hautatutako fitxategiak bereiziak dira eta informazio pertsonala izan dezakete. Berrikusi bidali aurretik."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Ikusi pribatutasun-ohar osoa"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Ireki Oh No! Parent Control produktuaren pribatutasun-oharra zure arakatzailean."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Gelditu bidalketa eta itxi"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Bidalketa gelditu eta txosten hau itxi dezakezu."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Iritzia bidali da."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Bidalketa hau ezin da berriro saiatu bere berriro saiatzeko epean. Baliteke aurreko saiakera arrakastaz amaitu izana. Berriro bidaltzeak bikoiztutako bidalketa sor dezake."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "Eranskinak handiegiak dira. Kendu fitxategiak edo erregistroak eta saiatu berriro."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Ezin izan dira erregistroak prestatu. Iritzi hau eranskinik gabe bidali dezakezu."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "Iritzia ez da onartu. Zure zirriborroa mantendu da. Egiaztatu zure iritzia eta erantzuteko helbidea berriro bidali aurretik."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Bidalketa gelditu da. Zure zirriborroa mantendu da. Baliteke aurreko saiakera arrakastaz amaitu izana."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "Bidaltzea ez dago oraindik erabilgarri. Zure zirriborroa mantendu da."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nEmandako helbide elektronikoan jar gaitezke zurekin harremanetan, jarraipen-galderarik badugu."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Sartu diagnostiko-txosten bat balioztatutako gertaera teknikoekin eta funtzionamenduaren egiaztapenekin. Txosten honek ez du informazio pertsonalik."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Eranskinak irakurtzen…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Eranskinak (aukerakoak)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Diagnostiko-informazioa biltzen..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "Erregistroen azken 3 datak · ZIP artxiboa"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Kendu erregistroak"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Saiatu berriro biltzen"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Gorde konprimitutako erregistroak bidali aurretik aztertzeko"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Iritziaren pribatutasuna"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Itxi iritziaren pribatutasun-informazioa."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Gelditu zain dagoen txostena eta itxi."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Bidali berriro (bikoiztu daiteke)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Bidali mantendutako iritzia berriro aurreko emaitza zalantzazkoa denean."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Eskerrik asko zure iritziagatik!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Itxi iritziaren berrespena."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Diagnostikoak ez daude erabilgarri"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Saiatu berriro biltzen edo bidali diagnostikorik gabe."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Gehitu erregistroak"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Kendu"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Gehitu iritziaren eranskinak"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Erantsi gehienez %(transport_MAX_ATTACHMENT_COUNT)s fitxategi."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Aurrebista ez dago erabilgarri"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Fitxategi-eranskina"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "Kendu %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Kendu fitxategi hau iritzitik."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Erregistroak berrikusteko prest"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Deskargatu diagnostiko-erregistroak"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Deskargatuta · Aztertzeko prest"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Lagundu gauzak hobetzen"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Anonimoa lehenespenez"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Gehitu zure helbide elektronikoa erantzuna nahi baduzu. Bestela, zure iritzia anonimoa da."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Ez dago erregistrorik erantsita"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "Erregistroen azken 3 datak · Sistemaren informazioa · ZIP artxiboa"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Zure iritzia erregistrorik gabe bidali daiteke."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Kendu eranskina"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Ezin izan dira erregistroak gorde. Saiatu beste kokaleku batekin."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Berrikusi beheko errorearen xehetasunak bidali aurretik."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Partekatu arazo, iradokizun edo ideia bat."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Ezin izan dira eranskinak aukeratu. Saiatu berriro."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Ezin izan dira eranskin bat edo gehiago irakurri. Saiatu beste fitxategi batzuekin."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "Ezin izan da deskargatzeko kokalekua aukeratu. Saiatu berriro."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Zerbait okertu da"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "Ezin izan da eragiketa osatu. Saiatu berriro geroago."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Errore-txostena ez dago erabilgarri"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "Ezin izan da iritziaren elkarrizketa ireki. Saiatu berriro geroago."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Itxi errore-txostenaren oharra."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "Iritzia, erantzuteko helbide elektronikoak, eranskinak eta diagnostiko-erregistroak laguntza-zerbitzura bidaltzen dira posta elektronikoz. Atxikipena gure laguntza-postontziaren eta zerbitzu-hornitzaileen araberakoa da, haien babeskopia-politikak barne. Ez dugu gaur egun epe finko baten barruan ezabatzea bermatzen."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Sartu lerro bakarreko iritziaren izenburua, gehienez 200 karakterekoa."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Sartu zure iritzia."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Zure iritziak onartzen ez den ezkutuko karaktere bat du. Idatzi berriro eta saiatu."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "Iritziak gehienez 5.000 UTF-16 karaktere izan behar ditu (emoji batzuk bi gisa zenbatzen dira)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "Formatudun iritzia konplexuegia da. Kendu formatuaren zati bat eta saiatu berriro."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Sartu erantzuteko helbide elektronikoa soilik edo utzi hutsik."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "Aplikazioaren bertsioa baliogabea da. Eguneratu aplikazioa."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Erantsi gehienez %(MAX_ATTACHMENT_COUNT)s fitxategi."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Eranskin bat edo gehiago baliogabeak dira."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Eranskin bakoitzak 5 MB edo gutxiagoko tamaina izan behar du."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Eranskinek eta diagnostiko-erregistroek guztira 8 MB edo gutxiago izan behar dute."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)do"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)dm"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)ds"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Egunaren gainerakoa"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Hautatu kudeatu beharreko kontua"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Hautatu onartuko duen administratzailea"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Hautatu iraupena"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Sartu %(minimum)s eta %(maximum)s minutu arteko zenbakia."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Eguneko kuota: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Hautatutako eguneko kuota: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Iritzia prestatzen… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Iritzia bidaltzen… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Bermerik gabe."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Ireki produktuaren informazioa: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Aukeratu fitxategi-izen balioduna duen eranskina."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Aukeratu fitxategi-izen baliodun laburragoa duen eranskina."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Zure iritzia"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Idatzi eta eman formatua iritziari. Erabili tresna-barra izenburuetarako, letra lodirako, etzanetarako, azpimarratzeko, zerrendetarako, aipuetarako, koderako, esteketarako, eranskinetarako eta formatua kentzeko."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Deskribatu zure ideia edo zer gertatu den eta zer espero zenuen..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Testu-estiloa"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Testu arrunta"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "1. izenburua"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "2. izenburua"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Lodia"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Etzana"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Azpimarratua"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Marratua"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Zerrenda zenbakitua"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Buletdun zerrenda"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Aipua"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Kode-blokea"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Txertatu esteka"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Gehitu eranskina"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Kendu formatua"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Iritziaren formatua"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Estekaren helburua"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Esteka-editorea"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Ireki estekaren aurrebista"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Gorde esteka"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Kendu esteka"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "zerrenda zenbakituaren elementua"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "buletdun zerrendaren elementua"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Minutu bateko atzerako kontaketa-animazioa"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Gaitu edo desgaitu azken minutuko atzerako kontaketa-animazio bisuala."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Irakurri geratzen den denbora edo ireki denbora gehiago eskatzeko inprimakia. Ireki laster-menua atzerako kontaketa-animazioaren ezarpenetarako."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Geratzen den denbora: %(time)s\n• Egin klik saio honetarako denbora gehiago eskatzeko.\n• Egin eskuineko klik aukera gehiago ikusteko."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Eskatu denbora, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Erakutsi kontu-aukera gehiago"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Erakutsi aurreko edo hurrengo kontu-aukerak."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Aukeratu kontua."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Hautatutako kontua: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Aukeratu aplikazioen zerrendan zein arau erakutsiko diren."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Erakutsi arau hau duten aplikazioak."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Eskaera-pantailaren korritzea"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "Korritu eskaera-pantaila edukia sartzen ez denean."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d minutu"
+msgstr[1] "%(count)d minutu"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g ordu"
+msgstr[1] "%(count)g ordu"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d segundo"
+msgstr[1] "%(count)d segundo"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d fitxategi-eranskin prest dago."
+msgstr[1] "%(count)d fitxategi-eranskin prest daude."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d byte"
+msgstr[1] "%(count)d byte"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Ezin izan da bidalketa berretsi. %(count)d segundo barru berriro saiatzen…"
+msgstr[1] "Ezin izan da bidalketa berretsi. %(count)d segundo barru berriro saiatzen…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Ezin izan da behin bakarreko baimena gorde. Saiatu berriro geroago."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Ezin izan dira pantaila-denboraren ezarpenak gorde. Saiatu berriro geroago."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Ezin izan da aplikazioen sarbidea gorde. Saiatu berriro geroago."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Editatu esteka"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Errore-kategoriak: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "%(name)s haurrarentzat"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g ordu"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g ordu"

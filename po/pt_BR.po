@@ -149,7 +149,7 @@ msgstr "Filtrar os aplicativos disponíveis da criança selecionada."
 
 #. Shared message: APP_NAME_AMP_DETAIL
 msgid "App Name &amp; Detail"
-msgstr "Nome e detalhes do aplicativo"
+msgstr "Nome &amp; detalhes do aplicativo"
 
 #. Shared message: HIDE_REMAINING_TIME_CALCULATION
 msgid "Hide remaining-time calculation"

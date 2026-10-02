@@ -316,21 +316,61 @@ test('countdown animation setting gates the final-minute effects', () => {
 
 test('language refresh relabels the hidden dock tooltip before its next hover', () => {
     const descriptions = [];
+    class Attributes {
+        constructor(values = {}) { this.values = {...values}; }
+        copy() { return new Attributes(this.values); }
+        change(attribute) { this.values[attribute.type] = attribute.value; }
+    }
+    class Text {
+        constructor(attributes = null) { this.attributes = attributes; }
+        get_children() { return []; }
+        get_attributes() { return this.attributes; }
+        set_attributes(attributes) { this.attributes = attributes; }
+        set_text_direction(direction) { this.direction = direction; }
+    }
+    const originalAttributes = new Attributes({weight: 'bold', language: 'en'});
+    const menuText = new Text(originalAttributes);
+    const tooltipText = new Text();
+    class Label {
+        constructor(text) { this.textActor = text; this.handlers = new Map(); }
+        get_children() { return [this.textActor]; }
+        get_clutter_text() { return this.textActor; }
+        connect_after(signal, callback) { return this.connect(signal, callback); }
+        connect(signal, callback) {
+            const id = this.handlers.size + 1;
+            this.handlers.set(id, {signal, callback});
+            return id;
+        }
+        disconnect(id) { this.handlers.delete(id); }
+        emit(signal) {
+            for (const handler of [...this.handlers.values()])
+                if (handler.signal === signal) handler.callback(this);
+        }
+    }
+    const menuLabel = new Label(menuText);
     const indicator = createIndicator({
+        St: {Label},
+        Clutter: {Text, TextDirection: {RTL: 'rtl', LTR: 'ltr'}},
+        Pango: {Language: {from_string: value => value}, AttrList: Attributes,
+            attr_language_new: value => ({type: 'language', value})},
         formatRemainingTime,
         describeControl: (_actor, _id, _name, description) => descriptions.push(description),
     });
     let language = 'en';
     Object.assign(indicator, {
-        _translations: {text: (key, values) => `${language}:${key}:${values.time ?? ''}`},
-        _requestButton: {},
+        _translations: {language, text: (key, values) => `${language}:${key}:${values.time ?? ''}`},
+        get_children: () => [indicator._requestButton],
+        _requestButton: {get_children: () => [], set_text_direction(value) { this.direction = value; }},
         _label: {},
-        _tooltip: {visible: false, text: ''},
+        _tooltip: {visible: false, text: '', get_children: () => [tooltipText],
+            set_text_direction(value) { this.direction = value; },
+            set_style(value) { this.style = value; }},
         _previewMarker: '',
         _clearCountdownWarning() {},
         _syncOrientation: () => false,
         _updateRequestIcon() {},
         _sync() { this._updateLabel(2700); },
+        _contextMenu: {actor: {get_children: () => [menuLabel]}},
     });
     indicator.refreshLanguage();
     assert.equal(indicator._tooltip.text, 'en:PANEL_TOOLTIP:00:45');
@@ -340,6 +380,38 @@ test('language refresh relabels the hidden dock tooltip before its next hover', 
     assert.equal(indicator._requestButton.accessible_name, 'de:PANEL_REQUEST_TIME:00:45');
     assert.equal(descriptions.at(-1), 'de:PANEL_DESCRIPTION:');
     assert.equal(indicator._tooltip.visible, false);
+    indicator._translations.direction = 'rtl';
+    language = 'ar';
+    indicator._translations.language = language;
+    indicator.refreshLanguage();
+    assert.equal(indicator._tooltip.direction, 'rtl');
+    assert.equal(indicator._tooltip.style, 'text-align: right;');
+    assert.equal(indicator._requestButton.direction, 'rtl');
+    assert.equal(indicator._tooltip.text, 'ar:PANEL_TOOLTIP:00:45');
+    assert.deepEqual(menuText.attributes.values, {weight: 'bold', language: 'ar'});
+    assert.equal(tooltipText.attributes.values.language, 'ar');
+    assert.equal(originalAttributes.values.language, 'en');
+    assert.notEqual(menuText.attributes, originalAttributes);
+    indicator._translations.direction = 'ltr';
+    indicator._translations.language = 'ta';
+    indicator.refreshLanguage();
+    assert.equal(indicator._tooltip.direction, 'ltr');
+    assert.equal(indicator._tooltip.style, 'text-align: left;');
+    assert.deepEqual(menuText.attributes.values, {weight: 'bold', language: 'ta'});
+    // Shell replaces the complete attribute list when a new menu is allocated
+    // or hovered. Retain the current language after the new CSS style arrives.
+    menuText.attributes = new Attributes({foreground: 'white', underline: true});
+    menuLabel.emit('style-changed');
+    assert.deepEqual(menuText.attributes.values,
+        {foreground: 'white', underline: true, language: 'ta'});
+    indicator._translations.language = 'en';
+    indicator.refreshLanguage();
+    assert.deepEqual(menuText.attributes.values,
+        {foreground: 'white', underline: true, language: 'en'});
+    assert.equal(menuLabel.handlers.size, 2); // One pair across every refresh.
+    menuLabel.emit('destroy');
+    assert.equal([...menuLabel.handlers.values()].some(h => h.signal === 'style-changed'), false);
+    assert.equal(menuLabel._onpcTextLanguage, undefined);
 });
 
 test('display state changes cadence at the final minute and locks only at zero', () => {

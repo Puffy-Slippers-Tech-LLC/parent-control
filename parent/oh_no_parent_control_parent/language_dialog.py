@@ -68,7 +68,7 @@ class LanguageDialog(Gtk.Window):
             fixed_direction(button, Gtk.TextDirection.RTL)
             label = localized(Gtk.Label, label=name, xalign=0, hexpand=True)
             fixed_direction(label, Gtk.TextDirection.RTL if language_direction(identity) == 'rtl'
-                            else Gtk.TextDirection.LTR)
+                            else Gtk.TextDirection.LTR, language=identity)
             button.set_child(label)
             if first is None:
                 first = button

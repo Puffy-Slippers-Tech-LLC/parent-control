@@ -2,6 +2,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Pango from 'gi://Pango';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -29,6 +30,30 @@ const SCREEN_SAVER_NAME = 'org.gnome.ScreenSaver';
 const SCREEN_SAVER_PATH = '/org/gnome/ScreenSaver';
 const SCREEN_SAVER_INTERFACE = 'org.gnome.ScreenSaver';
 const COUNTDOWN_ANIMATION_KEY = 'one-minute-countdown-animation';
+
+function applyTextLanguage(text, language) {
+    const attributes = text.get_attributes()?.copy() ?? new Pango.AttrList();
+    attributes.change(Pango.attr_language_new(language));
+    text.set_attributes(attributes);
+}
+
+function retainLabelLanguage(label, language) {
+    label._onpcTextLanguage = language;
+    if (!label._onpcLanguageStyleId) {
+        // St replaces its text attributes on allocation and hover restyling.
+        // Run after that default handler, preserving the freshly applied style.
+        // Signals belong to this label, including short-lived popup labels;
+        // callbacks do not retain the indicator or its disposed menu actors.
+        label._onpcLanguageStyleId = label.connect_after('style-changed', actor =>
+            applyTextLanguage(actor.get_clutter_text(), actor._onpcTextLanguage));
+        label.connect('destroy', actor => {
+            actor.disconnect(actor._onpcLanguageStyleId);
+            delete actor._onpcLanguageStyleId;
+            delete actor._onpcTextLanguage;
+        });
+    }
+    applyTextLanguage(label.get_clutter_text(), language);
+}
 
 export const RemainingTimeIndicator = GObject.registerClass(
 class RemainingTimeIndicator extends PanelMenu.Button {
@@ -195,9 +220,18 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     refreshLanguage() {
         if (this._destroyed) return;
         const direction = this._translations?.direction === 'rtl'
-            ? St.TextDirection.RTL : St.TextDirection.LTR;
+            ? Clutter.TextDirection.RTL : Clutter.TextDirection.LTR;
+        const language = Pango.Language.from_string(this._translations?.language ?? 'en');
         const applyDirection = actor => {
             actor.set_text_direction?.(direction);
+            if (actor instanceof St.Label) {
+                retainLabelLanguage(actor, language);
+            } else if (actor instanceof Clutter.Text) {
+                // A private language attribute keeps fallback fonts from splitting
+                // combining clusters. Preserve styling without changing Shell's
+                // shared Pango context or session language.
+                applyTextLanguage(actor, language);
+            }
             for (const child of actor.get_children()) applyDirection(child);
         };
         // Only our actors change direction; the host Shell keeps its session locale.
@@ -380,6 +414,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             logInfo('child.animation', {enabled});
         });
         this._contextMenu.addMenuItem(this._countdownAnimationItem);
+        this.refreshLanguage();
         this._contextMenu.open();
     }
 

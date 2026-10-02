@@ -621,3 +621,20 @@ button.oh-no-parent-control-request-button:disabled {
   margin-top: 8px;
   padding: 12px 0 3px;
 }
+
+/* Joining scripts need font shaping, rather than Monocraft's isolated pixel
+ * glyphs. The owning translation context changes this class with its language.
+ * Keep account data and number fields readable in the same form. */
+.onpc-readable-script label,
+.onpc-readable-script button,
+.onpc-readable-script entry,
+.onpc-readable-script text {
+  font-family: sans-serif;
+  letter-spacing: 0;
+}
+
+/* Native names mix scripts even while the chooser previews a Latin language. */
+.oh-no-parent-control-language-dialog checkbutton label {
+  font-family: sans-serif;
+  letter-spacing: 0;
+}

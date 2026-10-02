@@ -80,16 +80,30 @@ Estonian, Icelandic, Malayalam, Marathi, Malay, Punjabi, Tamil, Telugu, Urdu and
 Vietnamese add regional coverage below that threshold. GNOME completion measures
 translation coverage, not user population.
 
-Delivery is split into catalogue and translation tasks. The original ten choices
-retain their existing coverage, including English source fallback. The other 52
-have PO scaffolds with UTF-8 and language/plural metadata, plus the search-box
-label. Their other messages currently fall back to English. Full translation is
-pending. Catalogue availability must not be reported as completed translation.
+Translation delivery completed on 2026-10-02 against the current 359-message POT.
+All 61 non-English catalogues contain every message, including contextual and
+language-specific plural forms, with no empty or fuzzy entries. This includes
+all 52 former scaffolds. English intentionally uses the source messages. The
+62-choice catalogue order, native names, branding, operands and markup are
+preserved. Authors reread their complete catalogues; separate reviewers checked
+critical policy/privacy meanings, plural and fractional forms, and the literal
+translations used as GUI expectations.
 The PO headers cite GNOME team plural metadata; Uzbek uses the invariant
 single-form convention where the reference leaves its rule unspecified.
 Arabic, Persian, Hebrew, Uyghur and Urdu have `direction: "rtl"` metadata for
-native-name labels. Other entries default to `ltr`. Translated RTL surfaces still
-require the direction and layout review below during the translation task.
+their translated surfaces and native-name labels. Other entries default to
+`ltr`. These five RTL languages were reviewed across Parent, the request overlay,
+kiosk, feedback and the child panel. Long-text and complex-script checks cover
+the same frontend surfaces, including font fallback, combining clusters and
+switching back to English.
+
+Delivery validation passed full-message Python/Node/GJS parity for every
+non-English catalogue, scoped maintained unit and GTK/nested-Shell UI checks,
+gettext validation and the final `make build` for both DEB and RPM. The checks
+preserve selections, unsaved input, feedback drafts and undo state. This is
+checkout engineering validation; installed customer acceptance remains governed
+by the validation contract below. Nothing was installed on the development host
+or published.
 
 | Product ID | Native name | Gettext locale directory |
 | --- | --- | --- |
@@ -261,8 +275,16 @@ They render through the owning window's context and relabel existing controls
 when it changes. Binding records follow native GObject lifetime, survive Python
 wrapper collection, move between contexts on reparenting, and leave the registry
 when the native object is finalized. Shared dialogs inherit their transient
-parent's context. Rich editor labels are updated in the existing document,
-preserving its content and undo state. Product branding remains exactly `Oh No! Parent Control` in every
+parent's context. Direction changes apply to the owning GTK trees, including
+shared dialogs and newly adopted controls, without changing GTK's global
+direction. GTK mirrors logical label alignment itself. Native labels and entry
+text carry the private context's Pango language so font fallback can shape
+complete script clusters even when the session has no message language. Existing
+text attributes are retained. Native-name labels retain their own catalogue language and
+direction, independently of the chooser's candidate.
+Rich editor labels and document language/direction are updated in the existing
+document; editable user content keeps automatic text direction, its content and
+undo state. Product branding remains exactly `Oh No! Parent Control` in every
 language; account names, paths and other user data are not message identifiers.
 
 ## Language user settings backend
@@ -442,6 +464,20 @@ direction data must retain usable controls and correct accessible text. Font
 fallback supplies missing script glyphs; the request screen's decorative font
 must not make translated text illegible.
 
+For joining and complex scripts, the private GTK context marks its owned roots
+for the frontend stylesheets' sans-serif family and zero letter spacing. This
+avoids isolated pixel-font letters, follows language changes in both directions,
+and leaves process locale and other contexts untouched. The request chooser's
+native names always use a script-capable sans-serif family because one list
+contains multiple scripts regardless of the candidate language.
+
+The child panel, tooltip and context-menu text likewise carry private Pango
+language attributes. Existing styling is retained; Shell's shared text context
+and session language remain unchanged. Label-owned handlers reapply the language
+after Shell restyling replaces text attributes and disconnect when labels are
+destroyed. The extension applies its context's direction to its own actor trees,
+including newly opened menus.
+
 Images and branding remain language-neutral; instructions and results are widget
 text rather than text baked into artwork. Keyboard navigation and public control
 IDs remain stable. Screen-reader labels and descriptions are updated alongside
@@ -491,7 +527,7 @@ UI actions and observations for customer acceptance.
 | Area | Required evidence |
 | --- | --- |
 | Language backend | Caller-scoped authorization, invalid input rejection, restart persistence, personal-only records, migration, stale-policy and rollback preservation, concurrent writes, corrupt/future record rejection |
-| Catalogue infrastructure | Real compiled catalogues; resolution, Unicode, named formatting, contexts, language-specific plurals, missing-entry fallback, corrupt-catalogue errors and Python/GJS parity |
+| Catalogue infrastructure | Every current POT message in all 61 non-English compiled catalogues; Python/Node/GJS lookup parity, contexts, all plural indexes, Unicode, operands, markup, branding and numeric input guidance; resolution, missing-entry fallback and corrupt-catalogue errors |
 | GUI settings | First-run default, Save persistence before closure, Cancel on every surface without candidate persistence, prompting again while unset, kiosk child-language restoration on selection, Preferences reopening, save failure/retry, account isolation and stable public IDs |
 | Language application | Visible and accessible text changes, dynamic result text, preserved selections/drafts/focus, child panel refresh and no change to policy or countdown behavior |
 | Layout and packaging | Long text and script coverage at supported scales; private staged MO assets in both package formats and the extension archive; translated installed surfaces |

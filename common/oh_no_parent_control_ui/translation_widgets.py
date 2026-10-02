@@ -2,11 +2,19 @@
 
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import GLib, Gtk
+from gi.repository import GLib, Gtk, Pango
 
 from .localization import load_translations
 from .languages import language_direction, selected_language
 from .message import Message, JoinedMessage, render
+
+# Decorative pixel fonts can contain isolated glyphs without the shaping needed
+# by these scripts. Frontend CSS may use this private-context presentation class
+# to choose a readable family, including when returning to a Latin language.
+_READABLE_SCRIPT_LANGUAGES = frozenset({
+    'ar', 'fa', 'he', 'ug', 'ur', 'bn', 'hi', 'mr', 'ne', 'ta', 'te', 'ml',
+    'pa', 'th', 'ka', 'ja', 'zh', 'ko',
+})
 
 
 class TranslationContext:
@@ -28,11 +36,11 @@ class TranslationContext:
             if isinstance(widget, Gtk.Widget):
                 roots.add(widget.get_root() or widget)
         for root in roots:
-            _direction_tree(root, self)
+            _presentation_tree(root, self)
         for bindings in list(self.members):
             widget = bindings.widget()
             if widget is not None:
-                _refresh(widget, bindings=bindings)
+                _refresh(widget, bindings=bindings, refresh_direction=False)
 
 
 class _Bindings:
@@ -43,8 +51,7 @@ class _Bindings:
         self.callback = None
         self.context = None
         self.fixed_direction = None
-        self.label_alignment = None
-        self.direction_pending = False
+        self.fixed_language = None
         self.widget = widget.weak_ref(self.release)
         if isinstance(widget, Gtk.Widget):
             # Signal user data survives recreation of a PyGObject wrapper.
@@ -68,23 +75,39 @@ def _bindings_for(widget):
     return widget._message_bindings
 
 
-def fixed_direction(widget, direction):
+def fixed_direction(widget, direction, *, language=None):
     """Keep visual-order controls and native language names independent of UI locale."""
-    _bindings_for(widget).fixed_direction = direction
+    bindings = _bindings_for(widget)
+    bindings.fixed_direction = direction
+    bindings.fixed_language = language
     widget.set_direction(direction)
+    if language is not None:
+        _text_language(widget, language)
+
+
+def _text_language(widget, language):
+    if not isinstance(widget, (Gtk.Label, Gtk.Entry, Gtk.Text)):
+        return
+    # An unset Pango language can split a combining cluster between fallback
+    # fonts. Annotate this text widget without changing a shared context or
+    # the process locale. Keep existing attributes and GTK's markup intact.
+    attributes = widget.get_attributes()
+    attributes = attributes.copy() if attributes is not None else Pango.AttrList()
+    attributes.change(Pango.attr_language_new(Pango.Language.from_string(language)))
+    widget.set_attributes(attributes)
 
 
 def _direction_widget(widget, context):
-    bindings = _bindings_for(widget)
-    direction = (bindings.fixed_direction if bindings.fixed_direction is not None else
+    # Traversal also sees GTK's internal children. Do not create translation
+    # bindings or root callbacks for controls that have no source message.
+    bindings = getattr(widget, '_message_bindings', None)
+    direction = (bindings.fixed_direction if bindings is not None and bindings.fixed_direction is not None else
                  Gtk.TextDirection.RTL if context.direction == 'rtl' else Gtk.TextDirection.LTR)
     widget.set_direction(direction)
-    if isinstance(widget, Gtk.Label) and bindings.fixed_direction is None:
-        if bindings.label_alignment is None:
-            bindings.label_alignment = widget.get_xalign()
-        # Gtk.Label.xalign is physical, unlike container start/end alignment.
-        widget.set_xalign(1 - bindings.label_alignment if context.direction == 'rtl'
-                          else bindings.label_alignment)
+    _text_language(widget, bindings.fixed_language if bindings is not None and
+                   bindings.fixed_language is not None else context.language)
+    # GTK already mirrors Label.xalign within RTL allocations. Keep its logical
+    # value intact, as with start/end container alignment.
 
 
 def _direction_tree(widget, context):
@@ -95,24 +118,24 @@ def _direction_tree(widget, context):
         child = child.get_next_sibling()
 
 
+def _presentation_tree(root, context):
+    # Unrooted bound controls are temporary trees; do not leave a font class
+    # on them after adoption into a window or a later language reversal.
+    if isinstance(root, Gtk.Window):
+        if context.language.split('-')[0] in _READABLE_SCRIPT_LANGUAGES:
+            root.add_css_class('onpc-readable-script')
+        else:
+            root.remove_css_class('onpc-readable-script')
+    _direction_tree(root, context)
+
+
 def _refresh_direction(widget, context):
     if not isinstance(widget, Gtk.Widget):
         return
     root = widget.get_root() or widget
-    current = widget
-    while current is not None:
-        _direction_widget(current, context)
-        current = current.get_parent()
-    bindings = _bindings_for(root)
-    if not bindings.direction_pending:
-        bindings.direction_pending = True
-        def synchronize():
-            bindings.direction_pending = False
-            live = bindings.widget()
-            if live is not None:
-                _direction_tree(live, context_for(live))
-            return GLib.SOURCE_REMOVE
-        GLib.idle_add(synchronize)
+    # Root notifications already run after adoption into the tree. Synchronize
+    # immediately rather than retaining idle callbacks across widget disposal.
+    _presentation_tree(root, context)
 
 
 def context_for(widget):
@@ -133,12 +156,13 @@ def context_for(widget):
     return widget._translation_context
 
 
-def _refresh(widget, _property=None, bindings=None):
+def _refresh(widget, _property=None, bindings=None, *, refresh_direction=True):
     bindings = bindings or _bindings_for(widget)
     widget._message_bindings = bindings
     context = context_for(widget)
     bindings.join(context)
-    _refresh_direction(widget, context)
+    if refresh_direction:
+        _refresh_direction(widget, context)
     for (kind, key), value in bindings.values.items():
         text = render(value, context.translations)
         if kind == 'property':

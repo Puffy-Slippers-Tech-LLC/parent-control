@@ -19,7 +19,7 @@ msgstr ""
 #. Preserve named operands and any markup; operands are supplied by the owning UI.
 #, python-format
 msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
-msgstr "Återstående daglig tid: <b>%(daily)s</b>\nÅterstående engångsbeviljad tid: <b>%(grant)s</b>\n<b>Återstående tid: %(remaining)s</b> — det större av de två beloppen."
+msgstr "Återstående daglig tid: <b>%(daily)s</b>\nÅterstående engångsbeviljad tid: <b>%(grant)s</b>\n<b>Återstående tid: %(remaining)s</b> — det större av de två tidsvärdena."
 
 #. Shared message: ALWAYS_ALLOWED
 msgid "Always Allowed"

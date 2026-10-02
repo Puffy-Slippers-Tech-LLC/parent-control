@@ -149,7 +149,7 @@ msgstr "Filtra le app disponibili al minore selezionato."
 
 #. Shared message: APP_NAME_AMP_DETAIL
 msgid "App Name &amp; Detail"
-msgstr "Nome e dettagli dell’app"
+msgstr "Nome &amp; dettagli dell’app"
 
 #. Shared message: HIDE_REMAINING_TIME_CALCULATION
 msgid "Hide remaining-time calculation"

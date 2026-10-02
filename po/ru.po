@@ -149,7 +149,7 @@ msgstr "Отфильтровать доступные приложения вы�
 
 #. Shared message: APP_NAME_AMP_DETAIL
 msgid "App Name &amp; Detail"
-msgstr "Название и сведения о приложении"
+msgstr "Название &amp; сведения о приложении"
 
 #. Shared message: HIDE_REMAINING_TIME_CALCULATION
 msgid "Hide remaining-time calculation"

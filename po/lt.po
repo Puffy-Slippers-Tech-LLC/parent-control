@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Lithuanian message catalogue.
 # Plural metadata reference: https://l10n.gnome.org/teams/lt/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: OpenAI translation draft\n"
 "Language-Team: Lietuvių\n"
 "Language: lt\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1555 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Likęs dienos laikas: <b>%(daily)s</b>\nLikęs vienkartinis laikas: <b>%(grant)s</b>\n<b>Likęs laikas: %(remaining)s</b> — didesnė iš šių dviejų reikšmių."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Visada leidžiama"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Visiškai užblokuota"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Užblokuota, galima laikinai leisti"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Šablono atitiktis"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Atitinka failų pavadinimus su versijomis naudojant pakaitos simbolį."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Tikslus vykdomojo failo kelias"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Atitinka tik šį tikslų vykdomojo failo kelią."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Kai kurių programų apribojimų nepavyko pritaikyti. Paveiktos programos arba atnaujintos jų versijos gali būti neapribotos. Kitos valdymo funkcijos tebėra prieinamos, o išsaugotas taisykles bus automatiškai bandoma pritaikyti iš naujo."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Pasirinktas vaikas: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Nepasirinkta vaiko paskyra."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Pasirinktas vaikas"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Tėvų programos meniu"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Atverti nuostatas, pagalbą ir informaciją apie produktą."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Atsiliepimai"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Siųsti atsiliepimą apie programą."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Pasirinkite vaiką, kurio ekrano laikas ir programų taisyklės rodomi."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Atšaukti vienkartinę prieigą"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Po patvirtinimo panaikinti pasirinkto vaiko aktyvų vienkartinį leidimą."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Ekrano apribojimai"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Ekrano laiko apribojimas"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Įjungti arba išjungti pasirinkto vaiko dienos ekrano laiko kontrolę."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Dienos laiko norma"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Pasirinkite pasirinkto vaiko dienos ekrano laiko normą."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Pasirinktinė dienos norma"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Įveskite sveiką minučių skaičių nuo nulio iki 1439 imtinai."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Šiandien likęs laikas"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Išskleisti arba suskleisti likusio dienos ir vienkartinio laiko skaičiavimą."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Programų apribojimai"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Ieškoti įdiegtų programų"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Ieškoti kalbų"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Filtruoti pasirinktam vaikui prieinamas programas."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Programos pavadinimas &amp; informacija"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Slėpti likusio laiko skaičiavimą"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Suskleisti likusio laiko skaičiavimo informaciją."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "Filtruoti %(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Taisyklių paaiškinimas"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Išskleisti arba suskleisti prieigos prie programų ir atitikties taisyklių paaiškinimą."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "%(app_name)s atitikties taisyklė"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Pasirinkite, ar išsaugota šios programos taisyklė atitinka tikslų kelią, ar failo pavadinimo su versija šabloną."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "Nepavyko įkelti tėvų programos. Bandykite vėliau."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "Atšaukia %(child_name)s suteiktus vienkartinius ekrano laiko ir prieigos prie programų leidimus."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Įkeliama…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "Nepavyko įkelti įdiegtų programų. Bandykite vėliau."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Neprieinama"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "Nepavyko įkelti likusio laiko. Bandykite vėliau."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nPaveiktos programos: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Programų apribojimų būsena neprieinama. Automatiškai bandoma iš naujo."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Atsisakyti"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Atšaukti leidimą"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Vienkartinis leidimas atšauktas"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Pasirinktinė reikšmė…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Pasirinktinė reikšmė"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Įveskite pasirinktinę dienos normą minutėmis."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Įveskite sveiką skaičių nuo 0 iki 1439 imtinai."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "%(row_app_name)s atitikties taisyklė"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Dabartinė atitikties taisyklė: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Atkurti numatytąją"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Išsaugoti"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Programos atitikties taisyklė"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Įveskite tikslų vykdymo kelią arba failo pavadinimo su versija šabloną."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Nepavyko išsaugoti %(setting)s. Bandykite vėliau."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Vaiko paskyra: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "Tvarkyti %(label)s ekrano laiką ir programų taisykles."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "%(app_name)s logotipas"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Nuostatos"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Pagalba"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "Apie"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Meniu"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Vaiko paskyra"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Atšaukia vienkartinius ekrano laiko ir prieigos prie programų leidimus."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Nerasta interaktyvi paskyra be administratoriaus teisių."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "Rodyti puslapį %(label)s."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Ekrano laiko apribojimas"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Įjungti / išjungti ekrano laiko apribojimą"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Dienos laiko norma"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Šiandien likęs laikas"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Šiandienai likęs laikas"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Atitikties taisyklė"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Prieigos taisyklė"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Slėpti skaičiavimą"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Filtruoti pagal %(label)s"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Trumpas prieigos ir atitikties taisyklių paaiškinimas"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Rodyti paaiškinimą"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Prieiga prie programos (kas vyksta)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Atitikties taisyklė (kaip atpažįstamos programos)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Prieigos ir atitikties taisyklių supratimas"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Slėpti paaiškinimą"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "Nepavyko įkelti jūsų kalbos nuostatos. Atverkite nuostatas ir bandykite iš naujo."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Keisti atitikties taisyklę"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "%(app_name)s prieigos taisyklė: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Nustatyti pasirinkto vaiko %(app_name)s prieigos taisyklę į %(state_label)s."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Nepavyko patikrinti programų apribojimų būsenos. Kitos valdymo funkcijos tebėra prieinamos."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Atšaukti vienkartinį leidimą?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Tai atšauks %(child_name)s suteiktą vienkartinį ekrano laiką ir prieigą prie užblokuotų programų, kurias galima laikinai atblokuoti, užvers vaiko veikiančias užblokuotas programas ir užrakins jo darbalaukį, kai neliks laiko. Vaiko likusi dienos laiko norma nepasikeis."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Palikti dabartinį vienkartinį leidimą."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Atšaukti pasirinkto vaiko vienkartinį leidimą."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Nustatyti pasirinkto vaiko dienos normą į %(daily_limit_label_minutes)s."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Pasirinktinė reikšmė"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Keisti atitikties taisyklę"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Užverti"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Užverti pranešimą apie būtinas administratoriaus teises."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Nėra)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Atšaukti vienkartinį leidimą"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Atšaukti"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "minutės"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Įdiegtos programos"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Darbalaukio, AppImage, Flatpak, Snap ir sistemos paleidyklės"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Piktograma"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Įkeliamos įdiegtos programos…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Kaip skaičiuojama"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Paaiškinimas"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "Programą visada galima naudoti"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "Programa visiškai užblokuota ir ją gali leisti tik administratoriai"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "Programa užblokuota ir, jei įjungtas laiko apribojimas, vaiko prašymu jai galima suteikti vienkartinį pratęsimą"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Atitinka pagal šabloną\n apimant vykdymo kelius su kintančiais versijų numeriais (pvz., Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Atitinka tikslų programos kelią\n(pvz., /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Nepavyko atnaujinti vaikų paskyrų. Automatiškai bandoma iš naujo."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Nerasta interaktyvių naudotojų be administratoriaus teisių"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Netinkama dienos norma. Įveskite sveiką skaičių nuo 0 iki 1439 imtinai."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Naudokite tikslų vykdymo kelią arba įtraukite * failo pavadinimo su versija šablonui."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Būtinos administratoriaus teisės"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Būtinas administratorius"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Tik administratorius gali tvarkyti tėvų kontrolę.\nPrisijunkite naudodami administratoriaus paskyrą, kad atvertumėte tėvų programą."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Tik administratorius gali tvarkyti tėvų kontrolę. Prisijunkite naudodami administratoriaus paskyrą, kad atvertumėte tėvų programą."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "kita programa"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "Būtina atitikties taisyklė"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Tiksli atitiktis turi būti šios programos vykdymo kelias"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Tęsti"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Išsaugoti kalbos nuostatą."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Nepavyko išsaugoti jūsų kalbos. Bandykite iš naujo."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Kalba"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Pasirinkite kalbą"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Ją galite pakeisti nuostatose"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "Pasirinkti %(name)s."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Laikas suteiktas"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Laikas suteiktas, užverti"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Numatomas likęs laikas, jei bus patvirtinta: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Peržiūrėti klaidos ataskaitą prieš užveriant arba grįžtant į prisijungimą."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "NUOSTATOS"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Pasirinkite kalbą."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "APIE"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Rodyti produkto pavadinimą, versiją ir teisinę informaciją."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Nutildyti prašymo ekrano garsą"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Įjungti arba išjungti žaibą ir jo griaustinio garsą."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Prašymo ekrano meniu"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Atverti šio prašymo ekrano nuostatas, pagalbą ir informaciją apie produktą."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Grįžti į prisijungimą"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Užverti rezultato ekraną arba grįžti į prisijungimo ekraną."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Pranešti apie šią klaidą"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Skaičiuojamas numatomas laikas…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "PAGALBA"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Atverti produkto svetainę naršyklėje."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Nutildyti garsą ir išjungti žaibą"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Įjungti garsą ir žaibą"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Įjungti prašymo ekrano garsą"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Jei bus patvirtinta, prieiga iki vidurnakčio."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Numatomas laikas neprieinamas"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "Nepavyko įkelti numatomo likusio laiko."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Nepavyko išsaugoti nuostatų"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "Nepavyko išsaugoti prašymo pasirinkimų. Bandykite vėliau."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Nepavyko išsaugoti garso nuostatos. Bandykite vėliau."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "Nepavyko išsaugoti prašymo nuostatų. Bandykite vėliau."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Prašymas patvirtintas"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Prašymas atmestas"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Vaikas"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Patvirtinantis tėvas"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Patvirtintojas"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Pasirinktinė trukmė minutėmis"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Įveskite prašomą trukmę nuo 0.1 iki 1440 minučių imtinai."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Leisti programas, kurias galima laikinai atblokuoti"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Pasirinkite, ar šis prašymas laikinai leidžia naudoti užblokuotas programas, kurias galima laikinai atblokuoti."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Prašyti prieigos"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Pateikti pasirinktą trukmę ir prieigos prie programų pasirinkimą patvirtinti."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Atšaukti prašymą"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Užverti šį prašymo ekraną neprašant papildomo laiko."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Įkeliamos paskyros…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Įkeliama prašymo informacija…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "PRAŠYTI"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Ekrano apribojimas neįjungtas tėvų programoje"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "ATSISAKYTI"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "Prašyti %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "Pasirinkti %(label)s kaip prašomą papildomo ekrano laiko trukmę."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Nėra vietinių įprastų paskyrų. Sukurkite ją ir iš naujo atverkite šį ekraną."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Nėra vietinių interaktyvių administratoriaus paskyrų."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Laukiama patvirtinimo…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "Prašymas neprieinamas"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "Nepavyko užbaigti prašymo. Grįžkite į prisijungimą ir bandykite vėliau."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "Nepavyko užbaigti prašymo. Bandykite vėliau."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Versija %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Svetainė"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Privatumas"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Privatumo politika"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Pagalba"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Licencija"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Teisiniai pranešimai"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Pranešimai apie Malcontent integraciją ir pridedamus šriftus"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Naudoja atskirai įdiegtą Malcontent tėvų kontrolės tarnybą per viešąsias sistemos API. Nėra susijusi su Malcontent autoriais ar GNOME ir nėra jų patvirtinta."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Padedame šeimoms ugdyti sveikus skaitmeninius įpročius."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Galite užverti šį dialogą; kol programa atverta, bandymai tęsiami."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Jūsų atsiliepimas išsiųstas. Dėkojame, kad padedate tobulinti programą."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "Atsakymo el. paštas (neprivalomas)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Pridėkite el. pašto adresą, jei norite atsakymo."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Pridėti failų"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Prie atsiliepimo pridėkite iki 5 failų."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Pakartoti diagnostikos rinkimą"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Dar kartą bandyti surinkti diagnostikos priedą."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Atsisiųsti"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Išsaugoti ZIP su skaitoma diagnostikos ataskaita ir patikrintais techniniais įvykiais."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Rodyti privatumo informaciją apie atsiliepimus ir priedus."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Siųsti be žurnalų"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Siųsti atsiliepimą be diagnostikos priedo."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Užverti atsiliepimo formą išsaugant juodraštį šioje programoje."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Siųsti atsiliepimą"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Pateikti atsiliepimą ir pasirinktus priedus."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nDiagnostikos žurnalai nerenka paskyrų vardų, el. pašto adresų, failų turinio, neapdorotų sistemos žurnalų ar išimčių pranešimų. Automatinėje diagnostikoje yra patikrinti techniniai įvykiai, būklės patikros ir sistemos informacija: OS ir priklausomybių versijos, laiko juosta, seanso tipas ir bendri paskyrų skaičiai. Vardai ir pasirinktinė versijos informacija praleidžiami arba negrįžtamai pakeičiami; tapatybės niekada nekeičiamos maišos reikšmėmis. Jūsų atsiliepimas, atsakymo el. paštas ir pasirinkti failai yra atskiri ir gali turėti asmeninės informacijos. Peržiūrėkite juos prieš siųsdami."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Peržiūrėti visą privatumo pranešimą"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Atverti Oh No! Parent Control privatumo pranešimą naršyklėje."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Nutraukti siuntimą ir užverti"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Galite nutraukti siuntimą ir užverti šią ataskaitą."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Atsiliepimas pateiktas."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Šio pateikimo nebegalima kartoti jo pakartotinių bandymų laikotarpiu. Ankstesnis bandymas galėjo būti sėkmingas. Siunčiant dar kartą gali būti pateikta kopija."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "Priedai per dideli. Pašalinkite failų ar žurnalus ir bandykite iš naujo."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Nepavyko paruošti žurnalų. Šį atsiliepimą galite siųsti be priedo."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "Atsiliepimas nepriimtas. Juodraštis išsaugotas. Prieš siųsdami dar kartą patikrinkite atsiliepimą ir atsakymo adresą."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Pateikimas nutrauktas. Juodraštis išsaugotas. Ankstesnis bandymas galėjo būti sėkmingas."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "Siuntimas dar neprieinamas. Juodraštis išsaugotas."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nJei turėsime papildomų klausimų, galime su jumis susisiekti jūsų pateiktu el. pašto adresu."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Pridėti diagnostikos ataskaitą su patikrintais techniniais įvykiais ir būklės patikromis. Asmeninė informacija į šią ataskaitą neįtraukiama."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Skaitomi priedai…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Priedai (neprivalomi)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Renkama diagnostikos informacija…"
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "Paskutinės 3 žurnalų datos · ZIP archyvas"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Pašalinti žurnalus"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Pakartoti rinkimą"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Išsaugoti suglaudintus žurnalus, kad galėtumėte juos peržiūrėti prieš siųsdami"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Atsiliepimų privatumas"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Užverti atsiliepimų privatumo informaciją."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Sustabdyti laukiančią ataskaitą ir ją užverti."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Pateikti dar kartą (gali dubliuotis)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Iš naujo pateikti išsaugotą atsiliepimą, kai ankstesnis rezultatas neaiškus."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Dėkojame už atsiliepimą!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Užverti atsiliepimo patvirtinimą."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Diagnostika neprieinama"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Pakartokite rinkimą arba siųskite be diagnostikos."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Pridėti žurnalus"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Pašalinti"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Pridėti atsiliepimo priedų"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Pridėkite ne daugiau kaip %(transport_MAX_ATTACHMENT_COUNT)s failų."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Peržiūra neprieinama"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Failo priedas"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "Pašalinti %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Pašalinti šį failą iš atsiliepimo."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Žurnalai paruošti peržiūrėti"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Atsisiųsti diagnostikos žurnalus"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Atsisiųsta · Paruošta peržiūrėti"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Padėkite mums tobulinti programą"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Pagal numatytąsias nuostatas anonimiška"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Pridėkite el. paštą, jei norite atsakymo. Kitu atveju jūsų atsiliepimas anonimiškas."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Žurnalai nepridėti"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "Paskutinės 3 žurnalų datos · Sistemos informacija · ZIP archyvas"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Atsiliepimą galite siųsti be žurnalų."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Pašalinti priedą"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Nepavyko išsaugoti žurnalų. Bandykite kitą vietą."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Prieš siųsdami peržiūrėkite toliau pateiktą klaidos informaciją."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Aprašykite problemą, pasiūlymą ar idėją."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Nepavyko pasirinkti priedų. Bandykite iš naujo."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Nepavyko perskaityti vieno ar daugiau priedų. Bandykite kitus failus."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "Nepavyko pasirinkti atsisiuntimo vietos. Bandykite iš naujo."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Įvyko klaida"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "Nepavyko užbaigti veiksmo. Bandykite vėliau."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Klaidos ataskaita neprieinama"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "Nepavyko atverti atsiliepimo dialogo. Bandykite vėliau."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Užverti pranešimą apie klaidos ataskaitą."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "Atsiliepimai, atsakymo el. pašto adresai, priedai ir diagnostikos žurnalai siunčiami el. paštu pagalbos tarnybai. Saugojimo trukmė priklauso nuo mūsų pagalbos pašto dėžutės ir paslaugų teikėjų, įskaitant jų atsarginių kopijų politiką. Šiuo metu negarantuojame ištrynimo per nustatytą laikotarpį."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Įveskite vienos eilutės atsiliepimo pavadinimą, ne ilgesnį nei 200 simbolių."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Įveskite atsiliepimą."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Jūsų atsiliepime yra nepalaikomas paslėptas simbolis. Įveskite jį iš naujo ir bandykite dar kartą."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "Atsiliepimas turi būti ne ilgesnis nei 5 000 UTF-16 simbolių (kai kurie jaustukai skaičiuojami kaip du)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "Formatuotas atsiliepimas per sudėtingas. Pašalinkite dalį formatavimo ir bandykite iš naujo."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Įveskite tik atsakymo el. pašto adresą arba palikite tuščią."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "Programos versija netinkama. Atnaujinkite programą."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Pridėkite ne daugiau kaip %(MAX_ATTACHMENT_COUNT)s failų."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Vienas ar daugiau priedų netinkami."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Kiekvienas priedas turi būti ne didesnis nei 5 MB."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Bendras priedų ir diagnostikos žurnalų dydis turi būti ne didesnis nei 8 MB."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)d val."
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)d min."
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)d sek."
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Likusi dienos dalis"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Pasirinkite tvarkomą paskyrą"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Pasirinkite patvirtinantį administratorių"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Pasirinkite trukmę"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Įveskite skaičių nuo %(minimum)s iki %(maximum)s minučių."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Dienos norma: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Pasirinkta dienos norma: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Ruošiamas atsiliepimas… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Siunčiamas atsiliepimas… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Be garantijos."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Atverti produkto informaciją: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Pasirinkite priedą su tinkamu failo pavadinimu."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Pasirinkite priedą su trumpesniu tinkamu failo pavadinimu."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Jūsų atsiliepimas"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Rašykite ir formatuokite atsiliepimą. Naudokite įrankių juostą antraštėms, paryškinimui, kursyvui, pabraukimui, sąrašams, citatoms, kodui, nuorodoms, priedams ir formatavimo šalinimui."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Aprašykite idėją arba tai, kas nutiko ir ko tikėjotės…"
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Teksto stilius"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Įprastas tekstas"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Antraštė 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Antraštė 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Paryškinimas"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Kursyvas"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Pabraukimas"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Perbraukimas"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Numeruotas sąrašas"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Ženklelių sąrašas"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Citata"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Kodo blokas"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Įterpti nuorodą"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Pridėti priedą"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Pašalinti formatavimą"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Atsiliepimo formatavimas"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Nuorodos adresas"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Nuorodos rengyklė"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Atverti nuorodos peržiūrą"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Išsaugoti nuorodą"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Pašalinti nuorodą"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "numeruoto sąrašo elementas"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "ženklelių sąrašo elementas"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Vienos minutės atgalinio skaičiavimo animacija"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Įjungti arba išjungti vaizdinę atgalinio skaičiavimo animaciją paskutinę minutę."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Skaityti likusį laiką arba atverti papildomo laiko prašymo formą. Atverti kontekstinį meniu atgalinio skaičiavimo animacijos nuostatoms."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Likęs laikas: %(time)s\n• Spustelėkite, kad paprašytumėte daugiau laiko šiam seansui.\n• Spustelėkite dešiniuoju pelės mygtuku, kad matytumėte daugiau parinkčių."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Prašyti laiko, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Rodyti daugiau paskyrų pasirinkimų"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Parodyti ankstesnius arba kitus paskyrų pasirinkimus."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Pasirinkite paskyrą."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Pasirinkta paskyra: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Pasirinkite, kurios taisyklės rodomos programų sąraše."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Rodyti programas su šia taisykle."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Prašymo ekrano slinkimas"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "Slinkti prašymo ekraną, kai jo turinys netelpa."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d minutė"
+msgstr[1] "%(count)d minutės"
+msgstr[2] "%(count)d minučių"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g valanda"
+msgstr[1] "%(count)g valandos"
+msgstr[2] "%(count)g valandų"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d sekundė"
+msgstr[1] "%(count)d sekundės"
+msgstr[2] "%(count)d sekundžių"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "Paruoštas %(count)d failo priedas."
+msgstr[1] "Paruošti %(count)d failų priedai."
+msgstr[2] "Paruošta %(count)d failų priedų."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d baitas"
+msgstr[1] "%(count)d baitai"
+msgstr[2] "%(count)d baitų"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Nepavyko patvirtinti pateikimo. Bandoma iš naujo po %(count)d sekundės…"
+msgstr[1] "Nepavyko patvirtinti pateikimo. Bandoma iš naujo po %(count)d sekundžių…"
+msgstr[2] "Nepavyko patvirtinti pateikimo. Bandoma iš naujo po %(count)d sekundžių…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Nepavyko išsaugoti vienkartinio leidimo. Bandykite vėliau."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Nepavyko išsaugoti ekrano laiko nuostatų. Bandykite vėliau."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Nepavyko išsaugoti prieigos prie programų. Bandykite vėliau."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Keisti nuorodą"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Klaidų kategorijos: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "Skirta %(name)s"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g valandos"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g valandos"

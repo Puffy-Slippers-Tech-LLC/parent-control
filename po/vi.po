@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Full message catalog translated against the current POT.
 # Plural metadata reference: https://l10n.gnome.org/teams/vi/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: Translation team\n"
 "Language-Team: Tiếng Việt\n"
 "Language: vi\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1543 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Hạn mức hằng ngày còn lại: <b>%(daily)s</b>\nQuyền cấp một lần còn lại: <b>%(grant)s</b>\n<b>Thời gian còn lại: %(remaining)s</b> — giá trị lớn hơn trong hai khoảng thời gian."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Luôn được phép"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Bị chặn hoàn toàn"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Bị chặn nhưng có thể cho phép tạm thời"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Khớp mẫu"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Khớp tên tệp có phiên bản bằng ký tự đại diện."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Đường dẫn thực thi chính xác"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Chỉ khớp đúng đường dẫn tệp thực thi này."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Không thể áp dụng một số giới hạn ứng dụng. Các ứng dụng bị ảnh hưởng hoặc phiên bản đã cập nhật có thể không bị giới hạn. Các điều khiển khác vẫn dùng được và quy tắc đã lưu sẽ tự động được thử lại."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Trẻ đã chọn: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Chưa chọn tài khoản trẻ."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Trẻ đã chọn"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Trình đơn ứng dụng phụ huynh"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Mở tùy chọn, trợ giúp và thông tin sản phẩm."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Phản hồi"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Gửi phản hồi về ứng dụng."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Chọn trẻ có thời gian dùng màn hình và chính sách ứng dụng được hiển thị."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Thu hồi quyền truy cập một lần"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Xóa quyền cấp một lần đang có hiệu lực của trẻ đã chọn sau khi xác nhận."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Giới hạn màn hình"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Giới hạn thời gian dùng màn hình"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Bật hoặc tắt kiểm soát thời gian dùng màn hình hằng ngày cho trẻ đã chọn."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Hạn mức thời gian hằng ngày"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Chọn hạn mức thời gian dùng màn hình hằng ngày của trẻ đã chọn."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Hạn mức hằng ngày tùy chỉnh"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Nhập số phút nguyên từ không đến 1439."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Thời gian còn lại hôm nay"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Mở rộng hoặc thu gọn phép tính thời gian còn lại hằng ngày và một lần."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Giới hạn ứng dụng"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Tìm ứng dụng đã cài đặt"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Tìm ngôn ngữ"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Lọc các ứng dụng có sẵn cho trẻ đã chọn."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Tên ứng dụng &amp; Chi tiết"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Ẩn phép tính thời gian còn lại"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Thu gọn chi tiết phép tính thời gian còn lại."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "Lọc %(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Chú giải chính sách"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Mở rộng hoặc thu gọn chú giải quyền truy cập ứng dụng và quy tắc khớp."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "Quy tắc khớp của %(app_name)s"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Chọn quy tắc đã lưu của ứng dụng này khớp đường dẫn chính xác hay mẫu tên tệp có phiên bản."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "Không thể tải ứng dụng phụ huynh. Vui lòng thử lại sau."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "Thu hồi quyền cấp thời gian dùng màn hình và truy cập ứng dụng một lần đã cấp cho %(child_name)s."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Đang tải…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "Không thể tải các ứng dụng đã cài đặt. Vui lòng thử lại sau."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Không khả dụng"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "Không thể tải thời gian còn lại. Vui lòng thử lại sau."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nỨng dụng bị ảnh hưởng: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "Trạng thái giới hạn ứng dụng không khả dụng. Đang tự động thử lại."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Hủy"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Thu hồi quyền cấp"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Đã thu hồi quyền cấp một lần"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Lượng tùy chỉnh…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Lượng tùy chỉnh"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Nhập hạn mức hằng ngày tùy chỉnh theo phút."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Nhập số nguyên từ 0 đến 1439."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "Quy tắc khớp của %(row_app_name)s"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Quy tắc khớp hiện tại: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Đặt lại về mặc định"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Lưu"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Quy tắc khớp ứng dụng"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Nhập đường dẫn thực thi chính xác hoặc mẫu tên tệp có phiên bản."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Không thể lưu %(setting)s. Vui lòng thử lại sau."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Tài khoản trẻ: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "Quản lý thời gian dùng màn hình và chính sách ứng dụng cho %(label)s."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "Biểu trưng %(app_name)s"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Tùy chọn"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Trợ giúp"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "Giới thiệu"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Trình đơn"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Tài khoản trẻ"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Thu hồi quyền cấp thời gian dùng màn hình và truy cập ứng dụng một lần."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Không tìm thấy tài khoản tương tác không phải quản trị viên."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "Hiển thị trang %(label)s."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Giới hạn thời gian dùng màn hình"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Bật / tắt giới hạn thời gian dùng màn hình"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Hạn mức thời gian hằng ngày"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Thời gian còn lại hôm nay"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Thời gian còn lại cho hôm nay"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Quy tắc khớp"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Quy tắc truy cập"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Ẩn phép tính"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Lọc theo %(label)s"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Tham khảo nhanh về quy tắc truy cập và khớp"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Hiện chú giải"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Truy cập ứng dụng (Điều gì xảy ra)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Quy tắc khớp (Cách khớp ứng dụng)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Hiểu quy tắc truy cập và quy tắc khớp"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Ẩn chú giải"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "Không thể tải tùy chọn ngôn ngữ của bạn. Mở Tùy chọn để thử lại."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Sửa quy tắc khớp"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "Quy tắc truy cập của %(app_name)s: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Đặt quy tắc truy cập của trẻ đã chọn đối với %(app_name)s thành %(state_label)s."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "Không thể kiểm tra trạng thái giới hạn ứng dụng. Các điều khiển khác vẫn dùng được."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Thu hồi quyền cấp một lần?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Thao tác này sẽ thu hồi thời gian dùng màn hình một lần và quyền truy cập các ứng dụng bị chặn nhưng có thể cho phép tạm thời đã cấp cho %(child_name)s, đóng các ứng dụng bị chặn đang chạy của trẻ và khóa màn hình của trẻ khi không còn thời gian. Hạn mức thời gian hằng ngày còn lại của trẻ không bị ảnh hưởng."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Giữ quyền cấp một lần hiện tại."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Thu hồi quyền cấp một lần của trẻ đã chọn."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Đặt hạn mức hằng ngày của trẻ đã chọn thành %(daily_limit_label_minutes)s."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Giá trị tùy chỉnh"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Sửa quy tắc khớp"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Đóng"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Đóng thông báo yêu cầu quản trị viên."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Không có)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Thu hồi quyền cấp một lần"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Thu hồi"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "phút"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Ứng dụng đã cài đặt"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Trình khởi chạy Desktop, AppImage, Flatpak, Snap và hệ thống"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Biểu tượng"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Đang tải ứng dụng đã cài đặt…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Cách tính"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Chú giải"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "Ứng dụng luôn có thể được sử dụng"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "Ứng dụng bị chặn hoàn toàn và chỉ quản trị viên mới có thể cho phép"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "Ứng dụng bị chặn và có thể được gia hạn một lần theo yêu cầu của trẻ nếu giới hạn thời gian được bật"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Khớp theo mẫu\n để bao quát đường dẫn thực thi có số phiên bản thay đổi (ví dụ: Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Khớp đường dẫn ứng dụng chính xác\n(ví dụ: /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Không thể làm mới tài khoản trẻ. Đang tự động thử lại."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Không tìm thấy người dùng tương tác không phải quản trị viên"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Hạn mức hằng ngày không hợp lệ. Nhập số nguyên từ 0 đến 1439."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Dùng đường dẫn thực thi chính xác hoặc thêm * cho mẫu tên tệp có phiên bản."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Cần quyền truy cập quản trị viên"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Yêu cầu quản trị viên"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Chỉ quản trị viên mới có thể quản lý kiểm soát của phụ huynh.\nĐăng nhập bằng tài khoản quản trị viên để mở ứng dụng phụ huynh."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Chỉ quản trị viên mới có thể quản lý kiểm soát của phụ huynh. Đăng nhập bằng tài khoản quản trị viên để mở ứng dụng phụ huynh."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "ứng dụng khác"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "Cần có quy tắc khớp"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Khớp chính xác phải là đường dẫn thực thi của ứng dụng này"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Tiếp tục"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Lưu tùy chọn ngôn ngữ của bạn."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Không thể lưu ngôn ngữ của bạn. Vui lòng thử lại."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Ngôn ngữ"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Chọn ngôn ngữ của bạn"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Bạn có thể thay đổi trong tùy chọn"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "Chọn %(name)s."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Đã cấp thời gian"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Đã cấp thời gian, Đóng"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Thời gian còn lại ước tính nếu được chấp thuận: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Xem lại báo cáo lỗi trước khi đóng hoặc quay lại đăng nhập."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "TÙY CHỌN"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Chọn ngôn ngữ của bạn."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "GIỚI THIỆU"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Hiển thị tên sản phẩm, phiên bản và thông tin pháp lý."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Tắt âm thanh màn hình yêu cầu"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Bật hoặc tắt hiệu ứng chớp và tiếng sấm đi kèm."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Trình đơn màn hình yêu cầu"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Mở tùy chọn, trợ giúp và thông tin sản phẩm cho màn hình yêu cầu này."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Quay lại đăng nhập"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Đóng màn hình kết quả hoặc quay lại màn hình đăng nhập."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Báo cáo lỗi này"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Đang tính thời gian ước tính…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "TRỢ GIÚP"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Mở trang web sản phẩm trong trình duyệt."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Tắt âm thanh và chớp"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Bật âm thanh và chớp"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Bật âm thanh màn hình yêu cầu"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Nếu được chấp thuận, có quyền truy cập đến nửa đêm."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Thời gian ước tính không khả dụng"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "Không thể tải thời gian còn lại ước tính."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Không thể lưu cài đặt"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "Không thể lưu các lựa chọn yêu cầu của bạn. Vui lòng thử lại sau."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Không thể lưu tùy chọn âm thanh của bạn. Vui lòng thử lại sau."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "Không thể lưu tùy chọn yêu cầu của bạn. Vui lòng thử lại sau."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Yêu cầu được chấp thuận"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Yêu cầu bị từ chối"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Trẻ"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Phụ huynh chấp thuận"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Người chấp thuận"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Thời lượng tùy chỉnh theo phút"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Nhập thời lượng yêu cầu từ 0.1 đến 1440 phút."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Cho phép ứng dụng bị chặn nhưng có thể cho phép tạm thời"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Chọn yêu cầu này có cho phép tạm thời các ứng dụng bị chặn nhưng có thể cho phép tạm thời hay không."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Yêu cầu quyền truy cập"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Gửi thời lượng và lựa chọn truy cập ứng dụng đã chọn để được chấp thuận."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Hủy yêu cầu"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Đóng màn hình yêu cầu này mà không yêu cầu thêm thời gian."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Đang tải tài khoản…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Đang tải chi tiết yêu cầu…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "YÊU CẦU"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Giới hạn màn hình chưa được bật trong ứng dụng phụ huynh"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "HỦY"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "Yêu cầu %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "Chọn %(label)s làm thời lượng dùng màn hình bổ sung được yêu cầu."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Không có tài khoản tiêu chuẩn cục bộ. Tạo một tài khoản rồi mở lại màn hình này."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Không có tài khoản quản trị viên tương tác cục bộ."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Đang chờ chấp thuận…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "Yêu cầu không khả dụng"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "Không thể hoàn tất yêu cầu. Vui lòng quay lại đăng nhập và thử lại sau."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "Không thể hoàn tất yêu cầu. Vui lòng thử lại sau."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Phiên bản %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Trang web"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Quyền riêng tư"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Chính sách quyền riêng tư"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Hỗ trợ"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Giấy phép"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Thông báo pháp lý"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Thông báo tích hợp Malcontent và phông chữ đi kèm"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Sử dụng dịch vụ kiểm soát của phụ huynh Malcontent được cài đặt riêng thông qua API hệ thống công khai. Không liên kết với hoặc được các tác giả Malcontent hay GNOME chứng thực."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Giúp gia đình xây dựng thói quen kỹ thuật số lành mạnh."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Bạn có thể đóng hộp thoại này; việc thử lại tiếp tục khi ứng dụng còn mở."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Phản hồi của bạn đã được gửi thành công. Cảm ơn bạn đã giúp cải thiện ứng dụng."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "Email nhận trả lời (không bắt buộc)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Thêm địa chỉ email nếu bạn muốn nhận trả lời."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Thêm tệp"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Đính kèm tối đa 5 tệp vào phản hồi của bạn."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Thử lại thu thập chẩn đoán"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Thử thu thập tệp đính kèm chẩn đoán lần nữa."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Tải xuống"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Lưu ZIP chứa báo cáo chẩn đoán có thể đọc được và các sự kiện kỹ thuật đã xác thực."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Hiển thị thông tin quyền riêng tư về phản hồi và tệp đính kèm."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Gửi không kèm nhật ký"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Gửi phản hồi không kèm tệp đính kèm chẩn đoán."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Đóng biểu mẫu phản hồi nhưng giữ bản nháp trong ứng dụng này."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Gửi phản hồi"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Gửi phản hồi và các tệp đính kèm đã chọn."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nNhật ký chẩn đoán không thu thập tên tài khoản, địa chỉ email, nội dung tệp, nhật ký hệ thống thô hoặc thông báo ngoại lệ. Chẩn đoán tự động chứa các sự kiện kỹ thuật đã xác thực, kiểm tra tình trạng hệ thống và thông tin hệ thống: phiên bản hệ điều hành và phần phụ thuộc, múi giờ, loại phiên và tổng số tài khoản. Tên và văn bản phiên bản tùy chỉnh được bỏ qua hoặc thay thế không thể khôi phục; danh tính không bao giờ được băm. Phản hồi của bạn, email nhận trả lời và các tệp đã chọn là riêng biệt và có thể chứa thông tin cá nhân. Xem lại trước khi gửi."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Xem toàn bộ thông báo quyền riêng tư"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Mở thông báo quyền riêng tư của Oh No! Parent Control trong trình duyệt của bạn."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Dừng gửi và đóng"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Bạn có thể dừng gửi và đóng báo cáo này."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Đã gửi phản hồi."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Không thể thử lại lần gửi này trong khoảng thời gian thử lại của nó nữa. Lần thử trước có thể đã thành công. Gửi lại có thể tạo bản gửi trùng lặp."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "Tệp đính kèm quá lớn. Xóa tệp hoặc nhật ký rồi thử lại."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Không thể chuẩn bị nhật ký. Bạn có thể gửi phản hồi này không kèm tệp đính kèm."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "Phản hồi không được chấp nhận. Bản nháp của bạn được giữ lại. Kiểm tra phản hồi và địa chỉ nhận trả lời trước khi gửi lại."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Đã dừng gửi. Bản nháp của bạn được giữ lại. Lần thử trước có thể đã thành công."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "Chưa thể gửi. Bản nháp của bạn được giữ lại."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nChúng tôi có thể liên hệ với bạn qua địa chỉ email đã cung cấp nếu có câu hỏi tiếp theo."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Kèm báo cáo chẩn đoán với các sự kiện kỹ thuật đã xác thực và kiểm tra tình trạng hệ thống. Thông tin cá nhân được loại trừ khỏi báo cáo này."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Đang đọc tệp đính kèm…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Tệp đính kèm (không bắt buộc)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Đang thu thập thông tin chẩn đoán..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "3 ngày có nhật ký mới nhất · Tệp ZIP"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Xóa nhật ký"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Thử thu thập lại"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Lưu nhật ký nén để kiểm tra trước khi gửi"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Quyền riêng tư của phản hồi"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Đóng thông tin quyền riêng tư của phản hồi."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Dừng báo cáo đang chờ và đóng báo cáo."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Gửi lại (có thể trùng lặp)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Gửi lại phản hồi được giữ lại khi kết quả trước chưa chắc chắn."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Cảm ơn phản hồi của bạn!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Đóng xác nhận phản hồi."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Chẩn đoán không khả dụng"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Thử thu thập lại hoặc gửi không kèm chẩn đoán."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Thêm nhật ký"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Xóa"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Thêm tệp đính kèm phản hồi"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Đính kèm tối đa %(transport_MAX_ATTACHMENT_COUNT)s tệp."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Không có bản xem trước"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Tệp đính kèm"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "Xóa %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Xóa tệp này khỏi phản hồi."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Nhật ký sẵn sàng để xem lại"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Tải nhật ký chẩn đoán xuống"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Đã tải xuống · Sẵn sàng kiểm tra"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Giúp chúng tôi cải thiện"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Ẩn danh theo mặc định"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Thêm email nếu muốn nhận trả lời. Nếu không, phản hồi của bạn sẽ ẩn danh."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Không có nhật ký đính kèm"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "3 ngày có nhật ký mới nhất · Thông tin hệ thống · Tệp ZIP"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Có thể gửi phản hồi của bạn không kèm nhật ký."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Xóa tệp đính kèm"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Không thể lưu nhật ký. Thử vị trí khác."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Xem lại chi tiết lỗi bên dưới trước khi gửi."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Chia sẻ vấn đề, đề xuất hoặc ý tưởng."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Không thể chọn tệp đính kèm. Thử lại."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Không thể đọc một hoặc nhiều tệp đính kèm. Thử tệp khác."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "Không thể chọn vị trí tải xuống. Thử lại."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Đã xảy ra lỗi"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "Không thể hoàn tất thao tác. Vui lòng thử lại sau."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Báo cáo lỗi không khả dụng"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "Không thể mở hộp thoại phản hồi. Vui lòng thử lại sau."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Đóng thông báo báo cáo lỗi."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "Phản hồi, địa chỉ email nhận trả lời, tệp đính kèm và nhật ký chẩn đoán được gửi qua email đến bộ phận hỗ trợ. Thời gian lưu giữ phụ thuộc vào hộp thư hỗ trợ và các nhà cung cấp dịch vụ của chúng tôi, kể cả chính sách sao lưu của họ. Hiện chúng tôi không đảm bảo xóa trong một khoảng thời gian cố định."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Nhập tiêu đề phản hồi một dòng dài tối đa 200 ký tự."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Vui lòng nhập phản hồi của bạn."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Phản hồi của bạn chứa ký tự ẩn không được hỗ trợ. Vui lòng gõ lại và thử lại."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "Phản hồi phải dài tối đa 5.000 ký tự UTF-16 (một số emoji được tính là hai)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "Phản hồi đã định dạng quá phức tạp. Xóa bớt định dạng và thử lại."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Chỉ nhập địa chỉ email nhận trả lời hoặc để trống."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "Phiên bản ứng dụng không hợp lệ. Vui lòng cập nhật ứng dụng."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Đính kèm tối đa %(MAX_ATTACHMENT_COUNT)s tệp."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Một hoặc nhiều tệp đính kèm không hợp lệ."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Mỗi tệp đính kèm phải có kích thước từ 5 MB trở xuống."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Tổng kích thước tệp đính kèm và nhật ký chẩn đoán phải từ 8 MB trở xuống."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)d giờ"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)d phút"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)d giây"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Phần còn lại của ngày"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Chọn tài khoản để quản lý"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Chọn quản trị viên chấp thuận"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Chọn thời lượng"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Nhập số từ %(minimum)s đến %(maximum)s phút."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Hạn mức hằng ngày: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Hạn mức hằng ngày đã chọn: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Đang chuẩn bị phản hồi… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Đang gửi phản hồi… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Không bảo hành."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Mở thông tin sản phẩm: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Chọn tệp đính kèm có tên tệp hợp lệ."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Chọn tệp đính kèm có tên tệp hợp lệ ngắn hơn."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Phản hồi của bạn"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Viết và định dạng phản hồi. Dùng thanh công cụ cho tiêu đề, chữ đậm, chữ nghiêng, gạch chân, danh sách, trích dẫn, mã, liên kết, tệp đính kèm và xóa định dạng."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Mô tả ý tưởng của bạn hoặc điều đã xảy ra và điều bạn mong đợi..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Kiểu văn bản"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Văn bản thường"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Tiêu đề 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Tiêu đề 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Đậm"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Nghiêng"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Gạch chân"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Gạch ngang"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Danh sách đánh số"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Danh sách dấu đầu dòng"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Trích dẫn"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Khối mã"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Chèn liên kết"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Thêm tệp đính kèm"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Xóa định dạng"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Định dạng phản hồi"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Đích liên kết"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Trình sửa liên kết"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Mở bản xem trước liên kết"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Lưu liên kết"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Xóa liên kết"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "mục danh sách đánh số"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "mục danh sách dấu đầu dòng"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Hoạt ảnh đếm ngược một phút"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Bật hoặc tắt hoạt ảnh đếm ngược trực quan trong phút cuối."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Đọc thời gian còn lại hoặc mở biểu mẫu yêu cầu thêm thời gian. Mở trình đơn ngữ cảnh để cài đặt hoạt ảnh đếm ngược."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Thời gian còn lại: %(time)s\n• Nhấp để yêu cầu thêm thời gian cho phiên này.\n• Nhấp chuột phải để xem thêm lựa chọn."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Yêu cầu thời gian, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Hiện thêm lựa chọn tài khoản"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Hiện lựa chọn tài khoản trước hoặc tiếp theo."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Chọn tài khoản."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Tài khoản đã chọn: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Chọn quy tắc được hiển thị trong danh sách ứng dụng."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Hiển thị ứng dụng có quy tắc này."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Cuộn màn hình yêu cầu"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "Cuộn màn hình yêu cầu khi nội dung vượt quá vùng hiển thị."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d phút"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g giờ"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d giây"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d tệp đính kèm đã sẵn sàng."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d byte"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Không thể xác nhận việc gửi. Thử lại sau %(count)d giây…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Không thể lưu quyền cấp một lần. Vui lòng thử lại sau."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Không thể lưu cài đặt thời gian dùng màn hình. Vui lòng thử lại sau."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Không thể lưu quyền truy cập ứng dụng. Vui lòng thử lại sau."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Sửa liên kết"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Loại lỗi: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "Cho %(name)s"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g giờ"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g giờ"

@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import os
+import json
+import re
 import subprocess
 import sys
 import time
@@ -291,6 +293,43 @@ def _overlay_closed(expected_launches):
     return records and not _process_exists(records[-1])
 
 
+def _review_language_changes(input_backend, oracles):
+    """Cases supply finite independent literals; reuse the owned public actions."""
+    for launches, (language, expected) in enumerate(oracles.items(), start=1):
+        _prepare_indicator_input()
+        _press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_SPACE)
+        _wait(lambda: _one_overlay(launches), 'one language-review overlay')
+        overlay = _overlay_automation()
+        overlay.complete_read_wait = _wait_for_complete_read
+        overlay.complete_request_language_setup()
+        overlay.reader.open_language_preferences('kiosk')
+        overlay.reader.choose_language('kiosk', language)
+        overlay.reader.save_language('kiosk')
+        _wait(lambda: overlay.text('kiosk-request-submit') == expected['request'],
+              'the overlay applies its committed translation')
+        overlay.activate(OVERLAY_CANCEL_ID)
+        _wait(lambda: _overlay_closed(launches), 'the language-review overlay closes')
+        # The time remains dynamic; only its translated surrounding message and
+        # production countdown format are expected, not a frozen timer value.
+        panel_pattern = re.escape(expected['panel']).replace(
+            re.escape('%(time)s'), r'\d{2}:\d{2}') + ', generation-one'
+        _wait(lambda: re.fullmatch(panel_pattern, UI.text(REQUEST_BUTTON_ID)),
+              'the panel reloads its own language after the overlay exits')
+        actual = UI.target(REQUEST_BUTTON_ID).get_description()
+        assert actual == expected['description'], (language, 'panel description', expected['description'], actual)
+        _prepare_indicator_input()
+        _press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_MENU)
+        _wait(_find_countdown_animation_item, 'the translated countdown menu')
+        actual = UI.text(COUNTDOWN_ANIMATION_ID)
+        assert actual == expected['countdown'], (language, 'countdown label', expected['countdown'], actual)
+        UI.focus(COUNTDOWN_ANIMATION_ID)
+        capture_screenshot(Path(os.environ['ONPC_CHILD_SHELL_SCREENSHOT_PATH']).with_name(
+            'language-' + language + '.png'))
+        _press_recipient_key(input_backend, COUNTDOWN_ANIMATION_ID, X_KEYCODE_ESCAPE)
+        _wait(lambda: _find_countdown_animation_item() is None, 'the menu closes')
+        print('Child panel localization reviewed: ' + language, flush=True)
+
+
 def main():
     input_backend = None
     try:
@@ -303,6 +342,12 @@ def main():
         if _launch_records() or windows or cancel:
             raise AssertionError("The interaction preview opened an overlay before activation")
         print("interaction stage=initially-closed", flush=True)
+
+        localization = os.environ.get('ONPC_CHILD_LOCALIZATION_ORACLES')
+        if localization:
+            _review_language_changes(input_backend, json.loads(localization))
+            print('Child panel localization cycle passed', flush=True)
+            return 0
 
         if _countdown_animation_setting():
             raise AssertionError("Countdown animation did not default to disabled")

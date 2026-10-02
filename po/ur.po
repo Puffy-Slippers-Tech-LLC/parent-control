@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Full message catalog translated against the current POT.
 # Plural metadata reference: https://l10n.gnome.org/teams/ur/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: Translation team\n"
 "Language-Team: اردو\n"
 "Language: ur\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1549 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "روزانہ کے مختص وقت میں باقی: <b>%(daily)s</b>\nایک بار کی اجازت میں باقی: <b>%(grant)s</b>\n<b>باقی وقت: %(remaining)s</b> — دونوں مقداروں میں سے زیادہ۔"
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "ہمیشہ اجازت ہے"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "مکمل طور پر مسدود"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "مسدود، عارضی اجازت ممکن"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "نمونے سے مطابقت"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "وائلڈ کارڈ کے ذریعے ورژن والے فائل ناموں سے مطابقت کرتا ہے۔"
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "اجرا کا عین راستہ"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "صرف اسی عین قابلِ اجرا فائل کے راستے سے مطابقت کرتا ہے۔"
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "کچھ ایپس کی پابندیاں لاگو نہیں ہو سکیں۔ متاثرہ ایپس یا تازہ ورژن غیر محدود ہو سکتے ہیں۔ دوسرے کنٹرول دستیاب ہیں، اور محفوظ قواعد خودکار طور پر دوبارہ لاگو کرنے کی کوشش کی جائے گی۔"
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "منتخب بچہ: %(label)s۔"
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "کسی بچے کا اکاؤنٹ منتخب نہیں ہے۔"
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "منتخب بچہ"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "والدین کی ایپ کا مینو"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "ترجیحات، مدد اور مصنوع کی معلومات کھولیں۔"
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "رائے"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "ایپ کے بارے میں رائے بھیجیں۔"
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "وہ بچہ منتخب کریں جس کا اسکرین ٹائم اور ایپس کی پالیسی دکھائی جاتی ہے۔"
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "ایک بار کی رسائی منسوخ کریں"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "تصدیق کے بعد منتخب بچے کی فعال ایک بار کی اجازت ہٹائیں۔"
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "اسکرین کی حدود"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "اسکرین ٹائم کی حد"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "منتخب بچے کے لیے روزانہ اسکرین ٹائم کا کنٹرول فعال یا غیر فعال کریں۔"
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "روزانہ کا مختص وقت"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "منتخب بچے کا روزانہ اسکرین ٹائم مختص کریں۔"
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "اپنی مرضی کا روزانہ وقت"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "صفر سے 1439 تک منٹوں کی تعداد ایک صحیح عدد کے طور پر درج کریں۔"
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "آج کا باقی وقت"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "روزانہ اور ایک بار کی اجازت کے باقی وقت کا حساب پھیلائیں یا سمیٹیں۔"
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "ایپس کی حدود"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "نصب شدہ ایپس تلاش کریں"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "زبانیں تلاش کریں"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "منتخب بچے کی دستیاب ایپس چھانٹیں۔"
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "ایپ کا نام &amp; تفصیل"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "باقی وقت کا حساب چھپائیں"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "باقی وقت کے حساب کی تفصیلات سمیٹیں۔"
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "%(label)s چھانٹیں"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "پالیسی کی وضاحت"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "ایپس کی رسائی اور مطابقت کے قواعد کی وضاحت پھیلائیں یا سمیٹیں۔"
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "%(app_name)s کی مطابقت کا قاعدہ"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "منتخب کریں کہ اس ایپ کا محفوظ قاعدہ عین راستے سے مطابقت کرے یا ورژن والے فائل نام کے نمونے سے۔"
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "والدین کی ایپ لوڈ نہیں ہو سکی۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "%(child_name)s کو دی گئی ایک بار کی اسکرین ٹائم اور ایپس تک رسائی کی اجازتیں منسوخ کرتا ہے۔"
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "لوڈ ہو رہا ہے…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "نصب شدہ ایپس لوڈ نہیں ہو سکیں۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "دستیاب نہیں"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "باقی وقت لوڈ نہیں ہو سکا۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nمتاثرہ ایپس: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "ایپس کی حدود کی حالت دستیاب نہیں۔ خودکار طور پر دوبارہ کوشش کی جا رہی ہے۔"
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "منسوخ کریں"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "اجازت منسوخ کریں"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "ایک بار کی اجازت منسوخ ہو گئی"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "اپنی مرضی کی مقدار…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "اپنی مرضی کی مقدار"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "اپنی مرضی کا روزانہ وقت منٹوں میں درج کریں۔"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "0 سے 1439 تک صحیح عدد درج کریں۔"
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "%(row_app_name)s کی مطابقت کا قاعدہ"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "موجودہ مطابقت کا قاعدہ: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "طے شدہ پر واپس جائیں"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "محفوظ کریں"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "ایپ کی مطابقت کا قاعدہ"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "اجرا کا عین راستہ یا ورژن والے فائل نام کا نمونہ درج کریں۔"
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "%(setting)s محفوظ نہیں ہو سکا۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "بچے کا اکاؤنٹ: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "%(label)s کے اسکرین ٹائم اور ایپس کی پالیسی کا انتظام کریں۔"
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "%(app_name)s کا لوگو"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "ترجیحات"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "مدد"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "تعارف"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "مینو"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "بچے کا اکاؤنٹ"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "ایک بار کی اسکرین ٹائم اور ایپس تک رسائی کی اجازتیں منسوخ کرتا ہے۔"
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "کوئی غیر منتظم تعاملی اکاؤنٹ نہیں ملا۔"
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "%(label)s کا صفحہ دکھائیں۔"
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "اسکرین ٹائم کی حد"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "اسکرین ٹائم کی حد فعال / غیر فعال کریں"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "روزانہ کا مختص وقت"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "آج کا باقی وقت"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "آج کے لیے باقی وقت"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "مطابقت کا قاعدہ"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "رسائی کا قاعدہ"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "حساب چھپائیں"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "%(label)s کے لحاظ سے چھانٹیں"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "رسائی اور مطابقت کے قواعد کا مختصر حوالہ"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "وضاحت دکھائیں"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "ایپ تک رسائی (کیا ہوتا ہے)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "مطابقت کا قاعدہ (ایپس کی مطابقت کیسے کی جاتی ہے)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "رسائی اور مطابقت کے قواعد کو سمجھنا"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "وضاحت چھپائیں"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "آپ کی زبان کی ترجیح لوڈ نہیں ہو سکی۔ دوبارہ کوشش کے لیے ترجیحات کھولیں۔"
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "مطابقت کا قاعدہ بدلیں"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "%(app_name)s کی رسائی کا قاعدہ: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "منتخب بچے کے لیے %(app_name)s کی رسائی کا قاعدہ %(state_label)s مقرر کریں۔"
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "ایپس کی حدود کی حالت جانچی نہیں جا سکی۔ دوسرے کنٹرول دستیاب ہیں۔"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "ایک بار کی اجازت منسوخ کریں؟"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "اس سے %(child_name)s کو دی گئی ایک بار کی اسکرین ٹائم اور عارضی اجازت کی اہل مسدود ایپس تک رسائی منسوخ ہو جائے گی، اس کی چلتی ہوئی مسدود ایپس بند ہو جائیں گی، اور وقت ختم ہونے پر اس کا ڈیسک ٹاپ مقفل ہو جائے گا۔ اس کا باقی روزانہ مختص وقت متاثر نہیں ہوگا۔"
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "موجودہ ایک بار کی اجازت برقرار رکھیں۔"
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "منتخب بچے کی ایک بار کی اجازت منسوخ کریں۔"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "منتخب بچے کا روزانہ مختص وقت %(daily_limit_label_minutes)s مقرر کریں۔"
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "اپنی مرضی کی قدر"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "مطابقت کا قاعدہ بدلیں"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "بند کریں"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "منتظم کی ضرورت کا نوٹس بند کریں۔"
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(کوئی نہیں)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "ایک بار کی اجازت منسوخ کریں"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "منسوخ کریں"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "منٹ"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "نصب شدہ ایپس"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "ڈیسک ٹاپ، AppImage، Flatpak، Snap اور سسٹم لانچرز"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "آئیکن"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "نصب شدہ ایپس لوڈ ہو رہی ہیں…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "حساب کیسے ہوتا ہے"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "وضاحت"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "ایپ ہمیشہ استعمال کی جا سکتی ہے"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "ایپ مکمل طور پر مسدود ہے اور صرف منتظمین اسے اجازت دے سکتے ہیں"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "ایپ مسدود ہے اور وقت کی حد فعال ہونے پر بچے کی درخواست کے مطابق ایک بار کی توسیع دی جا سکتی ہے"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "نمونے سے مطابقت کرتا ہے\n تاکہ بدلتے ورژن نمبروں والے اجرا کے راستے شامل ہوں (مثلاً Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "ایپ کے عین راستے سے مطابقت کرتا ہے\n(مثلاً /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "بچوں کے اکاؤنٹس تازہ نہیں ہو سکے۔ خودکار طور پر دوبارہ کوشش کی جا رہی ہے۔"
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "کوئی غیر منتظم تعاملی صارف نہیں ملا"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "روزانہ کا مختص وقت درست نہیں۔ 0 سے 1439 تک صحیح عدد درج کریں۔"
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "اجرا کا عین راستہ استعمال کریں، یا ورژن والے فائل نام کے نمونے کے لیے * شامل کریں۔"
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "منتظم کی رسائی درکار ہے"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "منتظم درکار ہے"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "صرف منتظم ہی والدین کے کنٹرول کا انتظام کر سکتا ہے۔\nوالدین کی ایپ کھولنے کے لیے منتظم کے اکاؤنٹ سے سائن ان کریں۔"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "صرف منتظم ہی والدین کے کنٹرول کا انتظام کر سکتا ہے۔ والدین کی ایپ کھولنے کے لیے منتظم کے اکاؤنٹ سے سائن ان کریں۔"
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "دوسری ایپ"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "مطابقت کا قاعدہ درکار ہے"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "عین مطابقت اس ایپ کے اجرا کا راستہ ہونا چاہیے"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "جاری رکھیں"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "اپنی زبان کی ترجیح محفوظ کریں۔"
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "آپ کی زبان محفوظ نہیں ہو سکی۔ دوبارہ کوشش کریں۔"
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "زبان"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "اپنی زبان منتخب کریں"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "آپ اسے ترجیحات میں بدل سکتے ہیں"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "%(name)s منتخب کریں۔"
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "وقت دے دیا گیا"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "وقت دے دیا گیا، بند کریں"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "منظوری ملنے پر متوقع باقی وقت: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "بند کرنے یا لاگ اِن پر واپس جانے سے پہلے خرابی کی رپورٹ کا جائزہ لیں۔"
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "ترجیحات"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "اپنی زبان منتخب کریں۔"
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "تعارف"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "مصنوع کا نام، ورژن اور قانونی معلومات دکھائیں۔"
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "درخواست کی اسکرین کی آواز بند کریں"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "بجلی کی چمک اور اس کی گرج کی آواز فعال یا غیر فعال کریں۔"
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "درخواست کی اسکرین کا مینو"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "درخواست کی اس اسکرین کے لیے ترجیحات، مدد اور مصنوع کی معلومات کھولیں۔"
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "لاگ اِن پر واپس جائیں"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "نتیجے کی اسکرین بند کریں یا سائن اِن کی اسکرین پر واپس جائیں۔"
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "اس خرابی کی رپورٹ کریں"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "وقت کا تخمینہ لگایا جا رہا ہے…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "مدد"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "مصنوع کی ویب سائٹ براؤزر میں کھولیں۔"
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "آواز اور بجلی کی چمک بند کریں"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "آواز اور بجلی کی چمک فعال کریں"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "درخواست کی اسکرین کی آواز فعال کریں"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "منظوری ملنے پر، آدھی رات تک رسائی۔"
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "وقت کا تخمینہ دستیاب نہیں"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "متوقع باقی وقت لوڈ نہیں ہو سکا۔"
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "ترتیبات محفوظ نہیں ہو سکیں"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "آپ کی درخواست کے انتخاب محفوظ نہیں ہو سکے۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "آپ کی آواز کی ترجیح محفوظ نہیں ہو سکی۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "آپ کی درخواست کی ترجیحات محفوظ نہیں ہو سکیں۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "درخواست منظور ہو گئی"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "درخواست مسترد ہو گئی"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "بچہ"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "منظوری دینے والا والد یا والدہ"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "منظوری دینے والا"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "اپنی مرضی کا دورانیہ منٹوں میں"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "0.1 سے 1440 منٹ تک مطلوبہ دورانیہ درج کریں۔"
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "عارضی اجازت کی اہل مسدود ایپس کو اجازت دیں"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "منتخب کریں کہ آیا یہ درخواست عارضی اجازت کی اہل مسدود ایپس کو عارضی طور پر اجازت دے۔"
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "رسائی کی درخواست کریں"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "منتخب دورانیہ اور ایپس تک رسائی کا انتخاب منظوری کے لیے بھیجیں۔"
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "درخواست منسوخ کریں"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "اضافی وقت کی درخواست کیے بغیر درخواست کی یہ اسکرین بند کریں۔"
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "اکاؤنٹس لوڈ ہو رہے ہیں…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "درخواست کی تفصیلات لوڈ ہو رہی ہیں…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "درخواست"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "والدین کی ایپ میں اسکرین کی حد فعال نہیں ہے"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "منسوخ کریں"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "%(label)s کی درخواست کریں"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "%(label)s کو اضافی اسکرین ٹائم کے مطلوبہ دورانیے کے طور پر منتخب کریں۔"
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "کوئی مقامی معیاری اکاؤنٹ دستیاب نہیں۔ ایک بنائیں، پھر یہ اسکرین دوبارہ کھولیں۔"
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "کوئی مقامی تعاملی منتظم اکاؤنٹ دستیاب نہیں۔"
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "منظوری کا انتظار ہے…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "درخواست دستیاب نہیں"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "درخواست مکمل نہیں ہو سکی۔ لاگ اِن پر واپس جائیں اور بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "درخواست مکمل نہیں ہو سکی۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "ورژن %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "ویب سائٹ"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "رازداری"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "رازداری کی پالیسی"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "معاونت"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "لائسنس"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "قانونی نوٹس"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Malcontent کے انضمام اور شامل فونٹس کے نوٹس"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "عوامی سسٹم APIs کے ذریعے علیحدہ نصب کردہ Malcontent کی والدین کے کنٹرول کی خدمت استعمال کرتا ہے۔ Malcontent کے مصنفین یا GNOME سے وابستہ نہیں، اور نہ ہی ان کی توثیق حاصل ہے۔"
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "خاندانوں کو صحت مند ڈیجیٹل عادات بنانے میں مدد دینا۔"
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "آپ یہ مکالمہ بند کر سکتے ہیں؛ ایپ کھلی رہنے تک دوبارہ کوششیں جاری رہیں گی۔"
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "آپ کی رائے کامیابی سے بھیج دی گئی۔ ایپ کو بہتر بنانے میں آپ کی مدد کے شکر گزار ہیں۔"
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "جواب کے لیے ای میل (اختیاری)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "جواب چاہتے ہیں تو اپنا ای میل پتہ شامل کریں۔"
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "فائلیں شامل کریں"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "اپنی رائے کے ساتھ زیادہ سے زیادہ 5 فائلیں منسلک کریں۔"
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "تشخیصی معلومات دوبارہ جمع کریں"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "تشخیصی منسلکہ دوبارہ جمع کرنے کی کوشش کریں۔"
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "ڈاؤن لوڈ کریں"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "ایک ZIP محفوظ کریں جس میں پڑھنے کے قابل تشخیصی رپورٹ اور تصدیق شدہ تکنیکی واقعات ہوں۔"
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "رائے اور منسلکات سے متعلق رازداری کی معلومات دکھائیں۔"
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "لاگز کے بغیر بھیجیں"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "تشخیصی منسلکے کے بغیر رائے بھیجیں۔"
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "اس ایپ میں مسودہ برقرار رکھتے ہوئے رائے کا فارم بند کریں۔"
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "رائے بھیجیں"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "رائے اور منتخب منسلکات جمع کروائیں۔"
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nتشخیصی لاگز اکاؤنٹس کے نام، ای میل پتے، فائلوں کے مواد، سسٹم کے خام جرنلز، یا استثنائی خرابیوں کے پیغامات جمع نہیں کرتے۔ خودکار تشخیصی معلومات میں تصدیق شدہ تکنیکی واقعات، سسٹم کی حالت کی جانچ اور سسٹم کی معلومات ہوتی ہیں: آپریٹنگ سسٹم اور انحصاری اجزا کے ورژن، ٹائم زون، نشست کی قسم اور اکاؤنٹس کی مجموعی تعداد۔ نام اور اپنی مرضی کا ورژن متن حذف کیے جاتے ہیں یا ناقابلِ واپسی طور پر بدل دیے جاتے ہیں؛ شناختوں کی کبھی ہیشنگ نہیں کی جاتی۔ آپ کی اپنی رائے، جواب کا ای میل پتہ اور منتخب فائلیں الگ ہیں اور ان میں ذاتی معلومات ہو سکتی ہیں۔ بھیجنے سے پہلے ان کا جائزہ لیں۔"
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "رازداری کا مکمل نوٹس دیکھیں"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Oh No! Parent Control کا رازداری کا نوٹس اپنے براؤزر میں کھولیں۔"
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "بھیجنا روکیں اور بند کریں"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "آپ بھیجنا روک کر یہ رپورٹ بند کر سکتے ہیں۔"
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "رائے جمع کروا دی گئی۔"
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "اس ارسال کو اس کے دوبارہ کوشش کے وقت کے اندر اب دوبارہ نہیں آزمایا جا سکتا۔ پچھلی کوشش کامیاب ہو چکی ہو سکتی ہے۔ دوبارہ بھیجنے سے نقل جمع ہو سکتی ہے۔"
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "منسلکات بہت بڑے ہیں۔ فائلیں یا لاگز ہٹائیں اور دوبارہ کوشش کریں۔"
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "لاگز تیار نہیں ہو سکے۔ آپ یہ رائے منسلکے کے بغیر بھیج سکتے ہیں۔"
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "رائے قبول نہیں کی گئی۔ آپ کا مسودہ محفوظ ہے۔ دوبارہ بھیجنے سے پہلے اپنی رائے اور جواب کا پتہ جانچیں۔"
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "ارسال روک دیا گیا۔ آپ کا مسودہ محفوظ ہے۔ پچھلی کوشش کامیاب ہو چکی ہو سکتی ہے۔"
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "بھیجنا ابھی دستیاب نہیں۔ آپ کا مسودہ محفوظ ہے۔"
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nاگر ہمیں مزید سوالات ہوں تو ہم آپ کے فراہم کردہ ای میل پتے پر آپ سے رابطہ کر سکتے ہیں۔"
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "تصدیق شدہ تکنیکی واقعات اور سسٹم کی حالت کی جانچ پر مشتمل تشخیصی رپورٹ شامل کریں۔ اس رپورٹ میں ذاتی معلومات شامل نہیں کی جاتیں۔"
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "منسلکات پڑھے جا رہے ہیں…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "منسلکات (اختیاری)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "تشخیصی معلومات جمع کی جا رہی ہیں..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "لاگز کی تازہ ترین 3 تاریخیں · ZIP محفوظہ"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "لاگز ہٹائیں"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "دوبارہ جمع کریں"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "بھیجنے سے پہلے جانچنے کے لیے کمپریس شدہ لاگز محفوظ کریں"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "رائے کی رازداری"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "رائے کی رازداری کی معلومات بند کریں۔"
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "زیرِ التوا رپورٹ روکیں اور بند کریں۔"
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "دوبارہ جمع کروائیں (نقل بن سکتی ہے)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "جب پچھلا نتیجہ غیر یقینی ہو تو محفوظ رائے دوبارہ جمع کروائیں۔"
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "آپ کی رائے کا شکریہ!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "رائے کی تصدیق بند کریں۔"
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "تشخیصی معلومات دستیاب نہیں"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "دوبارہ جمع کرنے کی کوشش کریں یا تشخیصی معلومات کے بغیر بھیجیں۔"
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "لاگز شامل کریں"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "ہٹائیں"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "رائے کے منسلکات شامل کریں"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "زیادہ سے زیادہ %(transport_MAX_ATTACHMENT_COUNT)s فائلیں منسلک کریں۔"
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "پیش منظر دستیاب نہیں"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "فائل کا منسلکہ"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "%(attachment_name)s ہٹائیں"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "یہ فائل رائے سے ہٹائیں۔"
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "لاگز جائزے کے لیے تیار ہیں"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "تشخیصی لاگز ڈاؤن لوڈ کریں"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "ڈاؤن لوڈ ہو گیا · جانچ کے لیے تیار"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "چیزوں کو بہتر بنانے میں ہماری مدد کریں"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "طے شدہ طور پر گمنام"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "جواب چاہتے ہیں تو اپنی ای میل شامل کریں۔ ورنہ آپ کی رائے گمنام ہے۔"
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "کوئی لاگز منسلک نہیں"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "لاگز کی تازہ ترین 3 تاریخیں · سسٹم کی معلومات · ZIP محفوظہ"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "آپ کی رائے لاگز کے بغیر بھیجی جا سکتی ہے۔"
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "منسلکہ ہٹائیں"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "لاگز محفوظ نہیں ہو سکے۔ دوسری جگہ آزمائیں۔"
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "بھیجنے سے پہلے نیچے خرابی کی تفصیلات کا جائزہ لیں۔"
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "کوئی مسئلہ، تجویز یا خیال پیش کریں۔"
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "منسلکات منتخب نہیں ہو سکے۔ دوبارہ کوشش کریں۔"
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "ایک یا زیادہ منسلکات پڑھے نہیں جا سکے۔ دوسری فائلیں آزمائیں۔"
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "ڈاؤن لوڈ کی جگہ منتخب نہیں ہو سکی۔ دوبارہ کوشش کریں۔"
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "کچھ غلط ہو گیا"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "عمل مکمل نہیں ہو سکا۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "خرابی کی رپورٹ دستیاب نہیں"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "رائے کا مکالمہ کھل نہیں سکا۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "خرابی کی رپورٹ کا نوٹس بند کریں۔"
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "رائے، جواب کے ای میل پتے، منسلکات اور تشخیصی لاگز معاونت کو ای میل کیے جاتے ہیں۔ انہیں رکھنے کی مدت ہماری معاونت کی ای میل اور خدمت فراہم کنندگان پر منحصر ہے، جس میں ان کی بیک اپ پالیسیاں بھی شامل ہیں۔ ہم فی الحال کسی مقررہ مدت میں حذف کرنے کی ضمانت نہیں دیتے۔"
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "رائے کا ایک سطر کا عنوان درج کریں جو زیادہ سے زیادہ 200 حروف کا ہو۔"
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "اپنی رائے درج کریں۔"
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "آپ کی رائے میں ایسا پوشیدہ حرف ہے جس کی معاونت نہیں ہوتی۔ دوبارہ لکھیں اور کوشش کریں۔"
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "رائے زیادہ سے زیادہ 5,000 UTF-16 حروف کی ہونی چاہیے (کچھ ایموجی دو شمار ہوتے ہیں)۔"
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "وضع کردہ رائے بہت پیچیدہ ہے۔ کچھ وضع بندی ہٹائیں اور دوبارہ کوشش کریں۔"
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "جواب کے لیے صرف ای میل پتہ درج کریں، یا خالی چھوڑ دیں۔"
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "ایپ کا ورژن درست نہیں۔ ایپ اپ ڈیٹ کریں۔"
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "زیادہ سے زیادہ %(MAX_ATTACHMENT_COUNT)s فائلیں منسلک کریں۔"
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "ایک یا زیادہ منسلکات درست نہیں۔"
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "ہر منسلکہ 5 میگابائٹ یا اس سے چھوٹا ہونا چاہیے۔"
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "منسلکات اور تشخیصی لاگز کا مجموعی حجم 8 میگابائٹ یا کم ہونا چاہیے۔"
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)dگھ"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)dم"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)dس"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "دن کا باقی حصہ"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "انتظام کے لیے اکاؤنٹ منتخب کریں"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "منظوری دینے والا منتظم منتخب کریں"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "دورانیہ منتخب کریں"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "%(minimum)s سے %(maximum)s منٹ تک عدد درج کریں۔"
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "روزانہ کا مختص وقت: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "منتخب روزانہ کا مختص وقت: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "رائے تیار کی جا رہی ہے… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "رائے بھیجی جا رہی ہے… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · کوئی ضمانت نہیں۔"
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "مصنوع کی معلومات کھولیں: %(label)s۔"
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "درست فائل نام والا منسلکہ منتخب کریں۔"
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "مختصر درست فائل نام والا منسلکہ منتخب کریں۔"
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "آپ کی رائے"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "رائے لکھیں اور اس کی وضع بندی کریں۔ عنوانات، جلی، ترچھا، خط کشیدہ، فہرستیں، اقتباسات، کوڈ، روابط، منسلکات اور وضع بندی ہٹانے کے لیے ٹول بار استعمال کریں۔"
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "اپنا خیال بیان کریں، یا بتائیں کیا ہوا اور آپ کو کیا توقع تھی..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "متن کا انداز"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "عام متن"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "عنوان 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "عنوان 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "جلی"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "ترچھا"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "خط کشیدہ"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "درمیان سے خط زدہ"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "نمبر والی فہرست"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "نقطوں والی فہرست"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "اقتباس"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "کوڈ کا بلاک"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "ربط داخل کریں"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "منسلکہ شامل کریں"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "وضع بندی ہٹائیں"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "رائے کی وضع بندی"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "ربط کا ہدف"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "ربط کا مدیر"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "ربط کا پیش منظر کھولیں"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "ربط محفوظ کریں"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "ربط ہٹائیں"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "نمبر والی فہرست کا جزو"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "نقطوں والی فہرست کا جزو"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "ایک منٹ کی الٹی گنتی کی حرکت"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "آخری منٹ میں بصری الٹی گنتی کی حرکت فعال یا غیر فعال کریں۔"
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "باقی وقت پڑھیں یا مزید وقت کی درخواست کا فارم کھولیں۔ الٹی گنتی کی حرکت کی ترتیبات کے لیے سیاقی مینو کھولیں۔"
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• باقی وقت: %(time)s\n• اس نشست کے لیے مزید وقت کی درخواست کرنے کو کلک کریں۔\n• مزید اختیارات کے لیے دایاں کلک کریں۔"
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "وقت کی درخواست، %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "اکاؤنٹس کے مزید انتخاب دکھائیں"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "اکاؤنٹس کے پچھلے یا اگلے انتخاب دکھائیں۔"
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "اکاؤنٹ منتخب کریں۔"
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "منتخب اکاؤنٹ: %(name)s۔"
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "منتخب کریں کہ ایپس کی فہرست میں کون سے قواعد دکھائے جائیں۔"
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "اس قاعدے والی ایپس دکھائیں۔"
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "درخواست کی اسکرین اسکرول کریں"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "جب مواد حد سے بڑھ جائے تو درخواست کی اسکرین اسکرول کریں۔"
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d منٹ"
+msgstr[1] "%(count)d منٹ"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g گھنٹہ"
+msgstr[1] "%(count)g گھنٹے"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d سیکنڈ"
+msgstr[1] "%(count)d سیکنڈ"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d فائل کا منسلکہ تیار ہے۔"
+msgstr[1] "%(count)d فائلوں کے منسلکات تیار ہیں۔"
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d بائٹ"
+msgstr[1] "%(count)d بائٹس"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "ارسال کی تصدیق نہیں ہو سکی۔ %(count)d سیکنڈ میں دوبارہ کوشش کی جائے گی…"
+msgstr[1] "ارسال کی تصدیق نہیں ہو سکی۔ %(count)d سیکنڈ میں دوبارہ کوشش کی جائے گی…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "ایک بار کی اجازت محفوظ نہیں ہو سکی۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "اسکرین ٹائم کی ترتیبات محفوظ نہیں ہو سکیں۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "ایپ تک رسائی محفوظ نہیں ہو سکی۔ بعد میں دوبارہ کوشش کریں۔"
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "ربط بدلیں"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "خرابی کے زمرے: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "%(name)s کے لیے"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s کلوبائٹ"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s میگابائٹ"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g گھنٹے"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g گھنٹے"

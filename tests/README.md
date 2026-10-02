@@ -127,6 +127,28 @@ UI is a host-only category. Its shared launcher always excludes VM-dependent
 tooling refactor activates on the next checkout launcher invocation (`none`);
 it changes no installed helper, product service, or saved data.
 
+Host UI category logs retain `ui-timing` events for every case's setup, call and
+teardown, plus five-second checkpoints at instrumented operation completions.
+The monotonic timestamps correlate directly with `resources.jsonl`. Aggregates
+separate reader snapshots/waits, synchronous and batched AT-SPI calls, semantic
+and keyboard input, preview launch/cleanup and session boot/teardown. Durations
+are inclusive; `self_seconds` excludes instrumented children, so nested totals
+must not be added. Checkpoints include active outer operations; a blocked call
+cannot emit a checkpoint until it returns. No labels, input arguments, returned
+UI text or exception messages enter these records. The existing report retention
+owns the stream; timings do not change selectors, assertions or deadlines.
+`ui-trace` records entry/exit with parent span IDs for GUI composites, registered
+reader operations and waits. Wait stages identify predicate source locations,
+attempt numbers, pending/query/incomplete retries, dispatch and sleep. Entries
+are flushed before the work, so an unfinished span remains visible after forced
+termination; a missing exit alone is not proof of deadlock. `ui-reader-timing`
+retains the reader's existing actual tree/node counts and input offsets for each
+registered operation. `reader.traversal` measures consumed tree generators,
+including incomplete reads. Snapshot-call counts can include cached projections;
+they are not counts of fresh traversals. Trace durations and operation deltas
+are inclusive and must not be summed across nested spans. No predicate closures,
+descriptions, GUI arguments or return values are recorded.
+
 `tools/run-tests unit` collects only the selected unit inventory and balances
 reviewed modules across up to four branches. The [unit buckets](../tools/regression_unit.py)
 are shared with `host`; each module and its fixtures stay in one worker. Workers

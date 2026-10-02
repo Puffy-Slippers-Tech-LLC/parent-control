@@ -1,4 +1,4 @@
-"""Generic read-boundary cost and freshness, independent of any product UI."""
+"""Read-boundary cost, freshness and shared-operation input safety."""
 
 from unittest.mock import Mock
 
@@ -44,6 +44,152 @@ def test_parent_management_window_count_uses_complete_owned_ids(windows, expecte
 
 def lookup(ui, index):
     return ui.find_provider_control('future-provider', 'future-surface', str(index))
+
+
+@pytest.fixture
+def preset_ui():
+    label = Node('15 minutes', 'label')
+    allowance = Node(identity='parent-daily-limit-selector', children=[label])
+    choice = Node(identity='parent-daily-limit-15',
+                  description='Selected daily allowance: 15 minutes')
+    choices = Node(identity='parent-daily-limit-choices', children=[choice])
+    selected = Node(identity='parent-child-selected-1001',
+                    children=[Node(accessible_ui.CHILD, 'label')])
+    picker = Node(identity='parent-child-selector', children=[selected])
+    toggle = Node(identity='parent-screen-limit-toggle',
+                  states=('showing', 'visible', 'sensitive', 'checked'))
+    window = Node(identity='parent-window', children=[picker, toggle, allowance])
+    ui = ui_for(window)
+    ui.owner_pids = lambda: {100}
+    ui._read_nodes = Mock(wraps=ui._read_nodes)
+
+    def open_picker(_index):
+        assert ui._observation_cache == []
+        choices.parent = allowance
+        allowance.children = [label, choices]
+        return True
+
+    def select(_index):
+        assert ui._observation_cache == []
+        # Replace the accessible as GTK may do; a stale tree cannot read this result.
+        replacement = Node('15 minutes', 'label')
+        replacement.parent = allowance
+        allowance.children = [replacement]
+        return True
+
+    allowance.action.do_action.side_effect = open_picker
+    choice.action.do_action.side_effect = select
+    return ui, window, allowance, choice
+
+
+@pytest.mark.parametrize('registered', [False, True])
+@pytest.mark.parametrize('action,reads', [('read', 1), ('select', 3), ('reopen', 2)])
+def test_preset_operation_shares_reads_only_between_inputs(preset_ui, registered, action, reads):
+    ui, _window, allowance, choice = preset_ui
+    if action == 'select':
+        allowance.children[0].name = '0 minutes'
+    if registered:
+        assert ui.run('allowance-15-' + action, '')['allowance'] == {
+            'minutes': 15, 'saved': True}
+    else:
+        assert ui.allowance_preset(accessible_ui.CHILD, 15, action=action) == {
+            'minutes': 15, 'saved': True}
+    assert ui._read_nodes.call_count == reads
+    assert allowance.action.do_action.call_count == (action != 'read')
+    assert choice.action.do_action.call_count == (action == 'select')
+    assert ui._observation_cache is None
+    assert not ui._projection_cache
+
+
+@pytest.mark.parametrize('fault,code', [('duplicate', 'ambiguous-automation-id'),
+                                     ('owner', 'wrong-owner'), ('child', 'wrong-child')])
+def test_independent_preset_calls_recheck_identity(preset_ui, fault, code):
+    ui, window, allowance, choice = preset_ui
+    ui.allowance_preset(accessible_ui.CHILD, 15, action='read')
+    if fault == 'duplicate':
+        window.children.append(Node(identity=allowance.identity))
+    elif fault == 'owner':
+        ui.root().get_process_id = lambda: 101
+    else:
+        window.children[0].children[0].identity = 'parent-child-selected-1002'
+    with pytest.raises(UiError, match=code):
+        ui.allowance_preset(accessible_ui.CHILD, 15, action='select')
+    assert ui._read_nodes.call_count == 2
+    allowance.action.do_action.assert_not_called()
+    choice.action.do_action.assert_not_called()
+    assert ui._observation_cache is None
+
+
+@pytest.mark.parametrize('fault,code', [('duplicate', 'ambiguous-automation-id'),
+                                     ('owner', 'wrong-owner')])
+def test_preset_rechecks_identity_after_open_before_selection(preset_ui, fault, code):
+    ui, _window, allowance, choice = preset_ui
+    open_picker = allowance.action.do_action.side_effect
+    def changed(index):
+        open_picker(index)
+        if fault == 'duplicate':
+            allowance.children[-1].children.append(Node(identity=choice.identity))
+        else:
+            ui.root().get_process_id = lambda: 101
+        return True
+    allowance.action.do_action.side_effect = changed
+    with pytest.raises(UiError, match=code):
+        ui.allowance_preset(accessible_ui.CHILD, 15, action='select')
+    assert ui._read_nodes.call_count == 2
+    allowance.action.do_action.assert_called_once_with(0)
+    choice.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['pending', 'incomplete', 'query-error'])
+def test_preset_result_retry_reacquires_without_replaying_input(preset_ui, monkeypatch, fault):
+    ui, _window, allowance, choice = preset_ui
+    ui.timeout = .4
+    ui.query_errors = (LookupError,)
+    ui.dispatch = Mock(return_value=False)
+    now = [0.0]
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+    original_attributes = allowance.get_attributes
+    def select(_index):
+        assert ui._observation_cache == []
+        if fault != 'pending':
+            allowance.get_attributes = Mock(side_effect=(LookupError() if fault == 'query-error'
+                                                        else UiError('ui:incomplete-tree')))
+        return True  # The popup remains until a later event.
+    choice.action.do_action.side_effect = select
+    def settle(delay):
+        assert ui._observation_cache == []
+        now[0] += delay
+        allowance.get_attributes = original_attributes
+        allowance.children = [Node('15 minutes', 'label')]
+    monkeypatch.setattr(accessible_ui.time, 'sleep', settle)
+    assert ui.allowance_preset(accessible_ui.CHILD, 15, action='select')['saved']
+    assert ui._read_nodes.call_count == 4
+    assert ui.dispatch.call_count == 4
+    assert now[0] == .2
+    allowance.action.do_action.assert_called_once_with(0)
+    choice.action.do_action.assert_called_once_with(0)
+
+
+@pytest.mark.parametrize('during_input', [False, True])
+def test_preset_cancellation_discards_scope_and_preserves_uncertain_input(preset_ui, during_input):
+    ui, _window, allowance, choice = preset_ui
+    cancelled = KeyboardInterrupt()
+    if during_input:
+        choice.action.do_action.side_effect = cancelled
+    else:
+        choice.get_attributes = Mock(side_effect=cancelled)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        ui.allowance_preset(accessible_ui.CHILD, 15, action='select')
+    assert caught.value is cancelled
+    assert ui._observation_cache is None
+    assert not ui._projection_cache
+    assert ui.input_uncertain == during_input
+    allowance.action.do_action.assert_called_once_with(0)
+    assert choice.action.do_action.call_count == during_input
+    if during_input:
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.allowance_preset(accessible_ui.CHILD, 15, action='select')
+        choice.action.do_action.assert_called_once_with(0)
 
 
 @pytest.mark.parametrize('count', [3, 100, 1000])
@@ -129,6 +275,59 @@ def test_nested_retry_discards_outer_snapshot_and_dispatches_before_reacquisitio
         assert lookup(ui, 1) is replacement
     assert ui._read_nodes.call_count == 2
     ui.dispatch.assert_called_once_with()
+
+
+@pytest.mark.parametrize('failure', ['pending', 'query-error', 'incomplete', 'prompt'])
+def test_wait_trace_distinguishes_retries_without_changing_deadline(monkeypatch, failure):
+    from tests.support.ui_timing import Timings
+    ui, _desktop, _surface, _controls = arbitrary_ui()
+    now = [0.0]
+    events = []
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: now.__setitem__(0, now[0] + delay))
+    recorder = Timings(lambda kind, **fields: events.append(fields), lambda: now[0])
+    ui.wait_trace = recorder.wait_trace
+    ui.timeout = .4
+    ui.query_errors = (LookupError,)
+    error = (LookupError('private query') if failure == 'query-error'
+             else UiError('ui:incomplete-tree'))
+    predicate = Mock(return_value=False)
+    if failure == 'prompt':
+        ui.handle_system_prompt = Mock(side_effect=error)
+    elif failure != 'pending':
+        predicate.side_effect = error
+    with pytest.raises(UiError, match='ui:timeout:original'):
+        ui.wait(predicate, 'original')
+    assert now[0] == .4
+    outcomes = [event for event in events if event.get('stage') in
+                ('pending', 'query-error', 'incomplete')]
+    assert [event['attempt'] for event in outcomes] == [1, 2, 3]
+    assert {event['stage'] for event in outcomes} == {
+        'incomplete' if failure == 'prompt' else failure}
+    assert predicate.call_count == (0 if failure == 'prompt' else 3)
+    assert events[-1]['failed']
+    assert events[-1]['stages']['sleep'] == pytest.approx(.4)
+    assert recorder.spans == []
+    assert 'private query' not in str(events)
+
+
+def test_wait_trace_records_predicate_entry_before_blocking_and_propagates_interrupt():
+    from tests.support.ui_timing import Timings
+    ui, _desktop, _surface, _controls = arbitrary_ui()
+    events = []
+    recorder = Timings(lambda kind, **fields: events.append(fields))
+    ui.wait_trace = recorder.wait_trace
+    cancelled = KeyboardInterrupt()
+    def predicate():
+        assert events[-1]['stage'] == 'predicate'
+        assert events[-1]['attempt'] == 1
+        assert not any(event['status'] == 'end' for event in events)
+        raise cancelled
+    with pytest.raises(KeyboardInterrupt) as caught:
+        ui.wait(predicate, 'private description')
+    assert caught.value is cancelled
+    assert events[-1]['failed']
+    assert 'private description' not in str(events)
 
 
 @pytest.mark.parametrize('fault', ['missing-child', 'query-error'])
@@ -349,6 +548,18 @@ def test_cached_snapshot_and_scopes_are_immutable_but_projections_are_independen
         assert lookup(ui, 0) is controls[0]
         assert ui.snapshot_scope(nodes, edges, surface) == scope
     ui._read_nodes.assert_called_once()
+
+
+def test_snapshot_construction_uses_snapshot_names_without_changing_public_reads():
+    ui, _desktop, _surface, controls = arbitrary_ui()
+    controls[0].get_name = Mock(return_value='live result')
+    controls[0].snapshot_name = Mock(return_value='fresh batched observation')
+    with ui.observation():
+        _nodes, _edges, _identities, facts = ui.read_snapshot()
+        assert facts[controls[0]]['name'] == 'fresh batched observation'
+        controls[0].get_name.assert_not_called()
+        assert controls[0].get_name() == 'live result'
+    controls[0].snapshot_name.assert_called_once_with()
 
 
 def test_mutable_projection_changes_cannot_reuse_a_stale_scope_or_id_index():

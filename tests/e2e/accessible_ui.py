@@ -1190,6 +1190,8 @@ class AccessibleUI:
         self.root = root if root is not None else lambda: self.api.get_desktop(0)
         self.include_text_children = include_text_children
         self.timing = timing
+        # Optional host diagnostic context; never changes wait policy or input.
+        self.wait_trace = None
         self._timing = None
         self.timeout = timeout
         self.query_errors = query_errors
@@ -1393,7 +1395,8 @@ class AccessibleUI:
         prepare = getattr(self.api, 'prepare_tree', None)
         if strict and prepare is not None:
             prepare(root, descend=prepare_descend,
-                checkpoint=diagnostic.check if diagnostic is not None else None)
+                checkpoint=diagnostic.check if diagnostic is not None else None,
+                names=facts is not None)
         while pending:
             if diagnostic is not None:
                 diagnostic.check()
@@ -1424,7 +1427,7 @@ class AccessibleUI:
                     facts[node] = {
                         'identity': identity,
                         'role': role,
-                        'name': node.get_name(),
+                        'name': getattr(node, 'snapshot_name', node.get_name)(),
                         'showing': (states.contains(self.api.StateType.SHOWING)
                                     and states.contains(self.api.StateType.VISIBLE)
                                     and not states.contains(self.api.StateType.DEFUNCT)),
@@ -1867,9 +1870,19 @@ class AccessibleUI:
         raise UiError('ui:legacy-selector-refused')
 
     def wait(self, predicate, code, *, prompt_in_predicate=False):
+        trace = self.wait_trace(predicate) if self.wait_trace is not None else nullcontext(None)
+        with trace as checkpoint:
+            return self._wait(predicate, code, prompt_in_predicate=prompt_in_predicate,
+                              checkpoint=checkpoint)
+
+    def _wait(self, predicate, code, *, prompt_in_predicate, checkpoint):
         deadline = time.monotonic() + self.timeout
         incomplete = None
+        attempt = 0
         while True:
+            attempt += 1
+            if checkpoint is not None:
+                checkpoint('dispatch', attempt)
             # Deliver pending public AT-SPI events before fresh reads. Cache
             # invalidation alone cannot deliver focus/text/registry changes.
             if self.kiosk_diagnostic is not None:
@@ -1886,12 +1899,18 @@ class AccessibleUI:
                     self.kiosk_diagnostic.emit('prompt-check')
                 with self.observation():
                     if not prompt_in_predicate:
+                        if checkpoint is not None:
+                            checkpoint('prompt', attempt)
                         self.handle_system_prompt()
+                    if checkpoint is not None:
+                        checkpoint('predicate', attempt)
                     value = predicate()
+                outcome = 'pending'
             except self.query_errors:
                 # UI objects can disappear during search/animation. Retry only
                 # the read, never replay an action whose effect is uncertain.
                 value = None
+                outcome = 'query-error'
                 if self.kiosk_diagnostic is not None:
                     self.kiosk_diagnostic.query_errors += 1
                     self.kiosk_diagnostic.emit(status='query-error')
@@ -1921,15 +1940,24 @@ class AccessibleUI:
                     'checkpoint': code, 'notes': getattr(error, '__notes__', [])})
                 self.incomplete_observations = self.incomplete_observations[-16:]
                 value = None
+                outcome = 'incomplete'
             if value:
+                if checkpoint is not None:
+                    checkpoint('ready', attempt)
                 return value
+            if checkpoint is not None:
+                checkpoint(outcome, attempt)
             self.invalidate_observation()
             if time.monotonic() >= deadline:
+                if checkpoint is not None:
+                    checkpoint('timeout', attempt)
                 if incomplete is not None and str(incomplete) in (
                         'ui:stale-picker', 'ui:stale-request-form', 'ui:gdm-stale-tree',
                         'ui:system-prompt-observation-failed'):
                     raise incomplete
                 raise UiError('ui:timeout:' + code) from incomplete
+            if checkpoint is not None:
+                checkpoint('sleep', attempt)
             time.sleep(.2)
 
     def target(self, name=None, roles=(), **kwargs):
@@ -4939,7 +4967,15 @@ class AccessibleUI:
         return {'binding': binding, 'validation': 'rejected'}
 
     def allowance_preset(self, child, minutes, *, action):
-        """PARENT05: saved preset readback; reopen returns the picker open."""
+        """PARENT05: saved preset readback; reopen returns the picker open.
+
+        Direct preview callers and registered operations share the same read
+        boundary. Input and retries invalidate it; independent calls discard it.
+        """
+        with self.observation():
+            return self._allowance_preset(child, minutes, action=action)
+
+    def _allowance_preset(self, child, minutes, *, action):
         require(child in CHILD_IDENTITIES and type(minutes) is int
                 and minutes in PRESETS and action in ('select', 'read', 'reopen'),
                 'ui:allowance-binding')
@@ -7089,6 +7125,12 @@ class AccessibleUI:
             else:
                 self._invoke_target(target)
                 self.invalidate_observation()
+                # GTK can acknowledge activation before the duration toggle
+                # changes. Reacquire its owned public result without replaying
+                # input; the complete form below still checks the exact choice.
+                self.wait(lambda: self.has_state(
+                    self.kiosk_valid_target(identity, overlay=overlay),
+                    self.api.StateType.PRESSED), 'kiosk-duration-selected')
         request = self.kiosk_request_form(enabled=True,
             expected_selection=('approver', 'fixture-parent') if overlay else ('child', 'fixture-child'),
             duration_seconds=seconds, custom_text=custom, overlay=overlay)

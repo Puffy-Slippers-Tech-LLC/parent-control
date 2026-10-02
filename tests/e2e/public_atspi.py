@@ -38,6 +38,7 @@ class PublicAtspi:
         self._records = None
         self._children = {}
         self._prepared = None
+        self._names = None
         self._generation = 0
         self.Action = BusNode
         self.Text = BusNode
@@ -239,6 +240,7 @@ class PublicAtspi:
         self._records = None
         self._children.clear()
         self._prepared = None
+        self._names = None
 
     def reference(self, reference):
         bus, path = reference
@@ -275,18 +277,19 @@ class PublicAtspi:
 
     @contextmanager
     def snapshot(self):
-        previous = self._records, self._children, self._prepared
+        previous = self._records, self._children, self._prepared, self._names
         generation = self._generation
         self._records = {}
         self._children = {}
         self._prepared = {}
+        self._names = {}
         try:
             yield
         finally:
             if generation == self._generation:
-                self._records, self._children, self._prepared = previous
+                self._records, self._children, self._prepared, self._names = previous
             else:
-                self._records, self._children, self._prepared = None, {}, None
+                self._records, self._children, self._prepared, self._names = None, {}, None, None
 
     def read_many(self, queries):
         """Pipeline at most 64 read-only RPCs under one bounded deadline.
@@ -350,7 +353,9 @@ class PublicAtspi:
                 # Never block inside GI after the last callback has been lost
                 # to a signal. Python owns the deadline and signal delivery.
                 context.iteration(False)
-                if remaining:
+                # Drain already-ready replies before backing off. The Python
+                # deadline/cancellation checks still run on every iteration.
+                if remaining and not context.pending():
                     time.sleep(.001)
             if interrupted is not None:
                 raise interrupted
@@ -359,17 +364,20 @@ class PublicAtspi:
             context.pop_thread_default()
         return results
 
-    def prepare_nodes(self, nodes, *, descend=None):
+    def prepare_nodes(self, nodes, *, descend=None, names=False):
         """Read identities of already discovered siblings in bounded batches.
 
-        Never enumerate speculative descendants or read text. The traversal
+        Never enumerate speculative descendants or query text interfaces. The traversal
         still decides whether each node may expose children after resolving its
         role and protected identity. Values exist only inside this snapshot;
-        input guards outside it continue querying the provider directly.
+        optional fresh names are observation metadata, and input/result guards
+        outside it continue querying the provider directly.
         """
         if self._prepared is None:
             return
         nodes = list(dict.fromkeys(node for node in nodes if node is not None))[:32]
+        names = names and self._names is not None
+        stride = 3 if names else 2
         queries, keys = [], []
         for node in nodes:
             key = (node.bus, node.path)
@@ -382,9 +390,19 @@ class PublicAtspi:
                 (node.bus, node.path, 'org.freedesktop.DBus.Properties', 'Get',
                  'ss', (PREFIX + 'Accessible', 'AccessibleId')),
             ])
-        values = self.read_many(queries) if queries else []
+            if names:
+                # Fresh Name reads share the identity pipeline, avoiding a
+                # separate round trip for every small tree frontier. They are
+                # observation facts, never provider-cache names or result reads.
+                queries.append((node.bus, node.path, 'org.freedesktop.DBus.Properties',
+                                'Get', 'ss', (PREFIX + 'Accessible', 'Name')))
+        values = []
+        for offset in range(0, len(queries), 64):
+            values.extend(self.read_many(queries[offset:offset + 64]))
         for index, key in enumerate(keys):
-            self._prepared[key] = values[index * 2:index * 2 + 2]
+            self._prepared[key] = values[index * stride:index * stride + 2]
+            if names:
+                self._names[key] = values[index * stride + 2]
         if descend is None:
             return
         queries, targets = [], []
@@ -420,7 +438,7 @@ class PublicAtspi:
             raise value
         return value
 
-    def prepare_tree(self, root, *, descend, checkpoint=None):
+    def prepare_tree(self, root, *, descend, checkpoint=None, names=False):
         """Discover breadth first so separate branches can share an RPC batch.
 
         Consumers still iterate in their original order. Every edge is counted
@@ -443,7 +461,7 @@ class PublicAtspi:
                         batch.append(node)
                 if len(seen) > LIMIT:
                     raise ValueError('public-atspi:tree-bound')
-                self.prepare_nodes(batch, descend=descend)
+                self.prepare_nodes(batch, descend=descend, names=names)
                 for node in batch:
                     if descend(node):
                         children = node.children()
@@ -541,6 +559,18 @@ class BusNode:
         # current public property, just like state and description reads.
         self.api.record(self)  # Preserve snapshot bounds and provider ownership validation.
         return self.property('Name')
+
+    def snapshot_name(self):
+        # Only immutable observation construction consumes the batch. Public
+        # result reads and input guards keep get_name()'s uncached semantics.
+        self.api.record(self)
+        key = (self.bus, self.path)
+        if self.api._names is None or key not in self.api._names:
+            return self.get_name()
+        value = self.api._names[key]
+        if isinstance(value, Exception):
+            raise value
+        return value
 
     def get_description(self):
         return self.property('Description')

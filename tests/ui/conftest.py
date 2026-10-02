@@ -36,6 +36,7 @@ TEST_ENVIRONMENT_OVERRIDES = (
 ORIGINAL_ENVIRONMENT = os.environ.copy()
 UI_OBSERVER = None
 UI_WATCH_TEST = ('', 'setup')
+UI_TIMINGS = None
 
 
 def _watch_phase(item, phase):
@@ -45,16 +46,79 @@ def _watch_phase(item, phase):
         UI_OBSERVER.update(*UI_WATCH_TEST)
 
 
+@contextmanager
+def _timed_phase(item, phase):
+    global UI_TIMINGS
+    if UI_TIMINGS is None and os.environ.get('ONPC_REGRESSION_EVENTS') == '1':
+        from tests.support.ui_timing import Timings
+        UI_TIMINGS = Timings.retained()
+    _watch_phase(item, phase)
+    if UI_TIMINGS is not None:
+        UI_TIMINGS.begin(item.nodeid, phase)
+    try:
+        yield
+    finally:
+        if UI_TIMINGS is not None:
+            UI_TIMINGS.publish('end')
+
+
+def pytest_sessionfinish(session, exitstatus):
+    if UI_TIMINGS is not None:
+        UI_TIMINGS.close()
+
+
+@pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_setup(item):
-    _watch_phase(item, 'setup')
+    with _timed_phase(item, 'setup'):
+        yield
 
 
+@pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item):
-    _watch_phase(item, 'call')
+    with _timed_phase(item, 'call'):
+        yield
 
 
+@pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_teardown(item):
-    _watch_phase(item, 'teardown')
+    with _timed_phase(item, 'teardown'):
+        yield
+
+
+@pytest.fixture(scope='session', autouse=True)
+def ui_operation_timings():
+    if UI_TIMINGS is None:
+        yield
+        return
+    from tests.e2e.public_atspi import PublicAtspi
+    from tests.e2e.accessible_ui import AccessibleUI
+    from tests.support import keyboard
+    from tests.support import gui_blocks
+    with pytest.MonkeyPatch.context() as patch:
+        original_init = AccessibleUI.__init__
+
+        def traced_init(reader, *args, **kwargs):
+            original_init(reader, *args, **kwargs)
+            reader.wait_trace = UI_TIMINGS.wait_trace
+
+        patch.setattr(AccessibleUI, '__init__', traced_init)
+        patch.setattr(AccessibleUI, 'run', UI_TIMINGS.wrap_reader_run(AccessibleUI.run))
+        patch.setattr(AccessibleUI, '_read_nodes', UI_TIMINGS.wrap_iterator(
+            AccessibleUI._read_nodes, 'reader.traversal'))
+        for method in ('catalogue_filter', 'app_rows', 'allowance_preset', 'parent_page'):
+            patch.setattr(AccessibleUI, method, UI_TIMINGS.wrap_span(
+                getattr(AccessibleUI, method), 'reader.' + method))
+        patch.setattr(gui_blocks, 'run_block', UI_TIMINGS.wrap_span(gui_blocks.run_block, 'gui.block'))
+        patch.setattr(gui_blocks, 'run_perl', UI_TIMINGS.wrap_span(gui_blocks.run_perl, 'gui.expand'))
+        for owner, method, label in (
+                (PublicAtspi, 'call', 'atspi.rpc'),
+                (PublicAtspi, 'read_many', 'atspi.batch'),
+                (AccessibleUI, 'read_snapshot', 'reader.snapshot'),
+                (AccessibleUI, 'wait', 'reader.wait'),
+                (AccessibleUI, '_invoke_target', 'input.action'),
+                (keyboard, 'deliver', 'input.keyboard')):
+            patch.setattr(owner, method, UI_TIMINGS.wrap(getattr(owner, method), label))
+        yield
 
 # Dogtail imports GTK while loading its hermetic-session module.  Isolate the
 # launcher environment before that import so GTK cannot bind AT-SPI to the
@@ -95,7 +159,10 @@ def hermetic_ui_session(ui_monitor_size, request):
     """Boot one deterministic private Wayland session for this pytest process."""
 
     session = HermeticSession(virtual_monitor=ui_monitor_size)
-    boot_preview_session(session)
+    boot = boot_preview_session
+    if UI_TIMINGS is not None:
+        boot = UI_TIMINGS.wrap(boot, 'session.boot')
+    boot(session)
     # Install Dogtail's bare-Mutter input backend before dogtail.tree imports
     # rawinput.  Importing the backend otherwise eagerly probes the optional
     # GNOME Shell Ponytail service, which a bare-Mutter session intentionally
@@ -140,7 +207,10 @@ def hermetic_ui_session(ui_monitor_size, request):
                 UI_OBSERVER.close()
         finally:
             UI_OBSERVER = None
-            session.teardown()
+            teardown = session.teardown
+            if UI_TIMINGS is not None:
+                teardown = UI_TIMINGS.wrap(teardown, 'session.teardown')
+            teardown()
         # Pytest and other libraries can add their own environment variables
         # while this session runs.  Restore only the variables this fixture
         # owns rather than clearing those external variables during teardown.
@@ -227,10 +297,16 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
     from tools.test_retention import allocate
     directory = Path(allocate(tempfile.mkdtemp, prefix="onpc-ui-preview-", dir="/var/tmp"))
     print(f"UI preview logs: {directory}", flush=True)
-    with preview_applications(hermetic_ui_session, directory) as launch:
+    manager = preview_applications(hermetic_ui_session, directory)
+    if UI_TIMINGS is not None:
+        manager = UI_TIMINGS.lifecycle(manager, 'preview')
+    with manager as launch:
         def launch_ready(name, **kwargs):
             complete_language_setup = kwargs.pop('complete_language_setup', True)
-            result = launch(name, **kwargs)
+            start = launch
+            if UI_TIMINGS is not None:
+                start = UI_TIMINGS.wrap(start, 'preview.launch')
+            result = start(name, **kwargs)
             if complete_language_setup and name in ("parent_preview", "parent_component_preview", "kiosk_preview",
                         "child_overlay_preview", "request_component_preview"):
                 import gi
@@ -269,27 +345,49 @@ def wait_for_accessible_state():
     from tests.e2e.accessible_ui import UiError
     from tests.support.automation import AutomationError
 
-    def wait(predicate, description: str):
+    def wait_attempts(predicate, description, checkpoint):
         deadline = time.monotonic() + UI_TIMEOUT_SECONDS
+        attempt = 0
         while time.monotonic() < deadline:
+            attempt += 1
             try:
+                if checkpoint is not None:
+                    checkpoint('predicate', attempt)
                 ready = predicate()
+                outcome = 'pending'
             except (UiError, AutomationError) as error:
                 if str(error) not in ("ui:incomplete-tree", "automation:incomplete-tree"):
                     raise
                 # Retry the whole read, never accept a partial tree as presence
                 # or absence. Input and ownership failures still propagate.
                 ready = False
+                outcome = 'incomplete'
             if ready:
+                if checkpoint is not None:
+                    checkpoint('ready', attempt)
                 return
+            if checkpoint is not None:
+                checkpoint(outcome, attempt)
             # A nested MainLoop installs GI's SIGINT fallback and can swallow
             # cancellation in a dispatched callback. Keep the wait/deadline in
             # Python and dispatch only bounded, nonblocking event work.
+            if checkpoint is not None:
+                checkpoint('dispatch', attempt)
             for _ in range(32):
                 if not GLib.MainContext.default().iteration(False):
                     break
+            if checkpoint is not None:
+                checkpoint('sleep', attempt)
             time.sleep(.05)
+        if checkpoint is not None:
+            checkpoint('timeout', attempt)
         raise AssertionError(f"Timed out waiting for accessibility state: {description}")
+
+    def wait(predicate, description: str):
+        if UI_TIMINGS is None:
+            return wait_attempts(predicate, description, None)
+        with UI_TIMINGS.span('host.wait', predicate=UI_TIMINGS.source(predicate)) as checkpoint:
+            return wait_attempts(predicate, description, checkpoint)
 
     return wait
 

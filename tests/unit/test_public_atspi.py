@@ -328,6 +328,66 @@ def test_async_batch_drains_errors_and_uses_only_its_private_context():
         api.read_many([None] * 65)
 
 
+def test_async_batch_drains_ready_replies_without_poll_sleeps(monkeypatch):
+    from gi.repository import GLib
+    from tests.e2e import public_atspi
+    api = PublicAtspi(SimpleNamespace())
+    callbacks = []
+    def schedule(index):
+        context, callback = callbacks[index]
+        source = GLib.idle_source_new()
+        def complete(*_):
+            callback(api._connection, index, index)
+            return False
+        source.set_callback(complete)
+        source.attach(context)
+
+    class Connection:
+        def call(self, bus, path, interface, method, parameters, reply_type,
+                 flags, timeout, cancellable, callback, index):
+            callbacks.append((GLib.MainContext.get_thread_default(), callback))
+            if index == 0:
+                schedule(0)
+
+        def call_finish(self, index):
+            assert len(callbacks) == 3
+            if index < 2:
+                schedule(index + 1)
+            return GLib.Variant('(s)', (str(index),))
+
+    api._connection = Connection()
+    sleep = Mock(side_effect=AssertionError('slept with a reply already ready'))
+    monkeypatch.setattr(public_atspi.time, 'sleep', sleep)
+    assert api.read_many([(':1.1', '/node', PREFIX + 'Accessible',
+                           'GetAttributes', '', ())] * 3) == ['0', '1', '2']
+    sleep.assert_not_called()
+
+
+def test_identity_and_name_pipeline_keeps_rpc_bound_and_alignment():
+    api, _items, rpc, _app, _button = fixture_bus()
+    original = rpc.side_effect
+    def call(*args):
+        if args[3] == 'GetAttributes':
+            return {'id': args[1]}
+        if args[3] == 'Get' and args[5][1] == 'AccessibleId':
+            return 'id:' + args[1]
+        if args[3] == 'Get' and args[5][1] == 'Name':
+            return 'name:' + args[1]
+        return original(*args)
+    rpc.side_effect = call
+    api.read_many = Mock(wraps=api.read_many)
+    nodes = [api.node((':1.10', f'/leaf{index}')) for index in range(32)]
+    with api.snapshot():
+        api.prepare_nodes(nodes, names=True)
+        assert [len(c.args[0]) for c in api.read_many.call_args_list] == [64, 32]
+        before = rpc.call_count
+        for node in nodes:
+            assert node.get_attributes() == {'id': node.path}
+            assert node.get_accessible_id() == 'id:' + node.path
+            assert node.snapshot_name() == 'name:' + node.path
+        assert rpc.call_count == before
+
+
 def test_breadth_batches_preserve_traversal_order_and_never_query_protected_children():
     from tests.e2e.accessible_ui import AccessibleUI
 
@@ -381,6 +441,71 @@ def test_bulk_structure_is_scoped_but_result_names_and_action_states_are_live():
     with api.snapshot():
         assert button.get_name() == 'Live'
     assert sum(call.args[3] == 'GetItems' for call in rpc.call_args_list) == 2
+
+
+@pytest.mark.parametrize('fault', [False, True])
+def test_snapshot_names_pipeline_live_queries_but_never_cache_public_results(fault):
+    api, items, rpc, app, button = fixture_bus()
+    current = ['fresh name']
+    original = rpc.side_effect
+    def call(*args):
+        if args[3] == 'GetAttributes':
+            return {'toolkit': 'gtk'}
+        if args[3] == 'Get' and args[5][1] == 'AccessibleId':
+            return args[1]
+        if args[3] == 'Get' and args[5][1] == 'Name':
+            if fault:
+                raise IncompleteTree('name unavailable')
+            return current[0]
+        return original(*args)
+    rpc.side_effect = call
+    api.read_many = Mock(wraps=api.read_many)
+    with api.snapshot():
+        api.prepare_tree(app, descend=lambda _: True, names=True)
+        before = rpc.call_count
+        if fault:
+            with pytest.raises(IncompleteTree, match='name unavailable'):
+                button.snapshot_name()
+        else:
+            assert button.snapshot_name() == 'fresh name'
+            assert rpc.call_count == before  # no serialized per-node Name RPC
+            current[0] = 'changed result'
+            assert button.get_name() == 'changed result'
+            assert button.snapshot_name() == 'fresh name'
+            api.invalidate_snapshot()
+            assert button.snapshot_name() == 'changed result'
+    assert all(len(c.args[0]) <= 32 for c in api.read_many.call_args_list)
+    assert any(q[3:] == ('Get', 'ss', (PREFIX + 'Accessible', 'Name'))
+               for c in api.read_many.call_args_list for q in c.args[0])
+    if not fault:
+        assert button.snapshot_name() == 'changed result'
+        with api.snapshot():
+            api.prepare_tree(app, descend=lambda _: True, names=True)
+            assert button.snapshot_name() == 'changed result'
+
+
+def test_batched_names_never_read_protected_descendants_or_survive_nested_invalidation():
+    api, _items, rpc, app, button = fixture_bus()
+    original = rpc.side_effect
+    def call(*args):
+        if args[3] == 'GetAttributes':
+            return {'toolkit': 'gtk'}
+        if args[3] == 'Get' and args[5][1] == 'AccessibleId':
+            return args[1]
+        return original(*args)
+    rpc.side_effect = call
+    with api.snapshot():
+        api.prepare_tree(app, descend=lambda _: False, names=True)
+        assert not any(c.args[1] == button.path for c in rpc.call_args_list)
+        outer = api._names
+        with api.snapshot():
+            api.prepare_tree(button, descend=lambda _: False, names=True)
+            assert api._names is not outer
+        assert api._names is outer
+        with api.snapshot():
+            api.invalidate_snapshot()
+        assert api._names is None
+    assert api._names is None
 
 
 @pytest.mark.parametrize('fault', ['lost-callback', 'callback-interrupt'])

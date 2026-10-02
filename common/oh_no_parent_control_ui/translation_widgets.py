@@ -5,18 +5,30 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import GLib, Gtk
 
 from .localization import load_translations
+from .languages import language_direction, selected_language
 from .message import Message, JoinedMessage, render
 
 
 class TranslationContext:
     def __init__(self, language=''):
         self.translations = load_translations(language, GLib.get_language_names())
+        self.language = selected_language(language, GLib.get_language_names())
+        self.direction = language_direction(self.language)
         self.members = set()
 
     def apply(self, language):
         # Load first: a package error keeps the last usable context intact.
         translations = load_translations(language, GLib.get_language_names())
         self.translations = translations
+        self.language = selected_language(language, GLib.get_language_names())
+        self.direction = language_direction(self.language)
+        roots = set()
+        for bindings in list(self.members):
+            widget = bindings.widget()
+            if isinstance(widget, Gtk.Widget):
+                roots.add(widget.get_root() or widget)
+        for root in roots:
+            _direction_tree(root, self)
         for bindings in list(self.members):
             widget = bindings.widget()
             if widget is not None:
@@ -30,6 +42,9 @@ class _Bindings:
         self.values = {}
         self.callback = None
         self.context = None
+        self.fixed_direction = None
+        self.label_alignment = None
+        self.direction_pending = False
         self.widget = widget.weak_ref(self.release)
         if isinstance(widget, Gtk.Widget):
             # Signal user data survives recreation of a PyGObject wrapper.
@@ -51,6 +66,53 @@ def _bindings_for(widget):
     if not hasattr(widget, '_message_bindings'):
         widget._message_bindings = _Bindings(widget)
     return widget._message_bindings
+
+
+def fixed_direction(widget, direction):
+    """Keep visual-order controls and native language names independent of UI locale."""
+    _bindings_for(widget).fixed_direction = direction
+    widget.set_direction(direction)
+
+
+def _direction_widget(widget, context):
+    bindings = _bindings_for(widget)
+    direction = (bindings.fixed_direction if bindings.fixed_direction is not None else
+                 Gtk.TextDirection.RTL if context.direction == 'rtl' else Gtk.TextDirection.LTR)
+    widget.set_direction(direction)
+    if isinstance(widget, Gtk.Label) and bindings.fixed_direction is None:
+        if bindings.label_alignment is None:
+            bindings.label_alignment = widget.get_xalign()
+        # Gtk.Label.xalign is physical, unlike container start/end alignment.
+        widget.set_xalign(1 - bindings.label_alignment if context.direction == 'rtl'
+                          else bindings.label_alignment)
+
+
+def _direction_tree(widget, context):
+    _direction_widget(widget, context)
+    child = widget.get_first_child()
+    while child is not None:
+        _direction_tree(child, context)
+        child = child.get_next_sibling()
+
+
+def _refresh_direction(widget, context):
+    if not isinstance(widget, Gtk.Widget):
+        return
+    root = widget.get_root() or widget
+    current = widget
+    while current is not None:
+        _direction_widget(current, context)
+        current = current.get_parent()
+    bindings = _bindings_for(root)
+    if not bindings.direction_pending:
+        bindings.direction_pending = True
+        def synchronize():
+            bindings.direction_pending = False
+            live = bindings.widget()
+            if live is not None:
+                _direction_tree(live, context_for(live))
+            return GLib.SOURCE_REMOVE
+        GLib.idle_add(synchronize)
 
 
 def context_for(widget):
@@ -76,6 +138,7 @@ def _refresh(widget, _property=None, bindings=None):
     widget._message_bindings = bindings
     context = context_for(widget)
     bindings.join(context)
+    _refresh_direction(widget, context)
     for (kind, key), value in bindings.values.items():
         text = render(value, context.translations)
         if kind == 'property':

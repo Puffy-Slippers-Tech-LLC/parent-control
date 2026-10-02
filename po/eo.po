@@ -1,5 +1,4 @@
-# Catalogue scaffold; full message translation is the next task.
-# Empty entries intentionally use the shared English source fallback.
+# Complete translation against the current shared message template.
 # Plural metadata reference: https://l10n.gnome.org/teams/eo/
 # Copyright (C) 2026 Puffy Slippers
 # This file is distributed under the same license as oh-no-parent-control.
@@ -8,7 +7,7 @@ msgstr ""
 "Project-Id-Version: oh-no-parent-control\n"
 "Report-Msgid-Bugs-To: support@puffyslippers.com\n"
 "PO-Revision-Date: 2026-10-01 00:00+0000\n"
-"Last-Translator: Unassigned\n"
+"Last-Translator: Project translation contributors\n"
 "Language-Team: Esperanto\n"
 "Language: eo\n"
 "MIME-Version: 1.0\n"
@@ -16,6 +15,1549 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance remaining: <b>%(daily)s</b>\nOne-time grant remaining: <b>%(grant)s</b>\n<b>Remaining time: %(remaining)s</b> — the larger of the two amounts."
+msgstr "Restanta ĉiutaga tempo: <b>%(daily)s</b>\nRestanta unufoja tempopermeso: <b>%(grant)s</b>\n<b>Restanta tempo: %(remaining)s</b> — la pli granda el la du kvantoj."
+
+#. Shared message: ALWAYS_ALLOWED
+msgid "Always Allowed"
+msgstr "Ĉiam permesita"
+
+#. Shared message: HARD_BLOCKED
+msgid "Hard Blocked"
+msgstr "Strikte blokita"
+
+#. Shared message: SOFT_BLOCKED
+msgid "Soft Blocked"
+msgstr "Provizore malblokebla"
+
+#. Shared message: PATTERN_MATCH
+msgid "Pattern Match"
+msgstr "Ŝablona kongruo"
+
+#. Shared message: MATCHES_VERSIONED_FILENAMES_USING_A_WILDCARD
+msgid "Matches versioned filenames using a wildcard."
+msgstr "Kongruas kun versiaj dosiernomoj per ĵokero."
+
+#. Shared message: PRECISE_EXECUTION_PATH
+msgid "Precise execution path"
+msgstr "Preciza rulvojo"
+
+#. Shared message: MATCHES_ONLY_THIS_EXACT_EXECUTABLE_PATH
+msgid "Matches only this exact executable path."
+msgstr "Kongruas nur kun ĉi tiu ekzakta vojo de rulebla dosiero."
+
+#. Shared message: SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE
+msgid "Some app limits could not be applied. Affected apps or updated versions may be unrestricted. Other controls remain available, and saved rules will be retried automatically."
+msgstr "Kelkaj aplikaĵaj limigoj ne povis esti aplikitaj. La koncernaj aplikaĵoj aŭ ĝisdatigitaj versioj eble estas sen limigoj. Aliaj regiloj restas disponeblaj, kaj la konservitaj reguloj estos aŭtomate reprovitaj."
+
+#. Shared message: SELECTED_CHILD_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected child: %(label)s."
+msgstr "Elektita infano: %(label)s."
+
+#. Shared message: NO_CHILD_ACCOUNT_IS_SELECTED
+msgid "No child account is selected."
+msgstr "Neniu infana konto estas elektita."
+
+#. Shared message: SELECTED_CHILD
+msgid "Selected child"
+msgstr "Elektita infano"
+
+#. Shared message: PARENT_APP_MENU
+msgid "Parent app menu"
+msgstr "Menuo de la gepatra aplikaĵo"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION
+msgid "Open preferences, help and product information."
+msgstr "Malfermu agordojn, helpon kaj produktajn informojn."
+
+#. Shared message: FEEDBACK
+msgid "Feedback"
+msgstr "Komentoj"
+
+#. Shared message: SEND_FEEDBACK_ABOUT_THE_APP
+msgid "Send feedback about the app."
+msgstr "Sendu komentojn pri la aplikaĵo."
+
+#. Shared message: CHOOSE_THE_CHILD_WHOSE_SCREEN_TIME_AND_APP_POLICY_ARE_DISPLAYED
+msgid "Choose the child whose screen time and app policy are displayed."
+msgstr "Elektu la infanon, kies ekrantempo kaj aplikaĵa politiko estas montrataj."
+
+#. Shared message: REVOKE_ONE_TIME_ACCESS
+msgid "Revoke one-time access"
+msgstr "Nuligi unufojan aliron"
+
+#. Shared message: REMOVE_THE_SELECTED_CHILD_S_ACTIVE_ONE_TIME_GRANT_AFTER_CONFIRMA
+msgid "Remove the selected child's active one-time grant after confirmation."
+msgstr "Forigu la aktivan unufojan tempopermeson de la elektita infano post konfirmo."
+
+#. Shared message: SCREEN_LIMITS
+msgid "Screen Limits"
+msgstr "Ekranaj limigoj"
+
+#. Shared message: SCREEN_TIME_LIMIT
+msgid "Screen time limit"
+msgstr "Ekrantempa limo"
+
+#. Shared message: ENABLE_OR_DISABLE_DAILY_SCREEN_TIME_CONTROL_FOR_THE_SELECTED_CHI
+msgid "Enable or disable daily screen-time control for the selected child."
+msgstr "Ŝaltu aŭ malŝaltu ĉiutagan ekrantempan regadon por la elektita infano."
+
+#. Shared message: DAILY_TIME_ALLOWANCE
+msgid "Daily time allowance"
+msgstr "Ĉiutaga tempopermeso"
+
+#. Shared message: CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+msgid "Choose the selected child's daily screen-time allowance."
+msgstr "Elektu la ĉiutagan ekrantempon de la elektita infano."
+
+#. Shared message: CUSTOM_DAILY_ALLOWANCE
+msgid "Custom daily allowance"
+msgstr "Propra ĉiutaga tempopermeso"
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439
+msgid "Enter a whole number of minutes from zero through 1439."
+msgstr "Enigu entjeran nombron da minutoj de nulo ĝis 1439."
+
+#. Shared message: TODAY_S_REMAINING_TIME
+msgid "Today's remaining time"
+msgstr "Hodiaŭa restanta tempo"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA
+msgid "Expand or collapse the daily and one-time remaining-time calculation."
+msgstr "Etendu aŭ kuntiru la kalkulon de ĉiutaga kaj unufoja restanta tempo."
+
+#. Shared message: APP_LIMITS
+msgid "App Limits"
+msgstr "Aplikaĵaj limigoj"
+
+#. Shared message: SEARCH_INSTALLED_APPS
+msgid "Search installed apps"
+msgstr "Serĉi instalitajn aplikaĵojn"
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Serĉi lingvojn"
+
+#. Shared message: FILTER_THE_SELECTED_CHILD_S_AVAILABLE_APPLICATIONS
+msgid "Filter the selected child's available applications."
+msgstr "Filtru la disponeblajn aplikaĵojn de la elektita infano."
+
+#. Shared message: APP_NAME_AMP_DETAIL
+msgid "App Name &amp; Detail"
+msgstr "Aplikaĵa nomo &amp; detaloj"
+
+#. Shared message: HIDE_REMAINING_TIME_CALCULATION
+msgid "Hide remaining-time calculation"
+msgstr "Kaŝi la kalkulon de restanta tempo"
+
+#. Shared message: COLLAPSE_THE_REMAINING_TIME_CALCULATION_DETAILS
+msgid "Collapse the remaining-time calculation details."
+msgstr "Kuntiru la detalojn de la kalkulo de restanta tempo."
+
+#. Shared message: FILTER_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter %(label)s"
+msgstr "Filtri %(label)s"
+
+#. Shared message: POLICY_LEGEND
+msgid "Policy legend"
+msgstr "Klarigo de reguloj"
+
+#. Shared message: EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND
+msgid "Expand or collapse the app access and match-rule legend."
+msgstr "Etendu aŭ kuntiru la klarigon de aplikaĵaj aliraj kaj kongruaj reguloj."
+
+#. Shared message: APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s match rule"
+msgstr "Kongrua regulo por %(app_name)s"
+
+#. Shared message: CHOOSE_WHETHER_THIS_APPLICATION_S_SAVED_RULE_MATCHES_AN_EXACT_PA
+msgid "Choose whether this application's saved rule matches an exact path or versioned filename pattern."
+msgstr "Elektu ĉu la konservita regulo de ĉi tiu aplikaĵo kongruas kun ekzakta vojo aŭ ŝablono de versia dosiernomo."
+
+#. Shared message: THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER
+msgid "The Parent App could not load. Please try again later."
+msgstr "La gepatra aplikaĵo ne povis ŝargiĝi. Bonvolu reprovi poste."
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS_GRANTED_TO_CH
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Revokes one-time screen time and app access grants granted to %(child_name)s."
+msgstr "Nuligas unufojajn ekrantempajn kaj aplikaĵajn alirpermesojn donitajn al %(child_name)s."
+
+#. Shared message: LOADING
+msgid "Loading…"
+msgstr "Ŝargante…"
+
+#. Shared message: INSTALLED_APPS_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Installed apps could not be loaded. Please try again later."
+msgstr "La instalitaj aplikaĵoj ne povis esti ŝargitaj. Bonvolu reprovi poste."
+
+#. Shared message: UNAVAILABLE
+msgid "Unavailable"
+msgstr "Nedisponebla"
+
+#. Shared message: REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER
+msgid "Remaining time could not be loaded. Please try again later."
+msgstr "La restanta tempo ne povis esti ŝargita. Bonvolu reprovi poste."
+
+#. Shared message: DETAIL_S_AFFECTED_APPS_APPS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(detail)s\nAffected apps: %(apps)s"
+msgstr "%(detail)s\nKoncernaj aplikaĵoj: %(apps)s"
+
+#. Shared message: APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY
+msgid "App limit status is unavailable. Retrying automatically."
+msgstr "La stato de aplikaĵaj limigoj estas nedisponebla. Aŭtomate reprovante."
+
+#. Shared message: CANCEL
+msgid "Cancel"
+msgstr "Nuligi"
+
+#. Shared message: REVOKE_GRANT
+msgid "Revoke grant"
+msgstr "Nuligi tempopermeson"
+
+#. Shared message: ONE_TIME_GRANT_REVOKED
+msgid "One-time grant revoked"
+msgstr "Unufoja tempopermeso nuligita"
+
+#. Shared message: CUSTOM_AMOUNT
+msgid "Custom amount…"
+msgstr "Propra kvanto…"
+
+#. Shared message: CUSTOM_AMOUNT_2
+msgid "Custom amount"
+msgstr "Propra kvanto"
+
+#. Shared message: ENTER_A_CUSTOM_DAILY_ALLOWANCE_IN_MINUTES
+msgid "Enter a custom daily allowance in minutes."
+msgstr "Enigu propran ĉiutagan tempopermeson en minutoj."
+
+#. Shared message: ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Enter a whole number from 0 to 1439."
+msgstr "Enigu entjeron de 0 ĝis 1439."
+
+#. Shared message: ROW_APP_NAME_S_MATCH_RULE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(row_app_name)s match rule"
+msgstr "Kongrua regulo por %(row_app_name)s"
+
+#. Shared message: CURRENT_MATCH_RULE_RULE_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Current match rule: %(rule)s"
+msgstr "Aktuala kongrua regulo: %(rule)s"
+
+#. Shared message: RESET_TO_DEFAULT
+msgid "Reset to Default"
+msgstr "Restarigi la defaŭlton"
+
+#. Shared message: SAVE
+msgid "Save"
+msgstr "Konservi"
+
+#. Shared message: APPLICATION_MATCH_RULE
+msgid "Application match rule"
+msgstr "Aplikaĵa kongrua regulo"
+
+#. Shared message: ENTER_AN_EXACT_EXECUTION_PATH_OR_A_VERSIONED_FILENAME_PATTERN
+msgid "Enter an exact execution path or a versioned filename pattern."
+msgstr "Enigu ekzaktan rulvojon aŭ ŝablonon de versia dosiernomo."
+
+#. Shared message: COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not save %(setting)s. Please try again later."
+msgstr "Ne eblis konservi %(setting)s. Bonvolu reprovi poste."
+
+#. Shared message: CHILD_ACCOUNT_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Child account: %(label)s"
+msgstr "Infana konto: %(label)s"
+
+#. Shared message: MANAGE_SCREEN_TIME_AND_APP_POLICY_FOR_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Manage screen time and app policy for %(label)s."
+msgstr "Administru ekrantempon kaj aplikaĵan politikon por %(label)s."
+
+#. Shared message: APP_NAME_S_LOGO
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s logo"
+msgstr "Emblemo de %(app_name)s"
+
+#. Shared message: PREFERENCES
+msgid "Preferences"
+msgstr "Agordoj"
+
+#. Shared message: HELP
+msgid "Help"
+msgstr "Helpo"
+
+#. Shared message: ABOUT
+msgid "About"
+msgstr "Pri"
+
+#. Shared message: MENU
+msgid "Menu"
+msgstr "Menuo"
+
+#. Shared message: CHILD_ACCOUNT
+msgid "Child account"
+msgstr "Infana konto"
+
+#. Shared message: REVOKES_ONE_TIME_SCREEN_TIME_AND_APP_ACCESS_GRANTS
+msgid "Revokes one-time screen time and app access grants."
+msgstr "Nuligas unufojajn ekrantempajn kaj aplikaĵajn alirpermesojn."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMINISTRATOR_ACCOUNT_WAS_FOUND
+msgid "No interactive non-administrator account was found."
+msgstr "Neniu interaga neadministranta konto estis trovita."
+
+#. Shared message: SHOW_THE_LABEL_S_PAGE
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Show the %(label)s page."
+msgstr "Montru la paĝon %(label)s."
+
+#. Shared message: SCREEN_TIME_LIMIT_2
+msgid "Screen Time Limit"
+msgstr "Ekrantempa limo"
+
+#. Shared message: TURN_ON_OFF_SCREEN_TIME_LIMIT
+msgid "Turn on / off screen time limit"
+msgstr "Ŝalti / malŝalti ekrantempan limon"
+
+#. Shared message: DAILY_TIME_ALLOWANCE_2
+msgid "Daily Time Allowance"
+msgstr "Ĉiutaga tempopermeso"
+
+#. Shared message: TODAY_S_REMAINING_TIME_2
+msgid "Today's Remaining Time"
+msgstr "Hodiaŭa restanta tempo"
+
+#. Shared message: TIME_LEFT_FOR_TODAY
+msgid "Time left for today"
+msgstr "Tempo restanta hodiaŭ"
+
+#. Shared message: MATCH_RULE
+msgid "Match Rule"
+msgstr "Kongrua regulo"
+
+#. Shared message: ACCESS_RULE
+msgid "Access Rule"
+msgstr "Alira regulo"
+
+#. Shared message: HIDE_CALCULATION
+msgid "Hide calculation"
+msgstr "Kaŝi kalkulon"
+
+#. Shared message: FILTER_BY_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Filter by %(label)s"
+msgstr "Filtri laŭ %(label)s"
+
+#. Shared message: QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
+msgid "Quick reference for access and match rules"
+msgstr "Rapida klarigo de aliraj kaj kongruaj reguloj"
+
+#. Shared message: SHOW_LEGEND
+msgid "Show legend"
+msgstr "Montri klarigon"
+
+#. Shared message: APP_ACCESS_WHAT_HAPPENS
+msgid "App Access (What happens)"
+msgstr "Aplikaĵa aliro (kio okazas)"
+
+#. Shared message: MATCH_RULE_HOW_APPS_ARE_MATCHED
+msgid "Match Rule (How apps are matched)"
+msgstr "Kongrua regulo (kiel aplikaĵoj estas kongruigataj)"
+
+#. Shared message: UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
+msgid "Understanding access rules and match rules"
+msgstr "Kompreni alirajn kaj kongruajn regulojn"
+
+#. Shared message: HIDE_LEGEND
+msgid "Hide legend"
+msgstr "Kaŝi klarigon"
+
+#. Shared message: YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO
+msgid "Your language preference could not be loaded. Open Preferences to try again."
+msgstr "Via lingva agordo ne povis esti ŝargita. Malfermu Agordojn por reprovi."
+
+#. Shared message: EDIT_MATCH_RULE
+msgid "Edit match rule"
+msgstr "Redakti kongruan regulon"
+
+#. Shared message: APP_NAME_S_ACCESS_RULE_STATE_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(app_name)s access rule: %(state_label)s"
+msgstr "Alira regulo de %(app_name)s: %(state_label)s"
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's access rule for %(app_name)s to %(state_label)s."
+msgstr "Agordu la aliran regulon de la elektita infano por %(app_name)s al %(state_label)s."
+
+#. Shared message: APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI
+msgid "App limit status could not be checked. Other controls remain available."
+msgstr "La stato de aplikaĵaj limigoj ne povis esti kontrolita. Aliaj regiloj restas disponeblaj."
+
+#. Shared message: REVOKE_ONE_TIME_GRANT
+msgid "Revoke one-time grant?"
+msgstr "Ĉu nuligi unufojan tempopermeson?"
+
+#. Shared message: THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted."
+msgstr "Tio nuligos la unufojan ekrantempon kaj aliron al provizore malblokeblaj aplikaĵoj donitajn al %(child_name)s, fermos ties rulantajn blokitajn aplikaĵojn kaj ŝlosos ties labortablon kiam neniu tempo restas. Ties restanta ĉiutaga tempopermeso ne estas tuŝita."
+
+#. Shared message: KEEP_THE_CURRENT_ONE_TIME_GRANT
+msgid "Keep the current one-time grant."
+msgstr "Konservu la aktualan unufojan tempopermeson."
+
+#. Shared message: REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT
+msgid "Revoke the selected child's one-time grant."
+msgstr "Nuligu la unufojan tempopermeson de la elektita infano."
+
+#. Shared message: SET_THE_SELECTED_CHILD_S_DAILY_ALLOWANCE_TO_DAILY_LIMIT_LABEL_MI
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Set the selected child's daily allowance to %(daily_limit_label_minutes)s."
+msgstr "Agordu la ĉiutagan tempopermeson de la elektita infano al %(daily_limit_label_minutes)s."
+
+#. Shared message: CUSTOM_VALUE
+msgid "Custom value"
+msgstr "Propra valoro"
+
+#. Shared message: EDIT_MATCH_RULE_2
+msgid "Edit Match Rule"
+msgstr "Redakti kongruan regulon"
+
+#. Shared message: CLOSE
+msgid "Close"
+msgstr "Fermi"
+
+#. Shared message: CLOSE_THE_ADMINISTRATOR_REQUIRED_NOTICE
+msgid "Close the administrator-required notice."
+msgstr "Fermu la avizon pri bezonata administranto."
+
+#. Shared message: NONE
+msgid "(None)"
+msgstr "(Neniu)"
+
+#. Shared message: REVOKE_ONE_TIME_GRANT_2
+msgid "Revoke one-time grant"
+msgstr "Nuligi unufojan tempopermeson"
+
+#. Shared message: REVOKE
+msgid "Revoke"
+msgstr "Nuligi"
+
+#. Shared message: MINUTES
+msgid "minutes"
+msgstr "minutoj"
+
+#. Shared message: INSTALLED_APPS
+msgid "Installed apps"
+msgstr "Instalitaj aplikaĵoj"
+
+#. Shared message: DESKTOP_APPIMAGE_FLATPAK_SNAP_AND_SYSTEM_LAUNCHERS
+msgid "Desktop, AppImage, Flatpak, Snap, and system launchers"
+msgstr "Labortablaj, AppImage, Flatpak, Snap kaj sistemaj lanĉiloj"
+
+#. Shared message: ICON
+msgid "Icon"
+msgstr "Piktogramo"
+
+#. Shared message: LOADING_INSTALLED_APPS
+msgid "Loading installed apps…"
+msgstr "Ŝargante instalitajn aplikaĵojn…"
+
+#. Shared message: HOW_IT_S_CALCULATED
+msgid "How it's calculated"
+msgstr "Kiel ĝi estas kalkulata"
+
+#. Shared message: LEGEND
+msgid "Legend"
+msgstr "Klarigo"
+
+#. Shared message: APP_CAN_ALWAYS_BE_USED
+msgid "App can always be used"
+msgstr "La aplikaĵo ĉiam povas esti uzata"
+
+#. Shared message: APP_IS_COMPLETELY_BLOCKED_AND_CAN_ONLY_BE_ALLOWED_BY_ADMINS
+msgid "App is completely blocked and can only be allowed by admins"
+msgstr "La aplikaĵo estas tute blokita kaj povas esti permesita nur de administrantoj"
+
+#. Shared message: APP_IS_BLOCKED_AND_CAN_BE_GRANTED_ONE_TIME_EXTENSION_PER_CHILD_R
+msgid "App is blocked and can be granted one-time extension per child request if time limit is enabled"
+msgstr "La aplikaĵo estas blokita; se la tempolimo estas ŝaltita, infana peto povas ricevi unufojan plilongigon"
+
+#. Shared message: MATCHES_BY_PATTERN_TO_COVER_EXEC_PATH_WITH_CHANGING_VERSION_NUMB
+msgid "Matches by pattern\n to cover exec path with changing version numbers (e.g., Lunar Client-*-ow_*.AppImage)"
+msgstr "Kongruas laŭ ŝablono\n por kovri rulvojojn kun ŝanĝiĝantaj versinumeroj (ekz., Lunar Client-*-ow_*.AppImage)"
+
+#. Shared message: MATCHES_EXACT_APP_PATH_E_G_USR_BIN_FIREFOX
+msgid "Matches exact app path\n(e.g., /usr/bin/firefox)"
+msgstr "Kongruas kun ekzakta aplikaĵa vojo\n(ekz., /usr/bin/firefox)"
+
+#. Shared message: CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY
+msgid "Child accounts could not be refreshed. Retrying automatically."
+msgstr "Infanaj kontoj ne povis esti refreŝigitaj. Aŭtomate reprovante."
+
+#. Shared message: NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND
+msgid "No interactive non-admin users were found"
+msgstr "Neniuj interagaj neadministrantaj uzantoj estis trovitaj"
+
+#. Shared message: INVALID_DAILY_ALLOWANCE_ENTER_A_WHOLE_NUMBER_FROM_0_TO_1439
+msgid "Invalid daily allowance. Enter a whole number from 0 to 1439."
+msgstr "Nevalida ĉiutaga tempopermeso. Enigu entjeron de 0 ĝis 1439."
+
+#. Shared message: USE_AN_EXACT_EXECUTION_PATH_OR_INCLUDE_FOR_A_VERSIONED_FILENAME
+msgid "Use an exact execution path, or include * for a versioned filename pattern."
+msgstr "Uzu ekzaktan rulvojon aŭ inkluzivu * por ŝablono de versia dosiernomo."
+
+#. Shared message: ADMINISTRATOR_ACCESS_REQUIRED
+msgid "Administrator access required"
+msgstr "Administranta aliro bezonata"
+
+#. Shared message: ADMINISTRATOR_REQUIRED
+msgid "Administrator Required"
+msgstr "Administranto bezonata"
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH
+msgid "Only an administrator can manage parental controls.\nSign in with an administrator account to open the Parent App."
+msgstr "Nur administranto povas administri gepatrajn kontrolojn.\nEnsalutu per administranta konto por malfermi la gepatran aplikaĵon."
+
+#. Shared message: ONLY_AN_ADMINISTRATOR_CAN_MANAGE_PARENTAL_CONTROLS_SIGN_IN_WITH_2
+msgid "Only an administrator can manage parental controls. Sign in with an administrator account to open the Parent App."
+msgstr "Nur administranto povas administri gepatrajn kontrolojn. Ensalutu per administranta konto por malfermi la gepatran aplikaĵon."
+
+#. Shared message: ANOTHER_APPLICATION
+msgid "another application"
+msgstr "alia aplikaĵo"
+
+#. Shared message: A_MATCH_RULE_IS_REQUIRED
+msgid "A match rule is required"
+msgstr "Kongrua regulo estas bezonata"
+
+#. Shared message: A_PRECISE_MATCH_MUST_BE_THIS_APP_S_EXECUTION_PATH
+msgid "A precise match must be this app's execution path"
+msgstr "Preciza kongruo devas esti la rulvojo de ĉi tiu aplikaĵo"
+
+#. Shared message: CONTINUE
+msgid "Continue"
+msgstr "Daŭrigi"
+
+#. Shared message: SAVE_YOUR_LANGUAGE_PREFERENCE
+msgid "Save your language preference."
+msgstr "Konservu vian lingvan agordon."
+
+#. Shared message: YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN
+msgid "Your language could not be saved. Please try again."
+msgstr "Via lingvo ne povis esti konservita. Bonvolu reprovi."
+
+#. Shared message: LANGUAGE
+msgid "Language"
+msgstr "Lingvo"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE
+msgid "Choose your language"
+msgstr "Elektu vian lingvon"
+
+#. Shared message: YOU_CAN_CHANGE_IT_IN_PREFERENCES
+msgid "You can change it in preferences"
+msgstr "Vi povas ŝanĝi ĝin en la agordoj"
+
+#. Shared message: SELECT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(name)s."
+msgstr "Elektu %(name)s."
+
+#. Shared message: TIME_GRANTED
+msgid "Time granted"
+msgstr "Tempo donita"
+
+#. Shared message: TIME_GRANTED_CLOSE
+msgid "Time granted, Close"
+msgstr "Tempo donita, Fermi"
+
+#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
+msgstr "Takso de restanta tempo se aprobite: %(format_duration_seconds)s"
+
+#. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
+msgid "Review an error report before closing or returning to login."
+msgstr "Reviziu erarraporton antaŭ fermi aŭ reveni al ensaluto."
+
+#. Shared message: PREFERENCES_2
+msgid "PREFERENCES"
+msgstr "AGORDOJ"
+
+#. Shared message: CHOOSE_YOUR_LANGUAGE_2
+msgid "Choose your language."
+msgstr "Elektu vian lingvon."
+
+#. Shared message: ABOUT_2
+msgid "ABOUT"
+msgstr "PRI"
+
+#. Shared message: SHOW_PRODUCT_NAME_VERSION_AND_LEGAL_INFORMATION
+msgid "Show product name, version, and legal information."
+msgstr "Montru la produktan nomon, version kaj jurajn informojn."
+
+#. Shared message: MUTE_REQUEST_SCREEN_SOUND
+msgid "Mute request-screen sound"
+msgstr "Silentigi la sonon de la peta ekrano"
+
+#. Shared message: TURN_LIGHTNING_AND_ITS_THUNDER_SOUND_ON_OR_OFF
+msgid "Turn lightning and its thunder sound on or off."
+msgstr "Ŝaltu aŭ malŝaltu fulmojn kaj ilian tondran sonon."
+
+#. Shared message: REQUEST_SCREEN_MENU
+msgid "Request-screen menu"
+msgstr "Menuo de la peta ekrano"
+
+#. Shared message: OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S
+msgid "Open preferences, help and product information for this request screen."
+msgstr "Malfermu agordojn, helpon kaj produktajn informojn por ĉi tiu peta ekrano."
+
+#. Shared message: RETURN_TO_LOGIN
+msgid "Return to Login"
+msgstr "Reveni al ensaluto"
+
+#. Shared message: CLOSE_THE_RESULT_SCREEN_OR_RETURN_TO_THE_SIGN_IN_SCREEN
+msgid "Close the result screen or return to the sign-in screen."
+msgstr "Fermu la rezultan ekranon aŭ revenu al la ensaluta ekrano."
+
+#. Shared message: REPORT_THIS_ERROR
+msgid "Report this error"
+msgstr "Raporti ĉi tiun eraron"
+
+#. Shared message: CALCULATING_TIME_ESTIMATE
+msgid "Calculating time estimate…"
+msgstr "Kalkulante tempotakson…"
+
+#. Shared message: HELP_2
+msgid "HELP"
+msgstr "HELPO"
+
+#. Shared message: OPEN_THE_PRODUCT_WEBSITE_IN_THE_BROWSER
+msgid "Open the product website in the browser."
+msgstr "Malfermu la produktan retejon en la retumilo."
+
+#. Shared message: MUTE_SOUND_AND_LIGHTNING
+msgid "Mute sound and lightning"
+msgstr "Silentigi sonon kaj fulmojn"
+
+#. Shared message: UNMUTE_SOUND_AND_LIGHTNING
+msgid "Unmute sound and lightning"
+msgstr "Resonigi sonon kaj fulmojn"
+
+#. Shared message: UNMUTE_REQUEST_SCREEN_SOUND
+msgid "Unmute request-screen sound"
+msgstr "Resonigi la sonon de la peta ekrano"
+
+#. Shared message: IF_APPROVED_ACCESS_UNTIL_MIDNIGHT
+msgid "If approved, access until midnight."
+msgstr "Se aprobite, aliro ĝis noktomezo."
+
+#. Shared message: TIME_ESTIMATE_UNAVAILABLE
+msgid "Time estimate unavailable"
+msgstr "Tempotakso nedisponebla"
+
+#. Shared message: THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED
+msgid "The estimated remaining time could not be loaded."
+msgstr "La taksita restanta tempo ne povis esti ŝargita."
+
+#. Shared message: SETTINGS_COULD_NOT_BE_SAVED
+msgid "Settings could not be saved"
+msgstr "Agordoj ne povis esti konservitaj"
+
+#. Shared message: YOUR_REQUEST_CHOICES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your request choices could not be saved. Please try again later."
+msgstr "Viaj petaj elektoj ne povis esti konservitaj. Bonvolu reprovi poste."
+
+#. Shared message: YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER
+msgid "Your sound preference could not be saved. Please try again later."
+msgstr "Via sona agordo ne povis esti konservita. Bonvolu reprovi poste."
+
+#. Shared message: YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT
+msgid "Your request preferences could not be saved. Please try again later."
+msgstr "Viaj petaj agordoj ne povis esti konservitaj. Bonvolu reprovi poste."
+
+#. Shared message: REQUEST_APPROVED
+msgid "Request approved"
+msgstr "Peto aprobita"
+
+#. Shared message: REQUEST_DENIED
+msgid "Request denied"
+msgstr "Peto rifuzita"
+
+#. Shared message: CHILD
+msgid "Child"
+msgstr "Infano"
+
+#. Shared message: APPROVING_PARENT
+msgid "Approving parent"
+msgstr "Aprobanta gepatro"
+
+#. Shared message: APPROVER
+msgid "Approver"
+msgstr "Aprobanto"
+
+#. Shared message: CUSTOM_DURATION_IN_MINUTES
+msgid "Custom duration in minutes"
+msgstr "Propra daŭro en minutoj"
+
+#. Shared message: ENTER_A_REQUESTED_DURATION_FROM_0_1_THROUGH_1440_MINUTES
+msgid "Enter a requested duration from 0.1 through 1440 minutes."
+msgstr "Enigu petatan daŭron de 0.1 ĝis 1440 minutoj."
+
+#. Shared message: ALLOW_SOFT_BLOCKED_APPS
+msgid "Allow soft blocked apps"
+msgstr "Permesi provizore malblokeblajn aplikaĵojn"
+
+#. Shared message: CHOOSE_WHETHER_THIS_REQUEST_TEMPORARILY_ALLOWS_SOFT_BLOCKED_APPS
+msgid "Choose whether this request temporarily allows soft blocked apps."
+msgstr "Elektu ĉu ĉi tiu peto provizore permesas provizore malblokeblajn aplikaĵojn."
+
+#. Shared message: REQUEST_ACCESS
+msgid "Request access"
+msgstr "Peti aliron"
+
+#. Shared message: SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL
+msgid "Submit the selected duration and app access choice for approval."
+msgstr "Sendu la elektitan daŭron kaj aplikaĵan aliron por aprobo."
+
+#. Shared message: CANCEL_REQUEST
+msgid "Cancel request"
+msgstr "Nuligi peton"
+
+#. Shared message: CLOSE_THIS_REQUEST_SCREEN_WITHOUT_REQUESTING_ADDITIONAL_TIME
+msgid "Close this request screen without requesting additional time."
+msgstr "Fermu ĉi tiun petan ekranon sen peti aldonan tempon."
+
+#. Shared message: LOADING_ACCOUNTS
+msgid "Loading accounts…"
+msgstr "Ŝargante kontojn…"
+
+#. Shared message: LOADING_REQUEST_DETAILS
+msgid "Loading request details…"
+msgstr "Ŝargante petajn detalojn…"
+
+#. Shared message: REQUEST
+msgid "REQUEST"
+msgstr "PETO"
+
+#. Shared message: SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
+msgid "Screen limit is not enabled in Parent App"
+msgstr "Ekrantempa limo ne estas ŝaltita en la gepatra aplikaĵo"
+
+#. Shared message: CANCEL_2
+msgid "CANCEL"
+msgstr "NULIGI"
+
+#. Shared message: REQUEST_LABEL_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request %(label)s"
+msgstr "Peti %(label)s"
+
+#. Shared message: SELECT_LABEL_S_AS_THE_REQUESTED_EXTRA_SCREEN_TIME_DURATION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Select %(label)s as the requested extra screen time duration."
+msgstr "Elektu %(label)s kiel la petatan plian ekrantempan daŭron."
+
+#. Shared message: NO_LOCAL_STANDARD_ACCOUNTS_ARE_AVAILABLE_CREATE_ONE_THEN_REOPEN
+msgid "No local standard accounts are available. Create one, then reopen this screen."
+msgstr "Neniuj lokaj normaj kontoj estas disponeblaj. Kreu tian konton, poste remalfermu ĉi tiun ekranon."
+
+#. Shared message: NO_LOCAL_INTERACTIVE_ADMINISTRATOR_ACCOUNTS_ARE_AVAILABLE
+msgid "No local interactive administrator accounts are available."
+msgstr "Neniuj lokaj interagaj administrantaj kontoj estas disponeblaj."
+
+#. Shared message: WAITING_FOR_APPROVAL
+msgid "Waiting for approval…"
+msgstr "Atendante aprobon…"
+
+#. Shared message: REQUEST_UNAVAILABLE
+msgid "Request unavailable"
+msgstr "Peto nedisponebla"
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_RETURN_TO_LOGIN_AND_TR
+msgid "The request could not be completed. Please return to login and try again later."
+msgstr "La peto ne povis esti plenumita. Bonvolu reveni al ensaluto kaj reprovi poste."
+
+#. Shared message: THE_REQUEST_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The request could not be completed. Please try again later."
+msgstr "La peto ne povis esti plenumita. Bonvolu reprovi poste."
+
+#. Shared message: VERSION_APP_VERSION_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Version %(app_version)s"
+msgstr "Versio %(app_version)s"
+
+#. Shared message: WEBSITE
+msgid "Website"
+msgstr "Retejo"
+
+#. Shared message: PRIVACY
+msgid "Privacy"
+msgstr "Privateco"
+
+#. Shared message: PRIVACY_POLICY
+msgid "Privacy policy"
+msgstr "Privateca politiko"
+
+#. Shared message: SUPPORT
+msgid "Support"
+msgstr "Subteno"
+
+#. Shared message: LICENSE
+msgid "License"
+msgstr "Permesilo"
+
+#. Shared message: LEGAL_NOTICES
+msgid "Legal notices"
+msgstr "Juraj avizoj"
+
+#. Shared message: MALCONTENT_INTEGRATION_AND_BUNDLED_FONT_NOTICES
+msgid "Malcontent integration and bundled-font notices"
+msgstr "Avizoj pri Malcontent-integrado kaj inkluzivitaj tiparoj"
+
+#. Shared message: USES_THE_SEPARATELY_INSTALLED_MALCONTENT_PARENTAL_CONTROLS_SERVI
+msgid "Uses the separately installed Malcontent parental-controls service through public system APIs. Not affiliated with or endorsed by the Malcontent authors or GNOME."
+msgstr "Uzas la aparte instalitan gepatrakontrolan servon Malcontent per publikaj sistemaj API-oj. Ne estas ligita al aŭ aprobita de la aŭtoroj de Malcontent aŭ GNOME."
+
+#. Shared message: HELPING_FAMILIES_BUILD_HEALTHY_DIGITAL_HABITS
+msgid "Helping families build healthy digital habits."
+msgstr "Helpante familiojn konstrui sanajn ciferecajn kutimojn."
+
+#. Shared message: YOU_MAY_CLOSE_THIS_DIALOG_RETRIES_CONTINUE_WHILE_THE_APP_IS_OPEN
+msgid "You may close this dialog; retries continue while the app is open."
+msgstr "Vi povas fermi ĉi tiun dialogon; reprovoj daŭras dum la aplikaĵo estas malfermita."
+
+#. Shared message: YOUR_FEEDBACK_WAS_SENT_SUCCESSFULLY_WE_APPRECIATE_YOUR_HELP_MAKI
+msgid "Your feedback was sent successfully. We appreciate your help making the app better."
+msgstr "Viaj komentoj estis sukcese senditaj. Ni dankas vian helpon plibonigi la aplikaĵon."
+
+#. Shared message: REPLY_EMAIL_OPTIONAL
+msgid "Reply email (optional)"
+msgstr "Responda retpoŝtadreso (nedeviga)"
+
+#. Shared message: ADD_YOUR_EMAIL_ADDRESS_IF_YOU_WOULD_LIKE_A_REPLY
+msgid "Add your email address if you would like a reply."
+msgstr "Aldonu vian retpoŝtadreson se vi deziras respondon."
+
+#. Shared message: ADD_FILES
+msgid "Add files"
+msgstr "Aldoni dosierojn"
+
+#. Shared message: ATTACH_UP_TO_5_FILES_TO_YOUR_FEEDBACK
+msgid "Attach up to 5 files to your feedback."
+msgstr "Aligu ĝis 5 dosierojn al viaj komentoj."
+
+#. Shared message: RETRY_DIAGNOSTIC_COLLECTION
+msgid "Retry diagnostic collection"
+msgstr "Reprovi diagnozan kolekton"
+
+#. Shared message: TRY_COLLECTING_THE_DIAGNOSTIC_ATTACHMENT_AGAIN
+msgid "Try collecting the diagnostic attachment again."
+msgstr "Provu denove kolekti la diagnozan aldonaĵon."
+
+#. Shared message: DOWNLOAD
+msgid "Download"
+msgstr "Elŝuti"
+
+#. Shared message: SAVE_A_ZIP_CONTAINING_A_READABLE_DIAGNOSTIC_REPORT_AND_VALIDATED
+msgid "Save a ZIP containing a readable diagnostic report and validated technical events."
+msgstr "Konservu ZIP kun legebla diagnoza raporto kaj validigitaj teknikaj eventoj."
+
+#. Shared message: SHOW_PRIVACY_INFORMATION_ABOUT_FEEDBACK_AND_ATTACHMENTS
+msgid "Show privacy information about feedback and attachments."
+msgstr "Montru privatecajn informojn pri komentoj kaj aldonaĵoj."
+
+#. Shared message: SEND_WITHOUT_LOGS
+msgid "Send without logs"
+msgstr "Sendi sen protokoloj"
+
+#. Shared message: SEND_THE_FEEDBACK_WITHOUT_THE_DIAGNOSTIC_ATTACHMENT
+msgid "Send the feedback without the diagnostic attachment."
+msgstr "Sendu la komentojn sen la diagnoza aldonaĵo."
+
+#. Shared message: CLOSE_THE_FEEDBACK_FORM_WHILE_PRESERVING_THE_DRAFT_IN_THIS_APP
+msgid "Close the feedback form while preserving the draft in this app."
+msgstr "Fermu la komentan formularon konservante la malneton en ĉi tiu aplikaĵo."
+
+#. Shared message: SEND_FEEDBACK
+msgid "Send Feedback"
+msgstr "Sendi komentojn"
+
+#. Shared message: SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS
+msgid "Submit the feedback and selected attachments."
+msgstr "Sendu la komentojn kaj elektitajn aldonaĵojn."
+
+#. Shared message: DIAGNOSTIC_LOGS_DO_NOT_COLLECT_ACCOUNT_NAMES_EMAIL_ADDRESSES_FIL
+msgid "\n\nDiagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. Automatic diagnostics contain validated technical events, health checks, and system information: OS and dependency versions, timezone, session type, and aggregate account counts. Names and custom version text are omitted or irreversibly replaced; identities are never hashed. Your own feedback, reply email, and selected files are separate and may contain personal information. Review them before sending."
+msgstr "\n\nDiagnozaj protokoloj ne kolektas kontnomojn, retpoŝtadresojn, dosierenhavon, krudajn sistemajn protokolojn aŭ esceptomesaĝojn. Aŭtomataj diagnozoj enhavas validigitajn teknikajn eventojn, funkciokontrolojn kaj sistemajn informojn: operaciumajn kaj dependecajn versiojn, horzonon, seancan tipon kaj sumajn nombrojn de kontoj. Nomoj kaj propra versia teksto estas preterlasitaj aŭ neinversigeble anstataŭigitaj; identecoj neniam estas haketitaj. Viaj propraj komentoj, responda retpoŝtadreso kaj elektitaj dosieroj estas apartaj kaj povas enhavi personajn informojn. Reviziu ilin antaŭ sendi."
+
+#. Shared message: VIEW_FULL_PRIVACY_NOTICE
+msgid "View full privacy notice"
+msgstr "Vidi la tutan privatecan avizon"
+
+#. Shared message: OPEN_THE_OH_NO_PARENT_CONTROL_PRIVACY_NOTICE_IN_YOUR_BROWSER
+msgid "Open the Oh No! Parent Control privacy notice in your browser."
+msgstr "Malfermu la privatecan avizon de Oh No! Parent Control en via retumilo."
+
+#. Shared message: STOP_SENDING_AND_CLOSE
+msgid "Stop sending and close"
+msgstr "Ĉesigi sendadon kaj fermi"
+
+#. Shared message: YOU_CAN_STOP_SENDING_AND_CLOSE_THIS_REPORT
+msgid "You can stop sending and close this report."
+msgstr "Vi povas ĉesigi sendadon kaj fermi ĉi tiun raporton."
+
+#. Shared message: FEEDBACK_SUBMITTED
+msgid "Feedback submitted."
+msgstr "Komentoj senditaj."
+
+#. Shared message: THIS_SUBMISSION_CAN_NO_LONGER_BE_RETRIED_WITHIN_ITS_RETRY_WINDOW
+msgid "This submission can no longer be retried within its retry window. The previous attempt may have succeeded. Sending again may submit a duplicate."
+msgstr "Ĉi tiu sendo ne plu povas esti reprovita ene de sia reprova periodo. La antaŭa provo eble sukcesis. Resendado povas sendi duplikaton."
+
+#. Shared message: THE_ATTACHMENTS_ARE_TOO_LARGE_REMOVE_FILES_OR_LOGS_AND_TRY_AGAIN
+msgid "The attachments are too large. Remove files or logs and try again."
+msgstr "La aldonaĵoj estas tro grandaj. Forigu dosierojn aŭ protokolojn kaj reprovu."
+
+#. Shared message: LOGS_COULD_NOT_BE_PREPARED_YOU_CAN_SEND_THIS_FEEDBACK_WITHOUT_TH
+msgid "Logs could not be prepared. You can send this feedback without the attachment."
+msgstr "Protokoloj ne povis esti preparitaj. Vi povas sendi ĉi tiujn komentojn sen la aldonaĵo."
+
+#. Shared message: FEEDBACK_WAS_NOT_ACCEPTED_YOUR_DRAFT_IS_PRESERVED_CHECK_YOUR_FEE
+msgid "Feedback was not accepted. Your draft is preserved. Check your feedback and reply address before sending again."
+msgstr "Komentoj ne estis akceptitaj. Via malneto estas konservita. Kontrolu viajn komentojn kaj respondadreson antaŭ resendi."
+
+#. Shared message: SUBMISSION_STOPPED_YOUR_DRAFT_IS_PRESERVED_THE_PREVIOUS_ATTEMPT
+msgid "Submission stopped. Your draft is preserved. The previous attempt may have succeeded."
+msgstr "Sendado ĉesigita. Via malneto estas konservita. La antaŭa provo eble sukcesis."
+
+#. Shared message: SENDING_IS_NOT_AVAILABLE_YET_YOUR_DRAFT_IS_PRESERVED
+msgid "Sending is not available yet. Your draft is preserved."
+msgstr "Sendado ankoraŭ ne estas disponebla. Via malneto estas konservita."
+
+#. Shared message: WE_MAY_CONTACT_YOU_AT_THE_EMAIL_ADDRESS_YOU_PROVIDED_IF_WE_HAVE
+msgid "\n\nWe may contact you at the email address you provided if we have any follow-up questions."
+msgstr "\n\nNi povas kontakti vin ĉe la retpoŝtadreso kiun vi donis se ni havas pluajn demandojn."
+
+#. Shared message: INCLUDE_A_DIAGNOSTIC_REPORT_WITH_VALIDATED_TECHNICAL_EVENTS_AND
+msgid "Include a diagnostic report with validated technical events and health checks. Personal information is excluded from this report."
+msgstr "Inkluzivu diagnozan raporton kun validigitaj teknikaj eventoj kaj funkciokontroloj. Personaj informoj estas ekskluditaj de ĉi tiu raporto."
+
+#. Shared message: READING_ATTACHMENTS
+msgid "Reading attachments…"
+msgstr "Legante aldonaĵojn…"
+
+#. Shared message: ATTACHMENTS_OPTIONAL
+msgid "Attachments (optional)"
+msgstr "Aldonaĵoj (nedevigaj)"
+
+#. Shared message: COLLECTING_DIAGNOSTIC_INFORMATION
+msgid "Collecting diagnostic information..."
+msgstr "Kolektante diagnozajn informojn..."
+
+#. Shared message: LATEST_3_LOG_DATES_ZIP_ARCHIVE
+msgid "Latest 3 log dates · ZIP archive"
+msgstr "La lastaj 3 protokolaj datoj · ZIP-arkivo"
+
+#. Shared message: REMOVE_LOGS
+msgid "Remove logs"
+msgstr "Forigi protokolojn"
+
+#. Shared message: RETRY_COLLECTION
+msgid "Retry collection"
+msgstr "Reprovi kolekton"
+
+#. Shared message: SAVE_COMPRESSED_LOGS_TO_EXAMINE_THEM_BEFORE_SENDING
+msgid "Save compressed logs to examine them before sending"
+msgstr "Konservu kunpremitajn protokolojn por ekzameni ilin antaŭ sendi"
+
+#. Shared message: FEEDBACK_PRIVACY
+msgid "Feedback privacy"
+msgstr "Privateco de komentoj"
+
+#. Shared message: CLOSE_THE_FEEDBACK_PRIVACY_INFORMATION
+msgid "Close the feedback privacy information."
+msgstr "Fermu la privatecajn informojn pri komentoj."
+
+#. Shared message: STOP_THE_PENDING_REPORT_AND_CLOSE_IT
+msgid "Stop the pending report and close it."
+msgstr "Ĉesigu la atendantan raporton kaj fermu ĝin."
+
+#. Shared message: SUBMIT_AGAIN_MAY_DUPLICATE
+msgid "Submit again (may duplicate)"
+msgstr "Resendi (eble duplikato)"
+
+#. Shared message: SUBMIT_THE_PRESERVED_FEEDBACK_AGAIN_WHEN_THE_EARLIER_RESULT_IS_U
+msgid "Submit the preserved feedback again when the earlier result is uncertain."
+msgstr "Resendu la konservitajn komentojn kiam la antaŭa rezulto estas necerta."
+
+#. Shared message: THANK_YOU_FOR_YOUR_FEEDBACK
+msgid "Thank you for your feedback!"
+msgstr "Dankon pro viaj komentoj!"
+
+#. Shared message: CLOSE_THE_FEEDBACK_CONFIRMATION
+msgid "Close the feedback confirmation."
+msgstr "Fermu la konfirmon de komentoj."
+
+#. Shared message: DIAGNOSTICS_UNAVAILABLE
+msgid "Diagnostics unavailable"
+msgstr "Diagnozoj nedisponeblaj"
+
+#. Shared message: RETRY_COLLECTION_OR_SEND_WITHOUT_DIAGNOSTICS
+msgid "Retry collection or send without diagnostics."
+msgstr "Reprovu kolekton aŭ sendu sen diagnozoj."
+
+#. Shared message: ADD_LOGS
+msgid "Add logs"
+msgstr "Aldoni protokolojn"
+
+#. Shared message: REMOVE
+msgid "Remove"
+msgstr "Forigi"
+
+#. Shared message: ADD_FEEDBACK_ATTACHMENTS
+msgid "Add feedback attachments"
+msgstr "Aldoni komentajn aldonaĵojn"
+
+#. Shared message: ATTACH_AT_MOST_TRANSPORT_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(transport_MAX_ATTACHMENT_COUNT)s files."
+msgstr "Aligu maksimume %(transport_MAX_ATTACHMENT_COUNT)s dosierojn."
+
+#. Shared message: PREVIEW_IS_NOT_AVAILABLE
+msgid "Preview is not available"
+msgstr "Antaŭrigardo estas nedisponebla"
+
+#. Shared message: FILE_ATTACHMENT
+msgid "File attachment"
+msgstr "Dosiera aldonaĵo"
+
+#. Shared message: REMOVE_ATTACHMENT_NAME_S
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Remove %(attachment_name)s"
+msgstr "Forigi %(attachment_name)s"
+
+#. Shared message: REMOVE_THIS_FILE_FROM_THE_FEEDBACK
+msgid "Remove this file from the feedback."
+msgstr "Forigu ĉi tiun dosieron el la komentoj."
+
+#. Shared message: LOGS_READY_TO_REVIEW
+msgid "Logs ready to review"
+msgstr "Protokoloj pretaj por revizio"
+
+#. Shared message: DOWNLOAD_DIAGNOSTIC_LOGS
+msgid "Download diagnostic logs"
+msgstr "Elŝuti diagnozajn protokolojn"
+
+#. Shared message: DOWNLOADED_READY_TO_EXAMINE
+msgid "Downloaded · Ready to examine"
+msgstr "Elŝutite · Preta por ekzameno"
+
+#. Shared message: HELP_US_MAKE_THINGS_BETTER
+msgid "Help us make things better"
+msgstr "Helpu nin plibonigi aferojn"
+
+#. Shared message: ANONYMOUS_BY_DEFAULT
+msgid "Anonymous by default"
+msgstr "Anonima defaŭlte"
+
+#. Shared message: ADD_YOUR_EMAIL_IF_YOU_D_LIKE_A_REPLY_OTHERWISE_YOUR_FEEDBACK_IS
+msgid "Add your email if you’d like a reply. Otherwise, your feedback is anonymous."
+msgstr "Aldonu vian retpoŝtadreson se vi deziras respondon. Alie viaj komentoj estas anonimaj."
+
+#. Shared message: NO_LOGS_ATTACHED
+msgid "No logs attached"
+msgstr "Neniuj protokoloj aligitaj"
+
+#. Shared message: LATEST_3_LOG_DATES_SYSTEM_INFORMATION_ZIP_ARCHIVE
+msgid "Latest 3 log dates · System information · ZIP archive"
+msgstr "La lastaj 3 protokolaj datoj · Sistemaj informoj · ZIP-arkivo"
+
+#. Shared message: YOUR_FEEDBACK_CAN_BE_SENT_WITHOUT_LOGS
+msgid "Your feedback can be sent without logs."
+msgstr "Viaj komentoj povas esti senditaj sen protokoloj."
+
+#. Shared message: REMOVE_ATTACHMENT
+msgid "Remove attachment"
+msgstr "Forigi aldonaĵon"
+
+#. Shared message: COULD_NOT_SAVE_LOGS_TRY_ANOTHER_LOCATION
+msgid "Could not save logs. Try another location."
+msgstr "Ne eblis konservi protokolojn. Provu alian lokon."
+
+#. Shared message: REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
+msgid "Review the error details below before sending."
+msgstr "Reviziu la subajn erardetalojn antaŭ sendi."
+
+#. Shared message: SHARE_A_PROBLEM_SUGGESTION_OR_IDEA
+msgid "Share a problem, suggestion, or idea."
+msgstr "Dividu problemon, sugeston aŭ ideon."
+
+#. Shared message: COULD_NOT_CHOOSE_ATTACHMENTS_TRY_AGAIN
+msgid "Could not choose attachments. Try again."
+msgstr "Ne eblis elekti aldonaĵojn. Reprovu."
+
+#. Shared message: COULD_NOT_READ_ONE_OR_MORE_ATTACHMENTS_TRY_DIFFERENT_FILES
+msgid "Could not read one or more attachments. Try different files."
+msgstr "Ne eblis legi unu aŭ plurajn aldonaĵojn. Provu aliajn dosierojn."
+
+#. Shared message: COULD_NOT_CHOOSE_A_DOWNLOAD_LOCATION_TRY_AGAIN
+msgid "Could not choose a download location. Try again."
+msgstr "Ne eblis elekti elŝutan lokon. Reprovu."
+
+#. Shared message: SOMETHING_WENT_WRONG
+msgid "Something went wrong"
+msgstr "Io misfunkciis"
+
+#. Shared message: THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
+msgid "The operation could not be completed. Please try again later."
+msgstr "La ago ne povis esti plenumita. Bonvolu reprovi poste."
+
+#. Shared message: ERROR_REPORT_UNAVAILABLE
+msgid "Error report unavailable"
+msgstr "Erarraporto nedisponebla"
+
+#. Shared message: THE_FEEDBACK_DIALOG_COULD_NOT_BE_OPENED_PLEASE_TRY_AGAIN_LATER
+msgid "The feedback dialog could not be opened. Please try again later."
+msgstr "La komenta dialogo ne povis esti malfermita. Bonvolu reprovi poste."
+
+#. Shared message: CLOSE_THE_ERROR_REPORT_NOTICE
+msgid "Close the error report notice."
+msgstr "Fermu la erarraportan avizon."
+
+#. Shared message: FEEDBACK_REPLY_EMAIL_ADDRESSES_ATTACHMENTS_AND_DIAGNOSTIC_LOGS_A
+msgid "Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. Retention depends on our support mailbox and service providers, including their backup policies. We do not currently guarantee deletion within a fixed period."
+msgstr "Komentoj, respondaj retpoŝtadresoj, aldonaĵoj kaj diagnozaj protokoloj estas senditaj retpoŝte al subteno. Konservado dependas de nia subtena poŝtkesto kaj servoprovizantoj, inkluzive de iliaj rezervkopiaj politikoj. Ni nuntempe ne garantias forigon ene de fiksa periodo."
+
+#. Shared message: ENTER_A_SINGLE_LINE_FEEDBACK_TITLE_OF_AT_MOST_200_CHARACTERS
+msgid "Enter a single-line feedback title of at most 200 characters."
+msgstr "Enigu unulinian komentan titolon kun maksimume 200 signoj."
+
+#. Shared message: PLEASE_ENTER_YOUR_FEEDBACK
+msgid "Please enter your feedback."
+msgstr "Bonvolu enigi viajn komentojn."
+
+#. Shared message: YOUR_FEEDBACK_CONTAINS_AN_UNSUPPORTED_HIDDEN_CHARACTER_PLEASE_RE
+msgid "Your feedback contains an unsupported hidden character. Please retype it and try again."
+msgstr "Viaj komentoj enhavas nesubtenatan kaŝitan signon. Bonvolu retajpi ilin kaj reprovi."
+
+#. Shared message: FEEDBACK_MUST_BE_AT_MOST_5_000_UTF_16_CHARACTERS_SOME_EMOJI_COUN
+msgid "Feedback must be at most 5,000 UTF-16 characters (some emoji count as two)."
+msgstr "Komentoj devas enhavi maksimume 5 000 UTF-16-signojn (kelkaj emoĝioj kalkuliĝas kiel du)."
+
+#. Shared message: THE_FORMATTED_FEEDBACK_IS_TOO_COMPLEX_REMOVE_SOME_FORMATTING_AND
+msgid "The formatted feedback is too complex. Remove some formatting and try again."
+msgstr "La formatitaj komentoj estas tro kompleksaj. Forigu iom da formatado kaj reprovu."
+
+#. Shared message: ENTER_A_BARE_REPLY_EMAIL_ADDRESS_OR_LEAVE_IT_BLANK
+msgid "Enter a bare reply email address, or leave it blank."
+msgstr "Enigu nur respondan retpoŝtadreson, aŭ lasu ĝin malplena."
+
+#. Shared message: THE_APP_VERSION_IS_INVALID_PLEASE_UPDATE_THE_APPLICATION
+msgid "The app version is invalid. Please update the application."
+msgstr "La aplikaĵa versio estas nevalida. Bonvolu ĝisdatigi la aplikaĵon."
+
+#. Shared message: ATTACH_AT_MOST_MAX_ATTACHMENT_COUNT_S_FILES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Attach at most %(MAX_ATTACHMENT_COUNT)s files."
+msgstr "Aligu maksimume %(MAX_ATTACHMENT_COUNT)s dosierojn."
+
+#. Shared message: ONE_OR_MORE_ATTACHMENTS_ARE_INVALID
+msgid "One or more attachments are invalid."
+msgstr "Unu aŭ pluraj aldonaĵoj estas nevalidaj."
+
+#. Shared message: EACH_ATTACHMENT_MUST_BE_5_MB_OR_SMALLER
+msgid "Each attachment must be 5 MB or smaller."
+msgstr "Ĉiu aldonaĵo devas esti 5 MB aŭ malpli granda."
+
+#. Shared message: ATTACHMENTS_AND_DIAGNOSTIC_LOGS_MUST_TOTAL_8_MB_OR_LESS
+msgid "Attachments and diagnostic logs must total 8 MB or less."
+msgstr "Aldonaĵoj kaj diagnozaj protokoloj devas sumi al 8 MB aŭ malpli."
+
+#. Shared message: COMPACT_HOURS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dh"
+msgstr "%(count)dh"
+
+#. Shared message: COMPACT_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)dm"
+msgstr "%(count)dm"
+
+#. Shared message: COMPACT_SECONDS
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)ds"
+msgstr "%(count)ds"
+
+#. Shared message: REST_OF_DAY
+msgid "Rest of the day"
+msgstr "Resto de la tago"
+
+#. Shared message: SELECT_ACCOUNT
+msgid "Select an account to manage"
+msgstr "Elektu konton por administri"
+
+#. Shared message: SELECT_ADMINISTRATOR
+msgid "Select an approving administrator"
+msgstr "Elektu aprobantan administranton"
+
+#. Shared message: SELECT_DURATION
+msgid "Select a duration"
+msgstr "Elektu daŭron"
+
+#. Shared message: INVALID_REQUEST_MINUTES
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Enter a number from %(minimum)s to %(maximum)s minutes."
+msgstr "Enigu nombron de %(minimum)s ĝis %(maximum)s minutoj."
+
+#. Shared message: DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Daily allowance: %(duration)s"
+msgstr "Ĉiutaga tempopermeso: %(duration)s"
+
+#. Shared message: SELECTED_DAILY_ALLOWANCE_DESCRIPTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected daily allowance: %(duration)s"
+msgstr "Elektita ĉiutaga tempopermeso: %(duration)s"
+
+#. Shared message: COUNTDOWN_ACTION
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(action)s (%(count)d)"
+msgstr "%(action)s (%(count)d)"
+
+#. Shared message: PREPARING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Preparing feedback… %(hint)s"
+msgstr "Preparante komentojn… %(hint)s"
+
+#. Shared message: SENDING_FEEDBACK
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Sending feedback… %(hint)s"
+msgstr "Sendante komentojn… %(hint)s"
+
+#. Shared message: COPYRIGHT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "© 2026 %(vendor)s\nGPL-3.0-only · No warranty."
+msgstr "© 2026 %(vendor)s\nGPL-3.0-only · Sen garantio."
+
+#. Shared message: ABOUT_DETAIL_LABEL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(label)s: %(value)s"
+msgstr "%(label)s: %(value)s"
+
+#. Shared message: OPEN_ABOUT_DETAIL
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Open the product information: %(label)s."
+msgstr "Malfermu la produktajn informojn: %(label)s."
+
+#. Shared message: FEEDBACK_FILENAME
+msgid "Choose an attachment with a valid filename."
+msgstr "Elektu aldonaĵon kun valida dosiernomo."
+
+#. Shared message: FEEDBACK_SHORT_FILENAME
+msgid "Choose an attachment with a shorter valid filename."
+msgstr "Elektu aldonaĵon kun pli mallonga valida dosiernomo."
+
+#. Shared message: YOUR_FEEDBACK
+msgid "Your feedback"
+msgstr "Viaj komentoj"
+
+#. Shared message: EDITOR_DESCRIPTION
+msgid "Write and format feedback. Use the toolbar for headings, bold, italic, underline, lists, quotes, code, links, attachments, and remove formatting."
+msgstr "Skribu kaj formatu komentojn. Uzu la ilobreton por titoloj, grasa, kursiva, substrekita teksto, listoj, citaĵoj, kodo, ligiloj, aldonaĵoj kaj forigo de formatado."
+
+#. Shared message: EDITOR_PLACEHOLDER
+msgid "Describe your idea, or what happened and what you expected..."
+msgstr "Priskribu vian ideon, aŭ kio okazis kaj kion vi atendis..."
+
+#. Shared message: TEXT_STYLE
+msgid "Text style"
+msgstr "Teksta stilo"
+
+#. Shared message: NORMAL_TEXT
+msgid "Normal text"
+msgstr "Normala teksto"
+
+#. Shared message: HEADING_1
+msgid "Heading 1"
+msgstr "Titolo 1"
+
+#. Shared message: HEADING_2
+msgid "Heading 2"
+msgstr "Titolo 2"
+
+#. Shared message: BOLD
+msgid "Bold"
+msgstr "Grasa"
+
+#. Shared message: ITALIC
+msgid "Italic"
+msgstr "Kursiva"
+
+#. Shared message: UNDERLINE
+msgid "Underline"
+msgstr "Substrekita"
+
+#. Shared message: STRIKETHROUGH
+msgid "Strikethrough"
+msgstr "Trastrekita"
+
+#. Shared message: NUMBERED_LIST
+msgid "Numbered list"
+msgstr "Numerita listo"
+
+#. Shared message: BULLETED_LIST
+msgid "Bulleted list"
+msgstr "Bula listo"
+
+#. Shared message: QUOTE
+msgid "Quote"
+msgstr "Citaĵo"
+
+#. Shared message: CODE_BLOCK
+msgid "Code block"
+msgstr "Kodbloko"
+
+#. Shared message: INSERT_LINK
+msgid "Insert link"
+msgstr "Enmeti ligilon"
+
+#. Shared message: ADD_ATTACHMENT
+msgid "Add attachment"
+msgstr "Aldoni aldonaĵon"
+
+#. Shared message: REMOVE_FORMATTING
+msgid "Remove formatting"
+msgstr "Forigi formatadon"
+
+#. Shared message: FEEDBACK_FORMATTING
+msgid "Feedback formatting"
+msgstr "Komenta formatado"
+
+#. Shared message: LINK_TARGET
+msgid "Link target"
+msgstr "Ligila celo"
+
+#. Shared message: LINK_EDITOR
+msgid "Link editor"
+msgstr "Ligila redaktilo"
+
+#. Shared message: OPEN_LINK_PREVIEW
+msgid "Open link preview"
+msgstr "Malfermi ligilan antaŭrigardon"
+
+#. Shared message: SAVE_LINK
+msgid "Save link"
+msgstr "Konservi ligilon"
+
+#. Shared message: REMOVE_LINK
+msgid "Remove link"
+msgstr "Forigi ligilon"
+
+#. Shared message: NUMBERED_LIST_ITEM
+msgid "numbered list item"
+msgstr "numerita listero"
+
+#. Shared message: BULLETED_LIST_ITEM
+msgid "bulleted list item"
+msgstr "bula listero"
+
+#. Shared message: COUNTDOWN_ANIMATION
+msgid "One minute count down animation"
+msgstr "Unuminuta retronombrada animacio"
+
+#. Shared message: COUNTDOWN_ANIMATION_DESCRIPTION
+msgid "Enable or disable the visual countdown animation during the final minute."
+msgstr "Ŝaltu aŭ malŝaltu la vidan retronombradan animacion dum la fina minuto."
+
+#. Shared message: PANEL_DESCRIPTION
+msgid "Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings."
+msgstr "Legu la restantan tempon aŭ malfermu la formularon por peti pli da tempo. Malfermu la kuntekstan menuon por retronombradaj animaciaj agordoj."
+
+#. Shared message: PANEL_TOOLTIP
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "• Time remaining: %(time)s\n• Click to request more time for this session.\n• Right-click for more options."
+msgstr "• Restanta tempo: %(time)s\n• Alklaku por peti pli da tempo por ĉi tiu seanco.\n• Dekstre alklaku por pliaj opcioj."
+
+#. Shared message: PANEL_REQUEST_TIME
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Request time, %(time)s"
+msgstr "Peti tempon, %(time)s"
+
+#. Shared message: MORE_ACCOUNT_CHOICES
+msgid "Show more account choices"
+msgstr "Montri pliajn kontajn elektojn"
+
+#. Shared message: MORE_ACCOUNT_CHOICES_DESCRIPTION
+msgid "Reveal the previous or next account choices."
+msgstr "Montru la antaŭajn aŭ sekvajn kontajn elektojn."
+
+#. Shared message: CHOOSE_ACCOUNT
+msgid "Choose an account."
+msgstr "Elektu konton."
+
+#. Shared message: SELECTED_ACCOUNT
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Selected account: %(name)s."
+msgstr "Elektita konto: %(name)s."
+
+#. Shared message: FILTER_DESCRIPTION
+msgid "Choose which rules are shown in the app list."
+msgstr "Elektu kiuj reguloj estas montrataj en la aplikaĵa listo."
+
+#. Shared message: SHOW_APPS_RULE
+msgid "Show apps with this rule."
+msgstr "Montru aplikaĵojn kun ĉi tiu regulo."
+
+#. Shared message: REQUEST_SCREEN_SCROLL
+msgid "Request screen scroll"
+msgstr "Rulumado de peta ekrano"
+
+#. Shared message: REQUEST_SCREEN_SCROLL_DESCRIPTION
+msgid "Scroll the request screen when its content overflows."
+msgstr "Rulumu la petan ekranon kiam ĝia enhavo superfluas."
+
+#. Shared message: minute_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d minute"
+msgid_plural "%(count)d minutes"
+msgstr[0] "%(count)d minuto"
+msgstr[1] "%(count)d minutoj"
+
+#. Shared message: hour_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)g hour"
+msgid_plural "%(count)g hours"
+msgstr[0] "%(count)g horo"
+msgstr[1] "%(count)g horoj"
+
+#. Shared message: second_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d second"
+msgid_plural "%(count)d seconds"
+msgstr[0] "%(count)d sekundo"
+msgstr[1] "%(count)d sekundoj"
+
+#. Shared message: attachments_ready
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d file attachment ready."
+msgid_plural "%(count)d file attachments ready."
+msgstr[0] "%(count)d dosiera aldonaĵo preta."
+msgstr[1] "%(count)d dosieraj aldonaĵoj pretaj."
+
+#. Shared message: byte_count
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "%(count)d byte"
+msgid_plural "%(count)d bytes"
+msgstr[0] "%(count)d bajto"
+msgstr[1] "%(count)d bajtoj"
+
+#. Shared message: retry_seconds
+#. Preserve named operands and any markup; operands are supplied by the owning UI.
+#, python-format
+msgid "Could not confirm submission. Retrying in %(count)d second…"
+msgid_plural "Could not confirm submission. Retrying in %(count)d seconds…"
+msgstr[0] "Ne eblis konfirmi sendon. Reprovante post %(count)d sekundo…"
+msgstr[1] "Ne eblis konfirmi sendon. Reprovante post %(count)d sekundoj…"
+
+#. Shared message: SAVE_GRANT_FAILED
+msgid "Could not save the one-time grant. Please try again later."
+msgstr "Ne eblis konservi la unufojan tempopermeson. Bonvolu reprovi poste."
+
+#. Shared message: SAVE_SCREEN_TIME_FAILED
+msgid "Could not save screen-time settings. Please try again later."
+msgstr "Ne eblis konservi la ekrantempajn agordojn. Bonvolu reprovi poste."
+
+#. Shared message: SAVE_APP_ACCESS_FAILED
+msgid "Could not save app access. Please try again later."
+msgstr "Ne eblis konservi la aplikaĵan aliron. Bonvolu reprovi poste."
+
+#. Shared message: EDIT_LINK
+msgid "Edit link"
+msgstr "Redakti ligilon"
+
+#. Shared message: ERROR_CATEGORIES
+#, python-format
+msgid "Error categories: %(categories)s"
+msgstr "Erarkategorioj: %(categories)s"
+
+#. Translators: The name operand is the child's display name, with escaped styling markup.
+#, python-format
+msgid "For %(name)s"
+msgstr "Por %(name)s"
+
+#. Translators: Attachment sizes use the existing 1024-byte scale. Localize the unit.
+#, python-format
+msgid "%(size)s KB"
+msgstr "%(size)s KB"
+
+#, python-format
+msgid "%(size)s MB"
+msgstr "%(size)s MB"
+
+#. Translators: Fractional hours, independent of integer plural rules.
+#, python-format
+msgid "%(count)g hours"
+msgstr "%(count)g horoj"
+
+#, python-format
+msgctxt "fractional hours below two"
+msgid "%(count)g hours"
+msgstr "%(count)g horoj"

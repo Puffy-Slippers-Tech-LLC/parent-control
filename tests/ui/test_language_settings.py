@@ -74,12 +74,14 @@ def test_language_search_is_accessible_and_keyboard_operable(
         launch_ui, automation, wait_for_accessible_state, tmp_path, surface,
         request_display_scale, dpi_scale):
     from tests.support.automation_ids import audit_product_controls
-    from tests.support.keyboard import key_combo, press_key, type_text
+    from tests.support.keyboard import press_key, type_text
 
     ui, wait = automation, wait_for_accessible_state
     path = launch_language(launch_ui, tmp_path, surface)
     wait(lambda: ui.showing('language-search'), 'search is publicly accessible')
     inventory = audit_product_controls(ui, 'language-dialog')
+    assert inventory['language-list'].get_name() == 'Language'
+    assert inventory['language-list'].get_description() == 'Choose your language'
     search = inventory['language-search']
     assert search.get_name() == 'Search languages'
     assert search.get_description() == 'Search languages'
@@ -94,19 +96,31 @@ def test_language_search_is_accessible_and_keyboard_operable(
          'typing filters without Enter and removes hidden choices from accessibility')
     assert not committed(path)
     press_key(ui, 'language-search', 'Tab', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.state('language-list', ui.api.StateType.FOCUSED),
+         'Tab reaches the scrollable language list')
+    press_key(ui, 'language-list', 'Tab', state=ui.api.StateType.FOCUSED)
     wait(lambda: ui.state('language-choice-pt-br', ui.api.StateType.FOCUSED),
-         'Tab reaches the matching language')
+         'Tab from the list reaches the matching language')
     press_key(ui, 'language-choice-pt-br', 'space', state=ui.api.StateType.FOCUSED)
-    wait(lambda: ui.state('language-choice-pt-br', ui.api.StateType.CHECKED)
-         and ui.text('language-search') == 'Pesquisar idiomas',
-         'keyboard selection updates accessible labels in the preview language')
+    wait(lambda: ui.state('language-choice-pt-br', ui.api.StateType.CHECKED),
+         'Space selects the matching language')
+    assert ui.text('language-search') == 'Pesquisar idiomas'
     assert ui.target('language-search').get_description() == 'Pesquisar idiomas'
+    press_key(ui, 'language-choice-pt-br', 'Escape', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.content('language-search') == ''
+         and ui.state('language-choice-pt-br', ui.api.StateType.FOCUSED),
+         'Escape from a language row clears search and preserves focus')
     ui.focus('language-search')
-    key_combo(ui, 'language-search', '<Control>a', state=ui.api.StateType.FOCUSED)
-    press_key(ui, 'language-search', 'BackSpace', state=ui.api.StateType.FOCUSED)
+    type_text(ui, 'language-search', 'PORT*BR')
+    wait(lambda: ui.absent('language-choice-en', within='language-dialog'),
+         'typing filters again')
+    press_key(ui, 'language-search', 'Escape', state=ui.api.StateType.FOCUSED)
     wait(lambda: ui.content('language-search') == ''
          and ui.find('language-choice-fur') is not None,
-         'clearing restores the complete accessible list')
+         'Escape restores the complete accessible list')
+    assert ui.showing('language-dialog')
+    assert ui.state('language-search', ui.api.StateType.FOCUSED)
+    assert ui.state('language-choice-pt-br', ui.api.StateType.CHECKED)
     ui.focus('language-choice-fur')
     assert ui.showing('language-choice-fur'), 'last language is keyboard reachable'
     ui.focus('language-search')

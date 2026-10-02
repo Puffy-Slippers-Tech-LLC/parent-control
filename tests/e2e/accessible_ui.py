@@ -88,7 +88,7 @@ NATIVE_PRODUCT = 'ONPC Allowed Fixture'
 NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'desktop', 'search-ready', 'search-focused', 'search-entered', 'grid',
     'grid-refusals', 'command-launch', 'command-refusals', 'wrong-entry',
-    'opened', 'submit', 'submitted', 'close', 'closed',
+    'opened', 'submit', 'resubmit', 'submitted', 'close', 'closed',
     'activity', 'activity-wrong-entry'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
@@ -99,7 +99,7 @@ OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
     'overlay-qualification-cancel', 'overlay-desktop'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | frozenset({'child-command-launch'})
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
-    'desktop', 'command-launch', 'opened', 'submit', 'submitted', 'activity', 'close', 'closed'))
+    'desktop', 'command-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
 OPERATIONS |= frozenset({'overlay-wrong-account-refused'})
 CHILD_GREETER_OPERATIONS = frozenset({
@@ -7590,8 +7590,8 @@ class AccessibleUI:
         snapshot = {}
         facts = {}
         nodes = list(self.nodes(strict=True, snapshot=snapshot, facts=facts))
-        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
-                                  for node in nodes), 'ui:stale-request-form')
+        require(nodes and not self.has_state(nodes[0], self.api.StateType.DEFUNCT),
+                'ui:stale-request-form')
         identities = {node: facts[node]['identity'] for node in nodes}
         self.handle_system_prompt(observation=(nodes, snapshot, facts))
 
@@ -7620,6 +7620,11 @@ class AccessibleUI:
             require(application.get_process_id() in owners.get(application_id, ()),
                     'ui:wrong-application-owner')
         application_nodes = self.snapshot_scope(nodes, snapshot, application)
+        # A readable stale object in another desktop application is not this
+        # request form. Keep the complete desktop prompt check above, and
+        # refuse stale objects anywhere in the verified owning application.
+        require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                        for node in application_nodes), 'ui:stale-request-form')
         window = lookup('kiosk-request-window', application_nodes)
         require(window is not None, 'ui:kiosk-request-window')
         self.validate_owned_surface(
@@ -7975,11 +7980,11 @@ class AccessibleUI:
                     'endpoint': [bus, path], 'state': value}
         return value
 
-    def native_app_submit(self, instance='primary'):
+    def native_app_submit(self, instance='primary', *, submitted='No submitted draft'):
         """One normal public action; no replay after uncertain delivery."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(instance == 'primary', 'ui:native-binding')
-        self.native_app_snapshot('No submitted draft')
+        self.native_app_snapshot(submitted)
         self.activate_id('onpc-fixture-native-primary-submit')
 
     def native_app_closed(self):
@@ -8050,6 +8055,10 @@ class AccessibleUI:
                              'native-opened')
         elif operation == 'native-submit':
             self.native_app_submit()
+        elif operation == 'native-resubmit':
+            # A deliberate new invocation after activity retention, not a
+            # retry of uncertain input or the initial unsubmitted-state guard.
+            self.native_app_submit(submitted='ONPC fixture draft')
         elif operation == 'native-submitted':
             return self.wait(lambda: self.native_app_snapshot('ONPC fixture draft', pending=True),
                              'native-submitted')

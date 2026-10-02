@@ -79,6 +79,61 @@ def test_action_success_cannot_replace_effect_and_uncertain_action_cannot_replay
     nodes['submit'].action.do_action.assert_called_once()
 
 
+def test_overlay_resume_reads_already_submitted_activity_through_real_decoder():
+    from overlay_cancel import PLAN as cancel_plan
+    ui, _root, surface, nodes = native_tree()
+    surface.bus, surface.path = ':1.50', '/accessible/1'
+    surface.get_process_id = lambda: 123
+    ui.require_child_overlay_session = Mock()
+    nodes['submitted'].name = 'ONPC fixture draft'
+    # One read suffices to expose the former initial-state predicate mismatch.
+    ui.wait = lambda predicate, *_args, **_kwargs: predicate()
+    def call(argv, **_kwargs):
+        return json.dumps(ui.run(argv[3], '')).encode()
+    observer = UiObservations(SimpleNamespace(call=call))
+    result = observer.observe(cancel_plan.screen_tags['resumed-opened'][3:])
+    assert result['activity']['state']['submitted'] == 'ONPC fixture draft'
+    nodes['submit'].action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', ['native-resubmit', 'overlay-native-resubmit'])
+@pytest.mark.parametrize('fault', [None, 'initial-state', 'draft', 'owner', 'duplicate',
+                                 'inactive', 'disabled', 'prompt', 'uncertain', 'delivery'])
+def test_deliberate_resubmission_keeps_owned_state_and_single_input_guards(operation, fault):
+    ui, root, surface, nodes = native_tree()
+    ui.require_child_overlay_session = Mock()
+    nodes['submitted'].name = 'ONPC fixture draft'
+    if fault == 'initial-state': nodes['submitted'].name = 'No submitted draft'
+    if fault == 'draft': nodes['draft'].name = 'changed'
+    if fault == 'owner': root.children[0].identity = 'foreign'
+    if fault == 'duplicate': surface.children.append(Node(identity=nodes['submit'].identity))
+    if fault == 'inactive': surface.states.remove('active')
+    if fault == 'disabled': nodes['submit'].states.remove('sensitive')
+    if fault == 'prompt': ui.handle_system_prompt = Mock(side_effect=UiError('ui:prompt'))
+    if fault == 'uncertain': ui.input_uncertain = True
+    if fault == 'delivery': nodes['submit'].action.do_action.side_effect = LookupError('uncertain')
+    if fault:
+        with pytest.raises((UiError, LookupError)): ui.run(operation, '')
+        assert nodes['submit'].action.do_action.call_count == (1 if fault == 'delivery' else 0)
+        if fault == 'delivery':
+            with pytest.raises(UiError, match='ui:uncertain-input'): ui.run(operation, '')
+            nodes['submit'].action.do_action.assert_called_once()
+    else:
+        raw = json.dumps(ui.run(operation, '')).encode()
+        observer = UiObservations(SimpleNamespace(call=Mock(return_value=raw)))
+        assert observer.observe(operation)['outcome'] == 'passed'
+        nodes['submit'].action.do_action.assert_called_once()
+        ui.input_uncertain = False  # Separate independent observation process.
+        assert ui.run(operation.replace('resubmit', 'submitted'), '')['activity']['submitted'] == 'ONPC fixture draft'
+
+
+def test_initial_submission_still_refuses_already_submitted_activity():
+    ui, _root, _surface, nodes = native_tree()
+    nodes['submitted'].name = 'ONPC fixture draft'
+    with pytest.raises(UiError, match='ui:native-activity'): ui.native_app_submit()
+    nodes['submit'].action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('operation', ['native-opened', 'native-submitted', 'native-grid'])
 @pytest.mark.parametrize('fault', [None, 'wrong', 'extra'])
 def test_real_controller_decoder_requires_exact_public_result(operation, fault):

@@ -69,6 +69,110 @@ def test_exit_target_uses_one_complete_fresh_tree_per_observation():
     assert ui.nodes.call_count == 2
 
 
+EXIT_INPUTS = ('kiosk-request-cancel', 'kiosk-request-escape-ready',
+               'overlay-request-cancel', 'overlay-request-escape-ready')
+
+
+def exit_input_form(monkeypatch, operation):
+    ui, cancel = exit_form()
+    if operation.startswith('overlay-'):
+        monkeypatch.setattr(accessible_ui.pwd, 'getpwnam',
+                            lambda _: SimpleNamespace(pw_uid=1001))
+        monkeypatch.setattr(accessible_ui.os, 'getuid', lambda: 1001)
+        monkeypatch.setattr(accessible_ui.os, 'geteuid', lambda: 1001)
+        monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
+        ui.api.get_desktop(0).children[0].identity = accessible_ui.CHILD_APPLICATION
+    return ui, cancel
+
+
+def add_unrelated_stale_leaf(ui):
+    desktop = ui.api.get_desktop(0)
+    unrelated = Node(role='application', children=[
+        Node(states=('defunct',))])
+    unrelated.parent = desktop
+    desktop.children.append(unrelated)
+    return unrelated
+
+
+@pytest.mark.parametrize('operation', EXIT_INPUTS)
+def test_exit_accepts_readable_unrelated_stale_leaf(monkeypatch, operation):
+    ui, cancel = exit_input_form(monkeypatch, operation)
+    add_unrelated_stale_leaf(ui)
+    ui.nodes = Mock(wraps=ui.nodes)
+    ui.run(operation, '')
+    if operation.endswith('cancel'):
+        cancel.action.do_action.assert_called_once_with(0)
+        cancel.parent.parent.action.do_action.assert_not_called()
+        assert ui.nodes.call_count == 1
+    else:
+        cancel.action.do_action.assert_not_called()
+        cancel.parent.parent.action.do_action.assert_called_once_with(0)
+        assert ui.nodes.call_count == 2
+
+
+@pytest.mark.parametrize('operation', EXIT_INPUTS)
+@pytest.mark.parametrize('scope', ['desktop', 'application', 'window', 'form',
+                                  'cancel', 'anonymous-descendant', 'sibling-window'])
+def test_exit_refuses_stale_root_or_any_owned_application_node(
+        monkeypatch, operation, scope):
+    ui, cancel = exit_input_form(monkeypatch, operation)
+    desktop = ui.api.get_desktop(0)
+    application = desktop.children[0]
+    window = cancel.parent.parent
+    nodes = {'desktop': desktop, 'application': application, 'window': window,
+             'form': cancel.parent, 'cancel': cancel}
+    if scope not in nodes:
+        target = Node()
+        target.parent = application if scope == 'sibling-window' else cancel.parent
+        target.parent.children.append(target)
+    else:
+        target = nodes[scope]
+    target.states.add('defunct')
+    with pytest.raises(UiError, match='stale-request-form'):
+        ui.run(operation, '')
+    cancel.action.do_action.assert_not_called()
+    window.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', EXIT_INPUTS)
+@pytest.mark.parametrize('fault', ['missing-child', 'query-error'])
+def test_exit_refuses_incomplete_unrelated_subtree(monkeypatch, operation, fault):
+    ui, cancel = exit_input_form(monkeypatch, operation)
+    unrelated = add_unrelated_stale_leaf(ui)
+    if fault == 'missing-child':
+        unrelated.children.append(None)
+    else:
+        unrelated.get_child_count = Mock(side_effect=RuntimeError('query failed'))
+        ui.query_errors = (RuntimeError,)
+    with pytest.raises((UiError, RuntimeError)):
+        ui.run(operation, '')
+    cancel.action.do_action.assert_not_called()
+    cancel.parent.parent.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', EXIT_INPUTS)
+@pytest.mark.parametrize('prompt', ['authentication', 'unknown', 'ambiguous'])
+def test_exit_still_checks_all_desktop_prompts_with_unrelated_stale_leaf(
+        monkeypatch, operation, prompt):
+    ui, cancel = exit_input_form(monkeypatch, operation)
+    add_unrelated_stale_leaf(ui)
+    desktop = ui.api.get_desktop(0)
+    for _ in range(2 if prompt == 'ambiguous' else 1):
+        surface = Node('Authentication Required' if prompt == 'authentication' else
+                       'External modal', 'dialog',
+                       children=[Node('', 'password text')] if prompt == 'authentication' else [],
+                       states=('showing', 'visible', 'sensitive', 'modal'))
+        application = Node('PolicyKit Authentication Agent' if prompt == 'authentication' else
+                           'External application', 'application', children=[surface])
+        application.parent = desktop
+        desktop.children.append(application)
+    with pytest.raises(UiError, match='ambiguous-system-prompt' if prompt == 'ambiguous' else
+                       'system-prompt-refused'):
+        ui.run(operation, '')
+    cancel.action.do_action.assert_not_called()
+    cancel.parent.parent.action.do_action.assert_not_called()
+
+
 def test_cancel_refused_action_is_never_replayed():
     ui, cancel = exit_form()
     cancel.action.do_action.return_value = False

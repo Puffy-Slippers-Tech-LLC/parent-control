@@ -9,7 +9,7 @@ import sys
 import time
 from tests.support.language_fixture import LanguageFixture
 
-from gi.repository import GLib
+from gi.repository import Gio, GLib
 
 from kiosk.oh_no_parent_control_kiosk.main import Application, RequestWindow, configure_logging
 from kiosk.oh_no_parent_control_kiosk.selection_store import SelectionStore
@@ -120,6 +120,9 @@ class Broker:
         return reply
 
     def reply(self, method, values):
+        if self.scenario == 'reboot-required':
+            return Reply(error=Gio.DBusError.new_for_dbus_error(
+                'com.puffyslippers.OhNoParentControl1.Error.RebootRequired', 'private detail'))
         if method == 'GetChildLanguage':
             try:
                 return Reply((self.child_languages[values[0]].read(),))
@@ -180,6 +183,8 @@ class Broker:
 
 
 BROKER = Broker()
+from tests.support.update_required import install_reboot_stub
+install_reboot_stub(BROKER.record)
 
 # Exercise the real dialog/encoder without any external feedback submission.
 from common.oh_no_parent_control_ui import feedback, feedback_transport

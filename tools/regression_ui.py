@@ -8,6 +8,10 @@ New modules remain included, but run exclusively until their isolation is review
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
+# Update-required modal checks reuse Feedback's private preview/display/bus
+# and tmp_path event logs. A shared transport double prevents all host reboot
+# calls; no new process owner, privileged mutation or cleanup lifetime is added.
+# The existing compatible whole-module Feedback bucket remains appropriate.
 # Policy legend reads reuse preview_smoke's owned compositor/application and
 # private event files, with the shared AT-SPI adapter. No new shared display,
 # process, cache or service; the existing UI bucket classification applies.

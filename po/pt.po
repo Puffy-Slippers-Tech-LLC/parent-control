@@ -140,6 +140,15 @@ msgstr "Limites de aplicações"
 msgid "Search installed apps"
 msgstr "Pesquisar aplicações instaladas"
 
+msgid "Restart required"
+msgstr "É necessário reiniciar"
+
+msgid "Reboot now"
+msgstr "Reiniciar agora"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Foi instalada uma atualização do produto. Reinicie o computador para que o Oh No! Parent Control funcione corretamente."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Pesquisar línguas"

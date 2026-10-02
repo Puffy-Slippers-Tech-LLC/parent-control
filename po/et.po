@@ -139,6 +139,15 @@ msgstr "Rakenduste piirangud"
 msgid "Search installed apps"
 msgstr "Otsi paigaldatud rakendusi"
 
+msgid "Restart required"
+msgstr "Vajalik on taaskäivitamine"
+
+msgid "Reboot now"
+msgstr "Taaskäivita kohe"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Toote värskendus on paigaldatud. Taaskäivita arvuti, et Oh No! Parent Control töötaks korralikult."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Otsi keeli"

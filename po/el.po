@@ -139,6 +139,15 @@ msgstr "Περιορισμοί εφαρμογών"
 msgid "Search installed apps"
 msgstr "Αναζήτηση εγκατεστημένων εφαρμογών"
 
+msgid "Restart required"
+msgstr "Απαιτείται επανεκκίνηση"
+
+msgid "Reboot now"
+msgstr "Επανεκκίνηση τώρα"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Εγκαταστάθηκε μια ενημέρωση του προϊόντος. Επανεκκινήστε τον υπολογιστή για να λειτουργεί σωστά το Oh No! Parent Control."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Αναζήτηση γλωσσών"

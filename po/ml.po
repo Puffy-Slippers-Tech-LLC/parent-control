@@ -139,6 +139,15 @@ msgstr "ആപ്പ് നിയന്ത്രണങ്ങൾ"
 msgid "Search installed apps"
 msgstr "സ്ഥാപിച്ച ആപ്പുകൾ തിരയുക"
 
+msgid "Restart required"
+msgstr "പുനരാരംഭിക്കേണ്ടതുണ്ട്"
+
+msgid "Reboot now"
+msgstr "ഇപ്പോൾ പുനരാരംഭിക്കുക"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "ഉൽപ്പന്നത്തിന്റെ ഒരു പുതുക്കൽ ഇൻസ്റ്റാൾ ചെയ്തു. Oh No! Parent Control ശരിയായി പ്രവർത്തിക്കാൻ കമ്പ്യൂട്ടർ പുനരാരംഭിക്കുക."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "ഭാഷകൾ തിരയുക"

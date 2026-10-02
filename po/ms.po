@@ -139,6 +139,15 @@ msgstr "Had Aplikasi"
 msgid "Search installed apps"
 msgstr "Cari aplikasi yang dipasang"
 
+msgid "Restart required"
+msgstr "Mula semula diperlukan"
+
+msgid "Reboot now"
+msgstr "Mula semula sekarang"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Kemas kini produk telah dipasang. Mulakan semula komputer supaya Oh No! Parent Control berfungsi dengan betul."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Cari bahasa"

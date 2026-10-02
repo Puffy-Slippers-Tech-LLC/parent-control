@@ -9,6 +9,51 @@ from tests.support.request_form import launch_request, events
 pytestmark = pytest.mark.ui
 
 
+@pytest.mark.parametrize('surface', ('parent', 'kiosk', 'child-overlay'))
+def test_product_update_modal_reboot_and_dismissal(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, surface):
+    ui, wait = automation, wait_for_accessible_state
+    if surface == 'parent':
+        path = tmp_path / 'parent-reboot.jsonl'
+        process, _log = launch_ui(
+            'parent_component_preview', wait_for_application=False, complete_language_setup=False,
+            environment_overrides={'ONPC_PARENT_COMPONENT_SCENARIO': 'startup-reboot',
+                                   'ONPC_PARENT_COMPONENT_EVENTS_PATH': str(path)})
+    else:
+        _process, path = launch_request(launch_ui, tmp_path,
+                                       overlay=surface == 'child-overlay', scenario='reboot-required',
+                                       complete_language_setup=False)
+        underlying = 'kiosk-request-window'
+    wait(lambda: ui.showing('update-required-dialog'), 'product update modal opens')
+    assert ui.state('update-required-dialog', ui.api.StateType.MODAL)
+    assert len(ui.find_all('update-required-dialog')) == 1
+    assert ui.text('update-required-message') == (
+        'A product update was installed. Restart the computer for Oh No! Parent Control to work properly.')
+    assert ui.text('update-required-reboot') == 'Reboot now'
+    assert ui.absent('feedback-dialog', within='update-required-dialog')
+    if surface == 'parent':
+        for identity in ('parent-window', 'parent-startup-window', 'parent-reboot-window'):
+            assert ui.absent(identity, within='update-required-dialog')
+    assert not events(path, 'reboot-requested')
+    ui.activate('update-required-reboot')
+    wait(lambda: ui.showing('update-required-status'), 'reboot refusal remains actionable')
+    assert ui.text('update-required-status') == 'The operation could not be completed. Please try again later.'
+    assert len(events(path, 'reboot-requested')) == 1
+    assert ui.state('update-required-reboot', ui.api.StateType.SENSITIVE)
+    ui.activate('update-required-close')
+    if surface == 'parent':
+        wait(lambda: process.poll() is not None, 'closing the only dialog exits Parent')
+        assert process.returncode == 0
+        assert not ui.find_all('update-required-dialog')
+    else:
+        wait(lambda: ui.absent('update-required-dialog', within=underlying), 'modal dismissed')
+    assert not events(path, 'feedback')
+    assert not events(path, 'logout') and not events(path, 'close_overlay')
+    if surface != 'parent':
+        assert ui.text('kiosk-result-title') == 'Restart required'
+        assert ui.state('kiosk-result-action', ui.api.StateType.SENSITIVE)
+
+
 @pytest.mark.parametrize('language,heading,categories', [
     ('de', 'Ein Fehler ist aufgetreten', 'Fehlerkategorien'),
     ('ru', 'Произошла ошибка', 'Категории ошибок'),

@@ -14,6 +14,113 @@ GENERIC_TITLE = m.SOMETHING_WENT_WRONG
 GENERIC_DETAIL = m.THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
 
 
+def broker_reboot_required(error):
+    """Recognize a fixed broker status, never message text or a generic outage."""
+    from gi.repository import Gio, GLib
+    return (isinstance(error, GLib.Error) and Gio.DBusError.get_remote_error(error) ==
+            'com.puffyslippers.OhNoParentControl1.Error.RebootRequired')
+
+
+def request_reboot(done):
+    """Ask logind as the caller, retaining its authorization/inhibitor policy."""
+    from gi.repository import Gio, GLib
+
+    def completed(connection, result):
+        try:
+            connection.call_finish(result)
+        except Exception as error:
+            done(error)
+        else:
+            done(None)
+
+    def connected(_source, result):
+        try:
+            connection = Gio.bus_get_finish(result)
+            connection.call(
+                'org.freedesktop.login1', '/org/freedesktop/login1',
+                'org.freedesktop.login1.Manager', 'Reboot', GLib.Variant('(b)', (True,)),
+                GLib.VariantType.new('()'), Gio.DBusCallFlags.NONE, 120_000, None,
+                completed,
+            )
+        except Exception as error:
+            done(error)
+
+    try:
+        Gio.bus_get(Gio.BusType.SYSTEM, None, connected)
+    except Exception as error:
+        done(error)
+
+
+def show_update_required(parent=None, *, application=None, on_close=None):
+    """One shared, localized notice for a confirmed pending product update."""
+    from gi.repository import Gtk
+    from .translation_widgets import localized, set_text
+    from .accessibility import add_dialog_button, add_identified_window_controls, set_automation_id
+    owner = parent if parent is not None else application
+    if owner is None:
+        raise ValueError('An update notice requires a window or application')
+    existing = getattr(owner, '_update_required_dialog', None)
+    if existing is not None:
+        existing.present()
+        return existing
+    application_options = {'application': application} if application is not None else {}
+    dialog = localized(Gtk.Dialog, title=m.RESTART_REQUIRED, transient_for=parent,
+                       modal=True, destroy_with_parent=True, default_width=480,
+                       **application_options)
+    set_automation_id(dialog, 'update-required-dialog')
+    header = Gtk.HeaderBar()
+    add_identified_window_controls(header, 'update-required-window-controls')
+    dialog.set_titlebar(header)
+    message = localized(Gtk.Label, label=m.RESTART_TO_FINISH_UPDATING, wrap=True,
+                        margin_top=24, margin_bottom=24, margin_start=24, margin_end=24)
+    set_automation_id(message, 'update-required-message')
+    dialog.get_content_area().append(message)
+    status = localized(Gtk.Label, label='', wrap=True, visible=False,
+                       margin_bottom=16, margin_start=24, margin_end=24)
+    set_automation_id(status, 'update-required-status')
+    dialog.get_content_area().append(status)
+    close = add_dialog_button(dialog, m.CLOSE, Gtk.ResponseType.CLOSE, 'update-required-close')
+    reboot = add_dialog_button(dialog, m.REBOOT_NOW, Gtk.ResponseType.ACCEPT,
+                               'update-required-reboot', css_class='destructive-action')
+    dialog.set_default_response(Gtk.ResponseType.CLOSE)
+    owner._update_required_dialog = dialog
+    pending = False
+
+    def closed(current, _response):
+        nonlocal pending
+        if pending:
+            return
+        if _response == Gtk.ResponseType.ACCEPT:
+            pending = True
+            close.set_sensitive(False)
+            reboot.set_sensitive(False)
+            status.set_visible(False)
+
+            def finished(error):
+                nonlocal pending
+                if error is not None:
+                    record_exception(error)
+                    pending = False
+                    close.set_sensitive(True)
+                    reboot.set_sensitive(True)
+                    set_text(status, 'label', GENERIC_DETAIL)
+                    status.set_visible(True)
+                # Success means accepted, not yet rebooted. Never issue an
+                # automatic retry or dismiss into apparently working controls.
+
+            request_reboot(finished)
+            return
+        owner._update_required_dialog = None
+        current.destroy()
+        if on_close is not None:
+            on_close()
+
+    dialog.connect('response', closed)
+    dialog.connect('close-request', lambda *_: pending)
+    dialog.present()
+    return dialog
+
+
 def _bounded(text, limit):
     # Leave room for user additions within the transport's 5,000 UTF-16 limit.
     cleaned = text.replace("\0", "�")

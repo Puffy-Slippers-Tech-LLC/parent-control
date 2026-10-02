@@ -139,6 +139,15 @@ msgstr "Giới hạn ứng dụng"
 msgid "Search installed apps"
 msgstr "Tìm ứng dụng đã cài đặt"
 
+msgid "Restart required"
+msgstr "Cần khởi động lại"
+
+msgid "Reboot now"
+msgstr "Khởi động lại ngay"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Đã cài đặt bản cập nhật sản phẩm. Hãy khởi động lại máy tính để Oh No! Parent Control hoạt động bình thường."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Tìm ngôn ngữ"

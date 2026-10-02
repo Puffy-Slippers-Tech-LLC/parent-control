@@ -139,6 +139,15 @@ msgstr "Limits des aplicazions"
 msgid "Search installed apps"
 msgstr "Cîr aplicazions instaladis"
 
+msgid "Restart required"
+msgstr "Al covente tornâ a inviâ"
+
+msgid "Reboot now"
+msgstr "Torne a invie cumò"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Al è stât instalât un inzornament dal prodot. Torne a inviâ il computer par che Oh No! Parent Control al funzioni ben."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Cîr lenghis"

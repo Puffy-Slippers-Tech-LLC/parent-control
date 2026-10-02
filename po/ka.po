@@ -139,6 +139,15 @@ msgstr "აპების შეზღუდვები"
 msgid "Search installed apps"
 msgstr "დაყენებული აპების ძიება"
 
+msgid "Restart required"
+msgstr "საჭიროა გადატვირთვა"
+
+msgid "Reboot now"
+msgstr "ახლავე გადატვირთვა"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "დაინსტალირდა პროდუქტის განახლება. გადატვირთეთ კომპიუტერი, რომ Oh No! Parent Control სწორად მუშაობდეს."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "ენების ძიება"

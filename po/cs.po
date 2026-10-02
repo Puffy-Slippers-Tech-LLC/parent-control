@@ -139,6 +139,15 @@ msgstr "Omezení aplikací"
 msgid "Search installed apps"
 msgstr "Hledat nainstalované aplikace"
 
+msgid "Restart required"
+msgstr "Je nutný restart"
+
+msgid "Reboot now"
+msgstr "Restartovat nyní"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Byla nainstalována aktualizace produktu. Restartujte počítač, aby Oh No! Parent Control fungoval správně."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Hledat jazyky"

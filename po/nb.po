@@ -139,6 +139,15 @@ msgstr "Appbegrensninger"
 msgid "Search installed apps"
 msgstr "Søk i installerte apper"
 
+msgid "Restart required"
+msgstr "Omstart kreves"
+
+msgid "Reboot now"
+msgstr "Start på nytt nå"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "En produktoppdatering er installert. Start datamaskinen på nytt for at Oh No! Parent Control skal fungere som det skal."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Søk etter språk"

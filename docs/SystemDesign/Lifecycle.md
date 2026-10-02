@@ -96,8 +96,11 @@ prerequisite could log out unrelated desktops, so a root-owned mode-`0600`
 for that boot. Both systemd and the direct launcher may start the broker's
 [diagnostics-only mode](Logging-and-Feedback.md#investigation-coverage), which
 retains role-checked log collection without starting enforcement or session
-operations. Migration completes and its
-separate exclusion is released; reboot automatically expires the runtime guard
+operations. The broker's product-specific `Error.RebootRequired` status drives
+the frontend update modal.
+The global `/run/reboot-required` and other packages' reboot requests do not
+select this mode or block policy. Migration completes and its separate exclusion
+is released; reboot automatically expires the runtime guard
 and starts fapolicyd with the new backend and exact trust readiness gate. No
 manual package-configuration retry is required. An activation receipt alongside
 the backend rollback records retains the originating boot ID until live trust

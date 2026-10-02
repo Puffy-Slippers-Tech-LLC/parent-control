@@ -139,6 +139,15 @@ msgstr "Қолданба шектеулері"
 msgid "Search installed apps"
 msgstr "Орнатылған қолданбаларды іздеу"
 
+msgid "Restart required"
+msgstr "Қайта іске қосу қажет"
+
+msgid "Reboot now"
+msgstr "Қазір қайта іске қосу"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Өнім жаңартуы орнатылды. Oh No! Parent Control дұрыс жұмыс істеуі үшін компьютерді қайта іске қосыңыз."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Тілдерді іздеу"

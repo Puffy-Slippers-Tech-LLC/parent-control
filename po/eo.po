@@ -139,6 +139,15 @@ msgstr "Aplikaĵaj limigoj"
 msgid "Search installed apps"
 msgstr "Serĉi instalitajn aplikaĵojn"
 
+msgid "Restart required"
+msgstr "Restartigo necesas"
+
+msgid "Reboot now"
+msgstr "Restartigi nun"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Produkta ĝisdatigo estis instalita. Restartigu la komputilon por ke Oh No! Parent Control funkciu ĝuste."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "Serĉi lingvojn"

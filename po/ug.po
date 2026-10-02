@@ -139,6 +139,15 @@ msgstr "ئەپ چەكلىمىلىرى"
 msgid "Search installed apps"
 msgstr "ئورنىتىلغان ئەپلەرنى ئىزدەش"
 
+msgid "Restart required"
+msgstr "قايتا قوزغىتىش كېرەك"
+
+msgid "Reboot now"
+msgstr "ھازىر قايتا قوزغات"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "مەھسۇلات يېڭىلانمىسى ئورنىتىلدى. Oh No! Parent Control نىڭ نورمال ئىشلىشى ئۈچۈن كومپيۇتېرنى قايتا قوزغىتىڭ."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "تىل ئىزدەش"

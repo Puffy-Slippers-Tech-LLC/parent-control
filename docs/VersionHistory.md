@@ -1,6 +1,9 @@
 ## v1.3 -
 ### New Features
-- Localization: Supports 62 languages, including RTL
+- Localization: Supports 62 languages, including RTL (you voted, we listened! Don't get spoiled though :) Do me a favor, spread the word out, help more families!)
+
+### Bugs
+- Parent and kiosk: Added a reboot-required modal with a red Reboot now button for pending product updates; unrelated system reboot requests do not trigger it.
 
 ### Fedora Workstation 44 Readiness
 - Across the board: Fixed a few blocking issues across fdpolicy import, SELinux, Broker. Basic testing proves the product is working end to end (yeah!). Next step: more manual testing and crazy automation coverage. Don't get excited too early. 10% effort on product, 90% on testing, matches my 30yr experience.

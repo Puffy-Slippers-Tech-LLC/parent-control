@@ -7,6 +7,14 @@ installed service, shared log directory or new cleanup lifetime is used; the
 service_contract, diagnostic_privacy, systemd_unit and package_configuration
 modules retain compatible overlap.
 
+Update-required dialog and reboot tests use process-local GTK/Gio doubles only;
+parent startup tests queue fake threads and idle callbacks. Package-marker cases
+use the existing relocated fixture. The error_reporting, parent_main and
+package_configuration compatible classifications still apply: no live reboot,
+bus, display or new cleanup owner.
+Update-modal automation identity checks add only synthetic public trees to
+automation_ids; its compatible unit classification is unchanged.
+
 The reviewed modules use process-local doubles, read-only checkout inputs and
 private temporary trees. Their real subprocesses use private outputs, relocated
 system paths, private sockets or recorded child identities. The launcher disables

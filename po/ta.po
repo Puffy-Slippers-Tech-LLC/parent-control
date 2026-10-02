@@ -139,6 +139,15 @@ msgstr "செயலி வரம்புகள்"
 msgid "Search installed apps"
 msgstr "நிறுவப்பட்ட செயலிகளைத் தேடவும்"
 
+msgid "Restart required"
+msgstr "மறுதொடக்கம் தேவை"
+
+msgid "Reboot now"
+msgstr "இப்போது மறுதொடக்கம் செய்"
+
+msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgstr "தயாரிப்புப் புதுப்பிப்பு நிறுவப்பட்டுள்ளது. Oh No! Parent Control சரியாகச் செயல்பட கணினியை மறுதொடக்கம் செய்யவும்."
+
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"
 msgstr "மொழிகளைத் தேடு"

@@ -66,6 +66,59 @@ sub overlay_information {
     return overlay_license(@_, 'information');
 }
 
+sub overlay_prompt {
+    onpc_progress::operation('Qualifying one real Shell prompt and preserved form after Cancel');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'overlay-prompt:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-prompt', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    $journey->seen('wrong-account-refused');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    overlay_entry($journey, 'direct', 'command');
+    $journey->seen('wrong-surface-refused');
+    prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
+    shell_cancel($journey, 'shell-cancel-ready', 'shell-dismissed');
+    $journey->seen('form-returned');
+    $journey->seen('cancel');
+    $journey->seen('returned');
+    $journey->finish();
+}
+
+# Shell's documented Escape binding is its ordinary Cancel action. Consume a
+# fresh controller proof once; refusal or uncertain input never releases a key.
+sub shell_cancel {
+    onpc_progress::operation('Cancelling the freshly qualified Shell authentication challenge');
+    my ($journey, $ready, $dismissed) = @_;
+    die 'shell-cancel:arguments' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && defined($ready) && $ready =~ /\A[a-z][a-z0-9-]*\z/
+        && defined($dismissed) && $dismissed =~ /\A[a-z][a-z0-9-]*\z/;
+    my $returned;
+    my $ok = eval {
+        my $proof = $journey->seen($ready);
+        $journey->consume_observation($ready, $proof);
+        testapi::send_key('esc');
+        $returned = $journey->seen($dismissed);
+        1;
+    };
+    unless ($ok) {
+        $journey->{invocation_failed} = 1;
+        die $@;
+    }
+    return $returned;
+}
+
 sub overlay_valid_choices {
     onpc_progress::operation('Qualifying valid overlay choices and unchanged app activity after Cancel');
     my ($exchange, $declared, $challenges) = @_;

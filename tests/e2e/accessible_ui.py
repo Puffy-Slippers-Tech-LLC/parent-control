@@ -658,6 +658,12 @@ OPERATIONS |= MATE_APPROVAL_OPERATIONS
 MATE_REFUSALS = ('wrong-agent', 'owner', 'recipient', 'child', 'duration', 'apps',
                  'multiple-fields', 'hidden', 'disabled', 'unfocused', 'nonempty',
                  'stale', 'replaced')
+SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready'})
+OPERATIONS |= {'overlay-shell-dismissed'}
+CHILD_DESKTOP_OPERATIONS |= {'overlay-shell-dismissed'}
+SHELL_PROMPT_REFUSALS = ('wrong-agent', 'session', *MATE_REFUSALS[1:])
+OPERATIONS |= SHELL_PROMPT_OPERATIONS
+CHILD_DESKTOP_OPERATIONS |= SHELL_PROMPT_OPERATIONS
 OPERATIONS |= MATE_OPERATIONS | {'parent-mate-refused'}
 OPERATIONS |= frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS) | KIOSK_ACCOUNT_REFUSALS
 KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
@@ -5885,8 +5891,13 @@ class AccessibleUI:
 
     def shell_provider_metadata(self):
         """Qualification provenance only; no product state or arbitrary text."""
-        owner, _nodes, _snapshot, _facts = self.shell_search_snapshot()
-        return self._shell_provider_metadata(owner)
+        def observe():
+            owner, _nodes, _snapshot, _facts = self.shell_search_snapshot()
+            return self._shell_provider_metadata(owner)
+        # Desktop readiness does not freeze the next public tree. Shell can
+        # retire a node before this provenance read; retry only the complete
+        # observation under the shared deadline, never desktop/login input.
+        return self.wait(observe, 'shell-provider-metadata', prompt_in_predicate=True)
 
     def gdm_provider_metadata(self, *, installed_child=False):
         """Read the actual declared greeter provider, never observer locale."""
@@ -7367,12 +7378,155 @@ class AccessibleUI:
                 'length': None if interface is None else self.api.Text.get_character_count(interface)}
 
     @staticmethod
-    def validate_mate_field(proof):
-        require(not proof['stale'], 'ui:mate-owner')
+    def validate_mate_field(proof, *, provider='mate'):
+        require(provider in ('mate', 'shell'), 'ui:authentication-provider')
+        require(not proof['stale'], 'ui:' + provider + '-owner')
         require(all(proof[key] for key in ('showing', 'sensitive', 'focused')),
-                'ui:mate-field-state')
+                'ui:' + provider + '-field-state')
         require(type(proof['length']) is int and proof['length'] == 0,
-                'ui:mate-field-not-empty')
+                'ui:' + provider + '-field-not-empty')
+
+    def shell_prompt_owner(self, observation):
+        """Bind Shell on this session's bus even behind a fullscreen overlay."""
+        nodes, _edges, _identities, facts = observation
+        owners = [node for node in nodes if facts[node]['role'] == 'application'
+                  and self._prompt_application_kind(facts[node]['name']) == 'shell-polkit']
+        require(len(owners) == 1, 'ui:shell-owner')
+        owner = owners[0]
+        require(owner.get_parent() == self.api.get_desktop(0)
+                and not self.has_state(owner, self.api.StateType.DEFUNCT)
+                and Path('/proc/' + str(owner.get_process_id())).stat().st_uid == os.getuid(),
+                'ui:shell-owner')
+        return owner
+
+    def shell_prompt(self, pid, uid, *, observation=None, challenge=None):
+        """Shell-only AUTH01: active child session, exact public request/recipient.
+
+        Shell 50 displays the AccountsService real name, not MATE's PAM label:
+        https://github.com/GNOME/gnome-shell/blob/50.0/js/ui/components/polkitAgent.js
+        Context is checked before accessing even the protected field's length.
+        """
+        self.require_child_overlay_session()
+        require(uid == os.getuid(), 'ui:shell-session')
+        if observation is None:
+            self.invalidate_observation()
+            observation = self.read_snapshot(protect_text=True)
+        nodes, edges, _identities, facts = observation
+        kind = self.system_prompt_kind(observation=(nodes, edges, facts))
+        require(kind in (None, 'shell-polkit'), 'ui:shell-wrong-agent')
+        if kind is None:
+            require(challenge is None, 'ui:shell-replacement')
+            return None
+        owner = self.shell_prompt_owner(observation)
+        require(owner.get_process_id() == pid, 'ui:shell-owner')
+        scoped = self.snapshot_scope(nodes, edges, owner)
+        dialogs = [node for node in scoped if facts[node]['showing']
+                   and (facts[node]['role'] in ('dialog', 'alert') or facts[node]['modal'])]
+        require(len(dialogs) == 1, 'ui:shell-dialog')
+        dialog = dialogs[0]
+        controls = self.snapshot_scope(nodes, edges, dialog)
+        require(all(node.get_process_id() == pid
+                    and not self.has_state(node, self.api.StateType.DEFUNCT)
+                    for node in (owner, *controls)), 'ui:shell-owner')
+        labels = [facts[node]['name'] for node in controls
+                  if facts[node]['role'] == 'label' and facts[node]['showing']]
+        require(labels.count(PARENT) == 1, 'ui:shell-recipient-context-missing')
+        require(labels.count(f'Grant {CHILD} 1 minute, 15 seconds and allow soft blocked apps?') == 1,
+                'ui:shell-request-context-missing')
+        fields = [node for node in controls if facts[node]['role'] == 'password text']
+        require(len(fields) == 1, 'ui:shell-field-ambiguous')
+        field = fields[0]
+        self.validate_mate_field(self.mate_field_proof(field, facts), provider='shell')
+        buttons = [node for node in controls if facts[node]['role'] in ('push button', 'button')
+                   and facts[node]['showing'] and facts[node]['name'] == 'Cancel']
+        require(len(buttons) == 1 and self.has_state(buttons[0], self.api.StateType.SENSITIVE),
+                'ui:shell-cancel')
+        current = (owner, dialog, field, buttons[0])
+        require(challenge is None or current == challenge, 'ui:shell-replacement')
+        return current
+
+    def shell_prompt_refusals(self, pid, uid, challenge):
+        """Refuse projections of the fresh real challenge without delivering input."""
+        self.invalidate_observation()
+        observation = self.read_snapshot(protect_text=True)
+        self.shell_prompt(pid, uid, observation=observation, challenge=challenge)
+        nodes, edges, identities, facts = observation
+        owner, dialog, field, cancel = challenge
+        variants = [(pid, uid + 1, observation, challenge, 'ui:shell-session'),
+                    (pid + 1, uid, observation, challenge, 'ui:shell-owner'),
+                    (pid, uid, observation, (owner, dialog, cancel, field), 'ui:shell-replacement')]
+        labels = [node for node in self.snapshot_scope(nodes, edges, dialog)
+                  if facts[node]['role'] == 'label' and facts[node]['showing']]
+        recipient = next(node for node in labels if facts[node]['name'] == PARENT)
+        message = next(node for node in labels if facts[node]['name'].startswith('Grant '))
+        for node, key, value, code in (
+                (owner, 'name', 'mate-polkit', 'ui:shell-wrong-agent'),
+                (recipient, 'name', OTHER_PARENT, 'ui:shell-recipient-context-missing'),
+                (message, 'name', 'Grant wrong-child 1 minute, 15 seconds and allow soft blocked apps?',
+                 'ui:shell-request-context-missing'),
+                (message, 'name', f'Grant {CHILD} 5 minutes and allow soft blocked apps?',
+                 'ui:shell-request-context-missing'),
+                (message, 'name', f'Grant {CHILD} 1 minute, 15 seconds?',
+                 'ui:shell-request-context-missing'),
+                (cancel, 'role', 'password text', 'ui:shell-field-ambiguous')):
+            projected = {key: dict(value) for key, value in facts.items()}
+            projected[node][key] = value
+            variants.append((pid, uid, (nodes, edges, identities, projected), challenge, code))
+        for expected_pid, expected_uid, tree, expected_challenge, code in variants:
+            try:
+                self.shell_prompt(expected_pid, expected_uid, observation=tree, challenge=expected_challenge)
+            except UiError as error:
+                require(str(error) == code, 'ui:shell-refusal-mismatch')
+            else:
+                raise UiError('ui:shell-refusal-accepted')
+        proof = self.mate_field_proof(field, facts)
+        for key, value, code in (
+                ('showing', False, 'ui:shell-field-state'),
+                ('sensitive', False, 'ui:shell-field-state'),
+                ('focused', False, 'ui:shell-field-state'),
+                ('length', 1, 'ui:shell-field-not-empty'),
+                ('stale', True, 'ui:shell-owner')):
+            try:
+                self.validate_mate_field({**proof, key: value}, provider='shell')
+            except UiError as error:
+                require(str(error) == code, 'ui:shell-refusal-mismatch')
+            else:
+                raise UiError('ui:shell-refusal-accepted')
+        return list(SHELL_PROMPT_REFUSALS)
+
+    def overlay_shell_cancel_ready(self):
+        """Submit once and release one normal Escape/Cancel after a fresh proof.
+
+        Shell St.Button has no public Action interface. Its documented Escape
+        binding cancels the dialog; the worker owns that single keyboard input.
+        A separate form observation and immutable comparison prove the result.
+        """
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        self.kiosk_valid_choice('overlay-valid-fraction-soft-read')
+        self.require_child_overlay_session()
+        self.invalidate_observation()
+        observation = self.read_snapshot(protect_text=True)
+        nodes, edges, _identities, facts = observation
+        require(self.system_prompt_kind(observation=(nodes, edges, facts)) is None,
+                'ui:shell-already-open')
+        owner = self.shell_prompt_owner(observation)
+        pid, uid = owner.get_process_id(), os.getuid()
+        try:
+            self._invoke_target(self.kiosk_valid_target('kiosk-request-submit', overlay=True))
+            challenge = self.wait(lambda: self.shell_prompt(pid, uid), 'shell-prompt',
+                                  prompt_in_predicate=True)
+            provider = self._shell_provider_metadata(challenge[0])
+            rejected = self.shell_prompt_refusals(pid, uid, challenge)
+            self.shell_prompt(pid, uid, challenge=challenge)
+            identity = self.mate_challenge_identity(pid, challenge)
+            self.input_uncertain = True
+            return {'provider': provider, 'child': CHILD_IDENTITIES[CHILD],
+                    'approver': APPROVER_IDENTITIES[PARENT], 'duration_seconds': 75,
+                    'allow_soft': True, 'cancel_ready': True, 'same_challenge_rechecked': True,
+                    'rejected_proofs': rejected, 'challenge_id': identity}
+        except BaseException:
+            self.input_uncertain = True
+            raise
 
     def mate_provider_metadata(self, pid):
         from gi.repository import Gio
@@ -9138,6 +9292,16 @@ class AccessibleUI:
                                       enabled=False, inspect_only=True)
         elif operation == 'kiosk-child-choices-closed':
             result['request'] = self.collapse_kiosk_child_choices()
+        elif operation == 'overlay-shell-cancel-ready':
+            result['shell_prompt'] = self.overlay_shell_cancel_ready()
+        elif operation == 'overlay-shell-dismissed':
+            self.require_child_overlay_session()
+            def absent():
+                self.invalidate_observation()
+                kind = self.system_prompt_kind()
+                require(kind in (None, 'shell-polkit'), 'ui:shell-wrong-agent')
+                return kind is None
+            self.wait(absent, 'shell-dismissed', prompt_in_predicate=True)
         elif operation == 'parent-mate-refused':
             require(self.snapshot_owned_target('parent-window', check_prompt=True) is not None,
                     'ui:mate-parent-entry')

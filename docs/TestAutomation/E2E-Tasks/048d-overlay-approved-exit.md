@@ -16,7 +16,12 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Read only this context
 
-Read overlay AUTH01/02 and REQUEST11/12, the shared credential boundary and the Shell prompt/worker callables recorded in the catalogue.
+Read overlay AUTH01/02 and REQUEST11/12, the shared credential boundary and
+[Shell prompt qualification](../E2E-Building-Blocks.md#overlay-shell-prompt-and-cancel-qualification).
+Reuse `AccessibleUI.shell_prompt_owner`, `shell_prompt`, `shell_prompt_refusals`
+and the worker's `onpc_request_flow::shell_cancel` guard; the qualified
+`overlay_shell_cancel_ready` operation delivers no password and supplies no
+secret-delivery authority.
 Read the affected safety tests and named source callables, not predecessor
 briefs or unrelated providers. Current route qualification comes from the
 catalogue; a checked historical task does not override it.
@@ -27,7 +32,7 @@ Connect two fresh same-challenge Shell recipient proofs to sealed single-use pas
 
 ## Live VM acceptance
 
-Approve one declared overlay request with the correct fixture credential. Read public success, automatic exit and the original usable child activity. Include independently entered challenge, wrong-recipient and stale/reused-proof refusal, sealed capture reconciliation and cleanup. Task 048b adds rejection, cancellation composition and immediate approved exit.
+Approve one declared overlay request with the correct fixture credential. Read public success, automatic exit and the original usable child activity. Include independently entered challenge, wrong-recipient and stale/reused-proof refusal, sealed capture reconciliation and cleanup. Task 048f adds rejection/Cancel; task 048b adds cancellation composition and immediate approved exit.
 
 Implement and register this planned fixed qualification before invoking it:
 

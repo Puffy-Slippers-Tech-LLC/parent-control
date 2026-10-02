@@ -2669,6 +2669,67 @@ def test_fresh_parent_desktop_uses_bound_shell_and_refuses_a_keyring_modal():
         control.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('persistent', [False, True])
+def test_shell_metadata_retries_defunct_tree_after_desktop_readiness(monkeypatch, persistent):
+    panel = Node('Activities', 'toggle button')
+    shell = Node('gnome-shell', 'application', children=[panel])
+    closing = Node('closing application', 'application', states=('defunct',))
+    root = Node(role='desktop frame', children=[shell])
+    ui = ui_for(root)
+    ui.timeout = 4
+    now = [0.0]
+    monkeypatch.setattr(accessible_ui, 'time', SimpleNamespace(
+        monotonic=lambda: now[0], sleep=lambda seconds: advance(seconds)))
+
+    def advance(seconds):
+        now[0] += seconds
+        if not persistent:
+            root.children = [shell]
+
+    assert ui.standard_shell_desktop(no_prompt=True) is panel
+    root.children.append(closing)  # A new incomplete read after readiness.
+    metadata = {'version': '50.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
+    ui._shell_provider_metadata = Mock(return_value=metadata)
+    started = now[0]
+    if persistent:
+        with pytest.raises(UiError, match='ui:timeout:shell-provider-metadata') as caught:
+            ui.shell_provider_metadata()
+        assert str(caught.value.__cause__) == 'ui:incomplete-tree'
+        assert 4 <= now[0] - started < 4.3
+        ui._shell_provider_metadata.assert_not_called()
+    else:
+        assert ui.shell_provider_metadata() == metadata
+        assert now[0] > started
+        ui._shell_provider_metadata.assert_called_once_with(shell)
+    assert any(item['checkpoint'] == 'shell-provider-metadata'
+               for item in ui.incomplete_observations)
+    for node in (panel, shell, closing):
+        node.action.do_action.assert_not_called()
+        node.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['duplicate-owner', 'prompt'])
+def test_shell_metadata_does_not_retry_positive_owner_or_prompt_refusal(monkeypatch, fault):
+    shell = Node('gnome-shell', 'application')
+    if fault == 'duplicate-owner':
+        other = Node('gnome-shell', 'application')
+        code = 'ui:shell-provider-owner'
+    else:
+        prompt_ui, _controls = semantic_prompt('keyring')
+        other = prompt_ui.api.get_desktop(0).children[0]
+        code = 'ui:system-prompt-refused:desktop:keyring'
+    ui = ui_for(Node(role='desktop frame', children=[shell, other]), qualify_prompts=False)
+    ui.prompt_enabled = True
+    ui.prompt_session = 'desktop'
+    ui._shell_provider_metadata = Mock()
+    sleep = Mock(side_effect=AssertionError('positive refusal must not retry'))
+    monkeypatch.setattr(accessible_ui, 'time', SimpleNamespace(monotonic=lambda: 0, sleep=sleep))
+    with pytest.raises(UiError, match=code):
+        ui.shell_provider_metadata()
+    sleep.assert_not_called()
+    ui._shell_provider_metadata.assert_not_called()
+
+
 @pytest.mark.parametrize('operation', ['fresh-parent-desktop', 'fresh-standard-desktop', 'fresh-child-desktop'])
 def test_fresh_desktop_requires_sustained_positive_shell_without_a_prompt(monkeypatch, operation):
     from itertools import count

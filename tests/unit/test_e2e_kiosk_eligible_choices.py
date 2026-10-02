@@ -80,6 +80,67 @@ def test_selection_checks_exact_choices_and_reads_independent_enabled_result(fie
         observed.child = 'changed'
 
 
+@pytest.mark.parametrize('fault', [None, 'wrong-selection', 'wrong-description',
+                                 'duplicate', 'wrong-owner', 'missing-result', 'save-failed'])
+def test_child_selection_confirms_account_before_first_run_language_input(fault):
+    ui, selector, choices, expected = accounts_form()
+    ui.timeout = .5  # The full form is reread after successful language setup.
+    window = ui.find_id('kiosk-request-window')
+    ready = ui.find_id('kiosk-language-ready')
+    button = Node(identity='language-continue')
+    dialog = Node(identity='language-dialog', children=[button])
+    dialog.parent = window
+    commit = choices.children[0].action.do_action.side_effect
+
+    def select(index):
+        commit(index)
+        window.children.remove(ready)
+        window.children.append(dialog)
+        # The language modal disables the underlying request controls.
+        selector.states.discard('sensitive')
+        if fault == 'wrong-selection':
+            selector.children[0].identity = 'kiosk-child-selected-1002'
+        elif fault == 'wrong-description':
+            selector.description = f'Selected account: {EXISTING_CHILD}.'
+        elif fault == 'duplicate':
+            duplicate = Node(identity=selector.children[0].identity)
+            duplicate.parent = selector
+            selector.children.append(duplicate)
+        elif fault == 'wrong-owner':
+            ui.owner_pids = lambda: {999}
+        elif fault == 'missing-result':
+            selector.children.clear()
+        return True
+
+    def save(_):
+        # The action has already passed its pre-input latch guard and is now
+        # latched until the independent language completion read.
+        assert ui.input_uncertain
+        assert selector.children[0].identity == 'kiosk-child-selected-1001'
+        assert selector.description == f'Selected account: {CHILD}.'
+        if fault != 'save-failed':
+            window.children.remove(dialog)
+            window.children.append(ready)
+            selector.states.add('sensitive')
+        return True
+
+    choices.children[0].action.do_action.side_effect = select
+    button.action.do_action.side_effect = save
+    if fault:
+        with pytest.raises(UiError):
+            ui.select_kiosk_account('child', CHILD, expected=expected)
+        assert ui.input_uncertain
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.select_kiosk_account('child', CHILD, expected=expected)
+    else:
+        result = ui.select_kiosk_account('child', CHILD, expected=expected)
+        assert result['child'] == 'fixture-child' and result['request_enabled']
+        assert not ui.input_uncertain
+    assert button.action.do_action.call_count == (1 if fault in (None, 'save-failed') else 0)
+    selector.action.do_action.assert_called_once()
+    choices.children[0].action.do_action.assert_called_once()
+
+
 @pytest.mark.parametrize('fault', ['missing', 'extra', 'duplicate', 'wrong-label',
                                  'disabled', 'hidden', 'wrong-owner', 'wrong-surface'])
 def test_bad_offered_set_never_commits(fault):

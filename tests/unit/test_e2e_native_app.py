@@ -57,6 +57,44 @@ def test_command_requires_child_desktop_and_never_replays(monkeypatch, fault):
         ui.desktop_result.assert_called_once_with(accessible_ui.EXISTING_CHILD, 'success')
 
 
+@pytest.mark.parametrize('child', [accessible_ui.EXISTING_CHILD, accessible_ui.CHILD])
+@pytest.mark.parametrize('failure', ['query', 'incomplete', 'persistent', 'window', 'submission'])
+def test_launch_reacquires_complete_preflight_without_replaying_input(monkeypatch, child, failure):
+    ui = ui_for(Node())
+    ui.timeout = 1
+    ui.query_errors = (LookupError,)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _seconds: None)
+    # Two possible observations, then the original deadline expires.
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', Mock(side_effect=[0, .5, 1]))
+    session = Mock()
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', session)
+    ui.require_child_overlay_session = Mock()
+    ui.desktop_result = Mock()
+    ui.handle_system_prompt = Mock()
+    first = UiError('ui:incomplete-tree') if failure == 'incomplete' else LookupError()
+    second = LookupError() if failure == 'persistent' else failure != 'window'
+    ui.native_app_closed = Mock(side_effect=[first, second])
+    submit = Mock(side_effect=TimeoutError() if failure == 'submission' else None)
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
+
+    if failure in ('persistent', 'window', 'submission'):
+        expected = {'persistent': 'ui:timeout:native-launch-ready',
+                    'window': 'ui:native-window-exists', 'submission': '^$'}[failure]
+        with pytest.raises((UiError, TimeoutError), match=expected):
+            ui.native_launch_command(child=child)
+    else:
+        ui.native_launch_command(child=child)
+
+    assert session.call_count == ui.desktop_result.call_count == ui.native_app_closed.call_count == 2
+    assert ui.require_child_overlay_session.call_count == (2 if child == accessible_ui.CHILD else 0)
+    assert submit.call_count == (0 if failure in ('persistent', 'window') else 1)
+    assert ui.input_uncertain == (submit.call_count == 1)
+    if submit.call_count:
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.native_launch_command(child=child)
+        assert submit.call_count == 1
+
+
 def test_live_refusal_operation_preserves_desktop_without_submitting(monkeypatch):
     ui = ui_for(Node())
     ui.native_app_closed = Mock(return_value=True)

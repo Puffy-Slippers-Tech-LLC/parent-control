@@ -20,6 +20,11 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 ## Implementation
 
 Reuse Shell recipient and sealed input from 048c/048d. Bind explicit wrong-password rejection, normal Cancel and the same usable overlay choices.
+Reuse `request_flow.overlay_authentication(result='cancel', prefix=...)` for
+fresh password-free Cancel; extend shared declaration/execution owners for the
+new rejection branch under the
+[support guide](../../../tests/support/README.md#extend-without-hiding-the-scenario).
+The existing approval fragment does not qualify wrong-password input or rejection.
 
 ## Live VM acceptance
 

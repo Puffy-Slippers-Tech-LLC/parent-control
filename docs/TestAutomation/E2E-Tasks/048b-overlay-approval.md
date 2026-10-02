@@ -31,6 +31,10 @@ Reuse task 048c's Shell recipient/Cancel binding, task 048d's sealed submission,
 approval and automatic child return, and task 048f's rejection/Cancel with
 preserved choices. Add immediate approved exit and compose overlay FLOW05/07
 from those shared leaves; MATE proofs never authorize Shell input.
+Compose authentication declarations through `request_flow.overlay_authentication`
+and the paired shared workers in the
+[support guide](../../../tests/support/README.md#extend-without-hiding-the-scenario).
+Keep the new immediate-exit result separate from the qualified automatic-return branch.
 
 ## Live VM acceptance
 

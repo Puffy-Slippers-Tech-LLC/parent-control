@@ -16,9 +16,33 @@ from overlay_approved_exit import OverlayApprovedExitJourney
 from parent_setup_qualification import OverlayApprovedExitQualification
 from parent_setup_qualification import OverlayPromptQualification, KioskEntryQualification
 from private_artifacts import EvidenceError
+from request_flow import overlay_authentication
 from tests.support.accessible_ui import Node, ui_for
 from tests.support.perl import run_perl
 from ui_observations import UiObservations, OPERATION_LABELS
+
+
+@pytest.mark.parametrize('result,operations', [
+    ('cancel', ['overlay-shell-cancel-ready', 'overlay-shell-dismissed']),
+    ('approval', ['overlay-shell-open', 'overlay-shell-qualified',
+                  'overlay-shell-rechecked', 'overlay-shell-submit-ready', 'overlay-approval-success']),
+])
+def test_shared_authentication_fragment_supports_independent_checkpoints(result, operations):
+    stages = overlay_authentication(result=result, prefix='independent-auth')
+    assert list(stages.values()) == ['ui:' + operation for operation in operations]
+    assert all(stage.startswith('independent-auth-') for stage in stages)
+    plan = PLAN if result == 'cancel' else APPROVED_PLAN
+    assert [operation for operation in plan.screen_tags.values()
+            if operation in stages.values()] == list(stages.values())
+    stages.clear()
+    assert len(overlay_authentication(result=result, prefix='another-auth')) == len(operations)
+
+
+@pytest.mark.parametrize('result,prefix', [('rejection', 'auth'), ('cancel', ''),
+                                        ('approval', None), ('cancel', 'auth/path')])
+def test_shared_authentication_fragment_refuses_undeclared_bindings(result, prefix):
+    with pytest.raises(EvidenceError):
+        overlay_authentication(result=result, prefix=prefix)
 
 
 def prompt(monkeypatch):

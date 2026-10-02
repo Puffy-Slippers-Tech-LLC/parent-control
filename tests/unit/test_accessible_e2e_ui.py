@@ -32,10 +32,13 @@ def test_observer_payload_runs_without_checkout_imports(tmp_path):
                             cwd=tmp_path, capture_output=True, timeout=10)
     assert result.returncode == 1
     assert result.stdout == b''
-    assert result.stderr == b'ui:arguments\n'
+    diagnostic, refusal = result.stderr.decode().splitlines()
+    assert json.loads(diagnostic)['event'] == 'ui-adapter-failure'
+    assert refusal == 'ui:arguments'
 
 
-def test_adapter_failure_payload_reports_static_sites_without_private_values(tmp_path):
+@pytest.mark.parametrize('guarded', [False, True], ids=['query-error', 'guarded-query-error'])
+def test_adapter_failure_payload_reports_static_sites_without_private_values(tmp_path, guarded):
     """Exercise the actual isolated payload's terminal exception handler."""
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({
         'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI',
@@ -52,6 +55,9 @@ def test_adapter_failure_payload_reports_static_sites_without_private_values(tmp
     AccessibleUI._run = fail_read
     AccessibleUI(SimpleNamespace()).run('native-command-launch', '')
 '''
+    if guarded:
+        replacement = replacement.replace("RuntimeError('PRIVATE_DOCUMENT_AND_ACCOUNT')",
+                                          "UiError('ui:system-prompt-observation-failed')")
     # Keep the synthetic exception inside the real outer handler.
     lines = replacement.splitlines()
     injected = '    try:\n        from types import SimpleNamespace\n' + '\n'.join(
@@ -68,7 +74,8 @@ def test_adapter_failure_payload_reports_static_sites_without_private_values(tmp
     assert all(site['module'] == 'accessible_ui' and type(site['line']) is int
                for site in value['locations'])
     assert value['queries'] == [{'interface': 'org.a11y.atspi.Accessible', 'method': 'GetState'}]
-    assert refusal == 'ui:adapter-failed:RuntimeError'
+    assert refusal == ('ui:system-prompt-observation-failed' if guarded
+                       else 'ui:adapter-failed:RuntimeError')
     assert 'PRIVATE_' not in result.stderr.decode()
 
 
@@ -2548,7 +2555,7 @@ def test_shell_search_dismissal_refuses_visible_or_incomplete_field():
 
 
 @pytest.mark.parametrize('fault', [None, 'duplicate-owner', 'wrong-owner', 'duplicate-panel',
-                                 'hidden', 'stale', 'incomplete'])
+                                 'wrong-parent', 'hidden', 'disabled', 'stale', 'incomplete'])
 def test_standard_desktop_requires_unique_live_shell_panel(fault):
     panel = Node('Activities', 'toggle button')
     shell = Node('gnome-shell', 'application', children=[panel])
@@ -2559,12 +2566,16 @@ def test_standard_desktop_requires_unique_live_shell_panel(fault):
         root.children.append(other)
     if fault == 'wrong-owner':
         shell.name = 'unrelated'
+    if fault == 'wrong-parent':
+        shell.parent = Node(role='desktop frame')
     if fault == 'duplicate-panel':
         other = Node('Activities', 'toggle button')
         other.parent = shell
         shell.children.append(other)
     if fault == 'hidden':
         panel.states.remove('showing')
+    if fault == 'disabled':
+        panel.states.remove('sensitive')
     if fault == 'stale':
         panel.states.add('defunct')
     ui = ui_for(root)
@@ -2575,6 +2586,34 @@ def test_standard_desktop_requires_unique_live_shell_panel(fault):
             ui.desktop_result(accessible_ui.EXISTING_CHILD, 'success')
     else:
         assert ui.desktop_result(accessible_ui.EXISTING_CHILD, 'success') is panel
+    panel.action.do_action.assert_not_called()
+
+
+def test_fresh_desktop_does_not_spend_deadline_rereading_unrelated_parent_paths(monkeypatch):
+    panel = Node('Activities', 'toggle button')
+    unrelated = [Node('unrelated control') for _ in range(120)]
+    shell = Node('gnome-shell', 'application', children=[panel, *unrelated])
+    root = Node(role='desktop frame', children=[shell])
+    ui = ui_for(root)
+    ui.timeout = 4
+    now = [0.0]
+    parents = []
+
+    for node in (root, shell, panel, *unrelated):
+        original = node.get_parent
+
+        def parent(node=node, original=original):
+            parents.append(node)
+            now[0] += .04  # A bounded public query; no actual delay or bus.
+            return original()
+
+        monkeypatch.setattr(node, 'get_parent', parent)
+    monkeypatch.setattr(accessible_ui, 'time', SimpleNamespace(
+        monotonic=lambda: now[0], sleep=lambda seconds: now.__setitem__(0, now[0] + seconds)))
+
+    assert ui.standard_shell_desktop(no_prompt=True) is panel
+    assert 2 <= now[0] < ui.timeout
+    assert parents and set(parents) == {shell}
     panel.action.do_action.assert_not_called()
 
 

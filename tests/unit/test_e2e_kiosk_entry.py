@@ -156,6 +156,55 @@ def test_kiosk_request_form_uses_two_complete_tree_reads_at_most(capsys):
     assert passed['nodes_read'] <= 2 * len(list(ui.nodes(strict=True)))
 
 
+def test_form_projection_reuses_complete_snapshot_ids(monkeypatch):
+    from unittest.mock import Mock
+
+    ui, _ = request_form()
+    nodes = list(ui.nodes(strict=True))
+    reads = []
+    for node in nodes:
+        read = Mock(wraps=node.get_attributes)
+        monkeypatch.setattr(node, 'get_attributes', read)
+        reads.append(read)
+    RequestObservation.from_request(ui.run('kiosk-request-form', '')['request'])
+    assert all(read.call_count == 1 for read in reads)
+
+
+@pytest.mark.parametrize('completion', ['ready', 'missing', 'query-error'])
+def test_form_checks_fresh_language_completion_before_outer_deadline(monkeypatch, completion):
+    from unittest.mock import Mock
+
+    ui, durations = request_form()
+    window = ui.find_id('kiosk-request-window')
+    ready = ui.find_id('kiosk-language-ready')
+    window.children.remove(ready)
+    reads = Mock(wraps=ui.read_snapshot)
+    monkeypatch.setattr(ui, 'read_snapshot', reads)
+
+    def complete():
+        # Simulate the helper's input boundary and independent completion read.
+        ui.invalidate_observation()
+        if completion == 'query-error':
+            raise LookupError('private language query')
+        if completion == 'ready':
+            window.children.append(ready)
+        ui.read_snapshot()
+
+    helper = Mock(side_effect=complete)
+    ui.query_errors = (LookupError,)
+    monkeypatch.setattr(ui, 'complete_request_language_setup', helper)
+    # A completed predicate is allowed at the deadline; a pending one is not.
+    assert ui.timeout == 0
+    if completion == 'ready':
+        RequestObservation.from_request(ui.run('kiosk-request-form', '')['request'])
+    else:
+        with pytest.raises(UiError, match='timeout:kiosk-request-form'):
+            ui.run('kiosk-request-form', '')
+    helper.assert_called_once_with()
+    assert reads.call_count <= 4
+    assert all(button.action.do_action.call_count == 0 for button in durations)
+
+
 def test_station_positive_form_observation_permits_no_prompt_without_prompt_ids():
     ui, durations = request_form()
     ui.provider_contracts = EXTERNAL_PROVIDER_CONTRACTS

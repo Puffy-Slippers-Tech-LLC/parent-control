@@ -1892,7 +1892,8 @@ class AccessibleUI:
                     self.kiosk_diagnostic.emit(status='query-error')
             except UiError as error:
                 if str(error) not in (
-                        'ui:incomplete-tree', 'ui:stale-picker', 'ui:gdm-stale-tree',
+                        'ui:incomplete-tree', 'ui:stale-picker', 'ui:stale-request-form',
+                        'ui:gdm-stale-tree',
                         'ui:system-prompt-observation-failed'):
                     raise
                 # Discard the entire observation. A child can disappear between
@@ -1900,6 +1901,8 @@ class AccessibleUI:
                 # GTK can likewise leave a defunct picker node in one AT-SPI
                 # snapshot while removing a closed popover. GDM can leave a
                 # defunct node while replacing its authentication prompt.
+                # Request account reads also require every node to be live;
+                # discard a stale read before resolving or acting on a selector.
                 # Prompt scans can
                 # encounter the same disappearing objects; a failed scan never
                 # authorizes the predicate or any input.
@@ -1918,7 +1921,7 @@ class AccessibleUI:
             self.invalidate_observation()
             if time.monotonic() >= deadline:
                 if incomplete is not None and str(incomplete) in (
-                        'ui:stale-picker', 'ui:gdm-stale-tree',
+                        'ui:stale-picker', 'ui:stale-request-form', 'ui:gdm-stale-tree',
                         'ui:system-prompt-observation-failed'):
                     raise incomplete
                 raise UiError('ui:timeout:' + code) from incomplete
@@ -5908,14 +5911,17 @@ class AccessibleUI:
         if no_prompt:
             require(self.system_prompt_kind(observation=(nodes, snapshot, facts)) is None,
                     'ui:fresh-desktop-prompt')
-        owners = [node for node in nodes if node.get_parent() == root
-                  and node.get_role_name() == 'application'
-                  and node.get_name().casefold() in GDM_SEMANTIC_APPLICATION_NAMES]
+        # Resolve candidates from the complete read before issuing live owner
+        # checks. Querying Parent/Role/Name again for every Shell descendant can
+        # consume the entry deadline before its two-second stability readback.
+        owners = [node for node in nodes if facts[node]['role'] == 'application'
+                  and facts[node]['name'].casefold() in GDM_SEMANTIC_APPLICATION_NAMES
+                  and node.get_parent() == root]
         require(len(owners) <= 1, 'ui:shell-provider-owner')
         if not owners:
             return None
         panels = [node for node in self.snapshot_scope(nodes, snapshot, owners[0])
-                  if node.get_role_name() == 'toggle button' and node.get_name() == 'Activities'
+                  if facts[node]['role'] == 'toggle button' and facts[node]['name'] == 'Activities'
                   and self.showing(node)
                   and self.has_state(node, self.api.StateType.SENSITIVE)]
         require(len(panels) <= 1, 'ui:shell-desktop-ambiguous')
@@ -6645,20 +6651,17 @@ class AccessibleUI:
                 self.reset_observer()
                 last_reset = now
 
-        def observe():
+        def observe(*, language_completed=False):
             diagnostic.tree = 'unread'
             diagnostic.ids = {}
             diagnostic.emit('public-tree')
             try:
-                snapshot = {}
-                public_nodes = list(self.nodes(strict=True, snapshot=snapshot))
+                public_nodes, snapshot, identity_by_node, _facts = self.read_snapshot()
                 diagnostic.emit('public-ids')
                 counts = dict.fromkeys(KIOSK_DIAGNOSTIC_IDS, 0)
-                identity_by_node = {}
                 for node in public_nodes:
                     diagnostic.check()
-                    identity = public_automation_id(node)
-                    identity_by_node[node] = identity
+                    identity = identity_by_node[node]
                     if identity in counts:
                         counts[identity] += 1
                 diagnostic.ids = counts
@@ -6703,13 +6706,18 @@ class AccessibleUI:
                 diagnostic.emit(status='missing')
                 fresh_reader()
                 return None
-            self.validate_owned_surface(window, application)
+            self.validate_owned_surface(window, application, nodes=public_nodes,
+                                        snapshot=snapshot, identities=identity_by_node)
             window_nodes = self.snapshot_scope(public_nodes, snapshot, window)
             if lookup('kiosk-language-ready', window_nodes, identity_by_node, emit=False) is None:
+                if language_completed:
+                    return None
                 self.complete_request_language_setup()
-                # The helper may have entered input. Discard this observation
-                # and independently read the usable form on the next pass.
-                return None
+                # Input invalidates the original snapshot. The helper's fresh
+                # completion read can seed the independent form projection;
+                # do not discard it just to repeat a whole desktop traversal.
+                # One re-entry only: missing readiness still remains pending.
+                return observe(language_completed=True)
             form = lookup('kiosk-request-form', window_nodes, identity_by_node)
             if form is None:
                 diagnostic.emit(status='missing')
@@ -7510,7 +7518,9 @@ class AccessibleUI:
             identity = f'kiosk-{field}-choice-{uid}'
             require(identity not in bindings, 'ui:duplicate-choice-identity')
             bindings[identity] = label
-        selector, form, observation = self.kiosk_account_snapshot(field, overlay=overlay)
+        selector, form, observation = self.wait(
+            lambda: self.kiosk_account_snapshot(field, overlay=overlay),
+            'kiosk-account-snapshot', prompt_in_predicate=True)
         if inspect_only:
             require(self.snapshot_owned_target(
                 f'kiosk-{field}-choices', root=form, observation=observation) is None,
@@ -9483,9 +9493,11 @@ if __name__ == '__main__':
         main()
     except Exception as error:
         # No raw UI tree, account names, document contents or D-Bus errors.
-        if not isinstance(error, UiError):
-            print(json.dumps(adapter_failure_diagnostic(error), sort_keys=True),
-                  file=sys.stderr, flush=True)
+        # Guarded UI refusals can wrap public query failures. Preserve their
+        # fixed query notes and call sites too; the refusal alone loses the
+        # evidence needed to distinguish an unavailable reader from a prompt.
+        print(json.dumps(adapter_failure_diagnostic(error), sort_keys=True),
+              file=sys.stderr, flush=True)
         print(str(error) if isinstance(error, UiError) else 'ui:adapter-failed:' + type(error).__name__,
               file=sys.stderr, flush=True)
         raise SystemExit(1)

@@ -112,6 +112,61 @@ def test_valid_choices_round_trip_through_real_decoder_and_diagnostics(monkeypat
     child.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', [None, 'persistent', 'wrong-owner', 'prompt', 'disabled'])
+def test_overlay_approver_reacquires_stale_preflight_before_any_input(monkeypatch, fault):
+    ui, application, child, _, _ = overlay(monkeypatch)
+    selector = ui.find_id('kiosk-approver-selector')
+    choices = ui.find_id('kiosk-approver-choices', showing=False)
+    for target in choices.children:
+        target.action.do_action.reset_mock()
+    commit = choices.children[0].action.do_action.side_effect
+
+    def select(index):
+        commit(index)
+        child.states.discard('sensitive')
+        return True
+
+    choices.children[0].action.do_action.side_effect = select
+    stale = Node('private stale content', states=('defunct',))
+    stale.parent = application
+    application.children.append(stale)
+    original_nodes = ui.nodes
+    reads = []
+    now = [0.0]
+    ui.timeout = .4
+    monkeypatch.setattr(a, 'time', SimpleNamespace(
+        monotonic=lambda: now[0], monotonic_ns=lambda: int(now[0] * 1e9),
+        sleep=lambda seconds: now.__setitem__(0, now[0] + seconds)))
+
+    def nodes(*args, **kwargs):
+        reads.append(selector.action.do_action.call_count)
+        if len(reads) == 2 and fault != 'persistent':
+            application.children.remove(stale)
+            if fault == 'wrong-owner': ui.owner_pids = lambda: {999}
+            if fault == 'prompt': ui.handle_system_prompt = Mock(side_effect=a.UiError('ui:prompt'))
+            if fault == 'disabled': selector.states.discard('sensitive')
+        yield from original_nodes(*args, **kwargs)
+
+    monkeypatch.setattr(ui, 'nodes', nodes)
+    if fault:
+        with pytest.raises(a.UiError, match={
+            'persistent': 'stale-request-form', 'wrong-owner': 'wrong-owner',
+            'prompt': 'ui:prompt', 'disabled': 'kiosk-account-unavailable'}[fault]):
+            ui.run('overlay-valid-approver-select', '')
+        selector.action.do_action.assert_not_called()
+        choices.children[0].action.do_action.assert_not_called()
+        assert ui.input_uncertain
+    else:
+        result = ui.run('overlay-valid-approver-select', '')
+        request = RequestObservation.from_request(result['valid_choice']['request'],
+                                                 operation='overlay-valid-approver-select')
+        assert request.approver == 'fixture-parent' and not request.child_selector_enabled
+        selector.action.do_action.assert_called_once()
+        choices.children[0].action.do_action.assert_called_once()
+    assert reads[:2] == [0, 0]
+    child.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', ['station', 'unlocked', 'wrong-child', 'prompt', 'disabled', 'duplicate', 'uncertain'])
 def test_overlay_input_refuses_before_action(monkeypatch, fault):
     ui, application, child, _, _ = overlay(monkeypatch)

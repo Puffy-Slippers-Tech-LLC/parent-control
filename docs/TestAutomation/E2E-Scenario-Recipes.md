@@ -404,14 +404,18 @@ case or cross-user retention acceptance; those remain with their consumers.
 
 Implementation context: case 47 uses `kiosk_cancel.PLAN` / `onpc_kiosk_cancel::run`.
 Case 44 uses `overlay_cancel.PLAN` / `onpc_kiosk_cancel::run(exchange, 'overlay', ...)`.
+Case 45 uses `overlay_cancel.ESCAPE_PLAN` /
+`onpc_kiosk_cancel::run(exchange, 'overlay-escape', ...)` with the same preparation
+and retained-activity checks; its exit is shared `onpc_request_exit::escape`.
 Prepare Riley's enabled 15-minute daily allowance through Parent and independently
 read 900 daily seconds with zero grant before fresh child sign-in. Verify the
 baseline native fixtures through `fixture_actions(include_refusal=False)`, then
 launch/use the native Allowed app by command and capture its immutable public
 window/draft. Open the overlay once and prepare the qualified Jamie/custom
 75-second/soft-included choices with `entry=open, initial=default`; independently
-bound the estimate by the earlier balance and elapsed time. Invoke Cancel once,
-require absent form and the original usable child desktop, and compare the exact
+bound the estimate by the earlier balance and elapsed time. Invoke Cancel once
+for case 44, or freshly qualify the owned Escape recipient and send one Escape
+for case 45. Require absent form and the original usable child desktop, and compare the exact
 window/draft with the capture before submitting the same draft again. Record the
 visible result only after that independent usable-app readback, then close the
 app normally. Qualification-only refusal and repeated-entry matrices stay in

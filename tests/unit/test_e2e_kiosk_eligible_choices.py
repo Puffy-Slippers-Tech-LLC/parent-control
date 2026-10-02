@@ -308,6 +308,62 @@ def test_account_snapshot_uses_one_complete_read_for_input_boundary():
     assert ui.nodes.call_count == 1
 
 
+@pytest.mark.parametrize('field', ['child', 'approver'])
+@pytest.mark.parametrize('boundary', ['initial', 'offered', 'selected'])
+@pytest.mark.parametrize('persistent', [False, True], ids=['transient', 'persistent'])
+def test_account_selection_discards_stale_reads_without_replaying_input(
+        monkeypatch, field, boundary, persistent):
+    import accessible_ui as adapter
+
+    ui, selector, choices, expected = accounts_form(field)
+    root = ui.root()
+    stale = Node('private stale content', states=('defunct',))
+    stale.parent = root
+    now = [0.0]
+    ui.timeout = .4
+    monkeypatch.setattr(adapter, 'time', SimpleNamespace(
+        monotonic=lambda: now[0], sleep=lambda seconds: now.__setitem__(0, now[0] + seconds)))
+    original_nodes = ui.nodes
+    stale_reads = []
+
+    def nodes(*args, **kwargs):
+        if stale in root.children:
+            stale_reads.append((selector.action.do_action.call_count,
+                                choices.children[0].action.do_action.call_count))
+            if len(stale_reads) > 1 and not persistent:
+                root.children.remove(stale)
+        yield from original_nodes(*args, **kwargs)
+
+    monkeypatch.setattr(ui, 'nodes', nodes)
+    if boundary == 'initial':
+        root.children.append(stale)
+    else:
+        action = selector.action if boundary == 'offered' else choices.children[0].action
+        original_input = action.do_action.side_effect
+
+        def enter(index):
+            original_input(index)
+            root.children.append(stale)
+            return True
+
+        action.do_action.side_effect = enter
+
+    if persistent:
+        with pytest.raises(UiError, match='stale-request-form'):
+            ui.select_kiosk_account(field, expected[0], expected=expected)
+        assert now[0] == ui.timeout
+    else:
+        result = ui.select_kiosk_account(field, expected[0], expected=expected)
+        assert RequestObservation.from_request(result, operation=f'kiosk-{field}-select').request_enabled
+        assert stale not in root.children and not ui.input_uncertain
+    assert len(stale_reads) >= 2
+    assert set(stale_reads) == {({'initial': 0, 'offered': 1, 'selected': 1}[boundary],
+                                int(boundary == 'selected'))}
+    assert selector.action.do_action.call_count == (not persistent or boundary != 'initial')
+    assert choices.children[0].action.do_action.call_count == (not persistent or boundary == 'selected')
+    choices.children[1].action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('refusal', [None, 'save-enabled', 'child-selected'])
 def test_worker_order_stops_on_failed_public_result(monkeypatch, refusal):
     import json

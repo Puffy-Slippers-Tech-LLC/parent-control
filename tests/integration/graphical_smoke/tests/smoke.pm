@@ -145,6 +145,12 @@ sub run {
         onpc_kiosk_cancel::run(\&exchange, 'overlay', $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{overlay_escape}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_cancel::run(\&exchange, 'overlay-escape', $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{overlay_choices}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

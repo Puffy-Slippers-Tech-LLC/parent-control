@@ -1,4 +1,4 @@
-"""Case 44: Cancel one prepared overlay and resume the original child activity."""
+"""Cases 44/45: exit one prepared overlay and resume the original child activity."""
 
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management, native_usable_app, overlay_entry
@@ -53,6 +53,27 @@ PLAN = JourneyPlan(
     assertions_after={'resumed-submitted': 'visible-result'},
 )
 
+ESCAPE_EXIT_SCREENS = {
+    'escape-ready': 'ui:overlay-request-escape-ready',
+    'escape-returned': 'ui:overlay-desktop',
+    **{stage: operation for stage, operation in EXIT_SCREENS.items()
+       if stage not in ('cancel', 'cancel-returned')},
+}
+ESCAPE_SCREENS = {
+    **{stage: operation for stage, operation in SCREENS.items() if stage not in EXIT_SCREENS},
+    **ESCAPE_EXIT_SCREENS,
+}
+ESCAPE_PLAN = JourneyPlan(
+    prefix='overlay-escape', worker_mode='overlay_escape', screen_tags=ESCAPE_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in ESCAPE_SCREENS}, 'installed-greeter': 'start',
+            **{stage: 'step-2' for stage in ESCAPE_EXIT_SCREENS}},
+    advance_after=dict(PLAN.advance_after), stage_actions=dict(PLAN.stage_actions),
+    invocations=PLAN.invocations, challenges=dict(PLAN.challenges),
+    balance_checks=dict(PLAN.balance_checks), activity_checks=dict(PLAN.activity_checks),
+    assertions_after=dict(PLAN.assertions_after),
+)
+
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=1800,
@@ -60,4 +81,10 @@ def execute(recorder, context):
                              actions=fixture_actions(include_refusal=False))
 
 
-E2E_CASES = {'child-overlay-cancel': execute}
+def execute_escape(recorder, context):
+    record_installed_journey(recorder, context, ESCAPE_PLAN, timeout=1800,
+                             journey_type=KioskRequestJourney,
+                             actions=fixture_actions(include_refusal=False))
+
+
+E2E_CASES = {'child-overlay-cancel': execute, 'child-overlay-escape': execute_escape}

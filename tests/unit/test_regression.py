@@ -1034,7 +1034,7 @@ def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch,
     component, unit = starts['Private D-Bus components'], starts['Unit — Bucket 1']
     assert component['branch'] == unit['branch'] == 4
     assert 0 <= component['monotonic'] - finishes['Unit — Bucket 1']['monotonic'] <= 5
-    preview = starts['UI — Preview and About']
+    preview = starts['UI — Preview smoke']
     assert preview['branch'] == starts['publish']['branch']
     assert 0 <= preview['monotonic'] - finishes['publish']['monotonic'] <= (10 if io_burst else 5)
     assert 'ui-request' in starts['publish']['companions']

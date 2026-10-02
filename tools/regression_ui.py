@@ -70,7 +70,11 @@ GROUPS = (
     ('Feedback', ('test_parent_feedback.py', 'test_error_feedback.py'), 6),
     # Match invalid/Reset matrix shares the owned private preview/display and
     # bounded keyboard workers of the valid matrix; keep this module together.
-    ('Preview and About', ('test_preview_smoke.py', 'test_about_release.py'), 6),
+    ('Preview smoke', ('test_preview_smoke.py',), 6),
+    # About launches independent per-test applications. Give its module a
+    # separate worker deadline so the long preview matrices cannot consume
+    # its startup/check budget. Each module keeps its session fixtures intact.
+    ('About', ('test_about_release.py',), 6),
     ('Screen fidelity', ('test_screen_preview.py',), 12),
     ('Nested Shell', ('test_child_shell_lifecycle.py',), 30),
     ('Accessible adapter', ('test_e2e_accessible_adapter.py',), 12),
@@ -104,8 +108,10 @@ GROUPS = (
 # Keep pairing identities separate even when buckets have the same reservation.
 # The catalogue matrix uses the existing private Parent preview and event log,
 # with finite scripted native rows. Its waited Perl children expand input only;
-# no VM, system catalogue, network or shared settings are touched. Preview and
-# About retains its compatible private-display reservation.
+# no VM, system catalogue, network or shared settings are touched.
+# About has its own private compositor, bus, XDG settings and retained preview
+# logs. Both modules retain the existing UI resource reservation and compatible
+# overlap; About gains no publishing companion permission or shared service.
 # Feedback replacement uses the adapter bucket's private preview, compositor and
 # accessibility bus; keyboard input and app cleanup stay inside that fixture.
 # Synthetic duplication uses that same editor's clipboard on the private
@@ -148,7 +154,7 @@ GROUPS = (
 # Its lifetime pipe and kernel subreaper scope contain only that private Shell
 # launch and services; its socket runtime and scratch locks outlive forced pytest
 # exit. It introduces no shared resource; keep the existing ui-shell reservation.
-KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-screen', 'ui-shell',
+KINDS = ('ui-request', 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-about', 'ui-screen', 'ui-shell',
          'ui-accessible', 'ui-watch', 'ui-identity', 'ui-fixture-gui')
 
 

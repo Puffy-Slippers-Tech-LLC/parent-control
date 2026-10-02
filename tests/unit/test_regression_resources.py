@@ -374,7 +374,7 @@ def test_vm_keeps_demand_and_fixed_desktop_reserve(kind, total_gib):
 
 
 @pytest.mark.parametrize('other', ['publish', 'system', 'e2e', 'ui',
-                                 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-shell',
+                                 'ui-layout', 'ui-feedback', 'ui-preview', 'ui-about', 'ui-shell',
                                  'ui-exclusive', 'ui-future', 'fixture-runtime',
                                  'source', 'static', 'child-node', 'child-gjs', 'backend'])
 @pytest.mark.parametrize('build', ['publish'])

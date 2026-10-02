@@ -17,6 +17,7 @@ from installed_journey import JourneyPlan, matched_screens
 from overlay_valid_choices import PLAN, OverlayValidChoicesJourney
 from overlay_choices import PLAN as CHOICES_PLAN, OverlayChoicesJourney
 from overlay_license import PLAN as LICENSE_PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN, OverlayLicenseJourney
+from overlay_about import PLAN as ABOUT_CASE_PLAN
 from request_flow import prepared_request
 from parent_setup_qualification import OverlayValidChoicesQualification, KioskEntryQualification
 from parent_setup_qualification import OverlayChoicesQualification
@@ -287,7 +288,7 @@ def test_real_recorder_step_compares_renamed_activity_before_reply(tmp_path, fau
 
 
 @pytest.mark.parametrize('plan,fault', [(plan, fault) for plan in (
-    PLAN, CHOICES_PLAN, LICENSE_PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN)
+    PLAN, CHOICES_PLAN, LICENSE_PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN, ABOUT_CASE_PLAN)
                                       for fault in ('', *plan.screen_tags)])
 def test_actual_worker_order_titles_and_failure_stop(tmp_path, plan, fault):
     program = r'''
@@ -323,8 +324,12 @@ my $ok = eval {
 };
 print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 '''
-    program = program.replace('onpc_request_flow::overlay_valid_choices(',
-                              'onpc_request_flow::' + plan.worker_mode + '(')
+    if plan is ABOUT_CASE_PLAN:
+        program = program.replace('require onpc_request_flow;', 'require onpc_parent_about;').replace(
+            'onpc_request_flow::overlay_valid_choices(', 'onpc_parent_about::run_overlay(')
+    else:
+        program = program.replace('onpc_request_flow::overlay_valid_choices(',
+                                  'onpc_request_flow::' + plan.worker_mode + '(')
     result = json.loads(run_perl(program, fault, json.dumps(plan.invocations), json.dumps(plan.challenges)).stdout)
     stages = [event[1] for event in result['events'] if event[0] == 'seen']
     expected = list(plan.screen_tags)

@@ -6,6 +6,35 @@ use onpc_journey ();
 use onpc_parent ();
 use onpc_gdm ();
 use onpc_about ();
+use onpc_request_flow ();
+
+# Complete E2E-042/child-overlay composition; qualifications remain separate.
+sub run_overlay {
+    onpc_progress::operation('Reading overlay Help and About and returning to the unchanged request');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'overlay-about:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-about', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'child', 0, 30, 1));
+    for my $stage ('switch-user', 'gdm-switched') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    onpc_request_flow::overlay_entry($journey, 'direct', 'command');
+    onpc_request_flow::prepare($journey, 'open', 'open', 'default',
+        'fixture-child', 'fixture-parent', 75, 1, 'overlay');
+    $journey->consume_observation('form-returned', onpc_about::overlay_license(
+        $journey, $journey->seen('captured-form'), 'captured-form', '', 'information'));
+    for my $stage ('cancel', 'returned') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    $journey->finish();
+}
 
 sub run {
     onpc_progress::operation('Checking About and license information');

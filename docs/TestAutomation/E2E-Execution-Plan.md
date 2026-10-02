@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **233 — [E2E-042: child-overlay](E2E-Tasks/233-case-191.md)**.
+Next task: **048c — [Qualify the overlay Shell prompt and Cancel](E2E-Tasks/048c-shell-prompt.md)**.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

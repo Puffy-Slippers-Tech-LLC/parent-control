@@ -52,7 +52,7 @@ def request_reboot(done):
 
 
 def show_update_required(parent=None, *, application=None, on_close=None):
-    """One shared, localized notice for a confirmed pending product update."""
+    """One shared, localized notice for a confirmed pending product reboot."""
     from gi.repository import Gtk
     from .translation_widgets import localized, set_text
     from .accessibility import add_dialog_button, add_identified_window_controls, set_automation_id
@@ -71,7 +71,7 @@ def show_update_required(parent=None, *, application=None, on_close=None):
     header = Gtk.HeaderBar()
     add_identified_window_controls(header, 'update-required-window-controls')
     dialog.set_titlebar(header)
-    message = localized(Gtk.Label, label=m.RESTART_TO_FINISH_UPDATING, wrap=True,
+    message = localized(Gtk.Label, label=m.RESTART_FOR_PROPER_OPERATION, wrap=True,
                         margin_top=24, margin_bottom=24, margin_start=24, margin_end=24)
     set_automation_id(message, 'update-required-message')
     dialog.get_content_area().append(message)

@@ -1928,7 +1928,7 @@ class RequestWindow(Adw.ApplicationWindow):
             self._stack.set_sensitive(True)
             if self._child_overlay:
                 set_text(self._result_action, 'label', m.CLOSE)
-            self._show_result(m.RESTART_REQUIRED, m.RESTART_TO_FINISH_UPDATING)
+            self._show_result(m.RESTART_REQUIRED, m.RESTART_FOR_PROPER_OPERATION)
             show_update_required(self)
             return
         title, detail = public_error(error, child_overlay=self._child_overlay)

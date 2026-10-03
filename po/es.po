@@ -36,8 +36,8 @@ msgstr "Es necesario reiniciar"
 msgid "Reboot now"
 msgstr "Reiniciar ahora"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Se instaló una actualización del producto. Reinicia el equipo para que Oh No! Parent Control funcione correctamente."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Reinicia el equipo para que Oh No! Parent Control funcione correctamente."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

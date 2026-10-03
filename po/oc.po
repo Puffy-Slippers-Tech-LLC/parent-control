@@ -160,8 +160,8 @@ msgstr "Cal tornar aviar"
 msgid "Reboot now"
 msgstr "Tornar aviar ara"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Una mesa a jorn del produch es estada installada. Tornatz aviar l’ordenador per que Oh No! Parent Control foncione corrèctament."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Tornatz aviar l’ordenador per que Oh No! Parent Control foncione corrèctament."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

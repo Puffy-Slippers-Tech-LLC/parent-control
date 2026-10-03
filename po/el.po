@@ -160,8 +160,8 @@ msgstr "Απαιτείται επανεκκίνηση"
 msgid "Reboot now"
 msgstr "Επανεκκίνηση τώρα"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Εγκαταστάθηκε μια ενημέρωση του προϊόντος. Επανεκκινήστε τον υπολογιστή για να λειτουργεί σωστά το Oh No! Parent Control."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Επανεκκινήστε τον υπολογιστή για να λειτουργεί σωστά το Oh No! Parent Control."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

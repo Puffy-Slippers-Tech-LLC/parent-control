@@ -198,6 +198,11 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 048c | Qualify the overlay Shell prompt and Cancel | 048a, 019, 004 | Shell Polkit AUTH01 overlay recipient and guarded Cancel/preserved-form result qualified through `overlay_prompt.PLAN`, `OverlayPromptJourney` and `check_e2e_overlay_prompt` on every enabled VM (Ubuntu 26.04) in `20261002T071336Z-85386efe`. Two separate attempts passed exact parent/child/75-second/soft-app context, sole empty masked focused field, fresh same-challenge recheck, refusal matrix, one Escape/Cancel, disappearance and independently preserved usable no-error form. Shell tuple: `50.1-0ubuntu1.2`, `en_US.UTF-8`, `xkb/us`. Fullscreen owner discovery and bounded metadata-read retry repairs retain all guards. Host composition/decoder/worker/ownership checks passed; affected MATE regression passed in `20261002T072321Z-22f55417`. Collection, worker shutdown, owned cleanup, baseline restoration and finalization passed for all attempts. No password submission or complete-case credit. | 20–30 |
 | [x] | 048d | Qualify overlay approval and automatic return | 048c, 021 | AUTH02 fixed overlay approval and REQUEST11/12 explicit success/automatic child return passed through `overlay_approved_exit.PLAN` / `OverlayApprovedExitJourney` and `check_e2e_overlay_approved_exit` in `20261002T161640Z-0822ed6d` on every enabled VM (Ubuntu 26.04). Fresh same-challenge recipient proofs, sealed single-use input, one Enter after observer readiness, child-owned Time granted, automatic disappearance and exact original usable fixture activity passed. Host proof/order/recorder/ownership checks passed. Shell Cancel's two independent regression attempts passed in `20261002T162330Z-5513253f`; kiosk approval passed in `20261002T163355Z-128dd338`. Collection, worker shutdown, owned cleanup, baseline restoration and source/host preservation passed throughout. Rejection, immediate approved exit and complete scenarios remain separate tasks. | 20–30 |
 | [ ] | 300 | [Installed personal-language acceptance](E2E-Tasks/300-localization.md) | Baseline | One planned case: existing multilingual/RTL acceptance plus Chinese-only upgrade/no-reboot prompt, first kiosk language and native PolicyKit approval after re-entry; Chinese assets in prepare-baseline, desktop switch via DESK13; prerequisite qualification/registration pending | 60–90 (exception) |
+| [ ] | 301 | [Qualify the installed product restart notice](E2E-Tasks/301-restart-notice.md) | 006, 007, 048a | Shared public modal read/Close/re-entry and normal reboot action for Parent, Child App and kiosk; fresh-install composition qualification pending, no complete-case credit | 40–60 (exception) |
+| [ ] | 302 | [Fresh-install reboot prompt: Parent](E2E-Tasks/302-fresh-install-parent-reboot.md) | 301 | One planned case: genuine clean install, Parent modal before any reboot, Close without reboot, reopen, Reboot now, fresh usable Parent without modal; registration and live acceptance pending | 40–60 (exception) |
+| [ ] | 303 | [Fresh-install reboot prompt: Child App](E2E-Tasks/303-fresh-install-child-reboot.md) | 301 | One planned case: genuine clean install, direct Child App modal before any reboot, Close without reboot, reopen, Reboot now, fresh usable child request after ordinary public setup without modal; registration and live acceptance pending | 40–60 (exception) |
+| [ ] | 304 | [Fresh-install reboot prompt: kiosk session](E2E-Tasks/304-fresh-install-kiosk-reboot.md) | 301 | One planned case: genuine clean install, first kiosk entry modal before any reboot or policy setup, Close without reboot, session exit/re-entry, Reboot now, fresh usable kiosk without modal; registration and live acceptance pending | 40–60 (exception) |
+| [ ] | 305 | [Unrelated reboot requests leave all apps usable](E2E-Tasks/305-unrelated-reboot.md) | 301 | One planned case: genuinely unrelated package reboot request, no product request, Parent/Child App/kiosk usable without modal, then normal reboot and no-reboot controls; real unrelated-package trigger, registration and live acceptance pending | 40–60 (exception) |
 | [ ] | 048f | [Observe overlay password rejection and Cancel](E2E-Tasks/048f-overlay-rejection.md) | 048a, 021, 048c, 048d | AUTH02 overlay rejection/Cancel and preserved-form readback | 20–30 |
 | [ ] | 048b | [Complete overlay exits and approval compositions](E2E-Tasks/048b-overlay-approval.md) | 048a, 021, 048c, 048d, 048f | Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07 | 20–30 |
 | [ ] | 060 | [E2E-015: child-overlay-approved](E2E-Tasks/060-case-46.md) | 180, 048b, 052 | Cases 46 | 20–30 |
@@ -517,6 +522,45 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 244 | [E2E-044: fall-back-daily-reset](E2E-Tasks/244-case-202.md) | 191, 065, 062 | Cases 202; gate in brief | Scheduled window; ≤60 (exception) |
 | [ ] | 245 | [E2E-044: fall-back-rest-of-day](E2E-Tasks/245-case-203.md) | 191, 065, 062 | Cases 203; gate in brief | Scheduled window; ≤60 (exception) |
 | [ ] | 246 | [E2E-044: fall-back-fixed-grant](E2E-Tasks/246-case-204.md) | 191, 065, 062 | Cases 204; gate in brief | Scheduled window; ≤60 (exception) |
+
+## Fresh-install restart regression scope
+
+Tasks **301–305** are documentation-only additions requested on 2026-10-02.
+The first unchecked task remains **300**. Each of 302–305 plans one independent
+complete case; numeric coverage IDs, scenario inventory bindings, recipes and
+executables must be assigned during implementation under the
+[shared task contract](E2E-Execution-Contracts.md#task-brief-contract).
+No case is registered, runnable or accepted by this addition. Historical clean
+installation case 2 reboots before opening the apps and does not cover these
+pre-reboot prompts. Task 300's real-upgrade language history also supplies no
+fresh-install acceptance.
+
+The positive cases must start from the product-free supported baseline, install
+the actual verified package through the maintained lifecycle route, and retain
+the installation boot until the target's first modal is observed. Do not use an
+app snapshot, upgrade/reinstall, manually written reboot marker, injected broker
+error or forced diagnostics-only mode as evidence of this regression. Child App
+uses its installed direct command before enabling child controls; kiosk opens
+the newly installed station before any Parent policy setup. Initial language
+setup must not dismiss or displace the notice.
+
+Resolve `update-required-dialog`, `update-required-message`,
+`update-required-close` and `update-required-reboot` through the shared public-ID
+adapter. Require one modal, restart instructions appropriate to installation,
+Close as the default action and a visible enabled Reboot now action. Close must
+leave the same boot and blocked operation; ordinary reopening/session re-entry
+must show the modal again. A single normal system-authorized Reboot now action
+must lead to an independently observed new boot, usable greeter and fresh target
+entry with no reboot modal. Establish ordinary public policy/language setup
+after reboot where required; private marker checks cannot replace these results.
+
+Task 305 owns the negative installed control: a real unrelated package requests
+reboot after normal product activation, while the product itself has no pending
+request. All three apps must remain usable and show no modal. A normal reboot
+then supplies the no-reboot control on all three. Keep missing real package
+assets/trigger explicit as a gate; synthetic requests belong in engineering
+tests. Shared modal transport and marker-edge matrices remain with unit/host UI
+coverage; the installed cases must exercise real package/session/reboot causality.
 
 ## Deferred future work
 

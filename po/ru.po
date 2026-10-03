@@ -36,8 +36,8 @@ msgstr "Требуется перезагрузка"
 msgid "Reboot now"
 msgstr "Перезагрузить сейчас"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Установлено обновление продукта. Перезагрузите компьютер, чтобы Oh No! Parent Control работал правильно."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Перезагрузите компьютер, чтобы Oh No! Parent Control работал правильно."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

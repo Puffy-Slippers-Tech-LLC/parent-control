@@ -160,8 +160,8 @@ msgstr "Необходимо е рестартиране"
 msgid "Reboot now"
 msgstr "Рестартиране сега"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Инсталирана е актуализация на продукта. Рестартирайте компютъра, за да работи Oh No! Parent Control правилно."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Рестартирайте компютъра, за да работи Oh No! Parent Control правилно."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

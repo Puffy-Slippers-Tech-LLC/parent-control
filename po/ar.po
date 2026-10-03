@@ -160,8 +160,8 @@ msgstr "إعادة التشغيل مطلوبة"
 msgid "Reboot now"
 msgstr "إعادة التشغيل الآن"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "تم تثبيت تحديث للمنتج. أعد تشغيل الحاسوب ليعمل Oh No! Parent Control بشكل صحيح."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "أعد تشغيل الحاسوب ليعمل Oh No! Parent Control بشكل صحيح."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

@@ -159,7 +159,7 @@ msgstr ""
 msgid "Reboot now"
 msgstr ""
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
 msgstr ""
 
 #. Shared message: SEARCH_LANGUAGES

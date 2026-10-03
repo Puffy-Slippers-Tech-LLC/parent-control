@@ -14,6 +14,7 @@ from oh_no_parent_control.logs import DailyLogWriter
 from oh_no_parent_control.logs import BrokerFileHandler
 from common.oh_no_parent_control_ui.diagnostic_bundle import validate_bundle
 from common.oh_no_parent_control_ui.diagnostic_events import encode, event
+from common.oh_no_parent_control_ui.reboot import product_reboot_required
 from oh_no_parent_control.adapters import AccountsService
 from oh_no_parent_control.core import AccessDenied, UserAccount
 from oh_no_parent_control.execution_policy import FapolicydPolicy
@@ -23,19 +24,31 @@ from tests.support.dbus import (
 )
 
 
+@pytest.mark.parametrize('markers', (
+    {'reboot-required': '', 'reboot-required.pkgs': 'oh-no-parent-control\n'},
+    {'oh-no-parent-control-child-trust-reboot': ''},
+    {'oh-no-parent-control-reboot-required': 'reboot\n'},
+), ids=('fresh-install', 'trust-upgrade', 'fedora'))
 def test_pending_reboot_exports_customer_evidence_over_private_bus(
-        dbusmock_system, dbusmock_session, tmp_path):
+        dbusmock_system, dbusmock_session, tmp_path, markers):
+    run = tmp_path / 'run'
+    run.mkdir()
+    for name, contents in markers.items():
+        (run / name).write_text(contents)
     with broker_service(dbusmock_system, dbusmock_session, tmp_path,
-                        diagnostics_only=True) as harness:
+                        diagnostics_only=product_reboot_required(run)) as harness:
         handler = BrokerFileHandler(harness.writer)
         logger = logging.getLogger('onpc')
         old_level = logger.level
         logger.setLevel(logging.INFO)
         logger.addHandler(handler)
         try:
-            with pytest.raises(GLib.Error) as caught:
-                call(harness.client, 'ListManagedUsers', None, '(a(uss))')
-            assert Gio.DBusError.get_remote_error(caught.value).endswith('.Error.RebootRequired')
+            for method, signature in (('ListManagedUsers', '(a(uss))'),
+                                      ('GetOwnAccount', '(uss)'),
+                                      ('ListApprovers', '(a(uss))')):
+                with pytest.raises(GLib.Error) as caught:
+                    call(harness.client, method, None, signature)
+                assert Gio.DBusError.get_remote_error(caught.value).endswith('.Error.RebootRequired')
             assert call(harness.client, 'ListKioskUsers', None, '(a(uss))').unpack() == (
                 [(1100, '[Child user]', '')],)
             assert call(harness.client, 'GetChildLanguageContext',
@@ -48,7 +61,7 @@ def test_pending_reboot_exports_customer_evidence_over_private_bus(
             validate_bundle(data)
             with ZipFile(BytesIO(data)) as archive:
                 report = ''.join(archive.read(name).decode() for name in archive.namelist())
-            assert 'package upgrade deferred child trust backend activation until reboot' in report
+            assert 'product installation or upgrade requires reboot' in report
             assert 'outcome=reboot-required elapsed_ms=25' in report
             assert 'broker ready' not in report
             assert harness.accounts.sync_count == 0
@@ -59,6 +72,23 @@ def test_pending_reboot_exports_customer_evidence_over_private_bus(
         finally:
             logger.removeHandler(handler)
             logger.setLevel(old_level)
+
+
+@pytest.mark.parametrize('unrelated', (False, True), ids=('no-reboot', 'unrelated-reboot'))
+def test_other_reboots_leave_frontend_startup_available(
+        dbusmock_system, dbusmock_session, tmp_path, unrelated):
+    run = tmp_path / 'run'
+    run.mkdir()
+    if unrelated:
+        (run / 'reboot-required').touch()
+        (run / 'reboot-required.pkgs').write_text('linux-image-generic\nlibc6\n')
+    with broker_service(dbusmock_system, dbusmock_session, tmp_path,
+                        diagnostics_only=product_reboot_required(run)) as harness:
+        for method, signature in (('ListManagedUsers', '(a(uss))'),
+                                  ('GetOwnAccount', '(uss)'),
+                                  ('ListApprovers', '(a(uss))')):
+            assert call(harness.client, method, None, signature).unpack()
+        assert harness.accounts.sync_count == 1
 
 
 @pytest.mark.parametrize('name', ['Other Client.AppImage', 'Other,Client.AppImage'])

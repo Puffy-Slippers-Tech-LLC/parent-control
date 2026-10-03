@@ -160,8 +160,8 @@ msgstr "Este necesară repornirea"
 msgid "Reboot now"
 msgstr "Repornește acum"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "A fost instalată o actualizare a produsului. Repornește calculatorul pentru ca Oh No! Parent Control să funcționeze corect."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Repornește calculatorul pentru ca Oh No! Parent Control să funcționeze corect."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

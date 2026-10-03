@@ -36,8 +36,8 @@ msgstr "Riavvio necessario"
 msgid "Reboot now"
 msgstr "Riavvia ora"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "È stato installato un aggiornamento del prodotto. Riavvia il computer affinché Oh No! Parent Control funzioni correttamente."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Riavvia il computer affinché Oh No! Parent Control funzioni correttamente."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

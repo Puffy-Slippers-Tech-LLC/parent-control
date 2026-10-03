@@ -97,7 +97,7 @@ for that boot. Both systemd and the direct launcher may start the broker's
 [diagnostics-only mode](Logging-and-Feedback.md#investigation-coverage), which
 retains role-checked log collection and kiosk presentation reads without starting enforcement or session
 operations. The broker's product-specific `Error.RebootRequired` status drives
-the frontend update modal.
+the shared frontend restart modal.
 The global `/run/reboot-required` and other packages' reboot requests do not
 select this mode or block policy. Migration completes and its separate exclusion
 is released; reboot automatically expires the runtime guard
@@ -170,6 +170,18 @@ requested a reboot, the helper then prints
 output: bold red on a capable terminal, and plain text when stderr is not a
 terminal or `TERM` is dumb. The packaged dpkg hook defers that output until
 configuration and triggers finish so later APT/dpkg lines cannot follow it.
+
+Every broker entry uses the shared
+[product reboot detector](../../common/oh_no_parent_control_ui/reboot.py) before
+constructing policy adapters. In addition to the child-trust guard, it recognizes
+Ubuntu's `/run/reboot-required` only when `/run/reboot-required.pkgs` includes
+the exact `oh-no-parent-control` package, and Fedora's product-owned
+`/run/oh-no-parent-control-reboot-required` marker. Fresh installation, upgrade
+and same-boot reconfiguration therefore select the same diagnostics-only mode
+and modal in Parent, Child App and kiosk. Absent requests and unrelated packages
+leave normal startup available. Requests expire with `/run` at reboot; no new
+persistent state or marker is introduced. The launcher's early child-trust gate
+still verifies import safety independently of the frontend reboot guard.
 
 ## Installed layout
 

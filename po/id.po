@@ -160,8 +160,8 @@ msgstr "Perlu memulai ulang"
 msgid "Reboot now"
 msgstr "Mulai ulang sekarang"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Pembaruan produk telah dipasang. Mulai ulang komputer agar Oh No! Parent Control berfungsi dengan baik."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Mulai ulang komputer agar Oh No! Parent Control berfungsi dengan baik."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

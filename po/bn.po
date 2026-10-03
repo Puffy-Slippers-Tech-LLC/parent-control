@@ -160,8 +160,8 @@ msgstr "পুনরায় চালু করা প্রয়োজন"
 msgid "Reboot now"
 msgstr "এখনই পুনরায় চালু করুন"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "পণ্যের একটি আপডেট ইনস্টল করা হয়েছে। Oh No! Parent Control সঠিকভাবে কাজ করার জন্য কম্পিউটার পুনরায় চালু করুন।"
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Oh No! Parent Control সঠিকভাবে কাজ করার জন্য কম্পিউটার পুনরায় চালু করুন।"
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

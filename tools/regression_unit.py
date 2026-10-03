@@ -13,6 +13,9 @@ existing relocated, synchronously waited launcher processes. No system bus,
 installed service, shared log directory or new cleanup lifetime is used; the
 service_contract, diagnostic_privacy, systemd_unit and package_configuration
 modules retain compatible overlap.
+Shared reboot detection/startup cases add only private tiny marker files and
+process-local main-loop/transport doubles to service_contract. They touch no
+host reboot state or services and retain that compatible classification.
 
 Update-required dialog and reboot tests use process-local GTK/Gio doubles only;
 parent startup tests queue fake threads and idle callbacks. Package-marker cases

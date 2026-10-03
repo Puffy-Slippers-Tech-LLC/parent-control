@@ -36,8 +36,8 @@ msgstr "需要重启"
 msgid "Reboot now"
 msgstr "立即重启"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "已安装产品更新。请重启计算机，以使 Oh No! Parent Control 正常工作。"
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "请重启计算机，以使 Oh No! Parent Control 正常工作。"
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

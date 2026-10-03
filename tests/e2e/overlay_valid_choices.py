@@ -1,13 +1,12 @@
 """048e: finite valid overlay values, independent entry and usable Cancel return."""
 from installed_journey import JourneyPlan
-from journey_blocks import fresh_desktop, parent_management, native_usable_app, overlay_entry
+from journey_blocks import fresh_desktop, parent_management, native_activity_entry, overlay_entry
 from native_fixtures import fixture_actions
 from request_composition import KioskRequestJourney
 
 CHILD_SCREENS = {
     **{'fresh-' + stage: operation for stage, operation in fresh_desktop('child').items()},
-    **{'activity-' + stage: operation for stage, operation in native_usable_app('command', child='child').items()},
-    'activity-capture': 'ui:overlay-native-activity',
+    **native_activity_entry('activity'),
     **overlay_entry('direct', 'command'),
     'wrong-surface-refused': 'ui:overlay-valid-refusals',
     **{stage: 'ui:' + stage for stage in (

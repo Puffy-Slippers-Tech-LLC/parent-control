@@ -303,6 +303,34 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
 
 
+@pytest.mark.parametrize('fault', [None, 'uri', 'uuid', 'name'])
+def test_snapshot_inventory_uses_only_pinned_read_only_connection(monkeypatch, capsys, fault):
+    api = Mock()
+    connection = api.openReadOnly.return_value
+    domain = connection.lookupByUUIDString.return_value
+    connection.getURI.return_value = 'qemu:///system' if fault != 'uri' else 'qemu:///session'
+    domain.UUIDString.return_value = UUID if fault != 'uuid' else 'f' * 36
+    domain.name.return_value = runner.baseline.DOMAIN if fault != 'name' else 'other'
+    snapshot = Mock()
+    snapshot.getName.return_value = '1 - Clean'
+    snapshot.getXMLDesc.return_value = '<domainsnapshot/>'
+    domain.listAllSnapshots.return_value = [snapshot]
+    monkeypatch.setattr(control.importlib, 'import_module', lambda name: api)
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control.os, 'getegid', lambda: 0)
+    monkeypatch.setattr(control.os, 'umask', lambda value: 0)
+    assert control.main([*VM_ARGS, '--expected-uuid', UUID, 'snapshots']) == (2 if fault else 0)
+    connection.lookupByUUIDString.assert_called_once_with(UUID)
+    connection.close.assert_called_once()
+    api.open.assert_not_called()
+    api.virEventRegisterDefaultImpl.assert_not_called()
+    domain.revertToSnapshot.assert_not_called()
+    if fault:
+        domain.listAllSnapshots.assert_not_called()
+    else:
+        assert json.loads(capsys.readouterr().out) == [{'name': '1 - Clean', 'xml': '<domainsnapshot/>'}]
+
+
 def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller():
     root = Path(__file__).resolve().parents[2]
     dispatch = runpy.run_path(str(root / 'tools/onpc-test-runner'))['selection']

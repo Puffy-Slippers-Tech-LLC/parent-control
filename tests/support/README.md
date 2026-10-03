@@ -139,6 +139,16 @@ every pipeline remains bounded to 64 RPCs.
 
 ## Extend without hiding the scenario
 
+Native activity transitions reuse `journey_blocks.native_activity_entry` /
+`onpc_app_rows::native_activity_entry` for
+launch/use/capture and `native_activity_resume` for an independently observed
+original window's next submission. Cases 44/45 and overlay qualifications share
+the entry operation; callers retain transition, immutable comparison endpoints,
+reread and close. Invocation prefixes determine both controller checkpoints and
+actual worker titles. The helpers add no process, storage or cleanup owner and
+never relaunch during resume. Keep the existing complete-order/failure-stop
+checks alongside an independent caller with renamed prefixes.
+
 Shell authentication declarations reuse `request_flow.overlay_authentication`
 for Cancel or fixed approval, paired with `onpc_request_flow::shell_cancel` /
 `shell_approve`. Tasks 048c/048d compose this fragment with

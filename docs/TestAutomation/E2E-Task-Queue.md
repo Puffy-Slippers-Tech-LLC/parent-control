@@ -528,7 +528,8 @@ They do not qualify a route, waive acceptance or close a row.
 ## Fresh-install restart regression scope
 
 Tasks **301–305** are documentation-only additions requested on 2026-10-02.
-The first unchecked task is **300b**, extracted before task 300. Each of 302–305 plans one independent
+The [execution plan](E2E-Execution-Plan.md#next-task) owns the current task pointer.
+Each of 302–305 plans one independent
 complete case; numeric coverage IDs, scenario inventory bindings, recipes and
 executables must be assigned during implementation under the
 [shared task contract](E2E-Execution-Contracts.md#task-brief-contract).

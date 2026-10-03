@@ -128,7 +128,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                'Requires an owned running online app snapshot; never restores it.')
     for category in (integration, system, e2e, appsnapshot, vm):
         category.add_argument('--vm', help='required configured VM name or ID; optional for declaration listing')
-    vm.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reboot',
+    vm.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reboot',
                                       'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec'))
     vm.add_argument('keys', nargs='*', type=int)
     vm.add_argument('--new-name')

@@ -45,6 +45,17 @@ def native_usable_app(route, *, child='other-child'):
             for stage, tag in stages.items()}
 
 
+def native_activity_entry(prefix, *, route='command', child='child'):
+    """FLOW08 + APP04 capture; caller owns transition and comparison endpoints."""
+    import re
+    require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
+            'journey:native-activity-prefix')
+    return {**{f'{prefix}-{stage}': tag for stage, tag in
+               native_usable_app(route, child=child).items()},
+            f'{prefix}-capture': 'ui:overlay-native-activity' if child == 'child'
+            else 'ui:native-activity'}
+
+
 def filter_screens(kind, mask, prefix):
     """PARENT11 finite option/closure stages with caller-owned invocation IDs."""
     import re

@@ -530,6 +530,7 @@ replacement by name alone.
 | Command | Effect |
 | --- | --- |
 | `tools/test-vm --vm NAME status` / `xml` | Inspect only the pinned guest using a read-only connection |
+| `tools/test-vm --vm NAME snapshots` | Read snapshot names and saved XML for only that pinned guest; never restore or change a snapshot |
 | `tools/test-vm --vm NAME exec [--timeout SECONDS] -- COMMAND [ARG ...]` | Execute as guest root in the current owned online app-snapshot maintenance instance; reuse saved private credentials, strict SSH host-key and guest identity checks, shared observation and the exclusive lease; preserve guest state and return its command status |
 | `tools/test-vm --vm NAME rename --new-name LABEL` | Rename the idle, powered-off pinned UUID, preserve snapshots and disks, and move its private provenance directory; refuses existing destination state and unfinished controllers |
 | `tools/test-vm --vm NAME rename-disk` | Rename the idle pinned guest's single QCOW2 image to `NAME.qcow2` in its existing directory; update domain/internal-snapshot references and provenance, preserving bytes and inode; refuses overlays, shared disks, destination collisions and unfinished controllers |

@@ -369,7 +369,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--vm', help='required configured VM name or ID (validated before parsing)')
     parser.add_argument('--expected-uuid', required=True)
-    parser.add_argument('action', choices=('status', 'xml', 'start', 'stop', 'reset',
+    parser.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reset',
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec'))
     parser.add_argument('keys', nargs='*', type=int)
     parser.add_argument('--new-name')
@@ -392,14 +392,16 @@ def main(argv=None):
         from watch_activity import event
         event('Maintenance: ' + args.action)
         api = importlib.import_module('libvirt')
-        if args.action in ('status', 'xml'):
+        if args.action in ('status', 'xml', 'snapshots'):
             with operation('VM maintenance: ' + args.action):
                 connection = api.openReadOnly('qemu:///system')
                 domain = connection.lookupByUUIDString(args.expected_uuid)
                 runner.require(connection.getURI() == 'qemu:///system' and
                                domain.UUIDString() == args.expected_uuid and
                                domain.name() == runner.baseline.DOMAIN, 'vm-control:identity-mismatch')
-                print(domain.XMLDesc(0) if args.action == 'xml' else
+                print(json.dumps([{'name': item.getName(), 'xml': item.getXMLDesc(0)}
+                                  for item in domain.listAllSnapshots(0)])
+                      if args.action == 'snapshots' else domain.XMLDesc(0) if args.action == 'xml' else
                       json.dumps({'state': domain.state()[0], 'id': domain.ID(),
                                   'scope': 'pinned-test-vm'}))
             event('Maintenance: ' + args.action + ' complete')

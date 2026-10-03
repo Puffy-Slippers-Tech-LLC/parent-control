@@ -19,6 +19,74 @@ from request_composition import KioskRequestJourney
 from tests.support.perl import run_perl
 
 
+ACTIVITY_STAGES = ('original-desktop', 'original-command', 'original-opened',
+                   'original-submit', 'original-submitted', 'original-capture',
+                   'original-returned', 'continue-opened', 'continue-submit',
+                   'continue-submitted', 'original-close', 'original-closed')
+
+
+@pytest.mark.parametrize('route,child', [('command', 'child'), ('command', 'other-child'),
+                                        ('grid', 'other-child')])
+def test_activity_declaration_matches_shared_leaves_and_has_caller_owned_names(route, child):
+    from journey_blocks import native_activity_entry, native_usable_app
+    entry = native_activity_entry('independent', route=route, child=child)
+    assert list(entry) == ['independent-' + stage for stage in native_usable_app(route, child=child)] + [
+        'independent-capture']
+    assert list(entry.values())[:-1] == list(native_usable_app(route, child=child).values())
+    assert entry['independent-capture'] == ('ui:overlay-native-activity' if child == 'child'
+                                           else 'ui:native-activity')
+    entry.clear()
+    assert native_activity_entry('another', route=route, child=child)
+
+
+@pytest.mark.parametrize('prefix,route,child', [('', 'command', 'child'),
+    ('foreign/path', 'command', 'child'), (None, 'command', 'child'),
+    ('valid', 'unknown', 'child'), ('valid', 'grid', 'child'), ('valid', 'command', 'parent')])
+def test_activity_declaration_refuses_unsupported_bindings(prefix, route, child):
+    from journey_blocks import native_activity_entry
+    with pytest.raises(EvidenceError):
+        native_activity_entry(prefix, route=route, child=child)
+
+
+@pytest.mark.parametrize('fault', ('', *ACTIVITY_STAGES, 'route', 'namespace', 'failed-owner'))
+def test_shared_activity_composites_support_independent_names_and_failure_stops(fault):
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our @events;
+BEGIN { $INC{'testapi.pm'} = 1; }
+package testapi;
+sub record_info { push @main::events, ['marker', $_[0]] }
+package main;
+require onpc_app_rows;
+my $fault = shift @ARGV;
+my $journey = onpc_journey->new(prefix => 'independent-consumer', review => 0,
+    exchange => sub {
+        my ($stage) = @_;
+        push @events, ['seen', $stage];
+        die 'fixed refusal' if $stage eq $fault;
+        return {observed => $stage};
+    });
+$journey->{invocation_failed} = 1 if $fault eq 'failed-owner';
+my $ok = eval {
+    my $activity = onpc_app_rows::native_activity_entry($journey,
+        $fault eq 'namespace' ? 'invalid/path' : 'original',
+        $fault eq 'route' ? 'unknown' : 'command');
+    onpc_app_rows::native_read_activity($activity, 'returned');
+    onpc_app_rows::native_activity_resume($journey, 'continue');
+    onpc_app_rows::native_finish_app($activity);
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
+''', fault).stdout)
+    expected = list(ACTIVITY_STAGES)
+    stages = [event[1] for event in result['events'] if event[0] == 'seen']
+    assert bool(result['ok']) == (not fault), result['error']
+    assert stages == (expected[:expected.index(fault) + 1] if fault in ACTIVITY_STAGES
+                      else [] if fault else expected)
+    assert [event[1] for event in result['events'] if event[0] == 'marker'] == [
+        'independent-consumer-' + stage for stage in stages]
+
+
 @pytest.mark.parametrize('plan,callback', [(PLAN, execute), (ESCAPE_PLAN, execute_escape)],
                          ids=['cancel', 'escape'])
 def test_real_case_recorder_startup_uses_shared_journey_and_verify_only(monkeypatch, tmp_path, plan, callback):

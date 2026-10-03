@@ -89,11 +89,7 @@ sub overlay_prompt {
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
     my $activity;
     if ($approval) {
-        $activity = onpc_journey->new(
-            exchange => sub { $exchange->('activity-' . $_[0], $_[1]) },
-            prefix => 'overlay-approved-exit-activity', review => 0);
-        onpc_app_rows::native_usable_app($activity, 'command', $activity->seen('desktop'));
-        onpc_app_rows::native_read_activity($activity, 'capture');
+        $activity = onpc_app_rows::native_activity_entry($journey, 'activity', 'command');
     }
     overlay_entry($journey, 'direct', 'command');
     $journey->seen('wrong-surface-refused');
@@ -191,11 +187,7 @@ sub overlay_valid_choices {
     onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
-    my $activity = onpc_journey->new(
-        exchange => sub { $exchange->('activity-' . $_[0], $_[1]) },
-        prefix => 'overlay-valid-choices-activity', review => 0);
-    onpc_app_rows::native_usable_app($activity, 'command', $activity->seen('desktop'));
-    onpc_app_rows::native_read_activity($activity, 'capture');
+    my $activity = onpc_app_rows::native_activity_entry($journey, 'activity', 'command');
     overlay_entry($journey, 'direct', 'command');
     for my $stage ('wrong-surface-refused', 'overlay-valid-approver-select', 'overlay-valid-approver-read',
                    'overlay-valid-preset-select', 'overlay-valid-preset-read', 'overlay-valid-custom-open') {
@@ -309,10 +301,7 @@ sub overlay_choices {
     onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
-    my $activity = onpc_journey->new(exchange => sub { $exchange->('activity-' . $_[0], $_[1]) },
-        prefix => 'overlay-choices-activity', review => 0);
-    onpc_app_rows::native_usable_app($activity, 'command', $activity->seen('desktop'));
-    onpc_app_rows::native_read_activity($activity, 'capture');
+    my $activity = onpc_app_rows::native_activity_entry($journey, 'activity', 'command');
     overlay_entry($journey, 'direct', 'command');
     $journey->seen('wrong-surface-refused');
     prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');

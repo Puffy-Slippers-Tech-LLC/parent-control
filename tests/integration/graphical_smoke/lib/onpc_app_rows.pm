@@ -430,6 +430,41 @@ sub native_read_activity {
     return $journey->consume_observation($stage, $journey->seen($stage));
 }
 
+# Caller-owned activity namespace; no VM, window or cleanup lifetime is added.
+# Keep marker titles identical to the mapped controller checkpoints.
+sub _native_activity_scope {
+    my ($journey, $prefix) = @_;
+    die 'native:activity-scope' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    die 'journey:previous-failure' if $journey->{invocation_failed};
+    return onpc_journey->new(
+        exchange => sub { $journey->{exchange}->($prefix . '-' . $_[0], $_[1]) },
+        prefix => $journey->{prefix} . '-' . $prefix, review => 0);
+}
+
+# FLOW08 + APP04: establish one usable activity and capture it before a caller's
+# transition. Return the same scope for independent reread and normal closure.
+sub native_activity_entry {
+    onpc_progress::operation('Establishing and capturing the original native activity');
+    my ($journey, $prefix, $route) = @_;
+    die 'native:activity-entry' unless @_ == 3 && defined($route)
+        && ($route eq 'command' || $route eq 'grid');
+    my $activity = _native_activity_scope($journey, $prefix);
+    native_usable_app($activity, $route, $activity->seen('desktop'));
+    native_read_activity($activity, 'capture');
+    return $activity;
+}
+
+# APP03: resume an already observed original window without launching it again.
+# The controller compares the caller-declared immutable activity before Submit.
+sub native_activity_resume {
+    onpc_progress::operation('Resuming the independently observed original native activity');
+    my ($journey, $prefix) = @_;
+    die 'native:activity-resume' unless @_ == 2;
+    my $activity = _native_activity_scope($journey, $prefix);
+    return native_use_app($activity, $activity->seen('opened'));
+}
+
 sub native_close_app {
     onpc_progress::operation('Closing the owned native fixture and observing desktop return');
     my ($journey, $submitted) = @_;

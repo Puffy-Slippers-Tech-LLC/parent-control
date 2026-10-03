@@ -24,7 +24,8 @@ WORKER_APIS = {
                       'match_editor', 'match_response', 'match_edit', 'access_choice',
                       'native_search', 'native_launch_grid', 'native_open_grid',
                       'native_open_command', 'native_use_app', 'native_close_app',
-                      'native_usable_app', 'native_read_activity', 'native_finish_app'},
+                      'native_usable_app', 'native_read_activity', 'native_finish_app',
+                      'native_activity_entry', 'native_activity_resume'},
     'onpc_progress': {'operation'},
     'testapi': {'record_info'},
     'onpc_harness': {'select_console'},
@@ -258,6 +259,7 @@ def worker_errors(source):
                 'declare_invocations', 'declare_challenges'})
             or any(owner != 'onpc_journey'
                    for owner in re.findall(r'\b(\w+)->new\s*\(', code))
+            or bool(re.search(r'\bexchange\s*=>\s*sub\b', code))
             or '`' in source)
 
 
@@ -266,6 +268,7 @@ def worker_errors(source):
     'send_key "ret";', 'my $output = `command`;', 'my $output = qx(command);',
     'case_local_helper::act($journey);', 'onpc_parent::unreviewed_input($journey);',
     '$journey->unreviewed_input();', 'CaseMechanics->new();',
+    "onpc_journey->new(exchange => sub { $exchange->('activity-' . $_[0], $_[1]) });",
 ])
 def test_worker_guard_rejects_bare_and_qualified_io(source):
     assert worker_errors(source)

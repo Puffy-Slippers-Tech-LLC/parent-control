@@ -160,8 +160,8 @@ msgstr "పునఃప్రారంభం అవసరం"
 msgid "Reboot now"
 msgstr "ఇప్పుడే పునఃప్రారంభించండి"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "ఉత్పత్తి నవీకరణ ఇన్‌స్టాల్ చేయబడింది. Oh No! Parent Control సరిగ్గా పనిచేయడానికి కంప్యూటర్‌ను పునఃప్రారంభించండి."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Oh No! Parent Control సరిగ్గా పనిచేయడానికి కంప్యూటర్‌ను పునఃప్రారంభించండి."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

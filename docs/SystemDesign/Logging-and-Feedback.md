@@ -147,7 +147,8 @@ configuration.
 
 ### Investigation coverage
 
-While an upgrade's child-trust reboot guard is present, the broker starts in
+While the shared product reboot detector finds an installation or upgrade
+request (see [Lifecycle](Lifecycle.md#startup-login-and-update-lifecycle)), the broker starts in
 diagnostics-only mode. The existing role checks still authorize `LogEvent` and
 `ExportDiagnosticLogs`, including the export's second check before delivery.
 The service reads retained structured history and accepts new frontend events,
@@ -160,12 +161,12 @@ All other methods, including the
 startup-timing witness, return `Error.RebootRequired`; bus-name ownership alone
 must not be interpreted as policy readiness. Migration exclusion remains intact.
 
-The fieldless `service.diagnostics-only` event explains that package configuration
-deferred child trust backend activation until reboot and that policy operations
+The fieldless `service.diagnostics-only` event explains that product installation
+or upgrade requires reboot and that policy operations
 remain unavailable. It is recorded at diagnostic registration, rejected policy
-calls and collection. Its source is the launcher's fixed boot-guard check, never
+calls and collection. Its source is the shared product reboot detector, never
 journal text, an account, a path supplied by a caller or an exception message.
-It makes this upgrade outage explainable from a customer archive. No historical
+It makes this activation outage explainable from a customer archive. No historical
 failure time is invented for older logs whose broker was stopped. This route
 does not recover exports from unrelated broker import failures or incomplete
 saved-data migration. Ship the launcher, unit, service and additive catalogue

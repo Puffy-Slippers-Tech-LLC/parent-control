@@ -9,7 +9,8 @@ diagnostics_only = Path("/run/oh-no-parent-control-child-trust-reboot").exists()
 
 # Check trust even when systemd's Wants dependency failed, or this launcher is
 # invoked directly. The boot-scoped guard alone cannot establish readiness.
-# While that guard is present, the service admits only LogEvent and export.
+# The service also checks package reboot requests after this import-safety gate
+# and retains only diagnostics and role-checked kiosk presentation reads.
 if not diagnostics_only:
     try:
         subprocess.run(

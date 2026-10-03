@@ -197,8 +197,8 @@ extensions, and attempts existing graphical-session runtime-cap cleanup before
 registering its D-Bus object. It does not replay every saved preference into
 AccountsService. Separately, Ubuntu display-manager startup requires fapolicyd's
 boot canary and exact child-module trust readiness. The broker launcher also
-checks exact trust and honors the boot-scoped upgrade activation guard. While
-that guard is present, role-checked logging, export and read-only kiosk
+checks exact trust and honors the boot-scoped product reboot requests. While
+a product reboot is pending, role-checked logging, export and read-only kiosk
 account/language discovery are available in
 [diagnostics-only mode](SystemDesign/Logging-and-Feedback.md#investigation-coverage);
 policy methods and the startup-readiness witness refuse with `RebootRequired`.

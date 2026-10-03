@@ -160,8 +160,8 @@ msgstr "راه‌اندازی مجدد لازم است"
 msgid "Reboot now"
 msgstr "اکنون راه‌اندازی مجدد شود"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "یک به‌روزرسانی محصول نصب شده است. برای عملکرد صحیح Oh No! Parent Control، رایانه را راه‌اندازی مجدد کنید."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "برای عملکرد صحیح Oh No! Parent Control، رایانه را راه‌اندازی مجدد کنید."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

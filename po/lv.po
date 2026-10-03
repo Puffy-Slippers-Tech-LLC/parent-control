@@ -160,8 +160,8 @@ msgstr "Nepieciešama pārstartēšana"
 msgid "Reboot now"
 msgstr "Pārstartēt tagad"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Ir instalēts produkta atjauninājums. Pārstartējiet datoru, lai Oh No! Parent Control darbotos pareizi."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Pārstartējiet datoru, lai Oh No! Parent Control darbotos pareizi."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

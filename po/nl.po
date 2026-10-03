@@ -160,8 +160,8 @@ msgstr "Opnieuw opstarten vereist"
 msgid "Reboot now"
 msgstr "Nu opnieuw opstarten"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Er is een productupdate geïnstalleerd. Start de computer opnieuw op om Oh No! Parent Control goed te laten werken."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Start de computer opnieuw op om Oh No! Parent Control goed te laten werken."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

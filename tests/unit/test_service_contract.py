@@ -1,4 +1,5 @@
 import unittest
+import pytest
 from unittest import mock
 import xml.etree.ElementTree as ElementTree
 from io import BytesIO
@@ -10,9 +11,65 @@ from oh_no_parent_control.logs import DailyLogWriter
 from oh_no_parent_control.core import AccessDenied
 
 from oh_no_parent_control.service import INTROSPECTION_XML, Service
+from common.oh_no_parent_control_ui.reboot import product_reboot_required
 
 
 from tests.support.paths import ROOT
+
+
+@pytest.mark.parametrize('markers, expected', (
+    ({}, False),
+    ({'reboot-required': ''}, False),
+    ({'reboot-required': '', 'reboot-required.pkgs': 'linux-image-generic\nlibc6\n'}, False),
+    ({'reboot-required.pkgs': 'oh-no-parent-control\n'}, False),
+    ({'reboot-required': '', 'reboot-required.pkgs': 'oh-no-parent-control\n'}, True),
+    ({'reboot-required': '', 'reboot-required.pkgs': 'libc6\noh-no-parent-control\nlinux-base\n'}, True),
+    ({'reboot-required': '', 'reboot-required.pkgs': 'oh-no-parent-control'}, True),
+    ({'reboot-required': '', 'reboot-required.pkgs': 'oh-no-parent-control-extra\n'}, False),
+    ({'reboot-required': '', 'reboot-required.pkgs': 'other-oh-no-parent-control\n'}, False),
+    ({'reboot-required': '', 'reboot-required.pkgs': ' oh-no-parent-control\n'}, False),
+    ({'reboot-required': '', 'reboot-required.pkgs': b'\xff'}, False),
+    ({'oh-no-parent-control-reboot-required': 'reboot\n'}, True),
+    ({'oh-no-parent-control-child-trust-reboot': ''}, True),
+), ids=('no-reboot', 'unattributed-reboot', 'unrelated-reboot', 'orphan-package-list',
+        'fresh-install', 'mixed-packages', 'no-final-newline', 'package-suffix',
+        'package-prefix', 'whitespace', 'invalid-package-list', 'fedora', 'trust-upgrade'))
+def test_shared_product_reboot_detection_selects_broker_startup(tmp_path, markers, expected):
+    from oh_no_parent_control import service as runtime
+    for name, contents in markers.items():
+        path = tmp_path / name
+        path.write_bytes(contents if isinstance(contents, bytes) else contents.encode())
+    assert product_reboot_required(tmp_path) is expected
+    # Exercise both service entry paths through main, retaining the launcher's
+    # early trust gate even if package markers have not yet been written.
+    for early_guard in (False, True):
+        connection = mock.Mock()
+
+        def acquire(_bus, _name, _flags, acquired, *_callbacks):
+            acquired(connection, runtime.BUS_NAME)
+            return 42
+
+        with (mock.patch.object(runtime.os, 'geteuid', return_value=0),
+              mock.patch.object(runtime, 'product_reboot_required',
+                                side_effect=lambda: product_reboot_required(tmp_path)),
+              mock.patch.object(runtime, 'DailyLogWriter') as writer,
+              mock.patch.object(runtime, 'configure_broker_logging'),
+              mock.patch.object(runtime, 'log_version'),
+              mock.patch.object(runtime.GLib, 'MainLoop'),
+              mock.patch.object(runtime.GLib, 'unix_signal_add'),
+              mock.patch.object(runtime.Gio, 'bus_own_name', side_effect=acquire),
+              mock.patch.object(runtime.Gio, 'bus_unown_name') as release,
+              mock.patch.object(runtime, 'Service') as service):
+            assert runtime.main(diagnostics_only=early_guard) == 0
+            service.assert_called_once_with(connection, writer.return_value,
+                                            diagnostics_only=early_guard or expected)
+            service.return_value.register.assert_called_once_with()
+            service.return_value.close.assert_called_once_with()
+            release.assert_called_once_with(42)
+    # Boot-scoped requests disappearing must restore normal operation.
+    for name in markers:
+        (tmp_path / name).unlink()
+    assert product_reboot_required(tmp_path) is False
 
 
 def test_public_method_diagnostics_preserve_only_registered_method_names():
@@ -47,7 +104,7 @@ def test_reboot_diagnostics_mode_never_starts_or_dispatches_policy(tmp_path):
                              GLib.Variant('()', ()), invocation)
         invocation.return_value.assert_not_called()
         invocation.return_dbus_error.assert_called_once_with(
-            BUS_NAME + '.Error.RebootRequired', 'child trust activation requires a reboot')
+            BUS_NAME + '.Error.RebootRequired', 'product activation requires a reboot')
     assert not service.broker.mock_calls
     service.close()
     connection.signal_unsubscribe.assert_not_called()

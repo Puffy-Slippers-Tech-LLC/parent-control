@@ -160,8 +160,8 @@ msgstr "다시 시작 필요"
 msgid "Reboot now"
 msgstr "지금 다시 시작"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "제품 업데이트가 설치되었습니다. Oh No! Parent Control이 제대로 작동하도록 컴퓨터를 다시 시작하세요."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Oh No! Parent Control이 제대로 작동하도록 컴퓨터를 다시 시작하세요."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

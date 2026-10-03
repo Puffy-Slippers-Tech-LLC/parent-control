@@ -160,8 +160,8 @@ msgstr "Újraindítás szükséges"
 msgid "Reboot now"
 msgstr "Újraindítás most"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Termékfrissítés lett telepítve. Indítsa újra a számítógépet az Oh No! Parent Control megfelelő működéséhez."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Indítsa újra a számítógépet az Oh No! Parent Control megfelelő működéséhez."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

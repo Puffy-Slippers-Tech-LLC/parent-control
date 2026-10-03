@@ -160,8 +160,8 @@ msgstr "ต้องเริ่มระบบใหม่"
 msgid "Reboot now"
 msgstr "เริ่มระบบใหม่ตอนนี้"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "ติดตั้งการอัปเดตผลิตภัณฑ์แล้ว โปรดเริ่มคอมพิวเตอร์ใหม่เพื่อให้ Oh No! Parent Control ทำงานได้อย่างถูกต้อง"
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "โปรดเริ่มคอมพิวเตอร์ใหม่เพื่อให้ Oh No! Parent Control ทำงานได้อย่างถูกต้อง"
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

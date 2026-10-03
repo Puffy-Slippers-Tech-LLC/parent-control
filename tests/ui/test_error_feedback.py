@@ -28,7 +28,7 @@ def test_product_update_modal_reboot_and_dismissal(
     assert ui.state('update-required-dialog', ui.api.StateType.MODAL)
     assert len(ui.find_all('update-required-dialog')) == 1
     assert ui.text('update-required-message') == (
-        'A product update was installed. Restart the computer for Oh No! Parent Control to work properly.')
+        'Restart the computer for Oh No! Parent Control to work properly.')
     assert ui.text('update-required-reboot') == 'Reboot now'
     assert ui.absent('feedback-dialog', within='update-required-dialog')
     if surface == 'parent':

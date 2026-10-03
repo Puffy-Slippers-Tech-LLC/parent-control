@@ -43,8 +43,8 @@ def test_pending_reboot_cause_survives_customer_export_without_machine_identity(
     validate_bundle(data)
     with ZipFile(BytesIO(data)) as archive:
         report = ''.join(archive.read(name).decode() for name in archive.namelist())
-    assert 'package upgrade deferred child trust backend activation until reboot' in report
-    assert 'only diagnostic logging and export are available' in report
+    assert 'product installation or upgrade requires reboot' in report
+    assert 'only diagnostics and kiosk presentation reads are available' in report
     assert 'diagnostic.rejected' not in report
     with pytest.raises(ValueError):
         events.event('service.diagnostics-only', {'private': SECRET})

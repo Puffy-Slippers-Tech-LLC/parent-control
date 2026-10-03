@@ -82,8 +82,8 @@ def test_kiosk_initial_language_uses_child_account_in_english_station(
     if scenario == 'reboot-required':
         wait(lambda: ui.showing('update-required-dialog'), 'localized update notice opens')
         expected = {
-            'zh-Hans': ('已安装产品更新。请重启计算机，以使 Oh No! Parent Control 正常工作。', '立即重启', '需要重启'),
-            'de': ('Ein Produktupdate wurde installiert. Starten Sie den Computer neu, damit Oh No! Parent Control ordnungsgemäß funktioniert.',
+            'zh-Hans': ('请重启计算机，以使 Oh No! Parent Control 正常工作。', '立即重启', '需要重启'),
+            'de': ('Starten Sie den Computer neu, damit Oh No! Parent Control ordnungsgemäß funktioniert.',
                    'Jetzt neu starten', 'Neustart erforderlich'),
         }[language]
         assert ui.text('update-required-message') == expected[0]

@@ -160,8 +160,8 @@ msgstr "Berrabiarazi egin behar da"
 msgid "Reboot now"
 msgstr "Berrabiarazi orain"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Produktuaren eguneratze bat instalatu da. Berrabiarazi ordenagailua Oh No! Parent Control behar bezala ibiltzeko."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Berrabiarazi ordenagailua Oh No! Parent Control behar bezala ibiltzeko."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

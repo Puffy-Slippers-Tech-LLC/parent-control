@@ -160,8 +160,8 @@ msgstr "נדרשת הפעלה מחדש"
 msgid "Reboot now"
 msgstr "הפעלה מחדש כעת"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "הותקן עדכון למוצר. יש להפעיל מחדש את המחשב כדי ש־Oh No! Parent Control יפעל כראוי."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "יש להפעיל מחדש את המחשב כדי ש־Oh No! Parent Control יפעל כראוי."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

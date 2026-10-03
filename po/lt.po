@@ -160,8 +160,8 @@ msgstr "Reikia paleisti iš naujo"
 msgid "Reboot now"
 msgstr "Paleisti iš naujo dabar"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Įdiegtas produkto naujinimas. Paleiskite kompiuterį iš naujo, kad Oh No! Parent Control veiktų tinkamai."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Paleiskite kompiuterį iš naujo, kad Oh No! Parent Control veiktų tinkamai."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

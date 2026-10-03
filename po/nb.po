@@ -160,8 +160,8 @@ msgstr "Omstart kreves"
 msgid "Reboot now"
 msgstr "Start på nytt nå"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "En produktoppdatering er installert. Start datamaskinen på nytt for at Oh No! Parent Control skal fungere som det skal."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Start datamaskinen på nytt for at Oh No! Parent Control skal fungere som det skal."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

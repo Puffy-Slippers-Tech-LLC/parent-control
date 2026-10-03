@@ -7,6 +7,7 @@ from pathlib import Path
 from common.oh_no_parent_control_ui.diagnostic_events import (
     get_logger, error_code, operation_scope, log_version, configure_console, record_exception,
 )
+from common.oh_no_parent_control_ui.reboot import product_reboot_required
 import os
 import signal
 import sys
@@ -430,7 +431,7 @@ class Service:
                 # readiness. No management/readiness method may report success.
                 LOG.warning("service.diagnostics-only")
                 invocation.return_dbus_error(
-                    f"{BUS_NAME}.Error.RebootRequired", "child trust activation requires a reboot",
+                    f"{BUS_NAME}.Error.RebootRequired", "product activation requires a reboot",
                 )
                 return
             if method == "GetOwnLanguage":
@@ -728,6 +729,9 @@ def main(*, diagnostics_only=False):
         configure_console()
         LOG.critical("service.022")
         return 1
+    # Both launcher and direct service entry reuse the same detection. Fresh
+    # installs and upgrades return the status already handled by all frontends.
+    diagnostics_only = diagnostics_only or product_reboot_required()
     log_writer = DailyLogWriter()
     configure_broker_logging(log_writer)
     log_version()

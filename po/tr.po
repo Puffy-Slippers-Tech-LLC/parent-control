@@ -160,8 +160,8 @@ msgstr "Yeniden başlatma gerekli"
 msgid "Reboot now"
 msgstr "Şimdi yeniden başlat"
 
-msgid "A product update was installed. Restart the computer for Oh No! Parent Control to work properly."
-msgstr "Bir ürün güncellemesi yüklendi. Oh No! Parent Control uygulamasının düzgün çalışması için bilgisayarı yeniden başlatın."
+msgid "Restart the computer for Oh No! Parent Control to work properly."
+msgstr "Oh No! Parent Control uygulamasının düzgün çalışması için bilgisayarı yeniden başlatın."
 
 #. Shared message: SEARCH_LANGUAGES
 msgid "Search languages"

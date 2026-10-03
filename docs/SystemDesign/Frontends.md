@@ -274,10 +274,10 @@ work. This module owns the chooser surfaces and their public UI identities.
 
 Parent presents a loading window before checking broker permission on a worker;
 reactivation reuses it and closing it prevents a late reply from reopening UI.
-Only the broker's exact `Error.RebootRequired` status opens the shared update
+Only the broker's exact `Error.RebootRequired` status opens the shared restart
 modal in Parent, kiosk and child overlay. It is not inferred from generic
 service errors or the operating system's global reboot marker. Parent startup
-shows only the update dialog instead of constructing another notice or management
+shows only the restart dialog instead of constructing another notice or management
 window; Close exits the app. Request forms retain a restart result and their
 ordinary exit action.
 Repeated callbacks reuse one modal and cannot overwrite the known reboot reason
@@ -287,6 +287,10 @@ eligible child and language can be resolved. A pending restart notice waits
 for that initial language read, skips the language chooser and inherits the
 request window's translation context. Policy and language writes
 remain unavailable until reboot.
+The broker uses the shared GTK-independent
+[product reboot detector](../../common/oh_no_parent_control_ui/reboot.py) for
+both fresh installation and upgrade requests; apps do not duplicate marker
+interpretation. The notice asks for a restart without assuming an upgrade.
 
 The modal defaults to Close, which does not reboot. **Reboot now** uses GTK's
 standard `destructive-action` style and asynchronously calls logind's public

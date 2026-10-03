@@ -102,7 +102,7 @@ def test_reboot_result_does_not_become_generic_error_on_late_failure(monkeypatch
     RequestWindow._language_failed(window, RuntimeError('late unavailable'))
     assert window._reboot_required is True
     assert modal.call_count == 2
-    window._show_result.assert_called_with(m.RESTART_REQUIRED, m.RESTART_TO_FINISH_UPDATING)
+    window._show_result.assert_called_with(m.RESTART_REQUIRED, m.RESTART_FOR_PROPER_OPERATION)
     window._stack.set_sensitive.assert_called_with(True)
     window._errors.capture.assert_not_called()
 

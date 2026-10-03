@@ -102,6 +102,9 @@ shared cache, network, bus, display or heavy fixture; compatible overlap remains
 Fix-tests argument forwarding checks reuse those recorded child doubles and
 private test files; validation reads checkout inputs without running real tests
 or touching a VM. Their compatible unit and cleanup classifications still apply.
+Escalation and diagnostic handoff tests reuse these same finite synthetic children,
+private JSON snapshots and recorded cancellation owners. No paid model, live
+runner, VM, shared cache or new cleanup lifetime is introduced; overlap stays compatible.
 Named qualification preparation coverage reads wrapper ASTs and mocks allocation,
 builder execution and privilege checks; no builds, shared writes or VM access.
 Attachment boundary tests retain private tmp_path files (<= 5 MiB+1 each),

@@ -1,7 +1,7 @@
 {
   "type": "object",
   "properties": {
-    "status": {"type": "string", "enum": ["test_fixed", "fixed", "blocked", "app_issue", "uncertain", "stalled"]},
+    "status": {"type": "string", "enum": ["test_fixed", "fixed", "blocked", "app_issue", "uncertain", "stalled", "diagnostic_ready"]},
     "summary": {"type": "string"},
     "blocker": {
       "type": ["object", "null"],

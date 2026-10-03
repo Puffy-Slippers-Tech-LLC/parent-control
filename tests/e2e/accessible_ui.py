@@ -9951,8 +9951,42 @@ def adapter_failure_diagnostic(error):
                     'GetName', 'GetConnectionUnixProcessID', 'GetNameOwner',
                     'GrabFocus', 'DoAction', 'SetTextContents', 'SelectChild')):
             queries.append({'interface': parts[1], 'method': parts[2]})
-    return {'event': 'ui-adapter-failure', 'locations': locations[-12:],
-            'queries': queries[-8:]}
+    diagnostic = {'event': 'ui-adapter-failure', 'locations': locations[-12:],
+                  'queries': queries[-8:]}
+    # Distinguish disappearing objects from transport/provider failures without
+    # retaining the error message, bus name, object path or other UI values.
+    # This is evidence only: the original exception and refusal stay unchanged.
+    try:
+        from gi.repository import Gio, GLib
+        if isinstance(error, GLib.Error):
+            kind = 'other-query-error'
+            for code, label in (
+                    (Gio.DBusError.UNKNOWN_OBJECT, 'unknown-object'),
+                    (Gio.DBusError.UNKNOWN_METHOD, 'unknown-method'),
+                    (Gio.DBusError.UNKNOWN_INTERFACE, 'unknown-interface'),
+                    (Gio.DBusError.NAME_HAS_NO_OWNER, 'owner-missing'),
+                    (Gio.DBusError.SERVICE_UNKNOWN, 'service-missing'),
+                    (Gio.DBusError.NO_REPLY, 'no-reply'),
+                    (Gio.DBusError.TIMEOUT, 'timeout'),
+                    (Gio.DBusError.TIMED_OUT, 'timeout'),
+                    (Gio.DBusError.DISCONNECTED, 'disconnected'),
+                    (Gio.DBusError.ACCESS_DENIED, 'access-denied')):
+                if error.matches(Gio.dbus_error_quark(), code):
+                    kind = label
+                    break
+            else:
+                for code, label in (
+                        (Gio.IOErrorEnum.TIMED_OUT, 'timeout'),
+                        (Gio.IOErrorEnum.CLOSED, 'connection-closed'),
+                        (Gio.IOErrorEnum.CANCELLED, 'cancelled')):
+                    if error.matches(Gio.io_error_quark(), code):
+                        kind = label
+                        break
+            diagnostic['query_failure_kind'] = kind
+    except Exception:
+        # Diagnostic availability must never replace the original failure.
+        pass
+    return diagnostic
 
 
 if __name__ == '__main__':

@@ -64,6 +64,10 @@ from pathlib import PurePosixPath
 # ownership, cleanup and all bucket reservations remain unchanged.
 # Correlated operation/wait spans use the same stream and bounded nesting-local
 # counters. They add no poller/thread, event dispatch, input or resource owner.
+# Parent preview keyboard checks restore only the spawned child's simulated
+# VS Code Snap overrides before GTK imports. They reuse Request behavior's
+# private display/bus, public IDs and owned process; no host environment,
+# monitor settings, shared cache or cleanup lifetime changes.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

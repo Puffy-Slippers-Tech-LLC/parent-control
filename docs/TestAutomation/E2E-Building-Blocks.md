@@ -1044,6 +1044,14 @@ requires ordered, non-replayed same-challenge proofs with a 30-second freshness
 bound and rejects intervening operations. `onpc_password::enter_kiosk_mate_password`
 consumes the two durable proofs through the shared single-use secret transport;
 capture, reused challenges and uncertain delivery remain terminal refusals.
+The English MATE binding checks the catalogue's complete multiline request label:
+`Grant [Child user] access?`, `Requested time: 1 minute, 15 seconds.` and
+`Allow soft blocked apps for this grant.` The 30-minute, soft-excluded binding
+checks the first two sentences with its selected child and duration. Missing,
+hidden, duplicate or changed request context refuses before any password proof;
+the old one-line wording is not an alternate accepted binding. Private-tree
+fixtures use the [shared English source messages](../../common/oh_no_parent_control_ui/messages.py)
+so catalogue changes cannot leave the adapter and its doubles silently stale.
 Submission freshly rechecks the filled masked focused recipient and invokes the
 unique MATE Authenticate action once. `kiosk_approval_success` independently
 reads the owned visible `kiosk-result-title` value `Request approved` in the same

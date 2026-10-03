@@ -398,7 +398,7 @@ preview-child-overlay: translations
 
 preview-parent: translations
 	# The preview watches parent source and CSS files; no backend or installation is needed.
-	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=parent $(PYTHON) -m oh_no_parent_control_parent.main --preview
+	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=parent $(PYTHON) -m oh_no_parent_control_parent.preview
 
 preview-child: message-assets translations
 	# A nested Shell loads the checkout by temporary symlink; host settings stay untouched.

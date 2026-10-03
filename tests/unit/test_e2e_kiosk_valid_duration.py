@@ -995,6 +995,8 @@ def test_flow_qualification_uses_guarded_snapshot(tmp_path):
 
 def mate_form(binding=None):
     """Private public-tree double; no service, files, secret or display access."""
+    from common.oh_no_parent_control_ui import messages as m
+
     ui, status, custom = valid_form()
     ui.kiosk_valid_choice('kiosk-valid-custom-open')
     ui.kiosk_valid_choice('kiosk-valid-fraction-soft-select')
@@ -1008,7 +1010,8 @@ def mate_form(binding=None):
     field.get_description = Mock(side_effect=AssertionError('protected description'))
     field.get_child_count = Mock(side_effect=AssertionError('protected children'))
     cancel = Node('Cancel', 'push button')
-    message = Node(f'Grant {accessible_ui.CHILD} 1 minute, 15 seconds and allow soft blocked apps?', 'label')
+    message = Node(m.POLKIT_GRANT_SOFT_APPS.source % {
+        'target': accessible_ui.CHILD, 'duration': '1 minute, 15 seconds'}, 'label')
     recipient = Node('Password for onpc-parent-jamie:', 'label')
     dialog = Node('Authenticate', 'dialog', children=[message, recipient, field, cancel])
     agent = Node('mate-polkit', 'application', children=[dialog])
@@ -1028,7 +1031,7 @@ def mate_form(binding=None):
             selector.children[0].identity = f'kiosk-{field_name}-selected-{ui.fixture_uids[name]}'
             selector.children[0].name = name
             selector.description = f'Selected account: {name}.'
-        message.name = f'Grant {child} 30 minutes?'
+        message.name = m.POLKIT_GRANT.source % {'target': child, 'duration': '30 minutes'}
         recipient.name = 'Password for ' + accessible_ui.APPROVER_ACCOUNTS[approver] + ':'
     return ui, desktop, agent, dialog, field, cancel, submit, message, recipient
 
@@ -1094,11 +1097,12 @@ def test_multiple_prompt_rejects_wrong_binding_and_never_replays(binding, fault)
     if fault == 'recipient':
         recipient.name = 'Password for unrelated:'
     elif fault == 'child':
-        message.name = 'Grant unrelated 30 minutes?'
+        message.name = message.name.replace(accessible_ui.MULTIPLE_MATE_BINDINGS[binding][0],
+                                            'unrelated')
     elif fault == 'duration':
         message.name = message.name.replace('30 minutes', '15 minutes')
     elif fault == 'soft':
-        message.name = message.name.replace('?', ' and allow soft blocked apps?')
+        message.name += '\nAllow soft blocked apps for this grant.'
     elif fault == 'owner':
         ui.mate_agent_pid.return_value = 999
     else:
@@ -1113,6 +1117,42 @@ def test_multiple_prompt_rejects_wrong_binding_and_never_replays(binding, fault)
         ui.run(binding, '')
     submit.action.do_action.assert_called_once()
     assert cancel.action.do_action.call_count == (1 if fault == 'changed-form' else 0)
+
+
+@pytest.mark.parametrize('fault', [None, 'child', 'duration', 'soft', 'missing-time',
+                                  'duplicate', 'hidden', 'legacy'])
+def test_mate_approval_checks_complete_catalogue_request_before_secret_proofs(fault):
+    ui, desktop, agent, dialog, field, cancel, submit, message, recipient = mate_form()
+    ui.mate_challenge_identity = Mock(return_value='a' * 64)
+    if fault == 'child':
+        message.name = message.name.replace(accessible_ui.CHILD, 'unrelated')
+    elif fault == 'duration':
+        message.name = message.name.replace('1 minute, 15 seconds', '5 minutes')
+    elif fault == 'soft':
+        message.name = message.name.removesuffix('\nAllow soft blocked apps for this grant.')
+    elif fault == 'missing-time':
+        message.name = message.name.replace('\nRequested time: 1 minute, 15 seconds.', '')
+    elif fault == 'duplicate':
+        dialog.children.append(Node(message.name, 'label'))
+    elif fault == 'hidden':
+        message.states.discard('visible')
+    elif fault == 'legacy':
+        message.name = f'Grant {accessible_ui.CHILD} 1 minute, 15 seconds and allow soft blocked apps?'
+    if fault:
+        with pytest.raises(UiError, match='ui:mate-request-context-missing'):
+            ui.run('kiosk-mate-open', '')
+        ui.mate_challenge_identity.assert_not_called()
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.run('kiosk-mate-open', '')
+    else:
+        assert ui.run('kiosk-mate-open', '')['approval'] == {'challenge_id': 'a' * 64}
+        ui.expected_mate_challenge = 'a' * 64
+        for operation in ('kiosk-mate-qualified', 'kiosk-mate-rechecked'):
+            assert ui.run(operation, '')['approval'] == {'challenge_id': 'a' * 64}
+    submit.action.do_action.assert_called_once()
+    cancel.action.do_action.assert_not_called()
+    field.get_child_count.assert_not_called()
+    field.get_description.assert_not_called()
 
 
 @pytest.mark.parametrize('refusal', [None, 'other-saved', 'first-first-cancel', 'other-first-cancel'])

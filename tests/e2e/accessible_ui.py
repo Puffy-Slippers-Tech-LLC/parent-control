@@ -2742,8 +2742,12 @@ class AccessibleUI:
                 self.input_uncertain = True
                 raise
         else:
+            # The real file-loading worker temporarily disables the draft
+            # fields. Retry the read until the complete ready snapshot passes;
+            # never replay chooser input or relax the final editor checks.
             ready(lambda: self.feedback_snapshot(attachments=True),
-                  ('ui:feedback-attachment-set', 'ui:feedback-control', 'ui:feedback-validation'))
+                  ('ui:feedback-attachment-set', 'ui:feedback-control',
+                   'ui:feedback-validation', 'ui:feedback-editor'))
         result = {'checked': operation}
         if operation in ('chooser-open', 'chooser-reopen'):
             result['provider'] = self.chooser_metadata()

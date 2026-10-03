@@ -68,6 +68,9 @@ from pathlib import PurePosixPath
 # VS Code Snap overrides before GTK imports. They reuse Request behavior's
 # private display/bus, public IDs and owned process; no host environment,
 # monitor settings, shared cache or cleanup lifetime changes.
+# Query/occupancy, worker CPU and stream-write diagnostics add bounded counters
+# to the same worker-local timing recorder and retained stream. No new reads,
+# threads, files, processes or resource owners; all UI reservations remain valid.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

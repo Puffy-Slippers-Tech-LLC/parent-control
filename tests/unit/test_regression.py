@@ -72,6 +72,92 @@ def test_ui_timings_checkpoint_active_operations_and_reset_phases():
     assert events[-1]['started'] == 6
 
 
+def test_ui_query_diagnostics_preserve_results_errors_and_private_arguments():
+    from tests.support.ui_timing import Timings
+    now, events = [0.0], []
+    recorder = Timings(lambda kind, **fields: events.append(fields), lambda: now[0])
+    recorder.begin('case', 'call')
+    api, result = object(), object()
+    error = ValueError('private-error')
+    accessible = 'org.a11y.atspi.Accessible'
+    properties = 'org.freedesktop.DBus.Properties'
+    query = ('private-bus', '/private/path', properties, 'Get', 'ss',
+             (accessible, 'Name'))
+
+    def rpc(*args):
+        assert args == (api, *query)
+        now[0] += 1
+        return result
+
+    assert recorder.wrap_rpc(rpc)(api, *query) is result
+
+    def failed_rpc(*args):
+        now[0] += 2
+        raise error
+
+    with pytest.raises(ValueError) as caught:
+        recorder.wrap_rpc(failed_rpc)(api, 'private-bus', '/private/path',
+                                     'private-interface', 'private-method', '', ('private-value',))
+    assert caught.value is error
+    queries = [query, ('private-bus', '/private/path', properties, 'Get', 'ss',
+                       (accessible, 'private-property'))]
+    results = [result, error]
+
+    def batch(owner, original):
+        assert owner is api and original is queries
+        now[0] += 1
+        return results
+
+    assert recorder.wrap_batch(batch)(api, queries) is results
+    recorder.publish('end')
+    evidence = events[-1]['queries']
+    assert evidence['sync']['property.Name'] == dict(
+        count=1, errors=0, seconds=1, max_seconds=1)
+    assert evidence['sync']['other'] == dict(count=1, errors=1, seconds=2, max_seconds=2)
+    assert evidence['batch'] == {'property.Name': dict(count=1, errors=0),
+                                 'property.other': dict(count=1, errors=1)}
+    assert evidence['batch_sizes'] == {'2': dict(count=1, aborted=0, seconds=1)}
+    assert 'private-' not in str(events) and '/private/' not in str(events)
+    recorder.begin('case', 'teardown')
+    assert events[-1]['queries'] == {'sync': {}, 'batch': {}, 'batch_sizes': {}}
+    assert evidence['sync']['other']['count'] == 1
+
+
+def test_ui_query_diagnostics_preserve_interrupt_and_measure_stream_cost():
+    from tests.support.ui_timing import Timings
+    now, cpu, events = [0.0], [1.0], []
+
+    def sink(kind, **fields):
+        events.append(fields)
+        now[0] += .1
+
+    recorder = Timings(sink, lambda: now[0], lambda: cpu[0])
+    recorder.begin('case', 'call')
+    queries = [('private-bus', '/private/path', 'org.a11y.atspi.Accessible',
+                'GetAttributes', '', ())]
+    interruption = KeyboardInterrupt('private-interruption')
+
+    def batch(api, original):
+        assert original is queries
+        now[0] += 1
+        raise interruption
+
+    with pytest.raises(KeyboardInterrupt) as caught:
+        recorder.wrap_batch(batch)(object(), queries)
+    assert caught.value is interruption
+    cpu[0] += .3
+    recorder.publish('end')
+    assert events[-1]['cpu_seconds'] == pytest.approx(.3)
+    assert events[-1]['output_seconds'] == pytest.approx(.1)
+    assert events[-1]['queries']['batch_sizes'] == {'1': dict(count=1, aborted=1, seconds=1)}
+    assert events[-1]['operations']['atspi.batch']['errors'] == 1
+    assert not recorder.stack and 'private-' not in str(events)
+    recorder.begin('case', 'teardown')
+    recorder.publish('end')
+    assert events[-1]['cpu_seconds'] == 0
+    assert events[-1]['output_seconds'] == pytest.approx(.1)
+
+
 def test_ui_trace_retains_nested_operation_identity_and_existing_reader_timing():
     from tests.support.ui_timing import Timings
     from tests.e2e.accessible_ui import AccessibleUI

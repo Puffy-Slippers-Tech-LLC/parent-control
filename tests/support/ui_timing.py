@@ -14,9 +14,19 @@ import time
 from tools.regression_events import emit, write_event
 
 
+QUERY_METHODS = {
+    'org.a11y.atspi.Accessible': (
+        'GetAttributes', 'GetRole', 'GetRoleName', 'GetState', 'GetChildren',
+        'GetApplication', 'GetRelationSet', 'GetInterfaces'),
+    'org.a11y.atspi.Cache': ('GetItems',),
+    'org.freedesktop.DBus': ('GetNameOwner', 'GetConnectionUnixProcessID'),
+}
+
+
 class Timings:
-    def __init__(self, sink=emit, clock=time.monotonic):
+    def __init__(self, sink=emit, clock=time.monotonic, process_clock=time.process_time):
         self.sink, self.clock = sink, clock
+        self.process_clock = process_clock
         self.nodeid, self.phase = '', ''
         self.started = self.last = clock()
         self.metrics = {}
@@ -24,6 +34,17 @@ class Timings:
         self.stream = None
         self.spans = []
         self.sequence = 0
+        self.output_seconds = 0.0
+        self.output_started = 0.0
+        self.cpu_started = process_clock()
+        self.queries = {'sync': {}, 'batch': {}, 'batch_sizes': {}}
+
+    def _emit(self, kind, **fields):
+        started = self.clock()
+        try:
+            self.sink(kind, **fields)
+        finally:
+            self.output_seconds += self.clock() - started
 
     @classmethod
     def retained(cls):
@@ -43,14 +64,21 @@ class Timings:
     def begin(self, nodeid, phase):
         self.nodeid, self.phase = nodeid, phase
         self.started = self.last = self.clock()
+        self.cpu_started = self.process_clock()
+        self.output_started = self.output_seconds
+        self.queries = {'sync': {}, 'batch': {}, 'batch_sizes': {}}
         self.metrics = {}
         self.publish('begin')
 
     def publish(self, status):
         now = self.clock()
-        self.sink('ui-timing', nodeid=self.nodeid, phase=self.phase,
+        self._emit('ui-timing', nodeid=self.nodeid, phase=self.phase,
                   status=status, monotonic=now, started=self.started,
                   elapsed_seconds=now - self.started,
+                  cpu_seconds=self.process_clock() - self.cpu_started,
+                  output_seconds=self.output_seconds - self.output_started,
+                  queries={group: {name: dict(value) for name, value in metrics.items()}
+                           for group, metrics in self.queries.items()},
                   operations={name: dict(value) for name, value in self.metrics.items()},
                   active=[{'operation': name, 'elapsed_seconds': now - start}
                           for name, start, _children in self.stack])
@@ -86,6 +114,74 @@ class Timings:
         def measured(*args, **kwargs):
             with self.measure(name):
                 return function(*args, **kwargs)
+        return measured
+
+    @staticmethod
+    def query_kind(interface, method, args):
+        # Finite protocol names only. Never retain bus/path, arbitrary property
+        # names, input values, UI results or exception text.
+        if type(interface) is not str or type(method) is not str:
+            return 'other'
+        if interface == 'org.freedesktop.DBus.Properties' and method == 'Get':
+            if (isinstance(args, (list, tuple)) and len(args) == 2
+                    and args[0] == 'org.a11y.atspi.Accessible'
+                    and args[1] in ('AccessibleId', 'Name', 'ChildCount')):
+                return 'property.' + args[1]
+            return 'property.other'
+        if method in QUERY_METHODS.get(interface, ()):
+            return method
+        return 'other'
+
+    def wrap_rpc(self, function):
+        @wraps(function)
+        def measured(api, bus, path, interface, method, signature='', args=()):
+            kind = self.query_kind(interface, method, args)
+            with self.measure('atspi.rpc'):
+                started, failed = self.clock(), False
+                try:
+                    return function(api, bus, path, interface, method, signature, args)
+                except BaseException:
+                    failed = True
+                    raise
+                finally:
+                    elapsed = self.clock() - started
+                    metric = self.queries['sync'].setdefault(kind, dict(
+                        count=0, errors=0, seconds=0.0, max_seconds=0.0))
+                    metric['count'] += 1
+                    metric['errors'] += int(failed)
+                    metric['seconds'] += elapsed
+                    metric['max_seconds'] = max(metric['max_seconds'], elapsed)
+        return measured
+
+    def wrap_batch(self, function):
+        @wraps(function)
+        def measured(api, queries):
+            # The transport validates its own inputs. Do not consume iterators
+            # or inspect an oversized/malformed request before delegating it.
+            kinds = ([self.query_kind(query[2], query[3], query[5]) for query in queries]
+                     if isinstance(queries, (list, tuple)) and len(queries) <= 64
+                     and all(isinstance(query, tuple) and len(query) == 6
+                             for query in queries) else [])
+            with self.measure('atspi.batch'):
+                started, failed = self.clock(), False
+                try:
+                    results = function(api, queries)
+                    for kind, result in zip(kinds, results):
+                        metric = self.queries['batch'].setdefault(kind, dict(count=0, errors=0))
+                        metric['count'] += 1
+                        metric['errors'] += int(isinstance(result, Exception))
+                    return results
+                except BaseException:
+                    failed = True
+                    raise
+                finally:
+                    # Wall time belongs to the batch, not to every parallel
+                    # query. Occupancy exposes serial tiny-frontier pipelines.
+                    metric = self.queries['batch_sizes'].setdefault(str(len(kinds)), dict(
+                        count=0, aborted=0, seconds=0.0))
+                    metric['count'] += 1
+                    metric['aborted'] += int(failed)
+                    metric['seconds'] += self.clock() - started
         return measured
 
     def wrap_iterator(self, function, name):
@@ -126,7 +222,7 @@ class Timings:
         stages = {}
 
         def event(status, **fields):
-            self.sink('ui-trace', nodeid=self.nodeid, phase=self.phase,
+            self._emit('ui-trace', nodeid=self.nodeid, phase=self.phase,
                       span=identity, parent=parent, operation=name,
                       status=status, monotonic=self.clock(), **fields)
 
@@ -178,7 +274,7 @@ class Timings:
                 previous = reader.timing
 
                 def retain(value):
-                    self.sink('ui-reader-timing', nodeid=self.nodeid, phase=self.phase,
+                    self._emit('ui-reader-timing', nodeid=self.nodeid, phase=self.phase,
                               span=self.spans[-1], **value)
                     if previous is not None:
                         previous(value)

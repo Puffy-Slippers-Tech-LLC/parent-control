@@ -110,9 +110,9 @@ def ui_operation_timings():
                 getattr(AccessibleUI, method), 'reader.' + method))
         patch.setattr(gui_blocks, 'run_block', UI_TIMINGS.wrap_span(gui_blocks.run_block, 'gui.block'))
         patch.setattr(gui_blocks, 'run_perl', UI_TIMINGS.wrap_span(gui_blocks.run_perl, 'gui.expand'))
+        patch.setattr(PublicAtspi, 'call', UI_TIMINGS.wrap_rpc(PublicAtspi.call))
+        patch.setattr(PublicAtspi, 'read_many', UI_TIMINGS.wrap_batch(PublicAtspi.read_many))
         for owner, method, label in (
-                (PublicAtspi, 'call', 'atspi.rpc'),
-                (PublicAtspi, 'read_many', 'atspi.batch'),
                 (AccessibleUI, 'read_snapshot', 'reader.snapshot'),
                 (AccessibleUI, 'wait', 'reader.wait'),
                 (AccessibleUI, '_invoke_target', 'input.action'),

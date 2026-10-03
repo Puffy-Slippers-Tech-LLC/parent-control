@@ -156,6 +156,13 @@ including incomplete reads. Snapshot-call counts can include cached projections;
 they are not counts of fresh traversals. Trace durations and operation deltas
 are inclusive and must not be summed across nested spans. No predicate closures,
 descriptions, GUI arguments or return values are recorded.
+Phase checkpoints also retain worker CPU time, time spent writing the existing
+event stream, synchronous query counts/durations by finite public protocol names,
+and batch query counts/errors and occupancy. Batch wall time is recorded once
+per batch size, never attributed to each parallel query. These counters distinguish
+repeated or poorly batched reads from remote waiting and output overhead; correlate
+them with the existing resource samples before choosing a correction. They add no
+UI reads, input, poller or files and retain no bus/object addresses or query values.
 
 `tools/run-tests unit` collects only the selected unit inventory and balances
 reviewed modules across up to four branches. The [unit buckets](../tools/regression_unit.py)

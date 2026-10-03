@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+from pathlib import Path
 import sys
 import time
 from tests.support.language_fixture import LanguageFixture
@@ -101,7 +102,26 @@ class Broker:
                 raise RuntimeError("duplicate pending request reply")
             self.pending_slow_reply = callback, reply
             return
-        delay = 12_000 if self.scenario == "loading" and method == "GetPreferences" else 0
+        if self.scenario == "loading" and method == "GetPreferences":
+            # Hold the response until the test has observed the public disabled
+            # state. A timed delay can expire during startup/accessibility reads.
+            release = Path(os.environ["ONPC_REQUEST_COMPONENT_LOADING_RELEASE"])
+            deadline = time.monotonic() + 60
+
+            def finish_loading():
+                if release.is_file():
+                    self.record("preferences-ready")
+                    callback(self, reply)
+                elif time.monotonic() >= deadline:
+                    self.record("preferences-release-timeout")
+                    callback(self, Reply(error=TimeoutError("loading fixture was not released")))
+                else:
+                    return GLib.SOURCE_CONTINUE
+                return GLib.SOURCE_REMOVE
+
+            GLib.timeout_add(20, finish_loading)
+            return
+        delay = 0
         if method == 'GetChildLanguageContext':
             delay = int(os.environ.get('ONPC_CHILD_LANGUAGE_DELAY_MS', '0'))
         source = GLib.timeout_add if delay else GLib.idle_add

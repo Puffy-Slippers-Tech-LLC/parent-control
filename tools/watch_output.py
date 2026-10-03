@@ -124,11 +124,11 @@ class Output:
         return True
 
     def discover(self):
-        for kind, label in (('fix-tests', 'fix-tests'), ('sessions-host', 'run-tests'),
+        for kind, label in (('fix-tests', 'fix-tests'), ('fix-tests-host', 'fix-tests'), ('sessions-host', 'run-tests'),
                             ('sessions', 'run-tests')):
             try:
                 base = directory(kind, root=self.root, create=False)
-                run = active_run(base, workflow=kind == 'fix-tests')
+                run = active_run(base, workflow=kind in ('fix-tests', 'fix-tests-host'))
                 if run is not None:
                     return run, label
             except (OSError, ValueError, KeyError, TypeError):

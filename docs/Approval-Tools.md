@@ -291,7 +291,8 @@ data. Codex restarts do not change Polkit authentication policy.
 
 Use `tools/run-tests --help` for usage and the `all` composition, or
 `tools/run-tests --list` for the ordered granular JSON inventory with explicit
-argument arrays. This partition is shared by `all` and `tools/fix-tests`;
+argument arrays and a `host` or `vm` scope. The disjoint partition is
+`host + vm = all`, with `vm = system + e2e`. This partition is shared by `all` and `tools/fix-tests`;
 composites, instrumentation and diagnostics are listed separately in `--help`.
 Paths are relative to
 the checkout. Quote globs and parametrized pytest IDs so Codex sees a literal
@@ -323,10 +324,11 @@ positive `--maxfail` keeps one serial invocation. Direct `tools/run-unit-tests`
 remains serial for narrow iteration. See the
 [scheduling contract](../tests/README.md#all-established-regressions).
 
-Use complete categories (`host`, `system`, and `e2e`) only when their complete
+Use complete categories (`host`, `vm`, `system`, and `e2e`) only when their complete
 coverage is justified; combine them once to share reports and package inputs.
-Never start multiple launchers concurrently; the launcher owns scheduling and
-the checkout activity lock.
+Separate host and VM runs may execute concurrently, each owning its scope's
+activity lock and session. Combined selections reserve both locks; scheduling
+within each scope remains launcher-owned.
 
 | Existing or planned coverage | Stable command / extension pattern | Boundary |
 | --- | --- | --- |
@@ -353,7 +355,8 @@ the checkout activity lock.
 | Scripted test repair | `tools/fix-tests [--vm NAME] [CATEGORY ...] [--model MODEL] [--effort medium] [--rounds X]` / `tools/fix-tests --vm NAME --stop` | Granular pass only by default; --rounds X adds X-1 verification rounds; explicit selectors remain fixed. The [repair policy](../tests/README.md#scripted-repair-loop) owns Sol Medium → Sol High → Astra High → Astra Extra High escalation, five sessions per case/VM including answered blockers, and bounded diagnostic changes handed to launcher-owned execution. Fresh serial Standard-speed sessions preserve stronger overrides; final-tier stalls may stop early. Different-case/preparation interruptions leave verification unknown. Existing sandbox/rules and owned cleanup apply; no automatic setup or authority expansion. |
 | Scripted E2E implementation | `tools/write-e2e --vm NAME [--sessions N] [--tasks N]` / `tools/write-e2e --vm NAME --stop` | Fresh GPT-6.1 Sol High coordination/implementation from the first session, with exceptional bounded read-only Astra High advice under the [launcher policy](../tests/README.md#scripted-e2e-implementation); a new run with only `--vm NAME` defaults to 5 sessions and 1 completed task, while a new run with `--tasks` alone retains unlimited total sessions; each new launcher permits 5 more sessions for its current task while retaining cumulative task numbering, and the next task begins with its own 5-session cap; stop at either limit; plain invocation attaches unchanged, explicit live limits are signed adjustments applied at session boundaries (minimum zero; unlimited sessions become sessions already started plus N); safe stop at the next session boundary, Ctrl+C owned cancellation; staging of explicit paths and task-session worktree changes without commits, excluding prior work and output artifacts; existing grants and guarded test cleanup |
 | Complete host category | `tools/run-tests host [--continue-on-errors]` | All host work, including publishing, two fresh builds and comparison, in the aggregate's four branches; no VM discovery, authorization or execution |
-| Combined complete categories | `tools/run-tests host system e2e --vm NAME` | Equals `all`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; VM-only selections build their required input automatically |
+| Complete VM category | `tools/run-tests vm [--vm NAME] [--continue-on-errors]` | System and ready E2E coverage; required package inputs are prepared automatically; independent host runs may overlap |
+| Combined complete categories | `tools/run-tests host vm --vm NAME` | Equals `all`; `vm` expands to `system e2e`; any subset/order is accepted, scheduled host first, then sequential system and E2E; one report and shared package inputs; combined runs reserve both scope locks |
 | Host compatibility alias | `tools/run-tests host-builds [--serial-builds] [--continue-on-errors]` | Same scope as `host`; `--serial-builds` retains publishing/builds after the host join for a scheduling comparison |
 | Local publishing checks | `tools/run-tests publish` | Shared source/sbuild/Lintian module included in `test-all` and `test-all-verify`; no selectors or publication |
 | Future fast suite | `tools/run-tests fast --component broker --type contract` | Fixed `test-fast` target; refuses while unfinished |

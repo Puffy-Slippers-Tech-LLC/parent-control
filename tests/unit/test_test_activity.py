@@ -12,7 +12,7 @@ import regression_inputs
 
 
 def child(tmp_path, env, pass_fds=(), *, cleanup=False, host_only=None, retention=False,
-          named_vm=None, vm=None):
+          named_vm=None, vm=None, includes_host=False):
     script = tmp_path / 'lock_child.py'
     script.write_text('''import pathlib,sys
 sys.path.insert(0, sys.argv[1])
@@ -27,7 +27,7 @@ try:
     if sys.argv[7]:
         vm_selection.select(sys.argv[7])
     named = {'auto': None, 'yes': True, 'no': False}[sys.argv[6]]
-    with test_activity.activity(root, host_only=scope, named_vm=named):
+    with test_activity.activity(root, host_only=scope, named_vm=named, includes_host=sys.argv[8] == 'both'):
         if sys.argv[5] == 'retain':
             with test_retention.Store(test_activity.retention_path(root)).session():
                 pass
@@ -41,7 +41,8 @@ except (ValueError, OSError) as error:
                            'cleanup' if cleanup else 'ownership',
                            'auto' if host_only is None else 'host' if host_only else 'vm',
                            'retain' if retention else 'none',
-                           'auto' if named_vm is None else 'yes' if named_vm else 'no', vm or ''],
+                           'auto' if named_vm is None else 'yes' if named_vm else 'no', vm or '',
+                           'both' if includes_host else 'single'],
                           env=env, pass_fds=pass_fds, capture_output=True, text=True, timeout=10)
 
 
@@ -90,6 +91,26 @@ def test_host_and_vm_owners_and_retention_can_overlap(tmp_path, host_only):
             # A real descriptor cannot be reused for the other ownership scope.
             assert child(tmp_path, test_activity.environment(), test_activity.descriptors(),
                          host_only=not host_only).returncode == 2
+
+
+def test_combined_owner_reserves_both_scopes_and_children_inherit_them(tmp_path):
+    root = tmp_path / 'checkout'
+    with test_activity.activity(root, includes_host=True):
+        assert len(test_activity.descriptors()) == 2
+        assert child(tmp_path, {}, host_only=True).returncode == 2
+        assert child(tmp_path, {}, host_only=False).returncode == 2
+        assert child(tmp_path, test_activity.environment(), test_activity.descriptors()).returncode == 0
+        assert child(tmp_path, test_activity.environment()).returncode == 2
+        assert child(tmp_path, {}, host_only=True).returncode == 2
+    assert child(tmp_path, {}, host_only=True).returncode == 0
+    assert child(tmp_path, {}, host_only=False).returncode == 0
+
+
+def test_combined_owner_refuses_busy_host_and_releases_vm_on_failure(tmp_path):
+    root = tmp_path / 'checkout'
+    with test_activity.activity(root, host_only=True):
+        assert child(tmp_path, {}, host_only=False, includes_host=True).returncode == 2
+        assert child(tmp_path, {}, host_only=False).returncode == 0
 
 
 def test_owned_child_can_join_but_environment_alone_cannot(tmp_path):

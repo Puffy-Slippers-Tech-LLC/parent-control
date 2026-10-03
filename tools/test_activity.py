@@ -13,7 +13,9 @@ from pathlib import Path
 import stat
 
 VARIABLE = 'ONPC_TEST_ACTIVITY_FD'
+HOST_VARIABLE = 'ONPC_TEST_HOST_ACTIVITY_FD'
 _descriptor = None
+_host_descriptor = None
 _host_only = False
 _named_vm = False
 
@@ -31,11 +33,50 @@ def retention_path(root):
 
 
 def descriptors():
-    return () if _descriptor is None else (_descriptor,)
+    return tuple(fd for fd in (_descriptor, _host_descriptor) if fd is not None)
 
 
 def environment():
-    return {} if _descriptor is None else {VARIABLE: str(_descriptor)}
+    return {key: str(fd) for key, fd in ((VARIABLE, _descriptor), (HOST_VARIABLE, _host_descriptor))
+            if fd is not None}
+
+
+@contextmanager
+def host_reservation(directory, required):
+    """Mixed runs reserve the same host lock as independent host runs."""
+    global _host_descriptor
+    previous = _host_descriptor
+    inherited = previous
+    value = os.environ.get(HOST_VARIABLE)
+    if inherited is None and value is not None:
+        if not value.isdecimal() or int(value) < 3:
+            raise ValueError('invalid inherited host activity descriptor')
+        inherited = int(value)
+    if not required and inherited is None:
+        yield
+        return
+    opened = os.open(directory / 'host.lock',
+                     os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        info = os.fstat(opened)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
+            raise ValueError('unsafe host activity lock')
+        if inherited is not None:
+            other = os.fstat(inherited)
+            if (info.st_dev, info.st_ino) != (other.st_dev, other.st_ino):
+                raise ValueError('foreign host activity descriptor')
+        descriptor = opened if inherited is None else inherited
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError('another test launcher owns the host scope; wait for its cleanup') from error
+        _host_descriptor = descriptor
+        os.set_inheritable(descriptor, True)
+        yield
+    finally:
+        _host_descriptor = previous
+        os.close(opened)
 
 
 def record_cleanup(source):
@@ -67,7 +108,7 @@ def cleanup_verified(root):
 
 
 @contextmanager
-def activity(root, *, host_only=None, named_vm=None):
+def activity(root, *, host_only=None, named_vm=None, includes_host=False):
     global _descriptor, _host_only, _named_vm
     directory = Path(root) / 'artifacts/test-activity'
     for parent in (directory, *directory.parents):
@@ -147,7 +188,8 @@ def activity(root, *, host_only=None, named_vm=None):
         _host_only = host_only
         _named_vm = named_vm
         os.set_inheritable(descriptor, True)
-        yield
+        with host_reservation(directory, includes_host and not host_only):
+            yield
     finally:
         _descriptor = previous
         _host_only = previous_host_only

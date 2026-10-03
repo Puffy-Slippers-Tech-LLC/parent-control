@@ -57,7 +57,7 @@ def running(root, kind, text=b'first\n'):
     (run / 'output').write_bytes(text)
     # Logs inherit the runner's umask inside its owner-private directory.
     (run / 'output').chmod(0o664)
-    owner = base / 'owner' if kind == 'fix-tests' else run / 'owner'
+    owner = base / 'owner' if kind in ('fix-tests', 'fix-tests-host') else run / 'owner'
     with owner.open('wb') as lock:
         owner.chmod(0o600)
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -152,16 +152,18 @@ def test_follows_live_output_then_drains_and_retains_completion(tmp_path, kind):
     assert not (run / 'delivered').exists() and not (run / 'cancel').exists()
 
 
-def test_fix_tests_has_priority_over_nested_run_tests(tmp_path):
+@pytest.mark.parametrize('kind', ['fix-tests', 'fix-tests-host'])
+def test_fix_tests_has_priority_over_nested_run_tests(tmp_path, kind):
     observer = Output(tmp_path)
     with running(tmp_path, 'sessions-host', b'tests\n'):
         assert observer.poll()[0] == 'run-tests'
-        with running(tmp_path, 'fix-tests', b'repair\n'):
+        with running(tmp_path, kind, b'repair\n'):
             assert observer.poll() == ('fix-tests', True, True, b'repair\n')
         assert observer.poll() == ('run-tests', True, True, b'tests\n')
 
 
-def test_cancel_only_requests_shutdown_of_the_displayed_live_run(tmp_path):
+@pytest.mark.parametrize('kind', ['fix-tests', 'fix-tests-host'])
+def test_cancel_only_requests_shutdown_of_the_displayed_live_run(tmp_path, kind):
     observer = Output(tmp_path)
     assert not observer.cancel()
     with running(tmp_path, 'sessions-host') as run:
@@ -169,7 +171,7 @@ def test_cancel_only_requests_shutdown_of_the_displayed_live_run(tmp_path):
         observer.poll()
         assert observer.cancel()
         assert (run / 'cancel').exists()
-        with running(tmp_path, 'fix-tests') as repair:
+        with running(tmp_path, kind) as repair:
             assert not observer.cancel()  # Priority changed before the next frame.
             assert not (repair / 'cancel').exists()
             observer.poll()

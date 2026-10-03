@@ -34,7 +34,7 @@ def disk_backed(fd):
 
 def directory(kind='allocations', *, root=None, create=True):
     base = (Path(root) if root is not None else ROOT) / 'output/test-runs'
-    if kind not in ('allocations', 'scratch', 'sessions', 'sessions-host', 'fix-tests', 'write-e2e',
+    if kind not in ('allocations', 'scratch', 'sessions', 'sessions-host', 'fix-tests', 'fix-tests-host', 'write-e2e',
                     'reports', 'state', 'exports', 'cache', 'sbuild'):
         raise ValueError('invalid test storage kind')
     # Shared ancestors are traversable; payload roots stay owner-private.

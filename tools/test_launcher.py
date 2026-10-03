@@ -142,6 +142,7 @@ def environment(root, *, scratch=True):
 def test_environment(root):
     result = environment(root)
     result.pop(test_activity.VARIABLE, None)
+    result.pop(test_activity.HOST_VARIABLE, None)
     # Unit doubles deliberately replace/remove paths. They must not register
     # those fixtures as real aggregate outputs. UI workers opt in explicitly.
     import test_retention

@@ -30,6 +30,9 @@ def test_category_status_uses_the_discovered_inventory_position():
 @pytest.mark.parametrize('requested, expected', [
     ([], ['unit', 'ui', 'future-suite', 'system', 'e2e']),
     (['host'], ['unit', 'ui', 'future-suite']),
+    (['vm'], ['system', 'e2e']),
+    (['host', 'vm'], ['unit', 'ui', 'future-suite', 'system', 'e2e']),
+    (['vm', 'host'], ['unit', 'ui', 'future-suite', 'system', 'e2e']),
     (['host-builds', 'unit', 'system'], ['unit', 'ui', 'future-suite', 'system']),
     (['ui', 'unit', 'ui'], ['unit', 'ui']),
     (['unit ui'], ['unit', 'ui']),
@@ -242,7 +245,7 @@ def test_unmapped_aggregate_failure_is_not_a_fabricated_category_pass():
 def test_agent_is_ephemeral_sol_medium_standard_without_parent_context(monkeypatch):
     monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
     for key in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
-                'ONPC_TEST_ACTIVITY_FD', fix_tests.FRAME_DIRECTORY):
+                'ONPC_TEST_ACTIVITY_FD', 'ONPC_TEST_HOST_ACTIVITY_FD', fix_tests.FRAME_DIRECTORY):
         monkeypatch.setenv(key, 'previous-context')
     command = fix_tests.repair_command(ROOT, fix_tests.DEFAULT_MODEL, fix_tests.DEFAULT_EFFORT)
     assert command[:5] == ['/opt/codex', '--ask-for-approval', 'never', 'exec', '--ephemeral']
@@ -856,13 +859,35 @@ def test_future_categories_follow_readiness_without_a_second_allowlist(monkeypat
     assert 'future-help' in test_commands.usage()
 
 
-def test_launcher_orders_available_inventory_and_preserves_arguments():
+def test_launcher_preserves_runner_inventory_order_and_arguments():
     inventory = {name: {'args': ['--selected', 'two words']} for name in
                  ('e2e', 'new-suite', 'ui', 'unit', 'system')}
     ordered = fix_tests.category_inventory(json.dumps(inventory))
-    assert list(ordered) == ['unit', 'ui', 'new-suite', 'system', 'e2e']
+    assert list(ordered) == list(inventory)
     assert ordered['new-suite']['args'] == ['--selected', 'two words']
     assert list(fix_tests.category_inventory('{"new-suite": {"args": []}}')) == ['new-suite']
+
+
+def test_host_and_vm_partition_all_and_repair_uses_runner_definitions(monkeypatch):
+    monkeypatch.setitem(test_commands.CATEGORIES, 'future-vm',
+                        test_commands.CategorySpec('Future VM suite', scope='vm'))
+    inventory = test_commands.suite_inventory()
+    host = test_commands.suite_inventory(['host'])
+    vm = test_commands.suite_inventory(['vm'])
+    assert host.keys().isdisjoint(vm)
+    assert host.keys() | vm.keys() == inventory.keys()
+    assert 'future-vm' in vm and 'future-vm' not in host
+    assert {spec['scope'] for spec in inventory.values()} == {'host', 'vm'}
+    assert fix_tests.requested_inventory is test_commands.repair_inventory
+    assert fix_tests.requested_inventory(ROOT, ['vm']) == vm
+    assert fix_tests.requested_inventory(ROOT, ['host', 'vm']) == inventory
+
+
+def test_category_scope_cannot_fall_between_host_and_vm():
+    with pytest.raises(ValueError, match='scope must be host or vm'):
+        test_commands.CategorySpec('Unclassified suite', scope='other')
+    with pytest.raises(ValueError, match='scope must be host or vm'):
+        test_commands.suite_inventory(['host'], inventory={'suite': {'args': [], 'scope': 'other'}})
 
 
 @pytest.mark.parametrize('value', ['{}', '[]', '{"unit": {}}', '{"unit": {"args": "-x"}}'])

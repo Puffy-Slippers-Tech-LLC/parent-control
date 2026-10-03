@@ -1547,6 +1547,104 @@ def test_new_approval_after_rejection_requires_fresh_form_and_challenge(fault):
             observer.observe('kiosk-mate-rechecked')
 
 
+@pytest.mark.parametrize('operation', ['kiosk-mate-open', 'kiosk-mate-rejection-open',
+                                      'kiosk-mate-cancel'])
+@pytest.mark.parametrize('restarts', [False, True])
+def test_new_mate_challenge_binds_service_after_request(monkeypatch, operation, restarts):
+    ui, desktop, agent, dialog, field, cancel, submit, message, recipient = mate_form()
+    service = {'pid': 100}
+    current_pid = 200 if restarts else 100
+    ui.timeout = 1
+
+    def service_pid():
+        # MainPID can be zero during RestartUnit. No visible challenge means
+        # the observer must wait, without querying or accepting that process.
+        assert service['pid'] is not None
+        return service['pid']
+
+    ui.mate_agent_pid.side_effect = service_pid
+    for node in (agent, dialog, field, cancel, message, recipient):
+        node.get_process_id = lambda: current_pid
+    identity = f'{current_pid:064x}'
+    ui.mate_challenge_identity = Mock(return_value=identity)
+
+    def present(_seconds=None):
+        service['pid'] = current_pid
+        desktop.children.append(agent)
+
+    def request(_index):
+        if restarts:
+            service['pid'] = None
+        else:
+            present()
+        return True
+
+    submit.action.do_action.side_effect = request
+    sleep = Mock(side_effect=present)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    result = ui.run(operation, '')
+    if operation == 'kiosk-mate-cancel':
+        assert result['mate']['cancelled'] and result['mate']['unchanged_form']
+        ui.mate_provider_metadata.assert_called_once_with(current_pid)
+        cancel.action.do_action.assert_called_once()
+    else:
+        assert result['approval'] == {'challenge_id': identity}
+        ui.mate_challenge_identity.assert_called_once_with(current_pid,
+                                                          (agent, dialog, field, cancel))
+        ui.expected_mate_challenge = identity
+        prefix = 'kiosk-mate-rejection' if operation == 'kiosk-mate-rejection-open' else 'kiosk-mate'
+        for suffix in ('qualified', 'rechecked'):
+            assert ui.run(prefix + '-' + suffix, '')['approval'] == {'challenge_id': identity}
+        cancel.action.do_action.assert_not_called()
+    assert sleep.call_count == int(restarts)
+    submit.action.do_action.assert_called_once()
+    field.get_child_count.assert_not_called()
+    field.get_description.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['foreign-agent', 'foreign-control', 'service-raced',
+                                  'service-replaced', 'challenge-replaced'])
+def test_restarted_mate_agent_keeps_ownership_and_challenge_guards(fault):
+    ui, desktop, agent, dialog, field, cancel, submit, message, recipient = mate_form()
+    service = {'pid': 100}
+    ui.mate_agent_pid.side_effect = lambda: service['pid']
+    ui.mate_challenge_identity = Mock(return_value='a' * 64)
+    for node in (agent, dialog, field, cancel, message, recipient):
+        node.get_process_id = lambda: 200
+
+    def request(_index):
+        service['pid'] = 200
+        desktop.children.append(agent)
+        if fault == 'foreign-agent':
+            agent.get_process_id = lambda: 300
+        elif fault == 'foreign-control':
+            field.get_process_id = lambda: 300
+        elif fault == 'service-raced':
+            # The service changes while the already observed prompt is proved.
+            ui.mate_agent_pid.side_effect = [200, 300]
+        return True
+
+    submit.action.do_action.side_effect = request
+    if fault in ('service-replaced', 'challenge-replaced'):
+        assert ui.run('kiosk-mate-open', '')['approval'] == {'challenge_id': 'a' * 64}
+        ui.expected_mate_challenge = 'a' * 64
+        if fault == 'service-replaced':
+            service['pid'] = 300
+        else:
+            ui.mate_challenge_identity.return_value = 'b' * 64
+        operation = 'kiosk-mate-qualified'
+    else:
+        operation = 'kiosk-mate-open'
+    with pytest.raises(UiError, match='ui:mate-owner|ui:mate-replacement'):
+        ui.run(operation, '')
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.run(operation, '')
+    submit.action.do_action.assert_called_once()
+    cancel.action.do_action.assert_not_called()
+    field.get_child_count.assert_not_called()
+    field.get_description.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'changed', 'nonempty', 'unfocused', 'uncertain'])
 def test_approval_proofs_preserve_recipient_and_challenge(fault):
     ui, desktop, agent, dialog, field, cancel, submit, *_ = mate_form()

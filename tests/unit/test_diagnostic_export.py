@@ -86,6 +86,7 @@ def test_export_rechecks_role_before_delivery():
 
 def test_busy_export_refuses_another_worker():
     instance = SimpleNamespace(
+        diagnostics_only=False,
         broker=make_broker(), credentials=SimpleNamespace(uid=lambda _: 991),
         _diagnostic_export_lock=threading.Lock(), _export_logs_worker=Mock(),
     )

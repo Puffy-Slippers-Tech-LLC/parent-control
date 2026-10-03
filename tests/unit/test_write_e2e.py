@@ -842,8 +842,9 @@ def test_restart_recovers_incomplete_response_without_advancing_or_staging(tmp_p
 
 @pytest.mark.parametrize('queue', [
     '| [x] | 001 | First |\n| [x] | 002 | Second |\n',
-    '| [x] | 001 | First |\n| [ ] | 003 | Added |\n| [ ] | 002 | Second |\n',
+    '| [x] | 001 | First |\n| [x] | 003 | Added |\n| [ ] | 002 | Second |\n',
     '| [ ] | 002 | Second |\n| [x] | 001 | First |\n',
+    '| [x] | 001 | First |\n',
 ])
 def test_missing_completion_does_not_recover_unrelated_queue_changes(tmp_path, monkeypatch, queue):
     prepare(tmp_path)
@@ -853,11 +854,39 @@ def test_missing_completion_does_not_recover_unrelated_queue_changes(tmp_path, m
     (previous / 'checkpoint.json').write_text(json.dumps(dict(
         workflow.fresh_state('001'), in_flight=True, queue_before=before)))
     (tmp_path / workflow.QUEUE).write_text(queue)
-    (tmp_path / workflow.PLAN).write_text(
-        'Next task: **' + ('003' if '003' in queue else '002') + ' — Next**.\n')
+    (tmp_path / workflow.PLAN).write_text('Next task: **002 — Next**.\n')
     monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
     with pytest.raises(ValueError, match='interrupted task changed the queue'):
         workflow.initial_state(tmp_path, tmp_path)
+
+
+def test_completion_recovery_adopts_new_unchecked_tasks_and_guards_their_status(tmp_path, monkeypatch):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    previous = tmp_path / 'previous'
+    previous.mkdir()
+    checkpoint = previous / 'checkpoint.json'
+    checkpoint.write_text(json.dumps(dict(workflow.fresh_state('001'),
+                                         in_flight=True, queue_before=before)))
+    saved = checkpoint.read_bytes()
+    additions = ''.join(f'| [ ] | {task} | Added |\n' for task in range(300, 306))
+    queue = '| [x] | 001 | First |\n' + additions + '| [ ] | 002 | Second |\n'
+    (tmp_path / workflow.QUEUE).write_text(queue)
+    (tmp_path / workflow.PLAN).write_text('Next task: **300 — Added**.\n')
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
+    selected = workflow.initial_state(tmp_path, tmp_path)
+    assert selected['task_id'] == '001' and selected['completion_recovery']
+    assert list(selected['queue_before']) == ['001', *map(str, range(300, 306)), '002']
+    assert not any(selected['queue_before'].values())
+    assert checkpoint.read_bytes() == saved
+    assert workflow.queue_state(tmp_path)[0] == '300'
+    completed = workflow.accept_result(tmp_path, selected, reply('task_complete', 'passed'),
+                                       selected['queue_before'])
+    assert completed['phase'] == 'complete'
+    (tmp_path / workflow.QUEUE).write_text(queue.replace('| [ ] | 301 |', '| [x] | 301 |'))
+    with pytest.raises(ValueError, match='changed another task status'):
+        workflow.accept_result(tmp_path, selected, reply('task_complete', 'passed'),
+                               selected['queue_before'])
 
 
 @pytest.mark.parametrize('fault', ['failed-live', 'wrong-task', 'other-task', 'staging'])

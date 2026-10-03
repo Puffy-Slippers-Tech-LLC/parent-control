@@ -602,8 +602,8 @@ Tracked deletions still stage normally. If staging fails after acceptance, the
 launcher retains the accepted result and current handoff. Restart revalidates
 that result against the saved queue state and retries only its staging before
 selecting the next task; it does not repeat the completed live acceptance or
-rewrite the previous run's evidence. Unrelated interrupted queue changes still
-refuse recovery.
+rewrite the previous run's evidence. Recovery preserves newly queued unchecked
+tasks; changes to existing task order or another task's status still refuse.
 
 If a session discovers a missing capability, the plan permits inserting an
 unchecked prerequisite immediately before its unfinished consumer. The launcher
@@ -736,7 +736,9 @@ Recovery inspects the saved handoff and retained acceptance/cleanup evidence,
 reuses sufficient passing results and completes missing validation or close-out.
 If acceptance remains incomplete, it restores the task's unchecked row, brief
 and pointer before continuing. Only a validated completion response and successful
-staging permit advancement. Unrelated queue changes still refuse recovery.
+staging permit advancement. Newly added unchecked tasks are preserved and included
+in recovery's status checks. Removed or reordered existing tasks, changes to another
+task's status and newly added completed tasks still refuse recovery.
 The launcher never assumes an interrupted live test passed. Lifecycle qualification
 lives in
 [test_write_e2e_cleanup_safety.py](unit/test_write_e2e_cleanup_safety.py).

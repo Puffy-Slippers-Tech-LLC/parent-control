@@ -9,14 +9,19 @@ copy and application fixtures are emitted as an ordinary payload directory.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import tarfile
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -28,6 +33,11 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 FIXTURE_BUILDER = REPOSITORY / "tests/fixtures/build_test_applications.py"
 MANIFEST_NAME = "artifact-manifest.json"
 SCHEMA_VERSION = 1
+# Immutable published, signed v1.2 tag and its peeled commit. Qualification
+# never substitutes the working tree or rewrites its version for this input.
+RELEASE_TAG = '8eb479d4d6afa9dcc38328945ceed09cbb03e8a8'
+RELEASE_COMMIT = '9ed654baf593d1a6ef89bb7e324317319251136d'
+RELEASE_VERSION = '1.2+ppa1~ubuntu26.04.1'
 
 
 class ArtifactError(RuntimeError):
@@ -109,11 +119,12 @@ def _source_digest(paths: list[Path]) -> str:
     return digest.hexdigest()
 
 
-def _copy_source(paths: list[Path], destination: Path) -> None:
+def _copy_source(paths: list[Path], destination: Path, *, root=None) -> None:
+    root = REPOSITORY if root is None else root
     for relative in paths:
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(REPOSITORY / relative, target)
+        shutil.copy2(root / relative, target)
 
 
 def _command_version(command: list[str]) -> str:
@@ -162,11 +173,17 @@ def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
 def build(output: Path, *, reuse: dict[str, Path] | None = None, package_format='deb') -> Path:
     if package_format not in ('deb', 'rpm'):
         raise ArtifactError('unsupported package format')
-    output = _require_empty_output(output)
-    reuse = reuse or {}
     source_paths = package_inputs.paths(REPOSITORY)
     source_digest = package_inputs.digest(REPOSITORY, source_paths)
     metadata = _metadata(source_paths, source_digest)
+    return _build(output, REPOSITORY, source_paths, source_digest, metadata,
+                  reuse=reuse, package_format=package_format)
+
+
+def _build(output, source_root, source_paths, source_digest, metadata, *, reuse=None,
+           package_format='deb'):
+    output = _require_empty_output(output)
+    reuse = reuse or {}
     if package_format == 'rpm':
         metadata['build_inputs'].update(package_format='rpm', architecture='x86_64',
                                        package_command=['tools/build_rpm.py'])
@@ -190,9 +207,9 @@ def build(output: Path, *, reuse: dict[str, Path] | None = None, package_format=
         else:
             source_copy = temporary / "source"
             source_copy.mkdir()
-            _copy_source(source_paths, source_copy)
-            if (package_inputs.paths(REPOSITORY) != source_paths
-                    or package_inputs.digest(REPOSITORY, source_paths) != source_digest
+            _copy_source(source_paths, source_copy, root=source_root)
+            if (package_inputs.paths(source_root) != source_paths
+                    or package_inputs.digest(source_root, source_paths) != source_digest
                     or package_inputs.digest(source_copy, source_paths) != source_digest):
                 raise ArtifactError('package source inputs changed while copying')
             if package_format == 'rpm':
@@ -226,6 +243,114 @@ def build(output: Path, *, reuse: dict[str, Path] | None = None, package_format=
     verify(output)
     _log("build", "passed", package=destination.name)
     return output / MANIFEST_NAME
+
+
+@contextmanager
+def released_source(*, repository=None):
+    """Read the one pinned release into shared disposable scratch, without Git edits."""
+    repository = REPOSITORY if repository is None else repository
+    prefix = ['git', '-c', 'safe.directory=' + str(repository)]
+    tag = _run([*prefix, 'rev-parse', 'refs/tags/v1.2'], cwd=repository).stdout.strip()
+    commit = _run([*prefix, 'rev-parse', RELEASE_TAG + '^{commit}'], cwd=repository).stdout.strip()
+    if tag != RELEASE_TAG or commit != RELEASE_COMMIT:
+        raise ArtifactError('authentic v1.2 release source unavailable')
+    from tools.test_storage import scratch_directory, scratch_descriptors
+    with tempfile.TemporaryDirectory(prefix='onpc-release-source-', dir=scratch_directory()) as name:
+        root = Path(name)
+        raw = subprocess.run([*prefix, 'archive', '--format=tar', RELEASE_COMMIT],
+            cwd=repository, check=True, capture_output=True, pass_fds=scratch_descriptors()).stdout
+        with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+            # Source links and special files are never accepted as build inputs.
+            for entry in archive.getmembers():
+                if (Path(entry.name).is_absolute() or '..' in Path(entry.name).parts
+                        or not (entry.isfile() or entry.isdir())):
+                    raise ArtifactError('unsafe released source archive')
+            archive.extractall(root, filter='data')
+        yield root
+
+
+def release_identity(root):
+    selected = package_inputs.paths(root)
+    return {'revision': RELEASE_COMMIT, 'release_tag': RELEASE_TAG, 'scope': 'package',
+            'digest_sha256': package_inputs.digest(root, selected), 'file_count': len(selected)}
+
+
+def build_upgrade(output):
+    """Finite v1.2/current preparation; exclusively created output, no overwrite."""
+    output = _require_empty_output(output)
+    build(output / 'current')
+    with released_source() as root:
+        selected = package_inputs.paths(root)
+        source = release_identity(root)
+        metadata = _metadata(package_inputs.paths(REPOSITORY), source['digest_sha256'])
+        metadata['source'] = source
+        metadata['build_inputs']['source_date_epoch'] = int(_run(
+            ['git', 'show', '-s', '--format=%ct', RELEASE_COMMIT], cwd=REPOSITORY).stdout.strip())
+        _build(output / 'previous', root, selected, source['digest_sha256'], metadata)
+    verify_upgrade(output)
+
+
+def package_identity(path):
+    values = _run(['dpkg-deb', '-f', str(path), 'Package', 'Version', 'Architecture']).stdout.splitlines()
+    # dpkg prints field prefixes for a multi-field query.
+    fields = dict(row.split(': ', 1) for row in values)
+    if set(fields) != {'Package', 'Version', 'Architecture'}:
+        raise ArtifactError('package identity unavailable')
+    return {'name': fields['Package'], 'version': fields['Version'],
+            'architecture': fields['Architecture'], 'sha256': _sha256(path)}
+
+
+def verify_upgrade(output, *, staged=False, repository=None):
+    """Independently bind both manifests, source identities and exact package bytes."""
+    output = Path(output)
+    if output.resolve() != output or not output.is_dir():
+        raise ArtifactError('unsafe upgrade asset directory')
+    owner = output.stat().st_uid
+    if owner not in (os.geteuid(), REPOSITORY.stat().st_uid):
+        raise ArtifactError('unsafe upgrade asset owner')
+    for path in (output, *output.rglob('*')):
+        info = path.lstat()
+        if (path.resolve() != path or info.st_uid != owner or info.st_mode & 0o022
+                or not (stat.S_ISDIR(info.st_mode) or
+                        (stat.S_ISREG(info.st_mode) and info.st_nlink == 1))):
+            raise ArtifactError('unsafe upgrade asset file')
+    if not staged:
+        if set(path.name for path in output.iterdir()) != {'current', 'previous'}:
+            raise ArtifactError('upgrade input layout mismatch')
+        for root in (output / 'current', output / 'previous'):
+            if any(os.path.lexists(root / name) for name in (
+                    'package.deb', 'installed-files.json', 'transfer-sha256.json', 'previous')):
+                raise ArtifactError('upgrade staging name collision')
+    current_root = output if staged else output / 'current'
+    current, previous = verify(current_root), verify(output / 'previous')
+    with released_source(repository=repository) as root:
+        if previous['source'] != release_identity(root):
+            raise ArtifactError('v1.2 source identity mismatch')
+    repository = REPOSITORY if repository is None else repository
+    selected = package_inputs.paths(repository)
+    if (set(current['source']) != {'revision', 'scope', 'digest_sha256', 'file_count'}
+            or type(current['source']['revision']) is not str
+            or re.fullmatch(r'[0-9a-f]{40}', current['source']['revision']) is None
+            or current['source'].get('scope') != 'package'
+            or current['source'].get('digest_sha256') != package_inputs.digest(repository, selected)
+            or current['source'].get('file_count') != len(selected)):
+        raise ArtifactError('current package source identity mismatch')
+    identities = {}
+    for label, directory, manifest in (('current', current_root, current),
+                                       ('previous', output / 'previous', previous)):
+        item = package_identity(directory / manifest['artifacts']['package']['path'])
+        if item['name'] != 'oh-no-parent-control' or item['architecture'] != 'amd64':
+            raise ArtifactError('upgrade package product or architecture mismatch')
+        identities[label] = item
+    old, new = identities['previous'], identities['current']
+    expected = _run(['dpkg-parsechangelog', '-l' + str(repository / 'debian/changelog'),
+                     '-S', 'Version']).stdout.strip()
+    if (old['version'] != RELEASE_VERSION or new['version'] != expected
+            or old['sha256'] == new['sha256']
+            or current['source']['digest_sha256'] == previous['source']['digest_sha256']):
+        raise ArtifactError('upgrade package release identity mismatch')
+    _run(['dpkg', '--compare-versions', new['version'], 'gt', old['version']])
+    return {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']}}
 
 
 def verify(output: Path) -> dict[str, Any]:
@@ -275,10 +400,16 @@ def main() -> int:
     parser.add_argument("--verify", action="store_true", help="verify an existing artifact manifest")
     parser.add_argument("--reuse", action="store_true", help="prepare verified matching inputs, building on a cache miss")
     parser.add_argument('--package-format', choices=('deb', 'rpm'), default='deb')
+    parser.add_argument('--upgrade-inputs', action='store_true', help='build the fixed v1.2/current inputs')
     parser.add_argument("--compare", nargs=2, type=Path, metavar=("FIRST", "SECOND"), help="compare two built artifact directories")
     arguments = parser.parse_args()
     try:
-        if arguments.reuse:
+        if arguments.upgrade_inputs:
+            if (arguments.output is None or arguments.verify or arguments.compare or arguments.reuse
+                    or arguments.package_format != 'deb'):
+                raise ArtifactError('--upgrade-inputs requires only --output')
+            build_upgrade(arguments.output)
+        elif arguments.reuse:
             if arguments.package_format != 'deb':
                 raise ArtifactError('--reuse currently requires Debian artifacts')
             if arguments.output is None or arguments.verify or arguments.compare:

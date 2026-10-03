@@ -73,23 +73,24 @@ def allocation_parent():
     return directory()
 
 
-def named_input(*, package_source=False, fixture_source=False):
+def named_input(*, package_source=False, fixture_source=False, upgrade_source=False):
     # Privileged qualifiers consume the caller's already frozen host bundle.
     # Product-changing qualifications must not silently reuse an older package.
     # Keep each source identity immutable under the normal allocation journal.
-    if package_source or fixture_source:
+    if package_source or fixture_source or upgrade_source:
         if __package__:
             from . import package_inputs
         else:
             import package_inputs
         paths = package_inputs.paths(ROOT)
-        if fixture_source:
+        if fixture_source or upgrade_source:
             paths = sorted(set(paths) | {Path(name) for name in (
                 'tests/fixtures/build_test_applications.py', 'tests/fixtures/native_assets.py',
                 'tests/fixtures/onpc_test_application.c', 'tests/fixtures/gui_application.py',
                 'common/oh_no_parent_control_ui/gtk_automation.py')})
         identity = package_inputs.digest(ROOT, paths)
-        prefix = 'onpc-native-fixtures-' if fixture_source else 'onpc-parent-setup-'
+        prefix = ('onpc-upgrade-v1.2-' if upgrade_source else
+                  'onpc-native-fixtures-' if fixture_source else 'onpc-parent-setup-')
         return BASE / ('host/allocations/' + prefix + identity)
     return BASE / 'host/allocations/onpc-parent-setup-input'
 

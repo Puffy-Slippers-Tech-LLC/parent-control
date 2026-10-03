@@ -23,6 +23,28 @@ DESTINATION = '/var/lib/onpc-e2e-assets'
 from guest_observations import ASSETS as OBSERVE
 
 
+def preservation_witness(g):
+    """Finite account/locale/unrelated-file witness around offline provisioning."""
+    paths = ['/etc/passwd', '/etc/group', '/etc/shadow', '/etc/hostname',
+             '/etc/default/locale', '/etc/locale.conf', '/etc/machine-id', '/etc/motd']
+    account_root = '/var/lib/AccountsService/users'
+    if g.exists(account_root):
+        require(not g.is_symlink(account_root) and g.realpath(account_root) == account_root,
+                'transfer:unsafe-preservation-parent')
+        paths += [account_root + '/' + name for name in g.find(account_root + '/')]
+    witness = {}
+    for path in paths:
+        require(not g.is_symlink(path), 'transfer:unsafe-preservation-file')
+        if g.exists(path):
+            info = g.lstatns(path)
+            require(stat.S_ISREG(info['st_mode']), 'transfer:unsafe-preservation-file')
+            witness[path] = (g.checksum('sha256', path), {
+                key: info[key] for key in ('st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink', 'st_size')})
+        else:
+            witness[path] = None
+    return witness
+
+
 class AssetTransfer:
     def __init__(self, verified):
         self.verified = verified
@@ -54,6 +76,7 @@ class AssetTransfer:
                 require(g.realpath('/var/lib') == '/var/lib', 'transfer:unsafe-parent')
                 require(not g.exists(DESTINATION) and not g.is_symlink(DESTINATION),
                         'transfer:destination-exists')
+                preserved_before = preservation_witness(g) if self.verified.upgrade_inputs else None
                 for name in ['', *directories]:
                     target = DESTINATION + ('/' + name if name else '')
                     g.mkdir(target)
@@ -91,8 +114,12 @@ class AssetTransfer:
                       file=sys.stderr, flush=True)
                 require(observed == expected,
                         'transfer:copied-tree-mismatch')
+                if preserved_before is not None:
+                    require(preservation_witness(g) == preserved_before, 'transfer:preservation-changed')
             self.verified.recheck()
             self._receipt = {'files': len(files), 'sha256': digest(files)}
+            if self.verified.upgrade_inputs:
+                self._receipt['packages'] = self.verified.upgrade_inputs['packages']
             print('e2e:asset-transfer-verified', file=sys.stderr, flush=True)
             return dict(self._receipt)
         except BaseException:
@@ -104,7 +131,7 @@ class AssetTransfer:
         require(self._failure is None and self._receipt is not None,
                 'transfer:verified-provisioning-required')
         try:
-            observed = observations.read('assets')
+            observed = observations.read('assets-upgrade' if self.verified.upgrade_inputs else 'assets')
             require(observed == self._receipt, 'transfer:booted-assets-mismatch')
             return dict(self._receipt)
         except BaseException:

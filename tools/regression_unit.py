@@ -290,7 +290,10 @@ from regression_ui import Bucket
 # mocked; no live guest, shared cache, display or host service is introduced.
 # Existing test_activity, regression_session, fix_tests and vm_config compatible
 # classifications remain valid; no cleanup inventory change is needed.
+# Upgrade asset checks use private tiny DEBs, waited dpkg/Perl children and
+# process-local lease/transport doubles. No real VM, bus or shared mutable path.
 REVIEWED = frozenset("""
+upgrade_assets_cleanup_safety
 desktop_language_cleanup_safety
 localization
 e2e_overlay_prompt

@@ -50,8 +50,9 @@ def test_every_named_input_consumer_prepares_before_dispatch(
     assert regression_process.category_run(
         ROOT, 'integration', [selector], pipe=False) == build_status
     allocate.assert_called_once_with(output)
+    flags = ['--upgrade-inputs'] if options.get('upgrade_source') else []
     assert execute.call_args_list[0].args[0] == commands.python_file(
-        ROOT, 'tools/build_test_artifacts.py', '--output', output)
+        ROOT, 'tools/build_test_artifacts.py', *flags, '--output', output)
     if build_status:
         assert execute.call_count == 1
         authorize.assert_not_called()

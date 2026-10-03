@@ -1131,12 +1131,13 @@ def prepare_state_root(directory=guest_contract.vm_config.STATE_ROOT):
             'guard:baseline-state-root')
 
 
-def recover_off_attempt(source, commands, inspect, *, confirm=None):
+def recover_off_attempt(source, commands, inspect, *, mode='manual', confirm=None):
     """Recover abandoned test cleanup without restoring owned manual maintenance.
 
     These reads select the recovery route only. The shared lease revalidates
     the complete journal, domain, disks and baseline under its exclusive lock.
     """
+    require(mode in ('auto', 'manual'), 'guard:preparation-mode')
     directory = guest_contract.vm_config.selected().baseline_directory
     if not os.path.lexists(directory):
         return
@@ -1149,12 +1150,14 @@ def recover_off_attempt(source, commands, inspect, *, confirm=None):
     require(isinstance(attempt, dict), 'state:invalid-run-journal')
     if attempt.get('phase') == 'complete':
         return
+    owned = False
     owner_path = directory / 'vm-control.json'
     if os.path.lexists(owner_path):
         identity(owner_path, private=True, mode=0o600)
         owner = parse_json(owner_path.read_bytes())
         require(isinstance(owner, dict), 'state:invalid-maintenance-owner')
-        if owner.get('run') == attempt.get('run'):
+        owned = owner.get('run') == attempt.get('run')
+        if owned and mode == 'manual':
             return  # Manual preparation attests and preserves this current disk.
     require(source.snapshot()[1], 'guard:source-running')
     if confirm is not None and not confirm():
@@ -1163,11 +1166,23 @@ def recover_off_attempt(source, commands, inspect, *, confirm=None):
     from system_runner import Lease
     kind = recorded_graphics_type(source.domain.XMLDesc(0))
     lease = Lease(source, commands, inspect, graphics_type=kind)
-    if kind == 'vnc':
+    if owned:
+        # Matching run IDs select the route; shared recovery rechecks every
+        # ownership proof under the lease before restoring the accepted baseline.
+        from vm_control import recover_preparation
+        lease.view.graphics_type = 'vnc'
+        try:
+            from e2e_watch import begin
+            begin(lease)
+            recover_preparation(lease)
+        finally:
+            lease.release()
+    elif kind == 'vnc':
         lease.recover_graphical_cleanup()
     else:
         lease.recover_system_cleanup()
-    log('recovery:unfinished-test-cleanup-completed')
+    log('recovery:unfinished-maintenance-cleanup-completed' if owned else
+        'recovery:unfinished-test-cleanup-completed')
     return True
 
 
@@ -1232,7 +1247,7 @@ def main(argv=None):
         confirmation = partial(confirm_preparation, assume_yes=args.y)
         recovered = None
         if args.mode is not None:
-            recovered = recover_off_attempt(source, commands, inspect,
+            recovered = recover_off_attempt(source, commands, inspect, mode=args.mode,
                 confirm=lambda: confirmation(args.mode, source.baseline() is not None))
             if recovered is False:
                 return 3

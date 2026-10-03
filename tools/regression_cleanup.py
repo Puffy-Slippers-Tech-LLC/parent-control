@@ -32,6 +32,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Restored-off maintenance audits use the same private lease/disk fixtures and
 # mocked VM/guest inspection, with no live VM, socket or shared state. Existing
 # VM-control compatible scheduling remains appropriate in both inventories.
+# Auto-baseline recovery uses those same private journals/locks and VM doubles,
+# including refusal/interruption and repeat checks; compatible scheduling holds.
 # Missing console-timeout preparation checks use only the existing in-memory
 # guestfs fixture; baseline_fixtures retains compatible unit/cleanup scheduling.
 # Fedora snapshot backend/proof checks retain private tmp_path locks and mocked

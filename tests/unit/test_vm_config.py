@@ -553,7 +553,11 @@ def test_legacy_controller_lease_excludes_all_named_leases(rig, monkeypatch):
             os.close(descriptor)
 
 
-def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(tmp_path, monkeypatch):
+@pytest.mark.parametrize('requested, expected_host', [
+    (['all'], [['host']]), (['vm'], []), (['host', 'vm'], [['host']]),
+])
+def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
+        tmp_path, monkeypatch, requested, expected_host):
     from contextlib import contextmanager
     import threading
     import time
@@ -610,8 +614,8 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(tmp
                 active -= 1
             return 1 if name == 'guest-0' else 0
     monkeypatch.setattr(queue, 'Control', FakeControl)
-    assert queue.run(ROOT, ['all']) == 1
-    assert hosts == [['host']]
+    assert queue.run(ROOT, requested) == 1
+    assert hosts == expected_host
     assert calls[:len(vms)] == [('--recover', vm.name) for vm in vms]
     assert sorted(name for mode, name in calls if mode == '--execute') == [vm.name for vm in vms]
     assert peak == 2

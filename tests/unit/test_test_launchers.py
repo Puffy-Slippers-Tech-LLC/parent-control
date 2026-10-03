@@ -609,7 +609,9 @@ def test_help_prints_complete_categories_and_combinations(capsys, argv):
     assert text == commands.usage() + '\n'
     assert text.startswith('Usage: tools/run-tests')
     assert 'host and e2e' in text
-    assert 'all = host + system + e2e' in text
+    assert 'all = host + vm' in text
+    assert 'vm = system + e2e' in text
+    assert 'tools/run-tests vm --vm NAME' in text
     assert 'tools/run-tests system e2e' in text
     assert 'tools/run-tests host system e2e' in text
     assert 'two package builds and reproducibility' in text
@@ -680,7 +682,7 @@ def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, ca
     execute.assert_not_called()
 
 
-@pytest.mark.parametrize('category', ['all', 'all-verify', 'host', 'host-builds'])
+@pytest.mark.parametrize('category', ['all', 'all-verify', 'host', 'host-builds', 'vm'])
 def test_continue_on_errors_is_a_valueless_aggregate_flag(monkeypatch, category):
     import regression
     execute = Mock(return_value=7)
@@ -734,6 +736,7 @@ def test_host_build_qualification_is_fixed_and_never_dispatches_vm(monkeypatch, 
     ['host'], ['system'], ['e2e'], ['host', 'system'], ['host', 'e2e'],
     ['system', 'e2e'], ['host', 'system', 'e2e'], ['e2e', 'host', 'system'],
     ['e2e', 'system'], ['system', 'host'], ['e2e', 'host'],
+    ['vm'], ['host', 'vm'], ['vm', 'host'], ['vm', 'system'], ['e2e', 'vm'],
 ])
 @pytest.mark.parametrize('detached', [False, True])
 def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, detached):
@@ -741,7 +744,8 @@ def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, deta
     execute = Mock(return_value=7)
     monkeypatch.setattr(regression, 'main', execute)
     monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    phases = tuple(kind for kind in ('host', 'system', 'e2e') if kind in argv)
+    phases = tuple(kind for kind in ('host', 'system', 'e2e')
+                   if kind in argv or (kind != 'host' and 'vm' in argv))
     for flag in ([], ['--continue-on-errors']):
         commands.validate(ROOT, [*argv, *flag, *VM_ARGS])
         assert commands.selections(ROOT, [*argv, *flag]) == [(kind, []) for kind in phases]
@@ -755,6 +759,7 @@ def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, deta
     ['host', 'host'], ['system', 'e2e', 'system'], ['all', 'host'],
     ['host', 'system', '--bad'], ['host', 'system', '--list'],
     ['host', 'system', '--continue-on-errors', '--continue-on-errors'],
+    ['vm', 'vm'], ['vm', '--bad'], ['host', 'vm', '--serial-builds'],
 ])
 def test_invalid_complete_combinations_are_refused_before_work(argv):
     with pytest.raises(ValueError):

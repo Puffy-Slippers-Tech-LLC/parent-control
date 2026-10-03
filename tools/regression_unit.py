@@ -284,6 +284,12 @@ from regression_ui import Bucket
 # files and synchronous doubles; no observer thread, live bus or shared owner.
 # DESK13 uses private API/session/transport doubles and pytest evidence, plus
 # waited Perl probes. No live account, VM, bus, display or shared mutable path.
+# Host/VM partition checks use process-local inventory doubles. Activity/session
+# overlap and cancellation tests use private checkout locks and retained paths,
+# with bounded child workers reaped by their fixtures. Queue VM operations are
+# mocked; no live guest, shared cache, display or host service is introduced.
+# Existing test_activity, regression_session, fix_tests and vm_config compatible
+# classifications remain valid; no cleanup inventory change is needed.
 REVIEWED = frozenset("""
 desktop_language_cleanup_safety
 localization

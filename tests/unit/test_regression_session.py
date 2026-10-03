@@ -178,7 +178,7 @@ def test_active_vm_session_keeps_its_guest_when_configured_ids_swap(tmp_path, wo
 
 
 @pytest.mark.parametrize('category', ['ui', 'e2e'])
-def test_active_session_wins_across_scopes_before_validation(tmp_path, workers, monkeypatch, category):
+def test_active_session_wins_within_its_scope_before_validation(tmp_path, workers, monkeypatch, category):
     monkeypatch.setattr(test_commands, 'validate',
                         lambda root, argv: [(argv[0], argv[1:])])
     run, started = session.select(tmp_path, [category])
@@ -187,14 +187,16 @@ def test_active_session_wins_across_scopes_before_validation(tmp_path, workers, 
         pytest.fail('attachment must not validate or start another operation')
     monkeypatch.setattr(test_commands, 'validate', refuse)
     monkeypatch.setattr(test_activity, 'activity', refuse)
-    for argv in ([], ['ui'], ['e2e'], ['invalid'], ['--stop-on-error', 'unit']):
+    requests = ([['ui'], ['--stop-on-error', 'unit']] if category == 'ui' else
+                [[], ['e2e'], ['invalid']])
+    for argv in requests:
         assert session.select(tmp_path, argv) == (run, False)
     assert len(workers) == 1
     (tmp_path / 'release').touch()
     assert session.follow(run, io.StringIO()) == 7
 
 
-def test_active_host_run_wins_over_unread_vm_result(tmp_path, workers):
+def test_host_run_does_not_consume_unread_vm_result(tmp_path, workers):
     vm_run, _ = session.select(tmp_path, ['e2e'])
     (tmp_path / 'release').touch()
     assert workers[0].wait(timeout=10) == 7
@@ -202,7 +204,8 @@ def test_active_host_run_wins_over_unread_vm_result(tmp_path, workers):
     (tmp_path / 'release').unlink()
     host_run, started = session.select(tmp_path, ['ui'])
     assert started
-    assert session.select(tmp_path, []) == (host_run, False)
+    assert session.select(tmp_path, ['ui']) == (host_run, False)
+    assert session.select(tmp_path, []) == (vm_run, False)
     assert not (vm_run / 'delivered').exists()
 
 
@@ -212,6 +215,9 @@ def test_active_host_run_wins_over_unread_vm_result(tmp_path, workers):
     (['ui', '-m', 'e2e'], True),
     (['unit', '-q'], True),
     (['host'], True),
+    (['vm'], False),
+    (['host', 'vm'], False),
+    (['vm', 'host'], False),
     (['host', 'system'], False),
     (['system', 'host'], False),
     (['e2e'], False),
@@ -359,12 +365,34 @@ def test_concurrent_reconnections_share_one_worker(tmp_path, workers):
     assert len(workers) == 1
 
 
-def test_concurrent_cross_scope_requests_share_one_worker(tmp_path, workers):
+def test_concurrent_host_and_vm_requests_start_independent_workers(tmp_path, workers):
     with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(pool.map(lambda category: session.select(tmp_path, [category]), ['ui', 'e2e']))
-    assert results[0][0] == results[1][0]
-    assert sorted(result[1] for result in results) == [False, True]
-    assert len(workers) == 1
+        results = list(pool.map(lambda category: session.select(tmp_path, [category]), ['host', 'vm']))
+    host_run, vm_run = (result[0] for result in results)
+    assert host_run != vm_run
+    assert all(started for _, started in results)
+    assert len(workers) == 2
+    assert session.select(tmp_path, ['host']) == (host_run, False)
+    assert session.select(tmp_path, ['vm']) == (vm_run, False)
+    assert session.select(tmp_path, ['host', '--stop']) == (host_run, False)
+    assert session.follow(host_run, io.StringIO()) == 130
+    assert not (vm_run / 'cancel').exists()
+    assert session.current_session(vm_run.parent) == (vm_run, True)
+    (tmp_path / 'release').touch()
+    assert session.follow(vm_run, io.StringIO()) == 7
+
+
+@pytest.mark.parametrize('category', ['all', 'all-verify'])
+def test_complete_run_reserves_both_host_and_vm_scopes(tmp_path, workers, category):
+    run, started = session.select(tmp_path, [category])
+    assert started
+    with pytest.raises(ValueError, match='another test launcher'):
+        with test_activity.activity(tmp_path, host_only=True):
+            pass
+    with pytest.raises(ValueError, match='another test launcher'):
+        with test_activity.activity(tmp_path, host_only=False):
+            pass
+    assert session.select(tmp_path, [category]) == (run, False)
 
 
 def test_agent_owned_runs_register_before_spawn_and_clear_parent_from_tests(tmp_path, workers, monkeypatch):
@@ -445,7 +473,7 @@ def test_reconnected_terminal_cancellation_reaches_owner(tmp_path, workers):
 def test_stop_attaches_and_waits_for_owned_cleanup(tmp_path, workers, capsys, category):
     run, _ = session.select(tmp_path, [category])
     wait_for(tmp_path / 'child-ready')
-    assert session.main(tmp_path, ['--stop']) == 130
+    assert session.main(tmp_path, [category, '--stop']) == 130
     assert (run / 'cancel').exists()
     output = capsys.readouterr()
     assert 'owned cleanup finished' in output.out

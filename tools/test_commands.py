@@ -18,6 +18,11 @@ class CategorySpec:
     description: str
     leaf: bool = True
     implemented: bool = True
+    scope: str = 'host'
+
+    def __post_init__(self):
+        if self.scope not in ('host', 'vm'):
+            raise ValueError('test category scope must be host or vm')
 
 
 # Register readiness and coverage ownership beside the public command. New
@@ -40,18 +45,20 @@ CATEGORIES = {
     'component-all': CategorySpec('the current make check-component aggregate', leaf=False),
     'fixtures': CategorySpec('build, verify PATH; generated build output', leaf=False),
     'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; build, prepare (verified reuse), verify PATH, compare FIRST SECOND'),
-    'integration': CategorySpec('installed dispatcher for check_* basenames; no script arguments', leaf=False),
-    'system': CategorySpec('sequential installed VM tests; bare category builds inputs; focused --artifacts, --previous-artifacts, --area, --test, --list'),
-    'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)'),
-    'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False),
+    'integration': CategorySpec('installed dispatcher for check_* basenames; no script arguments', leaf=False, scope='vm'),
+    'system': CategorySpec('sequential installed VM tests; bare category builds inputs; focused --artifacts, --previous-artifacts, --area, --test, --list', scope='vm'),
+    'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)', scope='vm'),
+    'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False, scope='vm'),
     'all': CategorySpec('complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error', leaf=False),
     'all-verify': CategorySpec('compatibility alias for all; metadata-only VM verification; --continue-on-errors disables stop on first error', leaf=False),
-    'host': CategorySpec('all host tests, publishing and two reproducibility builds in four branches; no VM; combines with system and e2e', leaf=False),
+    'host': CategorySpec('all host tests, publishing and two reproducibility builds in four branches; no VM; host + vm = all', leaf=False),
+    'vm': CategorySpec('all VM tests: system and e2e; no host suites; host + vm = all', leaf=False, scope='vm'),
     'host-builds': CategorySpec('compatibility alias for host; optional --serial-builds for scheduling comparison', leaf=False),
 }
 
-AGGREGATES = ('all', 'all-verify', 'host', 'host-builds')
+AGGREGATES = ('all', 'all-verify', 'host', 'host-builds', 'vm')
 PHASES = ('host', 'system', 'e2e')
+COMPLETE = (*PHASES, 'vm')
 HELP_ARGV = (['--help'], ['-h'])
 INSPECTION_FLAGS = ('--help', '-h', '--list', '--collect-only')
 
@@ -73,6 +80,7 @@ def suite_inventory(categories=(), *, inventory=None):
                  *(kind for kind in leaves if kind not in ('unit', 'ui', 'system', 'e2e')),
                  *(kind for kind in ('system', 'e2e') if kind in leaves)]
         inventory = {kind: {'description': leaves[kind].description,
+                            'scope': leaves[kind].scope,
                             'args': list(HOST_ARGS) if kind == 'ui' else []}
                      for kind in order}
     if not categories:
@@ -80,10 +88,12 @@ def suite_inventory(categories=(), *, inventory=None):
     selected = set()
     for argument in categories:
         for category in argument.split():
-            if category == 'all':
+            if category in ('all', 'all-verify'):
                 selected.update(inventory)
             elif category in ('host', 'host-builds'):
-                selected.update(name for name in inventory if name not in ('system', 'e2e'))
+                selected.update(name for name, spec in inventory.items() if inventory_scope(name, spec) == 'host')
+            elif category == 'vm':
+                selected.update(name for name, spec in inventory.items() if inventory_scope(name, spec) == 'vm')
             elif category in inventory:
                 selected.add(category)
             else:
@@ -91,6 +101,57 @@ def suite_inventory(categories=(), *, inventory=None):
     if not selected:
         raise ValueError('no categories selected')
     return {name: spec for name, spec in inventory.items() if name in selected}
+
+
+def inventory_scope(name, spec):
+    """Runner-owned scope, including older inventories without scope metadata."""
+    scope = spec.get('scope', CATEGORIES[name].scope if name in CATEGORIES else 'host')
+    if scope not in ('host', 'vm'):
+        raise ValueError('test inventory scope must be host or vm')
+    return scope
+
+
+def repair_inventory(root, requested, *, inventory=None):
+    """Expand repair selections using the runner's categories and parser."""
+    inventory = suite_inventory(inventory=inventory)
+    if not requested:
+        return inventory
+    if len(requested) == 1 or requested[0] in AGGREGATES:
+        return suite_inventory(requested, inventory=inventory)
+    try:
+        groups = selections(root, requested)
+    except ValueError as error:
+        try:
+            return suite_inventory(requested, inventory=inventory)
+        except ValueError:
+            raise error
+    if not any(options for _, options in groups) and any(arg.startswith('-') for arg in requested):
+        raise ValueError('runner coordinator options cannot select a repair run')
+    selected = {}
+    for category, options in groups:
+        expanded = suite_inventory([category], inventory=inventory)
+        if options and category not in inventory:
+            raise ValueError('aggregate repair selections do not accept options')
+        if any(option in INSPECTION_FLAGS for option in options):
+            raise ValueError('inspection options cannot select a repair run')
+        for name, spec in expanded.items():
+            value = dict(spec, args=list(options)) if options else spec
+            if name in selected and selected[name] != value:
+                raise ValueError(f'conflicting repair selections for {name}')
+            selected[name] = value
+    return {name: selected[name] for name in inventory if name in selected}
+
+
+def repair_host_only_request(root, requested):
+    """Repair consumers use the runner's scopes, including legacy packed names."""
+    if host_only_request(requested):
+        return True
+    try:
+        return all(inventory_scope(name, spec) == 'host'
+                   for name, spec in repair_inventory(root, requested).items())
+    except ValueError:
+        # Invalid VM requests still select their VM before argument validation.
+        return False
 
 
 def execution_arguments(argv):
@@ -149,10 +210,14 @@ Complete categories (combine in any order; execute host, then system, then e2e)
                publishing, two package builds and reproducibility; no VM
   system       installed-system VM tests, sequential
   e2e          ready GUI-driven VM scenarios, sequential
+  vm           all VM work: system + e2e; no host suites
 
-  all = host + system + e2e
+  all = host + vm
+  vm = system + e2e
 
   tools/run-tests host
+  tools/run-tests vm --vm NAME
+  tools/run-tests host vm --vm NAME           (same as all)
   tools/run-tests system e2e --vm NAME
   tools/run-tests e2e --vm NAME
   tools/run-tests host system --vm NAME
@@ -162,6 +227,8 @@ Complete categories (combine in any order; execute host, then system, then e2e)
   Narrowed combined categories share one report and reuse host's package artifacts.
   Without host, VM categories prepare verified package inputs (reuse or build).
   After host and e2e, only system remains.
+  Separate host and vm runs may execute in parallel, with independent locks,
+  sessions and cancellation. Combined host/VM runs reserve both scopes.
 
 Aggregate aliases (no suite selectors)
   all          complete established regression; default with no arguments;
@@ -217,12 +284,12 @@ Helper commands (composites, focused checks and diagnostic operations)
 
 def phase_arguments(argv):
     """Recognize complete phases without consuming focused category options."""
-    if not argv or argv[0] not in PHASES or any(
-            arg not in (*PHASES, '--continue-on-errors') for arg in argv):
+    if not argv or argv[0] not in COMPLETE or any(
+            arg not in (*COMPLETE, '--continue-on-errors') for arg in argv):
         return None
     if len(argv) != len(set(argv)):
         raise ValueError('categories and flags must not be repeated')
-    phases = tuple(kind for kind in PHASES if kind in argv)
+    phases = tuple(kind for kind in PHASES if kind in argv or (kind != 'host' and 'vm' in argv))
     options = {'phases': phases}
     if '--continue-on-errors' in argv:
         options['continue_on_errors'] = True
@@ -637,7 +704,7 @@ def _main(argv=None, *, detached=False):
                 return regression_main(root, selections=selected,
                                        **({'stop_on_error': True} if stop_on_error else {}))
         category, args = argv[0], argv[1:]
-        if category in ('all', 'all-verify', 'host', 'host-builds'):
+        if category in AGGREGATES:
             aggregate_arguments(category, args)
             from regression import main as regression_main
             options = {'continue_on_errors': True} if '--continue-on-errors' in args else {}
@@ -734,7 +801,7 @@ def _main(argv=None, *, detached=False):
 
 def validate_one(root, argv):
     category, args = argv[0], argv[1:]
-    if category in ('all', 'all-verify', 'host', 'host-builds'):
+    if category in AGGREGATES:
         aggregate_arguments(category, args)
         return
     if args[:1] == ['--unattended']:
@@ -758,9 +825,8 @@ def validate(root, argv):
 
 def host_only_selection(selected):
     """VM and privileged integration selections retain the VM checkout lock."""
-    return bool(selected) and all(kind in CATEGORIES and kind not in (
-        'all', 'all-verify', 'system', 'e2e', 'integration', 'fast')
-        for kind, _ in selected)
+    return bool(selected) and all(kind in CATEGORIES and kind not in ('all', 'all-verify')
+                                 and CATEGORIES[kind].scope == 'host' for kind, _ in selected)
 
 
 def host_only_request(argv):
@@ -776,18 +842,33 @@ def host_only_request(argv):
     if args[:1] == ['--stop-on-error']:
         args = args[1:] or ['all']
     category = args[0]
-    if category in PHASES:
-        phases = [argument for argument in args if argument in PHASES]
+    if category in COMPLETE:
+        phases = [argument for argument in args if argument in COMPLETE]
         return bool(phases) and all(phase == 'host' for phase in phases)
-    if category in CATEGORIES and any(argument in ('system', 'e2e', 'integration') for argument in args[1:]):
+    if category in CATEGORIES and any(argument in CATEGORIES and CATEGORIES[argument].scope == 'vm'
+                                      for argument in args[1:]):
         # A valid focused host selection may contain a category word as an
         # option value. Otherwise a mixed category request owns the VM scope.
         try:
             validate_one(Path(__file__).resolve().parents[1], args)
         except ValueError:
             return False
-    return category in CATEGORIES and category not in (
-        'all', 'all-verify', 'system', 'e2e', 'integration', 'fast')
+    return host_only_selection([(category, [])])
+
+
+def includes_host_request(root, argv):
+    """Whether a validated request also reserves the host scope."""
+    from vm_selection import extract
+    args, _ = extract(argv, required=False)
+    args, _ = execution_arguments(args or ['all'])
+    if args[0] in ('all', 'all-verify') or host_only_request(args):
+        return True
+    phases = phase_arguments(args)
+    if phases is not None:
+        return 'host' in phases['phases']
+    if not any(arg in CATEGORIES and CATEGORIES[arg].scope == 'host' for arg in args[1:]):
+        return False
+    return any(CATEGORIES[kind].scope == 'host' for kind, _ in selections(root, args))
 
 
 def is_inspection(argv):

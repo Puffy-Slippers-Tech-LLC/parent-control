@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import signal
 import subprocess
 import sys
@@ -18,7 +19,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from regression_session import FRAME_DIRECTORY, busy, lock
-from test_commands import suite_inventory
+from test_commands import repair_inventory as requested_inventory
 from detached_launcher import (
     Stopped, atomic, private_directory, current_run, environment, agent_command,
     compact_log, TAIL_BYTES,
@@ -37,39 +38,12 @@ MAX_REPAIR_SESSIONS = 5
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
 
-def requested_inventory(root, requested, *, inventory=None):
-    """Keep runner selectors intact for every retry and verification round."""
-    inventory = suite_inventory(inventory=inventory)
-    if not requested:
-        return inventory
-    # Preserve category-only aliases, including the legacy "unit ui" spelling.
-    # Otherwise prefer the runner's parser: an argument may itself be a category
-    # word, as in "static all" or "unit -k component".
-    if len(requested) == 1 or requested[0] in ('host', 'host-builds', 'all'):
-        return suite_inventory(requested, inventory=inventory)
-    from test_commands import selections, INSPECTION_FLAGS
-    try:
-        groups = selections(root, requested)
-    except ValueError as error:
-        try:
-            return suite_inventory(requested, inventory=inventory)
-        except ValueError:
-            raise error
-    if not any(options for _, options in groups) and any(arg.startswith('-') for arg in requested):
-        raise ValueError('runner coordinator options cannot select a repair run')
-    selected = {}
-    for category, options in groups:
-        expanded = suite_inventory([category], inventory=inventory)
-        if options and category not in inventory:
-            raise ValueError('aggregate repair selections do not accept options')
-        if any(option in INSPECTION_FLAGS for option in options):
-            raise ValueError('inspection options cannot select a repair run')
-        for name, spec in expanded.items():
-            value = dict(spec, args=list(options)) if options else spec
-            if name in selected and selected[name] != value:
-                raise ValueError(f'conflicting repair selections for {name}')
-            selected[name] = value
-    return {name: selected[name] for name in inventory if name in selected}
+def reattach_label(run):
+    """Print the selected workflow scope and its saved canonical VM selector."""
+    label = 'fix-tests host' if run.parent.name == 'fix-tests-host' else 'fix-tests vm'
+    binding = run / 'vm.json'
+    vm = json.loads(binding.read_text())['vm'] if binding.exists() else None
+    return label + (' --vm ' + shlex.quote(vm) if isinstance(vm, str) else '')
 
 
 def initial_model(model=None, effort=DEFAULT_EFFORT):
@@ -280,12 +254,8 @@ def category_inventory(output):
                 or not isinstance(spec, dict) or not isinstance(spec.get('args'), list)
                 or not all(isinstance(arg, str) for arg in spec['args'])):
             raise ValueError('invalid run-tests category inventory')
-    # The runner owns eligibility. Order the available leaves without requiring
-    # an unimplemented category just to satisfy a positional check.
-    return {category: inventory[category] for category in (
-        *(name for name in ('unit', 'ui') if name in inventory),
-        *(name for name in inventory if name not in ('unit', 'ui', 'system', 'e2e')),
-        *(name for name in ('system', 'e2e') if name in inventory))}
+    # Preserve the runner's authoritative order and metadata.
+    return inventory
 
 
 def category_status(category, categories):
@@ -586,7 +556,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                 progress_row = repair_progress(run, read_progress(run))[-1]
                 answer = wait_for_answer(
                     run, result['blocker'], uuid.uuid4().hex, progress_row['key'],
-                    label='fix-tests', heading=progress_row['lines'][0])
+                    label=reattach_label(run), heading=progress_row['lines'][0])
                 if answer is None:
                     raise Stopped()
                 developer_answers.append(answer)
@@ -663,6 +633,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
 
 def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=(), rounds=1):
     from vm_selection import execution_binding, check_binding, save_binding
+    from test_commands import repair_host_only_request
     name = execution_binding()
     legacy = root / 'artifacts/fix-tests'
     if (legacy / 'owner').exists():
@@ -682,7 +653,8 @@ def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()
                 '--worker', str(root), str(run), str(owner), default_model,
                 selected_effort, app_model, json.dumps(categories), str(rounds)]
 
-    return detached_launcher.select(root, 'fix-tests', command, stop=stop,
+    kind = 'fix-tests-host' if repair_host_only_request(root, categories) else 'fix-tests'
+    return detached_launcher.select(root, kind, command, stop=stop,
         on_attach=lambda run: check_binding(run, name, stopping=stop),
         on_start=lambda run: save_binding(run, name))
 
@@ -703,7 +675,8 @@ def main(argv=None):
     parser.epilog = ('Pass categories and arguments as for run-tests, e.g. e2e --id 6 '
                      'or unit tests/unit/test_fix_tests.py -q. Launcher options are recognized '
                      'anywhere and removed from the forwarded arguments. '
-                     'Omitting categories selects every leaf.')
+                     'Omitting categories selects every leaf. Host and VM workflows have '
+                     'separate sessions; attach or stop using the same scope.')
     args, categories = parser.parse_known_args(argv)
     args.categories = categories
     if args.rounds < 1:
@@ -721,14 +694,8 @@ def main(argv=None):
     previous = signal.signal(signal.SIGINT, cancel)
     try:
         from vm_selection import execution_selection
-        from test_commands import host_only_request
-        host_only = host_only_request(args.categories)
-        if not host_only:
-            try:
-                host_only = not any(name in suite_inventory(args.categories)
-                                    for name in ('system', 'e2e'))
-            except ValueError:
-                pass
+        from test_commands import repair_host_only_request
+        host_only = repair_host_only_request(root, args.categories)
         if args.stop and args.vm is None:
             from vm_selection import VARIABLE, BATCH
             os.environ.pop(VARIABLE, None)
@@ -750,7 +717,7 @@ def main(argv=None):
         if requested:
             cancel()
         print(f'fix-tests: {"started" if started else "attached to"} {run.name}; log: {run / "output"}', flush=True)
-        print('Closing the terminal detaches. Ctrl+C or tools/fix-tests --stop cancels.', flush=True)
+        print(f'Closing the terminal detaches. Ctrl+C or tools/{reattach_label(run)} --stop cancels.', flush=True)
         return follow(run)
     except BrokenPipeError:
         return 0  # The detached owner continues independently.

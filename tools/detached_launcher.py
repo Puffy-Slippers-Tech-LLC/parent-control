@@ -107,7 +107,7 @@ def environment():
     # identities and launcher FD claims. No parent conversation is ever passed.
     result = dict(os.environ)
     for name in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID',
-                 'ONPC_TEST_ACTIVITY_FD', 'ONPC_REGRESSION_EVENTS',
+                 'ONPC_TEST_ACTIVITY_FD', 'ONPC_TEST_HOST_ACTIVITY_FD', 'ONPC_REGRESSION_EVENTS',
                  'ONPC_REGRESSION_INVENTORY', FRAME_DIRECTORY, WORKFLOW_DIRECTORY):
         result.pop(name, None)
     result['PYTHONUNBUFFERED'] = '1'

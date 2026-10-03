@@ -39,7 +39,8 @@ qualified parallel schedules.
 Help, listing and collection-only commands keep their inspection output and take
 one category at a time. `tools/run-tests --help` prints usage, including how
 the `all` aggregate breaks down into separately runnable pieces. `tools/run-tests --list`
-prints the ordered JSON granular inventory. Each entry has a `description` and
+prints the ordered JSON granular inventory. Each entry has a `description`, a
+`scope` of `host` or `vm`, and
 an explicit `args` array; executing each entry with those arguments covers the
 same suites as `all`. It starts with unit and UI and ends with system and E2E.
 Raw test output remains in the linked report streams.
@@ -49,7 +50,7 @@ Readiness and leaf/composite status are registered with each command in
 aggregate automatically; pending commands join when their registration becomes
 implemented. Display names and retry handoffs do not require a second registry.
 
-The inventory excludes composite aliases (`host`, `all`, `check`,
+The inventory excludes composite aliases (`host`, `vm`, `all`, `check`,
 `component-all`), focused/instrumented repetitions (`traceability`, `coverage`),
 fixture-building helpers and named integration/recovery operations. These remain
 available in the separate helper section of `--help`. Traceability is included
@@ -61,12 +62,15 @@ select the aggregate's non-live scope; the shared launcher applies that same
 host-only boundary to focused UI commands. Owned cleanup and required package
 inputs still run wherever the selected suite needs them.
 
-The complete partition is **host + system + e2e = all**. Combine any of these
+The complete partition is **host + vm = all**, with **vm = system + e2e**.
+Every implemented leaf belongs to exactly one of these scopes. Combine these
 categories in one invocation; execution always orders host first, then system,
 then E2E. For example:
 
 ```sh
 tools/run-tests host
+tools/run-tests vm --vm NAME
+tools/run-tests host vm --vm NAME
 tools/run-tests system --vm NAME e2e
 tools/run-tests e2e --vm NAME
 tools/run-tests host system --vm NAME
@@ -80,6 +84,12 @@ It uses the complete aggregate's existing four-branch scheduling and stops at
 **Join host branches**, without VM discovery, authorization or execution.
 If unfinished prior work requires VM recovery, `host` refuses and preserves the
 evidence rather than touching the VM.
+
+`vm` runs system tests and ready E2E scenarios, preparing their required package
+inputs without running host test suites. Separate `host` and `vm` invocations
+may run in parallel. Each scope has its own activity lock, session discovery,
+attachment, cancellation and retained results; combined selections reserve both
+locks. Narrower categories use their owning scope's lock.
 
 For routine Codex validation, preserve the scope justified by the change:
 prefer `tools/run-tests ui` for UI-only checks and `tools/run-tests unit` for
@@ -224,8 +234,9 @@ current ID for the original guest. UUID pins, leases and journals remain scoped
 to that guest. Names and IDs have no hardcoded mappings in consumers.
 Host work runs once; VM workers keep individual reports and journals, with a
 retained queue summary linking their logs and failure handoffs. Required package
-inputs are prepared through the maintained builders. Repair and implementation
-agents remain serial; `fix-tests` and `write-e2e` share the VM queue through
+inputs are prepared through the maintained builders. Repair agents remain serial
+within each host or VM workflow; implementation agents remain serial.
+`fix-tests` and `write-e2e` share the VM queue through
 `run-tests`.
 
 `host-builds` remains a compatibility alias for `host`. Its `--serial-builds`
@@ -269,6 +280,7 @@ then retains it after the completed test output with its position in the discove
 The exact argument arrays from that inventory are forwarded to the test runner.
 
 Optional categories restrict both repair and verification: `tools/fix-tests host`,
+`tools/fix-tests vm`,
 `tools/fix-tests unit ui` and `tools/fix-tests "unit ui"` are supported.
 Category arguments pass through to the runner, for example `tools/fix-tests e2e --id 6`
 or `tools/fix-tests unit 'tests/unit/test_fix_tests.py' -q`. The exact selectors
@@ -279,13 +291,20 @@ arguments. For example, `tools/fix-tests e2e --id 6 --rounds 3` forwards
 `e2e --id 6` for each of three rounds. Inspection
 flags are not repair selections; use `run-tests` for listing or collection.
 Expansion uses the same `suite_inventory` utility as the `run-tests` host coordinator.
-`host` (also `host-builds`) expands to all implemented host leaves, excluding
-`system` and `e2e`; `all` expands to every implemented leaf. Overlapping selections
+`host` (also `host-builds`) expands to all implemented host leaves;
+`vm` expands to all implemented VM leaves, and `all` expands to every
+implemented leaf. The repair launcher preserves the runner's category definitions,
+scope metadata and ordering without a separate category registry. Overlapping selections
 are deduplicated in inventory order, and unknown categories or diagnostic helpers
 are rejected. With explicit categories, round 2 repeats only those leaves until
 a complete selected pass needs no repairs; it never invokes the `all` aggregate.
 Without categories verification uses the full regression aggregate.
 Categories, rounds and model options apply to new runs; attaching keeps the active run's options.
+Host-only repair runs keep their own workflow owner and output under
+`output/test-runs/host/fix-tests-host/`; VM-containing runs use the existing
+`output/test-runs/host/fix-tests/`. Separate host and VM repair runs may overlap.
+Attach or cancel with the same scope, for example `tools/fix-tests host --stop`
+or `tools/fix-tests vm --vm NAME --stop`. No categories select the VM namespace.
 
 The launcher itself is Python scripting. New runs validate the selected model
 and effort against the Codex CLI catalog before testing. Classification and
@@ -769,17 +788,17 @@ pending scope and prerequisites.
 Every `tools/run-tests` category runs independently of its terminal. Closing the
 terminal detaches the display; tests continue. Ctrl+C requests cancellation and
 waits for owned cleanup. Invoke `tools/run-tests --vm NAME` for a VM run in a new terminal to attach to
-the existing progress and final output, including its exit status. While any run
-is active, execution invocations warn and attach to it, ignoring new categories or invalid options. VM attachment and cancellation
+the existing progress and final output, including its exit status. While a run
+is active in the requested scope, execution invocations warn and attach to it,
+ignoring new categories or invalid options. VM attachment and cancellation
 require the original configured `--vm NAME` for narrowed runs; missing or different
 names refuse. Configured queue runs attach and cancel without `--vm`.
 `tools/run-tests --vm NAME --stop` attaches to a narrowed VM run, requests
 cancellation, and waits for owned cleanup; when idle it returns without starting
-tests or consuming saved results. An active host run is found even with no
-arguments or a VM category, and an active VM run is found with host arguments.
-Host and VM activity locks remain separate so standalone VM preparation can
-overlap host tests. If older launchers already started both scopes, attachment
-prefers the requested scope (VM for no arguments).
+tests or consuming saved results. Attachment searches only the requested scope:
+use a host category for host work and `vm` for VM work. Host and VM sessions and
+activity locks are independent, allowing separate runs and standalone VM
+preparation to overlap host tests. No arguments select the VM session namespace.
 The original selection and options remain in effect. Global and category help,
 listings, and collection-only invocations always return their requested inspection
 output without acquiring or checking test/session locks, attaching to a run, or
@@ -897,10 +916,13 @@ to host-only runs and every stage of both complete aggregates.
 
 The maintained launchers hold a checkout activity lock for the full command,
 including cleanup. Aggregate children join through an inherited locked file
-descriptor; another terminal's `tools/run-tests` attaches to its session.
+descriptor; another terminal's `tools/run-tests` attaches within the same scope.
 Host-only selections use `artifacts/test-activity/host.lock`; selections with
 VM or privileged integration work keep
-`artifacts/test-activity/lock`. Competing owners within each scope refuse.
+`artifacts/test-activity/lock`. These are the only two test scope locks;
+`all` and mixed host/VM selections reserve both, including cleanup.
+Competing owners within each scope refuse. Named VM preparation also retains
+its existing per-guest lease and ownership checks.
 Standalone app-snapshot preparation uses `vm-NAME.lock` in that same directory,
 with a shared lease on `lock`. Different named VMs may prepare concurrently;
 the same name and existing aggregate owners remain excluded. Child workers
@@ -1437,7 +1459,7 @@ only its own terminal. Finished tabs retain their output and remain selectable.
 Related Git worktrees are discovered automatically; launch `tools/watch` from an
 unrelated checkout to add it to the same window. Branch names update after Git
 branch switches; checkout paths identify separate tabs even when labels match.
-The left terminal follows active `fix-tests` output before `run-tests`,
+The left terminal follows active VM `fix-tests`, then host `fix-tests` output before `run-tests`,
 using VS Code Light+ colors, wrapping and vertical scrollback. The initial
 horizontal split is 25%/75%, adjustable by dragging. The right viewer has one
 flat tab row: **All**, **UI - category** for each active UI worker category,

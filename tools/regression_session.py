@@ -1,6 +1,5 @@
 """Reconnectable test owner; terminals only observe its durable output."""
 
-from contextlib import ExitStack
 import fcntl
 import json
 import os
@@ -16,6 +15,7 @@ import uuid
 import test_activity
 import test_launcher
 
+_startup = threading.RLock()
 
 from detached_launcher import FRAME_DIRECTORY, lock, busy
 
@@ -64,42 +64,40 @@ def current_session(directory):
 
 
 def select(root, argv):
-    from test_commands import host_only_request, is_inspection, validate
+    # Activity descriptor state is process-local. Concurrent callers in this
+    # process serialize only startup; detached host/VM workers remain independent.
+    with _startup:
+        return _select(root, argv)
+
+
+def _select(root, argv):
+    from test_commands import host_only_request, includes_host_request, is_inspection, validate
     # Inspection never attaches, waits for locks, or consumes an unread result.
     if is_inspection(argv):
         return None, False
     requested = list(argv) or ['all']
     host_only = host_only_request(requested)
-    # Serialize discovery and startup across both namespaces. The activity locks
-    # remain separate so standalone VM preparation can overlap host tests.
-    directories = [prepare(root, host_only=scope) for scope in (False, True)]
-    directory = directories[int(host_only)]
-    with ExitStack() as locks:
-        for candidate in directories:
-            gate = locks.enter_context(lock(candidate / 'gate'))
-            fcntl.flock(gate, fcntl.LOCK_EX)
-        sessions = {candidate: current_session(candidate) for candidate in directories}
-        # Older launchers could start one run in each scope. Prefer the requested
-        # scope in that case, but always attach to a live owner before idle output.
-        for candidate in (directory, directories[int(not host_only)]):
-            run, active = sessions[candidate]
-            if active:
-                from vm_selection import extract
-                _, requested_vm = extract(requested, required=False)
-                previous_args = json.loads((candidate / 'current.json').read_text())['argv']
-                _, active_vm = extract(previous_args, required=False)
-                if active_vm is not None and (requested_vm is None or requested_vm.name != active_vm.name):
-                    raise ValueError('vm-config: active run requires its original --vm NAME')
-                record = json.loads((candidate / 'current.json').read_text())
-                if record.get('vm_batch') is not None and requested_vm is not None:
-                    raise ValueError('vm-config: active run executes the enabled VM queue; attach without --vm')
-                if '--stop' in argv:
-                    (run / 'cancel').touch(mode=0o600)
-                return run, False
+    # Each scope discovers and starts its own worker; mixed runs reserve both
+    # activity locks without inspecting or consuming another scope's results.
+    directory = prepare(root, host_only=host_only)
+    with lock(directory / 'gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        run, active = current_session(directory)
+        if active:
+            from vm_selection import extract
+            _, requested_vm = extract(requested, required=False)
+            record = json.loads((directory / 'current.json').read_text())
+            _, active_vm = extract(record['argv'], required=False)
+            if active_vm is not None and (requested_vm is None or requested_vm.name != active_vm.name):
+                raise ValueError('vm-config: active run requires its original --vm NAME')
+            if record.get('vm_batch') is not None and requested_vm is not None:
+                raise ValueError('vm-config: active run executes the enabled VM queue; attach without --vm')
+            if '--stop' in argv:
+                (run / 'cancel').touch(mode=0o600)
+            return run, False
         if '--stop' in argv:
             return None, False
         current = directory / 'current.json'
-        run, _ = sessions[directory]
         if run is not None:
             from vm_selection import extract
             _, requested_vm = extract(requested, required=False)
@@ -129,7 +127,8 @@ def select(root, argv):
             requested.extend(('--vm', configured.name))
         # Keep host-only ownership independent of standalone VM preparation.
         # Pass its actual locked descriptor, never a PID-based ownership guess.
-        with test_activity.activity(root, host_only=host_only):
+        with test_activity.activity(root, host_only=host_only,
+                                    includes_host=includes_host_request(root, requested)):
             import test_retention
             store = test_retention.Store(directory / 'retention')
             if store.path.exists():
@@ -255,7 +254,9 @@ def worker(root, argv, run, owner):
         sys.stdout.flush()
         sys.stderr.flush()
         sys.stdout = original
-        os.close(int(os.environ[test_activity.VARIABLE]))
+        for variable in (test_activity.VARIABLE, test_activity.HOST_VARIABLE):
+            if variable in os.environ:
+                os.close(int(os.environ[variable]))
         (run / 'result').write_text(str(status))
         os.close(owner)
     return status

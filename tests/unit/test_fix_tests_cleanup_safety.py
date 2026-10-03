@@ -53,9 +53,12 @@ def checkout(tmp_path, monkeypatch):
 
     monkeypatch.setattr(fix_tests.subprocess, 'Popen', record)
     yield tmp_path, spawned
-    run = fix_tests.current_run(tmp_path / 'artifacts/fix-tests')
-    if run is not None:
-        (run / 'cancel').touch()
+    from test_storage import directory
+    for path in (tmp_path / 'artifacts/fix-tests', directory('fix-tests', root=tmp_path),
+                 directory('fix-tests-host', root=tmp_path)):
+        run = fix_tests.current_run(path)
+        if run is not None:
+            (run / 'cancel').touch()
     (tmp_path / 'release').touch()
     for child in spawned:
         child.wait(timeout=20)
@@ -76,6 +79,25 @@ def test_worker_round_count_and_top_frame(checkout, rounds):
     rendered = Text.from_ansi(output.getvalue()).plain
     assert all(f'Round {number}: Category: unit' in rendered
                for number in range(1, rounds + 1))
+
+
+def test_host_and_vm_repair_runs_have_independent_owners_and_cancellation(checkout):
+    root, spawned = checkout
+    host, host_started = fix_tests.select(root, categories=('host',))
+    vm, vm_started = fix_tests.select(root, categories=('vm',))
+    assert host_started and vm_started and host != vm
+    deadline = time.monotonic() + 12
+    while not (host / 'last-test.log').exists() or not (vm / 'last-test.log').exists():
+        assert time.monotonic() < deadline
+        time.sleep(.02)
+    assert fix_tests.select(root, categories=('host',)) == (host, False)
+    assert fix_tests.select(root, categories=('vm',)) == (vm, False)
+    assert fix_tests.select(root, categories=('host',), stop=True) == (host, False)
+    assert fix_tests.follow(host, io.StringIO()) == 130
+    assert not (vm / 'cancel').exists()
+    assert all(child.poll() is None for child in spawned if str(vm) in child.args)
+    (root / 'release').touch()
+    assert fix_tests.follow(vm, io.StringIO()) == 0
 
 
 def test_concurrent_starts_share_one_owner_and_terminal_loss_only_detaches(checkout):
@@ -197,7 +219,7 @@ def test_blocker_waits_for_reattached_menu_answer_before_repair_or_tests(checkou
     assert spawned[0].poll() is None
     assert not (run / 'result.json').exists()
     assert json.loads((run / 'question.json').read_text())['answer'] is None
-    assert fix_tests.select(root) == (run, False)
+    assert fix_tests.select(root, categories=('host',)) == (run, False)
     answered = []
 
     def type_answer(display):
@@ -228,7 +250,7 @@ def test_blocker_waits_for_reattached_menu_answer_before_repair_or_tests(checkou
         assert f'model_reasoning_effort="{effort}"' in agent['args']
     assert len(json.loads((run / 'developer-answers.json').read_text())) == len(answered)
     rendered = Text.from_ansi(output.getvalue()).plain
-    assert 'No timeout. Reattach with tools/fix-tests' in rendered
+    assert 'No timeout. Reattach with tools/fix-tests host' in rendered
     assert 'Answer received. Continuing this repair.' in rendered
 
 
@@ -238,7 +260,7 @@ def test_stop_while_awaiting_developer_never_runs_repair_or_tests(checkout):
     run, _ = fix_tests.select(root, rounds=2, categories=('unit',))
     wait_for(run / 'question.json')
     before = (root / 'calls').read_text()
-    assert fix_tests.select(root, stop=True) == (run, False)
+    assert fix_tests.select(root, categories=('host',), stop=True) == (run, False)
     assert fix_tests.follow(run, io.StringIO()) == 130
     spawned[0].wait(timeout=5)
     assert (root / 'calls').read_text() == before
@@ -351,7 +373,7 @@ def test_cancellation_during_recovery_waits_for_cleanup(checkout):
     (root / 'mode').write_text('recovery-wait')
     run, _ = fix_tests.select(root, rounds=2, categories=('unit',))
     wait_for(root / 'test-ready')
-    assert fix_tests.select(root, stop=True) == (run, False)
+    assert fix_tests.select(root, categories=('host',), stop=True) == (run, False)
     assert fix_tests.follow(run, io.StringIO()) == 130
     assert (root / 'test-interrupted').exists()
     assert (root / 'test-cleaned').exists()
@@ -652,7 +674,7 @@ def test_diagnostic_execution_cancellation_finishes_owned_cleanup(checkout):
         'agents': ['diagnostic_ready'], 'tests': ['A', 'A'], 'wait_test': 1}))
     run, _ = fix_tests.select(root, categories=('unit',))
     wait_for(root / 'test-ready')
-    fix_tests.select(root, stop=True)
+    fix_tests.select(root, categories=('host',), stop=True)
     assert fix_tests.follow(run, io.StringIO()) == 130
     assert (root / 'test-interrupted').exists() and (root / 'test-cleaned').exists()
     rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
@@ -705,9 +727,9 @@ def test_discovered_arguments_reach_each_test_without_reconstruction(checkout):
     assert fix_tests.follow(run, output) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert [call['args'] for call in calls] == [
-        ['--stop-on-error', 'unit', '--future-option', '--vm', vm_name()],
-        ['--stop-on-error', 'future-suite', '--case', 'two words', '--vm', vm_name()],
         ['--stop-on-error', 'e2e', '--vm', vm_name()],
+        ['--stop-on-error', 'future-suite', '--case', 'two words', '--vm', vm_name()],
+        ['--stop-on-error', 'unit', '--future-option', '--vm', vm_name()],
         ['--stop-on-error', 'all', '--vm', vm_name()]]
     marker = '\033[1;36mRunning category [future-suite] (2/3)\033[0m'
     text = output.getvalue()

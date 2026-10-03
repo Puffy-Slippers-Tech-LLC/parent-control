@@ -79,6 +79,9 @@ from regression_resources import HOST_WORKERS
 
 # DESK13 shares those private doubles/evidence and waited Perl lifetimes; its
 # installed attempt adds no cleanup owner beyond the product-free envelope.
+# Host/VM repair-session overlap uses private workflow directories and waited
+# test/agent doubles. The fixture cancels only its recorded owners; fix_tests
+# remains compatible in both cleanup and unit scheduling, with no live VM/GUI.
 REVIEWED = frozenset('''
 desktop_language
 vm_internet native_fixtures baseline_fixtures chinese_language_assets

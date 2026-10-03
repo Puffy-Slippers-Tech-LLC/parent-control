@@ -60,8 +60,8 @@ application policy, accounts or operating-system language settings.
 
 ### Language catalogue and resolution
 
-The shared JSON catalogue owns ordered product language IDs and their native
-display names. Python reads it without GTK; the same JSON is packaged with the
+The shared JSON catalogue owns ordered product language IDs, native display
+names and English names for chooser search. Python reads it without GTK; the same JSON is packaged with the
 Shell extension. Native names remain recognizable regardless of the active UI
 language and are not translated into that language.
 

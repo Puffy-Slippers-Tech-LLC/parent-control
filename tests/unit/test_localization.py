@@ -363,6 +363,9 @@ def test_polkit_duration_plural_wording_and_fallback(production_catalogues, lang
     ('', {'pt', 'pt-BR', 'ru', 'sr-Latn'}),
     ('  gUÊS  ', {'pt', 'pt-BR'}),
     ('PORT*BR', {'pt-BR'}),
+    ('Portuguese', {'pt', 'pt-BR'}),
+    ('rUsSiAn', {'ru'}),
+    ('Serbian', {'sr-Latn'}),
     ('РУСС', {'ru'}),
     ('sr-?atn', {'sr-Latn'}),
     ('[', set()),
@@ -372,6 +375,21 @@ def test_language_search_matches_partial_native_names_and_ids(query, expected):
     choices = [('pt', 'Português'), ('pt-BR', 'Português (Brasil)'),
                ('ru', 'Русский'), ('sr-Latn', 'Srpski (latinica)')]
     assert {identity for identity, name in choices
+            if language_matches(query, identity, name)} == expected
+
+
+@pytest.mark.parametrize('query,expected', [
+    ('Chinese', {'zh-Hans', 'zh-Hant'}),
+    ('中文', {'zh-Hans', 'zh-Hant'}),
+    ('  cHiN*SiMp  ', {'zh-Hans'}),
+    ('Traditional', {'zh-Hant'}),
+    ('Japanese', {'ja'}),
+    ('German', {'de'}),
+    ('Norwegian', {'nb', 'nn'}),
+    ('Friulian', {'fur'}),
+])
+def test_language_search_matches_english_names(query, expected):
+    assert {identity for identity, name in SUPPORTED_LANGUAGES
             if language_matches(query, identity, name)} == expected
 
 

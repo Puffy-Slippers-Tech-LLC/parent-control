@@ -224,7 +224,9 @@ setup, the chooser paints before the management interface is constructed in a
 later main-loop iteration behind it; account loading then runs asynchronously.
 A saved language is applied before constructing the management interface.
 
-The chooser lists native names in catalogue order. Both dialog UIs use the
+The chooser lists native names in catalogue order. Search matches native names,
+English names and language IDs, with case-insensitive partial and wildcard matching.
+Both dialog UIs use the
 heading “Choose your language”. Save
 and Cancel are available on all surfaces, including first-time setup.
 Selection immediately translates the existing chooser controls in a private

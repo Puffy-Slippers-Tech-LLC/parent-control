@@ -20,12 +20,14 @@ for identity, _name in SUPPORTED_LANGUAGES:
     if identity == base:
         _BY_LANGUAGE[base] = identity
 _DIRECTIONS = {entry["id"]: entry.get("direction", "ltr") for entry in _ENTRIES}
+_ENGLISH_NAMES = {entry["id"]: entry["english_name"] for entry in _ENTRIES}
 
 
 def language_matches(query: str, identity: str, name: str) -> bool:
-    """Case-insensitive partial/wildcard search of a native name or language ID."""
+    """Case-insensitive partial/wildcard search of native/English names or IDs."""
     pattern = f"*{query.strip().casefold()}*"
-    return any(fnmatchcase(value.casefold(), pattern) for value in (name, identity))
+    return any(fnmatchcase(value.casefold(), pattern)
+               for value in (name, identity, _ENGLISH_NAMES.get(identity, "")))
 
 
 def supported_language(locale_name: str) -> str:

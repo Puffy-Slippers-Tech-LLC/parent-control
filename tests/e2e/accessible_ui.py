@@ -4208,10 +4208,15 @@ class AccessibleUI:
         the worker rather than trying another key or relaunching anything.
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(binding != source and self.existing_window_active(source) is not None,
-                'ui:switch-source')
-        require(self.existing_window_active(binding) is None, 'ui:switch-already-active')
-        return self.window_switch_proof(binding, active=False)
+        def ready():
+            require(binding != source and self.existing_window_active(source) is not None,
+                    'ui:switch-source')
+            require(self.existing_window_active(binding) is None, 'ui:switch-already-active')
+            return self.window_switch_proof(binding, active=False)
+        # Closed chooser/popover nodes may disappear during this read boundary.
+        # Reacquire both endpoints and the proof together; only a complete read
+        # authorizes the worker's subsequent single shortcut.
+        return self.wait(ready, 'switch-ready', prompt_in_predicate=True)
 
     def window_switch_proof(self, binding, *, active=True, projection='synthetic-first'):
         root = self.existing_window(binding)

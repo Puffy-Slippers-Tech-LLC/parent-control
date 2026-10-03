@@ -797,6 +797,69 @@ def test_restart_stages_retained_completion_before_selecting_next_task(tmp_path,
     assert set(files) - {''} == {workflow.PLAN, workflow.QUEUE, 'owned.py'}
 
 
+@pytest.mark.parametrize('response', [None, '', '{"status":', 'null', '[]',
+                                      json.dumps(reply()), '{"status":"task_complete"}',
+                                      json.dumps(reply('task_complete', 'failed')),
+                                      json.dumps(reply('task_complete', 'passed', task_id='002'))])
+def test_restart_recovers_incomplete_response_without_advancing_or_staging(tmp_path, monkeypatch, response):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = dict(workflow.fresh_state('001'), in_flight=True, queue_before=before,
+                 task_sessions=6, live_attempts=2, handoff='Last safe failure evidence.')
+    previous = tmp_path / 'previous-run'
+    previous.mkdir()
+    checkpoint = previous / 'checkpoint.json'
+    checkpoint.write_text(json.dumps(state))
+    retained = checkpoint.read_bytes()
+    result_path = previous / 'agent-result.json'
+    if response is not None:
+        result_path.write_text(response)
+    (tmp_path / workflow.QUEUE).write_text('| [x] | 001 | First |\n| [ ] | 002 | Second |\n')
+    (tmp_path / workflow.PLAN).write_text('Next task: **002 — Second**.\n')
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
+    staged = []
+    monkeypatch.setattr(workflow, 'stage_completion', lambda *args: staged.append(args))
+    selected = workflow.initial_state(tmp_path, tmp_path)
+    assert selected['task_id'] == '001' and selected['phase'] == 'recover'
+    assert selected['completion_recovery'] and not selected['in_flight']
+    assert selected['queue_before'] == before
+    assert selected['task_sessions'] == 6 and selected['task_session_limit'] == 11
+    assert selected['live_attempts'] == 2
+    prompt = workflow.session_prompt(selected)
+    assert 'Reconcile interrupted close-out for task 001' in prompt
+    assert str(previous / 'handoff.txt') in prompt
+    assert 'Last safe failure evidence.' in prompt
+    assert 'Reuse sufficient retained' in prompt
+    assert 'restore this task\'s unchecked row' in prompt
+    assert not staged
+    assert workflow.queue_state(tmp_path)[0] == '002'
+    assert checkpoint.read_bytes() == retained
+    if response is not None:
+        assert result_path.read_text() == response
+    else:
+        assert not result_path.exists()
+
+
+@pytest.mark.parametrize('queue', [
+    '| [x] | 001 | First |\n| [x] | 002 | Second |\n',
+    '| [x] | 001 | First |\n| [ ] | 003 | Added |\n| [ ] | 002 | Second |\n',
+    '| [ ] | 002 | Second |\n| [x] | 001 | First |\n',
+])
+def test_missing_completion_does_not_recover_unrelated_queue_changes(tmp_path, monkeypatch, queue):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    previous = tmp_path / 'previous'
+    previous.mkdir()
+    (previous / 'checkpoint.json').write_text(json.dumps(dict(
+        workflow.fresh_state('001'), in_flight=True, queue_before=before)))
+    (tmp_path / workflow.QUEUE).write_text(queue)
+    (tmp_path / workflow.PLAN).write_text(
+        'Next task: **' + ('003' if '003' in queue else '002') + ' — Next**.\n')
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
+    with pytest.raises(ValueError, match='interrupted task changed the queue'):
+        workflow.initial_state(tmp_path, tmp_path)
+
+
 @pytest.mark.parametrize('fault', ['failed-live', 'wrong-task', 'other-task', 'staging'])
 def test_retained_completion_cannot_bypass_acceptance_or_staging(tmp_path, monkeypatch, fault):
     prepare(tmp_path)

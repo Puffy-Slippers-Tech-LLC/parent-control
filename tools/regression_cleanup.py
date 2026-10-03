@@ -88,6 +88,10 @@ system_caller system_enforcement system_probe_sandbox system_runner storage_migr
 test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session write_e2e
 '''.split())
 
+# Missing-completion recovery uses private checkouts and waited owner/agent
+# doubles under the existing write-e2e fixture. No live VM or shared mutable
+# resource is added; cleanup and unit scheduling remain compatible.
+
 # Online snapshot, baseline CPU and maintenance recovery/rollback regressions
 # Per-VM spectator publication cleanup uses private tmp_path registrations and
 # mocked servers; it touches no live sockets, processes, VM leases or displays.

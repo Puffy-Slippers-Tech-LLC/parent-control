@@ -729,9 +729,16 @@ that session. A pass closes the task; a failure preserves evidence and hands off
 for investigation and repairs in the next session.
 Blocked checkpoints retain their pending question and pause again until answered.
 The full engineering handoff remains in `handoff.txt`, without being repeated in
-the blocked display. An interrupted session that changed the queue
-requires inspecting its saved handoff. The launcher never assumes an interrupted
-live test passed. Lifecycle qualification lives in
+the blocked display. If an interrupted session checked its own task but did not
+save a valid completion response, the launcher automatically starts a recovery
+session for that task before selecting the next one, even if the queue is empty.
+Recovery inspects the saved handoff and retained acceptance/cleanup evidence,
+reuses sufficient passing results and completes missing validation or close-out.
+If acceptance remains incomplete, it restores the task's unchecked row, brief
+and pointer before continuing. Only a validated completion response and successful
+staging permit advancement. Unrelated queue changes still refuse recovery.
+The launcher never assumes an interrupted live test passed. Lifecycle qualification
+lives in
 [test_write_e2e_cleanup_safety.py](unit/test_write_e2e_cleanup_safety.py).
 
 ### Aggregate execution and reconnection

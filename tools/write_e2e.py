@@ -526,11 +526,11 @@ def recover_completion(root, run, state):
             if state.get('pending_completion') is not None:
                 raise
     if updated is None:
-        validate_completion_queue(state, after)
+        before = validate_completion_queue(state, after)
         print(f"write-e2e: automatically reconciling interrupted task {state['task_id']} "
               'before starting the next task.', flush=True)
         return dict(state, phase='recover', in_flight=False, completion_recovery=True,
-                    recovery_run=str(run))
+                    recovery_run=str(run), queue_before=before)
     stage_completion(root, state, result)
     updated.pop('pending_completion', None)
     updated.pop('worktree_before', None)
@@ -539,13 +539,19 @@ def recover_completion(root, run, state):
 
 
 def validate_completion_queue(state, after):
-    """Only the interrupted task's own unchecked-to-checked transition is recoverable."""
+    """Preserve old task order/status and adopt newly queued unchecked work."""
     before = state.get('queue_before', {})
     task = state['task_id']
     expected = dict(before)
     expected[task] = True
-    if before.get(task) is not False or after != expected or list(after) != list(before):
+    retained = {key: complete for key, complete in after.items() if key in before}
+    if (before.get(task) is not False or retained != expected
+            or list(retained) != list(before)
+            or any(complete for key, complete in after.items() if key not in before)):
         raise ValueError('interrupted task changed the queue; inspect the saved handoff')
+    # Include additions in the recovery baseline so accept_result also guards
+    # their status. Updating this new state never rewrites the saved checkpoint.
+    return dict(after, **{task: False})
 
 
 def save_handoff(run, state, reason, *, display=True):
@@ -691,10 +697,10 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 break
             task, before = queue_state(root)
             if state.get('completion_recovery'):
-                validate_completion_queue(state, before)
+                before = validate_completion_queue(state, before)
                 # The pointer already names the next task. Keep the interrupted
                 # task and its original status baseline until acceptance is proven.
-                task, before = state['task_id'], state['queue_before']
+                task = state['task_id']
             if task is None:
                 state = dict(state, task_id=None, summary='All active queue tasks are complete.',
                              handoff='No active E2E task remains. Do not select deferred tasks.', phase='complete')

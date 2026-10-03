@@ -185,6 +185,43 @@ def test_missing_completion_automatically_recovers_same_task_before_staging(
     assert set(staged) - {''} == {workflow.PLAN, workflow.QUEUE, 'owned.py'}
 
 
+def test_completion_recovery_preserves_new_queue_tasks_across_restart(checkout):
+    root, _ = checkout
+    additions = ''.join(f'| [ ] | {task} | Added |\n' for task in range(300, 306))
+    queue = '| [x] | 001 | First |\n' + additions + '| [ ] | 002 | Second |\n'
+    script(root,
+           {'result': reply('task_complete', 'passed'), 'close': True, 'invalid': True},
+           {'result': reply('task_complete', 'passed'), 'invalid': True},
+           {'result': reply('task_complete', 'passed')},
+           {'result': reply('task_complete', 'passed', task_id='300'),
+            'writes': {workflow.QUEUE: queue.replace('| [ ] | 300 |', '| [x] | 300 |'),
+                       workflow.PLAN: 'Next task: **301 — Added**.\n'}})
+    previous, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(previous, io.StringIO()) == 1
+    saved = (previous / 'checkpoint.json').read_bytes()
+    (root / workflow.QUEUE).write_text(queue)
+    (root / workflow.PLAN).write_text('Next task: **300 — Added**.\n')
+    interrupted, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(interrupted, io.StringIO()) == 1
+    state = json.loads((interrupted / 'checkpoint.json').read_text())
+    assert state['task_id'] == '001' and state['completion_recovery']
+    assert list(state['queue_before']) == ['001', *map(str, range(300, 306)), '002']
+    assert not any(state['queue_before'].values())
+    assert subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True,
+                          check=True).stdout == b''
+    recovered, _ = select_vm(root, ['--tasks', '2', '--sessions', '2'])
+    assert launcher.follow(recovered, io.StringIO()) == 0
+    assert (previous / 'checkpoint.json').read_bytes() == saved
+    recorded = calls(root)
+    assert len(recorded) == 4
+    assert all('Task 001:' in call['prompt'] for call in recorded[:3])
+    assert 'Task 300:' in recorded[3]['prompt']
+    current, statuses = workflow.queue_state(root)
+    assert current == '301'
+    assert {task for task, done in statuses.items() if done} == {'001', '300'}
+    assert json.loads((recovered / 'result.json').read_text())['tasks'] == 2
+
+
 def test_completion_recovery_can_reopen_unaccepted_task_then_resume(checkout):
     root, _ = checkout
     script(root,

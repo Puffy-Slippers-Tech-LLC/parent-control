@@ -390,7 +390,8 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
     assert set(identity['files']) == {
         'system_guest.py', 'owned_commands.py', 'guest/redact.py', 'pytest.ini',
         'test_install_smoke.py', 'system_progress.py',
-        'guest_test_dependencies.py',
+            'guest_test_dependencies.py',
+            'chinese_language_assets.py',
         'guest_install_recipe.py',
         'baseline_assets.py', 'native_assets.py', 'tests/__init__.py',
         'tests/fixtures/__init__.py', 'tests/fixtures/native_assets.py',

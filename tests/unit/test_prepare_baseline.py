@@ -1024,6 +1024,9 @@ def guest_fixture():
     g.is_file.side_effect = lambda path: path in files
     g.is_dir.side_effect = lambda path: path == str(Path(baseline_console.GETTY_LINK).parent)
     g.is_symlink.side_effect = lambda path: path == baseline_console.GETTY_LINK
+    from tests.support.chinese_assets import populate
+    populate(files, metadata)
+    g.command.return_value = 'UTF-8\n'
     return SimpleNamespace(g=g, files=files, marker=marker, module=SimpleNamespace(GuestFS=Mock(return_value=g)))
 
 

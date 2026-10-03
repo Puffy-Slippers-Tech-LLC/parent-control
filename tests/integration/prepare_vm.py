@@ -42,6 +42,7 @@ KIOSK_USER = "oh-no-parent-control"
 SCRIPT_FILES = (
     "tests/integration/prepare_vm.py",
     "tests/integration/guest_test_dependencies.py",
+    "tests/integration/chinese_language_assets.py",
     "tests/integration/vm_config.py",
     "tests/integration/baseline_guest_entry.py",
     "tests/integration/test_account_password.py",
@@ -767,6 +768,8 @@ def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
         return
     if os_id != 'ubuntu':
         raise PreparationError('guard:os', 'unsupported guest tool policy')
+    from chinese_language_assets import LocalFiles, preflight, verify as verify_chinese
+    preflight(LocalFiles(root))
     status = _rooted(root, '/var/lib/dpkg/status')
     sources = _rooted(root, '/etc/apt/sources.list.d/ubuntu.sources')
     original = sources.read_text()
@@ -789,6 +792,7 @@ def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
         guest_tools.verify_packages(status.read_text())
     except ValueError as error:
         raise PreparationError('guest-tools:verification', 'required test packages are not configured') from error
+    verify_chinese(LocalFiles(root))
     for path in guest_tools.DORMANT_PATHS:
         candidate = _rooted(root, path)
         if candidate.exists() or candidate.is_symlink():

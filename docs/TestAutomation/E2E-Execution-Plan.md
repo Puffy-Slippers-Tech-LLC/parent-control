@@ -21,6 +21,14 @@ changing runtime readiness on the strength of documentation alone.
 
 Next task: **300 — [Installed personal-language acceptance](E2E-Tasks/300-localization.md)**.
 
+Task 300a qualified the Chinese baseline language slice and read-only FIX06 on
+every enabled VM (Ubuntu 26.04) in `20261003T210556Z-9dc87030`; the affected native
+fixture regression passed in `20261003T210811Z-d41b9452`. Task 300 remains unchecked.
+DESK13, real upgrade
+composition and the Chinese native authentication binding still require their
+own bounded qualification. Allocate those prerequisite slices before task 300
+implements or registers its single complete multilingual/RTL and Chinese case.
+
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the
 pointer; record its exact remaining work and return condition here and in its

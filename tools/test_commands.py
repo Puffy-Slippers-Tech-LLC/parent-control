@@ -353,6 +353,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_give_repeated_public_operations_distinct_stages.py'],
             ['check_e2e_gdm_product_free'], ['check_e2e_gdm_product_free.py'],
             ['check_e2e_product_free_entry'], ['check_e2e_product_free_entry.py'],
+            ['check_e2e_chinese_language_assets'], ['check_e2e_chinese_language_assets.py'],
             ['check_e2e_package_authority'], ['check_e2e_package_authority.py'],
             ['check_e2e_package_command'], ['check_e2e_package_command.py'],
             ['check_e2e_customer_reboot'], ['check_e2e_customer_reboot.py'],

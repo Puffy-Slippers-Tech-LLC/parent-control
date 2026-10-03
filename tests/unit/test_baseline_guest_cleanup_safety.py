@@ -128,7 +128,7 @@ def guest_entry(tmp_path, monkeypatch):
     monkeypatch.setattr(entry.prepare_vm, 'CHECKOUT', root / 'checkout')
     monkeypatch.setattr(entry.prepare_vm, 'main', Mock(return_value=0))
     monkeypatch.setattr(entry.prepare_vm, '_read_os_release', lambda path: {'ID': 'ubuntu', 'VERSION_ID': '26.04'})
-    monkeypatch.setattr(entry.prepare_vm.guest_tools, 'verify_packages', Mock())
+    monkeypatch.setattr(entry.prepare_vm.guest_tools, 'verify_installed', Mock())
     return entry, root
 
 
@@ -198,7 +198,7 @@ def test_updates_use_bounded_noninteractive_apt_and_stop_on_failure(monkeypatch,
     monkeypatch.setattr(entry.subprocess, 'run', run)
     monkeypatch.setattr(Path, 'read_text', lambda *_: '')
     verify = Mock()
-    monkeypatch.setattr(entry.prepare_vm.guest_tools, 'verify_packages', verify)
+    monkeypatch.setattr(entry.prepare_vm.guest_tools, 'verify_installed', verify)
     if failure is not None:
         with pytest.raises(subprocess.CalledProcessError):
             entry.update_system()

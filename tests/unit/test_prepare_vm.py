@@ -510,7 +510,12 @@ def package_status():
 
 
 @pytest.mark.parametrize('failure', [None, 'update', 'install', 'verify', 'active'])
-def test_dependencies_install_once_retry_without_network_and_stop_on_failure(tmp_path, failure):
+def test_dependencies_install_once_retry_without_network_and_stop_on_failure(tmp_path, failure, monkeypatch):
+    import chinese_language_assets
+    # Package transaction tests supply readiness independently of the package
+    # database. The profile's actual file/string/font oracles have their own tests.
+    monkeypatch.setattr(chinese_language_assets, 'verify', lambda g: {'profile': 'chinese'})
+    monkeypatch.setattr(chinese_language_assets, 'preflight', lambda g: None)
     status = tmp_path / 'var/lib/dpkg/status'
     status.parent.mkdir(parents=True)
     status.write_text('Package: bash\nStatus: install ok installed\nVersion: 1\n')

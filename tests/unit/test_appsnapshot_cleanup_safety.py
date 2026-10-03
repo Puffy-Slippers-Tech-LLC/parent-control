@@ -282,6 +282,10 @@ def test_saved_transport_verifies_clock_after_resuming(tmp_path, monkeypatch, cl
     times = iter((1000, 1000 + delay, 1000 + delay))
     monkeypatch.setattr(online_snapshot.time, 'time', lambda: next(times))
     lease = Mock()
+    lease.capture.state = {'guest': {'ubuntu_version': '26.04'}}
+    import chinese_language_assets
+    readiness = Mock()
+    monkeypatch.setattr(chinese_language_assets, 'verify_transport', readiness)
     record = {'run': 'a' * 32, 'private_key': 'private-fixture-key',
               'host_key': 'ssh-ed25519 fixture'}
     if not accepted:
@@ -290,6 +294,7 @@ def test_saved_transport_verifies_clock_after_resuming(tmp_path, monkeypatch, cl
     else:
         assert online_snapshot.saved_transport(lease, tmp_path, record, 'fixture-host') is transport
     transport.probe_ready.assert_called_once()
+    assert readiness.call_count == int(accepted)
     assert transport.call.call_args_list[0].args[0] == ['date', '--set', '@1000']
     assert (tmp_path / 'snapshot-transport/ssh-key').stat().st_mode & 0o777 == 0o600
 

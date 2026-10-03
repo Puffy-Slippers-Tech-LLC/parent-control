@@ -407,6 +407,8 @@ def inspect_guest(guestfs, disk, script_digest):
         guest_contract.validate_marker(marker, os_id=os_id)
         if os_id == 'ubuntu':
             guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
+            from chinese_language_assets import verify as verify_chinese
+            verify_chinese(g)
         else:
             guest_contract.selinux_policy(g.read_file('/etc/selinux/config').decode('utf-8'))
             applications = g.inspect_list_applications2(roots[0])

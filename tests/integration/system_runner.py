@@ -1116,6 +1116,8 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
         os_id, version = baseline.guest_contract.inspected_release(g, root)
         if os_id == 'ubuntu':
             baseline.guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
+            from chinese_language_assets import verify as verify_chinese
+            verify_chinese(g)
             sources_path = '/etc/apt/sources.list.d/ubuntu.sources'
             sources = g.read_file(sources_path).decode()
             require(baseline.guest_contract.guest_tools.ubuntu_archive_sources(sources) == sources,

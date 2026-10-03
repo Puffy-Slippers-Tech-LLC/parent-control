@@ -7,6 +7,7 @@ incomplete baseline instead of repairing it.
 
 import re
 import subprocess
+from chinese_language_assets import PACKAGES as CHINESE_PACKAGES
 
 REMOTE_PACKAGES = (
     'slapd=2.6.10+dfsg-1ubuntu5', 'ldap-utils=2.6.10+dfsg-1ubuntu5',
@@ -17,6 +18,7 @@ PACKAGES = (
     # Native GUI fixtures use the distribution's maintained GTK 4 bindings.
     'python3-gi=0', 'gir1.2-gtk-4.0=0',
     *REMOTE_PACKAGES,
+    *CHINESE_PACKAGES,
 )
 VERSIONS = dict(package.split('=', 1) for package in PACKAGES)
 # Qualified minimum versions. Security and maintenance updates may be newer.
@@ -61,7 +63,10 @@ def verify_fedora_packages(packages):
 
 def verify_installed(os_id, *, runner, root):
     if os_id == 'ubuntu':
-        return verify_packages((root / 'var/lib/dpkg/status').read_text())
+        found = verify_packages((root / 'var/lib/dpkg/status').read_text())
+        from chinese_language_assets import LocalFiles, verify
+        verify(LocalFiles(root))
+        return found
     if os_id != 'fedora':
         raise ValueError('guest-tools:unsupported-os')
     result = runner.run(['rpm', '-qa', '--queryformat', '%{NAME}\t%{VERSION}\n'])

@@ -290,8 +290,12 @@ at the judgment boundary without paying for an additional adviser and a second
 implementation context. Delegation stays disabled; classification is not an
 extra read-only agent before every mechanical repair.
 
-If verification still reports the same case, its next repair goes directly to
-GPT-6.1 Sol High with the latest evidence and that case's previous repair summary.
+If verification still reports the same case, its next repair escalates from
+Sol Medium to **Sol High**, from Sol High to **GPT-6 Astra High**, and from
+Astra High to **Astra Extra High**. A stall uses the same immediate escalation
+ladder. The latest evidence and that case's previous repair summary accompany
+each fresh session. Selected tiers survive blocker answers and returns to an
+unresolved case; neither a blocker nor a diagnostic experiment is a failed repair.
 A newly exposed case starts with Medium classification, even in the same category.
 The runner's `failure.json` includes `failures` entries with category, case ID
 and VM name; host cases have an empty VM name. Worker bucket names, report paths
@@ -308,10 +312,9 @@ after the fifth session still finish, and a pass is accepted. If further repair
 is needed, the run fails before a sixth session or another blocker question.
 `repair-stop.json` retains that case's identity, count, latest failure prompt and
 last agent result, even if another case was repaired in between. An entire category
-has no five-session cap. High may also return
-`stalled` before editing when it has no evidence-backed next correction; this
-ends the run with its unresolved question and evidence. An initial `stalled`
-classification transfers to High within the same budget. Missing prerequisites
+has no five-session cap. At the highest tier, `stalled` ends the run early when
+there is no useful authorized next step; speculative edits or repeated attempts
+are not required. Lower-tier stalls escalate within the same budget. Missing prerequisites
 and permissions use their maintained repair/blocker routes, not model escalation
 by themselves. These are session limits, not token budgets.
 
@@ -323,10 +326,14 @@ Ownership recovery remains the existing scripted `cleanup-e2e` operation; a
 normal cleanup failure handoff enters the same repair policy, while refusal
 without a handoff still stops. No model performs routine ownership recovery.
 
-`--model` and `--effort` override the initial agent for a new run; review uses
-GPT-6.1 Sol High. Sol must be `gpt-6.1-sol`; other Sol versions are refused, with no
-silent fallback. Sol High/Extra High requests retain their requested effort. Both required
-model/effort pairs must be listed. All agent sessions pin **Standard speed**,
+`--model` and `--effort` override the initial agent for a new run. Explicit
+stronger model/effort choices are never downgraded: Sol Extra High moves to
+Astra Extra High, and Astra Extra High remains there. An unrecognized model
+has no automatic replacement; its stall stops rather than guessing a ranking.
+Sol must be `gpt-6.1-sol`; other Sol versions are refused, with no silent fallback.
+The selected pair, automatic escalation tiers and any override-specific reachable
+pairs must be listed in the existing CLI catalog before testing begins.
+All agent sessions pin **Standard speed**,
 including answered blockers and repair retries, overriding personal Fast defaults.
 Prompts require scoped reading and concise evidence handoffs without reducing
 understanding, tests, cleanup or behavior-confirmation requirements.
@@ -363,6 +370,22 @@ shared question menu described below. The result file still controls repair
 verification. Development activation is `none`; new launcher processes
 use the checkout code without product installation or a service restart.
 
+When a useful experiment requires instrumentation before a corrective edit is
+justified, return the structured status **`diagnostic_ready`**. Its summary must
+identify the hypothesis, bounded instrumentation changes, expected observations,
+evidence location and interpretation. Instrumentation must preserve behavior,
+privacy, assertions and validation guards. This outcome claims no repair.
+The launcher owns exactly one rerun of the original authorized selectors per
+diagnostic outcome; agents cannot supply commands, run tests or nested launchers.
+It retains a bounded output snapshot and runner handoff in private
+`diagnostic-*.json` files, then supplies the observations to a fresh session at
+the same tier and under the same case/VM budget, even when the category passed.
+An intervening failure in another case or preparation is handled separately;
+the original diagnostic handoff remains pending until its case returns or the
+category passes. The fifth session's diagnostic run still finishes, but further
+interpretation requires stopping at the budget boundary. `stalled` means no
+useful authorized next step exists, rather than an experiment awaiting execution.
+
 Closing the terminal detaches; rerun `tools/fix-tests --vm NAME` to attach to the current
 output, with a bounded tail of earlier output. `tools/fix-tests --vm NAME --stop` and
 Ctrl+C request the same immediate cancellation. Tests receive the runner's
@@ -386,11 +409,17 @@ crash or unmapped infrastructure failure stops with evidence.
 
 `agent-usage.jsonl` records CLI turn counters with session/repair IDs, attempt,
 case identity, per-case session number, round, phase, selected model/effort and
-Standard speed. Session exit, structured result, session-limit and category
+Standard speed. `tier_transition` events record old/new model and effort and
+the escalation reason. Session exit, structured result, session-limit and category
 verification events link classification, blockers and retries to the repair chain.
 Missing counters are unknown, including a session with no
 reported usage; they are never zero-filled. An interrupted verification has no
-success event. A category pass is local verification, not proof that later
+success event. `diagnostic_execution` records observations separately from repair
+verification. A different failing case or preparation failure is not a failed
+verification of the repaired case: `passed` is null and `outcome` is
+`unknown_or_not_executed` until evidence resolves it. A later same-case failure
+or category pass records that resolution under the original identity.
+A category pass is local verification, not proof that later
 aggregate verification will pass. Records are observational, never resume state;
 recording failure warns without interrupting repair or cleanup.
 

@@ -450,7 +450,7 @@ def test_initial_override_preserves_requested_model_and_effort_standard(checkout
       for index in range(6)] + [None], 0),
     (['test_fixed'] * 2 + ['fixed'] * 8,
      [f'case-{index % 2}' for index in range(11)], 1),
-    (['uncertain', 'stalled'], ['case-A'], 1),
+    (['uncertain', 'stalled', 'stalled', 'stalled'], ['case-A'], 1),
 ])
 def test_repair_budget_is_per_case_and_stalled_diagnosis_stops_early(checkout, statuses, tests, expected):
     root, spawned = checkout
@@ -469,7 +469,7 @@ def test_repair_budget_is_per_case_and_stalled_diagnosis_stops_early(checkout, s
     turns = [row for row in usage if row['event'] == 'turn']
     assert all(row['repair_session'] <= 5 for row in turns)
     for row, agent in zip(turns, agents):
-        effort = 'medium' if row['repair_session'] == 1 else 'high'
+        effort = ('medium', 'high', 'high', 'xhigh', 'xhigh')[row['repair_session'] - 1]
         assert f'model_reasoning_effort="{effort}"' in agent['args']
     if expected and statuses[-1] != 'stalled':
         assert 'repair session limit reached (5/5)' in output.getvalue()
@@ -517,6 +517,157 @@ def test_later_verification_round_does_not_reset_case_budget(checkout):
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     assert len([call for call in calls if call['kind'] == 'agent']) == 5
     assert len([call for call in calls if call['kind'] == 'test']) == 7
+
+
+@pytest.mark.parametrize('statuses, tests, options, tiers', [
+    (['uncertain', 'stalled', 'fixed'], ['A', None], {},
+     [('gpt-6.1-sol', 'medium'), ('gpt-6.1-sol', 'high'), ('gpt-6-astra', 'high')]),
+    (['uncertain', 'fixed', 'fixed', 'fixed'], ['A', 'A', 'A', None], {},
+     [('gpt-6.1-sol', 'medium'), ('gpt-6.1-sol', 'high'),
+      ('gpt-6-astra', 'high'), ('gpt-6-astra', 'xhigh')]),
+    (['uncertain', 'fixed'], ['A', None], {'model': 'gpt-6-astra', 'effort': 'high'},
+     [('gpt-6-astra', 'high'), ('gpt-6-astra', 'high')]),
+    (['stalled'], ['A'], {'model': 'gpt-6-astra', 'effort': 'xhigh'},
+     [('gpt-6-astra', 'xhigh')]),
+    (['uncertain', 'stalled', 'fixed'], ['A', None], {'effort': 'xhigh'},
+     [('gpt-6.1-sol', 'xhigh'), ('gpt-6.1-sol', 'xhigh'), ('gpt-6-astra', 'xhigh')]),
+])
+def test_escalation_uses_stronger_serial_sessions_and_preserves_overrides(
+        checkout, statuses, tests, options, tiers):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps({'agents': statuses, 'tests': tests}))
+    run, _ = fix_tests.select(root, categories=('unit',), **options)
+    assert fix_tests.follow(run, io.StringIO()) == (1 if statuses[-1] == 'stalled' else 0)
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    agents = [call for call in calls if call['kind'] == 'agent']
+    assert len(agents) == len(tiers)
+    assert len({call['pid'] for call in agents}) == len(agents)
+    for agent, (model, effort) in zip(agents, tiers):
+        assert agent['args'][agent['args'].index('--model') + 1] == model
+        assert f'model_reasoning_effort="{effort}"' in agent['args']
+        assert 'service_tier="default"' in agent['args']
+    rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
+    transitions = [row for row in rows if row['event'] == 'tier_transition']
+    assert [(row['model'], row['effort']) for row in transitions] == [
+        tier for previous, tier in zip(tiers, tiers[1:]) if tier != previous]
+    assert all(row['reason'] in ('uncertain', 'stalled', 'same_case_verification_failed')
+               for row in transitions)
+
+
+@pytest.mark.parametrize('interruption', ['B', ''])
+def test_other_case_or_preparation_failure_keeps_repair_unknown(checkout, interruption):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps({
+        'agents': ['uncertain', 'fixed', 'test_fixed', 'fixed'],
+        'tests': ['A', interruption, 'A', None]}))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    assert fix_tests.follow(run, io.StringIO()) == 0
+    rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
+    verification = [row for row in rows if row['event'] == 'verification']
+    assert verification[0]['failure']['case'] == 'A'
+    assert verification[0]['passed'] is None
+    assert verification[0]['outcome'] == 'unknown_or_not_executed'
+    turns = [row for row in rows if row['event'] == 'turn']
+    assert [(row['failure']['case'], row['model'], row['effort']) for row in turns] == [
+        ('A', 'gpt-6.1-sol', 'medium'), ('A', 'gpt-6.1-sol', 'high'),
+        (interruption, 'gpt-6.1-sol', 'medium'), ('A', 'gpt-6-astra', 'high')]
+
+
+@pytest.mark.parametrize('observations', [['A', 'A', None], ['A', None, None],
+                                        ['A', '', 'A', None]])
+def test_diagnostic_experiment_retains_evidence_and_selectors_without_repair_claim(checkout, observations):
+    root, _ = checkout
+    (root / 'tests/unit').mkdir(parents=True)
+    (root / 'tests/unit/test_selected.py').write_text('def test_selected(): pass\n')
+    (root / 'mode').write_text('agent-script')
+    statuses = ['diagnostic_ready', 'fixed'] if len(observations) == 3 else [
+        'diagnostic_ready', 'test_fixed', 'fixed']
+    (root / 'script.json').write_text(json.dumps({'agents': statuses, 'tests': observations}))
+    run, _ = fix_tests.select(root, categories=('unit', '-k', 'selected', '-q'))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0, output.getvalue()
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    agents = [call for call in calls if call['kind'] == 'agent']
+    assert 'diagnostic evidence: fixture result 1' in agents[-1]['prompt']
+    assert 'Launcher-owned diagnostic execution outcome:' in agents[-1]['prompt']
+    assert 'verification_failed:' not in agents[-1]['prompt']
+    assert all('model_reasoning_effort="medium"' in call['args'] for call in agents)
+    tests = [call for call in calls if call['kind'] == 'test']
+    assert all(call['args'] == ['--stop-on-error', 'unit', '-k', 'selected', '-q',
+                                '--vm', vm_name()] for call in tests)
+    rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
+    diagnostics = [row for row in rows if row['event'] == 'diagnostic_execution']
+    assert diagnostics and all(row['failure']['case'] == 'A' for row in diagnostics)
+    assert diagnostics[0]['passed'] == (False if observations[1] == 'A' else
+                                        True if observations[1] is None else None)
+    for row in diagnostics:
+        evidence = Path(row['evidence_path'])
+        assert evidence.parent == run
+        assert json.loads(evidence.read_text())['output_tail']
+    assert diagnostics[-1]['evidence_path'] in agents[-1]['prompt']
+
+
+def test_astra_blocker_continuation_keeps_tier_and_counts_diagnostic_session(checkout, monkeypatch):
+    from launcher_render import LauncherDisplay
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps({
+        'agents': ['uncertain', 'stalled', 'blocked', 'diagnostic_ready', 'fixed'],
+        'tests': ['A', 'A', None]}))
+    def answer(display):
+        if display.question is not None and not display.question.sent:
+            display.question.feed(b'\r')
+    monkeypatch.setattr(LauncherDisplay, 'poll_input', answer)
+    run, _ = fix_tests.select(root, categories=('unit',))
+    assert fix_tests.follow(run, io.StringIO()) == 0
+    rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
+    turns = [row for row in rows if row['event'] == 'turn']
+    assert [row['repair_session'] for row in turns] == [1, 2, 3, 4, 5]
+    assert [(row['model'], row['effort']) for row in turns[2:]] == [('gpt-6-astra', 'high')] * 3
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    agents = [call for call in calls if call['kind'] == 'agent']
+    assert 'Restore the specified behavior.' in agents[3]['prompt']
+    assert 'case session 5/5; 0 further agent sessions remain' in agents[4]['prompt']
+
+
+def test_diagnostic_budget_exhaustion_runs_last_experiment_but_no_sixth_agent(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps({
+        'agents': ['diagnostic_ready'] * 5, 'tests': ['A'] * 6}))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    assert fix_tests.follow(run, io.StringIO()) == 1
+    rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
+    assert len([row for row in rows if row['event'] == 'diagnostic_execution']) == 5
+    assert rows[-1]['event'] == 'session_limit'
+    assert not any(row['event'] == 'verification' for row in rows)
+
+
+def test_diagnostic_execution_cancellation_finishes_owned_cleanup(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps({
+        'agents': ['diagnostic_ready'], 'tests': ['A', 'A'], 'wait_test': 1}))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    wait_for(root / 'test-ready')
+    fix_tests.select(root, stop=True)
+    assert fix_tests.follow(run, io.StringIO()) == 130
+    assert (root / 'test-interrupted').exists() and (root / 'test-cleaned').exists()
+    rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
+    assert not any(row['event'] in ('verification', 'diagnostic_execution') for row in rows)
+
+
+def test_missing_required_model_refuses_before_any_test_or_agent(checkout, monkeypatch):
+    root, spawned = checkout
+    monkeypatch.chdir(root)
+    (root / 'catalog.json').write_text(json.dumps({'models': [{
+        'slug': 'gpt-6.1-sol', 'visibility': 'list',
+        'supported_reasoning_levels': [{'effort': 'medium'}, {'effort': 'high'}]}]}))
+    with pytest.raises(ValueError, match='gpt-6-astra with high reasoning'):
+        fix_tests.select(root, categories=('unit',))
+    assert not spawned and not (root / 'calls').exists()
 
 
 @pytest.mark.parametrize('mode, classification', [

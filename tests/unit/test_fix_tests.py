@@ -272,7 +272,9 @@ def test_model_catalog_requires_exact_sol_medium_and_high_efforts(monkeypatch):
 
     sol = entry('gpt-6.1-sol', 4, effort='medium')
     sol['supported_reasoning_levels'].append({'effort': 'high'})
-    catalog = {'models': [sol, entry('gpt-6-sol', 3),
+    astra = entry('gpt-6-astra', 1, effort='high')
+    astra['supported_reasoning_levels'].append({'effort': 'xhigh'})
+    catalog = {'models': [sol, astra, entry('gpt-6-sol', 3),
                           entry('gpt-7-sol', 1, visibility='hide')]}
     run = Mock(return_value=Mock(stdout=json.dumps(catalog)))
     monkeypatch.setattr(fix_tests.subprocess, 'run', run)
@@ -290,6 +292,11 @@ def test_model_catalog_requires_exact_sol_medium_and_high_efforts(monkeypatch):
         fix_tests.available_models()
     # An explicit High initial agent does not require Medium availability.
     assert fix_tests.available_models(effort='high') == ('gpt-6.1-sol', 'gpt-6.1-sol')
+    for levels in ([], [{'effort': 'high'}], [{'effort': 'xhigh'}]):
+        catalog['models'][1] = dict(astra, supported_reasoning_levels=levels)
+        run.return_value.stdout = json.dumps(catalog)
+        with pytest.raises(ValueError, match='gpt-6-astra'):
+            fix_tests.available_models(effort='high')
 
 
 @pytest.mark.parametrize('effort', ['high', 'xhigh'])
@@ -343,6 +350,15 @@ def test_case_handoffs_do_not_cross_cases_or_vms_or_aggregate_companions():
 def test_invalid_runner_failure_ids_are_refused(targets):
     with pytest.raises(ValueError, match='invalid failure identities'):
         fix_tests.failure_target({'failures': targets}, 'unit')
+
+
+def test_verification_uses_all_reported_identities_but_never_infers_unreported_passes():
+    failure = {'failures': [dict(category='e2e', case=case, vm=vm)
+                            for case, vm in [('B', 'one'), ('A', 'one')]]}
+    assert fix_tests.verification_outcome(failure, ('e2e', 'A', 'one')) is False
+    assert fix_tests.verification_outcome(failure, ('e2e', 'A', 'two')) is None
+    assert fix_tests.verification_outcome({'failures': []}, ('e2e', 'A', 'one')) is None
+    assert fix_tests.verification_outcome(None, ('e2e', 'A', 'one')) is True
 
 
 def test_usage_preserves_unknown_counters_and_never_interrupts_cleanup(tmp_path, capsys):
@@ -405,10 +421,24 @@ def test_both_workflows_explain_decisions_without_requiring_technical_translatio
     {'status': 'blocked', 'summary': 'x', 'blocker': {
         'explanation': 'x', 'question': 'q', 'options': ['one']}},
     {'status': 'test_fixed', 'summary': 'x', 'blocker': {}},
+    {'status': 'diagnostic_ready', 'summary': 'instrumentation', 'commands': ['tools/run-tests all']},
+    {'status': 'diagnostic_ready', 'summary': '', 'blocker': None},
 ])
 def test_malformed_results_cannot_trigger_repairs_or_default_answers(result):
     with pytest.raises(ValueError):
         fix_tests.validate_result(result)
+
+
+def test_diagnostic_schema_and_prompt_allow_only_launcher_owned_execution():
+    result = dict(status='diagnostic_ready', summary='Hypothesis, bounded paths and observations', blocker=None)
+    fix_tests.validate_result(result)
+    schema = json.loads((ROOT / 'tools/fix_tests_response.schema.json').read_text())
+    assert result['status'] in schema['properties']['status']['enum']
+    assert not schema['additionalProperties']
+    prompt = fix_tests.repair_prompt('failure')
+    for guard in ('diagnostic_ready', 'preserves behavior', 'validation guards',
+                  'original authorized selectors', 'Never supply commands', 'five-session budget'):
+        assert guard in prompt
 
 
 def test_agent_transcript_formats_markdown_and_code_across_byte_boundaries():

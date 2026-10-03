@@ -125,6 +125,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # doubles and tiny JSON files; both unit and cleanup classifications stay compatible.
 # Fix-tests argument forwarding uses the same private checkout and reaped child
 # doubles through retries/verification; no real tests, VM or shared resource.
+# Escalation/diagnostic execution reuses those finite children and private JSON
+# snapshots; cancellation waits for the recorded test double. Compatible in both
+# inventories, with no live model, VM, shared cache or additional cleanup owner.
 # App-snapshot and suite tests use private locks with mocked libvirt sources;
 # baseline-guest uses an in-memory guestfs double; update/reboot checks mock all
 # package/VM operations and use tmp_path for guest entry records. Fix-tests owns every child it

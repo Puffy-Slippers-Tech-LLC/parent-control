@@ -13,9 +13,12 @@ def main():
     root = Path.cwd()
     kind, *args = sys.argv[1:]
     if kind == 'agent' and args == ['debug', 'models']:
+        if (root / 'catalog.json').exists():
+            print((root / 'catalog.json').read_text())
+            return 0
         print(json.dumps({'models': [
             {'slug': 'gpt-6-astra', 'visibility': 'list', 'priority': 1,
-             'supported_reasoning_levels': [{'effort': 'low'}, {'effort': 'high'}]},
+             'supported_reasoning_levels': [{'effort': 'low'}, {'effort': 'high'}, {'effort': 'xhigh'}]},
             {'slug': 'gpt-6.1-sol', 'visibility': 'list', 'priority': 2,
              'supported_reasoning_levels': [{'effort': 'medium'}, {'effort': 'high'},
                                             {'effort': 'xhigh'}]},
@@ -57,6 +60,11 @@ def main():
             marker = root / 'script-tests'
             index = int(marker.read_text()) if marker.exists() else 0
             marker.write_text(str(index + 1))
+            if script.get('wait_test') == index:
+                (root / 'test-ready').touch()
+                deadline = time.monotonic() + 15
+                while not (root / 'release').exists() and time.monotonic() < deadline:
+                    time.sleep(.02)
             case = script['tests'][index]
             if case is None:
                 return 0

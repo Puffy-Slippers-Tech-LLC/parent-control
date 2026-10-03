@@ -31,6 +31,8 @@ DEFAULT_MODEL = 'gpt-6.1-sol'
 DEFAULT_EFFORT = 'medium'
 APP_MODEL = 'gpt-6.1-sol'
 APP_EFFORT = 'high'
+REPAIR_TIERS = ((DEFAULT_MODEL, DEFAULT_EFFORT), (APP_MODEL, APP_EFFORT),
+                ('gpt-6-astra', 'high'), ('gpt-6-astra', 'xhigh'))
 MAX_REPAIR_SESSIONS = 5
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
@@ -92,13 +94,30 @@ def available_models(model=None, effort=DEFAULT_EFFORT):
               and entry.get('visibility') == 'list'
               and isinstance(entry.get('slug'), str)
               and isinstance(entry.get('supported_reasoning_levels'), list)]
-    for required_model, required_effort in ((model, effort), (APP_MODEL, APP_EFFORT)):
+    required = [(model, effort), *REPAIR_TIERS[1:]]
+    candidate = (model, effort)
+    while next_tier(*candidate) != candidate:
+        candidate = next_tier(*candidate)
+        required.append(candidate)
+    for required_model, required_effort in dict.fromkeys(required):
         if not any(entry['slug'] == required_model and any(
                 isinstance(level, dict) and level.get('effort') == required_effort
                 for level in entry['supported_reasoning_levels']) for entry in listed):
             raise ValueError(f'Codex model catalog has no listed {required_model} '
                              f'with {required_effort} reasoning')
     return model, APP_MODEL
+
+
+def next_tier(model, effort):
+    """Raise capability without lowering an explicit model or reasoning override."""
+    efforts = ('none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra')
+    if model == DEFAULT_MODEL:
+        if efforts.index(effort) < efforts.index('high'):
+            return APP_MODEL, APP_EFFORT
+        return 'gpt-6-astra', effort
+    if model == 'gpt-6-astra' and efforts.index(effort) < efforts.index('xhigh'):
+        return model, 'high' if efforts.index(effort) < efforts.index('high') else 'xhigh'
+    return model, effort
 
 
 def repair_command(root, model, effort, run=None):
@@ -133,19 +152,19 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
         'uncertain before editing. If it is a test issue, fix it in this session '
         'and return status "test_fixed". If it is an app issue, make no edits and return '
         'status "app_issue" with a concise reason. If classification remains '
-        'uncertain, make no edits and return status "uncertain" with the competing '
+        'uncertain, make no corrective edits and return status "uncertain" with the competing '
         'explanations. Unresolved security, concurrency, ownership or difficult diagnosis '
         'also requires "uncertain" before editing; do not guess a mechanical fix. '
-        'The launcher will start a fresh GPT-6.1 Sol High repair agent for either of the '
-        'last two statuses. '
+        'The launcher escalates these outcomes to the next available stronger tier. '
         if app_issue is None else
-        'An earlier session reported an app issue, uncertainty, or a repair whose verification failed. '
+        'An earlier session supplied a repair or diagnostic handoff, classification, or stall. '
         'Recheck the classification using the original failure evidence, then fix '
         'the root cause in this checkout. Return status "fixed" after a repair. '
         'When a previous repair failed verification, identify what it taught you before '
         'editing again. If the same issue remains and there is no new evidence supporting a '
-        'different correction, make no speculative edits and return status "stalled" '
-        'with the unresolved question, evidence paths and needed next investigation. '
+        'different correction, make no speculative corrective edits. Use "diagnostic_ready" '
+        'for a useful instrumentation experiment, or "stalled" when no useful authorized '
+        'next step exists, with the unresolved question and evidence paths. '
         f'Its handoff was: {app_issue}\n\n')
     decisions = ('\nDeveloper instructions for this run (apply only to their stated scope):\n'
                  + json.dumps(developer_answers, ensure_ascii=False) + '\n'
@@ -175,7 +194,19 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'expand when evidence requires it. Reuse unchanged context within this session. '
             'Keep searches and diagnostic output scoped, without reducing required checks '
             'or understanding. Prefer GPT-6.1 Sol High over Astra Low for difficult repairs. '
-            'The script owns test execution: finish after classification or repair; '
+            'When evidence is insufficient for a correction but a useful authorized experiment '
+            'exists, you may add bounded, relevant instrumentation that preserves behavior, '
+            'assertions, validation guards and privacy. Return status "diagnostic_ready", not '
+            'a repair claim. Its summary must state the hypothesis, changed paths, expected '
+            'observations, evidence location and how to interpret the result. The launcher '
+            'reruns only the original authorized selectors and returns the evidence in a fresh '
+            'session within the same five-session budget. Never supply commands or request '
+            'nested launchers or uncontrolled retries. Diagnostic edits are allowed before '
+            'a proven corrective edit; uncertainty alone must not close this evidence-gathering path. '
+            'Return "stalled" only when no useful authorized next step exists at this tier. '
+            'Stalls and same-case failed repairs escalate Sol Medium to Sol High, then Astra '
+            'High, then Astra Extra High; a final-tier stall stops early. Blockers are never '
+            'bypassed by escalation. The script owns test execution: finish after classification, diagnostics or repair; '
             'do not launch tests, fix-tests, background jobs or other agent sessions. '
             'Include in summary the concrete new evidence supporting this correction or newly '
             'exposed failure. Rewording a diagnosis, editing code or rerunning a test is not '
@@ -189,7 +220,8 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
 
 def validate_result(result):
     if (not isinstance(result, dict)
-            or result.get('status') not in ('test_fixed', 'fixed', 'blocked', 'app_issue', 'uncertain', 'stalled')
+            or set(result) - {'status', 'summary', 'blocker'}
+            or result.get('status') not in ('test_fixed', 'fixed', 'blocked', 'app_issue', 'uncertain', 'stalled', 'diagnostic_ready')
             or not isinstance(result.get('summary'), str) or not result['summary'].strip()):
         raise ValueError('repair agent did not return a valid result object')
     if result['status'] == 'blocked':
@@ -230,6 +262,15 @@ def failure_target(failure, category):
     return tuple(target[key] for key in ('category', 'case', 'vm'))
 
 
+def verification_outcome(failure, target):
+    if failure is None:
+        return True
+    first = failure_target(failure, target[0])  # Validate every runner identity.
+    reported = {tuple(item[key] for key in ('category', 'case', 'vm'))
+                for item in failure.get('failures', [])}
+    return False if target in reported or target == first else None
+
+
 def category_inventory(output):
     inventory = json.loads(output)
     if not isinstance(inventory, dict) or not inventory:
@@ -261,15 +302,41 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
     """Keep each case's latest repair handoff until its category passes."""
     def finish_category(category, failure):
         handoffs = {}
-        while failure is not None:
+        prompts = {}
+        def diagnostic(value):
+            return isinstance(value, dict) and value.get('status') == 'diagnostic_ready'
+
+        while failure is not None or any(diagnostic(value) for value in handoffs.values()):
             check_stop()
-            target = failure_target(failure, category)
-            previous = repair(failure['prompt'], failure_key=target,
+            target = (failure_target(failure, category) if failure is not None else
+                      next(key for key, value in handoffs.items() if diagnostic(value)))
+            prompt = failure['prompt'] if failure is not None else prompts[target]
+            prompts[target] = prompt
+            # A later return to this exact case resolves an earlier unknown outcome.
+            old = handoffs.get(target)
+            if isinstance(old, dict) and old.get('verification') is None and failure is not None:
+                old['verification'] = False
+                old['evidence'] = failure
+                verified(old, False)
+            previous = repair(prompt, failure_key=target,
                               **({'previous': handoffs[target]} if target in handoffs else {}))
             handoffs[target] = previous
             check_stop()
             failure = test(category)
-            verified(previous, failure is None)
+            passed = verification_outcome(failure, target)
+            if isinstance(previous, dict):
+                previous['verification'] = passed
+                previous['evidence'] = failure
+            verified(previous, passed)
+            if failure is None:
+                for key, value in handoffs.items():
+                    if key != target and isinstance(value, dict):
+                        value['verification'] = True
+                        value['evidence'] = None
+                        verified(value, True)
+                # Completed repairs need no further session; diagnostics always
+                # return their observations for interpretation, even after a pass.
+                handoffs = {key: value for key, value in handoffs.items() if diagnostic(value)}
 
     round_changed(1)
     for category in categories:
@@ -347,6 +414,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     developer_answers = []
     case_sessions = {}
     case_results = {}
+    case_tiers = {}
 
     def round_changed(number):
         nonlocal round_number
@@ -430,11 +498,20 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             return handoff(run)
 
     def repair(prompt, *, failure_key, previous=None):
-        classification = ('verification_failed: ' + previous['summary']) if previous else None
+        diagnostic = previous is not None and previous.get('status') == 'diagnostic_ready'
+        classification = ((('diagnostic evidence: ' if diagnostic else 'verification_failed: ')
+                           + previous['summary']) if previous else None)
         repair_id = previous['repair_id'] if previous else uuid.uuid4().hex
         attempt = previous['attempt'] + 1 if previous else 1
         blocker_summary = None
         target = dict(zip(('category', 'case', 'vm'), failure_key))
+        if diagnostic:
+            prompt += ('\nLauncher-owned diagnostic execution outcome: '
+                       + json.dumps(dict(passed=previous.get('verification'),
+                                         evidence=previous.get('evidence'),
+                                         retained=previous.get('evidence_path'))) + '\n'
+                       'Interpret these observations before claiming a correction. A passing '
+                       'diagnostic run alone does not prove the original cause was repaired.\n')
         prompt += ('\nRepair only this runner-identified failure; other cases have independent '
                    'budgets. Read the full report for context, preserve the requested selectors, '
                    'and leave test execution to the launcher:\n' + json.dumps(target) + '\n')
@@ -455,17 +532,39 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                                  'no further agent was started. Retained failure: last-test.log; '
                                  'case handoff: repair-stop.json.')
 
+        def escalate(reason, *, classification_only=False):
+            current = case_tiers.get(failure_key, (model, effort))
+            # Classification needs at least High, but an explicit stronger
+            # initial selection already meets that boundary.
+            following = (current if classification_only and current[1] in ('high', 'xhigh')
+                         else next_tier(*current))
+            if following == current:
+                return False
+            case_tiers[failure_key] = following
+            record_usage(run, dict(repair_id=repair_id, failure=target, reason=reason,
+                                   from_model=current[0], from_effort=current[1],
+                                   model=following[0], effort=following[1]), event='tier_transition')
+            print(f'fix-tests: escalating {current} to {following}: {reason}', flush=True)
+            return True
+
+        if previous and not diagnostic and previous.get('verification') is False:
+            escalate('same_case_verification_failed')
+
         while True:
             check_stop()
             check_budget()
             sessions = case_sessions.get(failure_key, 0) + 1
-            agent_model, agent_effort = (app_model, APP_EFFORT) if classification else (model, effort)
+            agent_model, agent_effort = case_tiers.setdefault(failure_key, (model, effort))
             progress('', 'fixing errors', model=agent_model)
             phase = 'repair review' if classification else 'classify and repair'
             print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort}); '
                   f'case session {sessions}/{MAX_REPAIR_SESSIONS}', flush=True)
             (run / 'prompt.txt').write_text(
-                repair_prompt(prompt, app_issue=classification, developer_answers=developer_answers,
+                repair_prompt(prompt + f'\nThis is case session {sessions}/{MAX_REPAIR_SESSIONS}; '
+                              f'{MAX_REPAIR_SESSIONS - sessions} further agent sessions remain. '
+                              'A diagnostic execution after the last session can retain evidence, '
+                              'but cannot start another interpretation session in this run.\n',
+                              app_issue=classification, developer_answers=developer_answers,
                               blocker_summary=blocker_summary), encoding='utf-8')
             # An agent crash cannot reuse an earlier reply.
             (run / 'agent-result.json').write_text('')
@@ -495,18 +594,34 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                 blocker_summary = result['summary']
                 print('Answer received. Continuing this repair.', flush=True)
                 continue
-            if not classification and result['status'] in ('app_issue', 'uncertain', 'stalled'):
-                check_budget()
+            if result['status'] in ('app_issue', 'uncertain', 'stalled'):
+                initial_classification = not classification and result['status'] != 'stalled'
                 classification = result['status'] + ': ' + result['summary']
-                continue
-            if result['status'] == 'stalled':
+                raised = escalate(result['status'], classification_only=initial_classification)
+                if raised or initial_classification:
+                    continue
                 retain_stop('stalled')
                 raise ValueError('repair stalled; no further repair or test was started. '
                                  'Retained case handoff: repair-stop.json. ' + result['summary'])
-            if result['status'] != ('fixed' if classification else 'test_fixed'):
+            if result['status'] not in ('fixed', 'test_fixed', 'diagnostic_ready'):
                 raise ValueError('unexpected repair result: ' + result['summary'])
             return dict(repair_id=repair_id, attempt=attempt, sessions=sessions,
-                        summary=result['summary'])
+                        failure=target, status=result['status'], summary=result['summary'])
+
+    def verified(repair, passed):
+        event = 'diagnostic_execution' if repair['status'] == 'diagnostic_ready' else 'verification'
+        observation = dict(repair_id=repair['repair_id'], attempt=repair['attempt'],
+                           failure=repair['failure'], passed=passed,
+                           outcome='passed' if passed is True else 'failed' if passed is False
+                           else 'unknown_or_not_executed', evidence=repair.get('evidence'))
+        if event == 'diagnostic_execution':
+            # Small, bounded evidence snapshots live with the launcher's private
+            # retained control files, never in disposable agent scratch.
+            path = run / f'diagnostic-{repair["repair_id"]}-{repair["attempt"]}-{uuid.uuid4().hex}.json'
+            atomic(path, dict(observation, output_tail=read_tail(run / 'last-test.log')))
+            repair['evidence_path'] = str(path)
+            observation['evidence_path'] = str(path)
+        record_usage(run, observation, event=event)
 
     status = 1
     try:
@@ -525,9 +640,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         print('fix-tests: categories: ' + ', '.join(categories), flush=True)
         run_loop(categories, test, repair, check_stop, selected=bool(requested), rounds=rounds,
                  round_changed=round_changed,
-                 verified=lambda repair, passed: record_usage(
-                     run, dict(repair_id=repair['repair_id'], attempt=repair['attempt'],
-                               passed=passed), event='verification'))
+                 verified=verified)
         print('\nfix-tests: ' + ('all selected categories passed.' if requested else
               'all categories passed.' if rounds == 1 else
               'all categories and the complete regression passed.'), flush=True)
@@ -586,7 +699,7 @@ def main(argv=None):
     parser.add_argument('--rounds', type=int, default=1, metavar='X',
                         help='run round 1 once, then round 2 X-1 times (default: 1)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
-                        default=DEFAULT_EFFORT, help='initial reasoning effort (default: medium; repair review uses Sol high)')
+                        default=DEFAULT_EFFORT, help='initial reasoning effort (default: medium; escalates through Sol high and Astra high/xhigh)')
     parser.epilog = ('Pass categories and arguments as for run-tests, e.g. e2e --id 6 '
                      'or unit tests/unit/test_fix_tests.py -q. Launcher options are recognized '
                      'anywhere and removed from the forwarded arguments. '

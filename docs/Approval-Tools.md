@@ -28,7 +28,7 @@ test defects may be fixed automatically while preserving the intended checks.
 | Builds and checks | Approved plain Make targets or validated `tools/run-tests`, `tools/run-unit-tests` and `tools/run-ui-tests` selections |
 | Logs and system diagnostics | Ordinary readers where accessible; `tools/diagnose` and scoped artifact/export helpers where privileged access is needed |
 | Setup refresh and VM maintenance | `./setup.sh` modes, `tools/prepare-baseline` and `tools/test-vm` within their existing grants and authorized scope |
-| E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; `tools/prepare-appsnapshot --vm NAME --y [--mode online\|offline] [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
+| E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; add `--discard-completed` only when discarding saved execution results is explicitly authorized, under [retention ownership](../tests/README.md#aggregate-output-retention); `tools/prepare-appsnapshot --vm NAME --y [--mode online\|offline] [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
 | Publication | Direct `tools/publish.py` once publication itself is authorized; see [publishing](#publishing) |
 
 Invoke approved commands directly. Correct quoting and command shape before

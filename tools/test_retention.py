@@ -83,6 +83,31 @@ class Store:
     def __init__(self, path):
         self.path = Path(path)
 
+    def discard_completed(self, guard):
+        """Explicitly discard registered results, never active or unknown storage.
+
+        The caller owns checkout activity and, for privileged evidence, holds
+        the VM lease throughout this operation. Journals stay intact so partial
+        deletion is retryable and replacements still fail their identity audit.
+        """
+        if not self.path.exists():
+            return 0
+        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
+            with self.locked(fd, 'writer.lock'):
+                state = self.read(fd)
+                if 'recovery-required' in os.listdir(fd) or (state and not state['finished']):
+                    raise ValueError('retention: unfinished evidence cannot be discarded')
+                if state is None:
+                    return 0
+                records = [record for _, record in latest_allocations([*state['history'], state])]
+                guard({record['path'] for record in records})
+                for record in records:
+                    remove(record, validate_only=True)
+                for record in records:
+                    remove(record)
+                print(f'Discarded {len(records)} completed registered allocations.', flush=True)
+                return len(records)
+
     def reconcile(self, guard):
         """Recover an idle owner, retaining its evidence in normal rotation.
 

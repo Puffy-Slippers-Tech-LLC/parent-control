@@ -283,6 +283,12 @@ selector or host-only check cannot complete it.
 
 After the guard is released and cleanup succeeds:
 
+Verify that the selected task's required acceptance reports are still retained
+after preparation and validation rotate completed runs. Finish input preparation
+before the live acceptance slices where possible. A handoff's report reference
+does not replace missing acceptance evidence; repeat only the affected slice if
+its required report has been removed.
+
 1. After **every completed E2E scenario**, run
    `tools/generate_test_coverage.sh`. This approved executable runs the requested
    [tools/generate_test_coverage.py](../../tools/generate_test_coverage.py) and

@@ -5,7 +5,7 @@
 # Checkout imports must never leave root-owned caches that break package clean.
 
 import argparse
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 import fcntl
 import hashlib
 import json
@@ -18,8 +18,9 @@ import subprocess
 import sys
 
 
-def retention_guard(root):
-    """Read recovery state under the existing VM lease; never repair it here."""
+@contextmanager
+def retention_lease(root):
+    """Audit recovery and hold the existing VM leases until the caller finishes."""
     sys.path.insert(0, str(root / 'tests/integration'))
     import prepare_baseline as baseline
     baseline.private_baseline_directory(baseline.BASELINES)
@@ -37,11 +38,18 @@ def retention_guard(root):
             baseline.identity(path, private=True, mode=0o600)
             if json.loads(path.read_bytes()).get('phase') != phase:
                 raise ValueError('retention: VM recovery is unfinished; preserve evidence')
+        yield
     finally:
         if fd is not None:
             os.close(fd)
         if compatibility is not None:
             os.close(compatibility)
+
+
+def retention_guard(root):
+    """Read recovery state under the existing VM lease; never repair it here."""
+    with retention_lease(root):
+        pass
 
 CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
 VM_UUIDS = {}  # Pinned by name from finalized baseline state by install_test_runner.py.
@@ -266,7 +274,7 @@ def run(root, argv, caller):
             environment['TMPDIR'] = str(scratch_directory())
             recovery = argv[0] == 'integration' and argv[1].removesuffix('.py') in (
                 'check_test_recovery', 'check_graphical_recovery', 'check_system_recovery', 'check_tmp_storage',
-                'check_tmp_storage_cleanup', 'check_storage_migration')
+                'check_tmp_storage_cleanup', 'check_storage_migration', 'check_retained_runs_cleanup')
             context = (store.session(run=retention_run, guard=lambda: retention_guard(root),
                                      preserve_completed=test_retention.legacy_system_evidence)
                        if not recovery else nullcontext())
@@ -303,7 +311,7 @@ def run(root, argv, caller):
     environment['TMPDIR'] = str(scratch_directory())
     recovery = argv[0] == 'integration' and argv[1].removesuffix('.py') in (
         'check_test_recovery', 'check_graphical_recovery', 'check_system_recovery', 'check_tmp_storage',
-        'check_tmp_storage_cleanup', 'check_storage_migration')
+        'check_tmp_storage_cleanup', 'check_storage_migration', 'check_retained_runs_cleanup')
     context = (test_retention.Store(privileged_state(caller.pw_uid)).session(
         guard=lambda: retention_guard(root))
         if argv[0] in ('integration', 'system', 'e2e', 'appsnapshot') and not recovery

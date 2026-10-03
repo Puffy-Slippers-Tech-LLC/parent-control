@@ -550,3 +550,6 @@ def buckets(nodeids):
                      tuple(node for module in group for node in module.nodeids),
                      'unit', estimates[index]) for index, group in enumerate(groups)]
     return result + builds + exclusive
+# Completed-result discard tests use private pytest journals, local descriptor
+# locks and process-local dispatcher/VM doubles. No live VM or shared storage;
+# test_test_retention_cleanup_safety remains compatible in both inventories.

@@ -97,7 +97,8 @@ def dispatcher_vm(monkeypatch):
 
 
 @pytest.mark.parametrize('status', [0, 1])
-def test_unattended_recovery_does_not_launch_tests(tmp_path, monkeypatch, capsys, status, dispatcher_vm):
+@pytest.mark.parametrize('selected', ['check_test_recovery', 'check_retained_runs_cleanup'])
+def test_unattended_recovery_does_not_launch_tests(tmp_path, monkeypatch, capsys, status, dispatcher_vm, selected):
     import test_storage
     monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'privileged-state')
     dispatcher = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
@@ -118,9 +119,208 @@ def test_unattended_recovery_does_not_launch_tests(tmp_path, monkeypatch, capsys
     caller = SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name='fixture',
                              pw_dir=str(tmp_path))
     assert dispatcher['run'](tmp_path, [
-        '--unattended', 'integration', 'check_test_recovery', '--vm', dispatcher_vm,
+        '--unattended', 'integration', selected, '--vm', dispatcher_vm,
     ], caller) == status
     assert commands == [['recovery']]
+
+
+def test_direct_discard_dispatch_does_not_enter_retention(tmp_path, monkeypatch, dispatcher_vm):
+    import test_storage
+    import test_retention
+    dispatcher = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'tools/onpc-test-runner'))
+    dispatcher['run'].__globals__['selection'] = lambda *args: ['discard']
+    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'state')
+    monkeypatch.setattr(test_retention.Store, 'session',
+                        lambda *args, **kwargs: pytest.fail('cleanup entered retention rotation'))
+    calls = []
+    def execute(command, **kwargs):
+        calls.append(command)
+        assert kwargs['env']['ONPC_TEST_VM'] == dispatcher_vm
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(dispatcher['subprocess'], 'run', execute)
+    caller = SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid(), pw_name='fixture', pw_dir=str(tmp_path))
+    assert dispatcher['run'](tmp_path, ['integration', 'check_retained_runs_cleanup',
+                                      '--vm', dispatcher_vm], caller) == 0
+    assert calls == [['discard']]
+
+
+def test_explicit_discard_reclaims_oversized_finished_run_and_history(tmp_path, monkeypatch):
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        old = allocated(tmp_path, 'old')
+    with store.session():
+        current = allocated(tmp_path, 'current')
+    unknown = tmp_path / 'unknown'
+    unknown.mkdir()
+    (unknown / 'keep').write_text('unregistered')
+    original = (store.path / 'current.json').read_bytes()
+    monkeypatch.setattr(retention, 'MAX_RETAINED_BYTES', 1)
+    with pytest.raises(ValueError, match='exceeds 4 GiB'):
+        with store.session():
+            pytest.fail('oversized result accepted')
+    # Normal pruning may retire history before reporting the current refusal.
+    journal = (store.path / 'current.json').read_bytes()
+    guards = []
+    assert store.discard_completed(lambda paths: guards.append(paths)) == 1
+    assert guards == [{str(current)}]
+    assert not current.exists() and not old.exists()
+    assert (store.path / 'current.json').read_bytes() == journal
+    assert (unknown / 'keep').read_text() == 'unregistered'
+    assert store.discard_completed(lambda paths: None) == 1
+    with store.session():
+        pass
+    assert original != journal
+
+
+@pytest.mark.parametrize('fault', ['unfinished', 'marked', 'active', 'replaced', 'symlink', 'mount', 'live'])
+def test_explicit_discard_audits_every_allocation_before_deletion(tmp_path, monkeypatch, fault):
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        first = allocated(tmp_path, 'first')
+        second = allocated(tmp_path, 'second')
+        if fault == 'unfinished':
+            retention.preserve_for_recovery()
+    if fault == 'unfinished':
+        (store.path / 'recovery-required').unlink()
+    if fault == 'marked':
+        (store.path / 'recovery-required').touch(mode=0o600)
+    if fault in ('replaced', 'symlink'):
+        second.rename(tmp_path / 'original')
+        if fault == 'symlink':
+            second.symlink_to(tmp_path / 'original', target_is_directory=True)
+        else:
+            second.mkdir(mode=0o700)
+            (second / 'keep').write_text('foreign')
+    if fault == 'mount':
+        original_mount = retention.mount_id
+        monkeypatch.setattr(retention, 'mount_id', lambda fd:
+                            'foreign' if Path(os.readlink(f'/proc/self/fd/{fd}')) == second else original_mount(fd))
+    journal = (store.path / 'current.json').read_bytes()
+    def guard(paths):
+        if fault == 'live':
+            raise ValueError('live reference')
+    if fault == 'active':
+        with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+            with pytest.raises(ValueError, match='another owner'):
+                store.discard_completed(guard)
+    else:
+        with pytest.raises((ValueError, OSError)):
+            store.discard_completed(guard)
+    assert (first / 'test.log').exists()
+    assert second.exists()
+    assert (store.path / 'current.json').read_bytes() == journal
+
+
+def test_explicit_discard_retries_partial_deletion_and_uses_latest_registration(tmp_path, monkeypatch):
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        recreated = allocated(tmp_path, 'recreated')
+        first = allocated(tmp_path, 'first')
+    recreated.rename(tmp_path / 'original')
+    with store.session():
+        recreated = allocated(tmp_path, 'recreated')
+        last = allocated(tmp_path, 'last')
+    journal = (store.path / 'current.json').read_bytes()
+    remove = retention.remove
+    def interrupted(record, *, validate_only=False):
+        if record['path'] == str(last) and not validate_only:
+            raise OSError('interrupted deletion')
+        return remove(record, validate_only=validate_only)
+    monkeypatch.setattr(retention, 'remove', interrupted)
+    with pytest.raises(OSError, match='interrupted deletion'):
+        store.discard_completed(lambda paths: None)
+    assert not recreated.exists() and not first.exists()
+    assert last.exists() and (tmp_path / 'original/test.log').exists()
+    assert (store.path / 'current.json').read_bytes() == journal
+    monkeypatch.setattr(retention, 'remove', remove)
+    assert store.discard_completed(lambda paths: None) == 3
+    assert not last.exists()
+    assert (store.path / 'current.json').read_bytes() == journal
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_discard_keeps_vm_and_compatibility_leases_through_removal(tmp_path, monkeypatch, failed):
+    import prepare_baseline as baseline
+    root = Path(__file__).resolve().parents[2]
+    dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
+    directory = tmp_path / 'named-vm'
+    directory.mkdir(mode=0o700)
+    monkeypatch.setattr(baseline, 'BASELINES', directory)
+    monkeypatch.setattr(baseline.guest_contract.vm_config, 'STATE_ROOT', tmp_path)
+    (directory / 'phase.json').write_text('{"phase":"finalized"}')
+    (directory / 'phase.json').chmod(0o600)
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        evidence = allocated(tmp_path, 'evidence')
+    def guarded(paths):
+        for path in (directory / '.lock', tmp_path / '.lock'):
+            with path.open('rb') as lock:
+                with pytest.raises(BlockingIOError):
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if failed:
+            raise ValueError('guard refused')
+    try:
+        with dispatcher['retention_lease'](root):
+            store.discard_completed(guarded)
+    except ValueError as error:
+        assert failed and str(error) == 'guard refused'
+    assert evidence.exists() == failed
+    for path in (directory / '.lock', tmp_path / '.lock'):
+        with path.open('rb') as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_privileged_discard_preserves_evidence_when_recovery_fails(tmp_path, monkeypatch, failed):
+    import check_retained_runs_cleanup as cleanup
+    calls = []
+    def recover(root):
+        calls.append('recover')
+        if failed:
+            raise ValueError('recovery failed')
+    monkeypatch.setattr(cleanup.check_test_recovery, 'reconcile_vm', recover)
+    lease = Mock(return_value=nullcontext())
+    monkeypatch.setattr(cleanup.runpy, 'run_path', lambda path: {'retention_lease': lease})
+    monkeypatch.setattr(cleanup.os, 'geteuid', lambda: 0)
+    monkeypatch.setenv('PKEXEC_UID', '1000')
+    monkeypatch.setattr(cleanup.sys, 'argv', ['check_retained_runs_cleanup'])
+    monkeypatch.setattr(cleanup, 'ROOT', Path.cwd())
+    monkeypatch.setattr(cleanup, 'privileged_state', lambda uid: tmp_path / 'selected-state')
+    discard = Mock()
+    monkeypatch.setattr(cleanup.test_retention, 'Store', lambda path: SimpleNamespace(discard_completed=discard))
+    if failed:
+        with pytest.raises(ValueError, match='recovery failed'):
+            cleanup.main()
+        lease.assert_not_called()
+        discard.assert_not_called()
+    else:
+        assert cleanup.main() == 0
+        lease.assert_called_once_with(Path.cwd())
+        discard.assert_called_once_with(cleanup.unused)
+    assert calls == ['recover']
+
+
+def test_host_discard_leaves_vm_and_workflow_stores_untouched(tmp_path, monkeypatch):
+    import cleanup_e2e
+    import test_retention
+    from contextlib import contextmanager
+    host = test_retention.Store(tmp_path / 'host')
+    workflow = test_retention.Store(tmp_path / 'workflow')
+    vm = test_retention.Store(tmp_path / 'vm')
+    for store in (host, workflow, vm):
+        with store.session():
+            allocated(tmp_path, store.path.name + '-result')
+    @contextmanager
+    def activity(root, **kwargs):
+        assert kwargs == {'host_only': True}
+        yield
+    monkeypatch.setattr(cleanup_e2e.test_activity, 'activity', activity)
+    monkeypatch.setattr(cleanup_e2e.test_activity, 'retention_path', lambda root: host.path)
+    monkeypatch.setattr(cleanup_e2e, 'cleanup_host', lambda root: 0)
+    monkeypatch.setattr(cleanup_e2e, 'cleanup', lambda root: pytest.fail('host touched VM'))
+    assert cleanup_e2e.main(['--host-only', '--discard-completed']) == 0
+    assert not (tmp_path / 'host-result').exists()
+    assert (tmp_path / 'workflow-result').exists() and (tmp_path / 'vm-result').exists()
 
 
 def test_recovery_safety_uses_shared_parallel_cleanup_coordinator():

@@ -7525,7 +7525,8 @@ class AccessibleUI:
         labels = [facts[node]['name'] for node in controls
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
         require(labels.count(PARENT) == 1, 'ui:shell-recipient-context-missing')
-        require(labels.count(f'Grant {CHILD} 1 minute, 15 seconds and allow soft blocked apps?') == 1,
+        require(labels.count(f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
+                             'Allow soft blocked apps for this grant.') == 1,
                 'ui:shell-request-context-missing')
         fields = [node for node in controls if facts[node]['role'] == 'password text']
         require(len(fields) == 1, 'ui:shell-field-ambiguous')
@@ -7561,11 +7562,13 @@ class AccessibleUI:
         for node, key, value, code in (
                 (owner, 'name', 'mate-polkit', 'ui:shell-wrong-agent'),
                 (recipient, 'name', OTHER_PARENT, 'ui:shell-recipient-context-missing'),
-                (message, 'name', 'Grant wrong-child 1 minute, 15 seconds and allow soft blocked apps?',
+                (message, 'name', 'Grant wrong-child access?\nRequested time: 1 minute, 15 seconds.\n'
+                 'Allow soft blocked apps for this grant.',
                  'ui:shell-request-context-missing'),
-                (message, 'name', f'Grant {CHILD} 5 minutes and allow soft blocked apps?',
+                (message, 'name', f'Grant {CHILD} access?\nRequested time: 5 minutes.\n'
+                 'Allow soft blocked apps for this grant.',
                  'ui:shell-request-context-missing'),
-                (message, 'name', f'Grant {CHILD} 1 minute, 15 seconds?',
+                (message, 'name', f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.',
                  'ui:shell-request-context-missing'),
                 (cancel, 'role', 'password text', 'ui:shell-field-ambiguous')):
             projected = {key: dict(value) for key, value in facts.items()}

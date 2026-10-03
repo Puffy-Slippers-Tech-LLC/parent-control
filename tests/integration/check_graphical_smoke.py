@@ -656,6 +656,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_eligible_choices=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
          challenges=False, challenge_profile='parent', product_free_entry=False, package_authority=False,
+         upgrade_assets=False,
          package_install=False, customer_reboot=False, app_row_observations=False, native_fixtures=False,
          catalogue_search=False, catalogue_filters=False, policy_legend=False, match_save_cancel=False,
          match_editor=False, access_choices=False, policy_edit=False, rejected_parent_rule=False,
@@ -1023,8 +1024,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(package_authority) is bool and not (package_authority and product_free_entry),
             'smoke:package-authority-prerequisites')
     # Reuse the exact product-free prerequisite gate, preparation and envelope.
+    require(type(upgrade_assets) is bool and not (upgrade_assets and any((
+        product_free_entry, package_authority, package_install, customer_reboot,
+        chinese_language_assets, desktop_language))), 'smoke:upgrade-assets-prerequisites')
     product_free_entry = (product_free_entry or package_authority or package_install
-                          or customer_reboot or chinese_language_assets or desktop_language)
+                          or customer_reboot or chinese_language_assets or desktop_language or upgrade_assets)
     require(type(product_free_entry) is bool and (not product_free_entry or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1483,6 +1487,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'chinese-language-assets-qualification'
         if desktop_language:
             result['scope'] = 'desktop-language-qualification'
+        if upgrade_assets:
+            result['scope'] = 'upgrade-assets-qualification'
         started = time.monotonic()
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -1497,9 +1503,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 staged = None
                 if assets is not None:
                     staged = directory / 'assets'
-                    runner.stage_assets(runner.artifact_source(assets), staged, commands)
+                    if upgrade_assets:
+                        runner.stage_upgrade_assets(assets, staged, commands)
+                    else:
+                        runner.stage_assets(runner.artifact_source(assets), staged, commands)
                     staged.chmod(0o700)
-                    result['source_preflight'] = preflight_source(staged)
+                    result['source_preflight'] = preflight_source(staged, upgrade=upgrade_assets)
                 if (parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or native_app or app_activity
@@ -1631,6 +1640,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if desktop_language:
                     from parent_setup_qualification import DesktopLanguageQualification
                     qualification_class = DesktopLanguageQualification
+                if upgrade_assets:
+                    from parent_setup_qualification import UpgradeAssetsQualification
+                    qualification_class = UpgradeAssetsQualification
                 if package_authority:
                     from parent_setup_qualification import PackageAuthorityQualification
                     qualification_class = PackageAuthorityQualification

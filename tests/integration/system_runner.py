@@ -1057,6 +1057,29 @@ def stage_assets(source, destination, commands):
     return manifest
 
 
+def stage_upgrade_assets(source, destination, commands):
+    """FIX04's finite genuine-v1.2/current binding; no arbitrary bundle interface."""
+    from build_test_artifacts import verify_upgrade
+    from provenance import snapshot
+    before = snapshot(source)
+    verify_upgrade(source, repository=ROOT)
+    manifest = stage_assets(source / 'current', destination, commands)
+    stage_assets(source / 'previous', destination / 'previous', commands)
+    require(snapshot(source) == before, 'assets:upgrade-source-changed')
+    # These finite files are created by staging, rather than copied source
+    # metadata. Make their privacy independent of the controller's umask.
+    for root in (destination, destination / 'previous'):
+        for name in ('package.deb', 'installed-files.json', 'transfer-sha256.json'):
+            (root / name).chmod(0o600)
+    (destination / 'previous').chmod(0o700)
+    inventory = {str(p.relative_to(destination)): baseline.digest(p)
+                 for p in sorted(destination.rglob('*'))
+                 if p.is_file() and p != destination / 'transfer-sha256.json'}
+    (destination / 'transfer-sha256.json').write_bytes(baseline.encode(inventory))
+    verify_upgrade(destination, staged=True, repository=ROOT)
+    return manifest
+
+
 def stage_selected_inputs(selection, destination):
     """Freeze and identify only the test/helper files needed by this selection."""
     selected_areas = {execution.area for execution in selection.executions}

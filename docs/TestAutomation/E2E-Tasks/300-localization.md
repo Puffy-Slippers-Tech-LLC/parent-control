@@ -9,6 +9,7 @@ no installed qualification or scenario completion is claimed.
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **300a** — Declared Chinese baseline language assets and independent FIX06 readiness verification.
 - **300b** — DESK13 child desktop-language setting through AccountsService, with independent readback and preservation/refusal qualification.
+- **300c** — Verified genuine v1.2/current package transfer and independent readback for the product-free upgrade journey.
 
 Estimate: 60–90 minutes.
 Session exception: The installed persistence and account-isolation history includes a real upgrade without reboot, the required reboot and renewed kiosk sessions in one continuous case, retaining independent language choices and unchanged policy results throughout.
@@ -132,9 +133,12 @@ the prerequisite slices. DESK13's `AccountLanguage.submit` / `confirm` report
 the actual confirmed API language (`zh_CN` on Ubuntu), the submitted
 `requested_locale` (`zh_CN.UTF-8`) and required session renewal. Use the shared
 helper without replaying uncertain input or adding an implicit renewal.
-LIFE04 qualifies only
-fresh installation, and the native authentication provider is qualified only
-for English. Allocate those remaining prerequisite slices before implementing
+Task **300c** now owns the missing dual-package FIX04 binding: existing
+`VerifiedInputs` and `AssetTransfer` bind only one package. The system runner's
+`--previous-artifacts` route is engineering coverage, not qualification of this
+customer composition. After 300c passes, LIFE04 still needs real upgrade
+composition, and the native authentication provider still needs Chinese
+qualification. Allocate those remaining prerequisite slices before implementing
 or registering the single complete case. No live attempt has been made.
 
 ## Implementation entry
@@ -146,6 +150,8 @@ its consumer and split independent capability work before implementation. No
 executable selector is registered by this brief. Leave this row unchecked until
 that work and installed acceptance are complete.
 
+Qualify task 300c's dual-package transfer before adding the real upgrade
+composition; it does not install either package or supply upgrade acceptance.
 Allocate exactly one numeric case for the complete history; the Chinese phases
 are ordered assertions inside it. Reuse task 300a's qualified baseline language
 readiness and task 300b's qualified DESK13 setting. Qualify

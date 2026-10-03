@@ -32,6 +32,26 @@ encoded=(json.dumps(files,sort_keys=True,indent=2)+'\\n').encode()
 print(json.dumps({'files':len(files),'sha256':hashlib.sha256(encoded).hexdigest()},sort_keys=True))
 '''
 
+# Same independent tree oracle, with package metadata from dpkg-deb rather
+# than any delivered manifest. No installation or expected host values enter.
+UPGRADE_ASSETS = ASSETS.replace("print(json.dumps({'files':len(files),'sha256':hashlib.sha256(encoded).hexdigest()},sort_keys=True))", '''import subprocess
+packages={}
+for label,name in (('current','package.deb'),('previous','previous/package.deb')):
+    values=subprocess.run(['/usr/bin/dpkg-deb','-f',str(root/name),'Package','Version','Architecture'],
+                          check=True,capture_output=True,text=True,timeout=30).stdout.splitlines()
+    fields=dict(row.split(': ',1) for row in values)
+    assert set(fields)=={'Package','Version','Architecture'}
+    assert fields['Package']=='oh-no-parent-control' and fields['Architecture']=='amd64'
+    assert 0<len(fields['Version'])<=128
+    packages[label]={'name':fields['Package'],'version':fields['Version'],
+                     'architecture':fields['Architecture'],'sha256':files[name]}
+assert packages['previous']['version']=='1.2+ppa1~ubuntu26.04.1'
+assert packages['current']['sha256']!=packages['previous']['sha256']
+subprocess.run(['/usr/bin/dpkg','--compare-versions',packages['current']['version'],'gt',
+                packages['previous']['version']],check=True,capture_output=True,timeout=30)
+print(json.dumps({'files':len(files),'sha256':hashlib.sha256(encoded).hexdigest(),
+                  'packages':packages},sort_keys=True))''')
+
 
 # All session names and identifiers stay inside this guest process. This is a
 # read-only corroboration, never a replacement for graphical input/screens.

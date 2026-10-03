@@ -100,6 +100,8 @@ class ParentJourneyQualification(smoke.Qualification):
 
     observation_only = False
 
+    upgrade_assets = False
+
     def attach_installed_snapshot(self, lease):
         """Reuse a prepared app snapshot; default qualifications stay on baseline."""
         return
@@ -123,8 +125,11 @@ class ParentJourneyQualification(smoke.Qualification):
                 observation_only=self.observation_only)
             lease.guard(off=True)
             lease.save('isolated')
-            self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets)
+            self.verified = smoke.VerifiedInputs(lease=lease, assets=self.assets,
+                                                upgrade=self.upgrade_assets)
             self.result['provenance'] = self.verified.inputs
+            if self.upgrade_assets:
+                self.result['upgrade_inputs'] = self.verified.upgrade_inputs
             self.result['fixture_credentials'] = self.credentials.provision(
                 lease, self.verified, self.directory, guestfs, self.commands)
             context = SimpleNamespace(directory=self.directory, lease=lease, verified=self.verified,
@@ -802,6 +807,21 @@ class ProductFreeEntryQualification(ParentJourneyQualification):
         if stage in plan.advance_after:
             self.result['active_phase'] = plan.advance_after[stage]
             self.checkpoint('phase-started')
+
+
+class UpgradeAssetsQualification(ProductFreeEntryQualification):
+    upgrade_assets = True
+
+    def prepare_context(self, context):
+        super().prepare_context(context)
+        from upgrade_assets_qualification import provisioning_refusals
+        self.result['transfer_refusals'] = provisioning_refusals(
+            self.verified, context.lease, self.guestfs, self.transfer)
+
+    @staticmethod
+    def journey(context, progress):
+        from upgrade_assets_qualification import journey
+        return journey(context, progress)
 
 
 class ChineseLanguageQualification(ProductFreeEntryQualification):

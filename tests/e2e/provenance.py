@@ -177,11 +177,13 @@ def baseline_inputs(lease):
             'environment_id': ('ubuntu26-04-' if ubuntu else 'fedora44-') + digest(guest)}
 
 
-def preflight_source(assets, *, root=ROOT):
+def preflight_source(assets, *, root=ROOT, upgrade=False):
     """Record source provenance and verify supplied artifacts before the lease."""
     try:
         captured = snapshot(root, source=True)
         build_test_artifacts.verify(assets)
+        if upgrade:
+            build_test_artifacts.verify_upgrade(assets, staged=True, repository=root)
     except Exception as error:
         print('e2e:source-preflight-rejected', file=sys.stderr, flush=True)
         code = str(error) if isinstance(error, EvidenceError) else 'provenance:source-preflight-failed'
@@ -198,12 +200,13 @@ class VerifiedInputs:
     that exception against the selected category.
     """
 
-    def __init__(self, *, lease, assets=None, root=ROOT, plan=None):
+    def __init__(self, *, lease, assets=None, root=ROOT, plan=None, upgrade=False):
         self.root, self.lease = Path(root), lease
         self.assets = Path(assets) if assets is not None else None
         self._failure = None
         self._contracts = []
         self._plan = copy.deepcopy(plan)
+        self._upgrade = None
         try:
             self._source = snapshot(self.root, source=True)
             self._baseline = baseline_inputs(lease)
@@ -219,6 +222,13 @@ class VerifiedInputs:
                 require((fixtures / 'onpc-test-application.flatpak').is_file(),
                         'provenance:fixture-bundle-missing')
                 package_sha256 = manifest['artifacts']['package']['sha256']
+                if upgrade:
+                    self._upgrade = build_test_artifacts.verify_upgrade(
+                        self.assets, staged=True, repository=self.root)
+                    require(self._assets['files']['package.deb'] == package_sha256
+                            and self._assets['files']['previous/package.deb'] ==
+                            self._upgrade['packages']['previous']['sha256'],
+                            'provenance:upgrade-alias-mismatch')
             self._inputs = {
                 'source_sha256': self._source['sha256'],
                 'inventory_sha256': (self._plan['inventory_sha256'] if self._plan is not None
@@ -247,6 +257,10 @@ class VerifiedInputs:
     def asset_files(self):
         require(self._assets is not None, 'provenance:assets-required')
         return copy.deepcopy(self._assets['files'])
+
+    @property
+    def upgrade_inputs(self):
+        return copy.deepcopy(self._upgrade)
 
     def recheck(self):
         require(self._failure is None, self._failure or 'provenance:previous-failure')

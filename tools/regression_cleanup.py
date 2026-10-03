@@ -82,7 +82,10 @@ from regression_resources import HOST_WORKERS
 # Host/VM repair-session overlap uses private workflow directories and waited
 # test/agent doubles. The fixture cancels only its recorded owners; fix_tests
 # remains compatible in both cleanup and unit scheduling, with no live VM/GUI.
+# Upgrade asset checks share those private file/child lifetimes. They add no
+# live resource or cleanup owner; compatible unit and cleanup scheduling applies.
 REVIEWED = frozenset('''
+upgrade_assets
 desktop_language
 vm_internet native_fixtures baseline_fixtures chinese_language_assets
 appsnapshot backing_verification baseline_guest challenges child_preview clean_install customer_reboot dbus_harness e2e_asset_transfer

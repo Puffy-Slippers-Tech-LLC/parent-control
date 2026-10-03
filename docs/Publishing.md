@@ -608,7 +608,7 @@ does not launch a desktop process from the root maintainer script. If the hook
 defers marker creation for Livepatch, `postinst` still records the reboot needed
 by our PAM/display-manager integration. Configuration retries avoid duplicate
 entries and retain the activation comparison if the hook fails.
-`make installdeb` locates the built `.deb`, refreshes APT package indexes, and
+On Debian-family systems, `make install` locates the built `.deb`, refreshes APT package indexes, and
 copies the package to a temporary `/tmp` file readable by APT's `_apt` user.
 It runs ordinary `apt install --reinstall <deb>` on that copy and removes it after
 APT exits. This supports checkouts under private home directories without
@@ -648,7 +648,7 @@ package is installed and no package remains unconfigured, broken, or awaiting
 triggers. It consumes the marker and prints the green PASS line, immediately
 followed by the kiosk reboot reminder when this package has an outstanding
 reboot request. This places both lines after dependency configuration and
-triggers for ordinary APT installs, including `make installdeb`. Failed
+triggers for ordinary APT installs, including `make install`. Failed
 configuration retries clear stale completion markers; unrelated later
 transactions do not repeat a consumed PASS message. Other independently
 configured APT hooks can still emit their own output after dpkg returns.

@@ -24,7 +24,7 @@ apt-get build-dep -y "$CHECKOUT"
 runuser -u onpc-admin -- env HOME=/home/onpc-admin \
     make -C "$CHECKOUT" APT=true build 2>&1 | \
     tee /var/tmp/onpc-h50-results/package-build.txt
-make -C "$CHECKOUT" installdeb 2>&1 | \
+make -C "$CHECKOUT" install 2>&1 | \
     tee /var/tmp/onpc-h50-results/clean-install.txt
 
 "$SCRIPT_DIR/verify_packages.py" \

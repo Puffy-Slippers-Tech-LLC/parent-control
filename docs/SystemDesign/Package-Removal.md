@@ -7,7 +7,7 @@ PAM restoration, execution-policy baselines, and retry behavior.
 
 Implementation: [prerm](../../packaging/lifecycle/prerm.in), [postrm](../../packaging/lifecycle/postrm.in), [postinst](../../packaging/lifecycle/postinst.in), [uninstall.py](../../broker/oh_no_parent_control/uninstall.py), [package_activation.py](../../packaging/package_activation.py).
 
-`make installdeb` installs the built Debian package through APT.
+`make install` installs the built Debian package through APT on Debian-family systems.
 `make uninstalldeb` runs `sudo apt remove oh-no-parent-control` (plain `apt`
 when root), retaining APT's confirmation and installed maintainer scripts.
 The lifecycle targets clean installations: conflicting accounts, hooks, or

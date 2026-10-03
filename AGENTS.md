@@ -5,6 +5,10 @@
 - This computer is the development host. Do not install the product here unless
   the task explicitly requires an installed-system workflow. Development previews
   and maintained test viewers are allowed.
+- Use `make install` as the sole entry point for any product installation,
+  reinstallation or upgrade from this checkout, including tests and agent work.
+  The `installdeb` and `installrpm` modules are internal implementation details;
+  do not expose or invoke them as separate Make targets.
 - For "handoff time", stop at the earliest clean boundary without interrupting
   important work. Return a concise continuation prompt with remaining work and a
   recommended model/effort; do not save it in the repository.

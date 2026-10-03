@@ -62,9 +62,11 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
     arguments = tmp_path / "apt-arguments"
     staged_copy = tmp_path / "staged-copy"
     staged_mode = tmp_path / "staged-mode"
+    os_release = tmp_path / "os-release"
+    os_release.write_text('ID=ubuntu\n')
     result = subprocess.run(
         ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"),
-         "installdeb", f"CURDIR={tmp_path}", f"LIBEXECDIR={bin_dir}",
+         "install", f"OS_RELEASE={os_release}", f"CURDIR={tmp_path}", f"LIBEXECDIR={bin_dir}",
          f"APT={bin_dir / 'apt'}"],
         env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}",
              "APT_ARGUMENTS": str(arguments), "APT_FAILURE": failure or "",
@@ -155,9 +157,11 @@ def test_rpm_installer_resolves_dependencies_and_reinstalls_local_build(
         os.utime(ignored, (2000000000, 2000000000))
     (output / 'oh-no-parent-control-debuginfo-1.2-0.1.dev.fc44.x86_64.rpm').write_bytes(b'debug')
     arguments = tmp_path / 'dnf-arguments'
+    os_release = tmp_path / 'os-release'
+    os_release.write_text('ID=fedora\n')
     result = subprocess.run(
         ['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'),
-         'installrpm', f'CURDIR={tmp_path}', f'RPM={bin_dir / "rpm"}',
+         'install', f'OS_RELEASE={os_release}', f'CURDIR={tmp_path}', f'RPM={bin_dir / "rpm"}',
          f'DNF={bin_dir / "dnf"}'],
         env={**os.environ, 'RPM_IDENTITY': identity,
              'INSTALLED_IDENTITY': installed_identity,
@@ -189,10 +193,36 @@ def test_rpm_installer_resolves_dependencies_and_reinstalls_local_build(
             assert 'RPM identity diagnostic' in output_text
 
 
+@pytest.mark.parametrize('target', ['installdeb', 'installrpm'])
+def test_package_specific_install_targets_are_unavailable(target):
+    result = subprocess.run(
+        ['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'), target],
+        capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode != 0
+    assert f"No rule to make target '{target}'" in result.stderr
+
+
+@pytest.mark.parametrize('release', [None, 'ID=unsupported\n'])
+def test_install_refuses_missing_or_unsupported_distribution(tmp_path, release):
+    os_release = tmp_path / 'os-release'
+    if release is not None:
+        os_release.write_text(release)
+    result = subprocess.run(
+        ['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'),
+         'install', f'OS_RELEASE={os_release}', 'APT=false', 'RPM=false', 'DNF=false'],
+        capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode != 0
+    assert ('os-release is missing' if release is None else
+            'Unsupported distribution: unsupported') in result.stderr
+    assert 'Installing ' not in result.stdout
+
+
 class PackageDeploymentTests(unittest.TestCase):
     def test_make_rpm_target_delegates_product_setup_to_the_package(self):
         makefile = (ROOT / 'Makefile').read_text(encoding='utf-8')
-        recipe = makefile.split('installrpm:\n', 1)[1].split('\n\n', 1)[0]
+        recipe = makefile.split('define installrpm\n', 1)[1].split('\nendef', 1)[0]
         self.assertTrue(recipe.rstrip().endswith('$(DNF) "$$action" "$$rpm_file"'))
         for product_setup in ('oh-no-parent-control-provision', 'postinst',
                               'systemctl', 'systemd-sysusers', 'authselect',
@@ -202,13 +232,13 @@ class PackageDeploymentTests(unittest.TestCase):
 
     def test_make_package_targets_delegate_all_product_behavior_to_apt(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-        recipe = makefile.split("installdeb:\n", 1)[1].split("\n\n", 1)[0]
+        recipe = makefile.split("define installdeb\n", 1)[1].split("\nendef", 1)[0]
         self.assertTrue(recipe.rstrip().endswith('$(APT) install --reinstall "$$staged_deb"'))
         self.assertLess(recipe.index("$(APT) update -o APT::Update::Error-Mode=any"),
                         recipe.index('$(APT) install --reinstall "$$staged_deb"'))
         removal = makefile.split("uninstalldeb:\n", 1)[1].split("\n\n", 1)[0]
         self.assertEqual(removal.strip(), '$(APT) remove oh-no-parent-control')
-        self.assertIn("@set -e", recipe)
+        self.assertIn("set -e", recipe)
         self.assertIn("dpkg-parsechangelog -S Version", recipe)
         self.assertIn("dpkg-architecture -qDEB_HOST_ARCH", recipe)
         self.assertIn("run make build first", recipe)
@@ -235,7 +265,7 @@ class PackageDeploymentTests(unittest.TestCase):
     def test_make_build_keeps_changes_file_artifacts_together(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         recipe = makefile.split("_build-package:\n", 1)[1].split(
-            "\n\ninstalldeb:", 1
+            "\n\ninstall:", 1
         )[0]
 
         self.assertIn(

@@ -105,8 +105,8 @@ The broker stores language in the personal section of the same per-user record
 and infrastructure as policy and request choices. The extension and overlay
 share the child's selection; parent uses its own account's selection and kiosk
 follows the selected child's preference.
-Empty means follow the frontend
-session language. Each GTK frontend prompts when this field is empty and saves
+Empty means follow the frontend session language, except kiosk uses the selected
+child's AccountsService desktop language. Each GTK frontend prompts when this field is empty and saves
 it through the caller-scoped D-Bus API, or the kiosk-only child-language API;
 its Preferences menu reopens the chooser. Kiosk refreshes on child selection.
 Cancel leaves an unset preference empty and setup reappears on the next launch
@@ -198,7 +198,8 @@ registering its D-Bus object. It does not replay every saved preference into
 AccountsService. Separately, Ubuntu display-manager startup requires fapolicyd's
 boot canary and exact child-module trust readiness. The broker launcher also
 checks exact trust and honors the boot-scoped upgrade activation guard. While
-that guard is present, only role-checked logging and export are available in
+that guard is present, role-checked logging, export and read-only kiosk
+account/language discovery are available in
 [diagnostics-only mode](SystemDesign/Logging-and-Feedback.md#investigation-coverage);
 policy methods and the startup-readiness witness refuse with `RebootRequired`.
 GDM does not have a broker-readiness dependency.

@@ -196,8 +196,9 @@ and requires no product installation, package activation or saved-data migration
 ## Personal language selection
 
 Parent and child overlay read `GetOwnLanguage` asynchronously at startup.
-Kiosk reads `GetChildLanguage` for the selected child at startup and on each
-child selection, applying that child's saved language or opening setup when unset.
+Kiosk reads `GetChildLanguageContext` for the selected child at startup and on each
+child selection, applying that child's saved language or using its AccountsService
+desktop language and opening setup when unset.
 An empty value opens a modal language chooser. Parent retains its
 [own dialog UI](../../parent/oh_no_parent_control_parent/language_dialog.py);
 kiosk and child overlay use a separate
@@ -207,6 +208,7 @@ and restore chooser focus if an outside click activates their parent. Outside
 clicks and window-manager close requests do not dismiss them; Save and Cancel
 own dismissal.
 Its default is the primary session message language from `GLib.get_language_names`,
+except kiosk uses the selected child's desktop language when available,
 resolved against the shared
 [catalogue](../../common/oh_no_parent_control_ui/languages.json); unsupported locales
 use English. The [locale resolution policy](Localization.md#language-catalogue-and-resolution)
@@ -280,6 +282,11 @@ window; Close exits the app. Request forms retain a restart result and their
 ordinary exit action.
 Repeated callbacks reuse one modal and cannot overwrite the known reboot reason
 with a generic language-loading failure.
+Kiosk-only read endpoints remain available before reboot so its remembered
+eligible child and language can be resolved. A pending restart notice waits
+for that initial language read, skips the language chooser and inherits the
+request window's translation context. Policy and language writes
+remain unavailable until reboot.
 
 The modal defaults to Close, which does not reboot. **Reboot now** uses GTK's
 standard `destructive-action` style and asynchronously calls logind's public

@@ -112,6 +112,42 @@ def test_context_unicode_and_named_formatting(catalogues):
     assert translations.gettext("Draft") == "Draft"  # Fuzzy entries never ship.
 
 
+@pytest.mark.parametrize('prefer_selected', (False, True))
+def test_kiosk_agent_environment_drives_native_gettext(catalogues, prefer_selected):
+    import shutil
+    from oh_no_parent_control_kiosk.agent_locale import agent_environment, installed_locales
+    native = catalogues / 'zh_CN' / 'LC_MESSAGES'
+    native.mkdir(parents=True)
+    shutil.copyfile(catalogues / 'zh_Hans' / 'LC_MESSAGES' / (DOMAIN + '.mo'),
+                    native / (DOMAIN + '.mo'))
+    environment = dict(os.environ, TEXTDOMAINDIR=str(catalogues))
+    available = installed_locales()
+    if not prefer_selected:
+        available = tuple(value for value in available if supported_language(value) != 'zh-Hans')
+    environment.update(line.split('=', 1) for line in agent_environment(
+        'zh-Hans', '', available).splitlines())
+    result = subprocess.run(['gettext', '--domain=' + DOMAIN, 'Hello'],
+                            env=environment, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == '你好'
+
+
+def test_unset_kiosk_preference_uses_child_desktop_for_polkit_message(catalogues, monkeypatch):
+    from dataclasses import replace
+    from unittest.mock import patch
+    from oh_no_parent_control import core
+    from tests.support.broker import Accounts, Authorizer, Preferences, make_broker
+    accounts, preferences, authorizer = Accounts(), Preferences(), Authorizer('denied')
+    accounts.users[1001] = replace(accounts.users[1001], desktop_language='zh_CN.UTF-8')
+    monkeypatch.setattr(core, 'load_translations', lambda saved, session=():
+                        load_translations(saved, session, localedir=catalogues))
+    broker = make_broker(accounts=accounts, preferences=preferences, authorizer=authorizer)
+    with patch.object(core, 'load_translations', wraps=core.load_translations) as load:
+        broker.request_access(991, ':1.42', 1001, 1003, 300, False)
+    load.assert_called_once_with('', ('zh_CN.UTF-8',))
+    assert preferences.load(1001)['personal']['language'] == ''
+
+
 def test_language_specific_plural_rules(catalogues):
     translations = load_translations("ru", localedir=catalogues)
     for number, expected, contextual in (

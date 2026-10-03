@@ -174,6 +174,7 @@ class AccountsService:
             is_locked=properties.get("Locked", True),
             icon_file=_accounts_icon_file(properties.get("IconFile", "")),
             is_interactive=properties.get("Shell", "") not in NONINTERACTIVE_SHELLS,
+            desktop_language=properties.get("Language", ""),
         )
 
     def list_users(self) -> tuple[UserAccount, ...]:

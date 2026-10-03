@@ -2,6 +2,9 @@
 
 Only logind/Polkit replies and account storage are doubles. The original
 requester and agent service stay alive throughout lockout and kiosk recovery.
+Agent-startup cases reuse these private buses and joined worker threads;
+retry timers belong to each worker context and are destroyed before teardown.
+No real agent, host session, shared socket or new storage owner is introduced.
 """
 
 from contextlib import ExitStack
@@ -66,6 +69,7 @@ class Authorities:
         self.resolve_error = False
         self.cancel_mode = "cancel"
         self.on_snapshot = None
+        self.on_check = None
 
     def dispatch(self, _connection, sender, path, _interface, method, parameters, invocation):
         if method == "GetSessionByPID":
@@ -98,10 +102,12 @@ class Authorities:
         elif method == "CheckAuthorization":
             self.checks.append({"sender": sender, "parameters": parameters.unpack(),
                                 "invocation": invocation, "done": False})
+            if self.on_check:
+                self.on_check()
         elif method == "CancelCheckAuthorization":
             cancellation_id, = parameters.unpack()
             original = next(item for item in self.checks
-                            if item["parameters"][4] == cancellation_id)
+                            if item["parameters"][4] == cancellation_id and not item["done"])
             # Polkit cancellation IDs belong to the authority's caller, not to
             # the subject whose password prompt the caller requested.
             assert sender == original["sender"]
@@ -359,9 +365,12 @@ def test_authentication_outcomes_and_selected_identity_are_preserved(lifecycle, 
     ({"unrelated": "true"}, "denied"),
     ({}, "denied"),
 ])
-def test_dismissal_detail_not_challenge_controls_silent_return(lifecycle, surface, details, expected):
+def test_dismissal_detail_not_challenge_controls_silent_return(
+        lifecycle, monkeypatch, surface, details, expected):
     # Private bus and existing owned worker only; no new shared resource.
     # A challenge indicates authentication is still possible, not dismissal.
+    # Isolate final result classification; startup waiting is covered below.
+    monkeypatch.setattr(authorization, "AGENT_STARTUP_GRACE_MS", 0)
     pending = lifecycle.start(surface)
     spin_until(lambda: lifecycle.authorities.checks)
     lifecycle.authorities.reply(challenge=True, details=details)
@@ -369,6 +378,73 @@ def test_dismissal_detail_not_challenge_controls_silent_return(lifecycle, surfac
     assert pending["result"][1] == expected
     assert lifecycle.accounts.events == []
     assert lifecycle.authorities.cancellations == []
+
+
+@pytest.mark.parametrize("outcome", ("approved", "denied", "cancelled"))
+def test_kiosk_waits_for_agent_then_preserves_terminal_authentication_result(lifecycle, outcome):
+    authority = lifecycle.authorities
+    pending = lifecycle.start("kiosk")
+    spin_until(lambda: len(authority.checks) == 1)
+    authority.reply(challenge=True)
+    spin_until(lambda: len(authority.checks) == 2)
+    assert not pending["done"]
+    assert authority.checks[0]["parameters"] == authority.checks[1]["parameters"]
+    with pytest.raises(Busy):
+        lifecycle.broker.request_access(991, lifecycle.kiosk.get_unique_name(),
+                                        1001, 1003, 300, True)
+    authority.reply(authorized=outcome == "approved",
+                    details={"polkit.dismissed": "true"} if outcome == "cancelled" else {})
+    spin_until(lambda: pending["done"])
+    assert pending["result"][1] == outcome
+    assert len(authority.checks) == 2
+    assert authority.cancellations == []
+    if outcome != "approved":
+        assert lifecycle.accounts.events == []
+
+
+def test_kiosk_agent_startup_wait_is_bounded(lifecycle, monkeypatch):
+    monkeypatch.setattr(authorization, "AGENT_STARTUP_GRACE_MS", 60)
+    monkeypatch.setattr(authorization, "AGENT_RETRY_MS", 10)
+    authority = lifecycle.authorities
+    authority.on_check = lambda: authority.reply(challenge=True)
+    pending = lifecycle.start("kiosk")
+    spin_until(lambda: pending["done"])
+    assert pending["result"][1] == "denied"
+    assert 1 <= len(authority.checks) <= 7
+    assert lifecycle.accounts.events == []
+    assert authority.cancellations == []
+
+
+@pytest.mark.parametrize("trigger", ("locked", "disconnect"))
+def test_kiosk_agent_wait_cancels_before_another_challenge(lifecycle, monkeypatch, trigger):
+    monkeypatch.setattr(authorization, "AGENT_RETRY_MS", 1000)
+    authority = lifecycle.authorities
+    pending = lifecycle.start("kiosk")
+    spin_until(lambda: len(authority.checks) == 1)
+    authority.reply(challenge=True)
+    if trigger == "locked":
+        authority.change({"LockedHint": True})
+    else:
+        close_connection(lifecycle.kiosk)
+    spin_until(lambda: pending["done"])
+    assert pending["result"][1] == "cancelled"
+    assert len(authority.checks) == 1
+    assert lifecycle.accounts.events == []
+    assert authority.cancellations == []
+
+
+def test_kiosk_lock_cancels_active_challenge_after_agent_retry(lifecycle):
+    authority = lifecycle.authorities
+    pending = lifecycle.start("kiosk")
+    spin_until(lambda: len(authority.checks) == 1)
+    authority.reply(challenge=True)
+    spin_until(lambda: len(authority.checks) == 2)
+    authority.change({"LockedHint": True})
+    spin_until(lambda: pending["done"])
+    assert pending["result"][1] == "cancelled"
+    assert len(authority.cancellations) == 1
+    assert all(item["done"] for item in authority.checks)
+    assert lifecycle.accounts.events == []
 
 
 @pytest.mark.parametrize("no_display", (False, True))

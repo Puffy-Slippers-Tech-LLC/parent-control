@@ -10,6 +10,7 @@ from common.oh_no_parent_control_ui.diagnostic_events import decode
 from oh_no_parent_control_kiosk.main import RequestWindow, _time_estimate_label
 from oh_no_parent_control_kiosk.request_content import RequestContent
 from tests.support.objects import bind_methods
+from oh_no_parent_control_kiosk.agent_locale import KioskAgentLocale, agent_environment, UNIT
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +45,7 @@ def test_language_startup_uses_caller_preference_and_only_prompts_when_needed(
     window = SimpleNamespace(
         _estimate_closed=False, _language_load_failed=False,
         _language_requested=requested, _open_language_dialog=Mock(), _language_saved=Mock(),
-        _apply_language=Mock(return_value=True))
+        _apply_language=Mock(return_value=True), _stack=Mock())
     RequestWindow._language_loaded(window, language)
     assert window._own_language == language
     assert not window._language_loading
@@ -114,14 +115,15 @@ def test_child_language_switch_discards_superseded_reads_including_reselection(e
         window._select_language_child(1002)
         window._select_language_child(1001)
     method, parameters, signature, callback = window._bus_call.call_args.args
-    assert (method, parameters.unpack(), signature) == ('GetChildLanguage', (1001,), '(s)')
+    assert (method, parameters.unpack(), signature) == ('GetChildLanguageContext', (1001,), '(ss)')
     old_callback(SimpleNamespace(call_finish=Mock(side_effect=error,
         return_value=SimpleNamespace(unpack=lambda: ('fr',)))), object())
     window._language_loaded.assert_not_called()
     window._language_failed.assert_not_called()
     callback(SimpleNamespace(call_finish=Mock(
-        return_value=SimpleNamespace(unpack=lambda: ('de',)))), object())
+        return_value=SimpleNamespace(unpack=lambda: ('de', 'zh_CN.UTF-8')))), object())
     window._language_loaded.assert_called_once_with('de')
+    assert window._desktop_language == 'zh_CN.UTF-8'
     window._stack.set_sensitive.assert_not_called()
 
 
@@ -141,13 +143,165 @@ def test_kiosk_language_save_targets_child_and_ignores_reply_after_switch():
 
 
 def test_unchanged_language_does_not_relabel_widgets():
-    window = SimpleNamespace(_applied_language='de', _show_error=Mock())
+    window = SimpleNamespace(_applied_language='de', _show_error=Mock(), _child_overlay=True)
     with patch('oh_no_parent_control_kiosk.main.context_for') as context:
         assert RequestWindow._apply_language(window, 'de')
         context.assert_not_called()
         assert RequestWindow._apply_language(window, 'fr')
         context.return_value.apply.assert_called_once_with('fr')
     assert window._applied_language == 'fr'
+
+
+@pytest.mark.parametrize('saved,desktop,expected', [
+    ('', 'zh_CN.UTF-8', 'zh-Hans'), ('', 'zh_TW.UTF-8', 'zh-Hant'),
+    ('', 'de_DE.UTF-8', 'de'), ('fr', 'zh_CN.UTF-8', 'fr'),
+    ('', 'unsupported', 'en'),
+])
+def test_kiosk_language_defaults_to_selected_child_desktop(saved, desktop, expected):
+    window = SimpleNamespace(_applied_language=None, _show_error=Mock(),
+                             _child_overlay=False, _desktop_language=desktop)
+    with patch('oh_no_parent_control_kiosk.main.context_for') as context:
+        assert RequestWindow._apply_language(window, saved)
+        context.return_value.apply.assert_called_once_with(expected)
+    assert window._applied_language == expected
+
+
+def test_reboot_notice_waits_for_child_language_and_skips_first_run_chooser():
+    from gi.repository import Gio
+    error = Gio.DBusError.new_for_dbus_error(
+        'com.puffyslippers.OhNoParentControl1.Error.RebootRequired', 'upgrade')
+    window = bind_methods(SimpleNamespace(
+        _startup_language_pending=True, _child_overlay=False,
+        _estimate_closed=False, _language_load_failed=False,
+        _stack=Mock(), _show_result=Mock(), _open_language_dialog=Mock(),
+        _language_dialog=None,
+        _apply_language=Mock(return_value=True),
+    ), RequestWindow, ('_show_error', '_language_loaded'))
+    with patch('oh_no_parent_control_kiosk.main.show_update_required') as notice:
+        window._show_error(error)
+        window._show_result.assert_not_called()
+        notice.assert_not_called()
+        window._language_loaded('')
+        window._apply_language.assert_called_once_with('')
+        notice.assert_called_once_with(window)
+        window._open_language_dialog.assert_not_called()
+
+
+@pytest.mark.parametrize('language,desktop,native,registration', [
+    ('zh-Hans', 'zh_CN.UTF-8', 'zh_CN', 'zh_CN.UTF-8'),
+    ('zh-Hant', 'zh_TW.UTF-8', 'zh_TW', 'zh_TW.UTF-8'),
+    ('de', 'zh_CN.UTF-8', 'de', 'de_DE.UTF-8'),
+    ('pt-BR', '', 'pt_BR', 'pt_BR.UTF-8'),
+    ('zh-Hans', 'zh_CN.UTF-8\nOTHER=value', 'zh_CN', 'zh_CN.UTF-8'),
+])
+def test_agent_locale_is_process_scoped_and_maps_native_catalogues(
+        language, desktop, native, registration):
+    import os
+    before = dict(os.environ)
+    assert agent_environment(language, desktop, ('C.utf8', 'en_US.utf8')) == (
+        f'LANG={registration}\nLANGUAGE={native}\nLC_ALL=en_US.utf8\n')
+    assert dict(os.environ) == before
+
+
+def test_agent_locale_refuses_c_only_hosts_without_starting_approval():
+    with pytest.raises(RuntimeError, match='installed UTF-8 message locale'):
+        agent_environment('zh-Hans', 'zh_CN.UTF-8', ('C', 'C.utf8', 'POSIX'))
+
+
+def test_agent_deadline_ignores_late_restart_reply_after_close(tmp_path):
+    from gi.repository import GLib
+    agent = KioskAgentLocale()
+    agent._locales = ('en_US.utf8',)
+    bus, done = Mock(), Mock()
+    with (patch('oh_no_parent_control_kiosk.agent_locale.GLib.get_user_runtime_dir', return_value=str(tmp_path)),
+          patch('oh_no_parent_control_kiosk.agent_locale.Gio.bus_get_sync', return_value=bus),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.timeout_add_seconds', return_value=42)):
+        agent.prepare('zh-Hans', 'zh_CN.UTF-8', done)
+        callback = bus.call.call_args.args[-1]
+        agent._timed_out()
+        assert isinstance(done.call_args.args[0], TimeoutError)
+        bus.call_finish.return_value = GLib.Variant('(o)', ('/job/late',))
+        callback(bus, object())
+        bus.call_finish.assert_not_called()
+        assert done.call_count == 1
+        assert agent._applied is None
+        bus.signal_unsubscribe.assert_called_once()
+
+
+@pytest.mark.parametrize('failure', ('failed', 'timeout'))
+def test_agent_failed_locale_change_invalidates_previously_applied_settings(tmp_path, failure):
+    agent = KioskAgentLocale()
+    agent._locales = ('en_US.utf8',)
+    agent._applied = agent_environment('en', '', agent._locales)
+    bus, done = Mock(), Mock()
+    with (patch('oh_no_parent_control_kiosk.agent_locale.GLib.get_user_runtime_dir', return_value=str(tmp_path)),
+          patch('oh_no_parent_control_kiosk.agent_locale.Gio.bus_get_sync', return_value=bus),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.timeout_add_seconds', return_value=42),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.source_remove')):
+        agent.prepare('zh-Hans', '', done)
+        if failure == 'timeout':
+            agent._timed_out()
+        else:
+            agent._completed('failed')
+        assert done.call_args.args[0] is not None
+        bus.reset_mock()
+        agent.prepare('en', '', done)
+        assert bus.call.call_args.args[3] == 'RestartUnit'
+        agent.close()
+
+
+@pytest.mark.parametrize('early,result', [(False, 'done'), (True, 'done'), (False, 'failed')])
+def test_agent_restart_waits_for_matching_systemd_job(tmp_path, early, result):
+    from gi.repository import GLib
+    agent = KioskAgentLocale()
+    agent._locales = ('en_US.utf8', 'zh_CN.utf8')
+    bus, done = Mock(), Mock()
+    with (patch('oh_no_parent_control_kiosk.agent_locale.GLib.get_user_runtime_dir', return_value=str(tmp_path)),
+          patch('oh_no_parent_control_kiosk.agent_locale.Gio.bus_get_sync', return_value=bus),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.timeout_add_seconds', return_value=42),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.source_remove') as remove):
+        agent.prepare('zh-Hans', 'zh_CN.UTF-8', done)
+        assert (tmp_path / 'oh-no-parent-control/polkit-agent.env').read_text() == agent_environment('zh-Hans', 'zh_CN.UTF-8', agent._locales)
+        assert (tmp_path / 'oh-no-parent-control/polkit-agent.env').stat().st_mode & 0o777 == 0o600
+        done.assert_not_called()
+        args = bus.call.call_args.args
+        assert args[3] == 'RestartUnit' and args[4].unpack() == (UNIT, 'replace')
+        signal = lambda job, value: agent._job_removed(None, None, None, None, None,
+            GLib.Variant('(uoss)', (1, job, UNIT, value)))
+        signal('/job/other', 'done')
+        if early:
+            signal('/job/owned', result)
+        bus.call_finish.return_value = GLib.Variant('(o)', ('/job/owned',))
+        args[-1](bus, object())
+        if not early:
+            done.assert_not_called()
+            signal('/job/owned', result)
+        assert done.call_count == 1
+        assert (done.call_args.args[0] is None) == (result == 'done')
+        bus.signal_unsubscribe.assert_called_once()
+        remove.assert_called_once_with(42)
+        if result == 'done':
+            bus.reset_mock()
+            agent.prepare('zh-Hans', 'zh_CN.UTF-8', done)
+            bus.call.assert_not_called()
+
+
+def test_kiosk_request_waits_for_agent_locale_and_stops_on_failure():
+    window = bind_methods(SimpleNamespace(
+        _pending_request=(1001, 1000, 300, False), _child_overlay=False,
+        _agent_locale=Mock(), _applied_language='zh-Hans', _desktop_language='zh_CN.UTF-8',
+        _estimate_closed=False, _bus_call=Mock(), _request_failed=Mock(), _request_done=Mock(),
+    ), RequestWindow, ('_preferences_saved', '_agent_prepared'))
+    connection = Mock()
+    window._preferences_saved(connection, object())
+    window._bus_call.assert_not_called()
+    language, desktop, callback = window._agent_locale.prepare.call_args.args
+    assert (language, desktop) == ('zh-Hans', 'zh_CN.UTF-8')
+    callback(RuntimeError('restart failed'))
+    window._bus_call.assert_not_called()
+    window._request_failed.assert_called_once()
+    callback(None)
+    assert window._bus_call.call_args.args[0] == 'RequestAccess'
 
 
 def reply(window, seconds=1200, error=None):

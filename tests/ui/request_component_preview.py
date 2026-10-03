@@ -102,6 +102,8 @@ class Broker:
             self.pending_slow_reply = callback, reply
             return
         delay = 12_000 if self.scenario == "loading" and method == "GetPreferences" else 0
+        if method == 'GetChildLanguageContext':
+            delay = int(os.environ.get('ONPC_CHILD_LANGUAGE_DELAY_MS', '0'))
         source = GLib.timeout_add if delay else GLib.idle_add
         source(delay, lambda: (callback(self, reply), GLib.SOURCE_REMOVE)[1]) if delay else source(
             lambda: (callback(self, reply), GLib.SOURCE_REMOVE)[1],
@@ -120,12 +122,17 @@ class Broker:
         return reply
 
     def reply(self, method, values):
-        if self.scenario == 'reboot-required':
+        if self.scenario == 'reboot-required' and method not in (
+                'ListKioskUsers', 'GetChildLanguageContext'):
             return Reply(error=Gio.DBusError.new_for_dbus_error(
                 'com.puffyslippers.OhNoParentControl1.Error.RebootRequired', 'private detail'))
-        if method == 'GetChildLanguage':
+        if method in ('GetChildLanguage', 'GetChildLanguageContext'):
             try:
-                return Reply((self.child_languages[values[0]].read(),))
+                language = self.child_languages[values[0]].read()
+                if method == 'GetChildLanguageContext':
+                    desktop = os.environ.get(f'ONPC_CHILD_{values[0]}_DESKTOP_LANGUAGE', '')
+                    return Reply((language, desktop))
+                return Reply((language,))
             except RuntimeError as error:
                 return Reply(error=error)
         if method == 'SetChildLanguage':
@@ -147,7 +154,7 @@ class Broker:
             return Reply(error=RuntimeError("org.example.Secret /private/path"))
         if method == "GetOwnAccount":
             return Reply(USERS[0])
-        if method == "ListManagedUsers":
+        if method in ("ListManagedUsers", "ListKioskUsers"):
             return Reply((() if self.scenario == "no-children" else USERS,))
         if method == "ListApprovers":
             return Reply((() if self.scenario == "no-approvers" else APPROVERS,))
@@ -183,6 +190,17 @@ class Broker:
 
 
 BROKER = Broker()
+class ScriptedAgentLocale:
+    def prepare(self, language, desktop_language, done):
+        BROKER.record('agent-language-prepared', language=language, desktop_language=desktop_language)
+        GLib.idle_add(lambda: (done(None), GLib.SOURCE_REMOVE)[1])
+
+    def close(self):
+        pass
+
+
+from kiosk.oh_no_parent_control_kiosk import main as request_main
+request_main.KioskAgentLocale = ScriptedAgentLocale
 from tests.support.update_required import install_reboot_stub
 install_reboot_stub(BROKER.record)
 

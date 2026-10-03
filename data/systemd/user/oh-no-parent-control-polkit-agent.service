@@ -5,6 +5,7 @@ After=gnome-session.target org.gnome.Kiosk@wayland.service
 Before=oh-no-parent-control-app.service
 
 [Service]
+EnvironmentFile=-%t/oh-no-parent-control/polkit-agent.env
 # The public mate-polkit launcher forks the authentication agent into the
 # background. Track that child as the service's main process so it remains in
 # the service lifecycle and can be restarted if it exits.

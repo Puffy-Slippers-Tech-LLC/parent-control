@@ -95,7 +95,7 @@ prerequisite could log out unrelated desktops, so a root-owned mode-`0600`
 `/run/oh-no-parent-control-child-trust-reboot` guard prevents policy activation
 for that boot. Both systemd and the direct launcher may start the broker's
 [diagnostics-only mode](Logging-and-Feedback.md#investigation-coverage), which
-retains role-checked log collection without starting enforcement or session
+retains role-checked log collection and kiosk presentation reads without starting enforcement or session
 operations. The broker's product-specific `Error.RebootRequired` status drives
 the frontend update modal.
 The global `/run/reboot-required` and other packages' reboot requests do not

@@ -15,6 +15,17 @@ from oh_no_parent_control.service import INTROSPECTION_XML, Service
 from tests.support.paths import ROOT
 
 
+def test_public_method_diagnostics_preserve_only_registered_method_names():
+    for event_id in ('service.006', 'service.007', 'service.008', 'service.009', 'service.010'):
+        for method in (*signatures(INTROSPECTION_XML), 'private-unrecognized-method'):
+            values = {'method': method}
+            if event_id in ('service.009', 'service.010'):
+                values['error_type'] = 'AccessDenied'
+            diagnostic = event(event_id, values, normalize=True)
+            assert diagnostic['fields']['method'] == (
+                'other' if method == 'private-unrecognized-method' else method)
+
+
 def test_reboot_diagnostics_mode_never_starts_or_dispatches_policy(tmp_path):
     from oh_no_parent_control.service import GLib, BUS_NAME
     dependencies = mock.Mock()
@@ -29,7 +40,8 @@ def test_reboot_diagnostics_mode_never_starts_or_dispatches_policy(tmp_path):
     service.broker.refresh_enabled_extensions.assert_not_called()
     service.broker.clear_live_session_runtime_caps.assert_not_called()
     service.broker.reset_mock()
-    for method in signatures(INTROSPECTION_XML).keys() - {'LogEvent', 'ExportDiagnosticLogs'}:
+    for method in signatures(INTROSPECTION_XML).keys() - {
+            'LogEvent', 'ExportDiagnosticLogs', 'ListKioskUsers', 'GetChildLanguageContext'}:
         invocation = mock.Mock()
         service._method_call(None, ':1.42', None, None, method,
                              GLib.Variant('()', ()), invocation)
@@ -93,9 +105,36 @@ def test_reboot_mode_production_graph_has_no_enforcement_adapters(tmp_path):
         service = Service(mock.Mock(), DailyLogWriter(tmp_path), diagnostics_only=True)
     production.assert_not_called()
     assert service.broker._accounts is accounts.return_value
-    assert service.broker._preferences is None
+    from oh_no_parent_control.preferences import PreferenceStore
+    assert isinstance(service.broker._preferences, PreferenceStore)
     assert service.broker._extensions is None
     assert service.broker._running_apps is None
+    service.close()
+
+
+def test_reboot_mode_dispatches_only_role_checked_kiosk_presentation_reads(tmp_path):
+    from oh_no_parent_control.service import GLib
+    from tests.support.broker import Accounts
+    dependencies = mock.Mock()
+    dependencies.credentials.uid.return_value = 991
+    service = Service(mock.Mock(), DailyLogWriter(tmp_path), dependencies=dependencies,
+                      diagnostics_only=True)
+    service.broker.list_kiosk_users.return_value = (Accounts().users[1001],)
+    service.broker.get_child_language_context.return_value = ('', 'zh_CN.UTF-8')
+    for method, parameters, expected in (
+            ('ListKioskUsers', None, ([(1001, 'Child', '')],)),
+            ('GetChildLanguageContext', GLib.Variant('(u)', (1001,)), ('', 'zh_CN.UTF-8'))):
+        invocation = mock.Mock()
+        service._method_call(None, ':1.42', None, None, method, parameters, invocation)
+        assert invocation.return_value.call_args.args[0].unpack() == expected
+    service.broker.list_kiosk_users.assert_called_once_with(991)
+    service.broker.get_child_language_context.assert_called_once_with(991, 1001)
+    service.broker.get_child_language_context.side_effect = AccessDenied('denied')
+    invocation = mock.Mock()
+    service._method_call(None, ':1.42', None, None, 'GetChildLanguageContext',
+                         GLib.Variant('(u)', (1001,)), invocation)
+    invocation.return_value.assert_not_called()
+    assert invocation.return_dbus_error.call_args.args[0].endswith('.Error.AccessDenied')
     service.close()
 
 

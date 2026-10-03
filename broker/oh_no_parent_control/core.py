@@ -71,6 +71,7 @@ class UserAccount:
     is_locked: bool = False
     icon_file: str = ""
     is_interactive: bool = True
+    desktop_language: str = ""
 
 
 @dataclass(frozen=True)
@@ -499,6 +500,11 @@ class Broker:
         users = (user for user in self._accounts.list_users() if self._eligible(config, user))
         return tuple(sorted(users, key=lambda user: (user.label.casefold(), user.uid)))
 
+    def list_kiosk_users(self, caller_uid: int) -> tuple[UserAccount, ...]:
+        """Read-only child discovery, including while upgrade policy is gated."""
+        self._check_caller(self._load_config(), caller_uid)
+        return self.list_managed_users(caller_uid)
+
     def clear_live_session_runtime_caps(self) -> tuple[int, ...]:
         """Drop login-time systemd kill timers on live managed child sessions."""
         config = self._load_config()
@@ -620,6 +626,16 @@ class Broker:
             return self._preferences.load(target_uid)["personal"]["language"]
         except (PreferencesError, OSError) as error:
             raise BackendFailure("user language is unavailable") from error
+
+    def get_child_language_context(self, caller_uid: int, target_uid: int) -> tuple[str, str]:
+        """Return saved intent and the selected child's desktop fallback."""
+        target_uid = self._kiosk_language_target(caller_uid, target_uid)
+        language = self.get_child_language(caller_uid, target_uid)
+        try:
+            desktop_language = self._accounts.get_user(target_uid).desktop_language
+        except Exception as error:
+            raise BackendFailure("child desktop language is unavailable") from error
+        return language, desktop_language
 
     def set_child_language(self, caller_uid: int, target_uid: int, language: object) -> str:
         target_uid = self._kiosk_language_target(caller_uid, target_uid)
@@ -1096,7 +1112,9 @@ class Broker:
 
             language = (self.get_own_language(caller_uid) if request_kind == "child"
                         else self.get_child_language(caller_uid, target.uid))
-            translations = load_translations(language)
+            translations = (load_translations(language, (target.desktop_language,))
+                            if not language and request_kind == "kiosk" else
+                            load_translations(language))
             template = (m.POLKIT_GRANT_SOFT_APPS if allow_soft_blocked_apps
                         else m.POLKIT_GRANT)
             # Polkit expands details once, after translation. Keep the account

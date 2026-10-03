@@ -51,6 +51,11 @@ INTROSPECTION_XML = f"""
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="language" type="s" direction="out"/>
     </method>
+    <method name="GetChildLanguageContext">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="language" type="s" direction="out"/>
+      <arg name="desktop_language" type="s" direction="out"/>
+    </method>
     <method name="SetChildLanguage">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="language" type="s" direction="in"/>
@@ -61,6 +66,9 @@ INTROSPECTION_XML = f"""
       <arg name="saved_language" type="s" direction="out"/>
     </method>
     <method name="ListManagedUsers">
+      <arg name="users" type="a(uss)" direction="out"/>
+    </method>
+    <method name="ListKioskUsers">
       <arg name="users" type="a(uss)" direction="out"/>
     </method>
     <method name="ListApprovers">
@@ -217,13 +225,14 @@ class Service:
         self._diagnostic_export_lock = threading.Lock()
         self._grant_observation_lock = threading.Lock()
         if dependencies is None and diagnostics_only:
-            # Only live identity/configuration reads are needed for the existing
-            # diagnostic permissions. Do not construct enforcement adapters.
+            # Presentation reads need identity and saved language, but no
+            # enforcement adapters or preference writes before reboot.
             credentials = CallerCredentials(connection)
             accounts = AccountsService(connection)
             self.credentials = credentials
             self.accounts = accounts
-            self.broker = Broker(lambda: config.load(CONFIG_PATH), None, accounts)
+            self.broker = Broker(lambda: config.load(CONFIG_PATH), None, accounts,
+                                 PreferenceStore())
         else:
             dependencies = dependencies or production_dependencies(connection)
             self._compose_broker(dependencies)
@@ -414,7 +423,9 @@ class Service:
             deferred_reply = False
             if method not in ("LogEvent", "CalculateOwnRemainingTime"):
                 LOG.info("service.006", method=method)
-            if self.diagnostics_only and method not in ("LogEvent", "ExportDiagnosticLogs"):
+            if self.diagnostics_only and method not in (
+                    "LogEvent", "ExportDiagnosticLogs", "ListKioskUsers",
+                    "GetChildLanguageContext"):
                 # Name ownership indicates transport availability, not policy
                 # readiness. No management/readiness method may report success.
                 LOG.warning("service.diagnostics-only")
@@ -433,12 +444,22 @@ class Service:
                 target_uid, = parameters.unpack()
                 language = self.broker.get_child_language(caller_uid, target_uid)
                 invocation.return_value(GLib.Variant("(s)", (language,)))
+            elif method == "GetChildLanguageContext":
+                target_uid, = parameters.unpack()
+                context = self.broker.get_child_language_context(caller_uid, target_uid)
+                invocation.return_value(GLib.Variant("(ss)", context))
             elif method == "SetChildLanguage":
                 target_uid, language = parameters.unpack()
                 saved = self.broker.set_child_language(caller_uid, target_uid, language)
                 invocation.return_value(GLib.Variant("(s)", (saved,)))
             elif method == "ListManagedUsers":
                 users = self.broker.list_managed_users(caller_uid)
+                invocation.return_value(GLib.Variant(
+                    "(a(uss))",
+                    ([(user.uid, user.label, user.icon_file) for user in users],),
+                ))
+            elif method == "ListKioskUsers":
+                users = self.broker.list_kiosk_users(caller_uid)
                 invocation.return_value(GLib.Variant(
                     "(a(uss))",
                     ([(user.uid, user.label, user.icon_file) for user in users],),

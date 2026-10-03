@@ -1,4 +1,4 @@
-## v1.3 -
+## v1.3 - 2026-10-03
 ### New Features
 - Localization: Supports 62 languages, including RTL (you voted, we listened! Don't get spoiled though :) Do me a favor, spread the word out, help more families!)
 

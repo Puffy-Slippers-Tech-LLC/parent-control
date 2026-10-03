@@ -331,8 +331,10 @@ identity-verified recovery path for that recorded attempt; if recovery is not
 implemented for its state, diagnose and repair the controller before reuse.
 Baseline preparation automatically invokes shared recovery for a powered-off
 unfinished test attempt before beginning preparation. Recovery revalidates the
-recorded identities and preserves evidence; a matching maintenance owner takes
-the manual retirement path below, preserving the current disk state.
+recorded identities and preserves evidence. Auto mode also recovers a matching
+powered-off maintenance owner through the shared guarded stop path before
+preparing the baseline. Manual mode takes the retirement path below, preserving
+the current disk state.
 Explicit manual baseline preparation can supersede a powered-off maintenance
 attempt, including a never-started preparation phase with a null domain ID,
 when its private `vm-control.json` matches the journal, UUID, accepted baseline
@@ -344,8 +346,9 @@ an orphan record is refused. No old disk or configuration is
 restored. Only after confirmation, successful guest preparation and independent
 inspection are the original run and ownership records archived and the attempt
 closed with outcome `superseded`. This supplies no test acceptance credit.
-Auto preparation continues to refuse unfinished maintenance. Ordinary runners
-require completed journals after their supported startup recovery.
+Unproven ownership, changed snapshot proofs and busy controllers still refuse
+preparation without discarding the journal. Ordinary runners require completed
+journals after their supported startup recovery.
 Shared test cleanup also accepts a never-started `cleanup-requested` attempt
 with a null domain ID only while the VM is off. It verifies the recorded run,
 configuration, source identities and baseline proof before restoring the outer

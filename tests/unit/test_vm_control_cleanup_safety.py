@@ -225,6 +225,68 @@ def test_automatic_preparation_recovery_stops_only_proven_maintenance(
     assert recovered.fd is None
 
 
+@pytest.mark.parametrize('phase', ['running', 'isolated', 'cleanup-requested'])
+@pytest.mark.parametrize('fault', [None, 'owner', 'snapshot', 'busy', 'interrupted'])
+def test_auto_baseline_recovers_off_maintenance_and_preserves_refused_attempts(
+        lease_rig, monkeypatch, phase, fault):
+    lease, current = lease_rig
+    lease.view.graphics_type = 'vnc'
+    lease.__enter__()
+    control.save_owner(lease)
+    lease.prepare()
+    if phase == 'running':
+        lease.start()
+        lease.source.off, current['id'] = True, -1
+    lease.save(phase)
+    lease.release()
+    before = lease.journal.read_bytes()
+    owner_path = lease.directory / 'vm-control.json'
+    if fault == 'owner':
+        owner = json.loads(owner_path.read_bytes())
+        owner['baseline_sha256'] = 'f' * 64
+        owner_path.write_bytes(runner.baseline.encode(owner))
+    elif fault == 'snapshot':
+        lease.source.baseline_xml += ' '
+    owner_before = owner_path.read_bytes()
+    held, competitor = reopened(lease), reopened(lease)
+    if fault == 'busy':
+        control.resume(competitor, stopping=True)
+    elif fault == 'interrupted':
+        held.inspect = Mock(side_effect=KeyboardInterrupt())
+    monkeypatch.setattr(runner.baseline.guest_contract.vm_config, 'selected',
+                        lambda: SimpleNamespace(baseline_directory=lease.directory))
+    monkeypatch.setattr(runner, 'Lease', lambda *a, **kw: held)
+    snapshots = lease.source.domain.revertToSnapshot.call_count
+    starts = lease.source.domain.create.call_count
+    try:
+        if fault:
+            with pytest.raises(KeyboardInterrupt if fault == 'interrupted' else runner.Error):
+                runner.baseline.recover_off_attempt(
+                    lease.source, lease.commands, lease.inspect, mode='auto')
+            if fault != 'interrupted':
+                assert lease.journal.read_bytes() == before
+                assert lease.source.domain.revertToSnapshot.call_count == snapshots
+            else:
+                assert json.loads(lease.journal.read_bytes())['phase'] == 'cleanup-requested'
+        else:
+            assert runner.baseline.recover_off_attempt(
+                lease.source, lease.commands, lease.inspect, mode='auto') is True
+            completed = lease.journal.read_bytes()
+            assert json.loads(completed)['phase'] == 'complete'
+            assert current['id'] == -1
+            assert lease.source.domain.revertToSnapshot.call_count == snapshots + 1
+            assert runner.baseline.recover_off_attempt(
+                lease.source, lease.commands, lease.inspect, mode='auto') is None
+            assert lease.journal.read_bytes() == completed
+            assert lease.source.domain.revertToSnapshot.call_count == snapshots + 1
+        assert owner_path.read_bytes() == owner_before
+        assert lease.source.domain.create.call_count == starts
+        assert held.fd is held.compatibility_fd is None
+    finally:
+        held.release()
+        competitor.release()
+
+
 @pytest.mark.parametrize('mutation', ['instance', 'run', 'owner', 'baseline', 'symlink'])
 def test_replacement_or_unowned_attempt_never_receives_vm_actions(lease_rig, mutation):
     lease, current = lease_rig

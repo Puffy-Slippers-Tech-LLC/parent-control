@@ -32,9 +32,11 @@ def state(rig):
 
 @pytest.mark.parametrize('kind', ['vnc', 'spice'])
 @pytest.mark.parametrize('owned', [False, True])
-def test_baseline_retry_recovers_tests_but_preserves_manual_maintenance(rig, monkeypatch, kind, owned):
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+def test_baseline_retry_recovers_tests_but_preserves_manual_maintenance(rig, monkeypatch, kind, owned, mode):
     import check_graphical_recovery
     import system_runner
+    import vm_control
     rig.capture().run()
     attempt = {'phase': 'cleanup-requested', 'run': 'a' * 32}
     journal = rig.directory / 'system-run.json'
@@ -50,15 +52,26 @@ def test_baseline_retry_recovers_tests_but_preserves_manual_maintenance(rig, mon
     reopened = Mock()
     factory = Mock(return_value=reopened)
     monkeypatch.setattr(system_runner, 'Lease', factory)
+    recover = Mock()
+    monkeypatch.setattr(vm_control, 'recover_preparation', recover)
     before = journal.read_bytes(), owner.read_bytes()
-    host.recover_off_attempt(rig.source, rig.commands, rig.inspect)
+    host.recover_off_attempt(rig.source, rig.commands, rig.inspect, mode=mode)
     assert before == (journal.read_bytes(), owner.read_bytes())
-    if owned:
+    if owned and mode == 'manual':
         factory.assert_not_called()
+        recover.assert_not_called()
     else:
         factory.assert_called_once_with(rig.source, rig.commands, rig.inspect, graphics_type=kind)
-        (reopened.recover_graphical_cleanup if kind == 'vnc' else
-         reopened.recover_system_cleanup).assert_called_once()
+        if owned:
+            recover.assert_called_once_with(reopened)
+            assert reopened.view.graphics_type == 'vnc'
+            reopened.release.assert_called_once_with()
+            reopened.recover_graphical_cleanup.assert_not_called()
+            reopened.recover_system_cleanup.assert_not_called()
+        else:
+            (reopened.recover_graphical_cleanup if kind == 'vnc' else
+             reopened.recover_system_cleanup).assert_called_once()
+            recover.assert_not_called()
     rig.source.domain.create.assert_not_called()
 
 
@@ -83,18 +96,24 @@ def test_baseline_retry_keeps_recovery_failures_and_original_journal(rig, monkey
     rig.source.domain.create.assert_not_called()
 
 
-def test_declining_baseline_retry_does_not_recover_or_change_the_previous_attempt(rig, monkeypatch):
+@pytest.mark.parametrize('owned', [False, True])
+def test_declining_baseline_retry_does_not_recover_or_change_the_previous_attempt(rig, monkeypatch, owned):
     import system_runner
     rig.capture().run()
     journal = rig.directory / 'system-run.json'
     raw = host.encode({'phase': 'cleanup-requested', 'run': 'a' * 32})
     journal.write_bytes(raw)
     journal.chmod(0o600)
+    if owned:
+        owner = rig.directory / 'vm-control.json'
+        owner.write_bytes(host.encode({'run': 'a' * 32}))
+        owner.chmod(0o600)
     monkeypatch.setattr(host.guest_contract.vm_config, 'selected', lambda: SimpleNamespace(
         baseline_directory=rig.directory))
     factory = Mock(side_effect=AssertionError('recovery attempted before consent'))
     monkeypatch.setattr(system_runner, 'Lease', factory)
-    assert host.recover_off_attempt(rig.source, rig.commands, rig.inspect, confirm=lambda: False) is False
+    assert host.recover_off_attempt(rig.source, rig.commands, rig.inspect,
+                                    mode='auto', confirm=lambda: False) is False
     assert journal.read_bytes() == raw
     factory.assert_not_called()
 
@@ -1407,6 +1426,8 @@ def test_capture_accepts_installed_product_on_host(monkeypatch, capsys, missing_
         return True
     capture.run.side_effect = completed_capture
     monkeypatch.setattr(host, "Capture", Mock(return_value=capture))
+    recover = Mock(return_value=None)
+    monkeypatch.setattr(host, 'recover_off_attempt', recover)
 
     mode = 'auto' if missing_baseline else 'manual'
     assert host.main(['--vm', vm_name(), '--mode', mode,
@@ -1419,6 +1440,7 @@ def test_capture_accepts_installed_product_on_host(monkeypatch, capsys, missing_
     residue.assert_not_called()
     capture.run.assert_called_once()
     assert capture.run.call_args.kwargs['mode'] == mode
+    assert recover.call_args.kwargs['mode'] == mode
     confirm = capture.run.call_args.kwargs['confirm']
     prompt = Mock(return_value='n')
     monkeypatch.setattr('builtins.input', prompt)

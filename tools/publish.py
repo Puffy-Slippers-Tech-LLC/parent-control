@@ -319,12 +319,49 @@ def prepare(root, base, history, current, product, notes, directory):
                 checkout=str(root), branch=branch, created=datetime.now(timezone.utc).isoformat())
 
 
+def signing_configuration(root):
+    return {'user.name': release.NAME, 'user.email': release.EMAIL,
+            'user.signingkey': release.KEY, 'gpg.format': 'openpgp',
+            'gpg.program': str(root / 'tools/publishing/signing.py'),
+            'commit.gpgsign': 'true', 'tag.gpgsign': 'true'}
+
+
 def configure_signing(checkout, root):
-    for key, value in {'user.name': release.NAME, 'user.email': release.EMAIL,
-                       'user.signingkey': release.KEY, 'gpg.format': 'openpgp',
-                       'gpg.program': str(root / 'tools/publishing/signing.py'),
-                       'commit.gpgsign': 'true', 'tag.gpgsign': 'true'}.items():
+    for key, value in signing_configuration(root).items():
         command('git', 'config', '--local', key, value, cwd=checkout)
+
+
+def signed_git(root, *args, cwd):
+    # Apply publisher identity/signing only to this command, preserving the
+    # developer's checkout configuration in both main and release.
+    options = [option for key, value in signing_configuration(root).items()
+               for option in ('-c', key + '=' + value)]
+    return command('git', *options, *args, cwd=cwd)
+
+
+def require_idle_git(root, label):
+    for name in ('CHERRY_PICK_HEAD', 'MERGE_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply', 'sequencer'):
+        path = Path(command('git', 'rev-parse', '--git-path', name, cwd=root))
+        if (path if path.is_absolute() else root / path).exists():
+            raise ValueError(f'finish the existing Git operation in {label} before publication')
+
+
+def commit_release_inputs(root, state=None):
+    require_idle_git(root, 'release checkout')
+    status = command('git', 'status', '--porcelain=v1', '-z', '--untracked-files=all', cwd=root)
+    if not status:
+        return
+    if state and state['phase'] not in ('prepared', 'signed', 'built', 'complete'):
+        raise ValueError('unfinished release inputs differ after publication started; '
+                         'preserve pending changes and reconcile the recorded release before retrying')
+    if (root / HISTORY).is_symlink():
+        raise ValueError('VersionHistory.md must be a regular file')
+    current = json.loads((root / 'data/app.json').read_text())['version']
+    product, _ = history_entry((root / HISTORY).read_text(encoding='utf-8'), current)
+    publishing_branch(root, product)
+    say('committing pending release checkout changes')
+    command('git', 'add', '--all', cwd=root)
+    signed_git(root, 'commit', '-m', f'Prepare release inputs for {product}', cwd=root)
 
 
 def main_head(root, *, clean=True):
@@ -335,10 +372,7 @@ def main_head(root, *, clean=True):
     if clean:
         if command('git', 'status', '--porcelain=v1', '--untracked-files=all', cwd=root):
             raise ValueError('commit or preserve main checkout changes before confirming publication')
-        for name in ('CHERRY_PICK_HEAD', 'MERGE_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply', 'sequencer'):
-            path = Path(command('git', 'rev-parse', '--git-path', name, cwd=root))
-            if (path if path.is_absolute() else root / path).exists():
-                raise ValueError('finish the existing Git operation in main before publication')
+        require_idle_git(root, 'main')
     return command('git', 'rev-parse', 'HEAD', cwd=root)
 
 
@@ -352,6 +386,38 @@ def main_update_applied(update):
     except ValueError:
         return False
     return True
+
+
+def require_release_base_in_main(target, base):
+    try:
+        command('git', 'merge-base', '--is-ancestor', base, 'HEAD', cwd=target)
+    except ValueError:
+        raise ValueError('release input commit is not in main checkout history; '
+                         'reconcile the committed release inputs into main before publishing '
+                         '(identical files alone do not satisfy this check)') from None
+
+
+def reconcile_release_inputs(root, target, base):
+    """Import the exact committed inputs after the developer pauses main."""
+    head = main_head(target)
+    # An independent clone may not have the release-only commit yet. Fetch
+    # locally by immutable revision, never by the potentially moving branch.
+    command('git', 'fetch', str(root), base, cwd=target)
+    if main_head(target) != head:
+        raise ValueError('main advanced during release input reconciliation; rerun after pausing development')
+    try:
+        command('git', 'merge-base', '--is-ancestor', base, head, cwd=target)
+        return
+    except ValueError:
+        pass
+    say('merging committed release branch changes into main')
+    try:
+        signed_git(root, 'merge', '--no-edit', base, cwd=target)
+    except ValueError:
+        raise ValueError('main reconciliation failed; inspect main Git status, resolve or abort '
+                         'any merge, then rerun make publish') from None
+    main_head(target)
+    require_release_base_in_main(target, base)
 
 
 def confirm_main_update(root, base, update=None):
@@ -382,9 +448,9 @@ def confirm_main_update(root, base, update=None):
     main_head(target)
     if command('git', 'remote', 'get-url', 'origin', cwd=target) not in (release.ORIGIN, PUBLIC_GIT):
         raise ValueError('main origin must point to the configured public release repository')
-    command('git', 'merge-base', '--is-ancestor', base, 'HEAD', cwd=target)
     highlight(f'PAUSE development in main ({target}). Wait until the cherry-pick completes '
               'and MAIN UPDATED is displayed before resuming development. '
+              'Main will merge all committed release branch changes if needed. '
               'The update will also push main to origin.')
     try:
         confirmed = input('Main is clean and development is paused. Continue publishing? [y/N] ')
@@ -392,7 +458,7 @@ def confirm_main_update(root, base, update=None):
         confirmed = ''
     if confirmed.strip().lower() not in ('y', 'yes'):
         raise ValueError('publication cancelled before updating main')
-    main_head(target)
+    reconcile_release_inputs(root, target, base)
     return dict(update or {'phase': 'pending'}, checkout=str(target))
 
 
@@ -405,7 +471,7 @@ def update_main_checkout(root, state, state_path):
     log = directory / 'release.log'
     if not update.get('revision'):
         base = main_head(target)
-        command('git', 'merge-base', '--is-ancestor', state['base'], 'HEAD', cwd=target)
+        require_release_base_in_main(target, state['base'])
         candidate = Path(tempfile.mkdtemp(prefix='main-update-', dir=directory)) / 'source'
         command('git', 'clone', '--no-hardlinks', str(target), str(candidate), log=log)
         command('git', 'checkout', '--detach', base, cwd=candidate, log=log)
@@ -735,7 +801,6 @@ def execute(root, state, state_path):
 def publish(root=ROOT):
     branch = publishing_branch(root)
     with locked(root) as state_path:
-        base, history, current = source_state(root)
         state = json.loads(state_path.read_text()) if state_path.exists() else None
         if state is not None and state['phase'] != 'complete':
             if 'branch' not in state:
@@ -744,6 +809,9 @@ def publish(root=ROOT):
                 raise ValueError('unfinished release belongs to a different checkout or has an invalid journal')
             if state['branch'] != branch:
                 raise ValueError('unfinished release belongs to a different publishing branch')
+        commit_release_inputs(root, state)
+        base, history, current = source_state(root)
+        if state is not None and state['phase'] != 'complete':
             changed = (base not in (state['base'], state['revision'])
                        or hashlib.sha256(history.encode()).hexdigest() != state['history_sha256'])
             if changed and state['phase'] in ('prepared', 'signed', 'built'):

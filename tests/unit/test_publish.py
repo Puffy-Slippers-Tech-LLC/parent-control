@@ -96,6 +96,13 @@ def git(root, *args):
 
 
 @pytest.fixture
+def unsigned_publisher(monkeypatch):
+    monkeypatch.setattr(publish, 'signing_configuration', lambda root: {
+        'user.name': 'Test', 'user.email': 'test@example.invalid',
+        'commit.gpgsign': 'false', 'tag.gpgsign': 'false'})
+
+
+@pytest.fixture
 def repository(tmp_path):
     root = tmp_path / 'development'
     root.mkdir()
@@ -887,7 +894,7 @@ def test_preflight_checks_only_the_release_ref(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize('enlistment', ['clone', 'worktree'])
 @pytest.mark.parametrize('interrupt_push', [False, True])
-def test_release_isolation_and_interrupted_upload_resume(repository, tmp_path, monkeypatch, enlistment, interrupt_push):
+def test_release_isolation_and_interrupted_upload_resume(repository, tmp_path, monkeypatch, unsigned_publisher, enlistment, interrupt_push):
     """Real local Git push/merge/locks, with no network, signing or package build."""
     git(repository, 'add', publish.HISTORY)
     git(repository, 'commit', '-m', 'release inputs on main')
@@ -1030,7 +1037,7 @@ def test_resume_refuses_changed_owner_before_execution(repository, monkeypatch, 
 
 
 @pytest.fixture
-def main_update_candidate(repository, tmp_path, monkeypatch):
+def main_update_candidate(repository, tmp_path, monkeypatch, unsigned_publisher):
     git(repository, 'add', publish.HISTORY)
     git(repository, 'commit', '-m', 'prepared inputs')
     base = git(repository, 'rev-parse', 'HEAD')
@@ -1062,6 +1069,105 @@ def main_update_candidate(repository, tmp_path, monkeypatch):
 
     monkeypatch.setattr(publish, 'configure_signing', unsigned)
     return repository, root, remote, state, path
+
+
+@pytest.mark.parametrize('enlistment', ['clone', 'worktree'])
+@pytest.mark.parametrize('main_advanced', [False, True])
+def test_publish_commits_every_pending_release_change_and_reconciles_main(
+        main_update_candidate, tmp_path, monkeypatch, enlistment, main_advanced):
+    target, root, remote, _, _ = main_update_candidate
+    if enlistment == 'worktree':
+        root = tmp_path / 'linked-release'
+        git(target, 'worktree', 'add', '-b', 'releases/v1.1', str(root))
+    (root / 'obsolete-file').write_text('Remove during release preparation.\n')
+    git(root, 'add', 'obsolete-file')
+    git(root, 'commit', '-m', 'earlier release-only change')
+    (root / 'obsolete-file').unlink()
+    (root / 'data/app.json').write_text('{"version": "1.1"}\n')
+    (root / 'docs/README.md').write_text('Staged release edit.\n')
+    git(root, 'add', 'docs/README.md')
+    (root / 'docs/README.md').write_text('Final release edit.\n')
+    (root / 'new-release-file').write_text('New release content.\n')
+    (root / '.gitignore').write_text('.envrc\n')
+    (root / '.envrc').write_text('ignored fixture, never a credential\n')
+    release_before = git(root, 'rev-parse', 'HEAD')
+    release_config = git(root, 'config', '--local', '--list')
+    if main_advanced:
+        (target / 'main-only-file').write_text('Independent development.\n')
+        git(target, 'add', 'main-only-file')
+        git(target, 'commit', '-m', 'main advanced independently')
+    main_before = git(target, 'rev-parse', 'HEAD')
+    main_config = git(target, 'config', '--local', '--list')
+    monkeypatch.setattr('builtins.input', lambda prompt: 'yes')
+    mkdtemp = publish.tempfile.mkdtemp
+    monkeypatch.setattr(publish.tempfile, 'mkdtemp', lambda **options:
+                        mkdtemp(prefix=options['prefix'], dir=tmp_path))
+    prepared = []
+
+    def prepare(checkout, base, history, current, product, notes, directory):
+        assert checkout == root and current == product == '1.1'
+        assert base != release_before
+        assert git(root, 'rev-parse', 'HEAD') == base
+        assert git(root, 'status', '--porcelain') == ''
+        git(target, 'merge-base', '--is-ancestor', base, 'HEAD')
+        assert git(remote, 'rev-parse', 'main') != git(target, 'rev-parse', 'HEAD')
+        frozen = directory / 'source'
+        git(root, 'clone', str(root), str(frozen))
+        (frozen / 'debian').mkdir(exist_ok=True)
+        (frozen / 'debian/changelog').write_text('Official release metadata.\n')
+        git(frozen, 'add', 'debian/changelog')
+        git(frozen, 'commit', '-m', 'official release metadata')
+        prepared.append(base)
+        return dict(phase='prepared', base=base, revision=git(frozen, 'rev-parse', 'HEAD'),
+                    directory=str(directory), product=product)
+
+    monkeypatch.setattr(publish, 'prepare', prepare)
+    # Exercise the actual main metadata update/push with only local Git.
+    monkeypatch.setattr(publish, 'execute', publish.update_main_checkout)
+    publish.publish(root)
+    assert len(prepared) == 1
+    git(target, 'merge-base', '--is-ancestor', main_before, 'HEAD')
+    git(target, 'merge-base', '--is-ancestor', prepared[0], 'HEAD')
+    assert git(target, 'rev-parse', 'HEAD') == git(remote, 'rev-parse', 'main')
+    assert git(target, 'status', '--porcelain') == ''
+    for checkout in (root, target):
+        assert (checkout / 'docs/README.md').read_text() == 'Final release edit.\n'
+        assert (checkout / 'new-release-file').read_text() == 'New release content.\n'
+        assert not (checkout / 'obsolete-file').exists()
+        assert git(checkout, 'ls-files', '.envrc') == ''
+    assert (root / '.envrc').read_text() == 'ignored fixture, never a credential\n'
+    assert git(root, 'config', '--local', '--list') == release_config
+    assert git(target, 'config', '--local', '--list') == main_config
+    if main_advanced:
+        assert (target / 'main-only-file').read_text() == 'Independent development.\n'
+    # A clean retry does not create another preparation commit.
+    publish.commit_release_inputs(root)
+    assert git(root, 'rev-parse', 'HEAD') == prepared[0]
+
+
+@pytest.mark.usefixtures('release_repository')
+@pytest.mark.parametrize('phase', ['push-started', 'pushed', 'upload-started', 'published'])
+def test_pending_changes_after_public_write_are_preserved_without_commit(repository, phase):
+    (repository / 'pending-release-edit').write_text('Keep this work.\n')
+    head = git(repository, 'rev-parse', 'HEAD')
+    status = git(repository, 'status', '--porcelain')
+    with pytest.raises(ValueError, match='publication started'):
+        publish.commit_release_inputs(repository, {'phase': phase})
+    assert git(repository, 'rev-parse', 'HEAD') == head
+    assert git(repository, 'status', '--porcelain') == status
+    assert (repository / 'pending-release-edit').read_text() == 'Keep this work.\n'
+
+
+@pytest.mark.usefixtures('release_repository')
+def test_release_auto_commit_refuses_existing_merge(repository):
+    (repository / 'pending-release-edit').write_text('Keep this work.\n')
+    (repository / '.git/MERGE_HEAD').write_text(git(repository, 'rev-parse', 'HEAD') + '\n')
+    head = git(repository, 'rev-parse', 'HEAD')
+    index = git(repository, 'diff', '--cached')
+    with pytest.raises(ValueError, match='existing Git operation in release checkout'):
+        publish.commit_release_inputs(repository)
+    assert git(repository, 'rev-parse', 'HEAD') == head
+    assert git(repository, 'diff', '--cached') == index
 
 
 @pytest.mark.parametrize('answer', ['no', '', None])
@@ -1141,6 +1247,130 @@ def test_independent_clone_asks_for_main_path(main_update_candidate, monkeypatch
     replies = iter([str(target), 'yes'])
     monkeypatch.setattr('builtins.input', lambda prompt: next(replies))
     assert publish.confirm_main_update(root, state['base']) == state['main_update']
+
+
+@pytest.mark.parametrize('changed_files', [False, True])
+@pytest.mark.parametrize('enlistment', ['clone', 'worktree'])
+def test_release_only_inputs_fast_forward_main_and_publish_metadata(
+        main_update_candidate, monkeypatch, tmp_path, changed_files, enlistment):
+    target, root, remote, state, path = main_update_candidate
+    if enlistment == 'worktree':
+        root = tmp_path / 'linked-release'
+        git(target, 'worktree', 'add', '-b', 'releases/v1.1', str(root))
+    if changed_files:
+        (root / 'docs/README.md').write_text('Committed release inputs.\n')
+        git(root, 'add', 'docs/README.md')
+    git(root, 'commit', '--allow-empty', '-m', 'release-only input commit')
+    state['base'] = git(root, 'rev-parse', 'HEAD')
+    head = git(target, 'rev-parse', 'HEAD')
+    monkeypatch.setattr('builtins.input', lambda prompt: 'yes')
+    state['main_update'] = publish.confirm_main_update(root, state['base'])
+    assert git(target, 'rev-parse', 'HEAD') == state['base']
+    assert git(remote, 'rev-parse', 'main') == head
+    # A retry after interruption between reconciliation and journal creation
+    # reuses the same commit and remains a fast-forward.
+    assert publish.confirm_main_update(root, state['base']) == state['main_update']
+    publish.update_main_checkout(root, state, path)
+    assert state['main_update']['phase'] == 'complete'
+    assert git(target, 'rev-parse', 'HEAD') == git(remote, 'rev-parse', 'main')
+    git(target, 'merge-base', '--is-ancestor', state['base'], 'HEAD')
+    assert git(target, 'status', '--porcelain') == ''
+    assert json.loads((target / 'data/app.json').read_text())['version'] == '1.1'
+    if changed_files:
+        assert (target / 'docs/README.md').read_text() == 'Committed release inputs.\n'
+
+
+@pytest.mark.parametrize('failure', ['declined', 'dirty', 'fetch-race'])
+def test_release_input_reconciliation_preserves_main_on_refusal(
+        main_update_candidate, monkeypatch, failure):
+    target, root, remote, state, path = main_update_candidate
+    git(root, 'commit', '--allow-empty', '-m', 'release-only input commit')
+    base = git(root, 'rev-parse', 'HEAD')
+    head = git(target, 'rev-parse', 'HEAD')
+    remote_head = git(remote, 'rev-parse', 'main')
+    before = path.read_bytes()
+
+    def respond(prompt):
+        if failure == 'dirty':
+            (target / 'docs/README.md').write_text('Uncommitted development.\n')
+        return 'no' if failure == 'declined' else 'yes'
+
+    monkeypatch.setattr('builtins.input', respond)
+    original = publish.command
+    calls = []
+
+    def command(*args, **kwargs):
+        calls.append(args)
+        result = original(*args, **kwargs)
+        if failure == 'fetch-race' and args[:2] == ('git', 'fetch'):
+            git(target, 'commit', '--allow-empty', '-m', 'development during fetch')
+        return result
+
+    monkeypatch.setattr(publish, 'command', command)
+    with pytest.raises(ValueError, match='cancelled|diverged|changes|advanced'):
+        publish.confirm_main_update(root, base)
+    assert not any(args[:2] == ('git', 'merge') for args in calls)
+    if failure in ('declined', 'dirty'):
+        assert not any(args[:2] == ('git', 'fetch') for args in calls)
+    if failure == 'fetch-race':
+        head = git(target, 'rev-parse', 'HEAD')
+        assert head != state['base']
+    assert git(target, 'rev-parse', 'HEAD') == head
+    if failure == 'dirty':
+        assert (target / 'docs/README.md').read_text() == 'Uncommitted development.\n'
+    else:
+        assert git(target, 'status', '--porcelain') == ''
+    assert git(remote, 'rev-parse', 'main') == remote_head
+    assert path.read_bytes() == before
+    assert not list(Path(state['directory']).glob('main-update-*'))
+
+
+def test_diverged_release_inputs_merge_directly_and_retry_without_extra_commit(
+        main_update_candidate, monkeypatch):
+    target, root, remote, state, path = main_update_candidate
+    (root / 'release-change').write_text('Release work.\n')
+    git(root, 'add', 'release-change')
+    git(root, 'commit', '-m', 'release-only work')
+    state['base'] = git(root, 'rev-parse', 'HEAD')
+    (target / 'main-change').write_text('Main work.\n')
+    git(target, 'add', 'main-change')
+    git(target, 'commit', '-m', 'main-only work')
+    main_before = git(target, 'rev-parse', 'HEAD')
+    config_before = git(target, 'config', '--local', '--list')
+    monkeypatch.setattr('builtins.input', lambda prompt: 'yes')
+    publish.confirm_main_update(root, state['base'])
+    merged = git(target, 'rev-parse', 'HEAD')
+    assert git(target, 'rev-parse', 'HEAD^1') == main_before
+    assert git(target, 'rev-parse', 'HEAD^2') == state['base']
+    assert (target / 'release-change').read_text() == 'Release work.\n'
+    assert (target / 'main-change').read_text() == 'Main work.\n'
+    assert git(target, 'config', '--local', '--list') == config_before
+    publish.confirm_main_update(root, state['base'])
+    assert git(target, 'rev-parse', 'HEAD') == merged
+    publish.update_main_checkout(root, state, path)
+    assert state['main_update']['phase'] == 'complete'
+    assert git(target, 'rev-parse', 'HEAD') == git(remote, 'rev-parse', 'main')
+    assert git(target, 'status', '--porcelain') == ''
+
+
+def test_release_merge_conflict_preserves_commits_and_leaves_actionable_status(
+        main_update_candidate, monkeypatch):
+    target, root, remote, state, path = main_update_candidate
+    for checkout, text in ((target, 'Main edit.\n'), (root, 'Release edit.\n')):
+        (checkout / 'docs/README.md').write_text(text)
+        git(checkout, 'add', 'docs/README.md')
+        git(checkout, 'commit', '-m', 'independent edit')
+    head = git(target, 'rev-parse', 'HEAD')
+    base = git(root, 'rev-parse', 'HEAD')
+    remote_head = git(remote, 'rev-parse', 'main')
+    monkeypatch.setattr('builtins.input', lambda prompt: 'yes')
+    with pytest.raises(ValueError, match='resolve or abort any merge'):
+        publish.confirm_main_update(root, base)
+    assert git(target, 'rev-parse', 'HEAD') == head
+    assert git(root, 'rev-parse', 'HEAD') == base
+    assert git(remote, 'rev-parse', 'main') == remote_head
+    assert git(target, 'rev-parse', 'MERGE_HEAD') == base
+    assert 'UU docs/README.md' in git(target, 'status', '--porcelain')
 
 
 @pytest.mark.parametrize('change', ['dirty', 'branch', 'operation', 'origin'])

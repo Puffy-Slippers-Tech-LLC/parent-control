@@ -259,15 +259,18 @@ make publish
 ```
 
 The test command includes the reusable publishing test module: source checks,
-clean Ubuntu sbuild with declared tests, and Lintian. `make publish` validates the history, bumps the
-version, signs and uploads source, and waits for the package to become
+clean Ubuntu sbuild with declared tests, and Lintian. `make publish` validates the history,
+commits pending release-checkout changes, signs and uploads source for the
+prepared product version, and waits for the package to become
 downloadable. It does not rerun the local publishing tests.
 Confirm the highlighted request to pause development on a clean main checkout.
-The publisher automatically cherry-picks and pushes the version/changelog
+The publisher directly merges all release-branch changes into main, then
+automatically cherry-picks and pushes the official version/changelog
 update, then highlights **MAIN UPDATED**. Main is then clean and synchronized
 with its remote; no manual Git commands are needed. Resume development while
 Launchpad monitoring refreshes one terminal status line. Publishing holds only
-its own checkout's publishing lock and needs no reconciliation on main.
+its own checkout's publishing lock. Clean merges need no manual reconciliation;
+merge conflicts stop for resolution in main before retrying.
 See [Publishing](docs/Publishing.md) for one-time credentials, release review,
 retained evidence, main checkout selection and retry behavior. The main pause
 confirmation is the only routine publishing confirmation; credentials remain

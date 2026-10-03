@@ -477,6 +477,9 @@ write_e2e write_e2e_cleanup_safety
 # journals/locks, bounded waited Python children and mocked VM/SSH controllers.
 # Baseline, test_activity, app-snapshot, retention and graphical recovery retain
 # compatible scheduling; there are no shared guests, displays or heavy builds.
+# Retention-budget diagnostic checks use tiny private tmp_path input/log trees
+# and process-local read-failure doubles. test_storage_cleanup_safety remains
+# compatible; no live evidence, VM, process or shared storage owner is touched.
 
 # Full fixture construction uses private native/Snap/Flatpak output and HOME/XDG
 # trees, reads installed runtime inputs and owns its native child. Keep it out

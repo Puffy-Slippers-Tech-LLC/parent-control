@@ -215,8 +215,13 @@ class Store:
                 private(info, regular=True)
                 os.unlink(name, dir_fd=fd)
         if sizes[-1] > MAX_RETAINED_BYTES:
+            # Diagnose the preserved run, including a refusal at the next
+            # session's entry. Fixed categories expose no paths or contents.
+            usage = budget_usage([record for index, record in allocations
+                                  if index == len(entries) - 1])
             raise ValueError('retention: current run exceeds 4 GiB storage budget; '
-                             'evidence preserved; cleanup required before new work')
+                             'evidence preserved; cleanup required before new work; '
+                             'storage_usage=' + json.dumps(usage, sort_keys=True))
 
     @contextmanager
     def session(self, *, run=None, guard=None, recover=None, preserve_completed=None):
@@ -473,34 +478,90 @@ def sbuild_scratch(record):
             and record.get('mode') == 0o711)
 
 
-def allocation_bytes(record):
+def storage_component(parts, info):
+    """Finite diagnostic labels only; never serialize artifact filenames."""
+    if stat.S_ISDIR(info.st_mode):
+        return 'directory-metadata'
+    if parts[:1] in (('assets',), ('input',)):
+        if parts[1:2] == ('fixtures',):
+            if parts[2:] == ('onpc-test-application.snap',):
+                return 'fixture-snap'
+            if parts[2:3] == ('flatpak-repository',):
+                return 'fixture-flatpak-repository'
+            return 'fixture-other'
+        if parts[1:2] in (('package',), ('package.deb',), ('package.rpm',)):
+            return 'package'
+        return 'input-other'
+    return {'private': 'private-logs', 'testresults': 'worker-results',
+            'distribution': 'worker-source'}.get(parts[0] if parts else '', 'other')
+
+
+def budget_usage(records):
+    """Bounded metadata accounting for an already refused, owned current run.
+
+    This is diagnostic only: it cannot decide acceptance, rotation or deletion.
+    A diagnostic read failure must not replace the storage-budget refusal.
+    """
+    usage = {}
+    try:
+        for record in records:
+            remove(record, validate_only=True)
+            allocation_bytes(record, usage=usage)
+    except (OSError, ValueError):
+        return {'status': 'unavailable'}
+    return {'status': 'measured', 'allocations': len(records),
+            'allocated_bytes': sum(item['allocated_bytes'] for item in usage.values()),
+            'components': usage}
+
+
+def allocation_bytes(record, *, usage=None):
     """Allocated blocks, with the same pinned-directory/mount boundary as removal."""
     try:
         fd = directory(record['path'])
     except FileNotFoundError:
         return 0
-    def size(parent):
+    measured = {}
+    def account(parts, info):
+        if usage is not None:
+            component = storage_component(parts, info)
+            item = measured.setdefault(component, {'allocated_bytes': 0, 'entries': 0})
+            item['allocated_bytes'] += info.st_blocks * 512
+            item['entries'] += 1
+
+    def size(parent, parts=()):
         total = 0
         for name in os.listdir(parent):
             info = os.stat(name, dir_fd=parent, follow_symlinks=False)
             total += info.st_blocks * 512
+            account((*parts, name), info)
             if stat.S_ISDIR(info.st_mode):
                 child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
                 try:
                     if mount_id(child) != mount_id(parent):
                         raise ValueError('retention: mounted storage is not disposable')
-                    total += size(child)
+                    total += size(child, (*parts, name))
                 finally:
                     os.close(child)
         return total
     try:
-        return os.fstat(fd).st_blocks * 512 + size(fd)
+        info = os.fstat(fd)
+        account((), info)
+        total = info.st_blocks * 512 + size(fd)
     except PermissionError:
         if not sbuild_scratch(record):
             raise
-        return namespace_remove(record, validate_only=True, measure=True)
+        total = namespace_remove(record, validate_only=True, measure=True)
+        # The namespace returns only its existing integer measurement. Do not
+        # publish a partial breakdown from the failed caller-side traversal.
+        measured = {'namespace-unclassified': {'allocated_bytes': total, 'entries': 1}}
     finally:
         os.close(fd)
+    if usage is not None:
+        for component, item in measured.items():
+            aggregate = usage.setdefault(component, {'allocated_bytes': 0, 'entries': 0})
+            for key in item:
+                aggregate[key] += item[key]
+    return total
 
 
 def namespace_remove(record, *, validate_only, measure=False):

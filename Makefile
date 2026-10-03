@@ -11,6 +11,7 @@ MULTIARCH ?= $(shell $(CC) -print-multiarch)
 PAM_MODULE_DIR ?= $(PREFIX)/lib/$(MULTIARCH)/security
 PACKAGE_DISTRIBUTION ?= ubuntu
 PACKAGE_FORMAT ?= both
+OS_RELEASE ?= $(firstword $(wildcard /etc/os-release /usr/lib/os-release))
 RPM_RELEASE ?= 0.1.dev
 UUID := oh-no-parent-control@tech.puffyslippers.com
 # Resolve packaging paths only when used; preparation does not need a compiler.
@@ -135,7 +136,7 @@ PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.
 	rpm/oh-no-parent-control.spec.in rpm/Containerfile
 PACKAGE_SOURCE_FILES += tools/export_messages.py
 
-.PHONY: publish updateversion bump-version build install installdeb installrpm uninstalldeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
+.PHONY: publish updateversion bump-version build install uninstalldeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
 DEB_HOST_ARCH ?= amd64
 
@@ -214,18 +215,17 @@ _build-package:
 
 install:
 	@set -e; \
-	if [ -r /etc/os-release ]; then . /etc/os-release; \
-	elif [ -r /usr/lib/os-release ]; then . /usr/lib/os-release; \
+	if [ -r "$(OS_RELEASE)" ]; then . "$(OS_RELEASE)"; \
 	else echo 'Cannot detect distribution: os-release is missing' >&2; exit 1; fi; \
 	case " $${ID:-} $${ID_LIKE:-} " in \
-		*' debian '*|*' ubuntu '*) target=installdeb ;; \
-		*' fedora '*|*' rhel '*|*' centos '*|*' suse '*|*' opensuse '*) target=installrpm ;; \
+		*' debian '*|*' ubuntu '*) $(installdeb) ;; \
+		*' fedora '*|*' rhel '*|*' centos '*|*' suse '*|*' opensuse '*) $(installrpm) ;; \
 		*) echo "Unsupported distribution: $${ID:-unknown}" >&2; exit 1 ;; \
-	esac; \
-	$(MAKE) --no-print-directory "$$target"
+	esac
 
-installdeb:
-	@set -e; \
+# Internal installation modules: only the install target invokes them.
+define installdeb
+	set -e; \
 	step='checking prerequisites'; \
 	staged_deb=''; \
 	trap 'status=$$?; if [ -n "$$staged_deb" ]; then rm -f -- "$$staged_deb"; fi; if [ "$$status" -ne 0 ]; then printf "FAIL: installdeb: %s (exit %s)\n" "$$step" "$$status" >&2; fi; exit "$$status"' 0; \
@@ -249,13 +249,14 @@ installdeb:
 	chmod 644 "$$staged_deb"; \
 	step='installing package with APT'; \
 	$(APT) install --reinstall "$$staged_deb"
+endef
 
 # Latest means the most recently modified binary product RPM, not the SRPM
 # or a debug subpackage. DNF resolves dependencies; equal versions are reinstalled.
 # Product setup belongs entirely to RPM dependencies and scriptlets, including
 # when the package is installed directly from COPR without this checkout.
-installrpm:
-	@set -e; \
+define installrpm
+	set -e; \
 	step='locating built package'; \
 	trap 'status=$$?; if [ "$$status" -ne 0 ]; then printf "FAIL: installrpm: %s (exit %s)\n" "$$step" "$$status" >&2; fi; exit "$$status"' 0; \
 	rpm_file=''; \
@@ -272,6 +273,7 @@ installrpm:
 	echo "Installing $$rpm_file"; \
 	step='installing package with DNF'; \
 	$(DNF) "$$action" "$$rpm_file"
+endef
 
 uninstalldeb:
 	$(APT) remove oh-no-parent-control

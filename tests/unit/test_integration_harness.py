@@ -156,7 +156,7 @@ class IntegrationHarnessTests(unittest.TestCase):
         self.assertIn('make -C "$CHECKOUT" check', run_script)
         self.assertIn('apt-get build-dep -y "$CHECKOUT"', run_script)
         self.assertIn('make -C "$CHECKOUT" APT=true build', run_script)
-        self.assertIn('make -C "$CHECKOUT" installdeb', run_script)
+        self.assertIn('make -C "$CHECKOUT" install', run_script)
         self.assertNotIn("install.sh", run_script)
         self.assertNotIn("_install-product-files", run_script)
         for artifact in (

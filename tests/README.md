@@ -4,6 +4,14 @@ Start with the [documentation map](../docs/TestAutomation/README.md) for ownersh
 and customer validation design. This document describes how to select and maintain tests;
 it does not repeat completed setup tasks or historical acceptance results.
 
+Tests and agents must use `make install` as the single entry point for product
+installation, reinstallation or upgrades from the checkout. It detects the
+target distribution and invokes the internal `installdeb` or `installrpm` module.
+Do not call separate package-specific installation targets or reproduce their
+package-manager recipes in checkout-based test runners. Product installation
+still requires an authorized installed-system target; the development host is
+not an installation target.
+
 Use the [shared support guide](support/README.md) before adding fixture code.
 It maps existing broker, D-Bus, preview, package, VM and E2E helpers to their
 contracts. Reusable code belongs in support modules, not collected case files.

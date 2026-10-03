@@ -82,22 +82,23 @@ build with the same product version. Source-only preparation never claims a
 binary build. A missing `rpmbuild` still leaves the tarball, fingerprint and
 spec under `output/rpm/`. Native/container build output is retained in
 `output/rpm/build.log`, including failures. A successful binary build must produce
-the product RPM. `make installdeb` reads the current version's package from
-`output/deb/`. `make installrpm` selects the most recently modified binary
+the product RPM. `make install` is the sole checkout product installation entry
+point. Its internal `installdeb` module reads the current version's package from
+`output/deb/`. Its internal `installrpm` module selects the most recently modified binary
 product RPM in `output/rpm/`, excluding source and debug packages, and uses
 DNF to install it and resolve missing dependencies from enabled repositories.
 An equal installed version is reinstalled from the local RPM; an older or newer
 installed version is replaced by the selected build. RPM queries inspect the
 package identity without privilege; only the DNF transaction uses `sudo` for
 non-root callers. `make install` detects the
-distribution through `os-release` and dispatches to the DEB or RPM target;
-package lifecycle compatibility checks still apply. These targets install the
+distribution through `os-release` and dispatches to the DEB or RPM module;
+package lifecycle compatibility checks still apply. This target installs the
 app on the calling machine and are not development build or validation commands.
 
 The RPM is the installation authority. Its `Requires` resolve runtime
 dependencies and its embedded scriptlets perform all product configuration,
 including service accounts, PAM, provisioning, service activation and reboot
-notices. `make installrpm` only selects the local artifact, checks whether that
+notices. The internal `installrpm` module only selects the local artifact, checks whether that
 exact version needs reinstalling and invokes DNF. Installing the same RPM
 directly with DNF or from COPR must perform the same setup without a checkout or
 any Make-side repair. Local same-version rebuilds explicitly use DNF reinstall;

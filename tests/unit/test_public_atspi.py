@@ -364,7 +364,7 @@ def test_async_batch_drains_ready_replies_without_poll_sleeps(monkeypatch):
 
 
 def test_identity_and_name_pipeline_keeps_rpc_bound_and_alignment():
-    api, _items, rpc, _app, _button = fixture_bus()
+    api, items, rpc, app, _button = fixture_bus()
     original = rpc.side_effect
     def call(*args):
         if args[3] == 'GetAttributes':
@@ -373,22 +373,100 @@ def test_identity_and_name_pipeline_keeps_rpc_bound_and_alignment():
             return 'id:' + args[1]
         if args[3] == 'Get' and args[5][1] == 'Name':
             return 'name:' + args[1]
+        if args[3] == 'GetRole':
+            return 1 if int(args[1].removeprefix('/leaf')) % 2 else 2
+        if args[3] == 'GetState':
+            return [1 << 24, 1 << int(args[1].removeprefix('/leaf'))]
         return original(*args)
     rpc.side_effect = call
     api.read_many = Mock(wraps=api.read_many)
     nodes = [api.node((':1.10', f'/leaf{index}')) for index in range(32)]
+    # Mixed cache coverage gives different query strides. A batch boundary can
+    # split one node's replies; no role, name or state may shift to its sibling.
+    for index, node in enumerate(nodes):
+        if index % 2:
+            continue
+        items.append([(node.bus, node.path), (app.bus, ROOT), (app.bus, ROOT),
+                      -1, 0, [], 'cached name', 2, '', [1 << 24, 1 << index]])
     with api.snapshot():
         api.prepare_nodes(nodes, names=True)
-        assert [len(c.args[0]) for c in api.read_many.call_args_list] == [64, 32]
+        assert [len(c.args[0]) for c in api.read_many.call_args_list] == [64, 64]
+        queries = [query for batch in api.read_many.call_args_list for query in batch.args[0]]
+        assert sum(query[3] == 'GetRole' for query in queries) == 16
+        assert sum(query[3] == 'GetState' for query in queries) == 16
         before = rpc.call_count
-        for node in nodes:
+        for index, node in enumerate(nodes):
             assert node.get_attributes() == {'id': node.path}
             assert node.get_accessible_id() == 'id:' + node.path
             assert node.snapshot_name() == 'name:' + node.path
+            assert node.get_role_name() == ('application' if index % 2 else 'push button')
+            states = node.snapshot_state_set()
+            assert states.contains(24)
+            assert states.contains(32 + index)
+            assert not states.contains(32 + (index + 1) % 32)
         assert rpc.call_count == before
 
 
-def test_breadth_batches_preserve_traversal_order_and_never_query_protected_children():
+@pytest.mark.parametrize('fault', ['', 'role', 'state', 'state-shape'])
+def test_missing_cache_facts_share_pipeline_but_never_supply_input_state(fault):
+    api, items, rpc, _app, button = fixture_bus()
+    items.pop()  # The live button has no provider cache entry.
+    current = [1 << 24, 0]
+    original = rpc.side_effect
+
+    def call(*args):
+        if args[3] == 'GetAttributes':
+            return {'toolkit': 'gtk'}
+        if args[3] == 'Get' and args[5][1] == 'AccessibleId':
+            return 'button'
+        if args[3] == 'GetRole':
+            if fault == 'role':
+                raise IncompleteTree('role unavailable')
+            return 2
+        if args[3] == 'GetState':
+            if fault == 'state':
+                raise IncompleteTree('state unavailable')
+            return [0] if fault == 'state-shape' else list(current)
+        return original(*args)
+
+    rpc.side_effect = call
+    api.read_many = Mock(wraps=api.read_many)
+    with api.snapshot():
+        api.prepare_nodes([button], names=True)
+        assert len(api.read_many.call_args_list) == 1
+        before = rpc.call_count
+        if fault == 'role':
+            with pytest.raises(IncompleteTree, match='role unavailable'):
+                button.get_role_name()
+        else:
+            assert button.get_role_name() == 'push button'
+        if fault in ('state', 'state-shape'):
+            with pytest.raises(IncompleteTree, match='state unavailable|incomplete-state'):
+                button.snapshot_state_set()
+        else:
+            assert button.snapshot_state_set().contains(24)
+        assert rpc.call_count == before
+        if not fault:
+            current[:] = [0, 0]
+            assert not button.get_state_set().contains(24)
+            assert button.snapshot_state_set().contains(24)
+            outer = api._states
+            with api.snapshot():
+                api.prepare_nodes([button], names=True)
+                assert not button.snapshot_state_set().contains(24)
+            assert api._states is outer
+            assert button.snapshot_state_set().contains(24)
+            with api.snapshot():
+                api.invalidate_snapshot()
+            assert api._states is None
+            assert not button.snapshot_state_set().contains(24)
+    assert api._states is None
+    if not fault:
+        assert not button.snapshot_state_set().contains(24)
+
+
+@pytest.mark.parametrize('missing_cache', [False, True])
+def test_breadth_batches_preserve_traversal_order_and_never_query_protected_children(missing_cache):
     from tests.e2e.accessible_ui import AccessibleUI
 
     api, items, rpc, app, _button = fixture_bus()
@@ -400,11 +478,15 @@ def test_breadth_batches_preserve_traversal_order_and_never_query_protected_chil
         parent = next((p for p, refs in edges.items() if path in refs), NULL)
         items.append([(app.bus, path), (app.bus, ROOT), (app.bus, parent), 0,
                       len(children), [], '', 1 if path == ROOT else 2, '', [0, 0]])
+    if missing_cache:
+        items.clear()
     def call(bus, path, interface, method, signature, args):
         if method == 'GetItems':
             return items
         if method == 'GetAttributes':
             return {'toolkit': 'gtk'}
+        if method == 'GetRole':
+            return 1 if path == ROOT else 2
         if method == 'GetChildren':
             return [(bus, child) for child in edges[path]]
         if method == 'Get':

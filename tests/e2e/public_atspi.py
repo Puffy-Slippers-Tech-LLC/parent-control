@@ -39,6 +39,7 @@ class PublicAtspi:
         self._children = {}
         self._prepared = None
         self._names = None
+        self._states = None
         self._generation = 0
         self.Action = BusNode
         self.Text = BusNode
@@ -241,6 +242,7 @@ class PublicAtspi:
         self._children.clear()
         self._prepared = None
         self._names = None
+        self._states = None
 
     def reference(self, reference):
         bus, path = reference
@@ -277,19 +279,21 @@ class PublicAtspi:
 
     @contextmanager
     def snapshot(self):
-        previous = self._records, self._children, self._prepared, self._names
+        previous = self._records, self._children, self._prepared, self._names, self._states
         generation = self._generation
         self._records = {}
         self._children = {}
         self._prepared = {}
         self._names = {}
+        self._states = {}
         try:
             yield
         finally:
             if generation == self._generation:
-                self._records, self._children, self._prepared, self._names = previous
+                self._records, self._children, self._prepared, self._names, self._states = previous
             else:
-                self._records, self._children, self._prepared, self._names = None, {}, None, None
+                self._records, self._children, self._prepared, self._names, self._states = (
+                    None, {}, None, None, None)
 
     def read_many(self, queries):
         """Pipeline at most 64 read-only RPCs under one bounded deadline.
@@ -377,32 +381,47 @@ class PublicAtspi:
             return
         nodes = list(dict.fromkeys(node for node in nodes if node is not None))[:32]
         names = names and self._names is not None
-        stride = 3 if names else 2
         queries, keys = [], []
         for node in nodes:
             key = (node.bus, node.path)
             if key in self._prepared or node.bus == 'org.a11y.atspi.Registry':
                 continue
-            self.record(node)
-            keys.append(key)
+            record = self.record(node)
+            start = len(queries)
             queries.extend([
                 (node.bus, node.path, PREFIX + 'Accessible', 'GetAttributes', '', ()),
                 (node.bus, node.path, 'org.freedesktop.DBus.Properties', 'Get',
                  'ss', (PREFIX + 'Accessible', 'AccessibleId')),
             ])
+            # Providers can omit live objects from GetItems. Their structural
+            # fallback must share the identity pipeline rather than serialize
+            # a role and observation-state round trip for every such object.
+            # Input guards still use get_state_set(), which is always live.
+            if record is None:
+                queries.append((node.bus, node.path, PREFIX + 'Accessible',
+                                'GetRole', '', ()))
+            name_index = state_index = None
             if names:
                 # Fresh Name reads share the identity pipeline, avoiding a
                 # separate round trip for every small tree frontier. They are
                 # observation facts, never provider-cache names or result reads.
+                name_index = len(queries)
                 queries.append((node.bus, node.path, 'org.freedesktop.DBus.Properties',
                                 'Get', 'ss', (PREFIX + 'Accessible', 'Name')))
+                if record is None:
+                    state_index = len(queries)
+                    queries.append((node.bus, node.path, PREFIX + 'Accessible',
+                                    'GetState', '', ()))
+            keys.append((key, start, record is None, name_index, state_index))
         values = []
         for offset in range(0, len(queries), 64):
             values.extend(self.read_many(queries[offset:offset + 64]))
-        for index, key in enumerate(keys):
-            self._prepared[key] = values[index * stride:index * stride + 2]
-            if names:
-                self._names[key] = values[index * stride + 2]
+        for key, start, missing_record, name_index, state_index in keys:
+            self._prepared[key] = values[start:start + (3 if missing_record else 2)]
+            if name_index is not None:
+                self._names[key] = values[name_index]
+            if state_index is not None:
+                self._states[key] = values[state_index]
         if descend is None:
             return
         queries, targets = [], []
@@ -597,7 +616,15 @@ class BusNode:
         # Only the traversal asks for bulk facts. Even if a caller pauses its
         # node iterator, public input guards still use get_state_set() above.
         record = self.api.record(self)
-        words = record[3] if record is not None else self.call('Accessible', 'GetState')
+        key = (self.bus, self.path)
+        if record is not None:
+            words = record[3]
+        elif self.api._states is not None and key in self.api._states:
+            words = self.api._states[key]
+            if isinstance(words, Exception):
+                raise words
+        else:
+            words = self.call('Accessible', 'GetState')
         return self.states(words)
 
     def children(self):

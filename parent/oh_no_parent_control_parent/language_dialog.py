@@ -57,8 +57,7 @@ class LanguageDialog(Gtk.Window):
         keys.connect("key-pressed", self._search_keys)
         self.add_controller(keys)
         content.append(self._search)
-        self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
-                                css_classes=["parent-language-list"])
+        self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self._language_rows = []
         first = None
         for identity, name in SUPPORTED_LANGUAGES:
@@ -81,6 +80,7 @@ class LanguageDialog(Gtk.Window):
             self._choices.append(button)
             self._language_rows.append((button, identity, name))
         scroller = Gtk.ScrolledWindow(child=self._choices, vexpand=True,
+                                      css_classes=["parent-language-list"],
                                       accessible_role=Gtk.AccessibleRole.GROUP,
                                       hscrollbar_policy=Gtk.PolicyType.NEVER,
                                       overlay_scrolling=False,
@@ -122,9 +122,9 @@ class LanguageDialog(Gtk.Window):
         if not self._search.get_text():
             heights = [row.measure(Gtk.Orientation.VERTICAL, list_width)[1]
                        for row, _identity, _name in self._language_rows]
-            # Include the list's own CSS border/padding around the first ten rows.
+            # Include the scroller's one-pixel CSS border around the first ten rows.
             self._list_height = (self._choices.measure(Gtk.Orientation.VERTICAL, list_width)[1]
-                                 - sum(heights[10:]))
+                                 - sum(heights[10:]) + 2)
         # Window measurement also includes GTK's title-bar area/decorations.
         natural_height = (self.measure(Gtk.Orientation.VERTICAL, width)[1]
                           - self._scroller.measure(Gtk.Orientation.VERTICAL, list_width)[1]

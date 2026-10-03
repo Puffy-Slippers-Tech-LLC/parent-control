@@ -177,6 +177,30 @@ def test_active_vm_session_keeps_its_guest_when_configured_ids_swap(tmp_path, wo
     assert len(workers) == 1
 
 
+def test_explicit_vm_queue_reattaches_by_canonical_names_and_rejects_other_selection(
+        tmp_path, workers, monkeypatch):
+    import vm_config
+    import vm_selection
+    config = tmp_path / 'test-vm.json'
+    entries = [dict(id=str(index + 1), name=f'guest-{index}', disk_anchor=f'/disk-{index}',
+                    enabled='true' if index == 0 else 'false') for index in range(3)]
+    config.write_text(json.dumps({'concurrency': 2, 'vms': entries}))
+    monkeypatch.setattr(vm_config, 'CONFIG', config)
+    vm_selection.execution_selection('2,1')
+    run, started = session.select(tmp_path, ['e2e', '--vm', '2,1'])
+    assert started
+    current = json.loads((run.parent / 'current.json').read_text())
+    assert current['argv'] == ['e2e', '--vm', 'guest-1,guest-0']
+    assert current['vm_batch'] == {'concurrency': 2, 'vms': ['guest-1', 'guest-0']}
+    for selector in ('2,1', 'guest-1,guest-0'):
+        assert session.select(tmp_path, ['e2e', '--vm', selector]) == (run, False)
+    for options in ([], ['--vm', '1'], ['--vm', 'all']):
+        with pytest.raises(ValueError, match='original'):
+            session.select(tmp_path, ['--stop', *options])
+        assert not (run / 'cancel').exists()
+    assert len(workers) == 1
+
+
 @pytest.mark.parametrize('category', ['ui', 'e2e'])
 def test_active_session_wins_within_its_scope_before_validation(tmp_path, workers, monkeypatch, category):
     monkeypatch.setattr(test_commands, 'validate',

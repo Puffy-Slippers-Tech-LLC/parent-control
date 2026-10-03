@@ -84,14 +84,15 @@ def _select(root, argv):
         fcntl.flock(gate, fcntl.LOCK_EX)
         run, active = current_session(directory)
         if active:
-            from vm_selection import extract
+            from vm_selection import extract_execution as extract
             _, requested_vm = extract(requested, required=False)
             record = json.loads((directory / 'current.json').read_text())
             _, active_vm = extract(record['argv'], required=False)
-            if active_vm is not None and (requested_vm is None or requested_vm.name != active_vm.name):
+            if active_vm is not None and requested_vm != active_vm:
                 raise ValueError('vm-config: active run requires its original --vm NAME')
             if record.get('vm_batch') is not None and requested_vm is not None:
-                raise ValueError('vm-config: active run executes the enabled VM queue; attach without --vm')
+                if requested_vm != ','.join(record['vm_batch']['vms']):
+                    raise ValueError('vm-config: active run requires its original VM queue')
             if '--stop' in argv:
                 (run / 'cancel').touch(mode=0o600)
             return run, False
@@ -99,12 +100,11 @@ def _select(root, argv):
             return None, False
         current = directory / 'current.json'
         if run is not None:
-            from vm_selection import extract
+            from vm_selection import extract_execution as extract
             _, requested_vm = extract(requested, required=False)
             previous_args = json.loads(current.read_text())['argv']
             _, previous_vm = extract(previous_args, required=False)
-            same_vm = ((requested_vm.name if requested_vm else None) ==
-                       (previous_vm.name if previous_vm else None))
+            same_vm = requested_vm == previous_vm
             result = run / 'result'
             try:
                 broken = not result.exists() or int(result.read_text()) != 0
@@ -121,10 +121,10 @@ def _select(root, argv):
         validate(root, requested)
         # Persist the actual selected guest, not an ID whose mapping may change
         # while this run is active. New public selectors still read current JSON.
-        from vm_selection import extract
+        from vm_selection import extract_execution as extract
         requested, configured = extract(requested, required=False)
         if configured is not None:
-            requested.extend(('--vm', configured.name))
+            requested.extend(('--vm', configured))
         # Keep host-only ownership independent of standalone VM preparation.
         # Pass its actual locked descriptor, never a PID-based ownership guess.
         with test_activity.activity(root, host_only=host_only,

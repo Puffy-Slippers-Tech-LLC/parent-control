@@ -1,6 +1,5 @@
 """Finite configured VM queue; workers use the maintained guarded controllers."""
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
 from pathlib import Path
@@ -17,24 +16,7 @@ import test_launcher
 import test_retention
 from regression_process import Control, FRAME_PREFIX
 from vm_selection import BATCH, VARIABLE, vm_config
-
-
-def dispatch(vms, concurrency, execute, stopped):
-    """Refill free slots until every VM completes, including after failures."""
-    def attempt(vm):
-        if stopped.is_set():
-            return 130
-        try:
-            return execute(vm)
-        except (ValueError, OSError) as error:
-            return {'status': 2, 'handoffs': [], 'error': str(error)}
-
-    with ThreadPoolExecutor(max_workers=concurrency) as pool:
-        pending = {pool.submit(attempt, vm): vm.name for vm in vms}
-        results = {}
-        for future in as_completed(pending):
-            results[pending[future]] = future.result()
-    return results
+from vm_queue import dispatch
 
 
 def split(root, argv):

@@ -11,8 +11,9 @@ sys.path.insert(0, str(ROOT / 'tests/integration'))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_account_password import read_password
 from dev_privileges import check
-from baseline_messages import help_message
-from vm_selection import select, choose_vm
+from baseline_messages import help_message, mode_message
+from vm_selection import select, vm_config, SELECTOR_HELP
+from vm_queue import preparation
 
 HELPER = '/usr/local/libexec/onpc-setup'
 
@@ -22,7 +23,7 @@ def arguments(argv=None):
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--mode', required=True, choices=('auto', 'manual'),
                         help='auto: restore baseline and update guest; manual: prepare current VM state')
-    parser.add_argument('--vm', help='name or ID in config/test-vm.json; prompts when omitted')
+    parser.add_argument('--vm', help=SELECTOR_HELP)
     parser.add_argument('--y', action='store_true',
                         help='proceed without y/n confirmation; use for authorized launcher/session work')
     parser.epilog = help_message()
@@ -34,16 +35,26 @@ def arguments(argv=None):
     return parser.parse_args(argv)
 
 
-def main(argv=None):
+def main(argv=None, *, refresh=True):
     args = arguments(argv)
     try:
-        if args.vm is None:
-            args.vm = choose_vm()
-        args.vm = select(args.vm).name
+        concurrency, vms = vm_config.execution(args.vm)
+        args.vm = ','.join(vm.name for vm in vms)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
         read_password(ROOT)
         check(HELPER)
+        if len(vms) > 1:
+            from vm_selection import confirm_queue
+            if not confirm_queue(args, 'prepare-baseline', mode_message(args.mode)):
+                print('prepare-baseline: cancelled; no baseline snapshot was prepared.')
+                return 0
+            results, queue_status = preparation(ROOT, 'prepare-baseline', args, concurrency, vms)
+            # Even after a partial failure, accept successfully prepared VMs.
+            status = (subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT).returncode
+                      if refresh and 0 in results.values() else 0)
+            return status or queue_status
+        select(args.vm)
         status = subprocess.run(
             ['/usr/bin/pkexec', '--keep-cwd', HELPER, 'prepare-baseline', '--mode', args.mode,
              *(['--y'] if args.y else []), '--vm', args.vm],
@@ -55,6 +66,8 @@ def main(argv=None):
             return 0
         if status:
             return status
+        if not refresh:
+            return 0
         # Pin the accepted UUID only after successful baseline reconciliation.
         status = subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT).returncode
         if status == 0:

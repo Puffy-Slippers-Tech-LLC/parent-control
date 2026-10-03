@@ -29,6 +29,7 @@ def mode_message(mode):
 
 def help_message():
     return ('Choose tools/prepare-baseline --mode auto or tools/prepare-baseline --mode manual.\n\n'
-            'Launcher/session work: include --vm NAME and --y to suppress y/n confirmation.\n'
+            'Launcher/session work: include --y to suppress y/n confirmation.\n'
+            'Use --vm NAME, ID, a comma-separated list, all-enabled (default), or all.\n'
             'Manual work: omit --y to keep confirmation. All safety checks still apply.\n\n'
             + '\n\n'.join(mode_message(mode) for mode in MODE_STEPS))

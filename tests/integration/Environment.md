@@ -11,12 +11,13 @@ another baseline, download a new image, or create a replacement domain.
 guest preparation, host capture, installed-system/E2E runners and VM maintenance.
 Its `vms` array contains one object per existing VM, each with a unique `name`
 and absolute base QCOW2 `disk_anchor`, plus `enabled` as the string `"true"` or
-`"false"`. The positive integer `concurrency` limits simultaneous test VMs.
-`tools/run-tests`, `tools/fix-tests` and `tools/write-e2e` default to every enabled
-entry in registry order, refilling free slots until all have executed. Disabled
-entries are ignored. `--vm NAME` restricts tests to one enabled VM. Maintenance
-and preparation require that explicit selector, matching a configured name
-exactly, including case. Workers inherit validated selections; there is no
+`"false"`. Test and preparation selection follow the
+[VM mandate](../../docs/Mandates/VM-Mandate.MD#authority-and-operation): optional
+`--vm` accepts names/IDs, lists, `all-enabled`, or `all`, defaulting to enabled
+entries. The positive integer `concurrency` limits simultaneous operations,
+refilling each free slot immediately. Maintenance still requires one explicit
+selector, matching a configured name exactly, including case.
+Workers inherit validated selections; there is no
 ambient environment override for public commands. Each VM has its own exclusive
 lease and retention journal. The guest hostname is the lowercase form of that name
 (hostname labels, at most 63 characters). The active image can be a backing-chain
@@ -40,8 +41,9 @@ that is not off. Under the shared lease, a red warning describes the selected
 workflow and deletion of **all versioned app snapshots**, including both
 `onpc-v1.2` and legacy `onpc-1.2` names. By default, only an explicit `y` proceeds;
 `n` or end of input exits without guest or snapshot changes. `--y` suppresses
-the y/n prompt while retaining the warning and every safety check. Include an
-explicit `--vm NAME` for unattended work; `--y` does not select a VM. After
+the y/n prompt while retaining the warning and every safety check. An omitted
+`--vm` selects all enabled VMs; multiple VMs are confirmed together before work.
+After
 confirmation or `--y`, those app snapshots are deleted without recursively
 deleting their children.
 

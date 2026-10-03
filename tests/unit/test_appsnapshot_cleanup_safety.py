@@ -113,26 +113,38 @@ def launch(tmp_path, monkeypatch):
     return controller, cleanup, allocation
 
 
-def test_assume_yes_requires_vm_before_selection_or_work(launch, monkeypatch, capsys):
+def test_assume_yes_without_vm_uses_enabled_selection(launch, monkeypatch, capsys):
     control, cleanup, allocation = launch
     chooser = Mock(side_effect=AssertionError('VM prompt attempted'))
-    monkeypatch.setattr(launcher, 'choose_vm', chooser)
-    with pytest.raises(SystemExit) as error:
-        launcher.main(['--y'])
-    assert error.value.code == 2
-    assert '--y requires an explicit --vm' in capsys.readouterr().err
+    monkeypatch.setattr(vm_selection, 'choose_vm', chooser)
+    control.run.return_value = 0
+    assert launcher.main(['--y']) == 0
+    configured, = vm_selection.vm_config.execution()[1]
+    assert control.run.call_args.args[0][-2:] == ['--vm', configured.name]
     chooser.assert_not_called()
-    launcher.check.assert_not_called()
-    control.run.assert_not_called()
     cleanup.assert_not_called()
     allocation.assert_not_called()
+
+
+@pytest.mark.parametrize('selector', [None, 'all', 'all-enabled', '17,83', 'Alpha-guest,Beta-guest'])
+def test_appsnapshot_queue_uses_shared_selection_and_scheduler(launch, monkeypatch, selector):
+    from types import SimpleNamespace
+    vms = tuple(SimpleNamespace(name=name) for name in ('Alpha-guest', 'Beta-guest'))
+    selection = Mock(return_value=(2, vms))
+    monkeypatch.setattr(vm_selection.vm_config, 'execution', selection)
+    prepare = Mock(return_value=({'Alpha-guest': 0, 'Beta-guest': 7}, 7))
+    monkeypatch.setattr(launcher, 'preparation', prepare)
+    assert launcher.main(['--y', *([] if selector is None else ['--vm', selector])]) == 7
+    selection.assert_called_once_with(selector)
+    assert prepare.call_args.args[3:] == (2, vms)
+    launch[0].run.assert_not_called()
 
 
 @pytest.mark.parametrize('mode', ['online', 'offline'])
 def test_assume_yes_with_vm_never_prompts(launch, monkeypatch, mode, capsys):
     control, cleanup, allocation = launch
     control.run.return_value = 0
-    monkeypatch.setattr(launcher, 'choose_vm', Mock(side_effect=AssertionError('VM prompt attempted')))
+    monkeypatch.setattr(vm_selection, 'choose_vm', Mock(side_effect=AssertionError('VM prompt attempted')))
     monkeypatch.setattr(launcher, 'input', Mock(side_effect=AssertionError('confirmation attempted')),
                         raising=False)
     assert launcher.main([*VM_ARGS, '--y', '--mode', mode, '--overwrite', 'false']) == 0
@@ -167,23 +179,13 @@ def test_manual_decline_or_cancel_never_starts_work(launch, monkeypatch, capsys,
     allocation.assert_not_called()
 
 
-@pytest.mark.parametrize('selector_kind', ['name', 'id'])
-def test_manual_missing_vm_uses_shared_picker_then_confirms(launch, monkeypatch, capsys, selector_kind):
+def test_manual_missing_vm_confirms_enabled_selection(launch, monkeypatch, capsys):
     control, cleanup, allocation = launch
     control.run.return_value = 0
-    configured = list(vm_selection.registry().values())[1]
-    assert launcher.choose_vm is vm_selection.choose_vm
-    monkeypatch.setattr(vm_selection.sys.stdin, 'isatty', lambda: False)
-    def select_vm(prompt):
-        assert prompt == 'Select VM ID or name: '
-        assert 'Choose a VM from config/test-vm.json:' in capsys.readouterr().out
-        launcher.check.assert_not_called()
-        return configured.name if selector_kind == 'name' else configured.id
-    monkeypatch.setattr(vm_selection, 'input', select_vm, raising=False)
+    configured, = vm_selection.vm_config.execution()[1]
     answers = iter(['invalid', ' Y '])
     def confirm(prompt):
         assert prompt == 'Proceed (y/n)? '
-        assert vm_selection.selected().name == configured.name
         launcher.check.assert_not_called()
         return next(answers)
     monkeypatch.setattr(launcher, 'input', confirm, raising=False)
@@ -196,15 +198,13 @@ def test_manual_missing_vm_uses_shared_picker_then_confirms(launch, monkeypatch,
 
 
 @pytest.mark.parametrize('exception', [EOFError, KeyboardInterrupt])
-def test_cancelled_manual_vm_selection_never_confirms_or_dispatches(launch, monkeypatch, capsys, exception):
+def test_cancelled_default_confirmation_never_dispatches(launch, monkeypatch, capsys, exception):
     control, cleanup, allocation = launch
-    monkeypatch.setattr(vm_selection.sys.stdin, 'isatty', lambda: False)
-    monkeypatch.setattr(vm_selection, 'input', Mock(side_effect=exception), raising=False)
-    prompt = Mock(side_effect=AssertionError('confirmation attempted'))
+    prompt = Mock(side_effect=exception)
     monkeypatch.setattr(launcher, 'input', prompt, raising=False)
-    assert launcher.main([]) == 2
-    assert 'VM selection cancelled' in capsys.readouterr().err
-    prompt.assert_not_called()
+    assert launcher.main([]) == 0
+    assert 'cancelled' in capsys.readouterr().out
+    prompt.assert_called_once()
     launcher.check.assert_not_called()
     control.run.assert_not_called()
     cleanup.assert_not_called()

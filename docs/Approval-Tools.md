@@ -153,11 +153,11 @@ The standalone app-snapshot route requires the current installed test dispatcher
 refresh it with `./setup.sh --test-tools-only` when adding these tools. It shares
 the existing test-runner Polkit action, owned recovery and fixed VM UUID, without
 adding general snapshot or libvirt permissions.
-Automation and agent sessions always include both `--vm NAME` and `--y`.
-Manual work omits `--y` to confirm before preparation; when `--vm` is also
-omitted, the shared baseline VM picker runs first. `--y` without `--vm` fails
-before selection or preparation. The flag preserves all authorization, lease,
-ownership and validation checks.
+Automation and agent sessions include `--y` for authorized preparation.
+Manual work omits `--y` to confirm before preparation. Selection and rolling
+concurrency follow the [VM mandate](Mandates/VM-Mandate.MD#authority-and-operation),
+including lists, `all-enabled`, `all`, and the enabled default when `--vm` is
+omitted. The flag preserves all authorization, lease, ownership and validation checks.
 Online mode is the default and reuses fresh matching snapshots without building;
 the verified baseline selects Ubuntu 26.04 DEB/APT or Fedora Workstation 44
 RPM/DNF preparation. Fedora uses the maintained native/Mock/rootless container
@@ -503,10 +503,12 @@ requests the displayed runner's cooperative cancellation and cleanup.
 simultaneously. The finite queue drains even after a VM failure; cancellation
 stops queued work and waits for every active guest's owned cleanup. Tests within
 each guest remain ordered; repair and implementation agents remain serial.
-`--vm NAME` restricts tests to one enabled entry. Disabled entries never
-participate. Host-only tests, help and listing do not require enabled VMs.
-Maintenance, baseline and app-snapshot preparation require an explicit
-configured `--vm NAME`; Make VM targets require `VM=NAME`. Replacement setup
+Explicit selectors and preparation use the shared
+[selection and scheduling contract](Mandates/VM-Mandate.MD#authority-and-operation):
+names, IDs, comma-separated lists, `all-enabled`, or `all`, including disabled
+entries when explicitly selected. Host-only tests, help and listing do not
+require enabled VMs. Maintenance requires one explicit configured `--vm NAME`;
+Make VM targets require `VM=NAME`. Replacement setup
 also requires `--vm NAME`. `tools/cleanup-e2e` without a selector reconciles all
 enabled guests serially. Workers receive validated selections, never an ambient
 environment default. Each VM has separate leases and retention journals;
@@ -518,8 +520,9 @@ nor baseline replacement. Names and disks still participate in baseline proof.
 Active runs retain their canonical guest names and UUID pins; reattachment accepts
 the current ID for that same guest, and refuses an ID reassigned to another guest.
 `tools/watch` and `make watch` observe all registered VMs without a VM parameter.
-Reattachment and cancellation of a narrowed VM run require its original selected
-name; attach to a configured queue without `--vm`.
+Reattachment and cancellation of an explicit VM selection require its original
+canonical selection (current IDs for the same names also work); attach to a
+default queue without `--vm` or with its original list.
 
 `tools/test-vm` accepts this configured-name selector and no URI, disk, XML or
 snapshot-name input. Its `exec` action accepts arbitrary guest command arguments

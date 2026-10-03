@@ -20,6 +20,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # App-snapshot --y/VM-picker/confirmation regressions use process-local input
 # and TTY doubles with the existing private launcher fixture; appsnapshot stays
 # compatible, without real VM operations, privilege, shared locks or storage.
+# App-snapshot list/default selection and queue dispatch checks add only
+# process-local scheduler/command doubles to that fixture. Unit and cleanup
+# classifications remain compatible; no worker or guest is started.
 # Root guest probes reuse those private lease/scratch trees and mocked transport
 # streams; snapshot connection checks mock SSH and the clock. Both existing
 # VM-control and app-snapshot cleanup buckets remain compatible.

@@ -98,15 +98,19 @@ def resolve(name, configured):
 
 
 def execution(name=None, path=None):
-    """Snapshot the finite enabled queue and its maximum simultaneous guests."""
+    """Resolve a finite queue; explicit selections also admit disabled entries."""
     concurrency, configured = configuration(path)
-    if name is not None:
-        vm = resolve(name, configured)
-        configured = {vm.name: vm}
-    enabled = tuple(vm for vm in configured.values() if vm.enabled)
-    if not enabled:
+    if name is None or name == 'all-enabled':
+        vms = tuple(vm for vm in configured.values() if vm.enabled)
+    elif name == 'all':
+        vms = tuple(configured.values())
+    else:
+        # Resolve the whole request before work, deduplicating aliases in order.
+        vms = tuple({vm.name: vm for vm in
+                     (resolve(value, configured) for value in name.split(','))}.values())
+    if not vms:
         raise ValueError('vm-config:no enabled VMs in config/test-vm.json')
-    return min(concurrency, len(enabled)), enabled
+    return min(concurrency, len(vms)), vms
 
 
 def validate_entry(document):
@@ -162,8 +166,8 @@ def arguments():
     return ['--vm', selected().name]
 
 
-def extract(argv, *, required=True, path=None):
-    """Consume one --vm name or ID and bind its canonical name."""
+def extract_selector(argv):
+    """Consume the optional selector without changing single-VM consumers."""
     remaining, names = [], []
     iterator = iter(argv)
     for value in iterator:
@@ -180,10 +184,18 @@ def extract(argv, *, required=True, path=None):
             remaining.append(value)
     if len(names) > 1:
         raise ValueError('vm-config:duplicate --vm')
+    if names and (not names[0] or names[0].startswith('--')):
+        raise ValueError('vm-config: --vm requires a value')
+    return remaining, names[0] if names else None
+
+
+def extract(argv, *, required=True, path=None):
+    """Consume one --vm name or ID and bind its canonical name."""
+    remaining, name = extract_selector(argv)
     controls = remaining[:remaining.index('--')] if '--' in remaining else remaining
-    if not names and (not required or any(value in ('--help', '-h') for value in controls)):
+    if name is None and (not required or any(value in ('--help', '-h') for value in controls)):
         return remaining, None
-    configured = select(names[0] if names else None, path)
+    configured = select(name, path)
     return remaining, configured
 
 

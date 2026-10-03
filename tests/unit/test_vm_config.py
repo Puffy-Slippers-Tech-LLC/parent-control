@@ -190,14 +190,13 @@ def test_agent_launchers_resolve_current_ids_before_session_creation(selector_co
                 assert vm_selection.execution_binding() == entry['name']
 
 
-def test_disabled_vm_id_has_the_same_execution_guard_as_its_name(selector_config):
+def test_disabled_vm_id_is_explicitly_selectable_like_its_name(selector_config):
     path, document = selector_config
     document['vms'][1]['enabled'] = 'false'
     path.write_text(json.dumps(document))
     assert vm_config.load('83') == vm_config.load('Beta-guest')
     for selector in ('83', 'Beta-guest'):
-        with pytest.raises(ValueError, match='no enabled'):
-            vm_config.execution(selector)
+        assert vm_config.execution(selector)[1] == (vm_config.load('83'),)
 
 
 def test_installed_dispatcher_keeps_uuid_pins_by_name_when_ids_swap(selector_config):
@@ -445,10 +444,152 @@ def test_execution_selects_only_literal_true_in_registry_order(tmp_path):
     concurrency, vms = vm_config.execution(path=path)
     assert concurrency == 2 and [vm.name for vm in vms] == ['first', 'last']
     assert vm_config.execution('last', path)[0] == 1
-    with pytest.raises(ValueError, match='no enabled'):
-        vm_config.execution('disabled', path)
-    with pytest.raises(ValueError, match='no enabled'):
-        vm_config.execution('missing', path)
+    assert vm_config.execution('disabled', path)[1][0].name == 'disabled'
+    assert vm_config.execution('missing', path)[1][0].name == 'missing'
+
+
+@pytest.mark.parametrize('selector, expected', [
+    (None, ['Alpha-guest']), ('all-enabled', ['Alpha-guest']),
+    ('all', ['Alpha-guest', 'Beta-guest']),
+    ('83,17', ['Beta-guest', 'Alpha-guest']),
+    ('Alpha-guest,83,17', ['Alpha-guest', 'Beta-guest']),
+    ('83', ['Beta-guest']),
+])
+def test_queue_selectors_resolve_names_ids_disabled_entries_and_aliases(selector_config, selector, expected):
+    path, document = selector_config
+    document['vms'][1]['enabled'] = 'false'
+    path.write_text(json.dumps(document))
+    concurrency, vms = vm_config.execution(selector)
+    assert [vm.name for vm in vms] == expected
+    assert concurrency == min(2, len(expected))
+
+
+@pytest.mark.parametrize('selector', ['', ',17', '17,', '17,,83', '17,unknown', 'all,17', 'all-enabled,83'])
+def test_invalid_queue_selection_fails_before_partial_execution(selector_config, selector):
+    with pytest.raises(ValueError, match='vm-config:'):
+        vm_config.execution(selector)
+
+
+def test_free_slot_refills_before_a_slower_previous_worker_finishes():
+    import threading
+    from vm_queue import dispatch
+    vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}')) for index in range(3)]
+    first_started, replacement_started = threading.Event(), threading.Event()
+    def execute(vm):
+        if vm.name == 'guest-0':
+            first_started.set()
+            assert replacement_started.wait(5), 'free slot was held by the slower worker'
+        elif vm.name == 'guest-1':
+            assert first_started.wait(5)
+            return 1
+        else:
+            replacement_started.set()
+        return 0
+    assert dispatch(vms, 2, execute, threading.Event()) == {
+        'guest-0': 0, 'guest-1': 1, 'guest-2': 0}
+
+
+@pytest.mark.parametrize('selector', ['17,83', 'all', 'all-enabled'])
+@pytest.mark.parametrize('equal_form', [False, True])
+def test_test_and_repair_launchers_keep_exact_queue_on_forwarding(
+        selector_config, monkeypatch, selector, equal_form):
+    import fix_tests
+    import test_commands
+    import vm_selection
+    monkeypatch.setattr(fix_tests, 'select', Mock(return_value=(None, False)))
+    options = ['--vm=' + selector] if equal_form else ['--vm', selector]
+    expected = {'concurrency': 2, 'vms': ['Alpha-guest', 'Beta-guest']}
+    assert fix_tests.main(['system', *options]) == 0
+    assert vm_selection.execution_binding() == expected
+    forwarded = vm_selection.execution_arguments()
+    assert forwarded == ['--vm', 'Alpha-guest,Beta-guest']
+    test_commands.vm_request(['system', *forwarded])
+    assert vm_selection.execution_binding() == expected
+    assert not test_commands.host_only_request(['system', *options])
+    assert test_commands.includes_host_request(ROOT, ['host', 'system', *options])
+
+
+@pytest.mark.parametrize('tool', ['prepare-baseline', 'prepare-appsnapshot'])
+def test_shared_preparation_queue_isolated_workers_refill_and_continue_after_failure(monkeypatch, tool):
+    import threading
+    from types import SimpleNamespace
+    import vm_queue
+    import vm_selection
+    from regression_process import Control
+    vms = tuple(vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}')) for index in range(3))
+    first_started, replacement_started = threading.Event(), threading.Event()
+    active, peak, calls = 0, 0, []
+    lock = threading.Lock()
+    monkeypatch.setenv(vm_selection.VARIABLE, 'parent-selection')
+    monkeypatch.setenv(vm_selection.BATCH, 'parent-batch')
+    def execute(command, *, env, **kwargs):
+        nonlocal active, peak
+        assert command[:2] == ['/usr/bin/python3', '-IBu']
+        assert command[3] == tool
+        name = command[command.index('--vm') + 1]
+        assert env[vm_selection.VARIABLE] == name
+        assert vm_selection.BATCH not in env
+        assert '--y' in command
+        if tool == 'prepare-appsnapshot':
+            assert command[-2:] == ['--overwrite', 'false']
+        with lock:
+            calls.append(name)
+            active += 1
+            peak = max(peak, active)
+        try:
+            if name == 'guest-0':
+                first_started.set()
+                assert replacement_started.wait(5)
+            elif name == 'guest-1':
+                assert first_started.wait(5)
+                return 7
+            else:
+                replacement_started.set()
+            return 0
+        finally:
+            with lock:
+                active -= 1
+    monkeypatch.setattr(Control, 'run', lambda self, command, **kw: execute(command, **kw))
+    statuses, status = vm_queue.preparation(
+        ROOT, tool, SimpleNamespace(mode='auto' if tool == 'prepare-baseline' else 'offline',
+                                    overwrite='false'), 2, vms)
+    assert peak == 2 and sorted(calls) == [vm.name for vm in vms]
+    assert statuses == {'guest-0': 0, 'guest-1': 7, 'guest-2': 0} and status == 7
+    assert os.environ[vm_selection.VARIABLE] == 'parent-selection'
+    assert os.environ[vm_selection.BATCH] == 'parent-batch'
+
+
+@pytest.mark.parametrize('tool', ['prepare-baseline', 'prepare-appsnapshot'])
+def test_preparation_worker_uses_guarded_public_launcher_and_defers_baseline_refresh(monkeypatch, tool):
+    import runpy
+    import vm_queue
+    entry = Mock(return_value=7)
+    loader = Mock(return_value={'main': entry})
+    monkeypatch.setattr(runpy, 'run_path', loader)
+    options = ['--vm', 'guest', '--y', '--mode', 'auto' if tool == 'prepare-baseline' else 'online']
+    assert vm_queue.worker([tool, *options]) == 7
+    loader.assert_called_once_with(str(ROOT / 'tools' / tool))
+    entry.assert_called_once_with(options, **({'refresh': False} if tool == 'prepare-baseline' else {}))
+
+
+@pytest.mark.parametrize('tool', ['prepare-baseline', 'prepare-appsnapshot'])
+def test_preparation_cancellation_keeps_completed_status_and_skips_queued_work(monkeypatch, tool):
+    from types import SimpleNamespace
+    import threading
+    import regression_process
+    import vm_queue
+    stopped = threading.Event()
+    monkeypatch.setattr(regression_process, 'session_stop', stopped)
+    calls = []
+    def execute(command, **kwargs):
+        calls.append(command)
+        stopped.set()
+        return 0  # In-flight work finished safely after cancellation.
+    monkeypatch.setattr(regression_process.Control, 'run', lambda self, command, **kw: execute(command, **kw))
+    vms = tuple(vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}')) for index in range(2))
+    statuses, status = vm_queue.preparation(ROOT, tool, SimpleNamespace(mode='offline', overwrite='false'), 1, vms)
+    assert statuses == {'guest-0': 0, 'guest-1': 130}
+    assert status == 130 and len(calls) == 1
 
 
 @pytest.mark.parametrize('concurrency', [1, 2, 3])
@@ -508,10 +649,10 @@ def test_batch_test_selection_and_explicit_diagnosis_obey_enabled_config(monkeyp
     import vm_selection
     args, configured = test_commands.vm_request(['system'])
     assert args == ['system'] and configured is None
-    assert vm_selection.execution_arguments() == []
+    assert vm_selection.execution_arguments() == ['--vm', vm_name()]
     assert vm_selection.execution_binding()['vms'] == [vm_name()]
-    with pytest.raises(ValueError, match='no enabled'):
-        test_commands.vm_request(['system', '--vm', vm_name(1)])
+    test_commands.vm_request(['system', '--vm', vm_name(1)])
+    assert vm_selection.execution_arguments() == ['--vm', vm_name(1)]
     test_commands.vm_request(['system', '--vm', vm_name()])
     assert vm_selection.execution_arguments() == ['--vm', vm_name()]
 
@@ -522,7 +663,7 @@ def test_mixed_host_and_vm_categories_use_queue_without_reinterpreting_host_opti
     assert test_commands.host_only_request(['unit', '-k', 'e2e'])
     assert not test_commands.host_only_request(['unit', 'system'])
     test_commands.vm_request(['unit', 'system'])
-    assert vm_selection.execution_arguments() == []
+    assert vm_selection.execution_arguments() == ['--vm', vm_name()]
 
 
 def test_queue_cancellation_binding_survives_disabled_configuration(tmp_path):
@@ -674,8 +815,7 @@ def test_both_agent_launchers_bind_the_enabled_queue_and_request_shared_tests(mo
     assert binding == {'concurrency': 2, 'vms': [vm.name for vm in vms]}
     monkeypatch.setattr(fix_tests.detached_launcher, 'supervise', lambda *args, **kwargs: args[4])
     command = fix_tests.supervise(ROOT, tmp_path, 42, 'test', 'system', 'model', 'low')
-    assert '--vm' not in command
-    assert command[1:] == ['--stop-on-error', 'system']
+    assert command[1:] == ['--stop-on-error', 'system', '--vm', ','.join(vm.name for vm in vms)]
     prompt = fix_tests.repair_prompt('Failure evidence')
     assert 'guest-2' in prompt and 'at most 2 simultaneously' in prompt
     assert 'tools/prepare-appsnapshot --vm NAME --y' in prompt

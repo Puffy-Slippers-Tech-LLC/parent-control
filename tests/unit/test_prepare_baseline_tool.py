@@ -131,20 +131,10 @@ def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch, 
     assert capsys.readouterr().out == 'prepare-baseline: cancelled; no baseline snapshot was prepared.\n'
 
 
-def test_missing_vm_prompts_in_config_order_before_dispatch(authorized, monkeypatch, capsys):
-    assert authorized['choose_vm'] is vm_selection.choose_vm
-    names = list(vm_selection.registry())
-    ids = [vm.id for vm in vm_selection.registry().values()]
-    def answer(prompt):
-        output = capsys.readouterr().out
-        for identifier, name in zip(ids, names):
-            assert f'{identifier}. {name}' in output
-        assert output.index(names[0]) < output.index(names[1])
-        authorized['check'].assert_not_called()
-        return ids[1]
-    monkeypatch.setattr(vm_selection, 'input', answer, raising=False)
+def test_missing_vm_uses_enabled_selection_before_dispatch(authorized, monkeypatch, capsys):
+    configured, = vm_selection.vm_config.execution()[1]
     def dispatch(command, **kwargs):
-        assert command[-2:] == ['--vm', names[1]]
+        assert command[-2:] == ['--vm', configured.name]
         print('baseline warnings')
         return SimpleNamespace(returncode=3)
     monkeypatch.setattr(authorized['subprocess'], 'run', dispatch)
@@ -158,25 +148,46 @@ def test_vm_prompt_retries_invalid_numbers(launcher, monkeypatch, capsys):
         'first-vm': SimpleNamespace(id='83'), 'second-vm': SimpleNamespace(id='17')})
     answers = iter(['', 'unknown-vm', '0', '3', '-1', '1.5', ' 17 '])
     monkeypatch.setattr(vm_selection, 'input', lambda prompt: next(answers), raising=False)
-    assert launcher['choose_vm']() == 'second-vm'
+    assert vm_selection.choose_vm() == 'second-vm'
     output = capsys.readouterr().out
     assert output.count('Please enter a configured VM ID or name') == 6
     assert '83. first-vm' in output and '17. second-vm' in output
 
 
 @pytest.mark.parametrize('exception', [EOFError, KeyboardInterrupt])
-def test_cancelled_vm_selection_never_dispatches(authorized, monkeypatch, capsys, exception):
+def test_cancelled_queue_confirmation_never_dispatches(authorized, monkeypatch, capsys, exception):
     monkeypatch.setattr(vm_selection, 'input', Mock(side_effect=exception), raising=False)
     run = Mock()
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
-    assert authorized['main'](['--mode', 'auto']) == 2
-    assert 'VM selection cancelled' in capsys.readouterr().err
-    authorized['check'].assert_not_called()
+    assert authorized['main'](['--mode', 'auto', '--vm', 'all']) == 0
+    assert 'cancelled' in capsys.readouterr().out
     run.assert_not_called()
 
 
+@pytest.mark.parametrize('selector', [None, 'all', 'all-enabled', '17,83', 'Alpha-guest,Beta-guest'])
+def test_baseline_queue_shares_scheduler_and_refreshes_once(authorized, monkeypatch, selector):
+    vms = tuple(SimpleNamespace(name=name) for name in ('Alpha-guest', 'Beta-guest'))
+    selection = Mock(return_value=(2, vms))
+    monkeypatch.setattr(vm_selection.vm_config, 'execution', selection)
+    prepare = Mock(return_value=({'Alpha-guest': 0, 'Beta-guest': 7}, 7))
+    monkeypatch.setitem(authorized, 'preparation', prepare)
+    refresh = Mock(return_value=SimpleNamespace(returncode=0))
+    monkeypatch.setattr(authorized['subprocess'], 'run', refresh)
+    assert authorized['main'](['--mode', 'auto', '--y', *([] if selector is None else ['--vm', selector])]) == 7
+    selection.assert_called_once_with(selector)
+    assert prepare.call_args.args[3:] == (2, vms)
+    refresh.assert_called_once_with([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT)
+
+
+def test_baseline_worker_defers_shared_refresh(authorized, monkeypatch):
+    run = Mock(return_value=SimpleNamespace(returncode=0))
+    monkeypatch.setattr(authorized['subprocess'], 'run', run)
+    assert authorized['main'](['--mode', 'auto', '--y', *VM_ARGS], refresh=False) == 0
+    assert run.call_count == 1
+
+
 def test_explicit_vm_never_prompts(authorized, monkeypatch):
-    monkeypatch.setitem(authorized, 'choose_vm', Mock(side_effect=AssertionError('unexpected prompt')))
+    monkeypatch.setattr(vm_selection, 'choose_vm', Mock(side_effect=AssertionError('unexpected prompt')))
     monkeypatch.setattr(authorized['subprocess'], 'run', Mock(return_value=SimpleNamespace(returncode=3)))
     assert authorized['main'](['--mode', 'auto', *VM_ARGS]) == 0
 
@@ -225,7 +236,7 @@ def test_tty_chooser_uses_interactive_selection(launcher, monkeypatch):
     chooser = Mock(return_value=1)
     monkeypatch.setattr(vm_selection, 'interactive_choice', chooser)
     names = list(vm_selection.registry())
-    assert launcher['choose_vm']() == names[1]
+    assert vm_selection.choose_vm() == names[1]
     chooser.assert_called_once_with(names, [vm.id for vm in vm_selection.registry().values()])
 
 

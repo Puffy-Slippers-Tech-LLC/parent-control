@@ -2765,9 +2765,10 @@ The same preparation is available independently:
   snapshots are left alone. Preparation performs shared cleanup before building.
   These are development-only changes (activation `none`); no product migration,
   host installation or permission refresh is required.
-  Automation and agent sessions always include `--vm NAME` and `--y`. Manual
-  work omits `--y` to retain confirmation and may omit `--vm` to use the shared
-  baseline VM picker. `--y` without `--vm` is refused before any work.
+  Automation and agent sessions include `--y` for authorized preparation. Manual
+  work omits it to retain confirmation. VM selection and concurrency follow the
+  [VM mandate](../Mandates/VM-Mandate.MD#authority-and-operation); omitting `--vm`
+  selects all enabled VMs.
 
 The [live verification contract](E2E-Execution-Plan.md#live-verification-contract)
 defines when a task prepares or reuses this snapshot. A retained snapshot is a

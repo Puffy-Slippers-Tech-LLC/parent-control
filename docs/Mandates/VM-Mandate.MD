@@ -13,17 +13,28 @@ and supplies no live qualification.
   work. Run authorized work unattended through its existing grants and validated
   tools. Reuse session and category-wide authorization; do not broaden libvirt
   grants or bypass a missing prerequisite or grant.
-- Test launchers `tools/run-tests`, `tools/fix-tests` and `tools/write-e2e` read
-  `config/test-vm.json`: only entries whose `enabled` is the string `"true"`
-  participate, and its positive integer `concurrency` caps simultaneous guests.
-  They drain that finite queue, including after an individual VM fails. Tests
-  within each VM remain ordered. `--vm NAME` narrows tests to one enabled entry.
-  VM maintenance and automated preparation require an explicit `--vm NAME` whose
-  exact, case-sensitive name or ID appears in the registry. Manual baseline and
-  app-snapshot preparation may omit it to use their shared VM picker.
-  Automation and agent sessions always invoke app-snapshot preparation with
-  `tools/prepare-appsnapshot --vm NAME --y`; manual work omits `--y` to retain
-  confirmation. `--y` without `--vm` is refused by app-snapshot preparation.
+- Test launchers `tools/run-tests` and `tools/fix-tests`, and
+  preparation tools `tools/prepare-baseline` and `tools/prepare-appsnapshot`, read
+  `config/test-vm.json`. Without `--vm`, they select entries whose `enabled` is
+  the string `"true"`. `--vm` accepts one exact name or ID, a comma-separated
+  list of names/IDs, `all-enabled` (the default selection), or `all` (every
+  registered VM, including disabled entries). Explicit names/IDs also include
+  disabled entries. Duplicate aliases execute once, in first-selected order;
+  invalid selectors fail before any work starts.
+  The positive integer `concurrency` caps simultaneous operations with or without
+  `--vm`. Each free slot immediately takes the next VM, without waiting for the
+  other workers. The finite queue drains even after an individual VM fails.
+  Tests within each VM remain ordered. Preparation uses isolated workers;
+  baseline helper refresh runs once after workers finish. Cancellation stops
+  queued work and waits for active cleanup; an active baseline replacement
+  finishes before returning cancellation because it has no cooperative stop protocol.
+  VM maintenance still requires one explicit `--vm NAME` whose exact,
+  case-sensitive name or ID appears in the registry.
+  Automation and agent sessions use `--y` for authorized preparation; manual
+  work omits it to retain confirmation. Multiple selections are confirmed
+  together before workers start. An omitted selector prepares all enabled VMs.
+  `tools/write-e2e` also defaults to the enabled queue with the same concurrency
+  cap; its explicit selector remains one registered name or ID.
   All `--vm` and Make
   `VM=` selectors resolve names and IDs from the current JSON on invocation.
   IDs are unique positive decimal strings or integers; renumbering them requires

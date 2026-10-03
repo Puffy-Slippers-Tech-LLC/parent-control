@@ -43,6 +43,8 @@ def reattach_label(run):
     label = 'fix-tests host' if run.parent.name == 'fix-tests-host' else 'fix-tests vm'
     binding = run / 'vm.json'
     vm = json.loads(binding.read_text())['vm'] if binding.exists() else None
+    if isinstance(vm, dict):
+        vm = ','.join(vm['vms'])
     return label + (' --vm ' + shlex.quote(vm) if isinstance(vm, str) else '')
 
 
@@ -665,7 +667,8 @@ def follow(run, stream=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--vm', help='enabled VM name or ID; omitted: configured enabled queue and concurrency')
+    from vm_selection import SELECTOR_HELP
+    parser.add_argument('--vm', help=SELECTOR_HELP)
     parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
     parser.add_argument('--model', help='initial repair model (default: gpt-6.1-sol)')
     parser.add_argument('--rounds', type=int, default=1, metavar='X',

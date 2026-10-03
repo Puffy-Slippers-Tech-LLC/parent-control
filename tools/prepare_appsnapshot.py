@@ -11,14 +11,15 @@ import test_retention
 from dev_privileges import check
 from regression_process import Control
 from test_recovery import cleanup
-from vm_selection import select, choose_vm, arguments as vm_arguments
+from vm_selection import select, arguments as vm_arguments, vm_config, SELECTOR_HELP, confirm_queue
+from vm_queue import preparation
 
 
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--vm', help='name or ID in config/test-vm.json; prompts for manual work when omitted')
+    parser.add_argument('--vm', help=SELECTOR_HELP)
     parser.add_argument('--y', action='store_true',
-                        help='proceed without confirmation; automation and agent sessions must include --vm and --y')
+                        help='proceed without confirmation for authorized automation and agent sessions')
     parser.add_argument('--mode', choices=('online', 'offline'), default='online',
                         help='snapshot after reboot with memory (online, default), '
                              'or after shutdown (offline)')
@@ -28,37 +29,25 @@ def arguments(argv=None):
                              'a matching version snapshot (default: false online, true offline); false keeps '
                              'an existing version snapshot without building, or creates it if missing')
     args = parser.parse_args(argv)
-    if args.y and args.vm is None:
-        parser.error('--y requires an explicit --vm NAME; use both for automation and agent sessions')
     if args.overwrite is None:
         args.overwrite = 'false' if args.mode == 'online' else 'true'
     return args
 
 
 def confirm_preparation(args):
-    print(f'\033[31mprepare-appsnapshot: prepare the current app snapshot on {args.vm} '
+    warning = (f'\033[31mprepare-appsnapshot: prepare the current app snapshot on {args.vm} '
           f'(mode={args.mode}, overwrite={args.overwrite}). '
           'Preparation may restore the baseline, install the app and replace the version snapshot. '
           + ('Online mode leaves an owned running guest.' if args.mode == 'online' else
-             'Offline mode leaves the guest powered off.') + '\033[0m', flush=True)
-    if args.y:
-        return True
-    while True:
-        try:
-            answer = input('Proceed (y/n)? ').strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            return False
-        if answer in ('y', 'n'):
-            return answer == 'y'
-        print('Please enter y to proceed or n to exit.', flush=True)
+             'Offline mode leaves the guest powered off.') + '\033[0m')
+    return confirm_queue(args, 'prepare-appsnapshot', warning, prompt=input)
 
 
 def main(argv=None):
     args = arguments(argv)
     try:
-        if args.vm is None:
-            args.vm = choose_vm()
-        args.vm = select(args.vm).name
+        concurrency, vms = vm_config.execution(args.vm)
+        args.vm = ','.join(vm.name for vm in vms)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
         if not confirm_preparation(args):
@@ -66,6 +55,11 @@ def main(argv=None):
             return 0
         root = Path(__file__).resolve().parents[1]
         helper = '/usr/local/libexec/onpc-test-runner'
+        if len(vms) > 1:
+            check(helper)
+            _, status = preparation(root, 'prepare-appsnapshot', args, concurrency, vms)
+            return status
+        select(args.vm)
         with test_activity.activity(root, named_vm=True), Control().installed() as control:
             check(helper)
             environment = test_launcher.environment(root)

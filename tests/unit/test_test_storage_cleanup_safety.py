@@ -128,6 +128,62 @@ def test_current_oversized_evidence_is_preserved_and_reported(tmp_path, monkeypa
         pass
 
 
+def test_budget_diagnostic_accounts_for_inputs_without_exposing_names_or_contents(tmp_path, monkeypatch):
+    monkeypatch.setattr(retention, 'MAX_RETAINED_BYTES', 4096)
+    store = retention.Store(tmp_path / 'state')
+    files = {
+        'input/fixtures/onpc-test-application.snap': b'snap' * 2048,
+        'input/fixtures/flatpak-repository/objects/private-name.filez': b'flatpak' * 1024,
+        'input/fixtures/native/private-name': b'native',
+        'input/package.deb': b'package',
+        'private/private-name.log': b'private-content',
+        'testresults/private-name.png': b'screen',
+    }
+    with pytest.raises(ValueError, match='storage budget') as refused:
+        with store.session():
+            path = Path(retention.allocate(tempfile.mkdtemp, dir=tmp_path))
+            for relative, data in files.items():
+                target = path / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+    message = str(refused.value)
+    usage = json.loads(message.split('storage_usage=', 1)[1])
+    record = json.loads((store.path / 'current.json').read_text())['paths'][0]
+    assert usage['status'] == 'measured'
+    assert usage['allocated_bytes'] == retention.allocation_bytes(record)
+    assert usage['components']['fixture-snap']['entries'] == 1
+    assert usage['components']['fixture-flatpak-repository']['entries'] == 1
+    assert usage['components']['private-logs']['entries'] == 1
+    assert usage['components']['worker-results']['entries'] == 1
+    assert str(path) not in message and 'private-name' not in message
+    assert 'private-content' not in message
+    journal = (store.path / 'current.json').read_bytes()
+    with pytest.raises(ValueError, match='storage budget') as entry_refused:
+        with store.session():
+            pytest.fail('diagnostic admitted a new run')
+    assert json.loads(str(entry_refused.value).split('storage_usage=', 1)[1]) == usage
+    assert (store.path / 'current.json').read_bytes() == journal
+    assert all((path / relative).read_bytes() == data for relative, data in files.items())
+
+
+def test_budget_diagnostic_failure_keeps_the_original_refusal(tmp_path, monkeypatch):
+    monkeypatch.setattr(retention, 'MAX_RETAINED_BYTES', 4096)
+    store = retention.Store(tmp_path / 'state')
+    measure = retention.allocation_bytes
+    def unavailable(record, *, usage=None):
+        if usage is not None:
+            raise PermissionError('private-error-name')
+        return measure(record)
+    monkeypatch.setattr(retention, 'allocation_bytes', unavailable)
+    with pytest.raises(ValueError, match='storage budget') as refused:
+        with store.session():
+            path = Path(retention.allocate(tempfile.mkdtemp, dir=tmp_path))
+            (path / 'evidence').write_bytes(b'x' * 8192)
+    assert json.loads(str(refused.value).split('storage_usage=', 1)[1]) == {'status': 'unavailable'}
+    assert 'private-error-name' not in str(refused.value)
+    assert (path / 'evidence').read_bytes() == b'x' * 8192
+
+
 def test_scratch_recovery_preserves_locked_owner_and_reclaims_idle(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, 'ROOT', tmp_path)
     monkeypatch.setattr(storage, '_scratch', None)

@@ -170,6 +170,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Preparation recovery additions use private journals and mocked lease/SSH
 # lifecycle only. App-snapshot, graphical and retention cleanup stay compatible;
 # neither host privileges nor a shared VM/display/storage root is touched.
+# Retention-budget diagnostic checks use tiny private tmp_path input/log trees
+# and process-local read-failure doubles. test_storage remains compatible in
+# cleanup and unit inventories; no live evidence or shared owner is touched.
 # Repair-budget additions run finite synthetic agents under the existing recorded
 # launcher owners and private tmp_path roots. They retain compatible unit/cleanup
 # scheduling, bounded waits and teardown; no real model or VM is invoked.

@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shlex
 import stat
+import subprocess
 import tarfile
 import sys
 import threading
@@ -180,7 +181,8 @@ class Transport:
     def _probe_ready(self, *, boot_id, timeout, previous_boot_sha256=None, diagnostic=None):
         # ConnectionAttempts only retries TCP establishment. A reboot can also
         # reset an already connected SSH handshake. Only these fixed read-only
-        # probes may repeat after SSH's transport-error exit status (255).
+        # probes may repeat after SSH's transport-error exit status (255) or
+        # after a stalled SSH attempt reaches its per-probe deadline.
         # Guest guard failures and successful-but-wrong assertions are terminal.
         argv = ['cat', '/proc/sys/kernel/random/boot_id'] if boot_id else ['true']
         if previous_boot_sha256 is not None:
@@ -194,11 +196,20 @@ class Transport:
                 require(remaining > 0, 'transport:readiness-timeout')
                 if previous_boot_sha256 is not None:
                     require(self.config == config, 'transport:configuration-changed')
-                result = self.call(argv, timeout=min(30, remaining), check=False)
-                # Lease guards also execute qemu-img through this Commands
-                # instance. Preserve SSH's status before the post-probe guard
-                # replaces last_returncode with its own successful result.
-                probe_returncode = self.commands.last_returncode
+                try:
+                    result = self.call(argv, timeout=min(30, remaining), check=False)
+                    # Lease guards also execute qemu-img through this Commands
+                    # instance. Preserve SSH's status before the post-probe guard
+                    # replaces last_returncode with its own successful result.
+                    probe_returncode = self.commands.last_returncode
+                except subprocess.TimeoutExpired as error:
+                    # Commands has already stopped and waited for its owned
+                    # child. Retry only this exact read-only SSH probe; a host
+                    # ownership/validation command's timeout remains terminal.
+                    if error.cmd != [*ssh(config), remote(config, argv)]:
+                        raise
+                    result = None
+                    probe_returncode = 255
                 if previous_boot_sha256 is not None:
                     require(self.config == config, 'transport:configuration-changed')
                     self.guard(config)

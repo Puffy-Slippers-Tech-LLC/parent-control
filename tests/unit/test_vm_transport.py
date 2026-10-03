@@ -3,6 +3,7 @@
 import io
 from contextlib import nullcontext
 import shlex
+import subprocess
 import sys
 import tarfile
 from unittest.mock import Mock, call
@@ -165,6 +166,79 @@ def test_readiness_waits_through_ssh_handshake_reset(no_live_readiness_timer):
     assert value.probe_ready() == b'ready'
     assert value.commands.run.call_count == value.guard.call_count == 2
     no_live_readiness_timer.wait.assert_called_once()
+
+
+@pytest.mark.parametrize('probe', ['ready', 'boot-id', 'boot-change'])
+def test_readiness_retries_timed_out_ssh_probe(probe, no_live_readiness_timer):
+    value = client()
+    value.commands.watch_command = None
+    reports = []
+    def result(args, **kwargs):
+        if value.commands.run.call_count == 1:
+            # A killed SSH process can leave a signal status, not SSH's 255.
+            value.commands.last_returncode = -2
+            raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+        value.commands.last_returncode = 0
+        return b'b' * 64 + b'\n'
+    value.commands.run.side_effect = result
+    if probe == 'boot-change':
+        # Host guards share Commands and can overwrite last_returncode.
+        value.guard.side_effect = lambda _: setattr(value.commands, 'last_returncode', 0)
+        assert value.wait_boot_change('a' * 64, on_diagnostic=reports.append) == b'b' * 64 + b'\n'
+        assert reports == [{'old_boot': 0, 'ssh_unavailable': 1, 'changed_boot': 1,
+                            'outcome': 'changed-boot'}]
+    else:
+        assert value.probe_ready(boot_id=probe == 'boot-id') == b'b' * 64 + b'\n'
+    assert value.commands.run.call_count == 2
+    assert value.guard.call_count == (4 if probe == 'boot-change' else 2)
+    assert all(item.kwargs['timeout'] == 30 for item in value.commands.run.call_args_list)
+    assert value.commands.watch_command is None
+    no_live_readiness_timer.wait.assert_called_once()
+
+
+@pytest.mark.parametrize('boot_change', [False, True])
+def test_timed_out_readiness_probe_keeps_original_deadline(monkeypatch, boot_change):
+    value = client()
+    timeouts = []
+    def result(args, **kwargs):
+        timeouts.append(kwargs['timeout'])
+        raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+    value.commands.run.side_effect = result
+    times = iter([0, 0, 30, 30, 31, 31])
+    monkeypatch.setattr(transport.time, 'monotonic', lambda: next(times))
+    with pytest.raises(transport.Error, match='readiness-timeout'):
+        if boot_change:
+            value._probe_ready(boot_id=True, timeout=31,
+                previous_boot_sha256='a' * 64, diagnostic={
+                    'old_boot': 0, 'ssh_unavailable': 0, 'changed_boot': 0})
+        else:
+            value.probe_ready(timeout=31)
+    assert timeouts == [30, 1]
+
+
+@pytest.mark.parametrize('boot_change', [False, True])
+def test_readiness_never_retries_host_guard_timeout(boot_change, no_live_readiness_timer):
+    value = client()
+    failure = subprocess.TimeoutExpired(['qemu-img', 'info'], 30)
+    value.guard.side_effect = failure
+    with pytest.raises(subprocess.TimeoutExpired) as caught:
+        if boot_change:
+            value.wait_boot_change('a' * 64)
+        else:
+            value.probe_ready()
+    assert caught.value is failure
+    value.commands.run.assert_not_called()
+    no_live_readiness_timer.wait.assert_not_called()
+
+
+def test_state_changing_command_timeout_is_never_replayed():
+    value = client()
+    def result(args, **kwargs):
+        raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+    value.commands.run.side_effect = result
+    with pytest.raises(subprocess.TimeoutExpired):
+        value.call(['systemctl', 'reboot'])
+    assert value.commands.run.call_count == value.guard.call_count == 1
 
 
 def test_guest_guard_failure_is_not_retried():

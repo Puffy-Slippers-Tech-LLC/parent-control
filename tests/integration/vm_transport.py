@@ -48,6 +48,7 @@ def ssh(config, *, attempts=1):
 
 def guard_host(config):
     import libvirt
+    import system_runner
     import xml.etree.ElementTree as ET
     configured = vm_config.selected()
     connection = libvirt.open(vm_config.URI)
@@ -56,10 +57,12 @@ def guard_host(config):
         root = ET.fromstring(domain.XMLDesc(0))
         require(connection.getURI() == vm_config.URI and
                 domain.ID() == config['domain_id'] and domain.name() == configured.name and
-                root.findtext('description') == 'onpc-system-run:' + config['run'] and
-                not root.findall('devices/hostdev') and
-                not root.findall('devices/channel') and not root.findall('devices/redirdev'),
+                root.findtext('description') == 'onpc-system-run:' + config['run'],
                 'transport:domain-replaced-or-shared')
+        try:
+            system_runner.validate_host_sharing(root)
+        except system_runner.Error as error:
+            raise Error('transport:domain-replaced-or-shared') from error
     finally:
         connection.close()
 

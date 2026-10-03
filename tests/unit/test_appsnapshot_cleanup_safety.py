@@ -64,6 +64,20 @@ def test_snapshot_mode_and_host_age(mode, memory, state, created, expected):
     assert reason is None if expected is None else expected in reason
 
 
+@pytest.mark.parametrize('mode', ['online', 'offline'])
+def test_channel_free_snapshot_refreshes_but_remains_recoverable(mode):
+    domain = ET.fromstring(controller.system.isolated_xml(
+        domain_xml(), UUID, 'a' * 32, graphics_type='vnc'))
+    domain.find('devices').remove(domain.find('devices/channel'))
+    # The old layout is still safe for its exact recorded owner's cleanup.
+    controller.system.validate_host_sharing(domain)
+    memory, state = ('internal', 'running') if mode == 'online' else ('no', 'shutoff')
+    xml = (f'<domainsnapshot><memory snapshot="{memory}"/><state>{state}</state>'
+           '<creationTime>100000</creationTime>' + ET.tostring(domain, encoding='unicode') +
+           '</domainsnapshot>')
+    assert app_snapshot.mode_mismatch(xml, mode, now=100000) == 'snapshot display-agent channel missing'
+
+
 @pytest.mark.parametrize('argv', [['--overwrite', 'yes'], ['--overwrite='],
     ['--overwrite', 'FALSE'], ['--over', 'false'], ['--snapshot', 'onpc-1.1'],
     ['--mode', 'running'], ['--mod', 'online']])

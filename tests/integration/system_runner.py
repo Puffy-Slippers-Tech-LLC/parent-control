@@ -349,6 +349,10 @@ def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
     ET.SubElement(graphics, 'listen', type='none')
     ET.SubElement(graphics, 'clipboard', copypaste='no')
     ET.SubElement(graphics, 'filetransfer', enable='no')
+    # Recreate only the guest display agent, never a supplied host channel.
+    # SPICE's clipboard and file-transfer restrictions still apply to it.
+    channel = ET.SubElement(devices, 'channel', type='spicevmc')
+    ET.SubElement(channel, 'target', type='virtio', name='com.redhat.spice.0')
     if graphics_type == 'vnc':
         graphics = ET.SubElement(devices, 'graphics', type='vnc')
         ET.SubElement(graphics, 'listen', type='none')
@@ -418,6 +422,42 @@ def validate_private_spice(display):
             all(len(child) == 0 for child in display), 'guard:graphics-listener')
 
 
+def validate_host_sharing(root, *, category='guard:host-sharing'):
+    """Allow only the private display agent, including libvirt normalization.
+
+    Channel-free layouts remain valid for recorded pre-change recovery.
+    """
+    require(not root.findall('devices/hostdev') and
+            not root.findall('devices/redirdev'), category)
+    channels = root.findall('devices/channel')
+    require(len(channels) <= 1, category)
+    if not channels:
+        return
+    channel = channels[0]
+    require(channel.attrib == {'type': 'spicevmc'} and
+            all(node.tag in ('target', 'alias', 'address') and len(node) == 0
+                for node in channel) and
+            len(channel.findall('target')) == 1 and
+            len(channel.findall('alias')) <= 1 and
+            len(channel.findall('address')) <= 1, category)
+    target = channel.find('target')
+    require(set(target.attrib) <= {'type', 'name', 'state'} and
+            target.get('type') == 'virtio' and
+            target.get('name') == 'com.redhat.spice.0' and
+            target.get('state', 'disconnected') in ('connected', 'disconnected'), category)
+    alias = channel.find('alias')
+    require(alias is None or (set(alias.attrib) == {'name'} and
+            re.fullmatch(r'channel[0-9]+', alias.get('name', '')) is not None), category)
+    address = channel.find('address')
+    require(address is None or (set(address.attrib) == {'type', 'controller', 'bus', 'port'} and
+            address.get('type') == 'virtio-serial' and
+            all(re.fullmatch(r'[0-9]+', address.get(key, '')) is not None
+                for key in ('controller', 'bus', 'port'))), category)
+    displays = root.findall('devices/graphics')
+    require(bool(displays) and displays[0].get('type') == 'spice', category)
+    validate_private_spice(displays[0])
+
+
 class SourceView:
     """Retain disk checks and attest the owned running instance."""
 
@@ -438,8 +478,7 @@ class SourceView:
                 validate_private_vnc(root)
             else:
                 validate_observer(root.findall('devices/graphics'))
-            require(not root.findall('devices/hostdev') and not root.findall('devices/channel') and
-                    not root.findall('devices/redirdev'), 'guard:host-sharing')
+            validate_host_sharing(root)
             if not off:
                 require(self.domain_id is not None and domain.ID() == self.domain_id, 'guard:domain-replaced')
         return layout, off

@@ -9,6 +9,7 @@ from unittest.mock import Mock, call
 
 import pytest
 
+import system_runner  # Load the shared guards before per-test registry mocks.
 import vm_transport as transport
 
 
@@ -104,8 +105,10 @@ def test_nested_ui_stream_keeps_guard_output_out_of_outer_parser():
     assert previous.call_count == 2
 
 
-@pytest.mark.parametrize('fault', [None, 'name', 'instance', 'connection', 'run'])
-def test_host_guard_uses_configured_vm_and_preserves_identity_checks(monkeypatch, fault):
+@pytest.mark.parametrize('fault', [None, 'name', 'instance', 'connection', 'run',
+                                  'channel', 'clipboard', 'hostdev'])
+@pytest.mark.parametrize('display_agent', [False, True])
+def test_host_guard_uses_configured_vm_and_preserves_identity_checks(monkeypatch, fault, display_agent):
     configured = Mock(name='configuration')
     configured.name = 'custom-test-vm'
     monkeypatch.setattr(transport.vm_config, 'selected', lambda: configured)
@@ -113,8 +116,24 @@ def test_host_guard_uses_configured_vm_and_preserves_identity_checks(monkeypatch
     domain.ID.return_value = 72 if fault == 'instance' else 71
     domain.name.return_value = 'old-vm' if fault == 'name' else configured.name
     run = 'b' * 32 if fault == 'run' else config()['run']
+    devices = '<graphics type="spice"><listen type="none"/>'
+    devices += '<clipboard copypaste="no"/><filetransfer enable="no"/></graphics>'
+    if display_agent:
+        devices += ('<channel type="spicevmc"><target type="virtio" '
+                    'name="com.redhat.spice.0" state="connected"/></channel>')
+    if fault == 'channel':
+        devices += '<channel type="unix"><source path="/host"/></channel>'
+    elif fault == 'clipboard':
+        # A channel-free legacy layout does not carry a guest agent. Add the
+        # agent here to check its required transfer restrictions in both cases.
+        if not display_agent:
+            devices += ('<channel type="spicevmc"><target type="virtio" '
+                        'name="com.redhat.spice.0"/></channel>')
+        devices = devices.replace('copypaste="no"', 'copypaste="yes"')
+    elif fault == 'hostdev':
+        devices += '<hostdev/>'
     domain.XMLDesc.return_value = (
-        f'<domain><description>onpc-system-run:{run}</description><devices/></domain>')
+        f'<domain><description>onpc-system-run:{run}</description><devices>{devices}</devices></domain>')
     connection = Mock()
     connection.getURI.return_value = 'qemu:///session' if fault == 'connection' else 'qemu:///system'
     connection.lookupByUUIDString.return_value = domain

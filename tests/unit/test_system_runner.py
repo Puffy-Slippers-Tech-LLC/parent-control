@@ -204,8 +204,13 @@ def test_isolation_removes_spice_transfer_but_preserves_disk():
     root = ET.fromstring(runner.isolated_xml(xml(), UUID, RUN))
     assert root.findtext('uuid') == UUID
     assert root.find('devices/disk/source').get('file') == '/image'
-    for name in ('channel', 'redirdev', 'hostdev'):
+    for name in ('redirdev', 'hostdev'):
         assert not root.findall('devices/' + name)
+    assert len(root.findall('devices/channel')) == 1
+    assert root.find('devices/channel').attrib == {'type': 'spicevmc'}
+    assert root.find('devices/channel/target').attrib == {
+        'type': 'virtio', 'name': 'com.redhat.spice.0'}
+    runner.validate_host_sharing(root)
     assert root.find('devices/graphics/clipboard').get('copypaste') == 'no'
     assert root.find('devices/graphics/filetransfer').get('enable') == 'no'
     assert root.findtext('description') == runner.TAG + RUN

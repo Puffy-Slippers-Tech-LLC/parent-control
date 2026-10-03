@@ -77,7 +77,10 @@ from regression_ui import Bucket
 from regression_resources import HOST_WORKERS
 
 
+# DESK13 shares those private doubles/evidence and waited Perl lifetimes; its
+# installed attempt adds no cleanup owner beyond the product-free envelope.
 REVIEWED = frozenset('''
+desktop_language
 vm_internet native_fixtures baseline_fixtures chinese_language_assets
 appsnapshot backing_verification baseline_guest challenges child_preview clean_install customer_reboot dbus_harness e2e_asset_transfer
 e2e_controller_qualification e2e_execution e2e_files e2e_fixture_credentials

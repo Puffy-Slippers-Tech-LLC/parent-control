@@ -24,10 +24,20 @@ Next task: **300 — [Installed personal-language acceptance](E2E-Tasks/300-loca
 Task 300a qualified the Chinese baseline language slice and read-only FIX06 on
 every enabled VM (Ubuntu 26.04) in `20261003T210556Z-9dc87030`; the affected native
 fixture regression passed in `20261003T210811Z-d41b9452`. Task 300 remains unchecked.
-DESK13, real upgrade
-composition and the Chinese native authentication binding still require their
-own bounded qualification. Allocate those prerequisite slices before task 300
-implements or registers its single complete multilingual/RTL and Chinese case.
+Task 300b qualified DESK13's Jordan → `zh_CN.UTF-8` system-account setting on
+every enabled VM (Ubuntu 26.04) in `20261003T215747Z-6bd9c168`.
+Greeter/account/locale refusal, independent Chinese FIX06 verification, one
+setter submission, two independent readbacks and all account/locale/session
+preservation checks passed. Ubuntu AccountsService confirmed its normalized
+`zh_CN` value with explicit session renewal still required. Collection, worker
+shutdown, owned cleanup, baseline restoration, finalization and host/source
+preservation passed. Host safety/ownership checks passed in
+`20261003T215408Z-2354ac86` (766 checks), with composition/source checks in
+`20261003T215549Z-5f4be22b`. This supplies no renewed Chinese desktop,
+product-language, native authentication or complete-scenario acceptance.
+Real upgrade composition and the
+Chinese native authentication binding still need separate prerequisite slices
+before task 300 implements or registers its single complete case.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

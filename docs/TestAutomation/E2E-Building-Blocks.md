@@ -350,7 +350,7 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | DESK10 | C | Activate a named existing window with the simplest reliable public focus action or bounded shortcut, then verify that window is active. | `AccessibleUI.window_switch_ready` → `onpc_feedback_read::activate_existing_window` (one Alt+Tab) → `window_switch_proof`; compare recorded public endpoint/PID and preserved synthetic draft. [Qualified scope](#same-desktop-window-activation). No logout or relaunch. | Parent, feedback and supporting GPL viewer ready; diagnostic exports use FILE08 without a viewer |
 | DESK11 | C | From an observed locked fixture session, use the shared greeter-return command; from an observed rejected GDM prompt, use Escape. Preserve the denial observation before leaving and independently require the usable account list. Select the route from the declared source; never try alternatives after uncertain input. | Locked desktop: `session_control.observe` with the bound `return-greeter` action preserves the locked session and invokes GDM's public API without another Lock. Rejected GDM: `rejected_gdm_return` / `onpc_gdm::return_from_time_denial` compose fresh provider observation → UI05(Escape) → GDM01; [qualified child denial return](#fresh-child-time-denial-and-return-qualification). No lock-screen Switch User button or menu navigation. | pending; fresh rejected-child GDM return ready; locked-session return unqualified |
 | DESK12 | C | Expose a named Shell panel control from a previously observed unlocked desktop, including fullscreen gameplay. Input declares already-showing or a qualified normal reveal sequence. | UI05 for reveal when declared → DESK01 → UI01 → UI02(control). `AccessibleUI.overlay_panel_target` qualifies the normal unlocked-child request control; shared `overlay_entry` also reveals it over the existing overlay through guarded Overview. See [overlay entry qualification](#overlay-entry-qualification). The app publishes `child-request-button` and `child-countdown-animation-toggle`. Gameplay fullscreen and options-menu routes remain separate; qualify gameplay with E2E-024. | normal request entry and open-overlay reveal ready; other bindings pending |
-| DESK13 | A | Set the explicitly bound fixture user's desktop language to one declared installed locale through a supported system API, then independently read back that account's language. Do not change product preferences, another account or the observer locale; no implicit logout/login. Return the confirmed setting and whether session renewal is required. | Planned shared account/session helper using AccountsService `User.SetLanguage` and independent `Language` readback over guarded transport. Task 300 needs only Jordan → `zh_CN.UTF-8`; the recipe owns explicit renewal and public fresh-desktop observation. [Language preparation contract](#chinese-language-preparation-and-desktop-language-setup). No callable or qualification yet. | pending |
+| DESK13 | A | Set the explicitly bound fixture user's desktop language to one declared installed locale through a supported system API, then independently read back that account's language. Do not change product preferences, another account or the observer locale; no implicit logout/login. Return the confirmed setting and whether session renewal is required. | `AccountLanguage.submit` / `confirm` in [account_language.py](../../tests/e2e/account_language.py), with AccountsService `User.SetLanguage` and independent `Language` API reads in [account_language_guest.py](../../tests/e2e/account_language_guest.py). `check_e2e_desktop_language` qualified Jordan → `zh_CN.UTF-8` on every enabled VM (Ubuntu 26.04) in `20261003T215747Z-6bd9c168`, confirming Ubuntu's normalized `zh_CN` and required renewal. Greeter/account/locale refusals, Chinese FIX06, independent readbacks, preservation, collection and owned cleanup passed. Task 300's recipe owns explicit renewal and public fresh-desktop observation. [Language preparation contract](#chinese-language-preparation-and-desktop-language-setup). | ready for the Jordan Chinese setting binding |
 
 ### Same-desktop window activation
 
@@ -2357,11 +2357,13 @@ branch is preserved; no Chinese Fedora binding is claimed.
 Task 300a passed host checks and auto baseline/app-snapshot preparation. Chinese
 FIX06 qualified wrong-entry refusal, two independent valid reads and unchanged
 account/locale/product state on every enabled VM (Ubuntu 26.04) in
-[the Chinese qualification](../../output/test-runs/host/reports/20261003T210556Z-9dc87030/report.md).
-Its exact installed package/provider tuple is retained in the receipt; MATE
+the historical Chinese qualification `20261003T210556Z-9dc87030` (its host report
+has since rotated out of retention).
+The qualification recorded the installed package/provider tuple; MATE
 PolicyKit `1.26.1-6`, Linux-PAM `1.7.0-5ubuntu3.2`, six required Chinese strings
 and 12 CJK glyphs passed. The affected native fixture/catalogue regression passed
-in [the native qualification](../../output/test-runs/host/reports/20261003T210811Z-d41b9452/report.md).
+in the historical native qualification `20261003T210811Z-d41b9452` (its host
+report has since rotated out of retention).
 Collection, worker shutdown, owned cleanup, baseline restoration, finalization
 and preservation passed for both runs. This qualifies assets, not the language
 of a running authentication dialog or any desktop-language switch.
@@ -2387,6 +2389,30 @@ refusal, readback and owned cleanup. A DESK13 setting readback establishes only
 setup: explicit session renewal and the child's publicly observed Chinese
 desktop precede the product assertions. Product personal-language preferences
 are changed only through the public Preferences controls.
+`compare_desktop_entry` in the shared account helper permits only the disappearance
+of GNOME's temporary `gdm-greeter` account bound to the departed observed greeter
+session. Setting/readback preservation compares every account and graphical
+session exactly against fresh desktop witnesses; persistent-account removal,
+addition or language changes remain refusals.
+The confirmed setting is the actual `Language` API value, alongside the
+submitted `requested_locale`. For this single binding, independent reads must
+agree on exactly `zh_CN.UTF-8` or `zh_CN`; Ubuntu's
+[AccountsService language validator](https://git.launchpad.net/ubuntu/+source/accountsservice/tree/debian/patches/0009-language-tools.patch?h=ubuntu/resolute)
+removes the encoding suffix. No other region, fallback list or variant is
+accepted. This representation handling does not normalize preservation witnesses
+for other accounts or establish the language of a renewed desktop.
+Task 300b's bounded `check_e2e_desktop_language` setting/readback slice passed
+on every enabled VM (Ubuntu 26.04) in
+[the desktop-language qualification](../../output/test-runs/host/reports/20261003T215747Z-6bd9c168/report.md).
+It verified Chinese FIX06, greeter/account/locale refusal, one declared setter,
+two independent reads confirming `zh_CN`, explicit renewal requirement and
+unchanged other-account, observer, system-locale, graphical-session and
+product-free witnesses. Collection, worker shutdown, owned cleanup, baseline
+restoration, finalization and host/source preservation passed. The shared helper
+also retains reproduced regressions for the departed greeter and normalized
+API value, with undeclared-language and preservation refusals.
+This setting/readback slice supplies no renewed Chinese desktop or
+product-language result.
 
 Chinese approval also needs a scoped extension of the
 [MATE provider binding](#external-provider-qualification). Reuse its ownership,

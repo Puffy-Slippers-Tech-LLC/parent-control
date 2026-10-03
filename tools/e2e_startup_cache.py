@@ -304,8 +304,27 @@ def prepare_artifacts(builder, output):
             if reuse and tree_digest(source) != record['payload']:
                 raise ValueError('startup cache: payload changed during copy')
         manifest = builder.verify(output)
-        after, _ = artifact_identity(builder)
+        after, after_metadata = artifact_identity(builder)
         if after != captured or any(manifest.get(k) != v for k, v in metadata.items()):
+            # Keep refusal evidence in the launcher's retained log. The cache
+            # receipt remains invalid, and no extra payload lifetime is needed.
+            differences = {
+                'inputs': {
+                    part: {key: {'before': captured.get(part, {}).get(key),
+                                 'after': after.get(part, {}).get(key)}
+                           for key in sorted(set(captured.get(part, {})) |
+                                             set(after.get(part, {})))
+                           if captured.get(part, {}).get(key) != after.get(part, {}).get(key)}
+                    for part in sorted(set(captured) | set(after))
+                    if captured.get(part) != after.get(part)},
+                'metadata': {
+                    key: {'before': value, 'manifest': manifest.get(key),
+                          'after': after_metadata.get(key)}
+                    for key, value in metadata.items()
+                    if manifest.get(key) != value or after_metadata.get(key) != value},
+            }
+            print('run-tests: artifact preparation differences=' +
+                  json.dumps(differences, sort_keys=True), flush=True)
             raise ValueError('startup cache: build inputs changed; retry preparation')
         save({'identity': before, 'inputs': captured, 'manifest': manifest,
               'path': str(output), 'payload': tree_digest(output)})

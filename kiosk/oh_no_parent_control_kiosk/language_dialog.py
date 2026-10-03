@@ -74,7 +74,8 @@ class LanguageDialog(Gtk.Window):
         keys.connect("key-pressed", self._search_keys)
         self.add_controller(keys)
         content.append(self._search)
-        self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                                css_classes=["oh-no-parent-control-language-choices"])
         self._language_rows = []
         first = None
         for identity, name in SUPPORTED_LANGUAGES:
@@ -95,6 +96,7 @@ class LanguageDialog(Gtk.Window):
             self._choices.append(choice)
             self._language_rows.append((choice, identity, name))
         scroller = Gtk.ScrolledWindow(child=self._choices, vexpand=True,
+                                      css_classes=["oh-no-parent-control-language-list"],
                                       accessible_role=Gtk.AccessibleRole.GROUP,
                                       hscrollbar_policy=Gtk.PolicyType.NEVER,
                                       overlay_scrolling=False,

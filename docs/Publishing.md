@@ -370,7 +370,7 @@ an interrupted or failed upload is treated as uncertain: reruns only monitor it
 and never upload it again automatically. Status reads tolerate transient service
 errors and poll every 30 seconds for up to 24 hours per invocation. A confirmed
 build failure is a red error, not a success or an automatic source rewrite.
-Each pending check reports its UTC timestamp, elapsed monitoring time,
+Each pending check reports its local timestamp with timezone, elapsed monitoring time,
 remaining condition and retry delay. In a terminal, polling replaces one status
 line, including transient errors, so the highlighted main-update message stays
 visible. The line is shortened to the terminal width to avoid wrapping; redirected

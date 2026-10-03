@@ -301,6 +301,32 @@ that prerequisite in a fresh session without counting this task complete.
                    'to the current task while preserving its baseline and unrelated work. '
                    'Recheck the prerequisite before continuing; an answer alone is not '
                    'evidence that it passed.\n' + json.dumps(state['user_answer'], ensure_ascii=False) + '\n')
+    if state.get('completion_recovery'):
+        previous = state['recovery_run']
+        return common + f"""
+Reconcile interrupted close-out for task {task}, which is already checked in the
+queue but has no valid completion response. This task remains yours; do not
+implement the next unchecked task or take its pointer as acceptance evidence.
+Inspect `{previous}/handoff.txt`, `output`, `prompt.txt`, `checkpoint.json` and
+`agent-result.json`, current task source, close-out records and retained test
+reports. The last safe handoff below may predate successful acceptance.
+Verify required host and live acceptance, regressions, collection and owned
+cleanup against the task's contract and current source. Reuse sufficient retained
+passing evidence; run missing or invalidated checks through maintained routes.
+Reconstruct a deleted brief from the task's contracts and retained task evidence
+when necessary. Do not rewrite previous run artifacts or invent a passing result.
+If acceptance and close-out are established, keep the queue closed and return
+task_complete with verified validation outcomes and every task-owned stage_path.
+The launcher will stage those files before selecting the next task.
+If work remains, restore this task's unchecked row, brief and first-unchecked
+pointer before continuing. A new live failure ends this session after evidence
+preservation and owned cleanup, with ready_for_vm and live_result failed.
+Only a prerequisite requiring developer action returns blocked; missing final
+JSON alone is an automatic recovery operation, not a developer question.
+
+Last safe handoff:
+{state['handoff']}
+"""
     if state['phase'] == 'implement':
         preparation = INITIAL_PROMPT + common + "\nImplement this task and complete host validation.\n"
     else:
@@ -372,6 +398,7 @@ def accept_result(root, state, result, before):
         if not result['host_validated'] or result['live_result'] != 'failed':
             raise ValueError('VM handoff lacks host validation or a matching live outcome')
     updated = dict(state, summary=result['summary'], handoff=result['handoff'], in_flight=False)
+    updated.pop('completion_recovery', None)
     updated.pop('blocker_id', None)
     updated['blocker'] = blocker
     if state['phase'] in ('implement', 'live', 'recover') and result['live_result'] != 'not_run':
@@ -475,7 +502,7 @@ def stage_completion(root, state, result):
 
 
 def recover_completion(root, run, state):
-    """Retry accepted close-out without rerunning an agent or rewriting evidence."""
+    """Retry accepted staging, or reconcile missing completion in a fresh session."""
     current, after = queue_state(root)
     if (not state.get('in_flight') or current == state['task_id']
             or not after.get(state['task_id']) or not state.get('queue_before')):
@@ -484,17 +511,41 @@ def recover_completion(root, run, state):
     if result is None:
         # Older launchers kept the result but failed before checkpointing it.
         path = run / 'agent-result.json'
-        if not path.is_file():
-            return state
-        result = json.loads(path.read_text())
-    if not isinstance(result, dict) or result.get('status') != 'task_complete':
-        return state
-    updated = accept_result(root, state, result, state['queue_before'])
+        try:
+            result = json.loads(path.read_text()) if path.is_file() else None
+        except json.JSONDecodeError:
+            result = None
+    updated = None
+    if isinstance(result, dict) and result.get('status') == 'task_complete':
+        try:
+            updated = accept_result(root, state, result, state['queue_before'])
+        except ValueError:
+            # An unaccepted legacy response is evidence for the coordinator,
+            # never authority to stage. A checkpointed accepted result retains
+            # its stricter staging-only recovery and must pass every guard.
+            if state.get('pending_completion') is not None:
+                raise
+    if updated is None:
+        validate_completion_queue(state, after)
+        print(f"write-e2e: automatically reconciling interrupted task {state['task_id']} "
+              'before starting the next task.', flush=True)
+        return dict(state, phase='recover', in_flight=False, completion_recovery=True,
+                    recovery_run=str(run))
     stage_completion(root, state, result)
     updated.pop('pending_completion', None)
     updated.pop('worktree_before', None)
     print(f"write-e2e: recovered completed task {state['task_id']}; staging passed.", flush=True)
     return updated
+
+
+def validate_completion_queue(state, after):
+    """Only the interrupted task's own unchecked-to-checked transition is recoverable."""
+    before = state.get('queue_before', {})
+    task = state['task_id']
+    expected = dict(before)
+    expected[task] = True
+    if before.get(task) is not False or after != expected or list(after) != list(before):
+        raise ValueError('interrupted task changed the queue; inspect the saved handoff')
 
 
 def save_handoff(run, state, reason, *, display=True):
@@ -639,6 +690,11 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 reason = 'stopped at a session boundary'
                 break
             task, before = queue_state(root)
+            if state.get('completion_recovery'):
+                validate_completion_queue(state, before)
+                # The pointer already names the next task. Keep the interrupted
+                # task and its original status baseline until acceptance is proven.
+                task, before = state['task_id'], state['queue_before']
             if task is None:
                 state = dict(state, task_id=None, summary='All active queue tasks are complete.',
                              handoff='No active E2E task remains. Do not select deferred tasks.', phase='complete')
@@ -742,6 +798,9 @@ def initial_state(root, directory):
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             saved.pop('progress_keys', None)
         state = recover_completion(root, previous, state)
+        # Completion reconciliation uses recorded candidates and the recovering
+        # agent's explicit owned paths. A scan after the old run ended would
+        # wrongly attribute later developer work to the interrupted task.
         if state.get('in_flight') and state.get('worktree_before') is not None:
             candidates = set(state.get('stage_candidates', []))
             candidates.update(session_changes(root, state['worktree_before']))
@@ -751,7 +810,10 @@ def initial_state(root, directory):
         elif (state.get('in_flight') and state.get('task_id') != task
               and prerequisite_repair(root, state, state.get('queue_before'))):
             state = defer_to_prerequisite(root, state, recovery_run=previous)
-        if state.get('task_id') == task and state.get('phase') != 'complete':
+        if ((state.get('task_id') == task or state.get('completion_recovery'))
+                and state.get('phase') != 'complete'):
+            if state.get('task_id') == task:
+                state.pop('completion_recovery', None)
             question_path = previous / 'question.json'
             if state.get('phase') == 'blocked' and question_path.exists():
                 question = json.loads(question_path.read_text())

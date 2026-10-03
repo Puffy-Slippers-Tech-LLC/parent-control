@@ -136,6 +136,80 @@ def test_staging_failure_keeps_accepted_handoff_and_restarts_without_agent(check
     assert (run / 'checkpoint.json').read_bytes() == retained
 
 
+@pytest.mark.parametrize('empty_queue', [False, True])
+@pytest.mark.parametrize('interrupt_recovery', [False, True])
+def test_missing_completion_automatically_recovers_same_task_before_staging(
+        checkout, empty_queue, interrupt_recovery):
+    root, _ = checkout
+    (root / 'unrelated.py').write_text('preserve existing unstaged work')
+    complete = reply('task_complete', 'passed', handoff='Next task only after staging.')
+    writes = {'owned.py': 'interrupted task work'}
+    if empty_queue:
+        # The pointer has no remaining task, but missing acceptance must still
+        # be reconciled instead of taking the empty queue as completion.
+        writes[workflow.QUEUE] = '| [ ] | 001 | First |\n| [x] | 002 | Second |\n'
+        (root / workflow.QUEUE).write_text(writes[workflow.QUEUE])
+    steps = [{'result': complete, 'close': True, 'invalid': True, 'writes': writes}]
+    if interrupt_recovery:
+        steps.append({'result': complete, 'invalid': True})
+    steps.append({'result': complete})
+    script(root, *steps)
+    previous, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(previous, io.StringIO()) == 1
+    retained = {name: (previous / name).read_bytes() for name in
+                ('checkpoint.json', 'handoff.txt', 'agent-result.json')}
+    (root / 'later-work.py').write_text('unrelated edit after the interrupted run')
+    if interrupt_recovery:
+        interrupted, _ = select_vm(root, ['--sessions', '1'])
+        assert launcher.follow(interrupted, io.StringIO()) == 1
+        assert json.loads((interrupted / 'checkpoint.json').read_text())['completion_recovery']
+        assert subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True,
+                              check=True).stdout == b''
+    recovered, started = select_vm(root, ['--sessions', '1'])
+    assert started and recovered != previous
+    assert launcher.follow(recovered, io.StringIO()) == 0
+    for name, content in retained.items():
+        assert (previous / name).read_bytes() == content
+    recorded = calls(root)
+    assert len(recorded) == 2 + interrupt_recovery
+    assert all('Task 001:' in call['prompt'] for call in recorded)
+    assert 'Reconcile interrupted close-out for task 001' in recorded[-1]['prompt']
+    state = json.loads((recovered / 'checkpoint.json').read_text())
+    assert state['task_id'] == '001' and state['phase'] == 'complete'
+    assert state['task_sessions'] == len(recorded)
+    assert state['live_attempts'] == 1 and 'completion_recovery' not in state
+    assert json.loads((recovered / 'result.json').read_text())['tasks'] == 1
+    assert workflow.queue_state(root)[0] == (None if empty_queue else '002')
+    staged = subprocess.run(['git', 'ls-files', '-z'], cwd=root, capture_output=True,
+                            text=True, check=True).stdout.split(chr(0))
+    assert set(staged) - {''} == {workflow.PLAN, workflow.QUEUE, 'owned.py'}
+
+
+def test_completion_recovery_can_reopen_unaccepted_task_then_resume(checkout):
+    root, _ = checkout
+    script(root,
+           {'result': reply('task_complete', 'passed'), 'close': True, 'invalid': True},
+           {'result': reply(handoff='Acceptance failed; keep task 001 open.'),
+            'writes': {workflow.QUEUE: '| [ ] | 001 | First |\n| [ ] | 002 | Second |\n',
+                       workflow.PLAN: 'Next task: **001 — First**.\n'}},
+           {'result': reply('task_complete', 'passed'), 'close': True})
+    previous, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(previous, io.StringIO()) == 1
+    recovered, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(recovered, io.StringIO()) == 0
+    state = json.loads((recovered / 'checkpoint.json').read_text())
+    assert state['phase'] == 'live' and state['live_attempts'] == 1
+    assert 'completion_recovery' not in state and workflow.queue_state(root)[0] == '001'
+    assert subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True,
+                          check=True).stdout == b''
+    final, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(final, io.StringIO()) == 0
+    assert len(calls(root)) == 3
+    assert all('Task 001:' in call['prompt'] for call in calls(root))
+    assert 'Acceptance failed; keep task 001 open.' in calls(root)[-1]['prompt']
+    assert workflow.queue_state(root)[0] == '002'
+
+
 @pytest.mark.parametrize('interrupted', [False, True])
 def test_prerequisite_repair_runs_before_consumer_and_survives_restart(checkout, interrupted):
     root, _ = checkout

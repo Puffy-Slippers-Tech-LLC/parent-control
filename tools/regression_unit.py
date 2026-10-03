@@ -348,6 +348,10 @@ vm_config vm_control_cleanup_safety vm_transport vm_watch_session_cleanup_safety
 write_e2e write_e2e_cleanup_safety
 """.split())
 
+# Interrupted write-e2e close-out recovery reuses private pytest checkouts and
+# waited launcher/agent doubles. No live VM, display, cache or shared mutation;
+# the existing compatible unit and cleanup classifications remain applicable.
+
 # Baseline mode/update/reboot tests mock every VM/package
 # mutation. Version checks spawn only bounded read-only dpkg comparisons with
 # no shared mutable files, sockets, displays, package locks or heavy fixtures.

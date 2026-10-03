@@ -186,10 +186,12 @@ or repository; select a repository with the command tool's working directory.
 
 Run `make publish` from the dedicated `releases/vX.Y` checkout to invoke the
 single [publisher](../tools/publish.py).
-It validates `docs/VersionHistory.md`, signs, pushes
+It validates `docs/VersionHistory.md`, commits pending release-checkout changes,
+signs, pushes
 the source to that release branch and tags, uploads to Launchpad, and verifies
 binary publication. It asks for confirmation of a development pause before
-automatically cherry-picking and pushing release metadata to main. Its
+directly merging committed release changes into main, then automatically
+cherry-picking and pushing release metadata to main. Its
 checkout-local publishing lock does not participate in development/build/test
 activity locking. After the highlighted main-update handoff, development
 continues independently of publication monitoring.

@@ -77,8 +77,9 @@ make publish
 ```
 
 It takes no parameters and publishes the **already prepared product version** in
-[`VersionHistory.md`](VersionHistory.md) end to end. It requires a clean
-`releases/vX.Y` branch matching that entry and `data/app.json`. It does not bump
+[`VersionHistory.md`](VersionHistory.md) end to end. It commits pending changes
+in the release checkout and requires its `releases/vX.Y` branch to match that
+entry and `data/app.json`. It does not bump
 the product version: private 1.3 is published as official 1.3. It allocates only
 the unused Debian/PPA revision, ordinarily `1.3+ppa1~ubuntu26.04.1`, which sorts
 above `1.3+local1~ubuntu26.04.1`. Publication supports Debian only; RPM channel
@@ -94,6 +95,18 @@ and push have completed, and local main is clean and synchronized with
 `origin/main`. Resume development immediately; Launchpad monitoring and release
 checkout finalization continue independently. No manual fetch, pull,
 cherry-pick or push is needed on main after this handoff.
+
+You may make additional changes in the release checkout after branching from
+main. On `make publish`, the publisher stages and commits all pending tracked
+and untracked changes, respecting Git ignore rules. After the pause confirmation,
+it merges the exact release input commit directly into main, fast-forwarding
+when possible or creating a signed merge commit when both branches advanced.
+This works with linked worktrees and independent clones. It preserves main-only
+commits and never force-updates main. Retries reuse the reconciled history.
+Uncommitted main changes must be preserved or committed before confirmation.
+If Git cannot merge the changes, publication stops with the merge state in main;
+resolve and commit that merge, or abort it and reconcile the conflicting edits,
+then rerun `make publish`.
 
 To check or resume monitoring an uploaded release without publishing anything,
 run this from its release checkout:
@@ -117,10 +130,18 @@ restart/reboot requirements for installed files; it is not a publishing command.
 
 ## Release history and source inputs
 
-Commit application changes and the new history entry on `main` before creating
-the release branch. All release inputs must be committed; staged, unstaged and
-untracked changes cause an error before signing, building, or publishing. Ignored files,
-including `.envrc` and local build output, are not copied into the release clone.
+Prepare application changes and the new history entry on `main` before creating
+the release branch. Additional release-checkout changes are committed
+automatically before reconciliation and source preparation. The publisher
+includes staged edits, unstaged edits, additions and deletions in that commit;
+it preserves checkout Git configuration and uses the configured noninteractive
+publisher signer. Ignored files, including `.envrc` and local build output, are
+neither added nor copied into the release clone.
+
+Once a push or upload has started, the frozen inputs of that unfinished attempt
+cannot change. Pending new changes are preserved and refused until the recorded
+release is reconciled. Before any public write, corrected inputs may be committed
+automatically and start a fresh attempt while retaining the old evidence.
 
 Use this format, with at least two entries:
 
@@ -155,8 +176,10 @@ It never replaces tags, force-pushes, or reuses an accepted upload version.
 
 On an already configured development machine, manual execution needs no
 administrator approvals. `make publish` asks for explicit confirmation of the
-main development pause before release work starts. Declining or EOF stops the
-run before signing, pushing or uploading. A retry asks again until the main
+main development pause before reconciling main and preparing the source upload.
+Pending release changes may already have been committed locally. Declining or
+EOF stops the run before changing main, signing release tags, pushing or uploading.
+A retry asks again until the main
 update has been durably completed; monitoring an already completed main update
 does not ask you to pause again. Status checks have no such prompt. The
 publisher runs as the publishing user and invokes neither Polkit nor

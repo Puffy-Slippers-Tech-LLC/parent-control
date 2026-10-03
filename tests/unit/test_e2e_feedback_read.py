@@ -45,7 +45,7 @@ from ui_observations import FeedbackStateObservation
 # Linked-format qualification retains that isolation and existing unit bucket.
 # Draft composition retains the same private paths, bounded values and waited
 # Perl/Python children; there are no new shared resources or scheduler changes.
-# Viewer-launch retries use only in-memory observers and mocked commands/clocks;
+# Viewer-launch and switch-readiness retries use in-memory observers and mocked commands/clocks;
 # they retain the compatible unit bucket and create no processes or shared state.
 # Shared review fragments retain those same private, waited Perl children and
 # in-memory observers; no scheduler or resource admission change is needed.
@@ -4613,6 +4613,46 @@ def test_window_viewer_launch_retries_only_complete_reads(monkeypatch, boundary,
         with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
             ui.run('switch-viewer-launch', '1.1')
         assert launch.call_count == 1
+
+
+@pytest.mark.parametrize('boundary', ['source', 'target', 'proof'])
+@pytest.mark.parametrize('failure', ['transient', 'incomplete', 'wrong-owner'])
+def test_window_switch_readiness_retries_only_complete_reads(monkeypatch, boundary, failure):
+    ui = ui_for(Node())
+    ui.timeout = 1 if failure == 'transient' else 0
+    proof = {'binding': 'viewer', 'pid': 123, 'endpoint': [':1.2', '/viewer'], 'active': False}
+    source = Node()
+    reads = []
+    error = accessible_ui.UiError('ui:document-owner' if failure == 'wrong-owner'
+                                  else 'ui:incomplete-tree')
+    failed = False
+
+    def read(stage, value):
+        nonlocal failed
+        reads.append(stage)
+        if stage == boundary and (not failed or failure != 'transient'):
+            failed = True
+            raise error
+        return value
+
+    ui.existing_window_active = lambda binding: read(
+        'source' if binding == 'feedback' else 'target', source if binding == 'feedback' else None)
+    ui.window_switch_proof = lambda binding, **kwargs: read('proof', proof)
+    launch = Mock()
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', launch)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', Mock())
+    if failure == 'transient':
+        assert ui.window_switch_operation('switch-viewer-ready') == proof
+        assert reads[-3:] == ['source', 'target', 'proof']
+        assert reads.count('source') == 2
+        assert ui.incomplete_observations
+    else:
+        with pytest.raises(accessible_ui.UiError, match=(
+                'document-owner' if failure == 'wrong-owner' else 'timeout:')):
+            ui.window_switch_operation('switch-viewer-ready')
+        assert reads.count('source') == 1
+    launch.assert_not_called()
+    assert not ui.input_uncertain
 
 
 def test_window_viewer_launch_failure_never_replays_command(monkeypatch):

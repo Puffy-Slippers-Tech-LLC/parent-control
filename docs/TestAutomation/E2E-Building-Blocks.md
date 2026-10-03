@@ -373,9 +373,14 @@ the host preview check. Parent and feedback retain public owned IDs. The
 supporting GNOME Text Editor uses `license_viewer_snapshot`'s scoped provider
 owner, sole window and `view` ID, with bounded GPL content verification. It is
 launched by a shared command using the installed LICENSE file, never a title.
-Launch entry, final window proof and provider metadata use bounded read-only
-waits for a complete public tree. The command invalidates prior observations
+Switch readiness reacquires both endpoints and the inactive-window proof together
+after an incomplete read; no shortcut runs until that complete proof succeeds.
+Launch entry, switch readiness, final window proof and provider metadata use
+bounded read-only waits for a complete public tree. The command invalidates prior observations
 and executes once; an uncertain launch or failed result never replays it.
+The switch-readiness retry passed complete case 152 on `onpc-Ubuntu26.04` in
+report `20261003T044953Z-2445cbcf`, including draft preservation, app-exit reset,
+collection and owned cleanup.
 The observed tuple was Ubuntu 26.04, Text Editor `50.1-0ubuntu0.1`, provider
 locale `en_US.UTF-8`, keyboard `[["xkb", "us"]]`. Qualification covers the
 two-application same-desktop route; arbitrary switcher order, additional

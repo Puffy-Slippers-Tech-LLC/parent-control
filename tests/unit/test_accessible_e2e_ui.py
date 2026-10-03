@@ -80,6 +80,26 @@ def test_adapter_failure_payload_reports_static_sites_without_private_values(tmp
     assert 'PRIVATE_' not in result.stderr.decode()
 
 
+@pytest.mark.parametrize('domain,code,expected', [
+    ('dbus', 'UNKNOWN_OBJECT', 'unknown-object'),
+    ('dbus', 'NO_REPLY', 'no-reply'),
+    ('dbus', 'ACCESS_DENIED', 'access-denied'),
+    ('io', 'TIMED_OUT', 'timeout'),
+    ('io', 'FAILED', 'other-query-error'),
+])
+def test_adapter_query_failure_kind_excludes_private_error_values(domain, code, expected):
+    from gi.repository import Gio, GLib
+    quark = Gio.dbus_error_quark() if domain == 'dbus' else Gio.io_error_quark()
+    codes = Gio.DBusError if domain == 'dbus' else Gio.IOErrorEnum
+    error = GLib.Error.new_literal(quark, 'PRIVATE_DOCUMENT_AND_ACCOUNT', getattr(codes, code))
+    error.add_note('PRIVATE_PASSWORD')
+    value = accessible_ui.adapter_failure_diagnostic(error)
+    assert value['query_failure_kind'] == expected
+    assert 'PRIVATE_' not in json.dumps(value)
+    assert error.message == 'PRIVATE_DOCUMENT_AND_ACCOUNT'
+    assert error.matches(quark, getattr(codes, code))
+
+
 @pytest.mark.parametrize('expected', ['', 'b' * 64])
 def test_ui_boot_guard_shares_one_transport_call_without_changing_ui_projection(expected):
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({

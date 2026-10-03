@@ -378,7 +378,7 @@ after an incomplete read; no shortcut runs until that complete proof succeeds.
 Launch entry, switch readiness, final window proof and provider metadata use
 bounded read-only waits for a complete public tree. The command invalidates prior observations
 and executes once; an uncertain launch or failed result never replays it.
-The switch-readiness retry passed complete case 152 on `onpc-Ubuntu26.04` in
+The switch-readiness retry passed complete case 152 on the Ubuntu 26.04 test VM in
 report `20261003T044953Z-2445cbcf`, including draft preservation, app-exit reset,
 collection and owned cleanup.
 The observed tuple was Ubuntu 26.04, Text Editor `50.1-0ubuntu0.1`, provider

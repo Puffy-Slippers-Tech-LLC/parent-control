@@ -108,10 +108,11 @@ def request_ui(automation):
 
 
 def open_request(launch_ui, tmp_path, ui, wait, *, overlay, scenario="normal",
-                 selections_path=None):
+                 selections_path=None, loading_release=None):
     _process, path = launch_request(
         launch_ui, tmp_path, overlay=overlay, scenario=scenario,
         selections_path=selections_path, wait_for_application=False,
+        loading_release=loading_release,
     )
     wait(lambda: ui.find("kiosk-request-window") is not None,
          "request window publishes its ID")
@@ -143,9 +144,19 @@ def send_escape(ui):
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_shared_loading_keeps_controls_disabled_until_preferences_arrive(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
-    open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
-                 overlay=overlay, scenario="loading")
-    assert not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
+    release = tmp_path / "preferences-release"
+    try:
+        path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                            overlay=overlay, scenario="loading", loading_release=release)
+        wait_for_accessible_state(lambda: bool(calls(path, "GetPreferences")),
+                                  "preferences request is pending")
+        assert not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
+        assert not events(path, "preferences-ready")
+        assert not events(path, "preferences-release-timeout")
+    finally:
+        release.touch()
+    wait_for_accessible_state(lambda: bool(events(path, "preferences-ready")),
+                              "preferences response is delivered")
     ready(request_ui, wait_for_accessible_state)
 
 

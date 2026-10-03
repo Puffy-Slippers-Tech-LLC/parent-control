@@ -4,7 +4,8 @@ from tests.support.events import read_events
 
 
 def launch_request(launch_ui, tmp_path, *, overlay, scenario="normal", selections_path=None,
-                   wait_for_application=False, complete_language_setup=True):
+                   wait_for_application=False, complete_language_setup=True,
+                   loading_release=None):
     path = tmp_path / f"request-{overlay}-{scenario}.jsonl"
     application, _log = launch_ui(
         "request_component_preview", wait_for_application=wait_for_application,
@@ -14,6 +15,7 @@ def launch_request(launch_ui, tmp_path, *, overlay, scenario="normal", selection
             "ONPC_REQUEST_COMPONENT_OVERLAY": "1" if overlay else "0",
             "ONPC_REQUEST_COMPONENT_SCENARIO": scenario,
             "ONPC_REQUEST_COMPONENT_SELECTIONS_PATH": str(selections_path or ""),
+            "ONPC_REQUEST_COMPONENT_LOADING_RELEASE": str(loading_release or ""),
         },
     )
     return application, path

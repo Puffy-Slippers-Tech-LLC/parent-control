@@ -258,6 +258,39 @@ def test_first_run_defaults_and_save_waits_for_commit(
     assert committed(path) == [language]
 
 
+@pytest.mark.parametrize('snap_environment', (False, True), ids=('desktop', 'vscode-snap'))
+def test_parent_development_preview_language_keyboard_input(
+        launch_ui, automation, wait_for_accessible_state, snap_environment):
+    from tests.support.keyboard import press_key, type_text
+
+    ui, wait = automation, wait_for_accessible_state
+    environment = {'LANGUAGE': 'en_US.UTF-8', 'LC_ALL': 'C.UTF-8'}
+    if snap_environment:
+        environment.update({'GDK_BACKEND': 'x11', 'GDK_BACKEND_VSCODE_SNAP_ORIG': '',
+                            'GSETTINGS_SCHEMA_DIR': '/nonexistent/vscode-snap-schemas',
+                            'GSETTINGS_SCHEMA_DIR_VSCODE_SNAP_ORIG': ''})
+    launch_ui('parent_preview', complete_language_setup=False,
+              environment_overrides=environment)
+    wait(lambda: ui.showing('language-search'), 'development preview chooser opens')
+    ui.focus('language-search')
+    type_text(ui, 'language-search', 'PORT*BR')
+    wait(lambda: ui.content('language-search') == 'PORT*BR'
+         and ui.showing('language-choice-pt-br')
+         and ui.absent('language-choice-en', within='language-dialog'),
+         'native keyboard input filters the preview language list')
+    press_key(ui, 'language-search', 'Escape', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.content('language-search') == '', 'Escape restores the full list')
+    ui.focus('language-choice-fur')
+    assert ui.showing('language-choice-fur'), 'the last language is reachable by scrolling'
+    press_key(ui, 'language-choice-fur', 'space', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.state('language-choice-fur', ui.api.StateType.CHECKED),
+         'the revealed language accepts native keyboard selection')
+    ui.focus('language-cancel')
+    press_key(ui, 'language-cancel', 'space', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.absent('language-dialog', within='parent-window'),
+         'native Cancel closes the preview chooser')
+
+
 def test_parent_first_run_shared_helper_saves_with_cancel_visible(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     ui, wait = automation, wait_for_accessible_state

@@ -7257,8 +7257,11 @@ class AccessibleUI:
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
         require(labels.count('Password for ' + APPROVER_ACCOUNTS[approver] + ':') == 1,
                 'ui:mate-recipient-context-missing')
-        message = (f'Grant {child} 30 minutes?' if binding else
-                   f'Grant {CHILD} 1 minute, 15 seconds and allow soft blocked apps?')
+        # The English catalogue keeps the complete request in one multiline
+        # label. Check every sentence, including the explicit soft-app choice.
+        message = (f'Grant {child} access?\nRequested time: 30 minutes.' if binding else
+                   f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
+                   'Allow soft blocked apps for this grant.')
         require(labels.count(message) == 1, 'ui:mate-request-context-missing')
         buttons = [node for node in controls if facts[node]['role'] in ('push button', 'button')
                    and facts[node]['showing'] and facts[node]['name'] == 'Cancel']
@@ -7709,11 +7712,13 @@ class AccessibleUI:
         message = next(node for node in labels if facts[node]['name'].startswith('Grant '))
         for node, value, code in (
                 (recipient, 'Password for wrong-parent:', 'ui:mate-recipient-context-missing'),
-                (message, 'Grant wrong-child 1 minute, 15 seconds and allow soft blocked apps?',
+                (message, 'Grant wrong-child access?\nRequested time: 1 minute, 15 seconds.\n'
+                 'Allow soft blocked apps for this grant.',
                  'ui:mate-request-context-missing'),
-                (message, f'Grant {CHILD} 5 minutes and allow soft blocked apps?',
+                (message, f'Grant {CHILD} access?\nRequested time: 5 minutes.\n'
+                 'Allow soft blocked apps for this grant.',
                  'ui:mate-request-context-missing'),
-                (message, f'Grant {CHILD} 1 minute, 15 seconds?',
+                (message, f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.',
                  'ui:mate-request-context-missing')):
             projected = {key: dict(value) for key, value in facts.items()}
             projected[node]['name'] = value

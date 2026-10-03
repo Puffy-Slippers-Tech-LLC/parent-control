@@ -668,7 +668,7 @@ def poll_publication(state, state_path, update):
                     save(state_path, state)
                 return binary
             detail = progress['detail']
-        stamp = datetime.now(timezone.utc).strftime('%H:%M:%S UTC')
+        stamp = datetime.now().astimezone().strftime('%H:%M:%S %Z')
         elapsed = int(time.monotonic() - started)
         update(f'{stamp} (+{elapsed}s): {detail}; retrying in {POLL_SECONDS}s', error=unavailable)
         time.sleep(POLL_SECONDS)

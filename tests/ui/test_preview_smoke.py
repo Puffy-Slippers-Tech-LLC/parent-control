@@ -464,7 +464,13 @@ def test_catalogue_text_binding_focus_replacement_clear_and_wrong_child(
             type_text(ui, 'parent-app-search', value)
         else:
             key_combo(ui, 'parent-app-search', 'BackSpace', state=ui.api.StateType.FOCUSED)
-        assert reader.read_synthetic_text(binding, child=CHILD)['exact']
+        # Search updates can remove a child between AT-SPI's child-count and
+        # children reads. Retry only the complete observation, never the keys;
+        # exact-text and recipient failures must still propagate.
+        assert reader.wait(
+            lambda: reader.read_synthetic_text(binding, child=CHILD),
+            'catalogue-exact-text',
+        )['exact']
         wait_for_accessible_state(lambda: reader.app_rows(CHILD) == (
             original if binding == 'catalogue-clear' else ()), 'complete search result')
     reader.parent_page(CHILD, 'Screen Limits')

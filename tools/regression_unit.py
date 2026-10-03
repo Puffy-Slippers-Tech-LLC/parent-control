@@ -468,6 +468,8 @@ write_e2e write_e2e_cleanup_safety
 # Its pipe descriptor closes at session end; no display, bus or shared file.
 # Wait-trace retry/deadline/interrupt tests use in-memory predicates and clocks;
 # tracing preserves the unit and UI inventory resource classifications.
+# Protocol query/occupancy and stream-write timing checks use in-memory clocks,
+# sinks and synchronous transport doubles in test_regression; no added resource.
 # Parent continuous-activity checks mock session identity, privilege transitions
 # and gsettings calls; diagnostic checks mock the read-only screen-saver query.
 # Neither touches the host session, settings, bus or display.

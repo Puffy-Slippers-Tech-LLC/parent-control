@@ -108,6 +108,8 @@ GROUPS = (
     # Request loading also gates its existing preview's preference callback on
     # a tmp_path release file; bounded main-loop polling adds no resource owner.
     ('Request behavior', ('test_request_form_component.py', 'test_language_settings.py'), 6),
+    # App Limits language-review frames reuse the worker's spectator feed and
+    # registered retention allocations; no new display, process or cleanup owner.
     ('Layout and overflow', ('test_request_layout.py', 'test_control_overflow.py'), 6),
     ('Feedback', ('test_parent_feedback.py', 'test_error_feedback.py'), 6),
     # Match invalid/Reset matrix shares the owned private preview/display and

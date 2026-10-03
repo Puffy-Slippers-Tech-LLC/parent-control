@@ -803,9 +803,10 @@ class ParentWindow(Adw.ApplicationWindow):
         self._apps_group = apps
         # PreferencesGroup places non-row widgets after its list. Keep the
         # headings in an ActionRow so they remain directly above app rows.
-        # The trailing headings are overlaid on inert copies of the controls
-        # below. This makes their columns use the same measurements as every
-        # app row instead of letting the heading text determine the width.
+        # Each column measures both its translated heading and row controls.
+        # Shared size groups keep every row aligned as the language changes.
+        self._match_column_size = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
+        self._access_column_size = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
         headers = localized(Adw.ActionRow, css_classes=["app-policy-columns"])
         headers.add_prefix(localized(Gtk.Label, label=m.ICON, xalign=0, hexpand=False,
                                      css_classes=["app-policy-column-header",
@@ -814,11 +815,11 @@ class ParentWindow(Adw.ApplicationWindow):
         headers.add_suffix(self._policy_column_heading(
             m.MATCH_RULE, self._match_rule_slot(), "match-rule-header",
             MATCH_RULES, self._match_rule_filters, self._match_rule_filter_icon,
-            identity="match-rule"))
+            identity="match-rule", column_size=self._match_column_size))
         headers.add_suffix(self._policy_column_heading(
             m.ACCESS_RULE, self._policy_selector_slot(), "access-rule-header",
             STATES, self._access_rule_filters, self._access_rule_filter_icon,
-            identity="access-rule"))
+            identity="access-rule", column_size=self._access_column_size))
         apps.add(headers)
         self._app_rows = []
         apps_overlay = Gtk.Overlay(
@@ -912,8 +913,8 @@ class ParentWindow(Adw.ApplicationWindow):
         return panel
 
     def _policy_column_heading(self, label, slot, css_class, items, selected,
-                               icon_factory, *, identity):
-        """Overlay a filter heading on a measurement-matched, inert policy control."""
+                               icon_factory, *, identity, column_size):
+        """Size a column to fit both its filter heading and policy controls."""
         overlay = Gtk.Overlay(css_classes=["app-policy-heading", css_class])
         overlay.set_child(slot)
         trigger = localized(Gtk.MenuButton, 
@@ -979,8 +980,8 @@ class ParentWindow(Adw.ApplicationWindow):
         # MenuButton owns popup positioning, keyboard activation and teardown.
         trigger.set_popover(popover)
         overlay.add_overlay(trigger)
-        overlay.set_measure_overlay(trigger, False)
-        overlay.set_clip_overlay(trigger, False)
+        overlay.set_measure_overlay(trigger, True)
+        column_size.add_widget(overlay)
         return overlay
 
     def _column_filter_toggled(self, button, item_id, selected, trigger, items):
@@ -1286,6 +1287,8 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _clear_catalog_rows(self):
         for row in self._app_rows:
+            self._match_column_size.remove_widget(row.match_rule_cell)
+            self._access_column_size.remove_widget(row.policy_selector)
             self._apps_group.remove(row)
         self._rows = []
         self._app_rows = []
@@ -1328,6 +1331,8 @@ class ParentWindow(Adw.ApplicationWindow):
             valign=Gtk.Align.CENTER, css_classes=["match-rule-cell"],
         )
         match_rule_cell.append(row.match_rule_button)
+        row.match_rule_cell = match_rule_cell
+        self._match_column_size.add_widget(match_rule_cell)
         row.add_suffix(match_rule_cell)
         selector = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL, spacing=3,
@@ -1353,6 +1358,8 @@ class ParentWindow(Adw.ApplicationWindow):
             button.connect("toggled", self._policy_changed)
             row.policy_buttons[state["id"]] = button
             selector.append(button)
+        row.policy_selector = selector
+        self._access_column_size.add_widget(selector)
         row.add_suffix(selector)
         row.match_rule = None
         row.user_saved_match_rule = False

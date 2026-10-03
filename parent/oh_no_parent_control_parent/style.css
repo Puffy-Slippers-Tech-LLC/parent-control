@@ -941,6 +941,13 @@ button.about-link > label {
   margin-right: 41px;
 }
 
+/* Keep the gap toward Access Rule when the column order is mirrored. */
+.match-rule-cell:dir(rtl),
+.match-rule-header:dir(rtl) .app-policy-filter {
+  margin-right: 0;
+  margin-left: 41px;
+}
+
 .match-rule-button.policy-choice {
   min-width: 36px;
   min-height: 36px;

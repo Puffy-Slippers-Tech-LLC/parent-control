@@ -278,7 +278,9 @@ existing guarded controllers; raw `virsh` commands bypass these contracts.
 
 Only the guarded runner may perform a normal test reset under its exclusive
 lease, outside a complete independent attempt. It restores the retained
-baseline, removes transfer channels before boot,
+baseline, removes host transfer channels before boot while retaining the private
+SPICE display-agent channel for automatic resolution matching (clipboard and
+file transfers remain disabled),
 executes real guest operations, collects evidence, restores the baseline/prior
 persistent domain configuration, and leaves the VM off. It creates no new
 snapshot, overlay or cloned VM. Reboot inside a journey changes the real boot

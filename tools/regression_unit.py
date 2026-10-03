@@ -282,7 +282,10 @@ from regression_ui import Bucket
 # private recorder evidence and waited Perl workers; classifications still hold.
 # Approval readiness streams and Enter acknowledgements reuse those private
 # files and synchronous doubles; no observer thread, live bus or shared owner.
+# DESK13 uses private API/session/transport doubles and pytest evidence, plus
+# waited Perl probes. No live account, VM, bus, display or shared mutable path.
 REVIEWED = frozenset("""
+desktop_language_cleanup_safety
 localization
 e2e_overlay_prompt
 e2e_shell_panel

@@ -59,8 +59,7 @@ def recover_identity(lease):
             system.require(system.baseline.domain_layout(ET.tostring(tree, encoding='unicode'),
                 lease.source.uuid) == expected, 'online-snapshot:source-changed')
             system.validate_private_vnc(tree)
-            system.require(not any(tree.findall('devices/' + kind) for kind in
-                ('hostdev', 'channel', 'redirdev')), 'online-snapshot:host-sharing')
+            system.validate_host_sharing(tree, category='online-snapshot:host-sharing')
         matches.append(record['run'])
     system.require(len(matches) == 1, 'online-snapshot:recovery-identity')
     return matches[0]
@@ -174,9 +173,7 @@ def validate_saved_snapshot(lease, xml, record):
     expected = system.baseline.recorded_layout(lease.capture.state['source']['layout'])
     system.require(layout == expected, 'online-snapshot:source-changed')
     system.validate_private_vnc(domain)
-    system.require(not any(domain.findall('devices/' + kind) for kind in
-        ('hostdev', 'channel', 'redirdev')),
-        'online-snapshot:host-sharing')
+    system.validate_host_sharing(domain, category='online-snapshot:host-sharing')
 
 
 @system.observed('Restoring the running app snapshot')

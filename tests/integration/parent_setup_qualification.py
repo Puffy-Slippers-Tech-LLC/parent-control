@@ -811,6 +811,13 @@ class ChineseLanguageQualification(ProductFreeEntryQualification):
         return journey(context, progress)
 
 
+class DesktopLanguageQualification(ProductFreeEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from desktop_language_qualification import journey
+        return journey(context, progress)
+
+
 class PackageAuthorityQualification(ProductFreeEntryQualification):
     """Same empty-baseline entry, followed by one guarded package operation."""
 

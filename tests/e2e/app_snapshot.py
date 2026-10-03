@@ -31,10 +31,13 @@ def mode_mismatch(xml, mode, *, now=None):
             return 'missing snapshot console configuration'
         try:
             system.validate_private_vnc(domain)
+            system.validate_host_sharing(domain)
         except system.Error:
             return 'snapshot console configuration changed'
         if domain.find('devices/graphics').get('type') != 'spice':
             return 'snapshot console configuration changed'
+        if not domain.findall('devices/channel'):
+            return 'snapshot display-agent channel missing'
         return None
     except (ET.ParseError, ValueError, TypeError):
         return 'missing or invalid snapshot metadata'

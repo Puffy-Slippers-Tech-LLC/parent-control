@@ -8,6 +8,7 @@ no installed qualification or scenario completion is claimed.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **300a** — Declared Chinese baseline language assets and independent FIX06 readiness verification.
+- **300b** — DESK13 child desktop-language setting through AccountsService, with independent readback and preservation/refusal qualification.
 
 Estimate: 60–90 minutes.
 Session exception: The installed persistence and account-isolation history includes a real upgrade without reboot, the required reboot and renewed kiosk sessions in one continuous case, retaining independent language choices and unchanged policy results throughout.
@@ -50,7 +51,7 @@ Chinese language installation belongs exclusively to `tools/prepare-baseline`:
 task 300a qualified the installed locale, system/PolicyKit translations and CJK
 font assets there, with idempotent reconciliation and independent read-only FIX06
 verification on Ubuntu 26.04. Attempts
-and app-snapshot preparation only verify them. Use the planned shared
+and app-snapshot preparation only verify them. Use the implemented shared
 **DESK13** building block for the child's desktop-language switch through a
 supported system API; the case passes the account and `zh_CN.UTF-8`, never
 implements a setter or edits locale files. See
@@ -60,8 +61,8 @@ Observe first presentation before `complete_language_setup` or any generic
 first-run handler can save, dismiss or change it.
 
 Reuse LIFE04's package lifecycle path and LIFE02's reboot path. The real
-v1.2-to-current upgrade without reboot, selected-child reboot-required result,
-DESK13 and Chinese MATE authentication binding need qualification before this
+v1.2-to-current upgrade without reboot, selected-child reboot-required result
+and Chinese MATE authentication binding need qualification before this
 case can run. The existing English MATE provider qualification does not qualify
 Chinese labels or a restarted agent. Use supported locale/session APIs and the
 normal unmodified PolicyKit agent; no dialog patching or injected translations.
@@ -120,12 +121,18 @@ normal unmodified PolicyKit agent; no dialog patching or injected translations.
 
 ## Session boundary
 
-Task 300 remains unchecked. Queue repair extracted its first missing capability
-as **300a**, immediately before this task. Its Chinese baseline and read-only
-FIX06 qualification passed, including the native fixture regression.
+Task 300 remains unchecked. Task **300a** qualified its Chinese baseline and
+read-only FIX06, including the native fixture regression. Task **300b** qualified
+the Jordan desktop-language setting and independent readback on every enabled
+VM (Ubuntu 26.04) in `20261003T215747Z-6bd9c168`; session renewal and Chinese
+product/authentication results remain in this case.
 This task retains the complete
 multilingual/RTL and Chinese lifecycle history, with no acceptance credit from
-the extraction. DESK13 has no callable or qualification, LIFE04 qualifies only
+the prerequisite slices. DESK13's `AccountLanguage.submit` / `confirm` report
+the actual confirmed API language (`zh_CN` on Ubuntu), the submitted
+`requested_locale` (`zh_CN.UTF-8`) and required session renewal. Use the shared
+helper without replaying uncertain input or adding an implicit renewal.
+LIFE04 qualifies only
 fresh installation, and the native authentication provider is qualified only
 for English. Allocate those remaining prerequisite slices before implementing
 or registering the single complete case. No live attempt has been made.
@@ -141,7 +148,7 @@ that work and installed acceptance are complete.
 
 Allocate exactly one numeric case for the complete history; the Chinese phases
 are ordered assertions inside it. Reuse task 300a's qualified baseline language
-readiness. Qualify DESK13,
+readiness and task 300b's qualified DESK13 setting. Qualify
 the real update/reboot-required composition and the Chinese native provider
 binding in bounded prerequisite slices before registering that complete case.
 Preserve the v1.2 package asset/version gate: unavailable verified upgrade inputs

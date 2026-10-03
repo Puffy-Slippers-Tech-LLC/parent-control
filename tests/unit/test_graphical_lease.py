@@ -41,8 +41,58 @@ def test_vnc_isolation_removes_all_host_listeners():
     assert displays[1].attrib == {'type': 'vnc'}
     assert displays[2].attrib == {'type': 'dbus', 'p2p': 'yes'}
     assert root.find('devices/disk/source').get('file') == '/image'
-    for name in ('channel', 'redirdev', 'hostdev'):
+    for name in ('redirdev', 'hostdev'):
         assert not root.findall('devices/' + name)
+    runner.validate_host_sharing(root)
+
+
+@pytest.mark.parametrize('normalized', [False, True])
+@pytest.mark.parametrize('legacy', [False, True])
+def test_display_agent_accepts_normalized_and_legacy_isolation(normalized, legacy):
+    root = ET.fromstring(runner.isolated_xml(xml(), UUID, RUN, graphics_type='vnc'))
+    channel = root.find('devices/channel')
+    if legacy:
+        root.find('devices').remove(channel)
+    elif normalized:
+        channel.find('target').set('state', 'connected')
+        ET.SubElement(channel, 'alias', name='channel0')
+        ET.SubElement(channel, 'address', type='virtio-serial', controller='0', bus='0', port='1')
+    runner.validate_host_sharing(root)
+
+
+@pytest.mark.parametrize('fault', [
+    'unix', 'source', 'agent', 'extra', 'target', 'state', 'address',
+    'alias', 'nested', 'clipboard', 'filetransfer', 'hostdev', 'redirdev',
+])
+def test_display_agent_refuses_host_access_and_transfer_reenable(fault):
+    root = ET.fromstring(runner.isolated_xml(xml(), UUID, RUN, graphics_type='vnc'))
+    channel = root.find('devices/channel')
+    if fault == 'unix':
+        channel.set('type', 'unix')
+    elif fault == 'source':
+        ET.SubElement(channel, 'source', mode='bind', path='/tmp/host-channel')
+    elif fault == 'agent':
+        channel.find('target').set('name', 'org.qemu.guest_agent.0')
+    elif fault == 'extra':
+        ET.SubElement(root.find('devices'), 'channel', type='spicevmc')
+    elif fault == 'target':
+        ET.SubElement(channel, 'target', type='virtio', name='com.redhat.spice.0')
+    elif fault == 'state':
+        channel.find('target').set('state', 'invalid')
+    elif fault == 'address':
+        ET.SubElement(channel, 'address', type='pci')
+    elif fault == 'alias':
+        ET.SubElement(channel, 'alias', name='foreign')
+    elif fault == 'nested':
+        ET.SubElement(channel.find('target'), 'source')
+    elif fault == 'clipboard':
+        root.find('devices/graphics/clipboard').set('copypaste', 'yes')
+    elif fault == 'filetransfer':
+        root.find('devices/graphics/filetransfer').set('enable', 'yes')
+    else:
+        ET.SubElement(root.find('devices'), fault)
+    with pytest.raises(runner.Error, match='guard:(host-sharing|graphics-)'):
+        runner.validate_host_sharing(root)
 
 
 @pytest.mark.parametrize('display', [

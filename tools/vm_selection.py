@@ -16,22 +16,25 @@ selected = vm_config.selected
 registry = vm_config.registry
 VARIABLE = vm_config.VARIABLE
 BATCH = 'ONPC_TEST_VM_BATCH'
+SELECTOR_HELP = ('VM name or ID, comma-separated names/IDs, all-enabled (default), '
+                 'or all (including disabled VMs); config concurrency limits active work')
 BASELINE_INSTRUCTIONS = (
     'When authorized baseline preparation is needed in launcher/session work, use '
     'tools/prepare-baseline --vm NAME --mode auto --y (or --mode manual --y only '
     'with explicit developer authorization). --y suppresses y/n confirmation; '
     'omit it for manual work. All VM, ownership, lease and validation checks still apply.')
 APPSNAPSHOT_INSTRUCTIONS = (
-    'For authorized app-snapshot preparation in automation or agent sessions, always use '
-    'tools/prepare-appsnapshot --vm NAME --y. --y requires --vm and suppresses confirmation; '
-    'manual work omits --y and prompts for VM selection when --vm is missing.')
+    'For authorized app-snapshot preparation in automation or agent sessions, use '
+    'tools/prepare-appsnapshot --vm NAME --y. --y suppresses confirmation; '
+    'manual work omits --y. Omitting --vm selects all enabled VMs. '
+    'Both preparation tools accept VM lists, all-enabled and all, using config concurrency.')
 PREPARATION_INSTRUCTIONS = BASELINE_INSTRUCTIONS + ' ' + APPSNAPSHOT_INSTRUCTIONS
 
 
 def execution_selection(name=None):
     concurrency, vms = vm_config.execution(name)
     select(vms[0].name)
-    if name is None:
+    if name is None or name in ('all', 'all-enabled') or len(vms) > 1:
         os.environ[BATCH] = json.dumps({'concurrency': concurrency, 'vms': [vm.name for vm in vms]})
     else:
         os.environ.pop(BATCH, None)
@@ -39,7 +42,21 @@ def execution_selection(name=None):
 
 
 def execution_arguments():
-    return [] if BATCH in os.environ else arguments()
+    if BATCH in os.environ:
+        return ['--vm', ','.join(json.loads(os.environ[BATCH])['vms'])]
+    return arguments()
+
+
+def extract_execution(argv, *, required=False):
+    """Canonicalize a public queue selector without widening maintenance APIs."""
+    remaining, selector = vm_config.extract_selector(argv)
+    if selector is None:
+        if required:
+            raise ValueError('vm-config: --vm is required')
+        return remaining, None
+    _, vms = vm_config.execution(selector)
+    select(vms[0].name)
+    return remaining, ','.join(vm.name for vm in vms)
 
 
 def execution_binding():
@@ -49,13 +66,29 @@ def execution_binding():
     return vm.name if vm else None
 
 
+def confirm_queue(args, tool, warning, *, prompt=None):
+    """Confirm a whole preparation selection before parallel workers start."""
+    print(f'{tool}: selected VMs: {args.vm}\n{warning}', flush=True)
+    if args.y:
+        return True
+    prompt = input if prompt is None else prompt
+    while True:
+        try:
+            answer = prompt('Proceed (y/n)? ').strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return False
+        if answer in ('y', 'n'):
+            return answer == 'y'
+        print('Please enter y to proceed or n to exit.', flush=True)
+
+
 def execution_instructions():
     if BATCH in os.environ:
         queue = json.loads(os.environ[BATCH])
-        return (f"Run VM tests through tools/run-tests without --vm: it executes all enabled VMs "
-                f"({', '.join(queue['vms'])}), at most {queue['concurrency']} simultaneously. "
+        return (f"Run VM tests through tools/run-tests --vm {','.join(queue['vms'])}: "
+                f"it executes the selected VMs, at most {queue['concurrency']} simultaneously. "
                 "Use an explicit --vm NAME only for scoped diagnosis, maintenance or preparation. "
-                "Complete required live validation on every enabled VM before closing the task. "
+                "Complete required live validation on every selected VM before closing the task. "
                 + PREPARATION_INSTRUCTIONS)
     vm = selected(required=False)
     selection = (f'Every VM command must include --vm {vm.name}; Make VM targets use VM={vm.name}. '

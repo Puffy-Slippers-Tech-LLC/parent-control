@@ -225,7 +225,11 @@ entry in `config/test-vm.json` whose `enabled` equals the string `"true"`.
 Its positive integer `concurrency` limits active guests: 1 is serial, 2 permits
 two simultaneous guests. Free slots refill until every enabled VM executes,
 including after another guest fails. Cancellation stops queued work and waits
-for active guests' cleanup. `--vm NAME` narrows tests to one enabled entry.
+for active guests' cleanup. `--vm` accepts one name or ID, a comma-separated
+list, `all-enabled`, or `all`. Explicit entries and `all` include disabled VMs.
+Baseline and app-snapshot preparation use the same selector and rolling scheduler,
+including the enabled default when omitted; see the
+[VM mandate](../docs/Mandates/VM-Mandate.MD#authority-and-operation).
 All `--vm` options and Make `VM=` parameters accept either the exact configured
 name or its `id`. IDs resolve from the current `config/test-vm.json` on every
 invocation; changing or swapping them needs no helper refresh or baseline
@@ -264,7 +268,7 @@ The shared launcher prompts carry this instruction; runners never prepare a
 baseline implicitly. See [VM preparation](integration/Environment.md).
 
 Run [`tools/fix-tests`](../tools/fix-tests) for the configured enabled VM queue,
-or with `--vm NAME` for one enabled VM, to start or attach to the scripted
+or with `--vm NAME` for one registered VM, to start or attach to the scripted
 repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit
 arguments, until each passes. After a failure, a fresh Codex process receives
 that run's generated investigation prompt, applies a repair, exits, and the
@@ -770,7 +774,7 @@ lives in
 ### Aggregate execution and reconnection
 
 Run `tools/run-tests all` for the enabled VM queue, or `make test-all VM=NAME`
-(`tools/run-tests all --vm NAME`, also the default with only `--vm NAME`) for one enabled VM,
+(`tools/run-tests all --vm NAME`, also the default with only `--vm NAME`) for one registered VM,
 for all established regressions. `make test-all-verify VM=NAME` / `tools/run-tests all-verify --vm NAME`
 are compatibility aliases for the same work. Every VM entry point uses
 metadata-only snapshot verification, including standalone preparation,
@@ -791,8 +795,10 @@ waits for owned cleanup. Invoke `tools/run-tests --vm NAME` for a VM run in a ne
 the existing progress and final output, including its exit status. While a run
 is active in the requested scope, execution invocations warn and attach to it,
 ignoring new categories or invalid options. VM attachment and cancellation
-require the original configured `--vm NAME` for narrowed runs; missing or different
-names refuse. Configured queue runs attach and cancel without `--vm`.
+require the original canonical `--vm` selection for explicitly selected runs;
+missing or different selections refuse. Default queue runs attach and cancel
+without `--vm` or with the original list. IDs resolve to names before saving
+the selection; repair retries forward those names rather than expanding to all enabled VMs.
 `tools/run-tests --vm NAME --stop` attaches to a narrowed VM run, requests
 cancellation, and waits for owned cleanup; when idle it returns without starting
 tests or consuming saved results. Attachment searches only the requested scope:

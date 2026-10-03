@@ -17,6 +17,12 @@ Shared reboot detection/startup cases add only private tiny marker files and
 process-local main-loop/transport doubles to service_contract. They touch no
 host reboot state or services and retain that compatible classification.
 
+VM selector and rolling preparation scheduling checks use private registry files,
+bounded joined threads, process-local command doubles and the existing owned
+session children. No live VM, setup, privilege or shared output is touched.
+vm_config, prepare_baseline_tool, appsnapshot_cleanup_safety and regression_session
+retain compatible unit scheduling; app-snapshot cleanup coverage stays compatible too.
+
 Update-required dialog and reboot tests use process-local GTK/Gio doubles only;
 parent startup tests queue fake threads and idle callbacks. Package-marker cases
 use the existing relocated fixture. The error_reporting, parent_main and

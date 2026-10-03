@@ -164,14 +164,13 @@ def execution_arguments(argv):
 
 
 def vm_request(argv):
-    from vm_selection import extract, execution_selection
-    args, configured = extract(argv, required=False)
+    from vm_selection import vm_config, execution_selection, extract_execution, selected
+    args, selector = vm_config.extract_selector(argv)
     if not is_inspection(args) and args != ['--stop'] and not host_only_request(args):
-        if configured is None:
-            execution_selection()
-        else:
-            execution_selection(configured.name)
-    return args, configured
+        execution_selection(selector)
+    elif selector is not None:
+        extract_execution(argv)
+    return args, selected() if selector is not None else None
 
 
 def usage():
@@ -193,8 +192,9 @@ Help, listing and collection return immediately without attaching.
 --stop requests cancellation of the active run and waits for owned cleanup.
 VM categories read config/test-vm.json and execute every entry with enabled
 equal to the string "true", using at most concurrency VMs simultaneously.
---vm NAME restricts execution to one enabled entry for diagnosis.
-NAME may also be an ID from config/test-vm.json. Each invocation resolves IDs
+--vm accepts a name or ID, a comma-separated list, all-enabled, or all.
+Explicit names/IDs and all include disabled entries. Free slots refill immediately.
+Each invocation resolves IDs
 from the current file; changing IDs needs no tool refresh or baseline replacement.
 Host-only tests and declaration listing need no VM.
 
@@ -303,7 +303,7 @@ def selections(root, argv):
     component``). Only split at another category when the complete group is
     invalid, and validate every group before starting any work.
     """
-    from vm_selection import extract
+    from vm_selection import extract_execution as extract
     argv, _ = extract(argv, required=False)
     argv, _ = execution_arguments(argv)
     phases = phase_arguments(argv)
@@ -560,7 +560,7 @@ def make_command(root, target, assignments=()):
 def plan(root, category, argv):
     """Validate everything before prerequisites, output creation or execution."""
     if category in ('integration', 'system', 'e2e'):
-        from vm_selection import extract
+        from vm_selection import extract_execution as extract
         argv, _ = extract(argv, required=False)
     if category == 'publish':
         if argv:
@@ -846,7 +846,7 @@ def host_only_request(argv):
     phase combinations can contain more than one category; focused category
     arguments must not be mistaken for category names (for example ``-m e2e``).
     """
-    from vm_selection import extract
+    from vm_selection import extract_execution as extract
     args, _ = extract(argv, required=False)
     args = args or ['all']
     if args[:1] == ['--stop-on-error']:
@@ -868,7 +868,7 @@ def host_only_request(argv):
 
 def includes_host_request(root, argv):
     """Whether a validated request also reserves the host scope."""
-    from vm_selection import extract
+    from vm_selection import extract_execution as extract
     args, _ = extract(argv, required=False)
     args, _ = execution_arguments(args or ['all'])
     if args[0] in ('all', 'all-verify') or host_only_request(args):

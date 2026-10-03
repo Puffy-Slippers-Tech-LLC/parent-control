@@ -71,6 +71,9 @@ from pathlib import PurePosixPath
 # Query/occupancy, worker CPU and stream-write diagnostics add bounded counters
 # to the same worker-local timing recorder and retained stream. No new reads,
 # threads, files, processes or resource owners; all UI reservations remain valid.
+# Missing-cache traversal roles/states share the existing private bus pipeline
+# (at most 64 RPCs). No threads, connections, processes or cleanup owners are
+# added; snapshot-local values retain the compatible UI bucket reservations.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

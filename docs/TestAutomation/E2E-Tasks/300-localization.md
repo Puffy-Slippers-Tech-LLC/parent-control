@@ -6,7 +6,8 @@ and [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
 This task is active at the developer's request;
 no installed qualification or scenario completion is claimed.
 
-Required tasks: none (Baseline).
+Required tasks (queue IDs; use delivered scope, not predecessor briefs):
+- **300a** — Declared Chinese baseline language assets and independent FIX06 readiness verification.
 
 Estimate: 60–90 minutes.
 Session exception: The installed persistence and account-isolation history includes a real upgrade without reboot, the required reboot and renewed kiosk sessions in one continuous case, retaining independent language choices and unchanged policy results throughout.
@@ -46,8 +47,9 @@ panel, About and feedback operations. The scripted
 must never supply installed persistence or authorization evidence.
 
 Chinese language installation belongs exclusively to `tools/prepare-baseline`:
-declare the installed locale, system/PolicyKit translations and CJK font assets
-there, with idempotent reconciliation and independent verification. Attempts
+task 300a qualified the installed locale, system/PolicyKit translations and CJK
+font assets there, with idempotent reconciliation and independent read-only FIX06
+verification on Ubuntu 26.04. Attempts
 and app-snapshot preparation only verify them. Use the planned shared
 **DESK13** building block for the child's desktop-language switch through a
 supported system API; the case passes the account and `zh_CN.UTF-8`, never
@@ -116,6 +118,18 @@ normal unmodified PolicyKit agent; no dialog patching or injected translations.
    translated controls and public results; an environment setting, product
    message alone, mocked prompt or English approval pass does not cover this.
 
+## Session boundary
+
+Task 300 remains unchecked. Queue repair extracted its first missing capability
+as **300a**, immediately before this task. Its Chinese baseline and read-only
+FIX06 qualification passed, including the native fixture regression.
+This task retains the complete
+multilingual/RTL and Chinese lifecycle history, with no acceptance credit from
+the extraction. DESK13 has no callable or qualification, LIFE04 qualifies only
+fresh installation, and the native authentication provider is qualified only
+for English. Allocate those remaining prerequisite slices before implementing
+or registering the single complete case. No live attempt has been made.
+
 ## Implementation entry
 
 Before implementation, allocate stable scenario IDs, recipes, worker bindings
@@ -126,7 +140,8 @@ executable selector is registered by this brief. Leave this row unchecked until
 that work and installed acceptance are complete.
 
 Allocate exactly one numeric case for the complete history; the Chinese phases
-are ordered assertions inside it. Qualify baseline language readiness, DESK13,
+are ordered assertions inside it. Reuse task 300a's qualified baseline language
+readiness. Qualify DESK13,
 the real update/reboot-required composition and the Chinese native provider
 binding in bounded prerequisite slices before registering that complete case.
 Preserve the v1.2 package asset/version gate: unavailable verified upgrade inputs

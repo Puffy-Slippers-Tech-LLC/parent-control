@@ -676,7 +676,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
-         native_app=False, app_activity=False):
+         native_app=False, app_activity=False, chinese_language_assets=False):
+    require(type(chinese_language_assets) is bool and (not chinese_language_assets or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'chinese_language_assets')
+            and isinstance(value, bool)))), 'smoke:chinese-language-prerequisites')
     require(type(app_activity) is bool and (not app_activity or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1013,7 +1018,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(package_authority) is bool and not (package_authority and product_free_entry),
             'smoke:package-authority-prerequisites')
     # Reuse the exact product-free prerequisite gate, preparation and envelope.
-    product_free_entry = product_free_entry or package_authority or package_install or customer_reboot
+    product_free_entry = (product_free_entry or package_authority or package_install
+                          or customer_reboot or chinese_language_assets)
     require(type(product_free_entry) is bool and (not product_free_entry or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1468,6 +1474,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'package-install-qualification'
         if customer_reboot:
             result['scope'] = 'customer-reboot-qualification'
+        if chinese_language_assets:
+            result['scope'] = 'chinese-language-assets-qualification'
         started = time.monotonic()
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -1610,6 +1618,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if product_free_entry:
                     from parent_setup_qualification import ProductFreeEntryQualification
                     qualification_class = ProductFreeEntryQualification
+                if chinese_language_assets:
+                    from parent_setup_qualification import ChineseLanguageQualification
+                    qualification_class = ChineseLanguageQualification
                 if package_authority:
                     from parent_setup_qualification import PackageAuthorityQualification
                     qualification_class = PackageAuthorityQualification

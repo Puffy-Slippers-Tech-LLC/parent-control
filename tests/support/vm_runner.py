@@ -30,6 +30,11 @@ def bootstrap_guest():
     }
     directories = {'/root'}
     modes = {}
+    from tests.support.chinese_assets import populate
+    language_metadata = {}
+    populate(files, language_metadata)
+    directories.update(path for path, info in language_metadata.items()
+                       if stat.S_ISDIR(info['st_mode']))
     g = Mock()
     g.inspect_os.return_value = ['/dev/sda2']
     g.inspect_get_distro.return_value = 'ubuntu'
@@ -43,11 +48,12 @@ def bootstrap_guest():
     g.is_symlink.return_value = False
     g.realpath.side_effect = lambda path: path
     g.chmod.side_effect = modes.__setitem__
-    g.lstatns.side_effect = lambda path: {
+    g.lstatns.side_effect = lambda path: language_metadata.get(path, {
         'st_mode': (stat.S_IFDIR if path in directories else stat.S_IFREG) | modes.get(path, 0o600),
         'st_uid': 0, 'st_gid': 0, 'st_nlink': 1,
-    }
+    })
     g.filesize.side_effect = lambda path: len(files[path])
+    g.command.return_value = 'UTF-8\n'
     return g, files
 
 

@@ -30,11 +30,12 @@ def refuse_command(journey, guard):
 
 
 class ProductFreeEntryJourney(InstalledJourney):
-    def __init__(self, context, progress):
+    def __init__(self, context, progress, plan=PLAN, *, actions=None):
         require(getattr(context, 'product_free', False) is True
                 and getattr(context, 'asset_transfer', None) is not None,
                 'product-free-entry:setup-required')
-        super().__init__(context, progress, PLAN, actions={'refuse-command': refuse_command})
+        super().__init__(context, progress, plan, actions=(
+            {'refuse-command': refuse_command} if actions is None else actions))
 
     def check_settings(self, stage, observed):
         if stage in ('installed-greeter', 'desktop'):

@@ -85,8 +85,9 @@ def readback(child, expected):
     return {'files': result, 'launchers': [desktop_id(asset[0]) for asset in ASSETS]}
 
 
-def execute(action, expected):
+def execute(action, expected, profile='native'):
     require(action in ('read', 'refuse'))
+    require(profile in ('native', 'chinese'))
     if action == 'refuse':
         try:
             authority()
@@ -95,13 +96,51 @@ def execute(action, expected):
             return {'wrong_entry_refused': True}
         raise ValueError('files:wrong-entry-accepted')
     child, parent, entry = authority()
-    result = readback(child, expected)
+    if profile == 'chinese':
+        require(expected == {})
+        from chinese_language_assets import LocalFiles, read, verify
+        g = LocalFiles()
+        def state():
+            # Engineering preservation proof only. No product probe supplies
+            # a customer result, and nothing is installed on this baseline.
+            paths = ['/var/lib/AccountsService/users/' + name for name in session_control.ACCOUNTS.values()]
+            paths += ['/etc/default/locale', '/etc/locale.conf',
+                      '/var/lib/oh-no-parent-control', '/etc/oh-no-parent-control']
+            result = {}
+            for path in paths:
+                if not g.exists(path) and not g.is_symlink(path):
+                    result[path] = None
+                    continue
+                before = g.lstatns(path)
+                if path == '/etc/default/locale' and g.is_symlink(path):
+                    # Ubuntu's compatibility link is preserved as a link. Read
+                    # only its fixed canonical destination with the no-link
+                    # reader; unexpected or dangling destinations still refuse.
+                    require(before['st_uid'] == before['st_gid'] == 0
+                            and g.realpath(path) == '/etc/locale.conf')
+                    data = read(g, '/etc/locale.conf', 64 * 1024)
+                    require(g.realpath(path) == '/etc/locale.conf')
+                else:
+                    data = g.read_file(path)
+                require(g.lstatns(path) == before)
+                result[path] = (before, hashlib.sha256(data).hexdigest())
+            return result
+        before = state()
+        # Ubuntu's /etc/os-release is normally a symlink. Pin the canonical
+        # distribution file without relaxing the profile's no-link reader.
+        release = read(g, '/usr/lib/os-release', 64 * 1024).decode()
+        require('\nID=ubuntu\n' in '\n' + release and 'VERSION_ID="26.04"' in release)
+        result = verify(g)
+        require(state() == before)
+        result.update(unchanged_state=True)
+    else:
+        result = readback(child, expected)
     require(session_control.source_session(session_control.sessions(), parent.pw_uid) == entry)
     return result
 
 
 if __name__ == '__main__':
-    require(len(sys.argv) == 2)
+    require(len(sys.argv) == 3)
     request = sys.stdin.buffer.read(8193)
     require(len(request) <= 8192)
-    print(json.dumps(execute(sys.argv[1], json.loads(request)), sort_keys=True))
+    print(json.dumps(execute(sys.argv[1], json.loads(request), sys.argv[2]), sort_keys=True))

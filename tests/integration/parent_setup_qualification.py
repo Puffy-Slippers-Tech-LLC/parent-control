@@ -804,6 +804,13 @@ class ProductFreeEntryQualification(ParentJourneyQualification):
             self.checkpoint('phase-started')
 
 
+class ChineseLanguageQualification(ProductFreeEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from chinese_language_qualification import journey
+        return journey(context, progress)
+
+
 class PackageAuthorityQualification(ProductFreeEntryQualification):
     """Same empty-baseline entry, followed by one guarded package operation."""
 

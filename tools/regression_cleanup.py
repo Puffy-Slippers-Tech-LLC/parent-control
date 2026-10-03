@@ -58,6 +58,9 @@ from pathlib import PurePosixPath
 # pytest files, process-local guest/SSH/GTK doubles and bounded waited Perl
 # children. No real ownership mutation, VM, bus, display, shared path or cache;
 # compatible overlap in cleanup and unit scheduling.
+# Chinese asset checks use private/in-memory files, locale/font bytes and mocked
+# transports only. No live package manager, VM, display, shared path or cache;
+# the new module is compatible in both unit and cleanup inventories.
 # Catalogue filter recorder additions reuse that installed-journey private
 # evidence and process-local UI/worker doubles. No new cleanup resource or live
 # access is added; its compatible unit and cleanup classifications remain.
@@ -75,7 +78,7 @@ from regression_resources import HOST_WORKERS
 
 
 REVIEWED = frozenset('''
-vm_internet native_fixtures baseline_fixtures
+vm_internet native_fixtures baseline_fixtures chinese_language_assets
 appsnapshot backing_verification baseline_guest challenges child_preview clean_install customer_reboot dbus_harness e2e_asset_transfer
 e2e_controller_qualification e2e_execution e2e_files e2e_fixture_credentials
 e2e_keyring_fixture e2e_leased_recording e2e_recording e2e_startup_cache e2e_suite

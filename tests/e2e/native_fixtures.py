@@ -21,6 +21,8 @@ def guest_source():
         'guest_files': Path(__file__).with_name('guest_files.py'),
         'native_assets': ROOT / 'tests/fixtures/native_assets.py',
         'session_control': Path(__file__).with_name('session_control.py'),
+        'chinese_language_assets': ROOT / 'tests/integration/chinese_language_assets.py',
+        'guest_test_dependencies': ROOT / 'tests/integration/guest_test_dependencies.py',
     }
     source = 'import sys, types\n'
     for name, path in modules.items():
@@ -33,7 +35,9 @@ def guest_source():
 
 
 class NativeFixtures:
-    def __init__(self, transport, verified):
+    def __init__(self, transport, verified, *, profile='native'):
+        require(profile in ('native', 'chinese'), 'native:profile')
+        self.profile = profile
         self.transport, self.verified = transport, verified
         self.attempt = dict(transport.config)
         self.attempted = False
@@ -44,9 +48,11 @@ class NativeFixtures:
         require(self.transport.config == self.attempt, 'native:wrong-attempt')
         self.transport.guard(self.attempt)
         self.verified.recheck()
-        expected = {name: self.verified.asset_files[name] for name in sources()}
-        require(len({expected[name] for name in sources()[:4]}) == 4, 'native:identical-roles')
-        raw = self.transport.call(['/usr/bin/python3', '-I', '-', action,
+        expected = ({name: self.verified.asset_files[name] for name in sources()}
+                    if self.profile == 'native' else {})
+        if self.profile == 'native':
+            require(len({expected[name] for name in sources()[:4]}) == 4, 'native:identical-roles')
+        raw = self.transport.call(['/usr/bin/python3', '-I', '-', action, self.profile,
                                    json.dumps(expected, sort_keys=True)],
                                   input=guest_source(), timeout=90)
         require(type(raw) is bytes and 0 < len(raw) <= 8192, 'native:response-bound')
@@ -65,8 +71,29 @@ class NativeFixtures:
     def verify(self):
         require(not self.attempted and not self.failed, 'native:replay')
         self.attempted = self.failed = True
-        with operation('Verifying four baseline native launchers for [Child user]'):
+        with operation('Verifying baseline Chinese locale, native translations and CJK fonts'
+                       if self.profile == 'chinese' else
+                       'Verifying four baseline native launchers for [Child user]'):
             value = self.command('read')
+            if self.profile == 'chinese':
+                from chinese_language_assets import PACKAGES, LOCALE, GLYPHS, CATALOGUES, validate_receipt
+                require(set(value) == {'profile', 'os_id', 'release', 'locale', 'provider',
+                                      'packages', 'translations', 'cjk_glyphs', 'files',
+                                      'unchanged_state', 'runtime_locale'}
+                        and value['profile'] == 'chinese' and value['os_id'] == 'ubuntu'
+                        and value['release'] == '26.04' and value['locale'] == LOCALE
+                        and value['provider'] == 'mate-polkit'
+                        and set(value['packages']) == {item.split('=')[0] for item in PACKAGES}
+                        and value['translations'] == {key: len(messages) for key, messages in CATALOGUES.items()}
+                        and value['cjk_glyphs'] == len(set(GLYPHS))
+                        and value['unchanged_state'] is True and value['runtime_locale'] == 'UTF-8',
+                        'native:chinese-receipt')
+                validate_receipt({key: item for key, item in value.items()
+                                  if key != 'unchanged_state'})
+                require(self.command('read') == value, 'native:independent-readback')
+                self.receipt = value
+                self.failed = False
+                return {**value, 'independent_readback': True}
             require(set(value) == {'files', 'launchers'} and set(value['files']) == set(sources())
                     and value['launchers'] == [desktop_id(asset[0]) for asset in ASSETS],
                     'native:receipt')
@@ -76,12 +103,14 @@ class NativeFixtures:
         return {'verified': 4, 'verified_files': len(value['files']), 'independent_readback': True}
 
 
-def fixture_actions(*, include_refusal=True):
+def fixture_actions(*, include_refusal=True, profile='native'):
     """Fresh lifetime owner for an independent caller's guarded attempt."""
     require(type(include_refusal) is bool, 'native:action-binding')
     def controller(journey):
         if not hasattr(journey, 'native_fixtures'):
-            journey.native_fixtures = NativeFixtures(journey.transport, journey.context.verified)
+            journey.native_fixtures = (NativeFixtures(journey.transport, journey.context.verified)
+                                      if profile == 'native' else NativeFixtures(
+                                          journey.transport, journey.context.verified, profile=profile))
         return journey.native_fixtures
 
     def refuse(journey, guard):

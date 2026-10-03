@@ -2328,7 +2328,7 @@ authentication outcome or app behavior being tested.
 | ID | Kind | Supporting operation and boundary | Existing source | Status |
 | --- | --- | --- | --- | --- |
 | FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt; stage finite synthetic files through guarded SSH. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); [transfer safety](../../tests/unit/test_e2e_asset_transfer_cleanup_safety.py), case 1 qualification. `SyntheticFiles.call('stage')` supplies the [synthetic text files](#synthetic-file-commands); its six finite `profile` values supply the qualified [attachment boundaries](#attachment-rejection-boundaries), with exact receipt/readback and cleanup. Reusable fixture readiness belongs to FIX06, not transfer or installation during an attempt. | existing transfer, synthetic-text and six attachment-boundary profiles ready |
-| FIX06 | A | Independently verify one declared reusable fixture profile after baseline restore. Read-only files, launchers and ownership checks; no installation, repair, app launch or product-state setup. | Native: `NativeFixtures.verify` / `fixture_actions` in [native_fixtures.py](../../tests/e2e/native_fixtures.py), with guarded reads in [native_fixtures_guest.py](../../tests/e2e/native_fixtures_guest.py); see [native preparation](#native-fixture-preparation). Native Jordan-bound verification/catalogue qualified by `check_e2e_native_fixtures` in `20261001T024817Z-a8a37e09`. Tasks 035d/035a/035b, 109p, 116p and 126p extend their finite baseline profiles and verification before consumers; they do not broaden FIX04. FIX05 retains the separate real Lunar profile. | ready for native file/catalogue verification; other profiles planned |
+| FIX06 | A | Independently verify one declared reusable fixture profile after baseline restore. Read-only files, launchers and ownership checks; no installation, repair, app launch or product-state setup. | Native: `NativeFixtures.verify` / `fixture_actions` in [native_fixtures.py](../../tests/e2e/native_fixtures.py), with guarded reads in [native_fixtures_guest.py](../../tests/e2e/native_fixtures_guest.py); see [native preparation](#native-fixture-preparation). Native Jordan-bound verification/catalogue qualified by `check_e2e_native_fixtures` in `20261001T024817Z-a8a37e09`, with affected regression in `20261003T210811Z-d41b9452`. Chinese: `fixture_actions(profile='chinese')` and `chinese_language_assets.verify`; [language preparation](#chinese-language-preparation-and-desktop-language-setup). `check_e2e_chinese_language_assets` qualified wrong-entry refusal, independent valid readback and unchanged state on Ubuntu 26.04 in `20261003T210556Z-9dc87030`. Tasks 035d/035a/035b, 109p, 116p and 126p extend their finite baseline profiles and verification before consumers; they do not broaden FIX04. FIX05 retains the separate real Lunar profile. | native file/catalogue and Chinese asset verification ready; other profiles planned |
 | FIX03 | A | Prepare one declared account-eligibility profile before a kiosk journey: multiple, no child, no approver or ineligible approver. Do not generalize FIX02 into arbitrary account mutation. | `EmptyAccountFixture.prepare` / `e2e_dynamic_account.prepare_empty` changes only the two canonical children's account type, preserving identities, existing administrators and the station; outer lease cleanup restores the profile. `kiosk_no_child.PLAN` / `onpc_kiosk_no_child::run` qualified this profile through `check_e2e_kiosk_no_child` in run `20260924T064646Z-19f2aad6`, with shared station navigation requalified in run `20260924T173643Z-8d742069`. `AccessibleUI.kiosk_request_form(no_child=True)` and `RequestObservation.from_request` independently require the exact empty child set and no-child explanation, disabled Request/duration/soft-app/approver controls and no authentication prompt. Valid station entry, wrong-entry refusal, repeated public readback, sanitized collection, owned cleanup and baseline restoration passed without product-policy mutation. Complete case 54 separately passed via `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run` and `tools/run-tests e2e --id '54'`, adding public Cancel/GDM return; wrong-entry refusal remains qualification-only. The no-approver callables and independent case 55 acceptance below supply the second ready profile. `kiosk_multiple.PLAN` / `onpc_kiosk_multiple::run` supply the qualified multiple profile below. `kiosk_multiple.INELIGIBLE_PLAN` / `KioskIneligibleJourney` supplies the locked-administrator exclusion profile qualified below. | ready; multiple/no-child/no-approver/locked-approver profiles |
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
@@ -2346,8 +2346,30 @@ the exact installed package/provider tuple and verify the required translated
 native strings are available. Reconciliation is idempotent, preserves unrelated
 assets and supports retry of owned partial work under the
 [baseline lifetime contract](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
-This preparation and its FIX06 read-only profile verification are **planned**;
-the existing native-app FIX06 qualification supplies no language-readiness credit.
+The Ubuntu profile is implemented in
+[chinese_language_assets.py](../../tests/integration/chinese_language_assets.py)
+and the existing dependency/baseline routes. Distribution-managed `locales-all`
+supplies `zh_CN.UTF-8`; MATE PolicyKit and Linux-PAM catalogues are read independently,
+with required Chinese strings, package-byte identity and Noto CJK glyph coverage.
+Baseline source identity includes this module. Offline bootstrap and restored
+online app snapshots use the same read-only oracle. Fedora's existing preparation
+branch is preserved; no Chinese Fedora binding is claimed.
+Task 300a passed host checks and auto baseline/app-snapshot preparation. Chinese
+FIX06 qualified wrong-entry refusal, two independent valid reads and unchanged
+account/locale/product state on every enabled VM (Ubuntu 26.04) in
+[the Chinese qualification](../../output/test-runs/host/reports/20261003T210556Z-9dc87030/report.md).
+Its exact installed package/provider tuple is retained in the receipt; MATE
+PolicyKit `1.26.1-6`, Linux-PAM `1.7.0-5ubuntu3.2`, six required Chinese strings
+and 12 CJK glyphs passed. The affected native fixture/catalogue regression passed
+in [the native qualification](../../output/test-runs/host/reports/20261003T210811Z-d41b9452/report.md).
+Collection, worker shutdown, owned cleanup, baseline restoration, finalization
+and preservation passed for both runs. This qualifies assets, not the language
+of a running authentication dialog or any desktop-language switch.
+
+The read-only preservation proof pins Ubuntu's canonical `/usr/lib/os-release`
+and `/etc/locale.conf`. It records `/etc/default/locale`'s compatibility-link
+identity without opening that link as a regular file, refuses an unexpected or
+dangling destination and retains the shared asset reader's no-link guards.
 
 Attempts and app-snapshot preparation verify the declared language assets;
 they never install packages, generate locales or download translations.

@@ -7,7 +7,7 @@ from tools.test_storage import named_input
 
 def main():
     for _ in range(2):
-        result = smoke(assets=named_input(), provision_credentials=True,
+        result = smoke(assets=named_input(package_source=True), provision_credentials=True,
                        challenges=True, challenge_profile='overlay-prompt')
         if result:
             return result

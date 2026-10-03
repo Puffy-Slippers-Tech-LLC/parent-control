@@ -280,3 +280,6 @@ def buckets(nodeids):
                      'cleanup', estimates[index]) for index, group in enumerate(groups)]
     result.extend(exclusive)
     return result
+# Completed-result discard checks retain private pytest journals and local locks
+# with mocked privileged dispatch. No live VM, workflow or shared path is touched;
+# test_retention keeps its existing compatible unit and cleanup classification.

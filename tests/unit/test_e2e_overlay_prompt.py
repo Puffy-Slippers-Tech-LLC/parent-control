@@ -4,7 +4,7 @@ Parallelism: in-memory trees/doubles and private tmp_path, no live VM/display.
 """
 import json
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -55,7 +55,8 @@ def prompt(monkeypatch):
     # Shell has no Action interface: only its normal Escape binding is used.
     cancel.get_action_iface = Mock(return_value=None)
     recipient = Node(a.PARENT, 'label')
-    message = Node(f'Grant {a.CHILD} 1 minute, 15 seconds and allow soft blocked apps?', 'label')
+    message = Node(f'Grant {a.CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
+                   'Allow soft blocked apps for this grant.', 'label')
     dialog = Node('Authentication Required', 'dialog', children=[recipient, message, field, cancel])
     owner = Node('gnome-shell', 'application', children=[dialog])
     desktop = Node('desktop', 'desktop frame', children=[owner])
@@ -82,6 +83,7 @@ def test_independent_real_tree_proof_and_refusal_matrix_never_reads_secret(monke
     ('provider', 'wrong-agent'), ('owner', 'owner'), ('session', 'session'),
     ('recipient', 'recipient-context-missing'), ('child', 'request-context-missing'),
     ('duration', 'request-context-missing'), ('apps', 'request-context-missing'),
+    ('obsolete-message', 'request-context-missing'),
     ('ambiguous', 'field-ambiguous'), ('hidden', 'field-state'), ('disabled', 'field-state'),
     ('unfocused', 'field-state'), ('nonempty', 'field-not-empty'), ('stale', 'owner'),
     ('replaced', 'replacement'), ('missing', 'replacement'), ('wrong-child-session', 'overlay-account')])
@@ -95,7 +97,9 @@ def test_wrong_or_stale_challenge_refuses_before_cancel(monkeypatch, fault, code
     elif fault == 'recipient': recipient.name = a.OTHER_PARENT
     elif fault == 'child': message.name = message.name.replace(a.CHILD, a.EXISTING_CHILD)
     elif fault == 'duration': message.name = message.name.replace('1 minute, 15 seconds', '30 minutes')
-    elif fault == 'apps': message.name = f'Grant {a.CHILD} 1 minute, 15 seconds?'
+    elif fault == 'apps': message.name = f'Grant {a.CHILD} access?\nRequested time: 1 minute, 15 seconds.'
+    elif fault == 'obsolete-message':
+        message.name = f'Grant {a.CHILD} 1 minute, 15 seconds and allow soft blocked apps?'
     elif fault == 'ambiguous': cancel.role = 'password text'
     elif fault in ('hidden', 'disabled', 'unfocused'):
         field.states.discard({'hidden': 'showing', 'disabled': 'sensitive', 'unfocused': 'focused'}[fault])
@@ -107,7 +111,7 @@ def test_wrong_or_stale_challenge_refuses_before_cancel(monkeypatch, fault, code
     with pytest.raises(a.UiError, match='ui:(shell-' + code + '|' + code + ')'):
         ui.shell_prompt(pid, uid, challenge=challenge)
     cancel.action.do_action.assert_not_called()
-    if fault in ('recipient', 'child', 'duration', 'apps'):
+    if fault in ('recipient', 'child', 'duration', 'apps', 'obsolete-message'):
         assert field.get_text_iface.call_count == 1  # initial valid proof only
 
 
@@ -236,6 +240,18 @@ def test_approval_registration_retains_owned_envelope(monkeypatch):
     assert {tag[3:] for tag in APPROVED_PLAN.screen_tags.values() if tag.startswith('ui:')} <= a.OPERATIONS & OPERATION_LABELS.keys()
     assert a.SHELL_APPROVAL_OPERATIONS <= a.CHILD_DESKTOP_OPERATIONS
     assert not a.SHELL_APPROVAL_OPERATIONS & a.KIOSK_SESSION_OPERATIONS
+
+
+def test_kiosk_regression_binds_current_package_and_retains_owned_envelope(monkeypatch):
+    import check_e2e_kiosk_approval as kiosk_selector
+    smoke = Mock(return_value=0)
+    named = Mock(return_value='current-input')
+    monkeypatch.setattr(kiosk_selector, 'smoke', smoke)
+    monkeypatch.setattr(kiosk_selector, 'named_input', named)
+    assert kiosk_selector.main() == 0
+    named.assert_called_once_with(package_source=True)
+    smoke.assert_called_once_with(assets='current-input', provision_credentials=True,
+                                  kiosk_approval=True)
 
 
 @pytest.mark.parametrize('fault', [None, 'replacement', 'recipient', 'empty', 'unfocused', 'stale'])
@@ -528,12 +544,14 @@ def test_shell_opening_work_does_not_age_future_recipient_authority(monkeypatch,
 def test_two_owned_attempts_stop_after_first_failure(monkeypatch, failure):
     smoke = Mock(side_effect=[1 if failure == 0 else 0, 1 if failure == 1 else 0])
     monkeypatch.setattr(selector, 'smoke', smoke)
-    monkeypatch.setattr(selector, 'named_input', lambda: 'owned-input')
+    named = Mock(return_value='owned-input')
+    monkeypatch.setattr(selector, 'named_input', named)
     assert selector.main() == (0 if failure is None else 1)
     assert smoke.call_count == (1 if failure == 0 else 2)
-    for call in smoke.call_args_list:
-        assert call.kwargs == dict(assets='owned-input', provision_credentials=True,
-                                   challenges=True, challenge_profile='overlay-prompt')
+    assert named.call_args_list == [call(package_source=True)] * smoke.call_count
+    for invocation in smoke.call_args_list:
+        assert invocation.kwargs == dict(assets='owned-input', provision_credentials=True,
+                                         challenges=True, challenge_profile='overlay-prompt')
 
 
 @pytest.mark.parametrize('fault', ['', 'proof', 'input', 'result'])

@@ -458,6 +458,8 @@ def qualification_artifact_command(root, category, args):
         ['check_e2e_policy'], ['check_e2e_policy.py'],
         ['check_e2e_policy_legend'], ['check_e2e_policy_legend.py']) else
         named_input(package_source=True) if args in (
+        ['check_e2e_overlay_prompt'], ['check_e2e_overlay_prompt.py'],
+        ['check_e2e_kiosk_approval'], ['check_e2e_kiosk_approval.py'],
         ['check_e2e_allowance_boundaries'], ['check_e2e_allowance_boundaries.py'])
         else named_input())
     if os.path.lexists(output):

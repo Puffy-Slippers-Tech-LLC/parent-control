@@ -212,8 +212,11 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
 ])
 def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch(monkeypatch, selector):
     import regression_process
+    import test_storage
 
-    output = str(ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-input')
+    current_package = selector.removesuffix('.py') in (
+        'check_e2e_overlay_prompt', 'check_e2e_kiosk_approval')
+    output = str(test_storage.named_input(package_source=current_package))
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
@@ -229,6 +232,8 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_allowance_boundaries', 'check_e2e_allowance_boundaries.py',
+                                     'check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
+                                     'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py',
                                      'check_e2e_save_chooser', 'check_e2e_save_chooser.py',
                                      'check_e2e_match_editor', 'check_e2e_match_editor.py',
                                      'check_e2e_policy', 'check_e2e_policy.py',
@@ -260,6 +265,24 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
     else:
         named.assert_called_once_with(package_source=True)
     allocate.assert_called_once_with(str(output))
+
+
+@pytest.mark.parametrize('selector', ['check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
+                                     'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py'])
+def test_auth_regressions_preserve_current_inputs_and_ignore_legacy_bundle(monkeypatch, selector):
+    import test_storage
+    current = ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-current'
+    legacy = test_storage.named_input()
+    named = Mock(return_value=current)
+    monkeypatch.setattr(test_storage, 'named_input', named)
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda path: path in (str(current), str(legacy)))
+    validate = Mock()
+    monkeypatch.setattr(commands, 'artifact_path', validate)
+    monkeypatch.setattr(commands, 'allocate_artifact_output',
+                        Mock(side_effect=AssertionError('existing inputs replaced')))
+    assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) is None
+    named.assert_called_once_with(package_source=True)
+    validate.assert_called_once_with(str(current))
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_read_overlay_about_and_links',

@@ -587,6 +587,11 @@ Do not ask the developer to choose between building and restoring qualification
 inputs. Integration qualifications using `named_input()` register automatic
 preparation in `tools/test_commands.py`; launcher coverage discovers consumers
 independently so new wrappers cannot silently omit preparation.
+Current-package authentication regressions use `named_input(package_source=True)`
+in both selector and launcher preparation. A fixed legacy input can select an
+older version snapshot even after current app preparation succeeds. Preserve
+existing immutable bundles; prepare the new source-specific input rather than
+replacing the old bundle or relaxing snapshot validity.
 Only a prerequisite requiring external action or an unresolved behavior decision
 returns a blocker with the actual validation outcome. A passing session completes
 the plan's acceptance, checks the row and advances its sole pointer. It returns an explicit
@@ -1013,6 +1018,25 @@ subprocesses forward inherited scratch leases through the fixture builder too.
 Scratch initialization publishes a complete owner atomically from a recorded
 staging slot; interrupted initialization and deletion can resume without
 adopting unknown payloads or losing the directory identity.
+
+When the developer explicitly authorizes discarding saved results, use
+`tools/cleanup-e2e --vm NAME --discard-completed` for all completed registered
+execution results of that VM, or `tools/cleanup-e2e --host-only --discard-completed`
+for ordinary host execution results. Without `--vm`, the former processes every
+enabled VM serially. This removes all recorded allocations in the selected
+execution journal, including its current oversized run and retained history;
+it does not select only enough files to meet the budget. Normal cleanup still
+preserves evidence. Workflow/session logs, recovery-diagnostic journals,
+unregistered files and other VMs' journals are outside this explicit route.
+The privileged operation reconciles the VM first, then holds its compatibility
+and named leases through live-reference checks, a full identity/mount audit and
+deletion. Active retention owners and unfinished/marked journals refuse discard.
+Host execution uses its checkout activity and retention owner locks. Journals
+are left intact, making partial deletion retryable without adopting replacements.
+The argument-free `check_retained_runs_cleanup` dispatcher entry serves this
+operation without creating a new retention session or rotating evidence.
+Refresh the dispatcher through `./setup.sh --test-tools-only` after changing its
+recovery entry list. This development tooling changes no product state.
 
 `make test-all VM=NAME`, `make test-all-verify VM=NAME`, `tools/run-tests host` and
 `tools/run-tests host-builds` share **last-three-runs** retention. The runner

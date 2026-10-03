@@ -465,6 +465,7 @@ def confirm_main_update(root, base, update=None):
 def update_main_checkout(root, state, state_path):
     update = state['main_update']
     if update['phase'] == 'complete':
+        reconcile_main_monitor(state, state_path)
         return
     target = Path(update['checkout'])
     directory = Path(state['directory'])
@@ -516,9 +517,28 @@ def update_main_checkout(root, state, state_path):
     command('git', 'merge', '--ff-only', '--no-edit', 'FETCH_HEAD', cwd=target, log=log)
     if main_head(target) != command('git', 'rev-parse', 'refs/remotes/origin/main', cwd=target):
         raise ValueError('main is not synchronized with origin/main; preserve local work before retrying')
+    reconcile_main_monitor(state, state_path)
     update['phase'] = 'complete'
     save(state_path, state)
     save(Path(state['directory']) / 'release.json', state)
+
+
+def reconcile_main_monitor(state, state_path):
+    """Durably hand main a read-only reference, preserving any legacy journal."""
+    version = state['version']
+    key = publication_version_key(version)
+    target = Path(state['main_update']['checkout'])
+    with locked(target) as target_state:
+        path = target_state.with_name('monitor.json')
+        if path.exists():
+            previous = json.loads(path.read_text(encoding='utf-8'))
+            if not isinstance(previous, dict):
+                raise ValueError('invalid main publication monitoring record')
+            # Resuming an older publisher must not steal the latest handoff.
+            if publication_version_key(previous.get('version')) > key:
+                return
+        save(path, {'version': version, 'phase': state['phase'],
+                    'journal': str(state_path.resolve())})
 
 
 def inspect_source(checkout, log):
@@ -694,10 +714,37 @@ def publication_status(root=ROOT):
     so this also works alongside an active publisher and never changes its phase.
     Frozen upload artifacts and the development checkout are not monitoring inputs.
     """
-    path = journal_directory(root) / 'state.json'
+    directory = journal_directory(root)
+    path = directory / 'state.json'
+    monitor_path = directory / 'monitor.json'
+    monitor = None
+    try:
+        monitor = json.loads(monitor_path.read_text(encoding='utf-8'))
+    except FileNotFoundError:
+        pass
+    else:
+        if (not isinstance(monitor, dict) or not isinstance(monitor.get('journal'), str)
+                or not Path(monitor['journal']).is_absolute()
+                or monitor.get('phase') not in ('upload-started', 'published', 'complete')):
+            raise ValueError('invalid main publication monitoring record')
+        publication_version_key(monitor.get('version'))
+        path = Path(monitor['journal'])
     try:
         state = json.loads(path.read_text(encoding='utf-8'))
+        if not isinstance(state, dict):
+            raise ValueError('invalid publishing journal; preserve it and inspect the recorded release')
     except FileNotFoundError:
+        if monitor is not None:
+            # The exact version remains monitorable after its release checkout
+            # is removed. Never select a different PPA version in this case.
+            state = monitor
+        else:
+            state = None
+    if monitor is not None and isinstance(state, dict) and state.get('version') != monitor['version']:
+        # A reused release checkout has begun another attempt before handing
+        # it to main. Keep following the version already reconciled into main.
+        state = monitor
+    if state is None:
         entries = [item for item in sources() if item['distro_series_link'] == SERIES]
         if not entries:
             raise ValueError('no recorded release or Launchpad source for resolute to monitor') from None

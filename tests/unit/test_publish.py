@@ -430,7 +430,8 @@ def test_polling_recovers_transient_network_errors_without_upload(tmp_path, monk
     assert json.loads(path.read_text())['phase'] == 'published'
     output = capsys.readouterr()
     assert 'PPA amd64 package index; status unavailable (URLError)' in output.err
-    assert 'UTC (+' in output.out and 'retrying in 30s' in output.out
+    zone = publish.datetime.now().astimezone().strftime('%Z')
+    assert f'{zone} (+' in output.out and 'retrying in 30s' in output.out
     assert 'binary published; waiting for the exact version' in output.out
     assert 'publication confirmed:' in output.out
     assert 'waiting for Launchpad acceptance, amd64 build' not in output.out
@@ -1056,7 +1057,8 @@ def main_update_candidate(repository, tmp_path, monkeypatch, unsigned_publisher)
     git(source, 'add', 'data/app.json')
     git(source, 'commit', '-m', 'release metadata')
     revision = git(source, 'rev-parse', 'HEAD')
-    state = dict(phase='upload-started', base=base, revision=revision, directory=str(directory),
+    state = dict(phase='upload-started', version='1.1+ppa1~ubuntu26.04.1',
+                 base=base, revision=revision, directory=str(directory),
                  main_update={'checkout': str(repository), 'phase': 'pending'})
     path = tmp_path / 'state.json'
     publish.save(path, state)
@@ -1118,8 +1120,8 @@ def test_publish_commits_every_pending_release_change_and_reconciles_main(
         git(frozen, 'add', 'debian/changelog')
         git(frozen, 'commit', '-m', 'official release metadata')
         prepared.append(base)
-        return dict(phase='prepared', base=base, revision=git(frozen, 'rev-parse', 'HEAD'),
-                    directory=str(directory), product=product)
+        return dict(phase='upload-started', base=base, revision=git(frozen, 'rev-parse', 'HEAD'),
+                    directory=str(directory), product=product, version='1.1+ppa1~ubuntu26.04.1')
 
     monkeypatch.setattr(publish, 'prepare', prepare)
     # Exercise the actual main metadata update/push with only local Git.
@@ -1276,8 +1278,108 @@ def test_release_only_inputs_fast_forward_main_and_publish_metadata(
     git(target, 'merge-base', '--is-ancestor', state['base'], 'HEAD')
     assert git(target, 'status', '--porcelain') == ''
     assert json.loads((target / 'data/app.json').read_text())['version'] == '1.1'
+    monitor = json.loads((publish.journal_directory(target) / 'monitor.json').read_text())
+    assert monitor['journal'] == str(path.resolve())
+    assert monitor['version'] == state['version']
     if changed_files:
         assert (target / 'docs/README.md').read_text() == 'Committed release inputs.\n'
+
+
+@pytest.mark.parametrize('phase', ['upload-started', 'published', 'complete'])
+@pytest.mark.parametrize('release_journal', ['present', 'removed', 'reused'])
+def test_main_monitor_prefers_handoff_and_preserves_journals(
+        main_update_candidate, monkeypatch, phase, release_journal):
+    target, root, _, state, path = main_update_candidate
+    with publish.locked(target) as old_path:
+        publish.save(old_path, {'phase': 'complete', 'version': '1.0+ppa1~ubuntu26.04.1'})
+    old_bytes = old_path.read_bytes()
+    publish.update_main_checkout(root, state, path)
+    state['phase'] = phase
+    publish.save(path, state)
+    if release_journal == 'removed':
+        path.unlink()
+    elif release_journal == 'reused':
+        publish.save(path, {'phase': 'prepared', 'version': '1.2+ppa1~ubuntu26.04.1'})
+    before = path.read_bytes() if path.exists() else None
+    monitor_path = old_path.with_name('monitor.json')
+    monitor_bytes = monitor_path.read_bytes()
+    seen = []
+    monkeypatch.setattr(publish, 'wait_for_publication', lambda value: seen.append(value['version']))
+    monkeypatch.setattr(publish, 'sources', lambda *args: pytest.fail('selected latest PPA instead of handoff'))
+    publish.publication_status(target)
+    assert seen == [state['version']]
+    assert old_path.read_bytes() == old_bytes
+    assert monitor_path.read_bytes() == monitor_bytes
+    assert (path.read_bytes() if path.exists() else None) == before
+
+
+def test_main_monitor_handoff_retry_preserves_newer_release(main_update_candidate):
+    target, root, _, state, path = main_update_candidate
+    publish.update_main_checkout(root, state, path)
+    monitor_path = publish.journal_directory(target) / 'monitor.json'
+    monitor_path.unlink()
+    # Completed-update retries repair an interrupted or missing handoff.
+    publish.update_main_checkout(root, state, path)
+    first = monitor_path.read_bytes()
+    newer = dict(state, version='1.2+ppa1~ubuntu26.04.1')
+    publish.reconcile_main_monitor(newer, path)
+    latest = monitor_path.read_bytes()
+    assert latest != first
+    publish.update_main_checkout(root, state, path)
+    assert monitor_path.read_bytes() == latest
+
+
+def test_main_monitor_handoff_failure_prevents_completion(main_update_candidate, monkeypatch):
+    target, root, _, state, path = main_update_candidate
+    original = publish.save
+
+    def save(destination, value):
+        if destination.name == 'monitor.json':
+            raise OSError('handoff write failed')
+        return original(destination, value)
+
+    monkeypatch.setattr(publish, 'save', save)
+    with pytest.raises(OSError, match='handoff write failed'):
+        publish.update_main_checkout(root, state, path)
+    assert json.loads(path.read_text())['main_update']['phase'] == 'pushed'
+    assert state['main_update']['phase'] == 'pushed'
+    monkeypatch.setattr(publish, 'save', original)
+    publish.update_main_checkout(root, state, path)
+    assert state['main_update']['phase'] == 'complete'
+    assert (publish.journal_directory(target) / 'monitor.json').exists()
+
+
+def test_main_monitor_does_not_authorize_publication(main_update_candidate):
+    target, root, _, state, path = main_update_candidate
+    publish.update_main_checkout(root, state, path)
+    monitor_path = publish.journal_directory(target) / 'monitor.json'
+    before = monitor_path.read_bytes()
+    with pytest.raises(ValueError, match='releases/v'):
+        publish.publish(target)
+    assert monitor_path.read_bytes() == before
+    assert not monitor_path.with_name('state.json').exists()
+
+
+@pytest.mark.parametrize('record', [None, [],
+    {'version': '1.1+ppa1~ubuntu26.04.1', 'phase': 'prepared', 'journal': '/missing'},
+    {'version': '1.1+ppa1~ubuntu26.04.1', 'phase': 'upload-started', 'journal': 'relative'},
+])
+def test_main_monitor_rejects_invalid_reference_before_network(tmp_path, monkeypatch, record):
+    (tmp_path / 'monitor.json').write_text(json.dumps(record))
+    monkeypatch.setattr(publish, 'journal_directory', lambda root: tmp_path)
+    monkeypatch.setattr(publish, 'sources', lambda *args: pytest.fail('network before validation'))
+    with pytest.raises(ValueError, match='invalid main publication monitoring record'):
+        publish.publication_status(tmp_path)
+
+
+def test_main_monitor_reads_current_release_phase(main_update_candidate, monkeypatch):
+    target, root, _, state, path = main_update_candidate
+    publish.update_main_checkout(root, state, path)
+    state['phase'] = 'prepared'
+    publish.save(path, state)
+    monkeypatch.setattr(publish, 'wait_for_publication', lambda *args: pytest.fail('ignored current phase'))
+    with pytest.raises(ValueError, match='has not reached the upload step'):
+        publish.publication_status(target)
 
 
 @pytest.mark.parametrize('failure', ['declined', 'dirty', 'fetch-race'])

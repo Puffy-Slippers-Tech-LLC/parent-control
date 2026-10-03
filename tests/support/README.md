@@ -131,6 +131,12 @@ structural facts and expire on input, retry, reset and snapshot exit. Ordinary
 `get_name()` result reads remain uncached; provider `GetItems` names never supply
 these observations. Protected descendants are still excluded before querying.
 
+Live nodes absent from `GetItems` batch their fallback role and, when constructing
+observation facts, state queries with identity/name reads. These fallback states
+expire with the snapshot; input guards continue using uncached `get_state_set()`.
+Query errors and malformed states still refuse the complete observation, and
+every pipeline remains bounded to 64 RPCs.
+
 ## Extend without hiding the scenario
 
 Shell authentication declarations reuse `request_flow.overlay_authentication`

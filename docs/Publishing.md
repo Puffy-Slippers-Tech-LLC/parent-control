@@ -109,14 +109,25 @@ resolve and commit that merge, or abort it and reconcile the conflicting edits,
 then rerun `make publish`.
 
 To check or resume monitoring an uploaded release without publishing anything,
-run this from its release checkout:
+run this from its release checkout or the reconciled main checkout:
 
 ```sh
 make publish-status
 ```
 
-It checks the exact version in the latest local release journal, including a
-completed release. Without a journal it selects the newest source version for
+Before displaying `MAIN UPDATED`, publishing durably records a monitoring
+reference in main's private Git directory. Main status checks prefer this
+reference over any older local release journal and follow the release journal's
+progress. Each newer release replaces the reference; resuming an older release
+cannot replace a newer reference. Any legacy local journal is preserved.
+Main supports only `make publish-status`; `make publish` still requires a
+`releases/vX.Y` branch in the separate release checkout.
+If the release checkout is removed or reused, main still checks the exact
+version recorded at handoff through the public endpoints.
+
+Without a monitoring reference, it checks the exact version in the latest local
+release journal, including a completed release. Without either record it selects
+the newest source version for
 resolute in the PPA. It immediately checks publication, prints green success and
 exits if verified, or continues polling with the same checks as `make publish`.
 A recorded attempt that has not reached the upload step reports an error; this
@@ -353,6 +364,8 @@ including after updating the publishing tool or changing local files, HEAD,
 branch, or release notes in that checkout. It only reads the journal and public endpoints; it does
 not build, sign, push, upload, update the journal, or fast-forward the checkout.
 It can also run alongside a publisher, monitoring the release selected at startup.
+The main checkout can monitor the handed-off release after `MAIN UPDATED`;
+its monitoring reference is separate from both checkouts' publishing journals.
 Missing temporary build artifacts do not prevent status checks.
 
 For the full publishing workflow, run `make publish` again in the same release

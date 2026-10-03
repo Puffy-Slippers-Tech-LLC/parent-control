@@ -1,3 +1,7 @@
+## v1.4 -
+### Bugs
+Parent App: Parent app app grid column headers on some RTL languages overlap
+
 ## v1.3 - 2026-10-03
 ### New Features
 - Localization: Supports 62 languages, including RTL (you voted, we listened! Don't get spoiled though :) Do me a favor, spread the word out, help more families!)

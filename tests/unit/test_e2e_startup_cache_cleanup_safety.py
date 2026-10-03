@@ -434,7 +434,7 @@ def test_changed_artifacts_and_metadata_are_rebuilt(artifact_builder, change):
     assert (second / 'package/payload').read_bytes() == b'package'
 
 
-def test_input_edit_during_build_refuses_and_does_not_publish(artifact_builder):
+def test_input_edit_during_build_refuses_and_does_not_publish(artifact_builder, capsys):
     builder, output, identity, _ = artifact_builder
     build = builder.build.side_effect
     def changed(path, **kwargs):
@@ -445,6 +445,34 @@ def test_input_edit_during_build_refuses_and_does_not_publish(artifact_builder):
         cache.prepare_artifacts(builder, output())
     with cache.receipt(builder.REPOSITORY, 'artifacts') as (record, _):
         assert record['identity'] is None
+    evidence = next(line.split('differences=', 1)[1] for line in capsys.readouterr().out.splitlines()
+                    if 'artifact preparation differences=' in line)
+    assert json.loads(evidence) == {
+        'inputs': {part: {'source': {'before': 'one', 'after': 'two'}}
+                   for part in ('package', 'fixtures')},
+        'metadata': {},
+    }
+
+
+def test_manifest_mismatch_retains_comparison_without_publishing(artifact_builder, capsys):
+    builder, output, _, metadata = artifact_builder
+    build = builder.build.side_effect
+    def changed(path, **kwargs):
+        build(path, **kwargs)
+        manifest = dict(metadata, source={'revision': 'unexpected'})
+        (path / builder.MANIFEST_NAME).write_text(json.dumps(manifest))
+    builder.build.side_effect = changed
+    with pytest.raises(ValueError, match='build inputs changed'):
+        cache.prepare_artifacts(builder, output())
+    with cache.receipt(builder.REPOSITORY, 'artifacts') as (record, _):
+        assert record['identity'] is None
+    evidence = next(line.split('differences=', 1)[1] for line in capsys.readouterr().out.splitlines()
+                    if 'artifact preparation differences=' in line)
+    assert json.loads(evidence) == {
+        'inputs': {},
+        'metadata': {'source': {'before': metadata['source'], 'after': metadata['source'],
+                                'manifest': {'revision': 'unexpected'}}},
+    }
 
 
 def test_artifact_copy_race_refuses_instead_of_using_partial_copy(artifact_builder, monkeypatch):

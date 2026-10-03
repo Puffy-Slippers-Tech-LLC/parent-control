@@ -399,7 +399,9 @@ copies it into the current run's private allocation and verifies that copy.
 Inputs are captured again before publishing the result; concurrent changes refuse
 the preparation. A missing or altered retained bundle rebuilds both components.
 The log identifies each reused/rebuilt component, changed input groups and lookup
-time. Explicit `artifacts build` and reproducibility builds remain fresh.
+time. A post-build input refusal retains the changed groups' before/after values
+and expected/actual manifest metadata in the launcher log, while leaving the
+cache receipt invalid. Explicit `artifacts build` and reproducibility builds remain fresh.
 
 Cleanup is serial operational work before parallel test scheduling. Standalone
 cleanup, UI/E2E startup and foreground/unattended dispatch never run prerequisite

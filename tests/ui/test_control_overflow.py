@@ -59,6 +59,7 @@ def test_language_switch_preserves_parent_selection_numeric_draft_and_filters(
          and ui.state('parent-app-search', ui.api.StateType.SENSITIVE), 'catalogue ready')
     ui.focus('parent-app-search')
     type_text(ui, 'parent-app-search', 'firefox')
+    review_frame('parent-apps-' + language)
     ui.activate('parent-filter-match-rule')
     choice = 'parent-filter-match-rule-precise'
     wait(lambda: ui.showing(choice), 'filter opens')

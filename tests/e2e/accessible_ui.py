@@ -7276,6 +7276,27 @@ class AccessibleUI:
                    [(node.bus, node.path) for node in challenge]]
         return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
 
+    def wait_mate_prompt(self, *, binding=None):
+        """Bind a new challenge after Request's locale-driven agent restart.
+
+        While no prompt is visible the service may have no MainPID. Once it
+        appears, require the complete prompt to belong to the current service
+        process, then pin that process for all subsequent challenge checks.
+        """
+        def ready():
+            self.invalidate_observation()
+            observation = self.read_snapshot(protect_text=True)
+            nodes, snapshot, _identities, facts = observation
+            kind = self.system_prompt_kind(observation=(nodes, snapshot, facts))
+            require(kind in (None, 'mate-polkit'), 'ui:mate-wrong-agent')
+            if kind is None:
+                return None
+            pid = self.mate_agent_pid()
+            challenge = self.mate_prompt(pid, observation=observation, binding=binding)
+            require(self.mate_agent_pid() == pid, 'ui:mate-owner')
+            return pid, challenge
+        return self.wait(ready, 'mate-prompt', prompt_in_predicate=True)
+
     def kiosk_approval_success(self, *, immediate=False, overlay=False, pinned=None):
         """REQUEST11: explicit owned success, never prompt disappearance alone."""
         if overlay:
@@ -7348,8 +7369,7 @@ class AccessibleUI:
                 self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')
                 require(self.mate_prompt(pid) is None, 'ui:mate-already-open')
                 self._invoke_target(self.kiosk_valid_target('kiosk-request-submit'))
-                challenge = self.wait(lambda: self.mate_prompt(pid), 'mate-prompt',
-                                      prompt_in_predicate=True)
+                pid, challenge = self.wait_mate_prompt()
             else:
                 challenge = self.mate_prompt(pid, filled=submitting)
                 require(challenge is not None, 'ui:mate-missing')
@@ -7754,8 +7774,7 @@ class AccessibleUI:
         try:
             self._invoke_target(self.kiosk_valid_target('kiosk-request-submit', child=child, approver=approver))
             self.invalidate_observation()
-            challenge = self.wait(lambda: prompt(), 'mate-prompt',
-                                  prompt_in_predicate=True)
+            pid, challenge = self.wait_mate_prompt(binding=binding)
             provider = self.mate_provider_metadata(pid)
             rejected = self.mate_prompt_refusals(pid, challenge) if refusals else []
             require(self.mate_agent_pid() == pid, 'ui:mate-owner')

@@ -1030,7 +1030,15 @@ An independent request/Cancel entry exercises the full AUTH01 refusal matrix;
 fresh station entry then submits the correct fixture password once.
 
 `AccessibleUI.kiosk_mate_approval` opens the request and supplies fresh recipient
-checks through `mate_prompt`. `mate_challenge_identity` binds opaque public
+checks through `mate_prompt`. Initial discovery uses `wait_mate_prompt` after
+the one Request action: the kiosk's
+[locale preparation](../SystemDesign/Localization.md) may restart the agent
+before presenting authentication. While no prompt is visible, observation waits
+without requiring a running service process. Once visible, the unique prompt
+and every control must belong to the current service PID, which must remain
+unchanged throughout that proof. Subsequent proofs retain the established
+process/challenge binding; replacement remains a terminal refusal. Password-free
+Cancel uses the same initial discovery. `mate_challenge_identity` binds opaque public
 AT-SPI references to boot, UID and service process lifetime. `UiObservations`
 requires ordered, non-replayed same-challenge proofs with a 30-second freshness
 bound and rejects intervening operations. `onpc_password::enter_kiosk_mate_password`

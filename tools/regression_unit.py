@@ -1,5 +1,12 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Kiosk locale cases in request_time_estimate, adapters, core, service_contract
+and systemd_unit use process-local D-Bus/systemd doubles and tiny tmp_path
+environment files. They launch no real agent, change no host locale and retain
+their compatible classification; no new process, socket or cleanup owner.
+The native-gettext locale check in localization uses its existing private
+catalogues and synchronously waited subprocess; locale inventory is read-only.
+
 Diagnostics-only broker cases retain process-local credentials/bus/thread doubles
 and small private pytest log directories. Upgrade guard cases retain their
 existing relocated, synchronously waited launcher processes. No system bus,

@@ -19,9 +19,10 @@ the broker. The system-bus policy permits callers to reach the service; the brok
 not possession of the bus name or a client executable, is the authorization
 boundary.
 
-During the child-trust upgrade reboot guard, the same service admits only
-`LogEvent` and `ExportDiagnosticLogs`, with their normal authorization and
-privacy checks. All other methods return `Error.RebootRequired`. This
+During the child-trust upgrade reboot guard, the same service admits
+`LogEvent`, `ExportDiagnosticLogs`, `ListKioskUsers` and `GetChildLanguageContext`,
+with their normal caller/target authorization and privacy checks. All other
+methods return `Error.RebootRequired`. This
 [diagnostics-only mode](Logging-and-Feedback.md#investigation-coverage) owns no
 enforcement adapters, subscriptions or policy workers and does not claim
 management readiness.
@@ -109,11 +110,13 @@ the broker resolves and revalidates it.
 | D-Bus method | Child | Kiosk | Admin |
 | --- | --- | --- | --- |
 | `ListManagedUsers` | - | yes | yes |
+| `ListKioskUsers` | - | yes | - |
 | `ListApprovers` | yes | yes | yes |
 | `GetOwnAccount` | own | - | - |
 | `GetOwnLanguage` | own | own | own |
 | `SetOwnLanguage` | own | own | own |
 | `GetChildLanguage` | - | selected child | - |
+| `GetChildLanguageContext` | - | selected child | - |
 | `SetChildLanguage` | - | selected child | - |
 | `GetPreferences` | own | selected child | selected child |
 | `GetPolicyWarnings` | own | selected child | selected child |
@@ -161,6 +164,20 @@ caller-supplied arithmetic operands and returns a calculation; it does not
 authorize or write a grant.
 
 ## Authorization and grant transactions
+
+The kiosk's forked MATE agent can finish systemd startup before registering with
+PolicyKit. With interactive authorization enabled, an unfulfilled challenge
+(`authorized=false`, `is_challenge=true`, no dismissal) permits the same kiosk
+check to be retried every 100 ms for at most five seconds from its initial
+dispatch. This follows the ordinary PolicyKit
+[interactive authority result](https://github.com/polkit-org/polkit/blob/main/src/polkitbackend/polkitbackendinteractiveauthority.c):
+completed authentication clears the challenge flag. Approval, rejection,
+dismissal and D-Bus errors are terminal; the child overlay does not retry.
+The original worker, transaction lock, subject, selected identities and lifecycle
+subscriptions remain in force. Lock, session loss or caller disconnect cancels
+the wait, and an active retried check uses the same remote cancellation path.
+This is checkout-covered startup handling; real native-agent readiness and
+translated approval remain part of task 300's pending installed acceptance.
 
 `RequestAccess` is restricted to the configured kiosk UID.
 `RequestOwnAccess` derives its target from the child caller, and rejects a child

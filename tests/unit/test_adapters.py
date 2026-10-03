@@ -33,12 +33,14 @@ class PolkitAdapterTests(unittest.TestCase):
             "LocalAccount": True,
             "Locked": False,
             "IconFile": "/var/lib/AccountsService/icons/child",
+            "Language": "zh_CN.UTF-8",
         },)
         with mock.patch.object(accounts, "_user_path", return_value="/org/freedesktop/Accounts/User1001"), \
                 mock.patch("oh_no_parent_control.adapters._call", return_value=reply):
             user = accounts.get_user(1001)
 
         self.assertEqual(user.icon_file, "/var/lib/AccountsService/icons/child")
+        self.assertEqual(user.desktop_language, "zh_CN.UTF-8")
 
     def test_user_listing_uses_fresh_nss_candidates(self):
         accounts = AccountsService(object())

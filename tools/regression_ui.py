@@ -3,6 +3,11 @@
 Known modules have private compositor/bus/settings and per-attempt evidence.
 Keep nested Shell in one job because it also publishes stable latest evidence.
 New modules remain included, but run exclusively until their isolation is reviewed.
+
+Child-desktop defaults and delayed upgrade replies in language_settings reuse
+the owned request preview/display/bus and tmp_path events. Agent preparation is
+a process-local transport double; no host agent/service/locale is touched.
+The existing compatible Request behavior and Feedback buckets still apply.
 """
 
 from dataclasses import dataclass

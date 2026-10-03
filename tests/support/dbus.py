@@ -142,6 +142,9 @@ class RecordingBroker:
     def get_child_language(self, uid, target_uid):
         return self._invoke("get_child_language", "fr", uid, target_uid)
 
+    def get_child_language_context(self, uid, target_uid):
+        return self._invoke('get_child_language_context', ('', 'zh_CN.UTF-8'), uid, target_uid)
+
     def set_child_language(self, uid, target_uid, language):
         return self._invoke("set_child_language", language, uid, target_uid, language)
 
@@ -158,6 +161,10 @@ class RecordingBroker:
                          icon_file="/icon.png"),),
             caller_uid,
         )
+
+    def list_kiosk_users(self, caller_uid):
+        return self._invoke('list_kiosk_users', (
+            UserAccount(1100, 'child', '[Child user]', False, False, True),), caller_uid)
 
     def list_approvers(self, caller_uid):
         return self._invoke(

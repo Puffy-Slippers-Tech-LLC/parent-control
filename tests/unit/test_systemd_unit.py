@@ -14,6 +14,9 @@ FAPOLICYD_FALLBACK = ROOT / "data/fapolicyd/99-oh-no-parent-control-allow.rules"
 
 
 class BrokerServiceUnitTests(unittest.TestCase):
+    def test_kiosk_agent_locale_is_limited_to_its_own_service(self):
+        agent = (ROOT / 'data/systemd/user/oh-no-parent-control-polkit-agent.service').read_text()
+        self.assertIn('EnvironmentFile=-%t/oh-no-parent-control/polkit-agent.env', agent)
     def test_offline_session_bus_can_monitor_selinux_without_internet_sockets(self):
         unit = configparser.ConfigParser(strict=False, interpolation=None)
         unit.read(BROKER_UNIT, encoding="utf-8")

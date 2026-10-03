@@ -152,7 +152,11 @@ diagnostics-only mode. The existing role checks still authorize `LogEvent` and
 `ExportDiagnosticLogs`, including the export's second check before delivery.
 The service reads retained structured history and accepts new frontend events,
 without constructing enforcement adapters, reconciling policy, changing child
-sessions or starting policy/grant observers. All other methods, including the
+sessions or starting policy/grant observers. The kiosk-only `ListKioskUsers`
+and `GetChildLanguageContext` read endpoints also retain their role/target checks
+so the restart notice follows the selected child's language. The read-only
+preference store is composed without enforcement dependencies or writes.
+All other methods, including the
 startup-timing witness, return `Error.RebootRequired`; bus-name ownership alone
 must not be interpreted as policy readiness. Migration exclusion remains intact.
 

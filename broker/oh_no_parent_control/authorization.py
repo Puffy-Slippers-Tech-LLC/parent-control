@@ -18,6 +18,8 @@ from .adapters import (
 
 LOG = get_logger("authorization")
 LIFECYCLE_TIMEOUT_MS = 5_000
+AGENT_STARTUP_GRACE_MS = 5_000
+AGENT_RETRY_MS = 100
 LOGIN_USER_INTERFACE = "org.freedesktop.login1.User"
 POLKIT_NAME = "org.freedesktop.PolicyKit1"
 POLKIT_PATH = "/org/freedesktop/PolicyKit1/Authority"
@@ -51,11 +53,12 @@ class PolkitAuthorizer:
         ))
         return _PendingAuthorization(
             self.connection, sender, correlation_id, parameters,
+            wait_for_agent=request_kind == "kiosk",
         ).run()
 
 
 class _PendingAuthorization:
-    def __init__(self, connection, sender, correlation_id, parameters):
+    def __init__(self, connection, sender, correlation_id, parameters, *, wait_for_agent=False):
         self.connection = connection
         self.sender = sender
         self.correlation_id = correlation_id
@@ -70,6 +73,9 @@ class _PendingAuthorization:
         self.cancel_done = False
         self.cancel_reason = None
         self.outcome = "denied"
+        self.wait_for_agent = wait_for_agent
+        self.agent_deadline = 0
+        self.retry_source = None
 
     def _read(self, name, path, interface, method, parameters, signature):
         return _call(self.connection, name, path, interface, method, parameters,
@@ -168,13 +174,8 @@ class _PendingAuthorization:
                 self.context.iteration(False)
             if self.cancel_reason:
                 return self.outcome
-            self.started = True
-            self.connection.call(
-                POLKIT_NAME, POLKIT_PATH, POLKIT_INTERFACE, "CheckAuthorization",
-                self.parameters, GLib.VariantType.new("((bba{ss}))"),
-                Gio.DBusCallFlags.NONE, GLib.MAXINT, self.cancellable,
-                self._authorization_finished,
-            )
+            self.agent_deadline = GLib.get_monotonic_time() + AGENT_STARTUP_GRACE_MS * 1000
+            self._start_check()
             self.loop.run()
             return self.outcome
         except GLib.Error as error:
@@ -188,9 +189,32 @@ class _PendingAuthorization:
                 )
             return self.outcome
         finally:
+            if self.retry_source is not None:
+                self.retry_source.destroy()
+                self.retry_source = None
             for subscription in self.subscriptions:
                 self.connection.signal_unsubscribe(subscription)
             self.context.pop_thread_default()
+
+    def _start_check(self):
+        self.started = True
+        self.connection.call(
+            POLKIT_NAME, POLKIT_PATH, POLKIT_INTERFACE, "CheckAuthorization",
+            self.parameters, GLib.VariantType.new("((bba{ss}))"),
+            Gio.DBusCallFlags.NONE, GLib.MAXINT, self.cancellable,
+            self._authorization_finished,
+        )
+
+    def _retry_check(self, *_args):
+        self.retry_source = None
+        if self.cancel_reason:
+            return GLib.SOURCE_REMOVE
+        if GLib.get_monotonic_time() >= self.agent_deadline:
+            self.auth_done = True
+            self._finish_if_ready()
+        else:
+            self._start_check()
+        return GLib.SOURCE_REMOVE
 
     def _owner_changed(self, _connection, _sender, _path, _interface, _signal,
                        parameters):
@@ -227,6 +251,12 @@ class _PendingAuthorization:
         self.outcome = "cancelled"
         LOG.info("authorization.002", request=self.correlation_id, reason=reason)
         if not self.started:
+            # Between completed unfulfilled challenges there is no remote
+            # authorization to cancel, but the worker loop is still running.
+            if self.retry_source is not None:
+                self.retry_source.destroy()
+                self.retry_source = None
+            self.loop.quit()
             return
         # Use the SAME connection and cancellation ID as CheckAuthorization.
         # GIO cancellation alone only abandons our local wait, leaving Polkit's
@@ -240,10 +270,22 @@ class _PendingAuthorization:
         self.cancellable.cancel()
 
     def _authorization_finished(self, connection, result):
-        self.auth_done = True
+        self.started = False
         try:
-            authorized, _challenge, details = connection.call_finish(result).unpack()[0]
+            authorized, challenge, details = connection.call_finish(result).unpack()[0]
             if not self.cancel_reason:
+                # With AllowUserInteraction, Polkit returns an unfulfilled
+                # challenge when no agent is registered yet. A completed
+                # authentication (including rejection) clears is_challenge.
+                # The forked kiosk service can start before registration;
+                # retry only this result within a short startup grace period.
+                if (self.wait_for_agent and not authorized and challenge
+                        and not details.get("polkit.dismissed")
+                        and GLib.get_monotonic_time() < self.agent_deadline):
+                    self.retry_source = GLib.timeout_source_new(AGENT_RETRY_MS)
+                    self.retry_source.set_callback(self._retry_check)
+                    self.retry_source.attach(self.context)
+                    return
                 # PolicyKit reports the agent's Cancel action in this public
                 # result detail. is_challenge only means authentication could
                 # still authorize the subject; it is not a dismissal result.
@@ -256,6 +298,7 @@ class _PendingAuthorization:
                     request=self.correlation_id,
                     error_type=error_code(error),
                 )
+        self.auth_done = True
         self._finish_if_ready()
 
     def _cancellation_finished(self, connection, result):

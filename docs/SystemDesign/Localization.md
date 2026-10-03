@@ -45,8 +45,9 @@ The broker authenticates the caller and stores language intent. Frontends resolv
 that intent against the language catalogue, load message catalogues and render
 text. For the product-owned PolicyKit approval message, the broker loads the same
 GTK-independent private translation context using the validated target child's
-saved language. It supplies no root-session language: an empty or unsupported
-selection defaults to English under the existing resolver, and missing entries
+saved language. It supplies no root-session language: an empty kiosk selection
+uses the child's AccountsService desktop language, while an empty overlay
+selection defaults to English. Unsupported selections and missing entries
 retain English source fallback. It never translates policy, protocol values or
 diagnostics.
 
@@ -177,7 +178,9 @@ or published.
 
 Resolution uses the saved language when nonempty. An empty value uses the primary
 frontend session message language, supplied by `GLib.get_language_names()` for
-GTK. An unsupported primary language resolves to English, rather than searching
+GTK. Dedicated kiosk instead supplies the selected child's AccountsService
+`Language`; an absent desktop language falls back to the kiosk session.
+An unsupported primary language resolves to English, rather than searching
 later session-language entries. A nonempty unsupported saved ID also resolves to
 English and remains preserved in storage. With no frontend session language
 supplied, resolution defaults to English.
@@ -305,6 +308,7 @@ The exact schema and ownership contract remain in [State](State.md).
 | `GetOwnLanguage` | None | Saved language string | Caller UID from bus credentials |
 | `SetOwnLanguage` | Language string | Persisted language string | Caller UID from bus credentials |
 | `GetChildLanguage` | Child UID | Saved language string | Configured kiosk caller; eligible child target |
+| `GetChildLanguageContext` | Child UID | Saved language and AccountsService desktop language | Configured kiosk caller; eligible child target |
 | `SetChildLanguage` | Child UID, language string | Persisted language string | Configured kiosk caller; eligible child target |
 
 The own-language methods accept no target UID. Administrators, including root, eligible
@@ -315,7 +319,8 @@ another account's personal language. See [broker permissions](Broker.md#broker-i
 The kiosk's child-language methods share the child's personal record with the
 overlay and panel; they grant no policy, authentication or operating-system changes.
 
-Empty means follow the frontend session language. Explicit IDs contain 2–8 ASCII
+Empty means follow the frontend session language, or the selected child's
+desktop language in kiosk. Explicit IDs contain 2–8 ASCII
 letters followed by optional hyphen-separated 1–8 ASCII-alphanumeric subtags,
 with a maximum total length of 63 characters. Values are preserved as supplied.
 POSIX locale strings such as `en_US.UTF-8`, paths and colon-separated language
@@ -345,9 +350,13 @@ excluded from enforcement cleanup.
 ## Language user settings GUI
 
 Parent and child overlay read their own language asynchronously at startup.
-Kiosk reads the selected child's language at startup and each child selection.
+Kiosk reads the selected child's saved and desktop language through
+`GetChildLanguageContext` at startup and each child selection.
 A nonempty saved value bypasses the chooser. An empty value opens a modal chooser
-with the resolved primary session language selected. The chooser displays native
+with the resolved primary session language selected, or the child's desktop
+language in kiosk. Kiosk keeps its content hidden until this initial read
+finishes, then applies that language to the form and chooser together.
+The chooser displays native
 language names in catalogue order, using the same heading for initial setup and
 subsequent visits.
 
@@ -450,11 +459,35 @@ the product-owned PolicyKit approval message through the supported
 `polkit.message` detail. Complete prompts cover requested time, rest-of-day and
 optional soft-app access; duration units use shared gettext plural rules and a
 localized list separator. The account label remains a separate validated detail
-for PolicyKit's single-pass property expansion. The normal authentication agent
-continues to own its labels, buttons and errors, using its session language.
-No custom agent or process, session or OS locale change is involved. A language
-change during authentication does not recreate the prompt or invalidate approval;
-the next request reads the latest saved selection.
+for PolicyKit's single-pass property expansion. An unset kiosk preference also
+uses the child's desktop language for this message.
+
+The standard MATE authentication agent owns its labels, buttons and errors.
+Before a dedicated kiosk request, [agent_locale.py](../../kiosk/oh_no_parent_control_kiosk/agent_locale.py)
+atomically writes a private environment file under the kiosk's XDG runtime
+directory. Its systemd user unit consumes this through `EnvironmentFile`.
+`LANG` supplies the agent's PolicyKit registration locale; `LANGUAGE` selects
+native system catalogues (including `zh_CN`/`zh_TW`). The public `locale -a`
+inventory supplies an installed non-C UTF-8 locale for `LC_ALL`, preferring the
+selected language. When that libc locale is unavailable, `LANGUAGE` still selects
+the native catalogue under another installed UTF-8 locale. C locales cannot be
+used here because GNU gettext ignores `LANGUAGE` in them. No locales are generated.
+These settings apply only to that service's process; the product process,
+user manager environment, child desktop and OS settings are unchanged.
+The kiosk calls the user manager's public `RestartUnit` method and waits for
+the matching successful `JobRemoved` result before requesting approval.
+Identical successfully applied settings reuse the agent; failures or the
+30-second deadline stop submission and use the ordinary error path.
+Attempting a different locale invalidates the prior successful cache, including
+when the restart fails or completes after the deadline.
+Service startup does not establish PolicyKit registration readiness. The broker
+allows up to five seconds for an unfulfilled kiosk challenge after service
+startup, as defined in [authorization](Broker.md#authorization-and-grant-transactions).
+No custom agent, dialog rewriting or authentication change is involved.
+The child overlay continues to use its desktop's agent. A language change
+during authentication does not recreate the prompt; request controls keep the
+child fixed until that request finishes. External text coverage depends on
+installed system translations.
 
 ## Formatting, layout and accessibility
 

@@ -38,6 +38,8 @@ from common.oh_no_parent_control_ui.errors import (
 
 from .model import RequestState, public_error
 from .language_dialog import LanguageDialog
+from .agent_locale import KioskAgentLocale
+from common.oh_no_parent_control_ui.languages import selected_language
 from .request_content import RequestContent
 from .selection_store import SelectionStore
 from .snowflakes import GATEWAY_OUTER_BOUNDS, SnowflakeField
@@ -938,6 +940,8 @@ class RequestWindow(Adw.ApplicationWindow):
         self._error_report = None
         self._applying_preferences = False
         self._own_language = None
+        self._desktop_language = ""
+        self._startup_language_pending = not child_overlay
         self._applied_language = None
         context_for(self)
         self._language_dialog = None
@@ -947,6 +951,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._language_target_uid = None
         self._language_revision = 0
         self._preview_languages = {}
+        self._agent_locale = None if child_overlay else KioskAgentLocale()
         self._state = RequestState()
         self._estimate_revision = 0
         self._estimate_in_flight = False
@@ -982,6 +987,8 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _on_destroy(self, *_args):
         self._estimate_closed = True
+        if self._agent_locale is not None:
+            self._agent_locale.close()
         for source_id in (self._estimate_debounce_id, self._estimate_refresh_id):
             if source_id:
                 GLib.source_remove(source_id)
@@ -1005,6 +1012,7 @@ class RequestWindow(Adw.ApplicationWindow):
         set_automation_id(self._language_readiness, "kiosk-language-loading")
         self._stack.set_vexpand(True)
         self._stack.set_sensitive(False)
+        self._stack.set_visible(self._child_overlay)
         self._language_readiness.append(self._stack)
         layout.add_overlay(self._language_readiness)
         help_popover = Gtk.Popover()
@@ -1220,10 +1228,10 @@ class RequestWindow(Adw.ApplicationWindow):
                 self._language_failed(error)
         else:
             try:
-                method = "GetOwnLanguage" if self._child_overlay else "GetChildLanguage"
+                method = "GetOwnLanguage" if self._child_overlay else "GetChildLanguageContext"
                 parameters = (None if self._child_overlay else
                               GLib.Variant("(u)", (self._language_target_uid,)))
-                self._bus_call(method, parameters, "(s)",
+                self._bus_call(method, parameters, "(s)" if self._child_overlay else "(ss)",
                                lambda connection, result: self._language_done(
                                    connection, result, revision))
             except Exception as error:
@@ -1234,7 +1242,11 @@ class RequestWindow(Adw.ApplicationWindow):
         if revision != self._language_revision or self._estimate_closed:
             return
         try:
-            language, = connection.call_finish(result).unpack()
+            values = connection.call_finish(result).unpack()
+            if self._child_overlay:
+                language, = values
+            else:
+                language, self._desktop_language = values
         except Exception as error:
             self._language_failed(error)
         else:
@@ -1247,6 +1259,11 @@ class RequestWindow(Adw.ApplicationWindow):
         self._own_language = language
         if not self._apply_language(language):
             return
+        self._startup_language_pending = False
+        self._stack.set_visible(True)
+        if getattr(self, '_reboot_required', False):
+            self._show_error(None)
+            return
         if self._language_load_failed:
             self._language_load_failed = False
             self._stack.set_visible_child_name("request")
@@ -1257,7 +1274,9 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _language_failed(self, error):
         self._language_loading = False
+        self._startup_language_pending = False
         if not self._estimate_closed:
+            self._stack.set_visible(True)
             if broker_reboot_required(error) or getattr(self, '_reboot_required', False):
                 self._show_error(error)
                 return
@@ -1277,7 +1296,7 @@ class RequestWindow(Adw.ApplicationWindow):
     def _open_language_dialog(self):
         if self._language_dialog is None:
             self._language_dialog = LanguageDialog(
-                self, self._own_language, self._save_language, self._language_saved,
+                self, self._applied_language, self._save_language, self._language_saved,
                 self._language_cancelled,
                 account=self._request_content.selected_child_account())
         self._language_dialog.present()
@@ -1338,11 +1357,17 @@ class RequestWindow(Adw.ApplicationWindow):
         set_automation_id(self._language_readiness, "kiosk-language-ready")
 
     def _apply_language(self, language):
+        if not self._child_overlay:
+            session = ((self._desktop_language,) if self._desktop_language else
+                       GLib.get_language_names())
+            language = selected_language(language, session)
         if language == self._applied_language:
             return True
         try:
             context_for(self).apply(language)
         except (OSError, ValueError) as error:
+            self._startup_language_pending = False
+            self._stack.set_visible(True)
             self._show_error(error)
             return False
         self._applied_language = language
@@ -1513,7 +1538,7 @@ class RequestWindow(Adw.ApplicationWindow):
         if self._child_overlay:
             self._bus_call("GetOwnAccount", None, "(uss)", self._own_account_done)
         else:
-            self._bus_call("ListManagedUsers", None, "(a(uss))", self._users_done)
+            self._bus_call("ListKioskUsers", None, "(a(uss))", self._users_done)
         self._bus_call("ListApprovers", None, "(a(uss))", self._approvers_done)
 
     def _own_account_done(self, connection, result):
@@ -1534,10 +1559,16 @@ class RequestWindow(Adw.ApplicationWindow):
             LOG.info("kiosk.016", count=len(users))
             self._request_content.set_accounts(users)
             if not users:
+                self._startup_language_pending = False
+                self._stack.set_visible(True)
                 self._stack.set_sensitive(True)
                 set_automation_id(self._language_readiness, "kiosk-language-ready")
+                if getattr(self, '_reboot_required', False):
+                    self._show_error(None)
         except Exception as error:
             LOG.warning("kiosk.017", error_type=error_code(error))
+            self._startup_language_pending = False
+            self._stack.set_visible(True)
             self._show_error(error)
 
     def _approvers_done(self, connection, result):
@@ -1582,6 +1613,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._language_loading = False
         self._language_requested = False
         self._own_language = None
+        self._desktop_language = ""
         if self._language_dialog is not None:
             self._language_dialog.destroy()
             self._language_dialog = None
@@ -1822,14 +1854,21 @@ class RequestWindow(Adw.ApplicationWindow):
                     "(ssu)", self._request_done, REQUEST_TIMEOUT_MS,
                 )
             else:
-                self._bus_call(
-                    "RequestAccess",
-                    GLib.Variant(
-                        "(uuub)",
-                        (target_uid, approver_uid, duration_seconds, allow_soft),
-                    ),
-                    "(ss)", self._request_done, REQUEST_TIMEOUT_MS,
-                )
+                self._agent_locale.prepare(
+                    self._applied_language, self._desktop_language, self._agent_prepared)
+        except Exception as error:
+            self._request_failed(error)
+
+    def _agent_prepared(self, error):
+        if self._estimate_closed:
+            return
+        if error is not None:
+            self._request_failed(error)
+            return
+        try:
+            self._bus_call(
+                'RequestAccess', GLib.Variant('(uuub)', self._pending_request),
+                '(ss)', self._request_done, REQUEST_TIMEOUT_MS)
         except Exception as error:
             self._request_failed(error)
 
@@ -1880,6 +1919,12 @@ class RequestWindow(Adw.ApplicationWindow):
     def _show_error(self, error):
         if broker_reboot_required(error) or getattr(self, '_reboot_required', False):
             self._reboot_required = True
+            if getattr(self, '_startup_language_pending', False):
+                return
+            if getattr(self, '_language_dialog', None) is not None:
+                self._language_dialog.destroy()
+                self._language_dialog = None
+            self._language_requested = False
             self._stack.set_sensitive(True)
             if self._child_overlay:
                 set_text(self._result_action, 'label', m.CLOSE)

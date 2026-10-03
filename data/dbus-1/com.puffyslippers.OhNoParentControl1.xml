@@ -7,6 +7,11 @@
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="language" type="s" direction="out"/>
     </method>
+    <method name="GetChildLanguageContext">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="language" type="s" direction="out"/>
+      <arg name="desktop_language" type="s" direction="out"/>
+    </method>
     <method name="SetChildLanguage">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="language" type="s" direction="in"/>
@@ -17,6 +22,9 @@
       <arg name="saved_language" type="s" direction="out"/>
     </method>
     <method name="ListManagedUsers">
+      <arg name="users" type="a(uss)" direction="out"/>
+    </method>
+    <method name="ListKioskUsers">
       <arg name="users" type="a(uss)" direction="out"/>
     </method>
     <method name="ListApprovers">

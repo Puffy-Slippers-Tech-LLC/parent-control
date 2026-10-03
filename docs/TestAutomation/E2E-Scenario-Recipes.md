@@ -1469,6 +1469,44 @@ public precision is a gate, not permission to sample another day and call it
 the same case. Detailed timezone arithmetic and malformed timestamps retain
 their fast technical coverage.
 
+### Chinese kiosk language lifecycle (planned task 300)
+
+This is the fixed Chinese lifecycle segment of **one complete planned case**
+owned by [task 300](E2E-Tasks/300-localization.md), alongside that task's existing
+representative personal-language acceptance. No numeric coverage ID, executable
+binding or acceptance result is registered yet. Register one complete case after
+its prerequisite slices are qualified; do not split the three reported symptoms
+into variants or run this lifecycle as a German/Hebrew language matrix.
+
+Finite inputs: selected child Jordan; approver Jamie; child desktop locale
+`zh_CN.UTF-8`; product language `zh-Hans`; Jamie and kiosk station desktop
+language English; two ordinary 75-second, soft-app-included requests. Jordan
+must be the independently observed default selected child on the first kiosk
+entry, with no saved product language preference. Use verified v1.2 and current
+package assets; if the upgrade inputs or real reboot-required result are
+unavailable, retain the gate rather than inject state. Chinese system locale,
+translation and font assets are installed by `tools/prepare-baseline` and only
+verified by the attempt under the
+[language preparation contract](E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup).
+
+| Phase | Shared composition and independent public result |
+| --- | --- |
+| Declared setup | Start from the product-free baseline with independently verified Chinese assets. LIFE04 installs verified v1.2; follow its required activation through LIFE02. Use DESK13(Jordan, `zh_CN.UTF-8`) for the account setting, then explicit session renewal and fresh child entry to observe a Chinese desktop. Keep Jamie/station English and Jordan's product language unset. Use the existing public Parent policy blocks for any required request eligibility; no private preference writes or synthetic grants. |
+| Upgrade, no reboot | From the declared administrator session, LIFE04 performs the real v1.2-to-current upgrade. Do not reboot or renew the upgraded session before the tested kiosk entry. Navigate through the shared greeter/kiosk entry blocks and independently require Jordan as the default selected child. On the very first presentation, require the reboot-required prompt's message and buttons in Simplified Chinese, with no English first-run language dialog displacing it. Observe this before any automatic language-setup handler acts. |
+| Reboot and first kiosk presentation | Exit through the public prompt/session flow and perform LIFE02 in the same attempt. Reacquire fresh greeter/kiosk observations. Before saving any product language, require Jordan still selected, the first-run language preference dialog already Chinese, Chinese selected by default, and the underlying kiosk/request surface Chinese from its first usable presentation. Compare bounded representative headings, child/approver/duration/Request labels and dialog actions against independently specified Chinese expectations. A later language switch cannot repair an English initial presentation. |
+| Save Chinese and approve | Use the shared public chooser operations to select/save `zh-Hans` and independently observe completion. Set/read the ordinary Jamie/Jordan/75-second/soft-included request through REQUEST04/05/06, then REQUEST09. AUTH01 must observe both the product-owned Chinese request context and the real MATE agent's Chinese Authenticate/Cancel buttons and system-owned explanatory/password text. Use the qualified Chinese provider binding and unchanged secret-safe AUTH02 route for a real approval; independently require the Chinese granted result and ordinary automatic exit/access result. |
+| Fresh kiosk re-entry and approve again | Leave the approved destination through the declared shared session route and enter a new kiosk session, without another reboot or changing the station/administrator language. Reacquire fresh ownership/control observations; require Jordan, persisted Chinese preference, Chinese form and no first-run chooser. Submit the same finite request again. Independently require the new native PolicyKit prompt's buttons, system-owned text and product message all Chinese before credential input, then real AUTH02 approval and the ordinary translated result/exit. The first prompt alone does not cover this regression. |
+
+Record first-presentation and both native-prompt observations separately. Use
+public IDs for owned controls and the scoped qualified native provider adapter
+for PolicyKit. Observe native translations directly, including text the product
+does not control; locale environment readback, a mocked agent or product message
+alone is insufficient. Do not patch the dialog, rewrite system strings or read
+password content. Generic `complete_language_setup` must not dismiss/save the
+chooser before the initial-language assertions. Preserve the shared request,
+authorization and policy results, ordinary owned cleanup and the uninterrupted
+upgrade → reboot → first kiosk → approval → fresh kiosk → approval history.
+
 ## Coverage ownership and remaining limits
 
 Repeated setup and sanity observations do not count as duplicate primary

@@ -76,7 +76,12 @@ independent of its approver. `GetChildLanguage(target_uid)` and
 caller and an eligible child target. They read and write the same personal record,
 with the same validation and persistence guarantees as the own-language methods.
 
-An empty string means follow the frontend session's language; the broker does
+`GetChildLanguageContext(target_uid)` returns the saved string and the child's
+AccountsService desktop language without persisting a default. It retains the
+same kiosk-caller and eligible-target authorization.
+
+An empty string means follow the frontend session's language, or the selected
+child's desktop language in kiosk; the broker does
 not resolve its root process locale. Explicit IDs contain a 2–8 ASCII-letter
 language followed by optional hyphen-separated 1–8 ASCII-alphanumeric subtags,
 with at most 63 characters in total (for example `en`, `pt-BR`, `zh-Hans`). IDs

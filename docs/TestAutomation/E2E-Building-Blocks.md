@@ -350,6 +350,7 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | DESK10 | C | Activate a named existing window with the simplest reliable public focus action or bounded shortcut, then verify that window is active. | `AccessibleUI.window_switch_ready` → `onpc_feedback_read::activate_existing_window` (one Alt+Tab) → `window_switch_proof`; compare recorded public endpoint/PID and preserved synthetic draft. [Qualified scope](#same-desktop-window-activation). No logout or relaunch. | Parent, feedback and supporting GPL viewer ready; diagnostic exports use FILE08 without a viewer |
 | DESK11 | C | From an observed locked fixture session, use the shared greeter-return command; from an observed rejected GDM prompt, use Escape. Preserve the denial observation before leaving and independently require the usable account list. Select the route from the declared source; never try alternatives after uncertain input. | Locked desktop: `session_control.observe` with the bound `return-greeter` action preserves the locked session and invokes GDM's public API without another Lock. Rejected GDM: `rejected_gdm_return` / `onpc_gdm::return_from_time_denial` compose fresh provider observation → UI05(Escape) → GDM01; [qualified child denial return](#fresh-child-time-denial-and-return-qualification). No lock-screen Switch User button or menu navigation. | pending; fresh rejected-child GDM return ready; locked-session return unqualified |
 | DESK12 | C | Expose a named Shell panel control from a previously observed unlocked desktop, including fullscreen gameplay. Input declares already-showing or a qualified normal reveal sequence. | UI05 for reveal when declared → DESK01 → UI01 → UI02(control). `AccessibleUI.overlay_panel_target` qualifies the normal unlocked-child request control; shared `overlay_entry` also reveals it over the existing overlay through guarded Overview. See [overlay entry qualification](#overlay-entry-qualification). The app publishes `child-request-button` and `child-countdown-animation-toggle`. Gameplay fullscreen and options-menu routes remain separate; qualify gameplay with E2E-024. | normal request entry and open-overlay reveal ready; other bindings pending |
+| DESK13 | A | Set the explicitly bound fixture user's desktop language to one declared installed locale through a supported system API, then independently read back that account's language. Do not change product preferences, another account or the observer locale; no implicit logout/login. Return the confirmed setting and whether session renewal is required. | Planned shared account/session helper using AccountsService `User.SetLanguage` and independent `Language` readback over guarded transport. Task 300 needs only Jordan → `zh_CN.UTF-8`; the recipe owns explicit renewal and public fresh-desktop observation. [Language preparation contract](#chinese-language-preparation-and-desktop-language-setup). No callable or qualification yet. | pending |
 
 ### Same-desktop window activation
 
@@ -2304,6 +2305,48 @@ authentication outcome or app behavior being tested.
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX05 | A | Validate the one declared, manually prepared Lunar/AppImageLauncher/Minecraft profile after the normal installed-snapshot restore and before the attempt. Read-only setup verification, not installation, policy configuration or customer acceptance. | No callable yet. Task 295 binds versions/digests, original AppImage and launcher/autostart routes, local world, credential references and ordinary restore/provisioning ownership. Refuse missing/drifted assets; never synthesize a denial. [Profile contract](#lunar-client-preparation-and-observation-gate). | pending |
+
+### Chinese language preparation and desktop-language setup
+
+Task 300's [Chinese kiosk history](E2E-Scenario-Recipes.md#chinese-kiosk-language-lifecycle-planned-task-300)
+requires one declared Simplified Chinese profile. **Chinese language installation
+must be implemented in `tools/prepare-baseline`**, through its existing finite
+dependency/fixture declaration and supported distro package/locale preparation.
+Install and verify `zh_CN.UTF-8`, the distribution's Chinese translations for
+the ordinary MATE PolicyKit agent and authentication stack, and CJK fonts. Record
+the exact installed package/provider tuple and verify the required translated
+native strings are available. Reconciliation is idempotent, preserves unrelated
+assets and supports retry of owned partial work under the
+[baseline lifetime contract](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
+This preparation and its FIX06 read-only profile verification are **planned**;
+the existing native-app FIX06 qualification supplies no language-readiness credit.
+
+Attempts and app-snapshot preparation verify the declared language assets;
+they never install packages, generate locales or download translations.
+Missing Chinese assets block the case with a preparation diagnostic. Reusable
+language installation is not a case stage; the product upgrade remains a
+deliberate LIFE04 mutation inside the case. Do not install the product or change
+the child/station language as a side effect of installing language assets.
+
+The **user desktop-language switch is DESK13**, a shared building block, not
+case-local shell code or a locale-file edit. Its fixed consumer binds Jordan
+and `zh_CN.UTF-8`; it independently confirms the system account language while
+preserving Jamie and the station's English settings. Qualify exact account
+ownership, installed-locale validation, supported API errors, wrong-account
+refusal, readback and owned cleanup. A DESK13 setting readback establishes only
+setup: explicit session renewal and the child's publicly observed Chinese
+desktop precede the product assertions. Product personal-language preferences
+are changed only through the public Preferences controls.
+
+Chinese approval also needs a scoped extension of the
+[MATE provider binding](#external-provider-qualification). Reuse its ownership,
+selected-parent/context and secret-recipient guards; qualify the actual Chinese
+button labels and system-owned explanatory/password text on the installed
+provider, including after kiosk agent restart and fresh kiosk entry. English
+provider evidence and translated product messages do not qualify these native
+results. Keep the agent unmodified and use supported locale/session APIs.
+Required qualification task slices and the complete case's inventory binding
+are allocated before task 300 implementation; none is runnable or passed here.
 
 ### Native fixture preparation
 

@@ -23,6 +23,25 @@ from tests.support.broker import (
 
 
 class CoreTests(unittest.TestCase):
+    def test_kiosk_language_context_preserves_unset_preference_and_desktop_locale(self):
+        from dataclasses import replace
+        accounts, preferences = Accounts(), Preferences()
+        accounts.users[1001] = replace(accounts.users[1001], desktop_language='zh_CN.UTF-8')
+        broker = make_broker(accounts=accounts, preferences=preferences)
+        self.assertEqual(broker.get_child_language_context(991, 1001), ('', 'zh_CN.UTF-8'))
+        broker.set_child_language(991, 1001, 'fr')
+        self.assertEqual(broker.get_child_language_context(991, 1001), ('fr', 'zh_CN.UTF-8'))
+        for caller in (0, 1001, 1003):
+            with self.assertRaises(AccessDenied):
+                broker.list_kiosk_users(caller)
+            with self.assertRaises(AccessDenied):
+                broker.get_child_language_context(caller, 1001)
+        for target in (991, 1003, 1004, 1005):
+            with self.assertRaises(AccessDenied):
+                broker.get_child_language_context(991, target)
+        self.assertEqual(broker.list_kiosk_users(991), broker.list_managed_users(991))
+        self.assertEqual(accounts.events, [])
+
     def test_kiosk_language_shares_child_preference_and_preserves_policy(self):
         preferences = Preferences()
         broker = make_broker(preferences=preferences)

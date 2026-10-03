@@ -8,18 +8,28 @@ no installed qualification or scenario completion is claimed.
 
 Required tasks: none (Baseline).
 
-Estimate: 40–60 minutes.
-Session exception: The installed persistence and account-isolation history spans relaunches and renewed sessions, retaining independent language choices and unchanged policy results throughout.
+Estimate: 60–90 minutes.
+Session exception: The installed persistence and account-isolation history includes a real upgrade without reboot, the required reboot and renewed kiosk sessions in one continuous case, retaining independent language choices and unchanged policy results throughout.
 
 ## Scope
 
 Use [Localization](../../SystemDesign/Localization.md#validation-contract) and
 [personal language selection](../../SystemDesign/Frontends.md#personal-language-selection)
 as the behavior owners. Use `en`, `de`, `zh-Hans`, and `he` (Hebrew), with different
-choices for the administrator, child and kiosk accounts. The overlay and panel
-share the child's choice; selecting a child or approver never transfers language
-ownership. All language interactions use public controls, without direct writes
-to product preferences or private backend probes.
+personal choices for the administrator and the two children. Parent retains the
+administrator's choice when its selected child changes. The overlay and panel
+share the signed-in child's choice; kiosk follows its selected child's choice,
+independently of the station's desktop language or selected approver. All product
+language interactions use public controls, without direct writes to preferences
+or private backend probes.
+
+The added kiosk regression uses **Simplified Chinese only**, with the kiosk
+station and administrator desktop languages left English. Retain the existing
+representative multilingual/RTL acceptance below; do not multiply the new
+upgrade/reboot/authentication history by those languages. Compose all of this
+task's acceptance into **one complete E2E case**, not separate cases for each
+reported symptom. The fixed Chinese history is owned by
+[the Chinese kiosk language lifecycle recipe](../E2E-Scenario-Recipes.md#chinese-kiosk-language-lifecycle-planned-task-300).
 
 ## Shared implementation
 
@@ -35,6 +45,25 @@ panel, About and feedback operations. The scripted
 [language fixture](../../../tests/support/language_fixture.py) is host-only and
 must never supply installed persistence or authorization evidence.
 
+Chinese language installation belongs exclusively to `tools/prepare-baseline`:
+declare the installed locale, system/PolicyKit translations and CJK font assets
+there, with idempotent reconciliation and independent verification. Attempts
+and app-snapshot preparation only verify them. Use the planned shared
+**DESK13** building block for the child's desktop-language switch through a
+supported system API; the case passes the account and `zh_CN.UTF-8`, never
+implements a setter or edits locale files. See
+[Chinese language preparation and desktop-language setup](../E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup).
+Product language selection still uses the existing public chooser operations.
+Observe first presentation before `complete_language_setup` or any generic
+first-run handler can save, dismiss or change it.
+
+Reuse LIFE04's package lifecycle path and LIFE02's reboot path. The real
+v1.2-to-current upgrade without reboot, selected-child reboot-required result,
+DESK13 and Chinese MATE authentication binding need qualification before this
+case can run. The existing English MATE provider qualification does not qualify
+Chinese labels or a restarted agent. Use supported locale/session APIs and the
+normal unmodified PolicyKit agent; no dialog patching or injected translations.
+
 ## Acceptance to implement
 
 1. Observe first-run session default and native language names, save one explicit
@@ -43,11 +72,14 @@ must never supply installed persistence or authorization evidence.
    Cancel; reopen and observe the original choice. Use a small representative
    installed slice; local failure/retry, layout and chooser permutations remain
    with [UI coverage](../UI-and-E2E-Coverage.md).
-2. Set independent administrator, child and kiosk languages through each
-   account's Preferences. Switch selected children/approvers and observe that
-   each surface retains its owning account's language. Close/relaunch Parent and
-   overlay, return to the kiosk and renew a child session; observe retained
-   selections and translated surfaces without another first-run chooser.
+2. Set independent administrator and two-child languages through Parent,
+   overlay and kiosk Preferences. Switch selected children/approvers: Parent
+   retains the administrator's language, kiosk restores the selected child's
+   language, and changing approver leaves the request language unchanged.
+   Reopen the same child's overlay to confirm its choice is shared with kiosk
+   and panel. Close/relaunch Parent and overlay, return to the kiosk and renew a
+   child session; observe retained selections and translated surfaces without
+   another first-run chooser.
 3. Change the child's language through the overlay, close it and observe the
    panel's updated visible/accessibility text. Reopen the overlay and resume the
    child session to exercise refresh. Observe countdown progression and normal
@@ -74,6 +106,15 @@ must never supply installed persistence or authorization evidence.
    another RTL language or host-only layout evidence does not replace this
    installed Hebrew acceptance. Keep exhaustive scale/layout permutations with
    [UI coverage](../UI-and-E2E-Coverage.md).
+7. Execute the linked Chinese lifecycle recipe before saving any personal
+   language preference for the selected child: real upgrade with no intervening
+   reboot, Chinese reboot-required prompt, reboot, Chinese first-run language
+   dialog and initial kiosk form, explicit Chinese save and real approval,
+   then fresh kiosk re-entry and a second real approval. Require Chinese native
+   PolicyKit buttons and system-owned explanatory/password text as well as the
+   product-owned request message on both approval prompts. Observe actual
+   translated controls and public results; an environment setting, product
+   message alone, mocked prompt or English approval pass does not cover this.
 
 ## Implementation entry
 
@@ -83,3 +124,10 @@ ordering contract. Insert any newly identified prerequisite immediately before
 its consumer and split independent capability work before implementation. No
 executable selector is registered by this brief. Leave this row unchecked until
 that work and installed acceptance are complete.
+
+Allocate exactly one numeric case for the complete history; the Chinese phases
+are ordered assertions inside it. Qualify baseline language readiness, DESK13,
+the real update/reboot-required composition and the Chinese native provider
+binding in bounded prerequisite slices before registering that complete case.
+Preserve the v1.2 package asset/version gate: unavailable verified upgrade inputs
+remain a blocker, never a simulated reboot-required state or a reinstall.

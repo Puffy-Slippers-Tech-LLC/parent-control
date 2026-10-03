@@ -47,7 +47,8 @@ EXPANDED_LANGUAGES = {
 
 
 def launch_language(launch_ui, tmp_path, surface, *, language='', session='en',
-                    save_failures=0, load_failures=0, release=None, scenario='normal'):
+                    save_failures=0, load_failures=0, release=None, scenario='normal',
+                    child_desktop='', language_delay=0):
     path = tmp_path / 'language-events.jsonl'
     environment = {
         'ONPC_LANGUAGE_INITIAL': language,
@@ -59,10 +60,60 @@ def launch_language(launch_ui, tmp_path, surface, *, language='', session='en',
         'ONPC_REQUEST_COMPONENT_EVENTS_PATH': str(path),
         'ONPC_REQUEST_COMPONENT_OVERLAY': '1' if surface == 'overlay' else '0',
         'ONPC_REQUEST_COMPONENT_SCENARIO': scenario,
+        'ONPC_CHILD_1001_DESKTOP_LANGUAGE': child_desktop,
+        'ONPC_CHILD_LANGUAGE_DELAY_MS': str(language_delay),
     }
     launch_ui('parent_component_preview' if surface == 'parent' else 'request_component_preview',
               complete_language_setup=False, environment_overrides=environment)
     return path
+
+
+@pytest.mark.parametrize('scenario', ('normal', 'reboot-required'))
+@pytest.mark.parametrize('language,saved,desktop', (
+    ('zh-Hans', '', 'zh_CN.UTF-8'), ('de', '', 'de_DE.UTF-8'),
+    ('de', 'de', 'zh_CN.UTF-8'),
+))
+def test_kiosk_initial_language_uses_child_account_in_english_station(
+        launch_ui, automation, wait_for_accessible_state, tmp_path,
+        scenario, language, saved, desktop):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'kiosk', language=saved,
+                          child_desktop=desktop, scenario=scenario, language_delay=300)
+    if scenario == 'reboot-required':
+        wait(lambda: ui.showing('update-required-dialog'), 'localized update notice opens')
+        expected = {
+            'zh-Hans': ('已安装产品更新。请重启计算机，以使 Oh No! Parent Control 正常工作。', '立即重启', '需要重启'),
+            'de': ('Ein Produktupdate wurde installiert. Starten Sie den Computer neu, damit Oh No! Parent Control ordnungsgemäß funktioniert.',
+                   'Jetzt neu starten', 'Neustart erforderlich'),
+        }[language]
+        assert ui.text('update-required-message') == expected[0]
+        assert ui.text('update-required-reboot') == expected[1]
+        assert ui.text('kiosk-result-title') == expected[2]
+        assert ui.absent('language-dialog', within='kiosk-request-window')
+        assert not committed(path)
+        assert not [event for event in read_events(path) if event['event'] == 'reboot-requested']
+    else:
+        if not saved:
+            wait(lambda: ui.showing('language-dialog'), 'child-language chooser opens')
+            assert ui.text('language-title') == LANGUAGES[language][2]
+            assert ui.text('language-continue') == LANGUAGES[language][3]
+            assert ui.state('language-choice-' + language.lower(), ui.api.StateType.CHECKED)
+            ui.reader.cancel_language('kiosk')
+            assert not committed(path)
+        else:
+            wait(lambda: ui.showing('kiosk-language-ready'), 'saved language is ready')
+            assert ui.absent('language-dialog', within='kiosk-request-window')
+        assert_surface_language(ui, wait, 'kiosk', language)
+        ui.activate('kiosk-request-submit')
+        wait(lambda: ui.showing('kiosk-result-title'), 'request completes after agent preparation')
+        records = read_events(path)
+        prepared = [event for event in records if event['event'] == 'agent-language-prepared']
+        assert prepared == [{'event': 'agent-language-prepared', 'language': language,
+                             'desktop_language': desktop}]
+        preparation = records.index(prepared[0])
+        approval = next(index for index, event in enumerate(records)
+                        if event.get('method') == 'RequestAccess')
+        assert preparation < approval
 
 
 def frontend(surface):

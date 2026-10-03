@@ -36,6 +36,10 @@ def test_pending_reboot_exports_customer_evidence_over_private_bus(
             with pytest.raises(GLib.Error) as caught:
                 call(harness.client, 'ListManagedUsers', None, '(a(uss))')
             assert Gio.DBusError.get_remote_error(caught.value).endswith('.Error.RebootRequired')
+            assert call(harness.client, 'ListKioskUsers', None, '(a(uss))').unpack() == (
+                [(1100, '[Child user]', '')],)
+            assert call(harness.client, 'GetChildLanguageContext',
+                        GLib.Variant('(u)', (1100,)), '(ss)').unpack() == ('', 'zh_CN.UTF-8')
             call(harness.client, 'LogEvent', GLib.Variant('(sss)', (
                 'parent', 'WARNING', encode(event('parent.startup-check', {
                     'outcome': 'reboot-required', 'elapsed_ms': 25})))), '()')

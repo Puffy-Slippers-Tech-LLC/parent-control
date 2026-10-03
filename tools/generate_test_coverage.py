@@ -140,7 +140,7 @@ def render(document, counts, *, root=ROOT):
         'Inspect: `tools/run-tests e2e --list --id 1`. '
         'Run: `tools/run-tests e2e --id 1 --artifacts /tmp/onpc-test-artifacts-REPLACE` '
         '(use an existing verified package-artifact directory). '
-        'Pending cases refuse execution. Ready means runnable, not passed.',
+        'Pending cases refuse execution. Ready means fully passed.',
         '',
         'Titles and steps below come directly from the runtime inventory. '
         'Customer scope follows '

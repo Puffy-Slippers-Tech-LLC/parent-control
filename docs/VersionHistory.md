@@ -1,4 +1,7 @@
 ## v1.4 -
+### New Features
+Language Dialog: You can search for a language by its English name as well as its localized name
+
 ### Bugs
 Parent App: Parent app app grid column headers on some RTL languages overlap
 

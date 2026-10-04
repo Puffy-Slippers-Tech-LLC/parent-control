@@ -33,6 +33,7 @@ def guest_phase(binding, packages):
     import subprocess
     from pathlib import Path
     session_control.require(binding in (OLD_INSTALL, UPGRADE), 'package-binding')
+    session_control.require(session_control.package_format() == 'deb', 'historical-release-ubuntu-only')
     session_control.require(type(packages) is dict and set(packages) == {'previous', 'current'},
                             'package-identities')
     for label in ('previous', 'current'):
@@ -92,15 +93,22 @@ def guest_read(packages):
         files['/etc/motd'] = hashlib.sha256(Path('/etc/motd').read_bytes()).hexdigest()
     except FileNotFoundError:
         files['/etc/motd'] = None
-    query = subprocess.run(['/usr/bin/dpkg-query', '-W', '-f=${Status}\n${Version}\n',
-                            'oh-no-parent-control'], capture_output=True, timeout=30)
+    fedora = session_control.package_format() == 'rpm'
+    query = subprocess.run((['/usr/bin/rpm', '-q', '--queryformat',
+                            '%{NAME}\n%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n%{ARCH}\n', 'oh-no-parent-control']
+                           if fedora else ['/usr/bin/dpkg-query', '-W', '-f=${Status}\n${Version}\n',
+                                           'oh-no-parent-control']), capture_output=True, timeout=30,
+                           env={**os.environ, 'LC_ALL': 'C'})
     session_control.require(query.returncode in (0, 1), 'package-query')
     lines = query.stdout.decode().splitlines()
-    session_control.require((query.returncode == 1 and not lines) or
-        (len(lines) == 2 and lines[0] == 'install ok installed'), 'package-query')
+    session_control.require((query.returncode == 1 and (lines == [
+        'package oh-no-parent-control is not installed'] if fedora else not lines)) or
+        (query.returncode == 0 and len(lines) == (3 if fedora else 2) and lines[0] == (
+            'oh-no-parent-control' if fedora else 'install ok installed')
+            and (not fedora or lines[2] == 'x86_64')), 'package-query')
     source = session_control.source_session(session_control.sessions(),
         pwd.getpwnam(session_control.ACCOUNTS['parent']).pw_uid)
-    return {'version': lines[1] if lines else None,
+    return {'version': lines[1] if query.returncode == 0 else None,
         'boot': hashlib.sha256(Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest(),
         'preserved': {'accounts': values, 'system_locale': system_locale(), 'files': files,
                       'observer_locale': {key: value for key, value in os.environ.items()
@@ -116,7 +124,7 @@ def guest_submit(binding, expected, packages=None):
     import pwd
     session_control.require(binding in BINDINGS and os.geteuid() == 0, 'package-binding')
     account = pwd.getpwnam(session_control.ACCOUNTS['parent'])
-    session_control.require(account.pw_uid >= 1000 and grp.getgrnam('sudo').gr_gid
+    session_control.require(account.pw_uid >= 1000 and grp.getgrnam(session_control.administrator_group()).gr_gid
         in os.getgrouplist(account.pw_name, account.pw_gid), 'administrator-authority')
     source = session_control.source_session(session_control.sessions(), account.pw_uid)
     label = 'previous' if binding == OLD_INSTALL else 'current'
@@ -125,6 +133,11 @@ def guest_submit(binding, expected, packages=None):
     boot = guest_phase(binding, packages) if binding != BINDING else None
     session_control.require(session_control.source_session(
         session_control.sessions(), account.pw_uid) == source, 'source-changed')
+    if session_control.package_format() == 'rpm':
+        session_control.require(binding == BINDING, 'historical-release-ubuntu-only')
+        argv = ('/usr/bin/dnf', '--quiet', 'install', '-y', str(session_control.package_path()))
+    else:
+        argv = (*ARGV[:-1], '/var/lib/onpc-e2e-assets/previous/package.deb') if binding == OLD_INSTALL else ARGV
     # FIX04 owns this root-only parent. An uncertain exec leaves the marker in
     # place, and another controller object cannot replay it in this attempt.
     marker = {BINDING: '.package-install-used', OLD_INSTALL: '.previous-install-used',
@@ -140,7 +153,6 @@ def guest_submit(binding, expected, packages=None):
                       DEBIAN_FRONTEND='noninteractive', TERM='dumb')
     # Retain stdout/stderr ordering in the guarded command's private transcript.
     os.dup2(1, 2)
-    argv = (*ARGV[:-1], '/var/lib/onpc-e2e-assets/previous/package.deb') if binding == OLD_INSTALL else ARGV
     os.execv(argv[0], argv)
 
 
@@ -243,8 +255,11 @@ class PackageCommand:
         if self.verified.upgrade_inputs is not None:
             return self.verified.upgrade_inputs['packages']
         from build_test_artifacts import package_identity
-        current = package_identity(self.verified.assets / 'package.deb')
-        require(current['name'] == 'oh-no-parent-control' and current['architecture'] == 'amd64'
+        from provenance import package_filename
+        filename = package_filename(self.verified.asset_files)
+        current = package_identity(self.verified.assets / filename)
+        require(current['name'] == 'oh-no-parent-control' and current['architecture'] == (
+                'x86_64' if filename == 'package.rpm' else 'amd64')
                 and current['sha256'] == self.verified.inputs['package_sha256'],
                 'package:current-identity')
         self.verified.recheck()
@@ -264,6 +279,10 @@ class PackageCommand:
         lines = text.splitlines()
         require(COMPLETE in lines and (lines[-1] == NOTICE if self.binding != OLD_INSTALL else
                 lines[-1] in (COMPLETE, NOTICE)), 'package:completion-notice')
+        if 'package.rpm' in self.verified.asset_files:
+            identity = self.read_identity()
+            require(identity['version'] == self.package_identities()['current']['version'],
+                    'package:installed-version')
         # Retain actual matched public lines, never arbitrary package diagnostics.
         return {'operation': self.binding, 'outcome': 'passed', 'exit_status': status,
                 'interface': 'SSH stdout/stderr', 'completion': lines[lines.index(COMPLETE)],

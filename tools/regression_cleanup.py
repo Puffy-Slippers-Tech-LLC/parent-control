@@ -93,6 +93,11 @@ from regression_resources import HOST_WORKERS
 # live resource or cleanup owner; compatible unit and cleanup scheduling applies.
 # Upgrade command checks share private pytest evidence and waited Perl children.
 # No added live resource or cleanup owner; unit and cleanup overlap is compatible.
+# Fedora package/transfer/platform regressions retain those same private files,
+# process-local command/account/OS doubles and bounded waited Perl children.
+# Existing package_authority, package_upgrade, e2e_asset_transfer,
+# native_fixtures and desktop_language cleanup classifications stay compatible;
+# live attempts inherit the unchanged envelope's lease and collection owner.
 # Chinese lifecycle shares private pytest/recorder files and waited Perl only;
 # its live attempt inherits the existing envelope's lease and cleanup owner.
 # The current-only history inherits that same owner; host regressions retain
@@ -107,7 +112,12 @@ from regression_resources import HOST_WORKERS
 # process-local account/session doubles and waited Perl children on the host.
 # Selected-child restoration uses the same private tree/decoder/recorder doubles
 # and bounded waited Perl children, without a new live or cleanup owner.
+# Package purge guards use private pytest machine trees and process-local
+# package/PAM/ownership doubles; the one shared-cleanup shell is relocated,
+# bounded and waited. No host package, identity, service or shared path changes.
+# Compatible in both unit and cleanup inventories.
 REVIEWED = frozenset('''
+package_purge
 parent_language
 kiosk_language
 kiosk_language_restoration

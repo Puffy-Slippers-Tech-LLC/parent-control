@@ -122,21 +122,28 @@ def package_path():
     return PAYLOAD / ('package.rpm' if (PAYLOAD / 'package.rpm').exists() else 'package.deb')
 
 
-def verify_package_files():
-    package = package_path()
+def package_identity(package, *, installed=False):
     if package.suffix == '.rpm':
-        identity = '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}'
-        installed = run(['rpm', '-q', '--queryformat', identity, 'oh-no-parent-control'])
-        expected = run(['rpm', '-qp', '--queryformat', identity, str(package)])
-        require(installed == expected, 'package-version')
-        require(not run(['rpm', '--verify', 'oh-no-parent-control']), 'package-file-digests')
+        identity = '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}'
+        return run(['rpm', '-q' if installed else '-qp', '--queryformat', identity,
+                    'oh-no-parent-control' if installed else str(package)])
+    return run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control'] if installed
+               else ['dpkg-deb', '-f', str(package), 'Version'])
+
+
+def verify_package_files(package=None, *, category='package'):
+    package = package_path() if package is None else package
+    if package.suffix == '.rpm':
+        require(package_identity(package, installed=True) == package_identity(package),
+                category + '-version')
+        require(not run(['rpm', '--verify', 'oh-no-parent-control']), category + '-file-digests')
         require(run(['getenforce']) == 'Enforcing', 'selinux-enforcing')
     else:
         require(run(['dpkg-query', '-W', '-f=${Status}', 'oh-no-parent-control']) ==
-                'install ok installed', 'package-status')
-        require(run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control']) ==
-                run(['dpkg-deb', '-f', str(package), 'Version']), 'package-version')
-        require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'package-file-digests')
+                'install ok installed', category + '-status')
+        require(package_identity(package, installed=True) == package_identity(package),
+                category + '-version')
+        require(not run(['dpkg', '--verify', 'oh-no-parent-control']), category + '-file-digests')
 
 
 def verify_package():
@@ -185,15 +192,12 @@ def install_package():
 def install_previous():
     before_install()
     enable_diagnostics()
-    previous = PAYLOAD / 'previous-package.deb'
+    previous = PAYLOAD / ('previous-package' + package_path().suffix)
     expected = json.loads((PAYLOAD / 'previous-inputs.json').read_text())
     require(sha(previous) == expected['sha256'], 'previous-package-digest')
-    os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
-    run(['apt-get', 'update'], timeout=600)
-    guard()
-    run(['apt-get', '-o', 'DPkg::Lock::Timeout=120', 'install', '--no-install-recommends',
-         '-y', str(previous)], timeout=1800)
-    require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'previous-package-file-digests')
+    from guest_install_recipe import install as install_recipe
+    install_recipe(run, guard, previous)
+    verify_package_files(previous, category='previous-package')
     (PAYLOAD / 'results').mkdir(mode=0o700, exist_ok=True)
     (PAYLOAD / 'results/previous-install.json').write_text(json.dumps({
         'previous_package_sha256': expected['sha256'], 'payload_verified': True,
@@ -208,28 +212,32 @@ def upgrade():
     before = json.loads((PAYLOAD / 'results/previous-install.json').read_text())
     boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     require(boot != before['boot'], 'previous-package-reboot-not-observed')
-    required = Path('/run/reboot-required.pkgs')
-    require(not required.exists() or 'oh-no-parent-control' not in required.read_text().splitlines(),
+    require(reboot_cleared(),
             'previous-package-reboot-marker-retained')
-    require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'previous-payload-changed')
-    old_version = run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control'])
-    require(old_version == run(['dpkg-deb', '-f', str(PAYLOAD / 'previous-package.deb'), 'Version']),
-            'previous-package-version')
+    package = package_path()
+    previous = PAYLOAD / ('previous-package' + package.suffix)
+    require(sha(previous) == before['previous_package_sha256'], 'previous-package-digest')
+    verify_package_files(previous, category='previous-package')
+    old_version = package_identity(previous, installed=True)
+    same_version = old_version == package_identity(package)
     before.update(boot_id=boot, package_sha256=marker['package_sha256'],
                   baseline_sha256=marker['baseline_sha256'])
     (PAYLOAD / 'before.json').write_text(json.dumps(before))
-    os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
     guard()
-    run(['apt-get', '-o', 'DPkg::Lock::Timeout=120', '--reinstall', 'install',
-         '--no-install-recommends', '-y', str(PAYLOAD / 'package.deb')], timeout=1800)
-    require(required.is_file() and 'oh-no-parent-control' in required.read_text().splitlines(),
+    if package.suffix == '.rpm':
+        run(['dnf', 'reinstall' if same_version else 'install', '-y', str(package)], timeout=1800)
+    else:
+        os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
+        run(['apt-get', '-o', 'DPkg::Lock::Timeout=120', '--reinstall', 'install',
+             '--no-install-recommends', '-y', str(package)], timeout=1800)
+    verify_package_files(package)
+    require(reboot_requested(),
             'updated-package-did-not-request-reboot')
     (PAYLOAD / 'results/update-activation.json').write_text(json.dumps({
         'previous_package_sha256': before['previous_package_sha256'],
         'package_sha256': marker['package_sha256'], 'old_package_reboot_observed': True,
         'product_reboot_marker_absent_before_update': True, 'update_requested_reboot': True,
-        'same_version_reinstall': old_version == run([
-            'dpkg-deb', '-f', str(PAYLOAD / 'package.deb'), 'Version']),
+        'same_version_reinstall': same_version,
     }, sort_keys=True))
 
 
@@ -426,7 +434,8 @@ def collect(marker, outcome):
         return contents.replace(hostname, '[Test VM]') if hostname else contents
 
     result = Commands().run(['journalctl', '--no-pager', '--utc', '-b', '-u', BROKER,
-                             '-u', 'fapolicyd.service', '-u', 'accounts-daemon.service'],
+                             '-u', 'fapolicyd.service', '-u', 'accounts-daemon.service',
+                             '-u', 'slapd.service', '-u', 'sssd.service'],
                             timeout=60, check=False, merge_stderr=False)
     (output / 'service-journal.txt').write_text(redacted(result.decode(errors='replace')))
     # Session-expiry diagnostics need the login-manager/desktop failure that
@@ -514,9 +523,7 @@ def verify_installed():
     """Check the restored app against this attempt's package, without installing."""
     guard()
     installed()
-    required = Path('/run/reboot-required.pkgs')
-    require(not required.exists() or 'oh-no-parent-control' not in required.read_text().splitlines(),
-            'snapshot-reboot-required')
+    require(reboot_cleared(), 'snapshot-reboot-required')
     print('onpc-system: stage=snapshot-readiness outcome=passed', flush=True)
 
 

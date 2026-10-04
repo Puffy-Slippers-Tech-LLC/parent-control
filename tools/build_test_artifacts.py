@@ -291,6 +291,13 @@ def build_upgrade(output):
 
 
 def package_identity(path):
+    if path.suffix == '.rpm':
+        values = _run(['rpm', '-qp', '--queryformat',
+            '%{NAME}\n%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n%{ARCH}\n', str(path)]).stdout.splitlines()
+        if len(values) != 3 or any(not value or '\t' in value for value in values):
+            raise ArtifactError('package identity unavailable')
+        return {'name': values[0], 'version': values[1], 'architecture': values[2],
+                'sha256': _sha256(path)}
     values = _run(['dpkg-deb', '-f', str(path), 'Package', 'Version', 'Architecture']).stdout.splitlines()
     # dpkg prints field prefixes for a multi-field query.
     fields = dict(row.split(': ', 1) for row in values)

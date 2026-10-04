@@ -15,6 +15,27 @@ MODULE_PATH = ROOT / "tools/build_test_artifacts.py"
 artifacts = load_module('onpc_test_build_artifacts', MODULE_PATH)
 
 
+@pytest.mark.parametrize('fault', [None, 'extra', 'missing', 'empty'])
+def test_rpm_public_identity_retains_epoch_release_architecture_and_digest(tmp_path, monkeypatch, fault):
+    package = tmp_path / 'package.rpm'
+    package.write_bytes(b'RPM payload')
+    output = 'oh-no-parent-control\n2:1.3-0.1.dev.fc44\nx86_64\n'
+    if fault == 'extra': output += 'extra\n'
+    if fault == 'missing': output = 'oh-no-parent-control\n2:1.3\n'
+    if fault == 'empty': output = 'oh-no-parent-control\n\nx86_64\n'
+    run = mock.Mock(return_value=mock.Mock(stdout=output))
+    monkeypatch.setattr(artifacts, '_run', run)
+    if fault:
+        with pytest.raises(artifacts.ArtifactError, match='package identity unavailable'):
+            artifacts.package_identity(package)
+    else:
+        assert artifacts.package_identity(package) == {
+            'name': 'oh-no-parent-control', 'version': '2:1.3-0.1.dev.fc44',
+            'architecture': 'x86_64', 'sha256': artifacts._sha256(package)}
+    run.assert_called_once_with(['rpm', '-qp', '--queryformat',
+        '%{NAME}\n%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n%{ARCH}\n', str(package)])
+
+
 def write_artifact(directory: Path, *, package_bytes: bytes = b"package", fixture_digest: str = "fixture") -> None:
     package = directory / "package/oh-no-parent-control_1_amd64.deb"
     package.parent.mkdir(parents=True)

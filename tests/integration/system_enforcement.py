@@ -279,8 +279,7 @@ def record_rules(stage, uid, blocked, record, variant='command'):
 
 def record_execution_backend(record):
     """Identify the installed dependency; this does not witness live policy."""
-    version = guest.run(
-        ['dpkg-query', '-W', '-f=${Version}', 'fapolicyd'], timeout=10)
+    version = package_version('fapolicyd')
     guest.require(re.fullmatch(r'[0-9][A-Za-z0-9.+:~\-]{0,127}', version) is not None,
                   'enforcement:backend-version')
     # Validate before publishing command-derived text. Never put arbitrary
@@ -288,6 +287,15 @@ def record_execution_backend(record):
     digest = guest.sha(FAPOLICYD)
     record('onpc.enforcement.fapolicyd.package-version', version)
     record('onpc.enforcement.fapolicyd.executable.sha256', digest)
+
+
+def package_version(name):
+    """Query the installed platform database; never infer a dependency version."""
+    guest.require(name in {'fapolicyd', 'systemd'}, 'enforcement:dependency-name')
+    command = (['rpm', '-q', '--queryformat', '%{EPOCHNUM}:%{VERSION}-%{RELEASE}', name]
+               if guest.package_path().suffix == '.rpm' else
+               ['dpkg-query', '-W', '-f=${Version}', name])
+    return guest.run(command, timeout=10)
 
 
 def _lose_probe_sender(client):
@@ -318,7 +326,7 @@ def native_probe_lifecycle(record, *, refuse_admission=False, lose_sender=False)
     guest.guard()
     guest.enable_diagnostics()
     record_execution_backend(record)
-    version = guest.run(['dpkg-query', '-W', '-f=${Version}', 'systemd'], timeout=10)
+    version = package_version('systemd')
     guest.require(re.fullmatch(r'[0-9][A-Za-z0-9.+:~\-]{0,127}', version) is not None,
                   'probe:manager-version')
     record('onpc.probe.systemd.package-version', version)

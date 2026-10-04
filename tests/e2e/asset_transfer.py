@@ -11,7 +11,7 @@ import stat
 import sys
 
 from private_artifacts import EvidenceError, require
-from provenance import digest, identity, parent_directory
+from provenance import digest, identity, package_filename, parent_directory
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/integration'))
@@ -85,7 +85,7 @@ class AssetTransfer:
             inventory = json.loads((assets / 'transfer-sha256.json').read_bytes())
             require(inventory == {p: h for p, h in files.items()
                                   if p != 'transfer-sha256.json'}, 'transfer:inventory-mismatch')
-            require(files['package.deb'] == self.verified.inputs['package_sha256'],
+            require(files[package_filename(files)] == self.verified.inputs['package_sha256'],
                     'transfer:package-mismatch')
             directories = sorted({parent.as_posix() for name in files
                                   for parent in Path(name).parents if parent != Path('.')},

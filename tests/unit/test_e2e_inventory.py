@@ -32,6 +32,20 @@ def test_customer_families_stay_customer_journeys(document):
     assert {'E2E-028', 'E2E-029'}.isdisjoint(actual)
 
 
+def test_shared_scenarios_declare_both_platforms_without_changing_readiness(document):
+    plan = inventory.resolve_selection(document)
+    assert all(case['environment'] == ['ubuntu26.04', 'fedora44'] for case in plan['cases'])
+    assert inventory.resolve_selection(document, coverage_id=2)['cases'][0]['status'] == 'ready'
+    assert inventory.resolve_selection(document, 'E2E-027')['pending_cases']
+
+
+@pytest.mark.parametrize('environment', [[], ['fedora43'], ['ubuntu26.04', 'ubuntu26.04'], 44])
+def test_invalid_or_ambiguous_platform_declarations_refuse(document, environment):
+    family(document)['environment'] = environment
+    with pytest.raises(inventory.InventoryError, match='scenario:environment'):
+        inventory.validate_inventory(document)
+
+
 def test_full_inventory_keeps_every_pending_case_and_evidence(document):
     plan = inventory.resolve_selection(document)
     expected = [item['id'] + '/' + variant['id'] for item in document['scenarios']

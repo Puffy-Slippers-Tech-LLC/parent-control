@@ -62,6 +62,37 @@ def test_rpm_staging_preserves_file_inventory_and_exact_transfer_digests(tmp_pat
 
 
 
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('fault', [None, 'format', 'identical'])
+def test_explicit_previous_artifacts_bind_same_format_and_distinct_payload(
+        tmp_path, monkeypatch, package_format, fault):
+    (tmp_path / 'input').mkdir()
+    previous_format = ('rpm' if package_format == 'deb' else 'deb') if fault == 'format' else package_format
+    current = {'artifacts': {'package': {'path': 'current.' + package_format, 'sha256': 'a' * 64}}}
+    old_digest = 'a' * 64 if fault == 'identical' else hashlib.sha256(b'previous').hexdigest()
+    previous = {'artifacts': {'package': {'path': 'previous.' + previous_format,
+                                        'sha256': old_digest}}, 'source': {'revision': 'previous'}}
+    def stage(source, destination, commands):
+        destination.mkdir()
+        (destination / ('package.' + previous_format)).write_bytes(b'previous')
+        return previous
+    monkeypatch.setattr(runner, 'stage_assets', stage)
+    if fault:
+        with pytest.raises(runner.Error, match='assets:' + (
+                'previous-package-format' if fault == 'format' else 'identical-update-payload')):
+            runner.stage_previous_assets(tmp_path / 'source', tmp_path / 'previous', Mock(), current)
+        assert list((tmp_path / 'input').iterdir()) == []
+        assert 'previous_package' not in current
+    else:
+        runner.stage_previous_assets(tmp_path / 'source', tmp_path / 'previous', Mock(), current)
+        copied = tmp_path / 'input' / ('previous-package.' + package_format)
+        assert copied.read_bytes() == b'previous'
+        assert runner.baseline.digest(copied) == old_digest
+        receipt = json.loads((tmp_path / 'input/previous-inputs.json').read_bytes())
+        assert receipt == current['previous_package'] == {
+            'sha256': old_digest, 'source': previous['source']}
+
+
 def test_run_ledger_accumulates_monotonic_stage_time_and_preserves_first_failure(capsys):
     clock = iter((10.0, 10.25, 20.0, 20.75))
     ledger = runner.RunLedger(monotonic=lambda: next(clock))
@@ -647,8 +678,9 @@ def test_collection_failure_does_not_hide_original_pytest_failure_or_its_domain(
 
 
 
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
 @pytest.mark.parametrize('update', [False, True])
-def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update, monkeypatch):
+def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update, monkeypatch, package_format):
     vm, lease = Mock(), Mock()
     lease.state = {'run': RUN}
     capture = Mock()
@@ -656,7 +688,7 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update
     selection = runner.resolve_selection(inventories=INVENTORIES)
     if update:
         (tmp_path / 'input').mkdir()
-        (tmp_path / 'input/previous-package.deb').write_bytes(b'old payload')
+        (tmp_path / 'input' / ('previous-package.' + package_format)).write_bytes(b'old payload')
     write_junit_results(tmp_path, selection)
     ledger = runner.RunLedger()
     result = runner.installed_run(vm, lease, tmp_path, selection, ledger)
@@ -670,8 +702,8 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update
         ('authorization', 'test_method_role_matrix[ListManagedUsers-child1]'),
         ('authorization', 'test_real_selected_parent_authentication[child1]'),
     )
-    assert vm.reboot.call_count == 2 + update
-    assert vm.call.call_count == 9 + update
+    assert vm.reboot.call_count == 4 + update
+    assert vm.call.call_count == 12 + update
     assert vm.call.call_args_list[2 + update].args[0] == runner.guest_command(RUN, 'collect', 'installed')
     if update:
         calls = vm.method_calls
@@ -680,6 +712,9 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update
         new = next(i for i, c in enumerate(calls)
                    if c[0] == 'call' and c.args[0] == runner.guest_command(RUN, 'upgrade'))
         assert old < new and any(c[0] == 'reboot' for c in calls[old + 1:new])
+    assert [call.args[0] for call in vm.call.call_args_list
+            if '--junitxml' in call.args[0]] == [
+        runner.pytest_command(RUN, phase, selection) for phase in selection.phases]
     assert ledger.outcomes['product'] == {'outcome': 'passed', 'category': None}
     assert ledger.outcomes['collection'] == {'outcome': 'passed', 'category': None}
     capture.assert_called_once_with(lease, tmp_path / 'guest-results')

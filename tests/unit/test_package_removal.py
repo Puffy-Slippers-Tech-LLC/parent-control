@@ -6,8 +6,15 @@ No real account, service, process, or system path is changed by these tests.
 
 import pytest
 
-from tests.support.paths import ROOT
-from tests.support.package_scripts import Machine, machine
+from tests.support.package_scripts import Machine
+
+
+@pytest.fixture(params=['ubuntu', 'fedora'])
+def machine(tmp_path, request):
+    return Machine(tmp_path, request.param)
+
+
+ubuntu_only = pytest.mark.parametrize('machine', ['ubuntu'], indirect=True)
 
 
 def test_removal_clears_deferred_child_trust_guard(machine):
@@ -35,7 +42,7 @@ def test_removal_restores_only_unchanged_owned_trust_backend(machine, changed, a
         assert result.returncode == 0, result.stderr
         assert config.read_text() == original
         assert not (machine.root / 'var/lib/oh-no-parent-control/child-trust-backend').exists()
-        restart = 'deb-systemd-invoke restart fapolicyd.service'
+        restart = machine.service_command + ' restart fapolicyd.service'
         if active:
             assert machine.commands.index('systemctl daemon-reload') < machine.commands.index(restart)
         else:
@@ -62,7 +69,9 @@ def test_child_trust_collision_refuses_before_package_changes(machine):
     assert 'stop oh-no-parent-control-broker.service' not in machine.commands
 
 
-@pytest.mark.parametrize('action', ['remove', 'purge'])
+@pytest.mark.parametrize(('machine', 'action'), [
+    ('ubuntu', 'remove'), ('ubuntu', 'purge'), ('fedora', 'remove'),
+], indirect=['machine'])
 def test_child_trust_removal_preserves_other_trust_and_refreshes_daemon(machine, action):
     trust = machine.integration('child-extension-trust',
                                 'etc/fapolicyd/trust.d/oh-no-parent-control.trust')
@@ -97,6 +106,7 @@ def test_child_trust_removal_refresh_failure_is_retryable(machine):
     assert machine.commands.count('fapolicyd-cli --update') == 2
 
 
+@ubuntu_only
 def test_preinst_registers_dpkg_notice_before_unpack_and_retries_safely(machine):
     notice = machine.root / "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice"
     assert not notice.exists()
@@ -115,6 +125,7 @@ def test_preinst_registers_dpkg_notice_before_unpack_and_retries_safely(machine)
 
 @pytest.mark.parametrize("action", ["remove", "purge", "abort-install"])
 @pytest.mark.parametrize("modified", [False, True])
+@ubuntu_only
 def test_notice_cleanup_preserves_administrator_replacements(machine, action, modified):
     assert machine.run("preinst", "install").returncode == 0
     notice = machine.root / "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice"
@@ -129,6 +140,7 @@ def test_notice_cleanup_preserves_administrator_replacements(machine, action, mo
     assert not pending.exists()
 
 
+@ubuntu_only
 def test_notice_bootstrap_and_cleanup_do_not_follow_substituted_configuration(machine):
     protected = machine.write("administrator-file", "preserved\n")
     notice = machine.root / "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice"
@@ -143,6 +155,7 @@ def test_notice_bootstrap_and_cleanup_do_not_follow_substituted_configuration(ma
     assert protected.read_text() == "preserved\n"
 
 
+@ubuntu_only
 def test_purge_removes_saved_state_logs_and_empty_policy(machine):
     machine.baseline()
     machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
@@ -159,6 +172,7 @@ def test_purge_removes_saved_state_logs_and_empty_policy(machine):
     assert machine.commands.index("systemctl daemon-reload") < machine.commands.index("stop fapolicyd.service")
 
 
+@ubuntu_only
 def test_remove_retains_preferences_until_later_purge(machine):
     path = machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
     assert machine.run("postrm", "remove").returncode == 0
@@ -168,7 +182,10 @@ def test_remove_retains_preferences_until_later_purge(machine):
     assert machine.run("postrm", "purge").returncode == 0
 
 
-@pytest.mark.parametrize("action", ["remove", "purge", "abort-install"])
+@pytest.mark.parametrize(('machine', 'action'), [
+    ('ubuntu', 'remove'), ('ubuntu', 'purge'), ('ubuntu', 'abort-install'),
+    ('fedora', 'remove'),
+], indirect=['machine'])
 def test_removal_preserves_unsettled_probe_generations(machine, action):
     witness = machine.write("run/oh-no-parent-control/probes/" + "1" * 32 + "/witness",
                             "retained generation")
@@ -210,7 +227,7 @@ def test_kiosk_home_is_removed_even_when_deluser_leaves_it(machine):
     assert not (machine.root / "home/oh-no-parent-control").exists()
     assert not (machine.root / "account").exists()
     assert "terminate-user" not in machine.commands
-    assert machine.commands.index("UncacheUser") < machine.commands.index("deluser")
+    assert machine.commands.index("UncacheUser") < machine.commands.index(machine.delete_account)
 
 
 def test_kiosk_removal_retry_without_passwd_entry(machine):
@@ -228,14 +245,17 @@ def test_active_kiosk_refuses_removal_without_signalling_processes(machine, scri
     assert result.returncode != 0
     assert "log out" in result.stderr
     assert (machine.root / "account").exists()
-    assert "deluser" not in machine.commands
+    assert machine.delete_account not in machine.commands
     assert "terminate" not in machine.commands
 
 
-def test_reassigned_uid_preserves_home_and_marker(machine):
+@pytest.mark.parametrize(('machine', 'action'), [
+    ('ubuntu', 'purge'), ('fedora', 'remove'),
+], indirect=['machine'])
+def test_reassigned_uid_preserves_home_and_marker(machine, action):
     machine.kiosk()
     (machine.root / "account").unlink()
-    result = machine.run("postrm", "purge", UID_REASSIGNED="1")
+    result = machine.run("postrm", action, UID_REASSIGNED="1")
     assert result.returncode != 0
     assert (machine.root / "home/oh-no-parent-control/.cache/residue").exists()
     assert (machine.root / "var/lib/oh-no-parent-control/package-created-kiosk-uid").exists()
@@ -248,6 +268,7 @@ def test_changed_home_owner_is_preserved(machine):
     assert (machine.root / "account").exists()
 
 
+@ubuntu_only
 def test_purge_does_not_follow_saved_state_symlink(machine):
     outside = machine.write("unrelated/keep", "keep")
     (machine.root / "var/lib/oh-no-parent-control/linked").symlink_to(outside.parent)
@@ -255,6 +276,7 @@ def test_purge_does_not_follow_saved_state_symlink(machine):
     assert outside.read_text() == "keep"
 
 
+@ubuntu_only
 def test_purge_refuses_substituted_log_directory(machine):
     outside = machine.write("unrelated/keep", "keep")
     (machine.root / "var/log").mkdir()
@@ -286,8 +308,9 @@ def test_prerm_masks_before_stopping_and_clearing_enforcement(machine):
     result = machine.run("prerm", "remove")
     assert result.returncode == 0, result.stderr
     commands = machine.commands
-    assert commands.index("systemctl mask") < commands.index("deb-systemd-invoke stop")
-    assert commands.index("deb-systemd-invoke stop") < commands.index("uninstall --remove")
+    stop = machine.service_command + " stop oh-no-parent-control-broker.service"
+    assert commands.index("systemctl mask") < commands.index(stop)
+    assert commands.index(stop) < commands.index("uninstall --remove")
     assert (machine.root / "var/lib/oh-no-parent-control/uninstall-broker-mask").exists()
 
 
@@ -337,6 +360,7 @@ def test_failed_policy_reload_keeps_baseline_for_retry(machine):
     assert (machine.root / "var/lib/oh-no-parent-control/fapolicyd-before-install/complete").exists()
 
 
+@ubuntu_only
 def test_purge_refuses_nested_bind_mount_before_deleting_any_content(machine):
     path = machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
     result = machine.run("postrm", "purge", MOUNTED_PATH=str(path.parent))
@@ -354,6 +378,7 @@ def test_upgrade_never_claims_product_policy_as_original_baseline(machine):
 
 
 @pytest.mark.parametrize("notifier", ["missing", "success", "defer", "fail"])
+@ubuntu_only
 def test_removal_requests_reboot_without_losing_or_duplicating_requests(machine, notifier):
     if notifier != "missing":
         code = "exit 1" if notifier == "fail" else "exit 0"
@@ -370,14 +395,16 @@ def test_removal_requests_reboot_without_losing_or_duplicating_requests(machine,
     assert "reboot" not in machine.commands
 
 
+@ubuntu_only
 def test_later_purge_does_not_request_another_reboot(machine):
     result = machine.run("postrm", "purge")
     assert result.returncode == 0, result.stderr
     assert not (machine.root / "run/reboot-required").exists()
 
 
+@ubuntu_only
 def test_owned_integrations_removed_but_later_admin_hook_survives_purge(machine):
-    hook = machine.integration("gdm-presession", "etc/gdm3/PreSession/Default")
+    hook = machine.integration("gdm-presession", machine.gdm_hook)
     fallback = machine.integration("fapolicyd-fallback", "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules")
     result = machine.run("postrm", "remove")
     assert result.returncode == 0, result.stderr
@@ -392,7 +419,7 @@ def test_owned_integrations_removed_but_later_admin_hook_survives_purge(machine)
 @pytest.mark.parametrize("script", ["prerm", "postrm"])
 @pytest.mark.parametrize("changed", ["contents", "symlink"])
 def test_changed_shared_hook_refuses_removal(machine, script, changed):
-    hook = machine.integration("gdm-presession", "etc/gdm3/PreSession/Default")
+    hook = machine.integration("gdm-presession", machine.gdm_hook)
     if changed == "symlink":
         hook.unlink()
         hook.symlink_to(machine.write("unrelated", "keep"))
@@ -407,7 +434,7 @@ def test_changed_shared_hook_refuses_removal(machine, script, changed):
 @pytest.mark.parametrize("collision", ["hook", "account", "fallback"])
 def test_install_rejects_unowned_resources_before_mutating_state(machine, collision):
     if collision == "hook":
-        path = machine.write("etc/gdm3/PreSession/Default", "admin hook")
+        path = machine.write(machine.gdm_hook, "admin hook")
     elif collision == "fallback":
         path = machine.write("etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules", "admin rule")
     else:
@@ -426,10 +453,11 @@ def test_mounted_kiosk_home_is_rejected_before_account_deletion(machine):
     assert result.returncode != 0
     assert (machine.root / "account").exists()
     assert "UncacheUser" not in machine.commands
-    assert "deluser" not in machine.commands
+    assert machine.delete_account not in machine.commands
 
 
 @pytest.mark.parametrize("choice,option", [("enabled", "--enable"), ("disabled", "--disable")])
+@ubuntu_only
 def test_removal_restores_only_original_dependency_pam_choice(machine, choice, option):
     machine.write("var/lib/oh-no-parent-control/malcontent-pam-before-install", choice + "\n")
     result = machine.run("prerm", "remove")
@@ -437,6 +465,7 @@ def test_removal_restores_only_original_dependency_pam_choice(machine, choice, o
     assert f"{option} malcontent" in machine.commands
 
 
+@ubuntu_only
 def test_local_pam_reference_prevents_removing_its_module(machine):
     path = machine.write("etc/pam.d/common-auth", "auth required pam_oh_no_parent_control.so\n")
     result = machine.run("prerm", "remove")
@@ -445,6 +474,7 @@ def test_local_pam_reference_prevents_removing_its_module(machine):
     assert "pam_oh_no_parent_control.so" in path.read_text()
 
 
+@ubuntu_only
 def test_pam_comments_and_inactive_backups_do_not_block_removal(machine):
     machine.write("etc/pam.d/common-auth", "  # auth required pam_oh_no_parent_control.so\n")
     backup = machine.write("etc/pam.d/common-auth.pam-old", "auth required pam_oh_no_parent_control.so\n")
@@ -486,6 +516,34 @@ def test_remove_cleans_transient_state_but_preserves_customer_data(machine):
     assert prefs.exists() and log.exists()
 
 
+def test_owned_integrations_are_removed_and_later_administrator_hook_is_preserved(machine):
+    hook = machine.integration('gdm-presession', machine.gdm_hook)
+    fallback = machine.integration('fapolicyd-fallback',
+                                   'etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules')
+    result = machine.run('postrm', 'remove')
+    assert result.returncode == 0, result.stderr
+    assert not hook.exists() and not fallback.exists()
+    hook.write_text('new administrator hook\n')
+    result = machine.run('postrm', 'remove')
+    assert result.returncode == 0, result.stderr
+    assert hook.read_text() == 'new administrator hook\n'
+
+
+def test_removal_undoes_only_package_service_activation(machine):
+    machine.baseline()
+    result = machine.run('postrm', 'remove', SERVICE_ACTIVE='1')
+    assert result.returncode == 0, result.stderr
+    assert not (machine.root / 'etc/fapolicyd/compiled.rules').exists()
+    assert not (machine.root / 'etc/fapolicyd/compiled.rules.prev').exists()
+    stop = machine.service_command + ' stop fapolicyd.service'
+    assert stop in machine.commands
+    assert 'systemctl disable fapolicyd.service' in machine.commands
+    assert machine.commands.index('systemctl daemon-reload') < machine.commands.index(stop)
+    assert not any('gdm.service' in line or 'gdm3.service' in line
+                   for line in machine.commands.splitlines())
+
+
+@ubuntu_only
 def test_aborted_first_unpack_cleans_only_attempt_bookkeeping(machine):
     prefs = machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
     policy = machine.write("etc/fapolicyd/compiled.rules", "original policy")

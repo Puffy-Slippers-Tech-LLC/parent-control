@@ -748,7 +748,7 @@ def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
     Keep directory services unconfigured. Their supported package reconfiguration
     and identities belong to the selected runtime fixture, after product install.
     """
-    for path in guest_tools.DORMANT_PATHS:
+    for path in guest_tools.dormant_paths(os_id):
         candidate = _rooted(root, path)
         if candidate.exists() or candidate.is_symlink():
             raise PreparationError('guest-tools:configuration-collision',
@@ -764,6 +764,16 @@ def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
             guest_tools.verify_installed(os_id, runner=runner, root=root)
         except ValueError as error:
             raise PreparationError('guest-tools:verification', 'required Fedora test packages are not configured') from error
+        for path in guest_tools.dormant_paths(os_id):
+            candidate = _rooted(root, path)
+            if candidate.exists() or candidate.is_symlink():
+                raise PreparationError('guest-tools:configuration-collision',
+                                       'package installation unexpectedly configured directory fixture')
+        for unit in ('slapd.service', 'sssd.service'):
+            result = runner.run(['systemctl', 'is-active', unit], check=False)
+            if result.returncode != 3 or result.stdout.strip() not in {'inactive', 'failed'}:
+                raise PreparationError('guest-tools:directory-active', 'directory services must be inactive')
+            runner.run(['systemctl', 'disable', unit])
         prepare_ssh(runner=runner, service='sshd.service')
         return
     if os_id != 'ubuntu':

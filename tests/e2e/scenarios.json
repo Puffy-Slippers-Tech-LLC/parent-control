@@ -16,7 +16,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md"],
       "components": ["runner"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -71,7 +71,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Lifecycle.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -123,7 +123,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "declared-account-eligibility-fixtures", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -175,7 +175,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Broker.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -226,7 +226,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -286,7 +286,7 @@
       "requirement_gap": "Search/filter and match-editing scope is mapped; the current variants do not individually qualify every search field, combined filter, Cancel and Reset to Default branch.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "digest-identified-native-and-appimage-fixtures", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -343,7 +343,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -400,7 +400,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -452,7 +452,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -504,7 +504,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -556,7 +556,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -609,7 +609,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "two-eligible-parents", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -666,7 +666,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -723,7 +723,7 @@
       "requirement_gap": "The declared footer checks map the time estimate; loading/error precedence, refresh and submitting with an unavailable estimate need explicit qualification.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -782,7 +782,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -840,7 +840,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -893,7 +893,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "declared-account-eligibility-fixtures", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -948,7 +948,7 @@
       "requirement_gap": "The current forms disable sound/lightning and expose no mute control. Retained legacy mute-action steps are unresolved acceptance work, not implemented behavior or passing coverage; approver selections are user-local while duration/custom/soft-app choices are shared per child.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1005,7 +1005,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "digest-identified-native-snap-flatpak-appimage-fixtures", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1107,7 +1107,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1159,7 +1159,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1213,7 +1213,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1277,7 +1277,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "pinned-real-offline-game-and-level-digests", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1332,7 +1332,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "pinned-real-offline-game-and-level-digests", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1389,7 +1389,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1446,7 +1446,7 @@
       "requirement_gap": "Successful saved-data conversion belongs to the update journey; conversion failure, retry and future-schema protection require separate system checks and are not exercised by these customer activation variants.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/Publishing.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "digest-verified-activation-packages", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1499,7 +1499,7 @@
       "requirement_gap": "The lifecycle route maps supported installation, request-station provisioning and fresh defaults. Unsupported-platform rejection, reserved-account conflicts and every fresh-default observation need separate qualification; this mapping does not extend the existing continuous variant.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Package-Removal.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1553,7 +1553,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/Specification.md", "docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1603,7 +1603,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Logging-and-Feedback.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "synthetic-feedback-and-attachment-fixtures", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1656,7 +1656,7 @@
       "requirement_gap": "Actual service submission and displayed acceptance still need authorized installed qualification. Recipient/provider verification remains separate engineering work.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Logging-and-Feedback.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "explicit-external-delivery-authorization", "dedicated-test-recipient", "supported-real-feedback-service-profile", "synthetic-feedback-and-attachment-fixtures", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1706,7 +1706,7 @@
       "requirement_gap": "Requires shared system-network commands preserving management and observation and explicitly authorized real service submission; injected transport/idempotency/recipient checks remain separate.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Logging-and-Feedback.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "explicit-external-delivery-authorization", "dedicated-test-recipient", "supported-real-feedback-service-profile", "synthetic-feedback-and-attachment-fixtures", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1759,7 +1759,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1811,7 +1811,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1863,7 +1863,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1915,7 +1915,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -1972,7 +1972,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
       "phases": {
         "setup": [
@@ -2030,7 +2030,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
       "phases": {
         "setup": [
@@ -2085,7 +2085,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
       "phases": {
         "setup": [
@@ -2141,7 +2141,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
       "phases": {
         "setup": [
@@ -2195,7 +2195,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
       "phases": {
         "setup": [
@@ -2247,7 +2247,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data", "declared-natural-calendar-window"],
       "phases": {
         "setup": [
@@ -2309,7 +2309,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
       "phases": {
         "setup": [
@@ -2362,7 +2362,7 @@
       "requirement_gap": "Requires a repeatable customer-reproducible collection failure; private fault injection cannot establish this customer case.",
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data", "synthetic-feedback-and-attachment-fixtures"],
       "phases": {
         "setup": [
@@ -2421,7 +2421,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data", "explicit-external-delivery-authorization", "dedicated-test-recipient", "supported-real-feedback-service-profile", "synthetic-feedback-and-attachment-fixtures"],
       "phases": {
         "setup": [
@@ -2480,7 +2480,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/Specification.md", "docs/System-Design.md", "docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
       "phases": {
         "setup": [
@@ -2552,7 +2552,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/Specification.md", "docs/System-Design.md", "docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "digest-identified-native-snap-flatpak-appimage-fixtures"],
       "phases": {
         "setup": [
@@ -2636,7 +2636,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/Specification.md", "docs/System-Design.md", "docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "pinned-real-offline-game-and-level-digests", "declared-synthetic-work-document"],
       "phases": {
         "setup": [
@@ -2702,7 +2702,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/Specification.md", "docs/System-Design.md", "docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "pinned-real-offline-game-and-level-digests", "declared-synthetic-work-document"],
       "phases": {
         "setup": [
@@ -2757,7 +2757,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Applications.md", "docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-052"],
       "components": ["parent", "child", "broker"],
-      "environment": "ubuntu26.04",
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "manually-prepared-lunar-appimagelauncher-autostart-profile", "prepared-minecraft-test-account-and-local-world", "qualified-lunar-tray-and-minecraft-provider-adapters"],
       "phases": {
         "setup": [

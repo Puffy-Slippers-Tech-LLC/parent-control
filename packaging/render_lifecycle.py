@@ -89,11 +89,17 @@ def main():
     debian.add_argument('--staging', type=Path, required=True)
     rpm = commands.add_parser('rpm')
     rpm.add_argument('--output', type=Path, required=True)
+    standalone = commands.add_parser('standalone')
+    standalone.add_argument('--distribution', choices=('ubuntu', 'fedora'), required=True)
+    standalone.add_argument('--phase', choices=PHASES, required=True)
+    standalone.add_argument('--output', type=Path, required=True)
     arguments = parser.parse_args()
     if arguments.command == 'debian':
         expand_debian(ROOT, arguments.staging)
-    else:
+    elif arguments.command == 'rpm':
         rpm_scripts(ROOT, arguments.output)
+    else:
+        arguments.output.write_text(render(ROOT, arguments.distribution, arguments.phase).replace('#DEBHELPER#', ''))
 
 
 if __name__ == '__main__':

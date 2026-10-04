@@ -84,7 +84,7 @@ def accounts():
 def authority():
     require(os.geteuid() == 0, 'root-transport')
     parent = pwd.getpwnam(sessions.ACCOUNTS['parent'])
-    require(parent.pw_uid >= 1000 and grp.getgrnam('sudo').gr_gid
+    require(parent.pw_uid >= 1000 and grp.getgrnam(sessions.administrator_group()).gr_gid
             in os.getgrouplist(parent.pw_name, parent.pw_gid), 'administrator')
     return parent, sessions.source_session(sessions.sessions(), parent.pw_uid)
 
@@ -131,7 +131,9 @@ def snapshot(api, *, product_free=True):
     absent = not any(os.path.lexists(path) for path in (
         '/var/lib/oh-no-parent-control', '/etc/oh-no-parent-control',
         '/usr/bin/oh-no-parent-control-parent', '/usr/lib/oh-no-parent-control'))
-    package = sessions.call(['/usr/bin/dpkg-query', '-W', '-f=${binary:Package}\n'])
+    package = sessions.call(['/usr/bin/rpm', '-qa', '--queryformat', '%{NAME}\n']
+                            if sessions.package_format() == 'rpm' else
+                            ['/usr/bin/dpkg-query', '-W', '-f=${binary:Package}\n'])
     installed = any(item.split(':')[0] == 'oh-no-parent-control' for item in package.splitlines())
     if product_free:
         require(absent, 'product-state-present')

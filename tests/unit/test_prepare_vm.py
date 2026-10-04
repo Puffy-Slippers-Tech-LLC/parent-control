@@ -712,6 +712,8 @@ def test_fedora_dependencies_install_retry_verify_and_never_use_apt(tmp_path, fa
                 return subprocess.CompletedProcess(command, 0, 'pubkeyauthentication yes\n'
                     'permitrootlogin prohibit-password\nauthenticationmethods any\n'
                     'authorizedkeysfile .ssh/authorized_keys\n')
+            if command[:2] == ['systemctl', 'is-active']:
+                return subprocess.CompletedProcess(command, 3, 'inactive\n')
             return subprocess.CompletedProcess(command, 0, '')
     runner = FedoraRunner()
     if failure:
@@ -735,7 +737,8 @@ def test_fedora_dependencies_install_retry_verify_and_never_use_apt(tmp_path, fa
     ({'openssh-server': '10.2p1'}, False),
 ])
 def test_fedora_package_inventory_refuses_old_missing_or_prerelease_tools(versions, accepted):
-    versions = {'python3-gobject': '3.50.0', 'gtk4': '4.18.0', **versions}
+    versions = {'python3-gobject': '3.50.0', 'gtk4': '4.18.0',
+                **prepare.guest_tools.FEDORA_REMOTE_VERSIONS, **versions}
     if accepted:
         assert prepare.guest_tools.verify_fedora_packages(versions.items()) == versions
     else:

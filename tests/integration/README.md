@@ -96,8 +96,8 @@ coordinates host results and VM artifacts for the same source content.
 ## Running the current installed suite
 
 For implementation, use the [E2E building blocks](../../docs/TestAutomation/E2E-Building-Blocks.md).
-The current controller executes the registered installed/reboot/authorization/
-enforcement/session scope when unselected. F1 can list the registered `package`, `authorization`, `enforcement`, and `session`
+The current controller executes the registered installed/reboot/removal/authorization/
+enforcement/session scope when unselected. F1 can list the registered `package`, `removal`, `authorization`, `enforcement`, and `session`
 cases and their explicit prerequisite closure without artifacts, root access,
 or VM operations:
 
@@ -135,6 +135,20 @@ available after tests; final cleanup still audits and restores the outer baselin
 Partial post-install selections no longer run fresh-install assertions as
 prerequisites. Full runs retain all explicit package lifecycle checks.
 
+The `removal` area starts product-free and keeps installation, configuration,
+refused removal of an edited owned integration, retry, erase, reboot, health
+verification and reinstall in one guarded attempt on either distribution.
+The same case executes across three explicit removal phases; a failed phase
+stops later transitions. Package checks are its installation prerequisites.
+The shared assertions cover cleared live restrictions/grants, removed payload
+and generated integrations, retained preferences/logs, unrelated account
+preservation, native execution, GDM session health and reinstalled readiness.
+RPM erase retains preferences/logs and has no purge action. Debian's reboot
+notice conffile intentionally survives ordinary removal. Automatic GDM login
+and API policy setup are engineering fixtures, not completed customer E2E
+acceptance; the public removal/reinstall journey retains its own queue and
+qualification requirements.
+
 The `session` area runs installed PAM expiry checks, then a one-shot GDM
 autologin fixture across a second reboot. It observes real scope creation,
 expiry locking, extension recovery, PAM admission and authenticated broker
@@ -152,8 +166,11 @@ both operations. Capture failure preserves the original test failure.
 For an explicit update check, add `--previous-artifacts /tmp/onpc-...` alongside
 `--artifacts /tmp/onpc-...`. Both inputs pass the same artifact and source
 verification. The controller installs and boots the prior package, requires its
-payload unchanged and its reboot marker cleared, then uses APT `--reinstall`
-for the selected new payload. Identical package digests are refused. The update
+payload unchanged and its platform reboot marker cleared, then uses APT
+`--reinstall` on Ubuntu or DNF install/reinstall on Fedora for the selected new
+payload. Both artifacts must use the same package format. Fedora compares exact
+RPM name, epoch, version, release and architecture, and keeps SELinux enforcing.
+Identical package digests are refused. The update
 must request a new product reboot, and normal installed/reboot assertions run
 against the new bytes. Explicit updates keep their selected post-install checks
 in the same baseline-based attempt, so restoring a cached app cannot bypass the

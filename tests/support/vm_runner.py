@@ -67,6 +67,7 @@ def xml():
 
 
 INVENTORIES = {
+    'removal': ('test_remove_reboot_reinstall',),
     'package': (
         'test_installed_package',
         'test_first_install_requests_reboot',

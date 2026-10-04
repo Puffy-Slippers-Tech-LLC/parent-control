@@ -430,10 +430,10 @@ def test_administrator_eligibility_predicates(accounts, record_testsuite_propert
             else:
                 raise guest.GuestError('authorization:eligibility-fixture-collision')
             if predicate == 'unsafe-name':
-                # Ubuntu useradd supports this name. Avoid renaming a cached
+                # The supported useradd accepts this name. Avoid renaming a cached
                 # account: AccountsService can leave a duplicate exported object.
                 guest.run(['useradd', '--create-home', '--shell', '/bin/bash',
-                           '--groups', 'sudo', name])
+                           '--groups', 'wheel' if guest.package_path().suffix == '.rpm' else 'sudo', name])
             else:
                 guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                            '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
@@ -528,14 +528,23 @@ def test_administrator_eligibility_predicates(accounts, record_testsuite_propert
         accepted(call(accounts['parent1'], 'SetParentControl', '(ubu)', (target, False, 60)))
 
 
-def test_remote_accounts_are_excluded(accounts, record_testsuite_property):
-    """Real LDAP identities must be rejected solely for their nonlocal status."""
-    from system_remote_accounts import PACKAGES, provision
+@pytest.fixture
+def remote_directory():
+    from system_remote_accounts import provision, restore_nss
 
-    remote = provision()
-    record_testsuite_property('onpc.remote-packages', guest.run([
-        'dpkg-query', '-W', '-f=${Package}=${Version}\n',
-        *[package.split('=')[0] for package in PACKAGES]]))
+    restoration = {}
+    try:
+        yield provision(restoration=restoration)
+    finally:
+        restore_nss(restoration)
+
+
+def test_remote_accounts_are_excluded(accounts, remote_directory, record_testsuite_property):
+    """Real LDAP identities must be rejected solely for their nonlocal status."""
+    from system_remote_accounts import package_versions
+
+    remote = remote_directory
+    record_testsuite_property('onpc.remote-packages', package_versions())
     interface = 'org.freedesktop.Accounts.User'
     for role, uid in remote.items():
         observed = {prop: account_property(uid, interface, prop) for prop in (

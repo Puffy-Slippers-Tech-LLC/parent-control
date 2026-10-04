@@ -7,11 +7,66 @@ from unittest.mock import Mock
 import pytest
 
 import session_control as control
+
+
 from accessible_ui import OPERATIONS, UiError
 from tests.support.accessible_ui import Node, ui_for
 from tests.support.desktop_session import RUN_PROBE, props
 from tests.support.paths import ROOT
 from tests.support.perl import run_perl
+
+
+PACKAGE_FORMAT = control.package_format
+
+
+@pytest.fixture(autouse=True)
+def platform(monkeypatch):
+    monkeypatch.setattr(control, 'package_format', lambda: 'deb')
+
+
+@pytest.mark.parametrize('release,expected', [
+    ('ID=ubuntu\nVERSION_ID="26.04"\n', 'deb'),
+    ('ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n', 'rpm'),
+    ('ID=fedora\nVERSION_ID=44\nVARIANT_ID=server\n', None),
+    ('ID=fedora\nVERSION_ID=43\nVARIANT_ID=workstation\n', None),
+    ('ID=ubuntu\nVERSION_ID=24.04\n', None),
+])
+def test_package_platform_comes_from_supported_os_release(monkeypatch, release, expected):
+    monkeypatch.setattr(control, 'Path', lambda name: SimpleNamespace(read_text=lambda: release))
+    if expected:
+        assert PACKAGE_FORMAT() == expected
+    else:
+        with pytest.raises(control.SessionError, match='package-platform'):
+            PACKAGE_FORMAT()
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('name,rpm_name', [('gdm3', 'gdm'), ('gnome-shell', 'gnome-shell'),
+    ('mate-polkit', 'mate-polkit'), ('libgtk-4-1', 'gtk4'), ('gcr', 'gcr4')])
+@pytest.mark.parametrize('fault', [False, True])
+def test_provider_metadata_queries_correct_package_and_bounds_reply(
+        monkeypatch, package_format, name, rpm_name, fault):
+    monkeypatch.setattr(control, 'package_format', lambda: package_format)
+    query = Mock(return_value='private text\nother' if fault else '0:50.1-1.fc44\n')
+    monkeypatch.setattr(control.subprocess, 'check_output', query)
+    if fault:
+        with pytest.raises(control.SessionError, match='package-version'):
+            control.installed_package_version(name)
+    else:
+        assert control.installed_package_version(name) == '0:50.1-1.fc44'
+    assert query.call_args.kwargs == {'text': True, 'timeout': 5}
+    assert query.call_args.args[0] == (['/usr/bin/rpm', '-q', '--queryformat',
+        '%{EPOCHNUM}:%{VERSION}-%{RELEASE}', rpm_name] if package_format == 'rpm' else
+        ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', name])
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_platform_package_path_and_administrator_group(monkeypatch, package_format):
+    monkeypatch.setattr(control, 'package_format', lambda: package_format)
+    assert control.administrator_group() == ('wheel' if package_format == 'rpm' else 'sudo')
+    for binding in ('previous', 'current'):
+        assert str(control.package_path(binding)) == '/var/lib/onpc-e2e-assets/' + (
+            'previous/' if binding == 'previous' else '') + 'package.' + package_format
 
 
 def test_session_readback_does_not_combine_both_sides_of_a_seat_switch(monkeypatch):

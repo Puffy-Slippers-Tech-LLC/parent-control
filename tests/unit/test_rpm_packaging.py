@@ -12,7 +12,7 @@ import tarfile
 import pytest
 
 from tests.support.paths import ROOT
-from tests.support.package_scripts import machine, package_machine
+from tests.support.package_scripts import Machine, machine, package_machine
 from tests.support.shell import relocate_system_paths
 from tools import build_rpm, package_inputs, rpm_builder
 
@@ -279,6 +279,91 @@ def test_fedora_readiness_cleanup_failure_preserves_policy_baseline_for_retry(ma
     retry = machine.run('postrm', 'remove', distribution='fedora', READINESS_STATE='active')
     assert retry.returncode == 0, retry.stderr
     assert not (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install').exists()
+
+
+@pytest.fixture
+def fedora_removal_machine(tmp_path):
+    return Machine(tmp_path, 'fedora')
+
+
+@pytest.mark.parametrize('scriptlet', ['preun', 'postun'])
+def test_rpm_upgrade_erasure_callbacks_leave_replacement_state_untouched(
+    fedora_removal_machine, scriptlet,
+):
+    machine = fedora_removal_machine
+    machine.kiosk()
+    machine.baseline(rules='installed policy\n')
+    hook = machine.integration('gdm-presession', machine.gdm_hook)
+    prefs = machine.write('var/lib/oh-no-parent-control/preferences/1004.json', '{}')
+    result = machine.run_rpm(scriptlet, 1, KIOSK_ACTIVE='1')
+    assert result.returncode == 0, result.stderr
+    assert machine.commands == ''
+    assert hook.exists() and prefs.exists()
+    assert (machine.root / 'account').exists()
+    assert (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install/complete').exists()
+
+
+@pytest.mark.parametrize('failure', ['remove', 'pam'])
+@pytest.mark.parametrize('restore_failure', [False, True])
+def test_rpm_preun_refusal_restores_before_releasing_owned_mask(
+    fedora_removal_machine, failure, restore_failure,
+):
+    machine = fedora_removal_machine
+    result = machine.run_rpm('preun', 0,
+                             REMOVE_FAILURE='7' if failure == 'remove' else '0',
+                             PAM_REMOVE_FAILURE='8' if failure == 'pam' else '0',
+                             RESTORE_FAILURE='9' if restore_failure else '0')
+    assert result.returncode == (7 if failure == 'remove' else 8)
+    mask = machine.root / 'run/systemd/system/oh-no-parent-control-broker.service'
+    # The RPM wrapper must return the original refusal even when rollback fails.
+    assert 'uninstall --restore' in machine.commands
+    assert mask.is_symlink() == restore_failure
+    assert (machine.root / 'var/lib/oh-no-parent-control/uninstall-broker-mask').exists() == restore_failure
+    if not restore_failure:
+        assert machine.commands.index('uninstall --restore') < machine.commands.index('systemctl unmask')
+    else:
+        assert 'systemctl unmask' not in machine.commands
+    retry = machine.run_rpm('preun', 0)
+    assert retry.returncode == 0, retry.stderr
+    assert mask.is_symlink()
+    assert 'fedora-pam remove' in machine.commands
+
+
+@pytest.mark.parametrize('failure', ['trust', 'readiness', 'kiosk'])
+def test_rpm_postun_erased_payload_cleanup_retains_retry_records(
+    fedora_removal_machine, failure,
+):
+    machine = fedora_removal_machine
+    machine.kiosk()
+    machine.baseline(active=True, enabled=True, rules='administrator policy\n')
+    machine.integration('child-extension-trust',
+                        'etc/fapolicyd/trust.d/oh-no-parent-control.trust')
+    prefs = machine.write('var/lib/oh-no-parent-control/preferences/1004.json', '{}')
+    log = machine.write('var/log/oh-no-parent-control/broker/day.log', 'retained log')
+    # RPM has erased all product helpers before postun. Its callback is embedded
+    # standalone shell and must finish without reconstructing the payload.
+    for relative in ('usr/libexec/oh-no-parent-control-uninstall',
+                     'usr/libexec/oh-no-parent-control-fedora-pam'):
+        (machine.root / relative).unlink()
+    result = machine.run_rpm('postun', 0, SERVICE_ACTIVE='1',
+                             TRUST_UPDATE_STATUS='7' if failure == 'trust' else '0',
+                             READINESS_STATE='active',
+                             READINESS_STOP_STATUS='9' if failure == 'readiness' else '0',
+                             HOME_UID='2000' if failure == 'kiosk' else '1006')
+    assert result.returncode == {'trust': 7, 'readiness': 9, 'kiosk': 1}[failure]
+    marker = machine.root / 'var/lib/oh-no-parent-control/package-created-kiosk-uid'
+    assert marker.exists()
+    assert prefs.read_text() == '{}' and log.read_text() == 'retained log'
+    if failure != 'kiosk':
+        assert (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install/complete').exists()
+    result = machine.run_rpm('postun', 0, SERVICE_ACTIVE='1', READINESS_STATE='active')
+    assert result.returncode == 0, result.stderr
+    assert not marker.exists()
+    assert not (machine.root / 'home/oh-no-parent-control').exists()
+    assert not (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install').exists()
+    assert prefs.exists() and log.exists()
+    assert 'uninstall --' not in machine.commands and 'fedora-pam ' not in machine.commands
+    assert not (machine.root / 'usr/share/oh-no-parent-control/lifecycle/postinst').exists()
 
 
 def test_ubuntu_removal_does_not_touch_fedora_readiness(machine):

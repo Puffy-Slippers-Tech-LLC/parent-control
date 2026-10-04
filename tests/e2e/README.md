@@ -469,6 +469,15 @@ package sources through the existing artifact builder. Fedora SSH bootstrap
 restores SELinux labels, and verification requires enforcing SELinux, exact RPM
 identity and file verification, configured broker and execution-policy boot gate.
 This prepares a development VM; it does not qualify Fedora customer scenarios.
+Scenario environment declarations identify eligible Ubuntu 26.04 and Fedora
+Workstation 44 targets; they do not extend recorded Ubuntu acceptance to Fedora.
+The current-package installation boundary selects DEB/APT or RPM/DNF from
+verified guest metadata, uses the platform administrator group and public
+package queries, and requires the real completion and final reboot notice.
+RPM uses DNF's documented quiet mode and independently verifies the installed
+epoch/version/release and architecture. Live Fedora qualification remains a
+separate acceptance step. The genuine historical v1.2 upgrade bundle and the
+legacy sudo-rs terminal qualification retain their Ubuntu-only scope.
 Online preparation installs the app, reboots, verifies the new boot and captures
 disk plus memory. A fresh matching online snapshot is restored without building
 or booting, leaving a running isolated guest under the shared VM-maintenance
@@ -984,8 +993,12 @@ that same held, isolated, never-started lease. After offline SSH bootstrap and
 before worker startup, it uses the existing guarded `mounted_guest` and public
 libguestfs upload/checksum APIs to copy pinned descriptors into the fresh fixed
 `/var/lib/onpc-e2e-assets` directory. Package alias and exact transfer inventory
-must match controller-captured digests. Files become root-owned 0644 and
-directories 0755 so the shared package command can read these nonsecret
+must match controller-captured digests.
+The manifest contains exactly one platform package alias, `package.deb` or
+`package.rpm`, matching the prepared baseline and captured artifact digest.
+Ambiguous aliases, cross-platform packages and an unsupported historical RPM
+bundle refuse before transfer.
+Files become root-owned 0644 and directories 0755 so the shared package command can read these nonsecret
 assets. Existing destinations, stale inputs, special files, changed copied
 bytes, extra entries and a second provisioning call refuse. No package is
 installed, no product state is written and no host share is attached.

@@ -417,7 +417,7 @@ def inspect_guest(guestfs, disk, script_digest):
             require(not any(row['app2_name'].startswith('oh-no-parent-control')
                             for row in applications), 'guest:residue:package')
         require(not any(g.exists(path) or g.is_symlink(path)
-                        for path in guest_contract.guest_tools.DORMANT_PATHS),
+                        for path in guest_contract.guest_tools.dormant_paths(os_id)),
                 'guest:directory-fixture-not-clean')
         require(marker["preparation_script_sha256"] == script_digest, "guest:script-digest")
         require(g.read_file("/etc/hostname").decode().strip() == guest_contract.HOSTNAME and

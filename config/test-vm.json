@@ -10,7 +10,7 @@
     {
       "id": "2",
       "name": "onpc-Fedora-Workstation-44",
-      "enabled": "false",
+      "enabled": "true",
       "clipboard": "true",
       "disk_anchor": "/Data/virt-manager/onpc-Fedora-Workstation-44.qcow2"
     }

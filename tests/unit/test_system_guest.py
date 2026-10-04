@@ -386,3 +386,130 @@ def test_update_requires_old_package_reboot_before_apt(monkeypatch, tmp_path):
         guest.upgrade()
     run.assert_not_called()
     assert not (tmp_path / 'before.json').exists()
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('fault', [None, 'digest', 'version', 'files'])
+def test_previous_install_verifies_exact_platform_artifact(tmp_path, monkeypatch, package_format, fault):
+    package = tmp_path / ('package.' + package_format)
+    package.write_bytes(b'current')
+    previous = tmp_path / ('previous-package.' + package_format)
+    previous.write_bytes(b'previous')
+    digest = guest.sha(previous)
+    (tmp_path / 'previous-inputs.json').write_text(json.dumps({
+        'sha256': 'a' * 64 if fault == 'digest' else digest}))
+    monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
+    monkeypatch.setattr(guest, 'before_install', Mock())
+    monkeypatch.setattr(guest, 'enable_diagnostics', Mock())
+    guard = Mock()
+    monkeypatch.setattr(guest, 'guard', guard)
+    calls = []
+    def run(command, **options):
+        calls.append(command)
+        if command[0] in ('apt-get', 'dnf'):
+            return ''
+        if command == ['getenforce']:
+            return 'Enforcing'
+        if '--verify' in command:
+            return 'changed-file' if fault == 'files' else ''
+        if '-f=${Status}' in command:
+            return 'install ok installed'
+        if command[0] == 'dpkg-deb' or command[-1] == str(previous):
+            return 'old-identity'
+        return 'wrong-identity' if fault == 'version' else 'old-identity'
+    monkeypatch.setattr(guest, 'run', run)
+    if fault:
+        with pytest.raises(guest.GuestError, match='previous-package-'):
+            guest.install_previous()
+        assert not (tmp_path / 'results/previous-install.json').exists()
+    else:
+        guest.install_previous()
+        receipt = json.loads((tmp_path / 'results/previous-install.json').read_text())
+        assert receipt['previous_package_sha256'] == digest and receipt['payload_verified']
+    if fault == 'digest':
+        assert calls == []
+        guard.assert_not_called()
+    else:
+        guard.assert_called_once_with()
+        transactions = [c for c in calls if c[0] in ('apt-get', 'dnf') and str(previous) in c]
+        assert len(transactions) == 1
+        assert transactions[0][0] == ('dnf' if package_format == 'rpm' else 'apt-get')
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('same_version', [False, True])
+@pytest.mark.parametrize('fault', [None, 'old-marker', 'old-files', 'old-version', 'digest',
+                                   'guard', 'new-files', 'new-version', 'new-marker'])
+def test_upgrade_preserves_reboot_and_payload_guards_on_both_platforms(
+        tmp_path, monkeypatch, package_format, same_version, fault):
+    package = tmp_path / ('package.' + package_format)
+    package.write_bytes(b'current')
+    previous = tmp_path / ('previous-package.' + package_format)
+    previous.write_bytes(b'previous')
+    digest = guest.sha(previous)
+    marker = {'package_sha256': guest.sha(package), 'baseline_sha256': 'b' * 64}
+    (tmp_path / 'results').mkdir()
+    (tmp_path / 'results/previous-install.json').write_text(json.dumps({
+        'boot': 'previous-boot', 'previous_package_sha256': 'a' * 64 if fault == 'digest' else digest}))
+    monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
+    monkeypatch.setattr(guest, 'enable_diagnostics', Mock())
+    monkeypatch.setattr(guest, 'wait_for_boot', Mock())
+    monkeypatch.setattr(guest, 'guard', Mock(side_effect=[marker,
+        guest.GuestError('guard-replaced') if fault == 'guard' else marker]))
+    monkeypatch.setattr(guest, 'reboot_cleared', lambda: fault != 'old-marker')
+    monkeypatch.setattr(guest, 'reboot_requested', lambda: fault != 'new-marker')
+    new_identity = 'old-identity' if same_version else 'new-identity'
+    calls, installed = [], False
+    def run(command, **options):
+        nonlocal installed
+        calls.append(command)
+        if command[0] in ('apt-get', 'dnf'):
+            installed = True
+            return ''
+        if command == ['getenforce']:
+            return 'Enforcing'
+        if '--verify' in command:
+            return 'changed-file' if fault == ('new-files' if installed else 'old-files') else ''
+        if '-f=${Status}' in command:
+            return 'install ok installed'
+        artifact = command[2] if command[0] == 'dpkg-deb' else command[-1]
+        if artifact == str(previous):
+            return 'old-identity'
+        if artifact == str(package):
+            return new_identity
+        if fault == ('new-version' if installed else 'old-version'):
+            return 'wrong-identity'
+        return new_identity if installed else 'old-identity'
+    monkeypatch.setattr(guest, 'run', run)
+    if fault:
+        with pytest.raises(guest.GuestError):
+            guest.upgrade()
+        assert not (tmp_path / 'results/update-activation.json').exists()
+    else:
+        guest.upgrade()
+        receipt = json.loads((tmp_path / 'results/update-activation.json').read_text())
+        assert receipt['same_version_reinstall'] == same_version
+        assert receipt['previous_package_sha256'] == digest
+        assert receipt['package_sha256'] == marker['package_sha256']
+        assert receipt['old_package_reboot_observed'] and receipt['update_requested_reboot']
+    transactions = [c for c in calls if c[0] in ('apt-get', 'dnf')]
+    if fault in ('old-marker', 'old-files', 'old-version', 'digest', 'guard'):
+        assert transactions == []
+    else:
+        assert len(transactions) == 1
+        assert transactions[0][-1] == str(package)
+        if package_format == 'rpm':
+            assert transactions[0] == ['dnf', 'reinstall' if same_version else 'install', '-y', str(package)]
+            assert all(c[0] not in ('dpkg', 'dpkg-query', 'dpkg-deb', 'apt-get') for c in calls)
+        else:
+            assert '--reinstall' in transactions[0]
+        assert guest.guard.call_count == 2
+
+
+def test_rpm_package_identity_includes_epoch_release_and_architecture(monkeypatch):
+    run = Mock(return_value='oh-no-parent-control-2:1.2-0.1.dev.fc44.x86_64')
+    monkeypatch.setattr(guest, 'run', run)
+    package = Path('previous-package.rpm')
+    assert guest.package_identity(package) == run.return_value
+    assert run.call_args.args[0] == ['rpm', '-qp', '--queryformat',
+        '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}', str(package)]

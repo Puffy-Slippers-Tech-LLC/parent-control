@@ -130,7 +130,7 @@ PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	data/gnome-session/sessions/oh-no-parent-control.session data/wayland-sessions/oh-no-parent-control.desktop \
 	data/applications/com.puffyslippers.OhNoParentControl.desktop data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
 PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.py \
-	packaging/render_lifecycle.py packaging/stage_distribution.py packaging/fedora_pam.py \
+	packaging/render_lifecycle.py packaging/stage_distribution.py packaging/fedora_pam.py packaging/purge.py \
 	packaging/ubuntu.inc packaging/fedora.inc \
 	$(addprefix packaging/lifecycle/,preinst.in postinst.in prerm.in postrm.in) \
 	rpm/oh-no-parent-control.spec.in rpm/Containerfile
@@ -465,6 +465,10 @@ _install-product-files:
 	install -m 0755 broker/oh-no-parent-control-broker "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 broker/oh-no-parent-control-migrate-state "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 broker/oh-no-parent-control-uninstall "$(DESTDIR)$(LIBEXECDIR)/"
+	install -m 0755 packaging/purge.py "$(DESTDIR)$(PREFIX)/bin/oh-no-parent-control-purge"
+	install -d "$(DESTDIR)$(DATADIR)/oh-no-parent-control/lifecycle"
+	$(PYTHON) packaging/render_lifecycle.py standalone --distribution "$(PACKAGE_DISTRIBUTION)" --phase postrm --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/lifecycle/postrm"
+	chmod 0644 "$(DESTDIR)$(DATADIR)/oh-no-parent-control/lifecycle/postrm"
 ifeq ($(PACKAGE_DISTRIBUTION),ubuntu)
 	install -m 0755 tools/package_notice "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-notice"
 	install -d "$(DESTDIR)$(SYSCONFDIR)/apt/apt.conf.d"

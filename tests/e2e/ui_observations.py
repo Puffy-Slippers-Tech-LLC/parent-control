@@ -1067,7 +1067,7 @@ class UiObservations:
             self.progress.operation(OPERATION_LABELS[operation])
         program = (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
         modules = 'import sys, types\n'
-        for name in ('public_atspi', 'block_semantics', 'feedback_formats', 'download_destination', 'fixture_ui'):
+        for name in ('session_control', 'public_atspi', 'block_semantics', 'feedback_formats', 'download_destination', 'fixture_ui'):
             source = (system.ROOT / f'tests/e2e/{name}.py').read_text()
             modules += (f'{name} = types.ModuleType("{name}")\n'
                         f'sys.modules["{name}"] = {name}\n'

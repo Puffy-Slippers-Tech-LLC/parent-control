@@ -5,12 +5,16 @@ records, local passwd identities, passwords or new process cleanup are used.
 """
 
 import grp
+import os
 from pathlib import Path
 import pwd
+import re
+import stat
 import time
 
 import system_guest as guest
-from guest_test_dependencies import REMOTE_PACKAGES as PACKAGES, verify_packages
+from guest_test_dependencies import (REMOTE_PACKAGES as PACKAGES, FEDORA_REMOTE_VERSIONS,
+                                     dormant_paths, verify_fedora_packages, verify_packages)
 
 IDENTITIES = {'child': ('onpc-remote-child', 24001),
               'administrator': ('onpc-remote-admin', 24002)}
@@ -38,29 +42,25 @@ def ldap_input(tool, value):
                               input=value.encode(), merge_stderr=False)
 
 
-def provision():
-    guest.guard()  # Must precede even fixture/precondition filesystem access.
-    guest.enable_diagnostics()
-    for path in ('/etc/ldap/slapd.d', '/etc/ldap/slapd.conf', '/etc/sssd/sssd.conf'):
-        guest.require(not Path(path).exists(), 'remote:configuration-collision')
-    for name, uid in IDENTITIES.values():
-        for lookup, value in ((pwd.getpwnam, name), (pwd.getpwuid, uid), (grp.getgrgid, uid)):
-            try:
-                lookup(value)
-            except KeyError:
-                continue
-            raise guest.GuestError('remote:identity-collision')
-    verify_packages(Path('/var/lib/dpkg/status').read_text(), PACKAGES)
-    print('onpc-system: stage=remote-packages outcome=prepared', flush=True)
-    # Reconfigure the already installed package through its public interface.
-    # LDAP administration uses root peer credentials; no password is configured.
+def package_versions():
+    fedora = guest.package_path().suffix == '.rpm'
+    names = list(FEDORA_REMOTE_VERSIONS) if fedora else [item.split('=')[0] for item in PACKAGES]
+    command = (['rpm', '-q', '--queryformat', '%{NAME}=%{VERSION}\n', *names] if fedora else
+               ['dpkg-query', '-W', '-f=${Package}=${Version}\n', *names])
+    value = guest.run(command, timeout=10)
+    rows = [line.split('=', 1) for line in value.splitlines()]
+    guest.require(len(rows) == len(names) and {row[0] for row in rows} == set(names)
+                  and all(len(row) == 2 and re.fullmatch(r'[0-9][A-Za-z0-9.+:~\-]{0,127}', row[1])
+                          for row in rows), 'remote:package-versions')
+    return value
+
+
+def configure_ubuntu():
+    """Reconfigure the dormant DEB through its package's public interface."""
     guest.commands.run(['debconf-set-selections'], input=(
         'slapd slapd/domain string onpc.invalid\n'
         'slapd shared/organization string ONPC test directory\n'
         'slapd slapd/no_configuration boolean false\n').encode(), merge_stderr=False)
-    # Use the packaged service/configuration API; confine anonymous identity
-    # queries to loopback before reconfiguration can start the service.
-    # There is no LDAP authentication or PAM modification.
     defaults = Path('/etc/default/slapd')
     lines = defaults.read_text().splitlines()
     guest.require(sum(line.startswith('SLAPD_SERVICES=') for line in lines) == 1,
@@ -70,6 +70,124 @@ def provision():
         if line.startswith('SLAPD_SERVICES=') else line for line in lines) + '\n')
     guest.run(['dpkg-reconfigure', '--frontend=noninteractive', 'slapd'], timeout=120)
     guest.run(['systemctl', 'restart', 'slapd.service'])
+
+
+def configure_fedora():
+    """Create isolated slapd configuration; preserve RPM defaults and SELinux."""
+    for unit in ('slapd.service', 'sssd.service'):
+        state = guest.run(['systemctl', 'show', unit, '--property=ActiveState', '--value'])
+        guest.require(state in {'inactive', 'failed'}, 'remote:directory-active')
+    ldap = pwd.getpwnam('ldap')
+    # cn=config is a writable database. Fedora labels the native slapd.d
+    # directory and /var/lib/ldap trees slapd_db_t, but arbitrary /etc/openldap
+    # subdirectories get a read-only configuration context. Keep the isolated
+    # config under the native database tree so online LDAP changes can persist.
+    config = Path('/var/lib/ldap/onpc-system-fixture-config')
+    database = Path('/var/lib/ldap/onpc-system-fixture')
+    for path in (config, database):
+        path.mkdir(mode=0o700)
+        os.chown(path, ldap.pw_uid, ldap.pw_gid)
+    # slapadd's configuration import is the same public API used by the RPM.
+    # It accepts schema includes; no directory-manager password is configured.
+    schema = '\n'.join(f'include: file:///etc/openldap/schema/{name}.ldif'
+                       for name in ('core', 'cosine', 'nis', 'inetorgperson'))
+    configuration = f'''dn: cn=config
+objectClass: olcGlobal
+cn: config
+
+dn: cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: schema
+
+{schema}
+
+dn: olcDatabase=config,cn=config
+objectClass: olcDatabaseConfig
+olcDatabase: config
+olcAccess: to * by dn.exact="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" manage by * none
+
+dn: olcDatabase=mdb,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcMdbConfig
+olcDatabase: mdb
+olcSuffix: {BASE}
+olcDbDirectory: {database}
+olcDbIndex: objectClass eq
+'''
+    guest.run(['restorecon', '-RF', str(config), str(database)])
+    guest.commands.run(['runuser', '--user', 'ldap', '--', 'slapadd', '-F', str(config), '-n', '0'],
+                       input=configuration.encode(), timeout=30, merge_stderr=False)
+    guest.run(['restorecon', '-RF', str(config)])
+    dropin = Path('/etc/systemd/system/slapd.service.d/onpc-system-fixture.conf')
+    dropin.parent.mkdir(mode=0o755, exist_ok=True)
+    with dropin.open('x') as stream:
+        stream.write('[Service]\nExecStart=\nExecStart=/usr/sbin/slapd -u ldap '
+                     f'-F {config} -h "ldap://127.0.0.1/ ldapi:///"\n')
+    guest.run(['restorecon', str(dropin)])
+    guest.run(['systemctl', 'daemon-reload'])
+    guest.run(['systemctl', 'start', 'slapd.service'])
+
+
+def configure_fedora_nss(restoration):
+    """Clone the live authselect profile, retaining its PAM stack and features."""
+    guest.run(['authselect', 'check'])
+    original = guest.run(['authselect', 'current', '--raw']).split()
+    guest.require(original and all(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_/-]*', part)
+                                  and '..' not in part for part in original),
+                  'remote:authselect-selection')
+    restoration['original'] = original
+    guest.run(['authselect', 'create-profile', 'onpc-remote-fixture', '-b', original[0]])
+    nss = Path('/etc/authselect/custom/onpc-remote-fixture/nsswitch.conf')
+    metadata = nss.lstat()
+    guest.require(stat.S_ISREG(metadata.st_mode) and metadata.st_uid == 0
+                  and not metadata.st_mode & 0o022, 'remote:authselect-profile')
+    nss.write_text(nss_configuration(nss.read_text()))
+    restoration['profile_sha256'] = guest.sha(nss)
+    guest.run(['authselect', 'select', 'custom/onpc-remote-fixture', *original[1:]])
+    guest.run(['authselect', 'check'])
+
+
+def restore_nss(restoration):
+    """Return to the exact product profile before later upgrade/removal phases."""
+    if not restoration:
+        return
+    guest.guard()
+    original = restoration['original']
+    current = guest.run(['authselect', 'current', '--raw']).split()
+    if current == original:
+        return  # Creation/select failure did not change the active profile.
+    guest.require(current == ['custom/onpc-remote-fixture', *original[1:]],
+                  'remote:authselect-restore-collision')
+    guest.require(guest.sha(Path('/etc/authselect/custom/onpc-remote-fixture/nsswitch.conf')) ==
+                  restoration['profile_sha256'], 'remote:authselect-profile-changed')
+    guest.run(['systemctl', 'stop', 'sssd.service'])
+    guest.run(['authselect', 'select', *original])
+    guest.run(['authselect', 'check'])
+
+
+def provision(*, restoration=None):
+    guest.guard()  # Must precede even fixture/precondition filesystem access.
+    guest.enable_diagnostics()
+    fedora = guest.package_path().suffix == '.rpm'
+    guest.require(not fedora or isinstance(restoration, dict), 'remote:restoration-required')
+    for path in dormant_paths('fedora' if fedora else 'ubuntu'):
+        guest.require(not Path(path).exists() and not Path(path).is_symlink(),
+                      'remote:configuration-collision')
+    for name, uid in IDENTITIES.values():
+        for lookup, value in ((pwd.getpwnam, name), (pwd.getpwuid, uid), (grp.getgrgid, uid)):
+            try:
+                lookup(value)
+            except KeyError:
+                continue
+            raise guest.GuestError('remote:identity-collision')
+    if fedora:
+        versions = package_versions()
+        verify_fedora_packages([line.split('=', 1) for line in versions.splitlines()],
+                               FEDORA_REMOTE_VERSIONS)
+    else:
+        verify_packages(Path('/var/lib/dpkg/status').read_text(), PACKAGES)
+    print('onpc-system: stage=remote-packages outcome=prepared', flush=True)
+    configure_fedora() if fedora else configure_ubuntu()
     database = guest.run(['ldapsearch', '-LLL', '-Q', '-Y', 'EXTERNAL', '-H', 'ldapi:///',
                           '-b', 'cn=config', f'(olcSuffix={BASE})', 'dn'])
     guest.require(database == 'dn: olcDatabase={1}mdb,cn=config', 'remote:ldap-database')
@@ -78,7 +196,7 @@ changetype: modify
 replace: olcAccess
 olcAccess: to * by dn.exact="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" manage by * read
 ''')
-    entries = []
+    entries = [f'dn: {BASE}\nobjectClass: dcObject\nobjectClass: organization\ndc: onpc\no: ONPC test directory\n'] if fedora else []
     for name, uid in IDENTITIES.values():
         entries.append(f'''dn: cn={name},{BASE}
 objectClass: posixGroup
@@ -116,8 +234,12 @@ enumerate = true
 cache_credentials = false
 use_fully_qualified_names = false
 ''')
-    nss = Path('/etc/nsswitch.conf')
-    nss.write_text(nss_configuration(nss.read_text()))
+    if fedora:
+        configure_fedora_nss(restoration)
+        guest.run(['restorecon', str(config)])
+    else:
+        nss = Path('/etc/nsswitch.conf')
+        nss.write_text(nss_configuration(nss.read_text()))
     guest.run(['systemctl', 'start', 'sssd.service'])
     started = time.monotonic()
     while True:
@@ -128,7 +250,7 @@ use_fully_qualified_names = false
         time.sleep(0.25)
     # Group membership is a public system operation and creates no passwd
     # record. AccountsService derives the administrator flag from getgrouplist.
-    guest.run(['gpasswd', '--add', IDENTITIES['administrator'][0], 'sudo'])
+    guest.run(['gpasswd', '--add', IDENTITIES['administrator'][0], 'wheel' if fedora else 'sudo'])
     for name, uid in IDENTITIES.values():
         guest.require(pwd.getpwnam(name).pw_uid == uid and pwd.getpwuid(uid).pw_name == name,
                       'remote:nss-resolution')

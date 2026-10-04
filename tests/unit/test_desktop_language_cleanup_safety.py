@@ -22,6 +22,11 @@ from tests.support.desktop_session import props, RUN_PROBE
 from tests.support.perl import run_perl
 
 
+@pytest.fixture(autouse=True)
+def platform(monkeypatch):
+    monkeypatch.setattr(guest.sessions, 'package_format', lambda: 'deb')
+
+
 def receipt():
     return {'accounts': {'1000': {'name': guest.sessions.ACCOUNTS['parent'], 'language': 'en_US.UTF-8'},
                          '1001': {'name': guest.sessions.ACCOUNTS['standard'], 'language': 'en_US.UTF-8'},

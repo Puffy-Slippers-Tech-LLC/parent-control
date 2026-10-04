@@ -108,21 +108,38 @@ def test_native_probe_installed_collector_retains_and_recovers_one_attempt(
         assert records['onpc.probe.pending.unit'] == 'owned.service'
 
 
-@pytest.mark.parametrize('version', ['1.3.3-1build1', '1:1.4.5-2ubuntu1~test+1'])
-def test_execution_backend_records_bounded_validated_dependency_identity(monkeypatch, version):
+@pytest.mark.parametrize(('suffix', 'version'), [('.deb', '1.3.3-1build1'),
+                                                ('.deb', '1:1.4.5-2ubuntu1~test+1'),
+                                                ('.rpm', '0:1.4.1-2.fc44')])
+def test_execution_backend_records_bounded_validated_dependency_identity(monkeypatch, suffix, version):
     run = Mock(return_value=version)
     sha = Mock(return_value='b' * 64)
     monkeypatch.setattr(enforcement.guest, 'run', run)
+    monkeypatch.setattr(enforcement.guest, 'package_path', lambda: Path('package' + suffix))
     monkeypatch.setattr(enforcement.guest, 'sha', sha)
     record = Mock()
     enforcement.record_execution_backend(record)
     run.assert_called_once_with(
-        ['dpkg-query', '-W', '-f=${Version}', 'fapolicyd'], timeout=10)
+        ['rpm', '-q', '--queryformat', '%{EPOCHNUM}:%{VERSION}-%{RELEASE}', 'fapolicyd']
+        if suffix == '.rpm' else ['dpkg-query', '-W', '-f=${Version}', 'fapolicyd'], timeout=10)
     sha.assert_called_once_with(Path('/usr/sbin/fapolicyd'))
     assert [call.args for call in record.call_args_list] == [
         ('onpc.enforcement.fapolicyd.package-version', version),
         ('onpc.enforcement.fapolicyd.executable.sha256', 'b' * 64),
     ]
+
+
+@pytest.mark.parametrize('suffix', ['.deb', '.rpm'])
+def test_systemd_version_uses_the_installed_platform_database(monkeypatch, suffix):
+    run = Mock(return_value='0:259-3.fc44' if suffix == '.rpm' else '259-1ubuntu1')
+    monkeypatch.setattr(enforcement.guest, 'run', run)
+    monkeypatch.setattr(enforcement.guest, 'package_path', lambda: Path('package' + suffix))
+    assert enforcement.package_version('systemd') == run.return_value
+    assert run.call_args.args[0][0] == ('rpm' if suffix == '.rpm' else 'dpkg-query')
+    assert run.call_args.args[0][-1] == 'systemd'
+    with pytest.raises(enforcement.guest.GuestError, match='dependency-name'):
+        enforcement.package_version('--all')
+    assert run.call_count == 1
 
 
 @pytest.mark.parametrize('version', ['', 'private output', '1.2\nprivate-output',

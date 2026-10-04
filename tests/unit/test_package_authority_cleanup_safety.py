@@ -19,6 +19,11 @@ from tests.support.package_command import DIGEST, boundary
 from tests.support.perl import run_perl
 
 
+@pytest.fixture(autouse=True)
+def platform(monkeypatch):
+    monkeypatch.setattr(command.session_control, 'package_format', lambda: 'deb')
+
+
 def test_fixed_launcher(monkeypatch):
     launch = Mock(return_value=0)
     monkeypatch.setattr(check, 'smoke', launch)
@@ -110,14 +115,19 @@ def test_qualification_refuses_wrong_inputs_then_submits_once(monkeypatch):
 
 
 @pytest.mark.parametrize('fault', ['', 'binding', 'authority', 'owner', 'digest', 'changed', 'replay'])
-def test_guest_guard_precedes_marker_and_exec(monkeypatch, tmp_path, fault):
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_guest_guard_precedes_marker_and_exec(monkeypatch, tmp_path, fault, package_format):
     import grp
     import pwd
     control = command.session_control
+    monkeypatch.setattr(control, 'package_format', lambda: package_format)
     monkeypatch.setattr(os, 'geteuid', lambda: 0)
     monkeypatch.setattr(pwd, 'getpwnam', lambda _: SimpleNamespace(
         pw_uid=1000, pw_gid=1000, pw_name='fixture'))
-    monkeypatch.setattr(grp, 'getgrnam', lambda _: SimpleNamespace(gr_gid=27))
+    def group(name):
+        assert name == ('wheel' if package_format == 'rpm' else 'sudo')
+        return SimpleNamespace(gr_gid=27)
+    monkeypatch.setattr(grp, 'getgrnam', group)
     monkeypatch.setattr(os, 'getgrouplist', lambda *_: [] if fault == 'authority' else [27])
     monkeypatch.setattr(control, 'sessions', Mock(side_effect=[
         {'7': props('1001' if fault == 'owner' else '1000')},
@@ -143,7 +153,9 @@ def test_guest_guard_precedes_marker_and_exec(monkeypatch, tmp_path, fault):
         assert bool(calls) == (fault == 'replay')
     else:
         command.guest_submit(command.BINDING, DIGEST)
-        execute.assert_called_once_with(command.ARGV[0], command.ARGV)
+        argv = (('/usr/bin/dnf', '--quiet', 'install', '-y',
+                 '/var/lib/onpc-e2e-assets/package.rpm') if package_format == 'rpm' else command.ARGV)
+        execute.assert_called_once_with(argv[0], argv)
         with pytest.raises(FileExistsError):
             # A new process uses the same exclusive marker, independent of the
             # controller's in-memory attempted flag.
@@ -157,6 +169,23 @@ def test_guest_source_is_complete_and_uses_shared_reader():
     source = command.guest_source()
     compile(source, '<package-command>', 'exec')
     assert b'def package_digest' in source
+
+
+@pytest.mark.parametrize('fault', ['', 'version', 'query'])
+def test_fedora_completion_also_requires_independent_exact_installed_identity(monkeypatch, fault):
+    item = boundary(monkeypatch)
+    item.verified.asset_files = {'package.rpm': DIGEST}
+    item.receipt = ((command.COMPLETE + '\n' + command.NOTICE + '\n').encode(), 0)
+    item.binding = command.BINDING
+    item.read_identity = Mock(return_value={'version': 'wrong' if fault == 'version' else '0:1.3-1.fc44'},
+        side_effect=EvidenceError('package:command-failed') if fault == 'query' else None)
+    item.package_identities = Mock(return_value={'current': {'version': '0:1.3-1.fc44'}})
+    if fault:
+        with pytest.raises(EvidenceError):
+            item.read_result()
+    else:
+        assert item.read_result()['notice'] == command.NOTICE
+    item.read_identity.assert_called_once_with()
 
 
 @pytest.mark.parametrize('fault', ['', 'command-context', 'package-submitted', 'package-result'])

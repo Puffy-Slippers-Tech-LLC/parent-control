@@ -50,6 +50,41 @@ def call(argv):
                           text=True, check=True, timeout=15).stdout
 
 
+def package_format():
+    release = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines()
+                   if '=' in line)
+    values = {key: value.strip('"') for key, value in release.items()}
+    if values.get('ID') == 'ubuntu' and values.get('VERSION_ID') == '26.04':
+        return 'deb'
+    require(values.get('ID') == 'fedora' and values.get('VERSION_ID') == '44'
+            and values.get('VARIANT_ID') == 'workstation', 'package-platform')
+    return 'rpm'
+
+
+def administrator_group():
+    return 'wheel' if package_format() == 'rpm' else 'sudo'
+
+
+def package_path(binding='current'):
+    require(binding in ('current', 'previous'), 'package-binding')
+    return Path('/var/lib/onpc-e2e-assets/' + ('previous/' if binding == 'previous' else '')
+                + 'package.' + package_format())
+
+
+def installed_package_version(name):
+    """Bound public package metadata, with distro package-name translation."""
+    require(name in ('oh-no-parent-control', 'gdm3', 'gnome-shell', 'mate-polkit',
+                     'nautilus', 'libgtk-4-1', 'gnome-text-editor', 'gcr'), 'package-name')
+    if package_format() == 'rpm':
+        name = {'gdm3': 'gdm', 'libgtk-4-1': 'gtk4', 'gcr': 'gcr4'}.get(name, name)
+        argv = ['/usr/bin/rpm', '-q', '--queryformat', '%{EPOCHNUM}:%{VERSION}-%{RELEASE}', name]
+    else:
+        argv = ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', name]
+    version = subprocess.check_output(argv, text=True, timeout=5).strip()
+    require(re.fullmatch(r'[A-Za-z0-9_.+:@()/-]{1,128}', version), 'package-version')
+    return version
+
+
 def session_ids():
     rows = call(['/usr/bin/loginctl', 'list-sessions', '--no-legend', '--no-pager']).splitlines()
     require(len(rows) <= 32, 'session-bound')
@@ -184,9 +219,7 @@ def destination(current, source, uid, action):
 
 def package_digest(binding='current'):
     """Read the immutable FIX04 package, retaining descriptor/path identity."""
-    require(binding in ('current', 'previous'), 'package-binding')
-    path = Path('/var/lib/onpc-e2e-assets/' + (
-        'previous/package.deb' if binding == 'previous' else 'package.deb'))
+    path = package_path(binding)
     require(path.parent.resolve() == path.parent, 'package-parent')
     parent = path.parent.stat()
     require(parent.st_uid == 0 and not parent.st_mode & 0o022, 'package-parent')
@@ -286,7 +319,7 @@ def execute(binding):
     locked = action == 'return-greeter'
     source = source_session(sessions(), account.pw_uid, locked=locked)
     env = environment(account)
-    administrator_gid = grp.getgrnam('sudo').gr_gid if action == 'command-context' else None
+    administrator_gid = grp.getgrnam(administrator_group()).gr_gid if action == 'command-context' else None
     os.initgroups(account.pw_name, account.pw_gid)
     os.setgid(account.pw_gid)
     os.setuid(account.pw_uid)

@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
 import stat
 import sys
 import time
@@ -27,6 +28,21 @@ SEED = Path('/usr/libexec/onpc-test-graphical-expiry-seed')
 PAM = Path('/etc/pam.d/gdm-autologin')
 
 
+def seed_account_stack(original, *, fedora):
+    """Seed before the one native account include, preserving the complete stack."""
+    matches = []
+    for index, line in enumerate(original.splitlines(keepends=True)):
+        body = line.partition('#')[0].strip()
+        pattern = (r'account\s+(?:include|substack)\s+(?:system-auth|password-auth)'
+                   if fedora else r'@include\s+common-account')
+        if re.fullmatch(pattern, body):
+            matches.append(index)
+    guest.require(len(matches) == 1, 'expiry:gdm-pam-account-include')
+    lines = original.splitlines(keepends=True)
+    lines.insert(matches[0], f'account required pam_exec.so quiet quiet_log {SEED}\n')
+    return ''.join(lines)
+
+
 def prepare():
     marker = guest.guard()
     accounts = identities()
@@ -36,8 +52,8 @@ def prepare():
     guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == 0,
                   'expiry:gdm-pam-file')
     original = PAM.read_text()
-    guest.require(original.count('@include common-account') == 1,
-                  'expiry:gdm-pam-account-include')
+    fedora = guest.package_path().suffix == '.rpm'
+    seeded_stack = seed_account_stack(original, fedora=fedora)
     prerequisite_observations = []
     def record(name, value):
         prerequisite_observations.append((name, value))
@@ -62,8 +78,9 @@ def prepare():
                     f'sys.path.insert(0, {str(guest.PAYLOAD)!r})\n'
                     'from system_graphical_expiry import seed\nseed()\n')
     SEED.chmod(0o700)
-    PAM.write_text(original.replace('@include common-account',
-        f'account required pam_exec.so quiet quiet_log {SEED}\n@include common-account', 1))
+    PAM.write_text(seeded_stack)
+    if fedora:
+        guest.run(['restorecon', str(SEED), str(PAM)])
     guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                f'/org/freedesktop/Accounts/User{accounts["child"]}',
                'org.freedesktop.Accounts.User', 'SetAutomaticLogin', 'b', 'true'])

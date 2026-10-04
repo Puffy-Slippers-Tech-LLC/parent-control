@@ -12,6 +12,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 INVENTORY = ROOT / 'tests/e2e/scenarios.json'
 CATEGORIES = {'customer-journey', 'runner-smoke', 'fault-recovery', 'environment-boundary'}
+ENVIRONMENTS = frozenset(('ubuntu26.04', 'fedora44'))
 PHASES = ('setup', 'start', 'steps', 'end', 'cleanup')
 EVIDENCE = {'action-trace', 'screen', 'backend', 'other-user', 'continuity',
             'input-provenance', 'outcomes', 'cleanup', 'intervention', 'delivery'}
@@ -133,7 +134,11 @@ def _validate_inventory(document, *, root):
             require(not path.is_absolute() and '..' not in path.parts
                     and path.parts[:1] == ('docs',), 'scenario:contract-path')
             require((root / path).is_file(), 'scenario:missing-contract')
-        require(scenario['environment'] == 'ubuntu26.04', 'scenario:environment')
+        environments = scenario['environment']
+        if isinstance(environments, str):
+            environments = [environments]
+        strings(environments, 'scenario:environment')
+        require(set(environments) <= ENVIRONMENTS, 'scenario:environment')
         require(type(scenario['duration_seconds']) is int
                 and 0 < scenario['duration_seconds'] <= 86400, 'scenario:duration')
         phases = scenario['phases']

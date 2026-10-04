@@ -23,6 +23,11 @@ from tests.support.perl import run_perl
 from tests.support.e2e_evidence import attempt
 from tests.support.e2e_recording import session
 
+
+@pytest.fixture(autouse=True)
+def platform(monkeypatch):
+    monkeypatch.setattr(command.session_control, 'package_format', lambda: 'deb')
+
 PACKAGES = {label: {'name': 'oh-no-parent-control', 'architecture': 'amd64',
     'version': version, 'sha256': digest} for label, version, digest in (
         ('previous', '1.2+ppa1~ubuntu26.04.1', 'a' * 64),
@@ -47,6 +52,7 @@ def boundary(monkeypatch, version=None, boot=BEFORE):
         return (command.COMPLETE + '\n' + command.NOTICE + '\n').encode()
     transport.call = Mock(side_effect=call)
     verified = SimpleNamespace(inputs={'package_sha256': PACKAGES['current']['sha256']},
+        asset_files={'package.deb': PACKAGES['current']['sha256']},
         upgrade_inputs={'packages': copy.deepcopy(PACKAGES)}, recheck=Mock())
     monkeypatch.setattr(session_control, 'observe', Mock(return_value={
         'outcome': 'passed', 'package_sha256': PACKAGES['current']['sha256']}))
@@ -128,12 +134,16 @@ def test_actual_identity_decoder_binds_nondefault_package(monkeypatch, fault):
 
 
 @pytest.mark.parametrize('fault', ['', 'artifact', 'metadata', 'old-digest', 'extra', 'owner'])
-def test_current_only_identity_has_no_old_package_dependency(monkeypatch, tmp_path, fault):
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_current_only_identity_has_no_old_package_dependency(monkeypatch, tmp_path, fault, package_format):
     import build_test_artifacts
     item, value = boundary(monkeypatch)
     item.verified.upgrade_inputs = None
     item.verified.assets = tmp_path
+    item.verified.asset_files = {'package.' + package_format: PACKAGES['current']['sha256']}
     metadata = copy.deepcopy(PACKAGES['current'])
+    if package_format == 'rpm':
+        metadata.update(architecture='x86_64', version='0:1.3-0.1.dev.fc44')
     if fault == 'artifact': metadata['sha256'] = 'f' * 64
     if fault == 'metadata': metadata['name'] = 'foreign-package'
     read = Mock(return_value=metadata)
@@ -146,7 +156,7 @@ def test_current_only_identity_has_no_old_package_dependency(monkeypatch, tmp_pa
         with pytest.raises(EvidenceError): item.read_identity()
     else:
         assert item.read_identity() == value
-        read.assert_called_once_with(tmp_path / 'package.deb')
+        read.assert_called_once_with(tmp_path / ('package.' + package_format))
         assert json.loads(item.transport.call.call_args.args[0][-1]) == {'current': metadata}
 
 
@@ -401,10 +411,12 @@ def test_actual_guest_phase_metadata_digest_and_activation(monkeypatch, tmp_path
 
 @pytest.mark.parametrize('file_state', ['present', 'absent', 'denied',
     'hostname-missing', 'machine-id-missing'])
-def test_public_account_reader_and_realistic_decoder_payload(monkeypatch, tmp_path, file_state):
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_public_account_reader_and_realistic_decoder_payload(monkeypatch, tmp_path, file_state, package_format):
     import account_language_guest as languages
     import pwd
     import subprocess
+    monkeypatch.setattr(session_control, 'package_format', lambda: package_format)
     users = [pwd.struct_passwd((f'fixture-{n}', 'x', 1000 + n, 1000 + n,
         'Synthetic fixture', f'/home/fixture-{n}', '/bin/bash')) for n in range(120)]
     api = Mock(resolve=Mock(side_effect=lambda account: ('/org/freedesktop/Accounts/User' +
@@ -416,8 +428,14 @@ def test_public_account_reader_and_realistic_decoder_payload(monkeypatch, tmp_pa
     monkeypatch.setattr(pwd, 'getpwnam', lambda _: users[0])
     monkeypatch.setattr(session_control, 'sessions', lambda: {'7': props()})
     monkeypatch.setattr(session_control, 'package_digest', lambda label: PACKAGES[label]['sha256'])
-    monkeypatch.setattr(subprocess, 'run', lambda *args, **options: SimpleNamespace(returncode=0,
-        stdout=('install ok installed\n' + PACKAGES['previous']['version'] + '\n').encode()))
+    def query(argv, **options):
+        assert options['env']['LC_ALL'] == 'C'
+        assert argv[0] == ('/usr/bin/rpm' if package_format == 'rpm' else '/usr/bin/dpkg-query')
+        return SimpleNamespace(returncode=0, stdout=((
+            'oh-no-parent-control' if package_format == 'rpm' else 'install ok installed') +
+            '\n' + PACKAGES['previous']['version'] + '\n' + (
+                'x86_64\n' if package_format == 'rpm' else '')).encode())
+    monkeypatch.setattr(subprocess, 'run', query)
     witness = tmp_path / 'witness'
     witness.write_bytes(b'public preservation fixture\n')
     missing = tmp_path / 'absent'

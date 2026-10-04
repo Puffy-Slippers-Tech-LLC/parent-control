@@ -10,7 +10,7 @@ import system_snapshots as snapshots
 from tests.support.vm_runner import INVENTORIES, RUN, write_junit_results
 
 
-@pytest.mark.parametrize('area', [None, 'package', 'authorization', 'enforcement', 'session'])
+@pytest.mark.parametrize('area', [None, 'package', 'removal', 'authorization', 'enforcement', 'session'])
 def test_attempt_partition_preserves_every_selected_execution(area):
     selection = system.resolve_selection(area, inventories=INVENTORIES)
     planned = snapshots.attempts(selection)
@@ -20,7 +20,7 @@ def test_attempt_partition_preserves_every_selected_execution(area):
         if installed:
             assert len(part.phases) == 1
         else:
-            assert set(part.phases) <= {'installed', 'rebooted'}
+            assert set(part.phases) <= {'installed', 'rebooted', *system.REMOVAL_PHASES}
 
 
 def test_explicit_upgrade_keeps_installation_and_post_install_checks_together():
@@ -105,7 +105,8 @@ def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monk
         assert len(seen) == (2 if failure == 'test' else 1)
     else:
         snapshots.run_attempts(suite, tmp_path, selection, manifest, 'selected', ledger)
-        assert seen == [('installed', 'rebooted'), ('authorization',), ('enforcement',), ('session',)]
+        assert seen == [('installed', 'rebooted', *system.REMOVAL_PHASES),
+                        ('authorization',), ('enforcement',), ('session',)]
         assert suite.prepare_case.call_count == 3
         for phase in selection.phases:
             system.reconcile_junit(tmp_path, phase, selection)
@@ -113,3 +114,32 @@ def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monk
     assert lease.__enter__.call_count == lease.__exit__.call_count
     lease.source.domain.snapshotLookupByName.assert_not_called()  # Only shared E2E code owns snapshots.
     assert suite._input_bundle is frozen
+
+
+@pytest.mark.parametrize('failed_phase', [None, 'removal', 'removed-rebooted'])
+def test_removal_is_one_continuous_history_and_failure_stops_transitions(
+        tmp_path, monkeypatch, failed_phase):
+    selection = system.resolve_selection('removal', inventories=INVENTORIES)
+    assert selection.phases == ('installed', 'rebooted', *system.REMOVAL_PHASES)
+    assert snapshots.attempts(selection) == [(selection, False)]
+    vm, lease = Mock(), Mock()
+    lease.state = {'run': RUN}
+    events = []
+    vm.reboot.side_effect = lambda: events.append('reboot')
+    def run(vm, token, phase, selected):
+        events.append(phase)
+        if phase == failed_phase:
+            vm.commands.last_returncode = 1
+            raise system.CommandError('failed-test')
+    monkeypatch.setattr(system, 'run_pytest', run)
+    write_junit_results(tmp_path, selection)
+    if failed_phase:
+        with pytest.raises(system.CommandError, match='failed-test'):
+            system.installed_run(vm, lease, tmp_path, selection)
+    else:
+        system.installed_run(vm, lease, tmp_path, selection)
+    expected = ['installed', 'reboot', 'rebooted', 'removal',
+                'reboot', 'removed-rebooted', 'reboot', 'reinstalled-rebooted']
+    assert events == (expected[:expected.index(failed_phase) + 1] if failed_phase else expected)
+    assert vm.call.call_args_list[0].args[0] == system.guest_command(RUN, 'install')
+    lease.prepare.assert_not_called()

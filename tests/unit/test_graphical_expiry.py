@@ -9,6 +9,32 @@ import pytest
 import system_graphical_expiry as expiry
 
 
+@pytest.mark.parametrize(('fedora', 'anchor'), [
+    (False, '@include common-account'),
+    (True, 'account include system-auth'),
+    (True, 'account    substack password-auth # native account stack'),
+])
+def test_one_second_seed_precedes_native_account_stack_without_reordering(fedora, anchor):
+    original = ('auth required pam_env.so\naccount required pam_nologin.so\n'
+                + anchor + '\nsession required pam_systemd.so\n')
+    seeded = expiry.seed_account_stack(original, fedora=fedora)
+    seed = f'account required pam_exec.so quiet quiet_log {expiry.SEED}\n'
+    assert seeded == original.replace(anchor + '\n', seed + anchor + '\n')
+    assert seeded.replace(seed, '') == original
+
+
+@pytest.mark.parametrize(('fedora', 'original'), [
+    (True, '@include common-account\n'),
+    (False, 'account include system-auth\n'),
+    (True, '# account include system-auth\n'),
+    (True, 'account include system-auth\naccount substack password-auth\n'),
+    (False, '@include common-account\n@include common-account\n'),
+])
+def test_seed_refuses_missing_or_ambiguous_platform_account_stack(fedora, original):
+    with pytest.raises(expiry.guest.GuestError, match='gdm-pam-account-include'):
+        expiry.seed_account_stack(original, fedora=fedora)
+
+
 @pytest.mark.parametrize('fresh', [False, True])
 def test_verify_retains_observations_before_later_failure(tmp_path, monkeypatch, fresh):
     output = tmp_path / 'results'

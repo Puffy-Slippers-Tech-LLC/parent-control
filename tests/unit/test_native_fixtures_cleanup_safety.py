@@ -15,10 +15,17 @@ import pytest
 import guest_files
 import native_fixtures as controller
 import native_fixtures_guest as guest
+
+
 from native_fixture_qualification import NativeFixtureJourney, PLAN
 from private_artifacts import EvidenceError
 from tests.fixtures.native_assets import ASSETS, desktop_entry, desktop_id, sources
 from ui_observations import AppRowsObservation
+
+
+@pytest.fixture(autouse=True)
+def platform(monkeypatch):
+    monkeypatch.setattr(guest.session_control, 'package_format', lambda: 'deb')
 
 
 def private_directories(path, root):

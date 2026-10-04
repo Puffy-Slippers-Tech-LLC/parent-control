@@ -42,9 +42,11 @@ PAYLOAD = '/var/tmp/onpc-system-input'
 TAG = 'onpc-system-run:'
 QUALIFICATION_CASE = 'test_method_role_matrix[ListManagedUsers-parent1]'
 QUALIFICATION_FAILURE = 'harness:qualification-failure'
-PHASE_ORDER = ('installed', 'rebooted', 'authorization', 'enforcement', 'session')
+REMOVAL_PHASES = ('removal', 'removed-rebooted', 'reinstalled-rebooted')
+PHASE_ORDER = ('installed', 'rebooted', *REMOVAL_PHASES, 'authorization', 'enforcement', 'session')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
+    'removal': ROOT / 'tests/system/test_removal.py',
     'authorization': ROOT / 'tests/system/test_authorization.py',
     'enforcement': ROOT / 'tests/system/test_enforcement.py',
     'session': ROOT / 'tests/system/test_session_expiry.py',
@@ -62,6 +64,8 @@ COMMON_SELECTED_INPUTS = (
 PHASE_DEPENDENCIES = {
     'installed': (),
     'rebooted': ('installed',),
+    **{phase: ('installed', 'rebooted', *REMOVAL_PHASES[:index])
+       for index, phase in enumerate(REMOVAL_PHASES)},
     'authorization': (),
     'enforcement': (),
     'session': (),
@@ -69,6 +73,9 @@ PHASE_DEPENDENCIES = {
 PHASE_PREREQUISITES = {
     'installed': ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install'),
     'rebooted': ('installed-phase', 'guest-reboot', 'boot-readiness'),
+    'removal': ('installed-phase', 'guest-reboot', 'native-enforcement-fixture'),
+    'removed-rebooted': ('removal-phase', 'guest-reboot', 'desktop-health'),
+    'reinstalled-rebooted': ('reinstall-phase', 'guest-reboot', 'boot-readiness'),
     'authorization': ('retained-app-snapshot', 'authorization-accounts'),
     'enforcement': ('retained-app-snapshot', 'native-enforcement-fixture'),
     'session': ('retained-app-snapshot', 'one-shot-gdm-grant-fixture-and-second-reboot'),
@@ -223,6 +230,8 @@ def collect_area_cases(area, *, invoke=None):
 
 
 def case_phases(area, case_id):
+    if area == 'removal':
+        return REMOVAL_PHASES
     if area in ('authorization', 'enforcement', 'session'):
         return (area,)
     package = {
@@ -1070,6 +1079,22 @@ def stage_assets(source, destination, commands):
     return manifest
 
 
+def stage_previous_assets(source, destination, commands, current):
+    """Bind an explicit prior package to the same platform as the current one."""
+    previous = stage_assets(source, destination, commands)
+    old_format = Path(previous['artifacts']['package']['path']).suffix
+    new_format = Path(current['artifacts']['package']['path']).suffix
+    require(old_format == new_format, 'assets:previous-package-format')
+    require(previous['artifacts']['package']['sha256'] !=
+            current['artifacts']['package']['sha256'], 'assets:identical-update-payload')
+    payload = destination.parent / 'input'
+    shutil.copyfile(destination / ('package' + old_format),
+                    payload / ('previous-package' + old_format))
+    current['previous_package'] = {
+        'sha256': previous['artifacts']['package']['sha256'], 'source': previous['source']}
+    (payload / 'previous-inputs.json').write_bytes(baseline.encode(current['previous_package']))
+
+
 def stage_upgrade_assets(source, destination, commands):
     """FIX04's finite genuine-v1.2/current binding; no arbitrary bundle interface."""
     from build_test_artifacts import verify_upgrade
@@ -1440,7 +1465,8 @@ def run_pytest(vm, run, phase, selection):
     previous = getattr(vm.commands, 'progress', None)
     vm.commands.progress = Progress(phase, phase_executions(selection, phase))
     try:
-        return vm.call(pytest_command(run, phase, selection), timeout=900)
+        return vm.call(pytest_command(run, phase, selection),
+                       timeout=2400 if phase in REMOVAL_PHASES else 900)
     finally:
         vm.commands.progress = previous
 
@@ -1454,15 +1480,18 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         with ledger.measure('bootstrap'):
             vm.ready()
             vm.copy(False, str(directory / 'input') + '/', PAYLOAD + '/')
-        previous = directory / 'input/previous-package.deb'
-        require(not already_installed or (not previous.exists() and
+        previous = [directory / 'input' / ('previous-package.' + extension)
+                    for extension in ('deb', 'rpm')]
+        require(sum(path.exists() for path in previous) <= 1, 'assets:ambiguous-previous-package')
+        has_previous = any(path.exists() for path in previous)
+        require(not already_installed or (not has_previous and
                 not any(phase in selection.phases for phase in ('installed', 'rebooted'))),
                 'selection:installation-requires-baseline')
         if already_installed:
             lease.save('snapshot-readiness')
             with ledger.measure('bootstrap'):
                 vm.call(guest_command(run, 'verify-installed'), timeout=660)
-        elif previous.exists():
+        elif has_previous:
             lease.save('package-install')
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'install-previous'), timeout=2400)
@@ -1472,7 +1501,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         if not already_installed:
             lease.save('package-install')
             with ledger.measure('install'):
-                vm.call(guest_command(run, 'upgrade' if previous.exists() else 'install'), timeout=2400)
+                vm.call(guest_command(run, 'upgrade' if has_previous else 'install'), timeout=2400)
         if 'installed' in selection.phases:
             lease.save('pytest-installed')
             with ledger.measure('test'):
@@ -1503,9 +1532,15 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     ledger.fail_outcome(domain, 'pytest:failed:rebooted' if domain == 'product'
                                         else error_category(error))
                     raise
-        for phase in ('authorization', 'enforcement', 'session'):
+        for phase in (*REMOVAL_PHASES, 'authorization', 'enforcement', 'session'):
             if phase not in selection.phases:
                 continue
+            if phase in REMOVAL_PHASES[1:]:
+                # Keep removal, the health boot and reinstallation in one
+                # attempt. Restoration is cleanup, never a lifecycle step.
+                lease.save('reboot-' + phase)
+                with ledger.measure('reboot'):
+                    vm.reboot()
             if phase == 'session':
                 lease.save('graphical-expiry-fixture')
                 with ledger.measure('test'):
@@ -1727,14 +1762,7 @@ def main(argv=None):
         with ledger.measure('preparation'):
             manifest = stage_assets(assets, directory / 'input', commands)
             if previous_assets is not None:
-                previous = stage_assets(previous_assets, directory / 'previous', commands)
-                require(previous['artifacts']['package']['sha256'] !=
-                        manifest['artifacts']['package']['sha256'], 'assets:identical-update-payload')
-                shutil.copyfile(directory / 'previous/package.deb', directory / 'input/previous-package.deb')
-                manifest['previous_package'] = {
-                    'sha256': previous['artifacts']['package']['sha256'], 'source': previous['source']}
-                (directory / 'input/previous-inputs.json').write_bytes(
-                    baseline.encode(manifest['previous_package']))
+                stage_previous_assets(previous_assets, directory / 'previous', commands, manifest)
             host_before = host_fingerprint(commands)
             selected_inputs_sha256 = stage_selected_inputs(selection, directory / 'input')
             # Include the exact test/helper bytes as well as package and fixtures.

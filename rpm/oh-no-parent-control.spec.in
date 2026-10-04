@@ -108,6 +108,7 @@ for script in rpm-lifecycle/rpm-*; do /bin/sh -n "$script"; done
 %{_bindir}/oh-no-parent-control
 %{_bindir}/oh-no-parent-control-child
 %{_bindir}/oh-no-parent-control-parent
+%{_bindir}/oh-no-parent-control-purge
 %{_libexecdir}/oh-no-parent-control-*
 %{_libdir}/security/pam_oh_no_parent_control.so
 /usr/lib/oh-no-parent-control/

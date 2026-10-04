@@ -180,6 +180,16 @@ is removed before rebuilding the remaining policy or restoring the baseline.
 
 ## Local VM qualification
 
+Both registered distributions are enabled in the default test queue. Enabling
+Fedora schedules its checks; it does not establish a passing result or release
+qualification. The shared installed runner includes platform-aware package,
+authorization, enforcement and removal checks. Its `removal` area performs one
+install/configure/remove/reboot/health/reinstall history using the same
+behavioral assertions on DEB and RPM; see the
+[installed suite](../tests/integration/README.md#running-the-current-installed-suite).
+Public GUI journeys and their exact provider bindings need separate Fedora
+qualification. Historical Ubuntu-only acceptance does not transfer to Fedora.
+
 Fedora's
 [default known-libs policy](https://src.fedoraproject.org/rpms/fapolicyd/raw/f44/f/fapolicyd.spec)
 loads a [trusted-file execute allow](https://github.com/linux-application-whitelisting/fapolicyd/blob/v2.0.1/rules.d/42-trusted-elf.rules)

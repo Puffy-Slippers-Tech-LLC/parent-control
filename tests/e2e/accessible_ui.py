@@ -19,6 +19,12 @@ import sys
 import time
 import warnings
 try:
+    import session_control
+except ModuleNotFoundError as error:
+    if error.name != 'session_control':
+        raise
+    from tests.e2e import session_control
+try:
     from download_destination import download_directory
 except ModuleNotFoundError as error:
     if error.name != 'download_destination':
@@ -2852,9 +2858,7 @@ class AccessibleUI:
         locale = (environment.get(b'LC_ALL') or environment.get(b'LC_MESSAGES')
                   or environment.get(b'LANG') or b'C').decode('ascii')
         package = 'nautilus' if route == 'nautilus-portal' else 'libgtk-4-1'
-        version = subprocess.check_output(
-            ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', package],
-            text=True, timeout=5).strip()
+        version = session_control.installed_package_version(package)
         sources = Gio.Settings.new('org.gnome.desktop.input-sources').get_value('sources').unpack()
         return {'route': route, **validate_shell_metadata({
             'version': version, 'locale': locale, 'keyboard': [list(source) for source in sources]})}
@@ -4607,9 +4611,7 @@ class AccessibleUI:
                            if b'=' in item)
         locale = (environment.get(b'LC_ALL') or environment.get(b'LC_MESSAGES')
                   or environment.get(b'LANG') or b'C').decode('ascii')
-        version = subprocess.check_output(
-            ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}',
-             'gnome-text-editor'], text=True, timeout=5).strip()
+        version = session_control.installed_package_version('gnome-text-editor')
         sources = Gio.Settings.new('org.gnome.desktop.input-sources').get_value('sources').unpack()
         return validate_shell_metadata({'version': version, 'locale': locale,
                                         'keyboard': [list(source) for source in sources]})
@@ -6474,9 +6476,7 @@ class AccessibleUI:
         owner, _rows = (self.gdm_semantic_rows((PARENT, KIOSK, CHILD)) if installed_child else
                         self.gdm_semantic_rows((PARENT,), excluded=(KIOSK,)))
         shell = self._shell_provider_metadata(owner, greeter=True)
-        version = subprocess.check_output(
-            ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', 'gdm3'],
-            text=True, timeout=5).strip()
+        version = session_control.installed_package_version('gdm3')
         return validate_gdm_metadata({'shell': shell, 'gdm_version': version})
 
     def _shell_provider_metadata(self, owner, *, greeter=False):
@@ -6489,9 +6489,7 @@ class AccessibleUI:
                            if b'=' in item)
         locale = (environment.get(b'LC_ALL') or environment.get(b'LC_MESSAGES')
                   or environment.get(b'LANG') or b'C').decode('ascii')
-        version = subprocess.check_output(
-            ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', 'gnome-shell'],
-            text=True, timeout=5).strip()
+        version = session_control.installed_package_version('gnome-shell')
         # Shell's InputSourceManager uses locale1 for the greeter, not the
         # account's desktop GSettings (which can legitimately be empty).
         # https://github.com/GNOME/gnome-shell/blob/50.1/js/ui/status/keyboard.js
@@ -8290,9 +8288,7 @@ class AccessibleUI:
                            if b'=' in item)
         locale = (environment.get(b'LC_ALL') or environment.get(b'LC_MESSAGES')
                   or environment.get(b'LANG') or b'C').decode('ascii')
-        version = subprocess.check_output(
-            ['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', 'mate-polkit'],
-            text=True, timeout=5).strip()
+        version = session_control.installed_package_version('mate-polkit')
         sources = Gio.Settings.new('org.gnome.desktop.input-sources').get_value('sources').unpack()
         # GNOME Kiosk uses locale1 when the account has no configured sources.
         # https://github.com/GNOME/gnome-kiosk#keyboard-layout-switching

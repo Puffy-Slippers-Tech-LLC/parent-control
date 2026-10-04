@@ -231,17 +231,23 @@ an instruction to run preparation again. E2E never rotates account passwords or
 resets keyrings. See
 [credential staging](../e2e/README.md#credential-staging-and-password-capture-boundary).
 
-LDAP/SSSD remain unconfigured: preparation refuses existing configuration,
-requests OpenLDAP's supported no-configuration installation and disables
-automatic directory-service startup. Existing configuration is never deleted.
-Remote identities are created only by the selected test through
-`dpkg-reconfigure` and LDAP's public APIs. Installed NSS libraries alone do not
+LDAP/SSSD fixture state remains absent: Ubuntu requests OpenLDAP's supported
+no-configuration installation; Fedora preserves the RPM's default configuration
+and reserves separate fixture configuration/database paths. Both disable automatic
+directory-service startup and refuse active services or fixture collisions.
+Existing configuration is never deleted. Remote identities are created only by
+the selected test through Ubuntu's `dpkg-reconfigure` or Fedora's `slapadd`
+configuration import, followed by the same LDAP public APIs and real SSSD NSS
+enumeration. Fedora confines slapd to loopback/LDAPI, preserves enforcing SELinux,
+and clones the active authselect profile for the NSS change, retaining its PAM
+stack and features; fixture teardown restores the original product profile.
+Installed NSS libraries alone do not
 create remote users. Product installation and its dependencies, run markers, policy mutations, assertions and real installation/
 expiry reboots remain runtime work.
 
-The preparation record is schema **2**, including the expected tool inventory;
+The preparation record uses Ubuntu schema **2** or Fedora schema **3**, including the expected tool inventory;
 its source digest includes the shared inventory module. Offline inspection
-independently verifies dpkg's installed status and refuses existing LDAP/SSSD
+independently verifies the platform's dpkg/RPM installed status and refuses existing LDAP/SSSD
 fixture configuration. Missing/wrong-version tools and schema-1 account-only
 baselines are refused; lease acquisition checks the preparation source digest
 before disk audits, journal writes or VM mutation. Tests no longer repair them

@@ -23,10 +23,25 @@ PACKAGES = (
 VERSIONS = dict(package.split('=', 1) for package in PACKAGES)
 # Qualified minimum versions. Security and maintenance updates may be newer.
 DORMANT_PATHS = ('/etc/ldap/slapd.d', '/etc/ldap/slapd.conf', '/etc/sssd/sssd.conf')
-# Fedora preparation supports local-account qualification. The Ubuntu LDAP
-# fixture is not a Fedora runtime recipe and is deliberately not installed.
+FEDORA_REMOTE_VERSIONS = {'openldap-servers': '2.6.10', 'openldap-clients': '2.6.10',
+                          'sssd-ldap': '2.12.0', 'sssd-client': '2.12.0'}
 FEDORA_VERSIONS = {'openssh-server': '10.2p1', 'python3-pytest': '8.4.2',
-                   'python3-gobject': '0', 'gtk4': '0'}
+                   'python3-gobject': '0', 'gtk4': '0', **FEDORA_REMOTE_VERSIONS}
+# Fedora's RPM generates its own default slapd.d. The fixture uses separate
+# configuration/database paths and leaves those package defaults untouched.
+FEDORA_DORMANT_PATHS = ('/etc/sssd/sssd.conf',
+                       '/var/lib/ldap/onpc-system-fixture-config',
+                       '/var/lib/ldap/onpc-system-fixture',
+                       '/etc/systemd/system/slapd.service.d/onpc-system-fixture.conf',
+                       '/etc/authselect/custom/onpc-remote-fixture')
+
+
+def dormant_paths(os_id):
+    if os_id == 'ubuntu':
+        return DORMANT_PATHS
+    if os_id == 'fedora':
+        return FEDORA_DORMANT_PATHS
+    raise ValueError('guest-tools:unsupported-os')
 
 
 def versions(os_id):
@@ -37,7 +52,7 @@ def versions(os_id):
     raise ValueError('guest-tools:unsupported-os')
 
 
-def verify_fedora_packages(packages):
+def verify_fedora_packages(packages, expected=FEDORA_VERSIONS):
     """Compare stable upstream versions, independently of RPM release counters.
 
     These projects use numeric releases (OpenSSH also uses pN). Refuse
@@ -49,14 +64,14 @@ def verify_fedora_packages(packages):
         return tuple(int(part) for part in re.split(r'[.p]', value))
     found = {}
     for name, version in packages:
-        if name not in FEDORA_VERSIONS:
+        if name not in expected:
             continue
         if name in found:
             raise ValueError('guest-tools:ambiguous-package-status')
-        if stable_version(version) < stable_version(FEDORA_VERSIONS[name]):
+        if stable_version(version) < stable_version(expected[name]):
             raise ValueError('guest-tools:missing-or-mismatched-package')
         found[name] = version
-    if set(found) != set(FEDORA_VERSIONS):
+    if set(found) != set(expected):
         raise ValueError('guest-tools:missing-or-mismatched-package')
     return found
 

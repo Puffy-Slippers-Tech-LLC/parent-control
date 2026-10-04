@@ -309,6 +309,14 @@ from regression_ui import Bucket
 # process-local lease/transport doubles. No real VM, bus or shared mutable path.
 # Upgrade command checks use private decoder/recorder files, process-local
 # command/session doubles and waited Perl children; no shared VM, bus or GUI.
+# Fedora E2E package/platform checks extend the same private pytest files and
+# process-local package, account, transfer and os-release doubles. No real package
+# database, build, VM, display, bus, shared cache or additional cleanup owner is
+# used. Existing build_test_artifacts, e2e_inventory, e2e_provenance,
+# e2e_desktop_session, e2e_asset_transfer_cleanup_safety,
+# package_authority_cleanup_safety, package_upgrade_cleanup_safety,
+# native_fixtures_cleanup_safety and desktop_language_cleanup_safety compatible
+# unit classifications remain appropriate.
 # Chinese lifecycle uses those private doubles, recorder files and waited Perl;
 # no live bus, VM, GUI, shared cache or new cleanup resource.
 # The current-only composition extends that module with the same private
@@ -321,7 +329,18 @@ from regression_ui import Bucket
 # Perl children; no live account, VM, socket, display or shared mutable cache.
 # Selected-child restoration owns private tree/decoder/recorder fixtures and
 # bounded waited Perl children only; compatible in unit and cleanup inventories.
+# Shared removal parity and actual RPM erase callbacks use the existing private
+# pytest machine trees, relocated system paths and bounded, waited shell children.
+# Their service/account/PAM commands remain doubles, including abort-remove's
+# separate shell. No host package database, VM, bus, display, shared state or new
+# build fixture is touched; package_removal and rpm_packaging remain compatible.
+# Installed removal assertions use private tmp_path filesystem trees, native
+# account/session/command doubles and bounded synthetic responses. No live VM,
+# account, service, PAM, package database, socket or display is changed; the
+# system_removal module is compatible with other private unit work.
 REVIEWED = frozenset("""
+package_purge_cleanup_safety
+system_removal
 parent_language_cleanup_safety
 kiosk_language_cleanup_safety
 kiosk_language_restoration_cleanup_safety

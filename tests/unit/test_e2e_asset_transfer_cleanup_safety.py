@@ -16,8 +16,15 @@ from tests.support.e2e_transfer import GuestFiles
 import asset_transfer as transfer
 
 
-@pytest.fixture
-def attempt(tmp_path, source, assets, lease):
+@pytest.fixture(params=('deb', 'rpm'))
+def attempt(tmp_path, source, assets, lease, request):
+    if request.param == 'rpm':
+        (assets / 'package.deb').rename(assets / 'package.rpm')
+        manifest_path = assets / 'artifact-manifest.json'
+        manifest = json.loads(manifest_path.read_text())
+        manifest['artifacts']['package']['path'] = 'package.rpm'
+        manifest_path.write_text(json.dumps(manifest))
+        lease.capture.state['guest'] = {'os_id': 'fedora', 'version': '44', 'variant_id': 'workstation'}
     (assets / 'delivery with spaces').mkdir()
     (assets / 'delivery with spaces/file.bin').write_bytes(b'nonsecret asset\x00bytes')
     files = {p.relative_to(assets).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -67,7 +74,7 @@ def test_refusals_latch_and_leave_restoration_to_outer_lease(attempt, fault):
     control, lease, guest, api = attempt
     selected_lease = lease
     if fault == 'assets':
-        (control.verified.assets / 'package.deb').write_bytes(b'changed')
+        (control.verified.assets / provenance.package_filename(control.verified.asset_files)).write_bytes(b'changed')
     elif fault == 'phase':
         lease.state['phase'] = 'running'
     elif fault == 'running':
@@ -89,7 +96,7 @@ def test_refusals_latch_and_leave_restoration_to_outer_lease(attempt, fault):
         original = guest.sync
         def sync():
             original()
-            (control.verified.assets / 'package.deb').write_bytes(b'late-change')
+            (control.verified.assets / provenance.package_filename(control.verified.asset_files)).write_bytes(b'late-change')
         guest.sync = sync
     with pytest.raises(BaseException):
         control.provision(selected_lease, api)
@@ -109,21 +116,22 @@ def test_refusals_latch_and_leave_restoration_to_outer_lease(attempt, fault):
 def test_internally_consistent_staging_still_requires_correct_delivery_manifest(attempt, fault):
     control, lease, guest, api = attempt
     assets = control.verified.assets
+    package = assets / provenance.package_filename(control.verified.asset_files)
     if fault == 'inventory':
         (assets / 'transfer-sha256.json').write_text('{}')
     else:
-        original = assets / 'original.deb'
-        original.write_bytes((assets / 'package.deb').read_bytes())
+        original = assets / ('original' + package.suffix)
+        original.write_bytes(package.read_bytes())
         manifest_path = assets / 'artifact-manifest.json'
         manifest = json.loads(manifest_path.read_text())
         manifest['artifacts']['package']['path'] = original.name
         manifest_path.write_text(json.dumps(manifest))
-        (assets / 'package.deb').write_bytes(b'wrong alias')
+        package.write_bytes(b'wrong alias')
         (assets / 'transfer-sha256.json').write_text(json.dumps({
             p.relative_to(assets).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in assets.rglob('*') if p.is_file() and p.name != 'transfer-sha256.json'}))
-    verified = provenance.VerifiedInputs(root=control.verified.root, assets=assets, lease=lease)
-    with pytest.raises(transfer.EvidenceError, match='inventory-mismatch|package-mismatch'):
+    with pytest.raises(transfer.EvidenceError, match='inventory-mismatch|package-alias-mismatch'):
+        verified = provenance.VerifiedInputs(root=control.verified.root, assets=assets, lease=lease)
         transfer.AssetTransfer(verified).provision(lease, api)
     api.GuestFS.assert_not_called()
 
@@ -196,7 +204,7 @@ def test_exact_guest_probe_refuses_unsafe_or_extra_entries(attempt, capsys, faul
     control, lease, guest, api = attempt
     control.provision(lease, api)
     root = guest.path(transfer.DESTINATION)
-    file = root / 'package.deb'
+    file = root / provenance.package_filename(control.verified.asset_files)
     if fault == 'extra-directory':
         (root / 'unexpected-empty').mkdir(mode=0o755)
     elif fault == 'file-mode':
@@ -220,10 +228,11 @@ def test_exact_guest_probe_detects_changed_file_inventory(attempt, capsys, fault
     control, lease, guest, api = attempt
     receipt = control.provision(lease, api)
     root = guest.path(transfer.DESTINATION)
+    package = root / provenance.package_filename(control.verified.asset_files)
     if fault == 'changed':
-        (root / 'package.deb').write_bytes(b'changed')
+        package.write_bytes(b'changed')
     elif fault == 'missing':
-        (root / 'package.deb').unlink()
+        package.unlink()
     else:
         (root / 'extra-file').write_bytes(b'extra')
         (root / 'extra-file').chmod(0o644)

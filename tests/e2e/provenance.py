@@ -156,6 +156,12 @@ def snapshot(root, *, source=False):
             'directory': root_identity}
 
 
+def package_filename(files):
+    names = [name for name in ('package.deb', 'package.rpm') if name in files]
+    require(len(names) == 1, 'provenance:package-format')
+    return names[0]
+
+
 def baseline_inputs(lease):
     """Reconcile durable baseline state and proof through the existing held lease."""
     require(lease.fd is not None, 'provenance:lease-required')
@@ -210,6 +216,13 @@ class VerifiedInputs:
         try:
             self._source = snapshot(self.root, source=True)
             self._baseline = baseline_inputs(lease)
+            if self._plan is not None:
+                actual_environment = ('fedora44' if self._baseline['environment_id'].startswith(
+                    'fedora44-') else 'ubuntu26.04')
+                for case in self._plan['cases']:
+                    environments = case['environment']
+                    require(actual_environment in ([environments] if isinstance(environments, str)
+                            else environments), 'provenance:scenario-environment')
             self._assets = snapshot(self.assets) if self.assets is not None else None
             package_sha256 = None
             if self.assets is not None:
@@ -222,7 +235,15 @@ class VerifiedInputs:
                 require((fixtures / 'onpc-test-application.flatpak').is_file(),
                         'provenance:fixture-bundle-missing')
                 package_sha256 = manifest['artifacts']['package']['sha256']
+                filename = package_filename(self._assets['files'])
+                require(Path(manifest['artifacts']['package']['path']).suffix == Path(filename).suffix,
+                        'provenance:package-platform')
+                require(self._assets['files'][filename] == package_sha256,
+                        'provenance:package-alias-mismatch')
+                require(filename == ('package.rpm' if self._baseline['environment_id'].startswith(
+                    'fedora44-') else 'package.deb'), 'provenance:package-platform')
                 if upgrade:
+                    require(filename == 'package.deb', 'provenance:historical-release-ubuntu-only')
                     self._upgrade = build_test_artifacts.verify_upgrade(
                         self.assets, staged=True, repository=self.root)
                     require(self._assets['files']['package.deb'] == package_sha256

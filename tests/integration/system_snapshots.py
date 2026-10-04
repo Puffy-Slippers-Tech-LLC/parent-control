@@ -12,7 +12,8 @@ def attempts(selection, *, fresh_install=False):
     """Keep lifecycle transitions together; restore before each installed area."""
     if fresh_install:
         return [(selection, False)]
-    groups = [('installed', 'rebooted'), ('authorization',), ('enforcement',), ('session',)]
+    groups = [('installed', 'rebooted', *system.REMOVAL_PHASES),
+              ('authorization',), ('enforcement',), ('session',)]
     result = []
     for phases in groups:
         selected = tuple(phase for phase in phases if phase in selection.phases)

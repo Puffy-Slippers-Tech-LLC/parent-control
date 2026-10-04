@@ -278,6 +278,42 @@ def test_package_and_actual_fixture_payload_are_verified(source, assets, lease):
     captured.recheck()
 
 
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('fault', [None, 'alias', 'platform', 'ambiguous', 'scenario'])
+def test_package_alias_and_declared_environment_are_bound_before_transfer(
+        source, assets, lease, package_format, fault):
+    if package_format == 'rpm':
+        (assets / 'package.deb').rename(assets / 'package.rpm')
+        manifest_path = assets / 'artifact-manifest.json'
+        manifest = json.loads(manifest_path.read_text())
+        manifest['artifacts']['package']['path'] = 'package.rpm'
+        manifest_path.write_text(json.dumps(manifest))
+        lease.capture.state['guest'] = {'os_id': 'fedora', 'version': '44', 'variant_id': 'workstation'}
+    if fault == 'alias':
+        filename = 'package.' + package_format
+        (assets / filename).rename(assets / ('original.' + package_format))
+        manifest_path = assets / 'artifact-manifest.json'
+        manifest = json.loads(manifest_path.read_text())
+        manifest['artifacts']['package']['path'] = 'original.' + package_format
+        manifest_path.write_text(json.dumps(manifest))
+        (assets / filename).write_bytes(b'substituted artifact alias')
+    if fault == 'platform':
+        lease.capture.state['guest'] = ({'ubuntu_version': '26.04'} if package_format == 'rpm'
+            else {'os_id': 'fedora', 'version': '44', 'variant_id': 'workstation'})
+    if fault == 'ambiguous':
+        (assets / ('package.deb' if package_format == 'rpm' else 'package.rpm')).write_bytes(b'extra package')
+    lease.state['baseline_sha256'] = provenance.digest(lease.capture.state)
+    plan = {'inventory_sha256': 'a' * 64, 'cases': [{'environment':
+        ['ubuntu26.04' if package_format == 'rpm' else 'fedora44'] if fault == 'scenario' else
+        ['ubuntu26.04', 'fedora44']}]}
+    if fault:
+        with pytest.raises(provenance.EvidenceError, match='provenance:(package|scenario)'):
+            provenance.VerifiedInputs(root=source, assets=assets, lease=lease, plan=plan)
+    else:
+        inputs = provenance.VerifiedInputs(root=source, assets=assets, lease=lease, plan=plan)
+        assert provenance.package_filename(inputs.asset_files) == 'package.' + package_format
+
+
 @pytest.mark.parametrize('name', ['package.deb', 'fixtures/payload',
                                   'fixtures/onpc-test-application.flatpak', 'artifact-manifest.json'])
 def test_changed_assets_cannot_pass(source, assets, lease, name):

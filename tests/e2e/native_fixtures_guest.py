@@ -65,7 +65,8 @@ def authority():
     parent = pwd.getpwnam(session_control.ACCOUNTS['parent'])
     child = pwd.getpwnam(session_control.ACCOUNTS['standard'])
     require(parent.pw_uid >= 1000 and child.pw_uid >= 1000 and parent.pw_uid != child.pw_uid
-            and grp.getgrnam('sudo').gr_gid in os.getgrouplist(parent.pw_name, parent.pw_gid))
+            and grp.getgrnam(session_control.administrator_group()).gr_gid
+            in os.getgrouplist(parent.pw_name, parent.pw_gid))
     source = session_control.source_session(session_control.sessions(), parent.pw_uid)
     return child, parent, source
 

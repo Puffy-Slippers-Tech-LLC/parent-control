@@ -22,9 +22,13 @@ def script_source(phase, distribution='ubuntu'):
 
 
 class Machine:
-    def __init__(self, root):
+    def __init__(self, root, distribution='ubuntu'):
         self.root = root
-        self.write("etc/os-release", 'ID=ubuntu\nVERSION_ID="26.04"\n')
+        self.distribution = distribution
+        self.write("etc/os-release", {
+            'ubuntu': 'ID=ubuntu\nVERSION_ID="26.04"\n',
+            'fedora': 'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n',
+        }[distribution])
         for path in ("etc/fapolicyd/rules.d", "run/systemd/system",
                      "var/lib/oh-no-parent-control", "usr/sbin", "var/mail"):
             (root / path).mkdir(parents=True, exist_ok=True)
@@ -43,7 +47,22 @@ if [ "$1" = --update ]; then exit "${TRUST_UPDATE_STATUS:-0}"; fi
 """).chmod(0o755)
         self.write("usr/libexec/oh-no-parent-control-uninstall", """#!/bin/sh
 printf '%s\\n' "uninstall $*" >> "$AUDIT_ROOT/commands"
-exit "${UNINSTALL_FAILURE:-0}"
+case "$1" in
+    --remove) exit "${REMOVE_FAILURE:-${UNINSTALL_FAILURE:-0}}" ;;
+    --restore) exit "${RESTORE_FAILURE:-${UNINSTALL_FAILURE:-0}}" ;;
+esac
+exit 99
+""").chmod(0o755)
+        self.write("usr/libexec/oh-no-parent-control-fedora-pam", """#!/bin/sh
+printf '%s\\n' "fedora-pam $*" >> "$AUDIT_ROOT/commands"
+case "$1" in
+    remove) exit "${PAM_REMOVE_FAILURE:-${PAM_FAILURE:-0}}" ;;
+    install) exit "${PAM_INSTALL_FAILURE:-${PAM_FAILURE:-0}}" ;;
+esac
+exit 99
+""").chmod(0o755)
+        self.write("test-bin/authselect", """#!/bin/sh
+case "$1" in current) printf '%s\\n' local;; esac
 """).chmod(0o755)
         self.write("test-bin/mountpoint", """#!/bin/sh
 test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
@@ -75,8 +94,35 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
         self.write("account")
         self.write("home/oh-no-parent-control/.cache/residue", "left behind")
 
-    def run(self, script, action, *, distribution='ubuntu', **env):
-        source = script_source(script, distribution)
+    @property
+    def gdm_hook(self):
+        return 'etc/gdm/PreSession/Default' if self.distribution == 'fedora' else 'etc/gdm3/PreSession/Default'
+
+    @property
+    def service_command(self):
+        return 'systemctl' if self.distribution == 'fedora' else 'deb-systemd-invoke'
+
+    @property
+    def delete_account(self):
+        return 'userdel' if self.distribution == 'fedora' else 'deluser'
+
+    def run(self, script, action, *, distribution=None, **env):
+        source = script_source(script, distribution or self.distribution)
+        return self.run_source(source, action, **env)
+
+    def run_rpm(self, scriptlet, installed_count, **env):
+        renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
+        scripts = self.root / 'rpm-lifecycle'
+        renderer['rpm_scripts'](ROOT, scripts)
+        # RPM's preun trap invokes the installed abort-remove callback in a
+        # separate shell. Give that shell the same isolated command model.
+        if scriptlet == 'preun':
+            self.prepare_script(script_source('postinst', 'fedora'),
+                                'usr/share/oh-no-parent-control/lifecycle/postinst')
+        return self.run_source((scripts / ('rpm-' + scriptlet)).read_text(),
+                               str(installed_count), **env)
+
+    def prepare_script(self, source, path='script'):
         # Redirect every absolute system prefix, including executable paths.
         source = relocate_system_paths(source, self.root)
         for command in ("deb-systemd-invoke", "invoke-rc.d", "pam-auth-update"):
@@ -93,10 +139,12 @@ systemctl() {
             if [ "$2" = oh-no-parent-control-execution-policy-ready.service ]; then
                 return "${READINESS_STOP_STATUS:-0}"
             fi
+            if [ "$2" = fapolicyd.service ]; then SERVICE_ACTIVE=0; fi
             return 0 ;;
         is-active)
             case "$3" in
                 user@*) test "${KIOSK_ACTIVE:-0}" = 1 ;;
+                oh-no-parent-control-broker.service) test "${BROKER_ACTIVE:-0}" = 1 ;;
                 *) test "${SERVICE_ACTIVE:-0}" = 1 ;;
             esac ;;
         is-enabled) test "${SERVICE_ENABLED:-0}" = 1 ;;
@@ -120,6 +168,7 @@ getent() {
     fi
 }
 deluser() { record deluser "$@"; rm "$AUDIT_ROOT/account"; }
+userdel() { record userdel "$@"; rm "$AUDIT_ROOT/account"; }
 stat() {
     if [ "$2" = '%u:%a' ]; then printf '0:600\n';
     elif [ "$2" = %u ]; then printf '%s\n' "${HOME_UID:-1006}";
@@ -132,7 +181,10 @@ install() {
     command install -d -m 0700 "$last"
 }
 '''
-        target = self.write("script", "#!/bin/sh\n" + mocks + source)
+        return self.write(path, "#!/bin/sh\n" + mocks + source)
+
+    def run_source(self, source, action, **env):
+        target = self.prepare_script(source)
         return subprocess.run(
             ["/bin/sh", str(target), action], capture_output=True, text=True,
             env={**os.environ, "AUDIT_ROOT": str(self.root),

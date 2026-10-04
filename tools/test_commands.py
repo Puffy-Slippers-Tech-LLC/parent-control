@@ -439,6 +439,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_product_free_entry'], ['check_e2e_product_free_entry.py'],
             ['check_e2e_chinese_language_assets'], ['check_e2e_chinese_language_assets.py'],
             ['check_e2e_desktop_language'], ['check_e2e_desktop_language.py'],
+            ['check_e2e_chinese_current_install'], ['check_e2e_chinese_current_install.py'],
             ['check_e2e_package_authority'], ['check_e2e_package_authority.py'],
             ['check_e2e_package_command'], ['check_e2e_package_command.py'],
             ['check_e2e_customer_reboot'], ['check_e2e_customer_reboot.py'],
@@ -545,6 +546,8 @@ def qualification_artifact_command(root, category, args):
         ['check_e2e_policy'], ['check_e2e_policy.py'],
         ['check_e2e_policy_legend'], ['check_e2e_policy_legend.py']) else
         named_input(package_source=True) if args in (
+        ['check_e2e_chinese_current_install'], ['check_e2e_chinese_current_install.py'],
+        ['check_e2e_customer_reboot'], ['check_e2e_customer_reboot.py'],
         ['check_e2e_shell_panel'], ['check_e2e_shell_panel.py'],
         ['check_e2e_kiosk_entry'], ['check_e2e_kiosk_entry.py'],
         ['check_e2e_parent_language'], ['check_e2e_parent_language.py'],

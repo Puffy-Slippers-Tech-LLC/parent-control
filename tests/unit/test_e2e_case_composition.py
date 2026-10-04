@@ -45,6 +45,7 @@ WORKER_APIS = {
     'onpc_request_flow': {'prepare', 'reject', 'approve', 'overlay_entry', 'daily_station_entry', 'shell_cancel', 'shell_approve'},
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
+    'onpc_customer_reboot': {'chinese_desktop_renewal', 'chinese_initial_notice', 'chinese_initial_form'},
     'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy', 'review_parent_report',
                               'close_parent_report'},
     'onpc_allowance_boundaries': {'exercise', 'reload_child', 'select_child'},
@@ -322,6 +323,21 @@ def test_install_fragment_preserves_customer_and_qualification_boundaries():
     assert upgrade.stage_actions['package-submitted'] == chinese.stage_actions['package-submitted'] == 'install-previous'
     assert customer.phases['package-result'] == 'step-1'
     assert qualification.phases['package-result'] == 'step-2'
+
+
+def test_current_chinese_binding_has_setup_before_one_install_and_one_reboot():
+    from chinese_current_install import PLAN
+    from journey_blocks import product_free_desktop
+    assert list(PLAN.screen_tags.items())[:7] == [
+        ('wrong-entry', 'ui:gdm-product-free-list'), *product_free_desktop().items()]
+    stages = list(PLAN.screen_tags)
+    assert stages.index('language-desktop') < stages.index('package-submitted')
+    assert stages.index('package-result') < stages.index('initial-notice') < stages.index('reboot-requested')
+    assert stages.index('reboot-greeter') < stages.index('initial-language') < stages.index('initial-form')
+    assert PLAN.reboot_transitions == (('reboot-requested', 'reboot-greeter'),)
+    assert PLAN.stage_actions['package-submitted'] == 'install-package'
+    assert not any('upgrade' in value or 'approval' in value or 'language-save' in value
+                   for value in (*PLAN.stage_actions.values(), *PLAN.screen_tags.values()))
 
 
 def test_routine_login_has_no_wrong_account_visit_or_prompt_dismissal():

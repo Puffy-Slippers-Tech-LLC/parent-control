@@ -893,6 +893,13 @@ class ChineseKioskLifecycleQualification(ProductFreeEntryQualification):
         return ChineseKioskJourney(context, progress)
 
 
+class ChineseCurrentInstallQualification(ProductFreeEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from chinese_current_install import ChineseCurrentInstallJourney
+        return ChineseCurrentInstallJourney(context, progress)
+
+
 class RequestExitQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

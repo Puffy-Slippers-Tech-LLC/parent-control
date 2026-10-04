@@ -127,6 +127,62 @@ def test_actual_identity_decoder_binds_nondefault_package(monkeypatch, fault):
         compile(command.guest_source(), '<package-submit>', 'exec')
 
 
+@pytest.mark.parametrize('fault', ['', 'artifact', 'metadata', 'old-digest', 'extra', 'owner'])
+def test_current_only_identity_has_no_old_package_dependency(monkeypatch, tmp_path, fault):
+    import build_test_artifacts
+    item, value = boundary(monkeypatch)
+    item.verified.upgrade_inputs = None
+    item.verified.assets = tmp_path
+    metadata = copy.deepcopy(PACKAGES['current'])
+    if fault == 'artifact': metadata['sha256'] = 'f' * 64
+    if fault == 'metadata': metadata['name'] = 'foreign-package'
+    read = Mock(return_value=metadata)
+    monkeypatch.setattr(build_test_artifacts, 'package_identity', read)
+    value['packages'] = {'current': PACKAGES['current']['sha256']}
+    if fault == 'old-digest': value['packages']['previous'] = 'a' * 64
+    if fault == 'extra': value['private'] = 'forbidden'
+    if fault == 'owner': item.transport.config['run'] = 'foreign'
+    if fault:
+        with pytest.raises(EvidenceError): item.read_identity()
+    else:
+        assert item.read_identity() == value
+        read.assert_called_once_with(tmp_path / 'package.deb')
+        assert json.loads(item.transport.call.call_args.args[0][-1]) == {'current': metadata}
+
+
+@pytest.mark.parametrize('fault', ['', 'version', 'boot', 'session', 'preservation', 'inputs',
+                                 'unstable', 'notice', 'missing', 'not-fresh'])
+def test_current_install_independently_requires_version_notice_boot_and_preservation(monkeypatch, fault):
+    item, before = boundary(monkeypatch)
+    before['packages'] = {'current': PACKAGES['current']['sha256']}
+    before = copy.deepcopy(before)
+    if fault == 'not-fresh': before['version'] = PACKAGES['current']['version']
+    after = copy.deepcopy(before)
+    after['version'] = PACKAGES['current']['version']
+    after['preserved']['accounts']['new-package-account'] = {'language': 'en'}
+    item.binding = command.BINDING
+    item.receipt = ((command.COMPLETE + '\n' + command.NOTICE + '\n').encode(), 0)
+    item.package_identities = Mock(return_value={'current': PACKAGES['current']})
+    if fault == 'version': after['version'] = PACKAGES['previous']['version']
+    if fault == 'boot': after['boot'] = AFTER
+    if fault == 'session': after['session'] = 'changed'
+    if fault == 'preservation': after['preserved']['accounts']['parent']['language'] = 'zh_CN'
+    if fault == 'inputs': after['packages']['current'] = 'f' * 64
+    if fault == 'notice': item.receipt = ((command.COMPLETE + '\n').encode(), 0)
+    if fault == 'missing': item.receipt = None
+    second = copy.deepcopy(after)
+    if fault == 'unstable': second['boot'] = AFTER
+    item.read_identity = Mock(side_effect=[after, second])
+    if fault:
+        with pytest.raises(EvidenceError): package_install.observe_current_install(item, before)
+    else:
+        result = package_install.observe_current_install(item, before)
+        assert result['installed_version'] == PACKAGES['current']['version']
+        assert result['notice'] == command.NOTICE and result['boot_sha256'] == BEFORE
+        assert result['independent_readback'] and result['preservation_verified']
+        assert item.read_identity.call_count == 2
+
+
 @pytest.mark.parametrize('binding', [command.OLD_INSTALL, command.UPGRADE])
 @pytest.mark.parametrize('fault', ['', 'greeter', 'digest', 'phase', 'replay'])
 def test_guest_single_use_before_real_argv(monkeypatch, tmp_path, binding, fault):

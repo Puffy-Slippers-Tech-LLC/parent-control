@@ -74,6 +74,26 @@ def observe_install(journey):
     return journey.package.read_result()
 
 
+def observe_current_install(command, before):
+    """Latest install completion/version/same boot with pre-existing state preserved."""
+    require(command is not None and command.binding == BINDING, 'package-install:missing-command')
+    output = command.read_result()
+    first, second = command.read_identity(), command.read_identity()
+    require(first == second, 'package-install:unstable-readback')
+    require(before['version'] is None and
+            first['version'] == command.package_identities()['current']['version'],
+            'package-install:installed-version')
+    preserved = dict(first['preserved'])
+    preserved['accounts'] = {uid: preserved['accounts'].get(uid)
+                             for uid in before['preserved']['accounts']}
+    require(preserved == before['preserved'], 'package-install:preservation')
+    require(first['packages'] == before['packages'], 'package-install:inputs-changed')
+    require(first['boot'] == before['boot'], 'package-install:boot-continuity')
+    require(first['session'] == before['session'], 'package-install:session-changed')
+    return {**output, 'installed_version': first['version'], 'boot_sha256': first['boot'],
+            'preservation_verified': True, 'independent_readback': True}
+
+
 def check_install_result(journey, observed):
     """Attach independent public completion evidence before acknowledging a stage."""
     observed['package'] = observe_install(journey)

@@ -679,7 +679,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
          native_app=False, app_activity=False, chinese_language_assets=False, desktop_language=False,
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
-         kiosk_language_restoration=False):
+         kiosk_language_restoration=False, chinese_current_install=False):
+    require(type(chinese_current_install) is bool and (not chinese_current_install or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'chinese_current_install')
+            and isinstance(value, bool)))), 'smoke:chinese-current-install-prerequisites')
     require(type(kiosk_language_restoration) is bool and (not kiosk_language_restoration or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1069,7 +1074,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         chinese_language_assets, desktop_language, upgrade_assets))), 'smoke:package-upgrade-prerequisites')
     dual_packages = upgrade_assets or package_upgrade or chinese_kiosk_lifecycle
     product_free_entry = (product_free_entry or package_authority or package_install
-                          or customer_reboot or chinese_language_assets or desktop_language or dual_packages)
+                          or customer_reboot or chinese_language_assets or desktop_language or dual_packages
+                          or chinese_current_install)
     require(type(product_free_entry) is bool and (not product_free_entry or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1542,6 +1548,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'package-upgrade-qualification'
         if chinese_kiosk_lifecycle:
             result['scope'] = 'chinese-kiosk-lifecycle-qualification'
+        if chinese_current_install:
+            result['scope'] = 'chinese-current-install-qualification'
         if chinese_native_auth:
             result['scope'] = 'chinese-native-auth-qualification'
         started = time.monotonic()
@@ -1713,6 +1721,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if chinese_kiosk_lifecycle:
                     from parent_setup_qualification import ChineseKioskLifecycleQualification
                     qualification_class = ChineseKioskLifecycleQualification
+                if chinese_current_install:
+                    from parent_setup_qualification import ChineseCurrentInstallQualification
+                    qualification_class = ChineseCurrentInstallQualification
                 if kiosk_entry:
                     from parent_setup_qualification import KioskEntryQualification
                     qualification_class = KioskEntryQualification

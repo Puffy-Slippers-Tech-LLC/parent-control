@@ -12,6 +12,8 @@ import account_language
 import check_e2e_chinese_kiosk_lifecycle as selector
 import check_graphical_smoke as smoke
 import chinese_kiosk_lifecycle as lifecycle
+import chinese_current_install as current
+import check_e2e_chinese_current_install as current_selector
 import installed_journey
 import session_control
 from owned_commands import CommandError
@@ -70,6 +72,82 @@ def test_selector_missing_generated_assets_and_shared_envelope(monkeypatch):
     command = launchers.qualification_artifact_command(Path.cwd(), 'integration',
         ['check_e2e_chinese_kiosk_lifecycle'])
     assert '--upgrade-inputs' in command and command[-1] == str(selector.ASSETS)
+
+
+def test_current_selector_prepares_only_source_bound_current_inputs(monkeypatch):
+    import tools.test_commands as launchers
+    from parent_setup_qualification import ChineseCurrentInstallQualification, ProductFreeEntryQualification
+    launch = Mock(return_value=0)
+    monkeypatch.setattr(current_selector, 'smoke', launch)
+    assert current_selector.main() == 0
+    launch.assert_called_once_with(assets=current_selector.ASSETS,
+        provision_credentials=True, chinese_current_install=True)
+    assert issubclass(ChineseCurrentInstallQualification, ProductFreeEntryQualification)
+    assert not ChineseCurrentInstallQualification.upgrade_assets
+    monkeypatch.setattr(launchers.os.path, 'lexists', lambda _: False)
+    monkeypatch.setattr(launchers, 'allocate_artifact_output', Mock(return_value=str(current_selector.ASSETS)))
+    command = launchers.qualification_artifact_command(Path.cwd(), 'integration',
+        ['check_e2e_chinese_current_install'])
+    assert '--upgrade-inputs' not in command and command[-1] == str(current_selector.ASSETS)
+
+
+@pytest.mark.parametrize('extra', [{}, {'package_upgrade': True}, {'chinese_kiosk_lifecycle': True},
+    {'desktop_language': True}, {'challenges': True}, {'install': True},
+    {'fresh_desktop': 'parent'}, {'approval_flow': 'rejection'}])
+def test_current_install_exclusive_gate(extra):
+    args = {'assets': 'inputs', 'provision_credentials': True, **extra} if extra else {}
+    with pytest.raises(CommandError): smoke.main(chinese_current_install=True, **args)
+
+
+def test_current_declared_system_and_ui_operations_are_registered():
+    from ui_observations import OPERATION_LABELS
+    for operation in current.PLAN.screen_tags.values():
+        if operation.startswith('ui:'):
+            assert operation[3:] in OPERATION_LABELS
+            continue
+        binding = operation[7:]
+        _, action = session_control.BINDINGS[binding]
+        expected = {'operation': binding, 'outcome': 'passed', 'interface': 'system session'}
+        expected.update({'administrator': True, 'package_sha256': 'a' * 64}
+            if action == 'command-context' else
+            {'source_retained': action != 'logout', 'destination': 'greeter'})
+        transport = SimpleNamespace(call=Mock(return_value=json.dumps(expected).encode()))
+        assert session_control.observe(transport, binding) == expected
+        transport.call.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['', 'dual-inputs', 'wrong-version', 'durability'])
+def test_current_install_result_comparison_precedes_durable_reply(tmp_path, monkeypatch, fault):
+    context = SimpleNamespace(directory=tmp_path, product_free=True, asset_transfer=Mock(),
+        verified=SimpleNamespace(upgrade_inputs={'packages': {}} if fault == 'dual-inputs' else None,
+                                 inputs={'package_sha256': 'a' * 64}, recheck=Mock()))
+    if fault == 'dual-inputs':
+        with pytest.raises(EvidenceError, match='single-package-required'):
+            current.ChineseCurrentInstallJourney(context, Mock())
+        return
+    progress = Mock(side_effect=OSError('storage') if fault == 'durability' else None)
+    journey = current.ChineseCurrentInstallJourney(context, progress)
+    stage = 'package-result'
+    journey.steps = [{'stage': s} for s in journey.plan.stages[:journey.plan.stages.index(stage)]]
+    journey.boot = 'b' * 64
+    journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': journey.boot}))
+    journey.transport = Mock()
+    journey.transport.config = {'run': 'owned', 'domain_uuid': 'vm'}
+    result = Mock(return_value={'independent_readback': True},
+                  side_effect=EvidenceError('package-install:installed-version') if fault == 'wrong-version' else None)
+    monkeypatch.setattr(current, 'observe_current_install', result)
+    monkeypatch.setattr(current, 'refuse_input', Mock())
+    monkeypatch.setattr(session_control, 'observe', Mock(return_value={'outcome': 'passed'}))
+    journey.package, journey.install_entry = Mock(), {'version': None}
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises((EvidenceError, OSError)): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        result.assert_called_once_with(journey.package, journey.install_entry)
+        assert (tmp_path / (stage + '.reply.json')).exists()
+        assert progress.call_args.args[1]['assertion']['id'] == 'latest-install-version-notice-same-boot'
 
 
 @pytest.mark.parametrize('extra', [{}, {'package_upgrade': True}, {'desktop_language': True},
@@ -247,12 +325,15 @@ def test_additional_transition_must_be_adjacent_ordered_and_unique(transition):
         replace(lifecycle.PLAN, additional_reboot_transitions=transition)
 
 
-@pytest.mark.parametrize('fault', ['', *lifecycle.PLAN.screen_tags])
-def test_actual_worker_order_titles_and_refusal_before_later_input(fault):
+@pytest.mark.parametrize('plan,method,fault', [
+    (plan, method, fault) for plan, method in (
+        (lifecycle.PLAN, 'run_chinese'), (current.PLAN, 'run_chinese_current'))
+    for fault in ('', *plan.screen_tags)])
+def test_actual_worker_order_titles_and_refusal_before_later_input(plan, method, fault):
     source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_customer_reboot;')
-    source = source.replace('onpc_desktop_session::run', 'onpc_customer_reboot::run_chinese')
-    declarations = json.dumps(list(lifecycle.PLAN.invocations))
-    challenges = json.dumps(lifecycle.PLAN.challenges)
+    source = source.replace('onpc_desktop_session::run', 'onpc_customer_reboot::' + method)
+    declarations = json.dumps(list(plan.invocations))
+    challenges = json.dumps(plan.challenges)
     source = source.replace('}, $action);', f"}}, decode_json(q~{declarations}~), decode_json(q~{challenges}~));")
     source = source.replace("push @events, ['stage', $_[0]];", """
         push @events, ['stage', $_[0]];
@@ -260,7 +341,8 @@ def test_actual_worker_order_titles_and_refusal_before_later_input(fault):
         return {observed => $_[0], ui_focused => 1} if $_[0] =~ /(?:greeter|list)$/;
         return {observed => $_[0], station_destination => 'initial-request-window'} if $_[0] =~ /station-branch$/;
         my %bindings = ('reboot' => ['after-reboot', 'parent'], 'language-standard' => ['chinese-child', 'other-child'],
-            'upgrade' => ['upgrade-parent', 'parent'], 'return' => ['return-parent', 'parent']);
+            'upgrade' => ['upgrade-parent', 'parent'], 'install' => ['install-parent', 'parent'],
+            'return' => ['return-parent', 'parent']);
         for my $prefix (keys %bindings) {
             if ($_[0] =~ /^$prefix-recipient-/) {
                 return {observed => $_[0], challenge => {id => $bindings{$prefix}[0], role => $bindings{$prefix}[1],
@@ -271,14 +353,13 @@ def test_actual_worker_order_titles_and_refusal_before_later_input(fault):
     source = source.replace('sub record_info { }', "sub record_info { push @main::events, ['title', $_[0]]; }")
     result = json.loads(run_perl(source, fault).stdout)
     assert bool(result['ok']) == (not fault)
-    expected = list(lifecycle.PLAN.screen_tags)
+    expected = list(plan.screen_tags)
     if fault: expected = expected[:expected.index(fault) + 1]
     assert [event[1] for event in result['events'] if event[0] == 'stage'] == expected
     assert [event[1] for event in result['events'] if event[0] == 'title' and event[1] != 'shutdown'] == [
-        'chinese-kiosk-' + stage for stage in expected]
+        plan.prefix + '-' + stage for stage in expected]
     if not fault:
-        # Initial product-free login plus four distinct declared challenges.
-        assert result['events'].count(['secret']) == 5
+        assert result['events'].count(['secret']) == 1 + len(plan.challenges)
         assert ['power', 'off'] in result['events']
 
 
@@ -302,17 +383,20 @@ def test_initial_capture_comparisons_are_immutable_and_operation_bound(tmp_path,
         assert journey.initial_captures['ui:kiosk-initial-notice']['texts'] == lifecycle.NOTICE
 
 
+@pytest.mark.parametrize('kind', ['historical', 'current'])
 @pytest.mark.parametrize('fault', ['', 'meaning', 'durability'])
-def test_real_recorder_constructor_and_comparison_before_durable_reply(session, tmp_path, monkeypatch, fault):
+def test_real_recorder_constructor_and_comparison_before_durable_reply(session, tmp_path, monkeypatch, fault, kind):
+    declared = lifecycle.PLAN if kind == 'historical' else current.PLAN
+    journey_type = lifecycle.ChineseKioskJourney if kind == 'historical' else current.ChineseCurrentInstallJourney
     expected = session.payload['assertions'][0]
     tags = {'entry-start': 'system:parent-command-context', 'entry-one': 'system:parent-command-context',
             'entry-two': 'system:parent-command-context', 'renamed-notice': 'ui:kiosk-initial-notice'}
-    plan = replace(lifecycle.PLAN, screen_tags=tags, phases={'ready': 'setup', 'setup-detached': 'setup',
+    plan = replace(declared, screen_tags=tags, phases={'ready': 'setup', 'setup-detached': 'setup',
         'entry-start': 'start', 'entry-one': 'step-1', 'entry-two': 'step-2', 'renamed-notice': expected['step_id']},
         stage_actions={}, assertions_after={'renamed-notice': expected['assertion_id']},
         invocations=(), challenges={}, reboot_transition=(), additional_reboot_transitions=(), advance_after={})
     context = SimpleNamespace(directory=tmp_path / 'journey', product_free=True, asset_transfer=Mock(),
-        verified=SimpleNamespace(inputs={}, upgrade_inputs={'packages': {}}),
+        verified=SimpleNamespace(inputs={}, upgrade_inputs={'packages': {}} if kind == 'historical' else None),
         credentials=Mock(), lease=Mock(), guestfs=Mock(), commands=Mock())
     context.directory.mkdir()
     recorder = session.recorder
@@ -326,7 +410,7 @@ def test_real_recorder_constructor_and_comparison_before_durable_reply(session, 
     monkeypatch.setattr(session_control, 'observe', Mock(return_value={'outcome': 'passed'}))
     def worker(**options):
         journey = options['guarded_observe'].__self__
-        assert isinstance(journey, lifecycle.ChineseKioskJourney)
+        assert isinstance(journey, journey_type)
         journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
         journey.boot = 'a' * 64
         journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': journey.boot}))
@@ -346,13 +430,13 @@ def test_real_recorder_constructor_and_comparison_before_durable_reply(session, 
             recorder.assertion(assertion['assertion_id'], artifact_ids=[ref])
         return dict(outcome='passed', shutdown_verified=True, worker_stopped=True, callback_closed=True)
     context.run_worker = worker
-    monkeypatch.setattr(lifecycle.ChineseKioskJourney, 'validate', lambda _: [])
+    monkeypatch.setattr(journey_type, 'validate', lambda _: [])
     if fault:
         with pytest.raises((EvidenceError, OSError)):
-            installed_journey.record_installed_journey(recorder, context, plan, actions={}, journey_type=lifecycle.ChineseKioskJourney)
+            installed_journey.record_installed_journey(recorder, context, plan, actions={}, journey_type=journey_type)
         assert not (context.directory / 'renamed-notice.reply.json').exists()
     else:
-        installed_journey.record_installed_journey(recorder, context, plan, actions={}, journey_type=lifecycle.ChineseKioskJourney)
+        installed_journey.record_installed_journey(recorder, context, plan, actions={}, journey_type=journey_type)
 
 
 def test_installed_account_read_does_not_accept_product_free_receipt():

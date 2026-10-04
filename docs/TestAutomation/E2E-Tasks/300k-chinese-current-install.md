@@ -42,7 +42,10 @@ qualification; do not copy its lifecycle or require v1.2.
 
 ## Implementation entry
 
-Planned selector: `check_e2e_chinese_current_install`; unregistered and unqualified.
-Register its fixed binding before invoking
-`tools/run-tests integration check_e2e_chinese_current_install`.
-Retain the existing current-package/reboot and Chinese first-presentation qualifications when their shared paths change. Historical upgrade evidence does not qualify the new composition.
+Implemented selector: `check_e2e_chinese_current_install`; live qualification pending.
+Its source-bound single-package inputs are prepared automatically. The fixed
+composition is `chinese_current_install.PLAN` / `ChineseCurrentInstallJourney`,
+with `ChinesePresentationMixin` and the shared worker renewal/notice/form leaves.
+Run `tools/run-tests integration check_e2e_chinese_current_install`, then the
+affected `check_e2e_customer_reboot` and `check_e2e_chinese_kiosk_lifecycle`
+regressions. Historical upgrade evidence does not qualify the new composition.

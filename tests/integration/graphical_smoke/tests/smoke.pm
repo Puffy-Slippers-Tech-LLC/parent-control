@@ -140,6 +140,12 @@ sub run {
         onpc_customer_reboot::run_chinese(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{chinese_current_install}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_customer_reboot::run_chinese_current(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{package_upgrade}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

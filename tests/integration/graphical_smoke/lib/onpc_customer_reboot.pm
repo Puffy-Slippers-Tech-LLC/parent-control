@@ -79,19 +79,62 @@ sub run_chinese {
     install_entry($journey);
     return_entry($journey);
     $journey->seen($_) for qw(upgrade-context language-setting language-parent-logout);
+    chinese_desktop_renewal($journey, 'upgrade-', 'upgrade-parent');
+    $journey->seen($_) for qw(upgrade-ready upgrade-submitted upgrade-result upgrade-reread upgrade-switch);
+    chinese_initial_notice($journey);
+    $journey->seen($_) for qw(second-reboot-requested second-reboot-greeter);
+    chinese_initial_form($journey);
+    $journey->finish();
+}
+
+sub chinese_desktop_renewal {
+    onpc_progress::operation('Renewing the Chinese child desktop and returning to the administrator');
+    my ($journey, $prefix, $challenge) = @_;
+    die 'chinese-renewal:arguments' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && (($prefix eq 'upgrade-' && $challenge eq 'upgrade-parent')
+            || ($prefix eq 'install-' && $challenge eq 'install-parent'));
     onpc_gdm::sign_in_challenge($journey, 'chinese-child',
         'language-installed-greeter', 'language-standard-focused', 'language-desktop');
     $journey->seen('language-child-logout');
-    onpc_gdm::sign_in_challenge($journey, 'upgrade-parent',
-        'upgrade-installed-greeter', 'upgrade-parent-focused', 'upgrade-desktop');
-    $journey->seen($_) for qw(upgrade-ready upgrade-submitted upgrade-result upgrade-reread upgrade-switch);
+    onpc_gdm::sign_in_challenge($journey, $challenge,
+        $prefix . 'installed-greeter', $prefix . 'parent-focused', $prefix . 'desktop');
+}
+
+sub chinese_initial_notice {
+    onpc_progress::operation('Reading the untouched Chinese restart notice and returning normally');
+    my ($journey) = @_;
+    die 'chinese-notice:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     onpc_gdm::enter_station($journey, 'initial-');
     $journey->seen($_) for qw(initial-notice initial-notice-close initial-notice-return);
     onpc_gdm::sign_in_challenge($journey, 'return-parent',
         'return-installed-greeter', 'return-parent-focused', 'return-desktop');
-    $journey->seen($_) for qw(second-reboot-requested second-reboot-greeter);
+}
+
+sub chinese_initial_form {
+    onpc_progress::operation('Reading the untouched Chinese chooser and cancelling without saving');
+    my ($journey) = @_;
+    die 'chinese-form:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     onpc_gdm::enter_station($journey, 'renewed-');
     $journey->seen($_) for qw(initial-language initial-language-cancel initial-form);
+}
+
+sub run_chinese_current {
+    onpc_progress::operation('Qualifying the latest installation and untouched Chinese first presentations');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'chinese-current-install:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && keys(%$challenges) == 3;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'chinese-current-install', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    $journey->seen('wrong-entry');
+    onpc_parent::login_functional($journey);
+    $journey->seen($_) for qw(command-context language-setting language-parent-logout);
+    chinese_desktop_renewal($journey, 'install-', 'install-parent');
+    $journey->seen($_) for qw(install-ready package-submitted package-result package-reread install-switch);
+    chinese_initial_notice($journey);
+    $journey->seen($_) for qw(reboot-requested reboot-greeter);
+    chinese_initial_form($journey);
     $journey->finish();
 }
 

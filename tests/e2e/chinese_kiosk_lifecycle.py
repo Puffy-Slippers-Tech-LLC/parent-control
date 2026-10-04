@@ -71,9 +71,15 @@ CHOOSER = {'language-title': '选择语言', 'language-continue': '保存', 'lan
 def set_account_language(journey, guard):
     guard()
     require(journey.activated_entry is not None, 'chinese-kiosk:activation-required')
+    return set_desktop_language(journey, guard, product_free=False)
+
+
+def set_desktop_language(journey, guard, *, product_free):
+    """DESK13 setting/readback shared by product-free and historical entries."""
+    guard()
     require(not hasattr(journey, 'account_language'), 'chinese-kiosk:setting-replay')
     controller = journey.account_language = AccountLanguage(
-        journey.transport, journey.context.verified, product_free=False)
+        journey.transport, journey.context.verified, product_free=product_free)
     before = controller.read()
     require(controller.command('reject-inputs') == {
         'wrong_account_refused': True, 'undeclared_locale_refused': True}, 'chinese-kiosk:setting-refusals')
@@ -89,13 +95,19 @@ def set_account_language(journey, guard):
 
 def language_upgrade_entry(journey, guard):
     """Rebind the renewed admin session with only the declared language change."""
+    journey.activated_entry = renewed_language_entry(journey, guard, journey.activated_entry)
+    return {'independent_readback': True, 'renewed_session': True, 'preservation_verified': True}
+
+
+def renewed_language_entry(journey, guard, before):
+    """Independent DESK13 renewal; all but declared language/session stay exact."""
     require(journey.language_confirmation is not None and journey.chinese_desktop is not None,
             'chinese-kiosk:renewal-required')
     guard()
     command = PackageCommand(journey.transport, journey.context.verified)
     first, second = command.read_identity(), command.read_identity()
     require(first == second, 'chinese-kiosk:unstable-entry')
-    expected = copy.deepcopy(journey.activated_entry)
+    expected = copy.deepcopy(before)
     # AccountsService strips the encoding during SetLanguage; GNOME login can
     # restore it. Both independent boundaries must still name only DESK13's
     # declared Chinese locale. Preserve the actual renewed API representation
@@ -108,9 +120,8 @@ def language_upgrade_entry(journey, guard):
     # session. read_identity independently requires its active fixture owner.
     expected['session'] = first['session']
     require(first == expected and first['boot'] == journey.boot, 'chinese-kiosk:renewal-preservation')
-    journey.activated_entry = copy.deepcopy(first)
     guard()
-    return {'independent_readback': True, 'renewed_session': True, 'preservation_verified': True}
+    return copy.deepcopy(first)
 
 
 def lifecycle_actions():
@@ -118,9 +129,10 @@ def lifecycle_actions():
             'language-setting': set_account_language, 'language-upgrade-entry': language_upgrade_entry}
 
 
-class ChineseKioskJourney(PackageUpgradeJourney):
-    def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=lifecycle_actions() if actions is None else actions)
+class ChinesePresentationMixin:
+    """Initial public language comparisons, independent of package history."""
+    def __init__(self, context, progress, plan, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
         self.language_confirmation = self.chinese_desktop = None
         self.language_uid = None
         self.initial_captures = {}
@@ -156,3 +168,9 @@ class ChineseKioskJourney(PackageUpgradeJourney):
                     value['texts'] == {key: self.initial_captures['ui:kiosk-initial-language']['texts'][key]
                                        for key in FORM}, 'chinese-kiosk:initial-form-preservation')
         self.initial_captures[operation] = copy.deepcopy(value)
+
+
+class ChineseKioskJourney(ChinesePresentationMixin, PackageUpgradeJourney):
+    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+        super().__init__(context, progress, plan,
+                         actions=lifecycle_actions() if actions is None else actions)

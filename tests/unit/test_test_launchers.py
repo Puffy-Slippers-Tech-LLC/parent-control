@@ -224,6 +224,7 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_package_authority', 'check_e2e_package_authority.py',
     'check_e2e_package_command', 'check_e2e_package_command.py',
     'check_e2e_customer_reboot', 'check_e2e_customer_reboot.py',
+    'check_e2e_chinese_current_install', 'check_e2e_chinese_current_install.py',
     'check_e2e_parent_save', 'check_e2e_parent_save.py',
     'check_e2e_allowance_presets', 'check_e2e_allowance_presets.py',
     'check_e2e_allowance', 'check_e2e_allowance.py',
@@ -264,6 +265,8 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
     import test_storage
 
     current_package = selector.removesuffix('.py') in (
+        'check_e2e_chinese_current_install', 'check_e2e_kiosk_eligible_choices',
+        'check_e2e_customer_reboot',
         'check_e2e_overlay_prompt', 'check_e2e_kiosk_approval',
         'check_e2e_kiosk_approved_flow', 'check_e2e_chinese_native_auth')
     output = str(test_storage.named_input(package_source=current_package))

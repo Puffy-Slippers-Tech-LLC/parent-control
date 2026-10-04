@@ -95,6 +95,8 @@ from regression_resources import HOST_WORKERS
 # No added live resource or cleanup owner; unit and cleanup overlap is compatible.
 # Chinese lifecycle shares private pytest/recorder files and waited Perl only;
 # its live attempt inherits the existing envelope's lease and cleanup owner.
+# The current-only history inherits that same owner; host regressions retain
+# private decoder/recorder files and waited Perl, with compatible overlap.
 # Chinese native authentication uses the same private host resources and the
 # installed envelope's unchanged live lease, worker and collection ownership.
 # Parent language inherits the unchanged installed envelope's lease/collection

@@ -163,6 +163,13 @@ dedicated station application. Its untouched first read reuses
 `initial_kiosk_child` inside the same owned snapshot as the chooser; the fixed
 Chinese first-presentation reader uses that same selected-child/result-child
 identity guard. Parent-only child-control helpers do not accept kiosk IDs.
+`ChinesePresentationMixin` owns the immutable notice/chooser/form comparisons
+without inheriting an upgrade history. `ChineseCurrentInstallJourney` qualifies
+the single current-package composition; `PackageCommand.package_identities` and
+`observe_current_install` independently bind completion, version, same boot and
+pre-existing preservation. The worker's `chinese_desktop_renewal`,
+`chinese_initial_notice` and `chinese_initial_form` leaves serve both histories.
+These add no live owner beyond the existing guarded envelope.
 `kiosk_language_form` independently reads button
 labels and accessible names plus REQUEST03 values; neither reader performs
 automatic startup Save. `kiosk_language_policy` observes the declared child's

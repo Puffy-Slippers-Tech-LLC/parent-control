@@ -221,7 +221,7 @@ class PackageCommand:
         require(self.transport.config == self.identity, 'package:wrong-attempt')
         self.transport.guard(self.identity)
         self.verified.recheck()
-        packages = self.verified.upgrade_inputs['packages']
+        packages = self.package_identities()
         with operation('Reading installed package version, immutable inputs and preserved account languages'):
             raw = self.transport.call(['/usr/bin/python3', '-I', '-', json.dumps(packages, sort_keys=True)],
                 input=guest_source(read=True), timeout=90)
@@ -236,6 +236,19 @@ class PackageCommand:
             and type(value['preserved']) is dict and type(value['session']) is str,
             'package:identity-schema')
         return value
+
+    def package_identities(self):
+        """Bind either the historical pair or the sole verified current package."""
+        self.verified.recheck()
+        if self.verified.upgrade_inputs is not None:
+            return self.verified.upgrade_inputs['packages']
+        from build_test_artifacts import package_identity
+        current = package_identity(self.verified.assets / 'package.deb')
+        require(current['name'] == 'oh-no-parent-control' and current['architecture'] == 'amd64'
+                and current['sha256'] == self.verified.inputs['package_sha256'],
+                'package:current-identity')
+        self.verified.recheck()
+        return {'current': current}
 
     def read_result(self):
         """Called at a later checkpoint; submission itself never asserts success."""

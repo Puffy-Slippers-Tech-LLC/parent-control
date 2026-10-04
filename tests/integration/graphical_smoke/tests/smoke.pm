@@ -54,6 +54,7 @@ use onpc_format ();
 use onpc_text ();
 use onpc_parent_discovery ();
 use onpc_journey ();
+use onpc_parent ();
 use onpc_flow00 ();
 use onpc_repeated_operations ();
 use onpc_challenges ();
@@ -109,6 +110,24 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{overlay_language}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::overlay_language(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{kiosk_language}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::kiosk_language(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{kiosk_language_restoration}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::kiosk_language_restoration(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{chinese_native_auth}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
@@ -338,6 +357,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_gdm::recipient_qualification(\&exchange);
+        return;
+    }
+    if ($ready->{parent_language}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent::qualify_language(\&exchange);
         return;
     }
     if ($ready->{parent_search_launch}) {

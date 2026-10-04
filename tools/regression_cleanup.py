@@ -97,7 +97,19 @@ from regression_resources import HOST_WORKERS
 # its live attempt inherits the existing envelope's lease and cleanup owner.
 # Chinese native authentication uses the same private host resources and the
 # installed envelope's unchanged live lease, worker and collection ownership.
+# Parent language inherits the unchanged installed envelope's lease/collection
+# cleanup; host checks own private pytest files and waited Perl children only.
+# Kiosk language uses those same private doubles, files and waited children;
+# public observations add no live owner beyond the existing installed envelope.
+# Overlay language inherits that envelope and owns only private pytest files,
+# process-local account/session doubles and waited Perl children on the host.
+# Selected-child restoration uses the same private tree/decoder/recorder doubles
+# and bounded waited Perl children, without a new live or cleanup owner.
 REVIEWED = frozenset('''
+parent_language
+kiosk_language
+kiosk_language_restoration
+overlay_language
 chinese_native_auth
 chinese_kiosk_lifecycle
 package_upgrade

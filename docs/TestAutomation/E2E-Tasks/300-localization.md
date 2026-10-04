@@ -7,15 +7,19 @@ This task is active at the developer's request;
 no installed qualification or scenario completion is claimed.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
+- **006** — Verified current-package installation through LIFE04, with independent completion and reboot notice.
+- **007** — Deliberate customer reboot through LIFE02, with independent fresh-boot and desktop observations.
 - **300a** — Declared Chinese baseline language assets and independent FIX06 readiness verification.
 - **300b** — DESK13 child desktop-language setting through AccountsService, with independent readback and preservation/refusal qualification.
-- **300c** — Verified genuine v1.2/current package transfer and independent readback for the product-free upgrade journey.
-- **300d** — Real v1.2-to-current package upgrade command, independent completion/reboot notice and unchanged-boot result after old-release activation.
 - **300e** — Chinese no-reboot prompt, same-attempt reboot and Chinese initial kiosk chooser/default/form composition.
 - **300f** — Chinese native MATE authentication and real approval/result on two fresh kiosk sessions.
+- **300g** — Qualified installed Parent first-run observation, public language Save/Cancel, checked-choice/translated-text readback, policy preservation and normal relaunch persistence.
+- **300h** — Qualified kiosk language Save/Cancel, independent chooser/form readback, preservation and normal re-entry persistence for the fixed Jordan binding.
+- **300i** — Qualified child-overlay language Save/Cancel, independent chooser/form readback, preservation and normal command-relaunch persistence for the fixed Riley binding.
+- **300j** — Pending kiosk selected-child German/Hebrew restoration, approver independence and fresh re-entry through language-aware shared REQUEST04/LANG01 bindings.
 
 Estimate: 60–90 minutes.
-Session exception: The installed persistence and account-isolation history includes a real upgrade without reboot, the required reboot and renewed kiosk sessions in one continuous case, retaining independent language choices and unchanged policy results throughout.
+Session exception: The installed persistence and account-isolation history includes a fresh installation of the latest verified current-source package without an intervening reboot, the required reboot and renewed kiosk sessions in one continuous case, retaining independent language choices and unchanged policy results throughout.
 
 ## Scope
 
@@ -32,7 +36,7 @@ or private backend probes.
 The added kiosk regression uses **Simplified Chinese only**, with the kiosk
 station and administrator desktop languages left English. Retain the existing
 representative multilingual/RTL acceptance below; do not multiply the new
-upgrade/reboot/authentication history by those languages. Compose all of this
+installation/reboot/authentication history by those languages. Compose all of this
 task's acceptance into **one complete E2E case**, not separate cases for each
 reported symptom. The fixed Chinese history is owned by
 [the Chinese kiosk language lifecycle recipe](../E2E-Scenario-Recipes.md#chinese-kiosk-language-lifecycle-planned-task-300).
@@ -64,10 +68,15 @@ Product language selection still uses the existing public chooser operations.
 Observe first presentation before `complete_language_setup` or any generic
 first-run handler can save, dismiss or change it.
 
-Reuse LIFE04's package lifecycle path and LIFE02's reboot path. The genuine
-v1.2-to-current upgrade command and selected-child Chinese
-reboot-required/first-presentation composition are qualified by 300d and 300e;
-the Chinese MATE binding and its required English regression are qualified by 300f.
+Reuse LIFE04's current-package installation path from task 006 and LIFE02's
+reboot path from task 007. Start product-free and install the latest verified
+current-source package once. Independently observe successful completion, the
+installed version, the final reboot notice and unchanged boot before kiosk entry.
+There is no v1.2 installation or upgrade in this scenario. Task 300e qualified
+the selected-child Chinese reboot-required/first-presentation observations in an
+upgrade journey; recheck their composition with this fresh installation before
+claiming acceptance. The Chinese MATE binding and its required English regression
+are qualified by 300f.
 The existing English MATE provider qualification does not qualify
 Chinese labels or a restarted agent. Use supported locale/session APIs and the
 normal unmodified PolicyKit agent; no dialog patching or injected translations.
@@ -115,8 +124,10 @@ normal unmodified PolicyKit agent; no dialog patching or injected translations.
    installed Hebrew acceptance. Keep exhaustive scale/layout permutations with
    [UI coverage](../UI-and-E2E-Coverage.md).
 7. Execute the linked Chinese lifecycle recipe before saving any personal
-   language preference for the selected child: real upgrade with no intervening
-   reboot, Chinese reboot-required prompt, reboot, Chinese first-run language
+   language preference for the selected child: fresh installation of the latest
+   verified current-source package with no intervening reboot, independently
+   confirmed installation/version and Chinese reboot-required prompt, reboot,
+   Chinese first-run language
    dialog and initial kiosk form, explicit Chinese save and real approval,
    then fresh kiosk re-entry and a second real approval. Require Chinese native
    PolicyKit buttons and system-owned explanatory/password text as well as the
@@ -125,6 +136,69 @@ normal unmodified PolicyKit agent; no dialog patching or injected translations.
    message alone, mocked prompt or English approval pass does not cover this.
 
 ## Session boundary
+
+Composition preflight found a missing selected-child language binding. Task
+**300j** now owns the fixed Jordan/German and Riley/Hebrew kiosk restoration
+qualification immediately before this task. At preflight, `select_kiosk_account`
+compared English offered-choice labels and selected-account descriptions, then
+used the English default in `kiosk_request_form`; `kiosk_language_form` fixed its
+selected child to Jordan. The active 300j implementation extends these shared
+boundaries with current-source package inputs; qualification is still pending.
+Complete and qualify these shared boundaries in
+300j before composing account isolation here. This is an automation capability
+gap, not evidence of a product defect. No complete-case attempt has run.
+After 300j passes, recheck panel refresh, inherited dialogs, installed RTL
+presentation, countdown and translated approval-result bindings; extract any
+additional missing capability before complete-case registration. Preserve every
+acceptance item above and the continuous Chinese history.
+
+Task **300i** qualified the fixed Riley overlay LANG01 binding on Ubuntu 26.04
+in `20261004T115946Z-5cd0363a`; its required shell-panel and kiosk-language
+regressions passed in `20261004T114913Z-24503104` and
+`20261004T115236Z-05dd2d98`. All three completed collection, owned cleanup,
+baseline restoration, finalization and host/source preservation. Reuse
+`read_overlay_language`, `overlay_language_operation`,
+`kiosk_language_form(..., overlay=True)` and the shared `language_selection` /
+`overlay_entry` worker fragments under [LANG01](../E2E-Building-Blocks.md#personal-language-selection).
+The shell-panel selector and its automatic preparation now use current-source
+package inputs. Recheck selected-child restoration and account isolation, panel
+refresh, inherited dialogs, RTL layout, countdown and translated approval results
+before complete-case registration; this fixed surface slice qualifies none of them.
+All acceptance above, including the indivisible multilingual/RTL and Chinese
+lifecycle history, remains required; partial capability results supply no
+complete-case acceptance.
+
+Task **300h** qualified the fixed Jordan kiosk LANG01 binding on Ubuntu 26.04
+in `20261004T103336Z-73d60bd2`; the required Chinese native-authentication
+regression passed in `20261004T104017Z-b60581d0`. Both completed collection,
+owned cleanup, baseline restoration and preservation. Reuse
+`read_kiosk_language`, `kiosk_language_operation`, `kiosk_language_form` and
+`kiosk_language_policy`, registered through `UiObservations`, and the shared
+`journey_blocks.language_selection` / `onpc_parent::language_selection` fragment.
+The slice covers untouched English first presentation, four native names,
+English/German/Simplified Chinese/Hebrew Save and independent checked-choice/
+visible/accessibility text, Chinese Cancel preserving German, normal kiosk
+re-entry persistence and unchanged request/policy projections. First presentation
+uses `initial_kiosk_child` in the owned chooser snapshot without automatic Save.
+Recheck overlay selection, selected-child language restoration and
+account isolation, panel refresh, inherited dialogs, RTL layout and countdown/
+translated approval results; extract any remaining missing capability before
+registering this case. Every acceptance item above remains required.
+
+Task **300g** qualified the Parent LANG01 slice in `20261004T092815Z-1784595b`,
+with its required case 6 regression in `20261004T093246Z-b19110a7`, on Ubuntu 26.04.
+Reuse `read_parent_language`, `parent_language_management`, `parent_language_state`
+and `parent_language_operation`, registered through `UiObservations`, with
+`parent_language.selection` and `onpc_parent::language_selection`.
+`onpc_parent::launch(..., 'initial-language')` observes the untouched first-run
+chooser; the ordinary `parent-window` checkpoint still automatically saves it.
+The Parent slice covers English/German/Simplified Chinese/Hebrew Save/readback,
+Cancel preserving German, selected-child/zero-allowance/app-policy preservation,
+and normal relaunch persistence. Visible titles and accessible names have separate
+literal expectations. It does not qualify general overlay/kiosk selection,
+panel refresh, inherited dialogs, RTL layout or countdown results.
+Recheck those remaining exact bindings and extract any missing capability before
+registering the one complete case. Preserve every acceptance item above.
 
 Task 300 remains unchecked. Task **300a** qualified its Chinese baseline and
 read-only FIX06, including the native fixture regression. Task **300b** qualified
@@ -137,15 +211,17 @@ the prerequisite slices. DESK13's `AccountLanguage.submit` / `confirm` report
 the actual confirmed API language (`zh_CN` on Ubuntu), the submitted
 `requested_locale` (`zh_CN.UTF-8`) and required session renewal. Use the shared
 helper without replaying uncertain input or adding an implicit renewal.
-Task **300c** qualified the genuine v1.2/current dual-package FIX04 binding through
+Historical task **300c** qualified the genuine v1.2/current dual-package FIX04 binding through
 `stage_upgrade_assets`, `VerifiedInputs(upgrade=True)` and `AssetTransfer` on every
 enabled VM (Ubuntu 26.04) in `20261003T234321Z-f5394d82`; the one-package regression
-passed in `20261003T234636Z-cd0eba55`. Reuse its
+passed in `20261003T234636Z-cd0eba55`. See its
 [qualified transfer/readback scope](../E2E-Building-Blocks.md#verified-upgrade-asset-transfer).
-Task **300d** qualified LIFE04's genuine v1.2/current upgrade command on every
+Historical task **300d** qualified LIFE04's genuine v1.2/current upgrade command on every
 enabled VM in `20261004T002735Z-d4779228`, with the current-only customer-reboot
-regression in `20261004T003258Z-f006d805`. Reuse its
+regression in `20261004T003258Z-f006d805`. See its
 [qualified package binding](../E2E-Building-Blocks.md#genuine-package-upgrade).
+These completed upgrade slices remain historical evidence, but are not
+prerequisites or acceptance requirements for task 300's current-install journey.
 Task **300e** qualified the
 [Chinese first-presentation/reboot slice](../E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup)
 in `20261004T044302Z-572b0ee7`, with its required regressions and close-out passed.
@@ -168,13 +244,14 @@ its consumer and split independent capability work before implementation. No
 executable selector is registered by this brief. Leave this row unchecked until
 that work and installed acceptance are complete.
 
-Reuse task 300c's qualified dual-package transfer when adding the real upgrade
-composition; it does not install either package or supply upgrade acceptance.
-Compose task 300d's qualified upgrade command with 300e and 300f's qualified
-Chinese operations. Allocate exactly one numeric case
-for the complete history; the Chinese phases
-are ordered assertions inside it. Reuse task 300a's qualified baseline language
-readiness and task 300b's qualified DESK13 setting, with 300f's qualified native
-provider binding and 300e's Chinese update/reboot-required/first-presentation composition.
-Preserve the v1.2 package asset/version gate: unavailable verified upgrade inputs
-remain a blocker, never a simulated reboot-required state or a reinstall.
+Reuse the qualified single-package FIX04 transfer/readback, task 006's current
+installation and task 007's reboot with 300e's Chinese first-presentation
+observations and 300f's native approval operations. Allocate exactly one numeric
+case for the complete history; the Chinese phases are ordered assertions inside
+it. Reuse task 300a's qualified baseline language readiness and task 300b's
+qualified DESK13 setting. Recheck the fresh-install Chinese composition and
+extract any missing capability before complete-case registration; the historical
+upgrade qualification does not qualify this changed sequence.
+Require the latest verified current-source package and an independently observed
+real reboot-required result. Missing current inputs or that result remain a
+blocker; do not simulate the notice, reinstall or introduce an older release.

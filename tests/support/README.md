@@ -110,8 +110,58 @@ language tests reuse `AccessibleUI.language_scope`, `open_language_preferences`,
 `language_save_completed`; the existing `localization_review.switch_language`
 facade delegates to these operations too. They resolve only public IDs and
 observe checked choices, readiness and closure independently of input success.
+The Parent chooser reader discards a snapshot containing a defunct node and
+reacquires through the shared bounded read wait. The original deadline, complete
+ownership checks and input guards remain in force; persistent staleness refuses
+and reacquisition never replays a language choice, Save or Cancel.
+`parent_language_management` projects visible labels from the owned Screen Limits
+page separately from the switch's accessible name. Callers compare each against
+independent literal expectations; the English title and accessible name use
+different capitalization. The read adds no input or resource owner.
 `language_fixture.py` supplies preview-only saved/read/save outcomes and tiny
 caller-owned release files; it is not a substitute for installed persistence.
+`read_kiosk_language` shares the bounded chooser reader while requiring the
+dedicated station application. Its untouched first read reuses
+`initial_kiosk_child` inside the same owned snapshot as the chooser; the fixed
+Chinese first-presentation reader uses that same selected-child/result-child
+identity guard. Parent-only child-control helpers do not accept kiosk IDs.
+`kiosk_language_form` independently reads button
+labels and accessible names plus REQUEST03 values; neither reader performs
+automatic startup Save. `kiosk_language_policy` observes the declared Jordan
+settings, balances and application rows through public Parent controls.
+Its Save-completion receipt establishes idle controls; `settings` separately
+reads the allowance-bearing policy values. The receipt is not a settings snapshot.
+`journey_blocks.language_selection` / `onpc_parent::language_selection` share
+the chooser fragment across Parent and kiosk recipes. Callers retain literal
+language expectations, response order and preservation endpoints. The
+`installed-language` preview profile binds only synthetic account names to the
+installed reader; it provides no installed persistence or policy evidence and
+adds no resource or cleanup lifetime.
+
+`read_overlay_language` and `overlay_language_operation` bind the same chooser
+mechanics to the child application and active Riley session, retaining the shared
+request IDs. Untouched and reopened reads require the fixed child's public UID;
+the station reader continues to refuse child ownership. Shared
+`kiosk_language_form(..., overlay=True)` reads translated REQUEST03 fields and
+separate visible/accessibility text after independently observed readiness.
+`kiosk_language_policy(child=CHILD)` reads Riley's saved allowance and app rows
+through Parent; qualification comparisons permit natural daily-time usage.
+The overlay preview's `installed-language` account projection and session double
+qualify GTK readers only. They establish no installed persistence or policy result,
+and add no resource lifetime or parallelism conflict.
+
+Selected-child kiosk LANG01 reads bind `child` explicitly through the selected
+public UID on every chooser boundary, including the post-Save/Cancel receipt.
+`kiosk_language_form(language, child=...)` reads each child's translated form;
+the default remains Jordan. `select_kiosk_account(..., child=..., language=...,
+result_language=...)` separately binds the owning child/input language, exact
+offered UID set, translated choice meanings and literal account names, then
+independently reads the selected UID and resulting language. Approver changes
+require equal input/result languages. Unknown selection or chooser effects are
+terminal and are never replayed. The Riley operation aliases carry that identity
+through registration and decoder validation; policy and per-child preservation
+comparisons remain caller-owned. These mechanics add no resource or cleanup
+lifetime; the existing preview process/display classification still applies.
 
 Host support never establishes installed or customer acceptance. Guest execution
 uses [system_assertions.py](../integration/system_assertions.py) for real-caller

@@ -19,7 +19,93 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **300 — [Installed personal-language acceptance](E2E-Tasks/300-localization.md)**.
+Next task: **300j — [Qualify kiosk selected-child language restoration](E2E-Tasks/300j-kiosk-language-restoration.md)**.
+
+Task 300's Chinese recipe now starts product-free and installs the latest verified
+current-source package once, observes the Chinese pre-reboot prompt, then reboots
+and checks Chinese first presentation and two approvals across fresh kiosk entries.
+It does not install v1.2 or test an upgrade. Tasks 300c/300d remain completed
+historical qualifications, not prerequisites for this revised scenario. Recheck
+the current-install composition with the existing Chinese observations before
+complete-case registration; their historical upgrade passes do not qualify the
+changed sequence.
+When 300j closes and the launcher resumes suspended task 300, re-read its current
+brief and recipe. The saved consumer handoff's Chinese-upgrade wording predates
+this scope change; carry the latest-install sequence in the new handoff while
+preserving the prior launcher state and qualification evidence.
+
+Task 300's composition preflight found an unqualified REQUEST04/LANG01 binding:
+At preflight, `AccessibleUI.select_kiosk_account` compared English offered-choice
+labels and selected-account descriptions, then called `kiosk_request_form` with
+its English default. LANG01 kiosk form observations also bound Jordan. The active
+300j implementation is extending these shared bindings; its registered selector
+uses current-source inputs, but qualification is still pending. The previous
+fixed-language slices cannot establish German/Hebrew selected-child restoration
+or approver independence.
+Task 300j is the unchecked prerequisite immediately before 300; qualify the fixed
+Jordan/German and Riley/Hebrew station selection/re-entry slice through shared
+operations before resuming the complete-case preflight. No product defect or
+new live failure is established. Task 300 remains unchecked and unregistered;
+panel refresh, inherited dialogs, RTL layout, countdown and translated approval
+results still need their exact bindings checked after this slice. Preserve its
+entire multilingual/RTL and uninterrupted Chinese lifecycle acceptance.
+
+Task 300i is complete. The fixed Riley overlay LANG01 qualification passed on
+Ubuntu 26.04 in `20261004T115946Z-5cd0363a`, replacing its expired earlier report.
+Untouched English presentation, four native names, multilingual Save/Cancel,
+independent text/checked-choice observations, request preservation, German
+command-relaunch without startup setup and final unchanged public Parent policy
+passed. The required shell-panel and kiosk-language regressions passed in
+`20261004T114913Z-24503104` and `20261004T115236Z-05dd2d98`.
+All three reports are retained; collection, worker shutdown, callback closure,
+owned cleanup, baseline restoration, finalization and host/source preservation
+passed. The shell-panel launcher and automatic preparation now use current-source
+package inputs instead of the legacy v1.2 bundle; five host checks reproduced
+that mismatch before repair, then all 277 selected unit/safety checks plus source
+passed in `20261004T114809Z-1e837a49`. Earlier overlay host validation included
+1,953 unit/safety checks and eight real GTK checks. No product/package code changed.
+Task 300 remains unchecked and unregistered. Recheck selected-child restoration
+and account isolation, panel refresh, inherited dialogs, RTL layout, countdown
+and translated approval-result bindings before composing its complete
+multilingual/RTL and continuous Chinese history. This slice supplies none of
+those remaining results or complete-case acceptance.
+
+Task 300h is complete. `check_e2e_kiosk_language` passed on the selected Ubuntu
+26.04 VM in `20261004T103336Z-73d60bd2`: Jordan's untouched English chooser,
+four native names, English/German/Simplified Chinese/Hebrew Save and independent
+checked-choice/visible/accessibility text, Chinese Cancel preserving German,
+normal re-entry with German retained, and unchanged request/policy projections.
+The required fixed Chinese native-authentication regression passed all 14
+assertions in `20261004T104017Z-b60581d0`. Both runs passed collection, worker
+shutdown, callback closure, owned cleanup, baseline restoration, lease
+finalization and host/source preservation. Host validation passed 2,417
+unit/safety checks, source validation and four real GTK checks.
+The first-presentation reader now reuses the kiosk identity guard within its
+owned snapshot; the Parent-only child helper cannot accept kiosk IDs.
+Task 300 remains unchecked and unregistered. Recheck overlay, selected-child
+language restoration/isolation, panel, inherited dialogs, RTL layout and
+countdown/result bindings before complete-case registration; preserve all
+multilingual/RTL and continuous Chinese acceptance.
+
+Task 300g is complete. `check_e2e_parent_language` passed on the selected Ubuntu
+26.04 VM in `20261004T092815Z-1784595b`: untouched first-run English choice, four
+native names, English/German/Simplified Chinese/Hebrew Save and independent
+visible/accessibility text, Cancel preserving German, normal relaunch persistence,
+and unchanged selected child, zero allowance and app-policy projection.
+The required case 6 regression passed in `20261004T093246Z-b19110a7`. Both runs
+completed collection, owned cleanup and baseline restoration; preservation passed.
+The management reader now compares visible titles separately from accessible
+names, fixing the test's incorrect capitalization equality. Host validation
+passed 1851 unit/safety checks and source validation in `20261004T092702Z-38868f49`,
+plus four real GTK management-reader checks in `20261004T092607Z-596c9c0b`.
+The shared bounded stale-chooser reacquisition remains covered.
+
+Task 300 remains unchecked and unregistered. Preserve its full multilingual/RTL
+and continuous Chinese history. Recheck remaining overlay/kiosk, panel, inherited
+dialog, RTL-layout and countdown bindings before complete-case registration;
+the qualified Parent slice supplies none of those results or complete-case credit.
+Reuse LANG01's `initial-language` launch result to observe the untouched chooser;
+the ordinary `parent-window` checkpoint still performs automatic first-run Save.
 
 Task 300f is complete. Chinese native authentication passed all 14 assertions on
 the selected Ubuntu 26.04 VM in `20261004T073743Z-9a030ef1`, including two actual
@@ -33,7 +119,8 @@ owned cleanup, baseline restoration, finalization and host/source preservation.
 See [the qualified Chinese binding](E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup).
 Task 300 retains its complete multilingual/RTL and uninterrupted Chinese
 lifecycle case, with no complete-case credit from these prerequisite slices.
-Begin that implementation in a fresh session. No developer decision is pending.
+The Parent-language prerequisite was subsequently qualified by 300g. No product
+behavior decision is pending.
 
 Task 300e is complete. Its Chinese lifecycle qualification passed all 14
 assertions on every enabled VM (Ubuntu 26.04) in `20261004T044302Z-572b0ee7`,
@@ -57,7 +144,8 @@ installation/activation, one real current-package upgrade, independent final
 completion/reboot notice, unchanged boot after upgrade, refusal and preservation
 passed. Both runs completed collection, worker shutdown, owned cleanup, baseline
 restoration and finalization. See [the qualified binding](E2E-Building-Blocks.md#genuine-package-upgrade).
-Task 300e now owns the Chinese no-reboot prompt and reboot/first-kiosk composition;
+Task 300e qualified the Chinese no-reboot prompt and reboot/first-kiosk composition
+in its historical upgrade sequence;
 300f owns Chinese native authentication after fresh kiosk entry. Both are
 completed prerequisites immediately before task 300, which retains its entire
 multilingual/RTL and Chinese history without complete-case acceptance credit.
@@ -67,7 +155,8 @@ enabled VM (Ubuntu 26.04) in `20261003T234321Z-f5394d82`; the affected one-packa
 regression passed in `20261003T234636Z-cd0eba55`. Independent repeated readback,
 entry/attempt/collision/replay refusals, preservation, collection and owned
 cleanup passed. See the [qualified scope](E2E-Building-Blocks.md#verified-upgrade-asset-transfer).
-This supplies package inputs without installation or complete-case credit.
+This supplies historical upgrade inputs without installation or complete-case
+credit; task 300 now uses the single current-package transfer and installation.
 Task 300 remains unchecked: compose the qualified Chinese first-presentation,
 reboot and native authentication operations in its single complete case.
 

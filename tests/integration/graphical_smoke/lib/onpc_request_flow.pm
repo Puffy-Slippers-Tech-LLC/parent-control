@@ -11,6 +11,7 @@ use onpc_desktop_session ();
 use onpc_app_rows ();
 use onpc_request_exit ();
 use onpc_about ();
+use onpc_allowance_boundaries ();
 use testapi ();
 
 sub overlay_license {
@@ -383,6 +384,115 @@ sub chinese_native_auth {
     prepare_chinese($journey, 'second');
     approve_chinese($journey, 'second');
     $journey->seen('second-returned');
+    $journey->finish();
+}
+
+sub overlay_language {
+    onpc_progress::operation('Qualifying child overlay language and normal command relaunch');
+    my ($exchange, $invocations, $challenges) = @_;
+    die 'overlay-language:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-language', review => 0);
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen($_) for ('wrong-entry', 'allowance-configured', 'policy-before', 'wrong-account-refused');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    overlay_entry($journey, 'direct', 'command');
+    $journey->seen($_) for ('initial-save', 'initial-form');
+    for my $prefix ('german', 'cancel-chinese', 'chinese', 'hebrew', 'english', 'final-german') {
+        onpc_parent::language_selection($journey, $prefix);
+        $journey->seen("$prefix-$_") for ('response', 'form', 'retained', 'close', 'closed-form');
+    }
+    $journey->seen($_) for ('cancel', 'returned');
+    overlay_entry($journey, 'renewed', 'command');
+    $journey->seen($_) for ('reentered-open', 'reentered-close', 'final-form',
+                           'final-cancel', 'final-returned', 'child-switch-user', 'child-gdm-switched');
+    onpc_gdm::sign_in_challenge($journey, 'return-parent', 'return-greeter', 'return-focused', 'return-desktop');
+    $journey->seen('policy-after');
+    $journey->finish();
+}
+
+sub kiosk_language_restoration {
+    onpc_progress::operation('Qualifying selected-child kiosk language restoration and approver independence');
+    my ($exchange, $invocations, $challenges) = @_;
+    die 'kiosk-language-restoration:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'kiosk-language-restoration', review => 0);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('parent-selected',
+        onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child'));
+    $journey->seen($_) for ('wrong-entry', 'limit-enabled', 'save-enabled', 'riley-policy-before');
+    onpc_allowance_boundaries::select_child($journey, 'jordan');
+    $journey->seen($_) for ('other-enabled', 'other-saved', 'jordan-policy-before', 'switch-user', 'gdm-switched');
+    onpc_gdm::enter_station($journey, 'initial-');
+    $journey->seen($_) for ('initial-language', 'initial-save', 'jordan-jamie', 'jordan-original');
+    onpc_parent::language_selection($journey, 'german');
+    $journey->seen($_) for ('german-save', 'german-form', 'account-refusals', 'riley-initial', 'riley-original');
+    onpc_parent::language_selection($journey, 'hebrew');
+    $journey->seen($_) for ('hebrew-save', 'hebrew-form');
+    for my $child ('jordan', 'riley') {
+        $journey->seen("$child-restored");
+        $journey->seen("$child-retained-$_") for ('form', 'open', 'close');
+        for my $approver ('casey', 'jamie-restored') {
+            $journey->seen("$child-$approver");
+            $journey->seen("$child-$approver-$_") for ('form', 'open', 'close');
+        }
+    }
+    $journey->seen($_) for ('jordan-before-exit', 'cancel', 'returned');
+    onpc_gdm::enter_station($journey, 'renewed-');
+    $journey->seen("jordan-reentered-$_") for ('form', 'open', 'close');
+    $journey->seen('riley-reentered');
+    $journey->seen("riley-reentered-$_") for ('form', 'open', 'close');
+    $journey->seen('jordan-final');
+    $journey->seen("jordan-final-$_") for ('form', 'open', 'close');
+    $journey->seen($_) for ('final-cancel', 'final-returned');
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::sign_in_challenge($journey, 'return-parent', 'return-greeter', 'return-focused', 'return-desktop');
+    $journey->seen('jordan-policy-after');
+    onpc_allowance_boundaries::select_child($journey, 'riley-final');
+    $journey->seen($_) for ('riley-policy-after', 'parent-english-open', 'parent-english-close');
+    $journey->finish();
+}
+
+sub kiosk_language {
+    onpc_progress::operation('Qualifying kiosk personal language and normal station re-entry');
+    my ($exchange, $invocations, $challenges) = @_;
+    die 'kiosk-language:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'kiosk-language', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('wrong-entry');
+    my $other = onpc_parent::select_child($journey, 'returned',
+        $journey->seen('existing-child-picker-opened'), 'existing-child-picker-opened',
+        'existing-child-choice-highlighted', 'existing-returned');
+    $journey->consume_observation('existing-returned', $other);
+    $journey->seen($_) for ('other-enabled', 'other-saved', 'policy-before', 'switch-user', 'gdm-switched');
+    onpc_gdm::enter_station($journey, 'initial-');
+    $journey->seen($_) for ('initial-language', 'initial-save', 'other-first-parent', 'initial-form');
+    for my $prefix ('german', 'cancel-chinese', 'chinese', 'hebrew', 'english', 'final-german') {
+        onpc_parent::language_selection($journey, $prefix);
+        $journey->seen("$prefix-$_") for ('response', 'form', 'retained', 'close');
+    }
+    $journey->seen($_) for ('cancel', 'returned');
+    onpc_gdm::enter_station($journey, 'renewed-');
+    $journey->seen($_) for ('reentered-form', 'reentered-open', 'reentered-close', 'final-form',
+                           'final-cancel', 'final-returned');
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::sign_in_challenge($journey, 'return-parent', 'return-greeter', 'return-focused', 'return-desktop');
+    $journey->seen('policy-after');
     $journey->finish();
 }
 

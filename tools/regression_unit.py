@@ -308,7 +308,17 @@ from regression_ui import Bucket
 # no live bus, VM, GUI, shared cache or new cleanup resource.
 # Chinese native authentication shares those private doubles and waited Perl,
 # with private recorder/decoder files; no additional live cleanup owner.
+# Parent language checks use private public-tree/decoder/recorder doubles and
+# waited Perl children; no shared VM, display, bus, cache or added live owner.
+# Overlay language checks use private tree/decoder/recorder state and waited
+# Perl children; no live account, VM, socket, display or shared mutable cache.
+# Selected-child restoration owns private tree/decoder/recorder fixtures and
+# bounded waited Perl children only; compatible in unit and cleanup inventories.
 REVIEWED = frozenset("""
+parent_language_cleanup_safety
+kiosk_language_cleanup_safety
+kiosk_language_restoration_cleanup_safety
+overlay_language_cleanup_safety
 chinese_native_auth_cleanup_safety
 chinese_kiosk_lifecycle_cleanup_safety
 package_upgrade_cleanup_safety

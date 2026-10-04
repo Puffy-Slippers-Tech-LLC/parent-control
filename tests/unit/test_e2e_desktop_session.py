@@ -220,7 +220,8 @@ def test_unregistered_commands_refuse_before_session_lookup(monkeypatch, binding
 
 @pytest.mark.parametrize('fault', ['initial-owner', 'changed-source', 'initial-lock', 'changed-lock'])
 @pytest.mark.parametrize('binding', ['parent-switch-user', 'parent-logout',
-                                    'standard-return-greeter', 'parent-continuous-activity'])
+                                    'standard-return-greeter', 'parent-continuous-activity',
+                                    'child-switch-user'])
 def test_execute_checks_ownership_and_lock_state_again_after_dropping_privileges(
         monkeypatch, fault, binding):
     role, action = control.BINDINGS[binding]
@@ -247,6 +248,36 @@ def test_execute_checks_ownership_and_lock_state_again_after_dropping_privileges
         control.execute(binding)
     submit.assert_not_called()
     prepare.assert_not_called()
+
+
+def test_child_switch_binds_riley_and_observes_the_retained_locked_session(monkeypatch):
+    account = SimpleNamespace(pw_uid=1001, pw_gid=1001, pw_name='onpc-child-riley')
+    lookup = Mock(return_value=account)
+    monkeypatch.setattr(control.pwd, 'getpwnam', lookup)
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control, 'environment', lambda _: {'bound': 'child'})
+    monkeypatch.setattr(control.os, 'environ', {})
+    identity = {}
+    for name in ('initgroups', 'setgid', 'setuid'):
+        identity[name] = Mock()
+        monkeypatch.setattr(control.os, name, identity[name])
+    before = {'7': props('1001')}
+    after = {'7': props('1001', active='no', locked='yes'),
+             '8': props('120', kind='greeter')}
+    scans = Mock(side_effect=[before, before, after])
+    monkeypatch.setattr(control, 'sessions', scans)
+    submit = Mock()
+    monkeypatch.setattr(control, 'submit', submit)
+    assert control.execute('child-switch-user') == {
+        'operation': 'child-switch-user', 'outcome': 'passed', 'interface': 'system session',
+        'source_retained': True, 'destination': 'greeter'}
+    lookup.assert_called_once_with('onpc-child-riley')
+    identity['initgroups'].assert_called_once_with('onpc-child-riley', 1001)
+    identity['setgid'].assert_called_once_with(1001)
+    identity['setuid'].assert_called_once_with(1001)
+    assert control.os.environ == {'bound': 'child'}
+    submit.assert_called_once_with('switch-user')
+    assert scans.call_count == 3
 
 
 def test_continuous_activity_only_verifies_baseline_and_reads_back(monkeypatch):
@@ -335,7 +366,8 @@ def test_removed_shell_gui_operations_cannot_execute(operation):
 
 
 @pytest.mark.parametrize('binding', ['parent-logout', 'standard-switch-user',
-                                    'parent-return-greeter', 'standard-return-greeter'])
+                                    'parent-return-greeter', 'standard-return-greeter',
+                                    'child-switch-user'])
 def test_controller_requires_command_result_over_guarded_transport(binding):
     role, action = control.BINDINGS[binding]
     expected = {'operation': binding, 'outcome': 'passed', 'interface': 'system session',

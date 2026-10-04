@@ -18,10 +18,13 @@ import sys
 import time
 
 
-ACCOUNTS = {'parent': 'onpc-parent-jamie', 'standard': 'onpc-child-jordan'}
+ACCOUNTS = {'parent': 'onpc-parent-jamie', 'standard': 'onpc-child-jordan',
+            'child': 'onpc-child-riley'}
 BINDINGS = {role + '-' + action: (role, action)
-            for role in ACCOUNTS for action in ('switch-user', 'logout', 'lock', 'return-greeter')}
-BINDINGS.update({'parent-command-context': ('parent', 'command-context'),
+            for role in ('parent', 'standard')
+            for action in ('switch-user', 'logout', 'lock', 'return-greeter')}
+BINDINGS.update({'child-switch-user': ('child', 'switch-user'),
+                 'parent-command-context': ('parent', 'command-context'),
                  'parent-command-refused': ('parent', 'command-refused'),
                  'parent-continuous-activity': ('parent', 'continuous-activity')})
 LABELS = {'switch-user': 'Switching to the greeter',

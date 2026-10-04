@@ -123,14 +123,53 @@ sub launch {
     die 'parent:launch-binding' unless (@_ == 3 || @_ == 4) && ref($journey) eq 'onpc_journey'
         && ($desktop_stage eq 'desktop' || $desktop_stage eq 'reboot-desktop'
             || $desktop_stage eq 'same-desktop' || $desktop_stage eq 'repeat-desktop')
-        && ($expected eq 'management' || $expected eq 'denied');
+        && ($expected eq 'management' || $expected eq 'denied' || $expected eq 'initial-language');
     $journey->consume_observation($desktop_stage, $desktop);
     # The controller executes the installed command once as this desktop user.
     # A transport failure is uncertain input; no terminal/search fallback.
     my $prefix = $desktop_stage eq 'same-desktop' ? 'same-'
         : $desktop_stage eq 'repeat-desktop' ? 'repeat-' : '';
     $journey->seen($prefix . 'parent-command');
-    return $journey->seen($prefix . ($expected eq 'management' ? 'parent-window' : 'management-denied'));
+    return $journey->seen($prefix . ($expected eq 'management' ? 'parent-window'
+        : $expected eq 'initial-language' ? 'initial-language' : 'management-denied'));
+}
+
+sub language_selection {
+    onpc_progress::operation('Opening Preferences and selecting the declared language');
+    my ($journey, $prefix) = @_;
+    die 'parent:language-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /^[a-z][a-z0-9-]*$/;
+    for my $suffix ('open', 'choose', 'candidate') {
+        my $stage = "$prefix-$suffix";
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+}
+
+sub qualify_language {
+    onpc_progress::operation('Qualifying installed Parent personal language selection');
+    my ($exchange) = @_;
+    die 'parent:language-arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    require onpc_journey;
+    require onpc_lifecycle;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'parent-language', review => 0);
+    my $desktop = login_functional($journey);
+    $journey->consume_observation('initial-language', launch($journey, $desktop, 'initial-language'));
+    for my $stage ('initial-save', 'initial-state') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    for my $prefix ('german', 'cancel-chinese', 'chinese', 'hebrew', 'english') {
+        language_selection($journey, $prefix);
+        my @stages = $prefix eq 'cancel-chinese' ? ('cancel-response', 'cancel-state')
+            : ("$prefix-save", "$prefix-state");
+        for my $stage (@stages) {
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+    }
+    onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
+    for my $stage ('relaunched-state', 'relaunched-open', 'relaunched-cancel', 'final-state') {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    $journey->finish();
 }
 
 # FLOW15's bounded GDM/fresh/Parent/success route. Other routes remain unsupported.

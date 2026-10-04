@@ -7,6 +7,20 @@ phase transitions. Each call returns a fresh mapping owned by its caller.
 from private_artifacts import require
 
 
+def language_selection(prefix, language, *, surface, child='existing'):
+    """LANG01 chooser fragment; caller owns candidate and response expectations."""
+    import re
+    require(language in ('en', 'de', 'zh-Hans', 'he') and surface in ('parent', 'kiosk', 'overlay')
+            and type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
+            'language:choice-binding')
+    require(child in ('existing', 'child') and (surface == 'kiosk' or child == 'existing'),
+            'language:child-binding')
+    owner = 'kiosk-riley' if surface == 'kiosk' and child == 'child' else surface
+    return {prefix + '-open': 'ui:' + owner + '-language-open',
+            prefix + '-choose': 'ui:' + owner + '-language-choose-' + language.lower(),
+            prefix + '-candidate': 'ui:' + owner + '-language-read'}
+
+
 def overlay_license_read(prefix='', *, links='license'):
     """Owned About read/close fragment; callers declare preserved form endpoints."""
     import re
@@ -207,7 +221,8 @@ def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix)
             and route in ('command', 'panel', 'panel-reopen'), 'journey:overlay-binding')
     require(form_operation in ('overlay-request-form', 'overlay-valid-excluded-read',
-                               'overlay-valid-fraction-soft-read'),
+                               'overlay-valid-fraction-soft-read', 'overlay-language-initial',
+                               'overlay-language-form-de'),
             'journey:overlay-form-binding')
     return {
         **({prefix + '-reveal': 'ui:overlay-panel-reveal-ready'} if route == 'panel-reopen' else {}),

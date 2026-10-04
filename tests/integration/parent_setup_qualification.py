@@ -1383,6 +1383,46 @@ class NativeGridQualification(KioskEntryQualification):
         return NativeGridJourney(context, progress)
 
 
+class ParentLanguageQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from parent_language import ParentLanguageJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ParentLanguageJourney(context, progress)
+
+
+class KioskLanguageQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_language import KioskLanguageJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskLanguageJourney(context, progress)
+
+
+class KioskLanguageRestorationQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_language_restoration import KioskLanguageRestorationJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskLanguageRestorationJourney(context, progress)
+
+
+class OverlayLanguageQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from overlay_language import OverlayLanguageJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return OverlayLanguageJourney(context, progress)
+
+
 class ParentToggleQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

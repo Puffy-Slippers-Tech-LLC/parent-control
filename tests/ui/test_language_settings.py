@@ -161,6 +161,50 @@ def committed(path):
             if event['event'] == 'language-committed']
 
 
+def test_installed_parent_chooser_reader_observes_first_run_and_preferences(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    """The installed reader sees the real GTK chooser without automatic Save."""
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'parent')
+    wait(lambda: ui.showing('language-dialog'), 'untouched Parent chooser')
+    first = ui.reader.read_parent_language(initial=True)
+    assert first == {'initial': True, 'checked': 'en',
+        'choices': {'en': 'English', 'de': 'Deutsch', 'zh-Hans': '中文（简体）', 'he': 'עברית'},
+        'heading': 'Choose your language', 'save': 'Save', 'save_label': 'Save',
+        'save_description': 'Save your language preference.'}
+    assert committed(path) == []
+    ui.reader.save_language('parent')
+    ui.reader.open_language_preferences('parent')
+    reopened = ui.reader.read_parent_language()
+    assert reopened == {**first, 'initial': False}
+    ui.reader.choose_language('parent', 'he')
+    hebrew = ui.reader.read_parent_language()
+    assert hebrew == {**reopened, 'checked': 'he', 'heading': 'בחירת השפה שלך',
+                     'save': 'שמירה', 'save_label': 'שמירה', 'save_description': 'שמירת העדפת השפה שלך.'}
+    ui.reader.cancel_language('parent')
+    assert committed(path) == ['en']
+
+
+@pytest.mark.parametrize('language,accessible,title', [
+    ('en', 'Screen time limit', 'Screen Time Limit'),
+    ('de', 'Bildschirmzeit begrenzen', 'Bildschirmzeit begrenzen'),
+    ('zh-Hans', '限制屏幕时间', '限制屏幕时间'),
+    ('he', 'מגבלת זמן מסך', 'מגבלת זמן מסך'),
+])
+def test_installed_parent_management_reader_keeps_visible_and_accessible_text_separate(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, language, accessible, title):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'parent', language='en')
+    wait(lambda: ui.showing('parent-language-ready'), 'saved startup ready')
+    ui.reader.open_language_preferences('parent')
+    ui.reader.choose_language('parent', language)
+    ui.reader.save_language('parent')
+    value = ui.reader.parent_language_management()
+    assert value['management'] == accessible
+    assert title in value['management_labels']
+    assert_no_policy_or_request_writes(path)
+
+
 def assert_no_policy_or_request_writes(path, *, expected_results=0):
     records = read_events(path)
     assert not [event for event in records if event['event'] in (
@@ -171,6 +215,104 @@ def assert_no_policy_or_request_writes(path, *, expected_results=0):
     assert len([event for event in records if event['event'] == 'result']) == expected_results
     assert not [event for event in records if event.get('method') in (
         'RequestOwnAccess', 'RequestAccess', 'UpdateRequestPreferences', 'SetRequestMuted')]
+
+
+@pytest.mark.parametrize('language', ('en', 'de', 'zh-Hans', 'he'))
+@pytest.mark.parametrize('surface', ('kiosk', 'overlay'))
+def test_installed_kiosk_chooser_and_form_readers_through_real_gtk(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, monkeypatch, language, surface):
+    from kiosk_language import CHOOSER, FORM, TEXT_IDS
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, surface, scenario='installed-language')
+    wait(lambda: ui.showing('language-dialog'), 'untouched kiosk chooser')
+    # Preview UIDs differ from the installed fixture; only the account mapping
+    # is supplied. The complete operation reads the actual selected public ID.
+    ui.reader.fixture_uids = {'Jordan (Child)': 1001, 'Jamie (Parent)': 1000,
+                             'Riley (Child)': 1002, 'Casey (Parent)': 1010}
+    if surface == 'overlay':
+        # Host preview has no installed Riley session. Only that transport guard
+        # is doubled; all application ownership, public IDs and GTK reads are real.
+        monkeypatch.setattr(ui.reader, 'require_child_overlay_session', lambda: None)
+    operation = ui.reader.overlay_language_operation if surface == 'overlay' else ui.reader.kiosk_language_operation
+    reader = ui.reader.read_overlay_language if surface == 'overlay' else ui.reader.read_kiosk_language
+    initial = operation(surface + '-language-initial')['language']
+    assert initial == {'initial': True, 'checked': 'en',
+        'choices': {key: texts[0] for key, texts in CHOOSER.items()},
+        'heading': 'Choose your language', 'save': 'Save', 'save_label': 'Save',
+        'save_description': 'Save your language preference.'}
+    assert committed(path) == []
+    ui.reader.save_language(surface)
+    ui.reader.open_language_preferences(surface)
+    ui.reader.choose_language(surface, language)
+    candidate = reader()
+    text = CHOOSER[language]
+    assert candidate == {**initial, 'initial': False, 'checked': language.lower(),
+        'heading': text[1], 'save': text[2], 'save_label': text[2], 'save_description': text[3]}
+    ui.reader.save_language(surface)
+    value = ui.reader.kiosk_language_form(language, overlay=surface == 'overlay')
+    text = FORM[language]
+    assert value['texts'] == dict(zip(TEXT_IDS, (*text[:3], text[4], text[6])))
+    assert value['labels'] == {TEXT_IDS[3]: text[3], TEXT_IDS[4]: text[5]}
+    ui.reader.open_language_preferences(surface)
+    assert reader() == candidate
+    ui.reader.cancel_language(surface)
+    assert committed(path) == ['en', language]
+    assert_no_policy_or_request_writes(path)
+
+
+def test_kiosk_shared_selector_restores_per_child_language_and_approver_independence(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from accessible_ui import CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
+    from kiosk_language import FORM, TEXT_IDS
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'kiosk', scenario='installed-language')
+    ui.reader.fixture_uids = {EXISTING_CHILD: 1001, CHILD: 1002, PARENT: 1000, OTHER_PARENT: 1010}
+    wait(lambda: ui.showing('language-dialog'), 'initial Jordan language')
+    ui.reader.kiosk_language_operation('kiosk-language-initial')
+    ui.reader.kiosk_language_operation('kiosk-language-save')
+    ui.reader.kiosk_language_operation('kiosk-language-open')
+    ui.reader.kiosk_language_operation('kiosk-language-choose-de')
+    ui.reader.kiosk_language_operation('kiosk-language-save')
+    ui.reader.select_kiosk_account('child', CHILD, expected=(CHILD, EXISTING_CHILD),
+        child=EXISTING_CHILD, language='de', result_language='en')
+    ui.reader.kiosk_language_operation('kiosk-riley-language-open')
+    ui.reader.kiosk_language_operation('kiosk-riley-language-choose-he')
+    ui.reader.kiosk_language_operation('kiosk-riley-language-save')
+    current, language = CHILD, 'he'
+    baselines = {}
+    for target, retained in ((EXISTING_CHILD, 'de'), (CHILD, 'he'), (EXISTING_CHILD, 'de')):
+        selected = ui.reader.select_kiosk_account('child', target, expected=(CHILD, EXISTING_CHILD),
+            child=current, language=language, result_language=retained)
+        current, language = target, retained
+        owner = 'kiosk' if target == EXISTING_CHILD else 'kiosk-riley'
+        for approver in (PARENT, OTHER_PARENT, PARENT):
+            selected = ui.reader.select_kiosk_account('approver', approver, expected=(PARENT, OTHER_PARENT),
+                child=current, language=language)
+            form = ui.reader.kiosk_language_form(language, child=current)
+            text = FORM[language]
+            assert form['texts'] == dict(zip(TEXT_IDS, (*text[:3], text[4], text[6])))
+            assert form['labels'] == {TEXT_IDS[3]: text[3], TEXT_IDS[4]: text[5]}
+            assert form['request'] == selected
+            projection = {key: value for key, value in selected.items() if key != 'approver'}
+            baselines.setdefault(current, projection)
+            assert projection == baselines[current]
+            checked = ui.reader.kiosk_language_operation(owner + '-language-open')['language']
+            assert checked['checked'] == language and checked['initial'] is False
+            ui.reader.kiosk_language_operation(owner + '-language-cancel')
+    assert committed(path) == ['en', 'de', 'he']
+    records = read_events(path)
+    assert not [event for event in records if event['event'] in (
+        'set_preferences', 'set_parent_control', 'revoke_one_time_grant',
+        'feedback', 'logout', 'close_overlay', 'result')]
+    assert not [event for event in records if event.get('method') in (
+        'RequestOwnAccess', 'RequestAccess', 'SetRequestMuted')]
+    # Public approver selection persists request choices. It must preserve the
+    # default duration, hidden custom value and excluded soft apps for each child.
+    updates = [event['values'] for event in records if event.get('method') == 'UpdateRequestPreferences']
+    assert updates and {value[0] for value in updates} == {1001, 1002}
+    assert all(value[1:4] == ['1800', 7.5, False] and value[4] in (1000, 1010) for value in updates)
+    for uid in (1001, 1002):
+        assert [value for value in updates if value[0] == uid][-1][4] == 1000
 
 
 def assert_surface_language(ui, wait, surface, language):

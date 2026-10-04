@@ -348,6 +348,24 @@ OPERATION_LABELS.update({operation: 'Preparing and independently reading the Chi
                          for operation in accessible_ui.CHINESE_VALID_BINDINGS})
 OPERATION_LABELS.update({operation: 'Saving or independently observing the persisted Chinese kiosk language'
                          for operation in accessible_ui.CHINESE_LANGUAGE_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Reading or changing the owned Parent language through public controls'
+                         for operation in accessible_ui.PARENT_LANGUAGE_OPERATIONS})
+RESPONSE_BYTE_LIMITS.update({operation: 32768
+                            for operation in accessible_ui.PARENT_LANGUAGE_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Reading or changing the owned kiosk language through public controls'
+                         for operation in accessible_ui.KIOSK_LANGUAGE_OPERATIONS})
+OPERATION_LABELS['kiosk-language-policy'] = 'Comparing Jordan policy and balances in Parent'
+OPERATION_LABELS['kiosk-riley-language-policy'] = 'Comparing Riley policy and balances in Parent'
+OPERATION_LABELS['kiosk-language-account-refusals'] = 'Refusing wrong-child and mismatched language input'
+OPERATION_LABELS.update({operation: 'Selecting the declared kiosk account with independent language readback'
+                         for operation in accessible_ui.KIOSK_LANGUAGE_ACCOUNTS})
+RESPONSE_BYTE_LIMITS.update({operation: 32768 for operation in
+                           accessible_ui.KIOSK_LANGUAGE_OPERATIONS | set(accessible_ui.KIOSK_LANGUAGE_POLICIES)})
+OPERATION_LABELS.update({operation: 'Reading or changing Riley overlay language through public controls'
+                         for operation in accessible_ui.OVERLAY_LANGUAGE_OPERATIONS})
+OPERATION_LABELS['overlay-language-policy'] = 'Comparing Riley saved policy in Parent'
+RESPONSE_BYTE_LIMITS.update({operation: 32768 for operation in
+                           accessible_ui.OVERLAY_LANGUAGE_OPERATIONS | {'overlay-language-policy'}})
 OPERATION_LABELS.update({
     'text-wrong-entry': 'Refusing text input outside feedback',
     'text-disabled': 'Refusing text input to a disabled control',
@@ -832,6 +850,7 @@ class UiObservations:
                             or operation in accessible_ui.SHELL_APPROVAL_OPERATIONS
                             or operation in accessible_ui.OVERLAY_VALID_OPERATIONS
                             or operation in accessible_ui.OVERLAY_INVALID_OPERATIONS
+                            or operation in accessible_ui.OVERLAY_LANGUAGE_OPERATIONS
                             or operation in ('overlay-request-form', 'overlay-panel-reveal-ready'))
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
@@ -890,6 +909,7 @@ class UiObservations:
             commands.progress = previous
 
     def observe(self, operation, *, child=None):
+        require(not getattr(self, 'language_failed', False), 'ui:language-previous-failure')
         import time
         trace = self.trace
         if trace is not None and trace['binding'] is not None and not self.trace_failed:
@@ -984,6 +1004,12 @@ class UiObservations:
                 self.last_mate_operation = operation
                 return result
             except BaseException:
+                if operation in (accessible_ui.PARENT_LANGUAGE_OPERATIONS |
+                                 accessible_ui.KIOSK_LANGUAGE_OPERATIONS |
+                                 accessible_ui.OVERLAY_LANGUAGE_OPERATIONS |
+                                 set(accessible_ui.KIOSK_LANGUAGE_POLICIES) | {'overlay-language-policy'} |
+                                 set(accessible_ui.KIOSK_LANGUAGE_ACCOUNTS) | {'kiosk-language-account-refusals'}):
+                    self.language_failed = True
                 if operation in (accessible_ui.MATE_OPERATIONS | accessible_ui.MATE_APPROVAL_OPERATIONS
                                  | accessible_ui.SHELL_PROMPT_OPERATIONS | accessible_ui.SHELL_APPROVAL_OPERATIONS
                                  ) or 0 < getattr(self, 'shell_approval_index', 0) < len(accessible_ui.SHELL_APPROVAL_ORDER):
@@ -1092,6 +1118,73 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation == 'kiosk-language-account-refusals':
+            require(result == {**expected, 'refused': True}, 'ui:language-refusal')
+            expected['refused'] = True
+        if operation in (*accessible_ui.KIOSK_LANGUAGE_POLICIES, 'overlay-language-policy'):
+            value = result.get('language_policy')
+            require(type(value) is dict and set(value) == {'settings', 'rows', 'balances'},
+                    'ui:language-policy')
+            SettingsObservation.from_settings(value['settings'])
+            AppRowsObservation.from_rows(value['rows'])
+            require(type(value['balances']) is dict and set(value['balances']) == {'daily', 'one_time', 'total'}
+                    and all(type(seconds) is int and seconds >= 0 for seconds in value['balances'].values()),
+                    'ui:language-balances')
+            expected['language_policy'] = value
+        if operation in (accessible_ui.PARENT_LANGUAGE_OPERATIONS | accessible_ui.KIOSK_LANGUAGE_OPERATIONS |
+                         accessible_ui.OVERLAY_LANGUAGE_OPERATIONS):
+            language_operation, language_child = accessible_ui.KIOSK_LANGUAGE_BINDINGS.get(
+                operation, (operation, None))
+            surface = operation.split('-', 1)[0]
+            if operation.endswith('-wrong-entry'):
+                require(result == {**expected, 'refused': True}, 'ui:language-refusal')
+                expected['refused'] = True
+            elif operation == 'parent-language-state':
+                value = result.get('language_state')
+                require(type(value) is dict and set(value) == {
+                    'child', 'limit_enabled', 'allowance_minutes', 'rows', 'management',
+                    'management_labels', 'chooser_absent'}
+                    and value['child'] in accessible_ui.CHILD_IDENTITIES.values()
+                    and value['limit_enabled'] is False and value['allowance_minutes'] == 0
+                    and type(value['allowance_minutes']) is int and value['chooser_absent'] is True
+                    and type(value['management_labels']) is list
+                    and 0 < len(value['management_labels']) <= 64
+                    and all(type(text) is str and len(text) <= 512
+                            for text in value['management_labels'])
+                    and type(value['management']) is str and 0 < len(value['management']) <= 512,
+                    'ui:language-state')
+                AppRowsObservation.from_rows(value['rows'])
+                expected['language_state'] = value
+            elif language_operation.startswith(('kiosk-language-form-', 'overlay-language-form-')):
+                value = result.get('language_form')
+                ids = {'kiosk-child-account-caption', 'kiosk-approver-account-caption',
+                       'kiosk-duration-label-1800', 'kiosk-request-submit', 'kiosk-request-cancel'}
+                require(type(value) is dict and set(value) == {'request', 'texts', 'labels', 'chooser_absent'}
+                        and value['chooser_absent'] is True and type(value['texts']) is dict
+                        and set(value['texts']) == ids and type(value['labels']) is dict
+                        and set(value['labels']) == {'kiosk-request-submit', 'kiosk-request-cancel'}
+                        and all(type(text) is str and 0 < len(text) <= 512 for text in
+                                (*value['texts'].values(), *value['labels'].values())), 'ui:language-form')
+                RequestObservation.from_request(value['request'], operation=(
+                    'overlay-request-form' if surface == 'overlay' else 'multiple-first-parent'
+                    if language_child == accessible_ui.CHILD and operation not in accessible_ui.KIOSK_LANGUAGE_CASEY_FORMS
+                    else 'multiple-other-parent' if language_child == accessible_ui.CHILD
+                    else 'multiple-other-child' if operation in accessible_ui.KIOSK_LANGUAGE_CASEY_FORMS
+                    else 'multiple-other-first-parent'))
+                expected['language_form'] = value
+            elif language_operation not in (surface + '-language-save', surface + '-language-cancel'):
+                value = result.get('language')
+                require(type(value) is dict and set(value) == {
+                    'initial', 'checked', 'choices', 'heading', 'save', 'save_label', 'save_description'}
+                    and value['initial'] is (language_operation == surface + '-language-initial')
+                    and value['checked'] in tuple(language.lower() for language in
+                                                  accessible_ui.PARENT_LANGUAGE_CHOICES)
+                    and type(value['choices']) is dict
+                    and set(value['choices']) == set(accessible_ui.PARENT_LANGUAGE_CHOICES)
+                    and all(type(text) is str and 0 < len(text) <= 512 for text in
+                            (*value['choices'].values(), value['heading'], value['save'], value['save_label'],
+                             value['save_description'])), 'ui:language-response')
+                expected['language'] = value
         if (operation in accessible_ui.INITIAL_KIOSK_OPERATIONS and operation != 'kiosk-initial-notice-return'
                 or operation in accessible_ui.CHINESE_LANGUAGE_OPERATIONS):
             require(type(result) is dict and set(result) == {*expected, 'initial'}, 'ui:initial-response')

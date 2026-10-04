@@ -19,6 +19,13 @@ from gi.repository import Gtk
 
 USERS = ((1001, "Alex Morgan", ""), (1002, "Sam Rivera", ""))
 APPROVERS = ((1000, "Taylor Morgan", ""), (1010, "Avery Quinn", ""))
+if os.environ.get('ONPC_REQUEST_COMPONENT_SCENARIO') == 'installed-language':
+    # Host-only identity projection for the shared installed LANG01 reader.
+    USERS = ((1001, 'Jordan (Child)', ''), (1002, 'Riley (Child)', ''))
+    APPROVERS = ((1000, 'Jamie (Parent)', ''), (1010, 'Casey (Parent)', ''))
+    if os.environ.get('ONPC_REQUEST_COMPONENT_OVERLAY') == '1':
+        USERS = ((1002, 'Riley (Child)', ''), (1001, 'Jordan (Child)', ''))
+        APPROVERS = ((1010, 'Casey (Parent)', ''), (1000, 'Jamie (Parent)', ''))
 REQUEST_ID = "11111111-1111-4111-8111-111111111111"
 PREFERENCES = {
     uid: {"parent_control_enabled": True, "request": {

@@ -678,7 +678,28 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
          native_app=False, app_activity=False, chinese_language_assets=False, desktop_language=False,
-         chinese_native_auth=False):
+         chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
+         kiosk_language_restoration=False):
+    require(type(kiosk_language_restoration) is bool and (not kiosk_language_restoration or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'kiosk_language_restoration')
+            and isinstance(value, bool)))), 'smoke:kiosk-language-restoration-prerequisites')
+    require(type(overlay_language) is bool and (not overlay_language or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'overlay_language')
+            and isinstance(value, bool)))), 'smoke:overlay-language-prerequisites')
+    require(type(kiosk_language) is bool and (not kiosk_language or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'kiosk_language')
+            and isinstance(value, bool)))), 'smoke:kiosk-language-prerequisites')
+    require(type(parent_language) is bool and (not parent_language or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'parent_language')
+            and isinstance(value, bool)))), 'smoke:parent-language-prerequisites')
     require(type(chinese_native_auth) is bool and (not chinese_native_auth or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1355,6 +1376,14 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-request-exit-qualification'
         if parent_toggle:
             result['scope'] = 'installed-parent-toggle-qualification'
+        if parent_language:
+            result['scope'] = 'installed-parent-language-qualification'
+        if kiosk_language:
+            result['scope'] = 'installed-kiosk-language-qualification'
+        if kiosk_language_restoration:
+            result['scope'] = 'installed-kiosk-language-restoration-qualification'
+        if overlay_language:
+            result['scope'] = 'installed-overlay-language-qualification'
         if public_connectivity_controls:
             result['scope'] = 'installed-public-connectivity-controls-qualification'
         if app_row_observations:
@@ -1537,7 +1566,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     result['source_preflight'] = preflight_source(staged, upgrade=dual_packages)
                 if (parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
-                        or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or native_app or app_activity
+                        or parent_language or kiosk_language or kiosk_language_restoration or overlay_language or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or native_app or app_activity
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
@@ -1708,6 +1737,18 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     if public_connectivity_controls:
                         from parent_setup_qualification import PublicConnectivityControlsQualification
                         qualification_class = PublicConnectivityControlsQualification
+                if parent_language:
+                    from parent_setup_qualification import ParentLanguageQualification
+                    qualification_class = ParentLanguageQualification
+                if kiosk_language:
+                    from parent_setup_qualification import KioskLanguageQualification
+                    qualification_class = KioskLanguageQualification
+                if kiosk_language_restoration:
+                    from parent_setup_qualification import KioskLanguageRestorationQualification
+                    qualification_class = KioskLanguageRestorationQualification
+                if overlay_language:
+                    from parent_setup_qualification import OverlayLanguageQualification
+                    qualification_class = OverlayLanguageQualification
                 if app_row_observations:
                     from parent_setup_qualification import AppRowQualification
                     qualification_class = AppRowQualification

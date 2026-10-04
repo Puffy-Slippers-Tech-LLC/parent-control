@@ -388,6 +388,76 @@ applications and other viewers remain unqualified. FEED08 export inspection
 uses FILE08 and same-dialog readback without activating a supporting viewer.
 DESK10 needs no Shell switcher GUI adapter.
 
+### Personal-language selection
+
+| ID | Kind | Block and explicit contract | Callees / reuse source | Status |
+| --- | --- | --- | --- | --- |
+| LANG01 | C | Observe the owned frontend's untouched first-run language chooser or open its public Preferences chooser; read the checked choice and native names, select one declared candidate, apply Save or Cancel once, and independently observe closure, readiness, translated labels and the retained choice after reopening. Callers own language/account values, relaunches, isolation and policy comparisons. | `AccessibleUI.language_scope`, `open_language_preferences`, `choose_language`, `save_language`, `cancel_language` and `language_save_completed` in [accessible_ui.py](../../tests/e2e/accessible_ui.py); installed observations `read_parent_language`, `parent_language_management`, `parent_language_operation` and `parent_language_state`, registered through `ui_observations.py`; finite literals/recipe in [parent_language.py](../../tests/e2e/parent_language.py) and shared worker `onpc_parent::language_selection` / `qualify_language`. The `initial-language` launch result observes first presentation without the ordinary `parent-window` automatic Save; lifecycle observations use `parent-language-state`. Visible page titles and accessible switch names are independently compared; stale chooser snapshots are reacquired under the original bounded deadline without replaying input. `check_e2e_parent_language` passed on Ubuntu 26.04 in `20261004T092815Z-1784595b`: untouched English first choice and four native names, English/German/Simplified Chinese/Hebrew Save and checked-choice/text readback, Chinese Cancel preserving German, normal relaunch persistence, unchanged selected child/zero allowance/app-policy projection and wrong-entry refusal. Required case 6 passed in `20261004T093246Z-b19110a7`; collection, owned cleanup, baseline restoration and preservation passed. The fixed Chinese kiosk Save binding remains qualified under [Chinese language preparation](#chinese-language-preparation-and-desktop-language-setup). | pending overall; stated Parent, fixed Jordan kiosk and fixed Riley overlay bindings qualified (see below); selected-child restoration/isolation, panel, inherited dialogs, RTL layout, countdown and complete-case acceptance remain separate |
+
+The dedicated-kiosk LANG01 fixed Jordan binding passed
+`check_e2e_kiosk_language` on Ubuntu 26.04 in `20261004T103336Z-73d60bd2`:
+untouched English first choice and four native names,
+English/German/Simplified Chinese/Hebrew checked-choice and translated
+visible/accessibility chooser/form observations, Save, Chinese Cancel retaining
+German, normal re-entry with German retained, and unchanged request/policy
+projections. The required fixed Chinese native-authentication regression passed
+all 14 assertions in `20261004T104017Z-b60581d0`. Collection, worker shutdown,
+callback closure, owned cleanup, baseline restoration, finalization and
+host/source preservation passed in both runs. Task 300h is complete.
+`read_kiosk_language` shares the bounded owned chooser reader;
+`kiosk_language_form` independently reads visible/accessibility text and REQUEST03
+values, and `kiosk_language_policy` compares public Parent settings, balances and
+application rows. `journey_blocks.language_selection` and
+`onpc_parent::language_selection` share chooser mechanics; `kiosk_language.PLAN`
+and `onpc_request_flow::kiosk_language` own this finite qualification.
+The untouched read reuses `initial_kiosk_child` within the chooser's complete
+owned snapshot, preserving the fixed Chinese reader's UID/uniqueness/visibility
+guards without calling Parent-only child-control helpers. Existing
+`CHINESE_LANGUAGE_OPERATIONS` only supplies the fixed Chinese Save/form result;
+the Parent reader does not qualify another application.
+Selected-child restoration/isolation, panel,
+inherited dialogs, RTL layout, countdown and translated approval results remain
+separate bindings to recheck before task 300's complete composition.
+
+Task 300i qualified the fixed Riley child-overlay LANG01 binding.
+`read_overlay_language` and
+`overlay_language_operation` use `language_scope('overlay')` to require the
+child application and active Riley session. Untouched and reopened chooser reads
+bind Riley's selected public UID; `kiosk_language_form(..., overlay=True)` shares
+the translated REQUEST03 reader without automatically completing startup.
+`overlay_language.PLAN` / `OverlayLanguageJourney` and
+`onpc_request_flow::overlay_language` compose shared `language_selection` and
+direct `overlay_entry` operations. The argument-free
+`check_e2e_overlay_language` passed on Ubuntu 26.04 in
+`20261004T115946Z-5cd0363a`: untouched English first presentation and four native
+names, English/German/Simplified Chinese/Hebrew Save with independent
+visible/accessibility text and checked-choice readback, Chinese Cancel preserving
+German, unchanged fixed request values, normal German command-relaunch without
+startup setup and final unchanged saved Parent allowance/enablement/app rows.
+The required shell-panel and kiosk-language regressions passed in
+`20261004T114913Z-24503104` and `20261004T115236Z-05dd2d98`.
+All three passed collection, worker shutdown, callback closure, owned cleanup,
+baseline restoration, finalization and host/source preservation. The refreshed
+overlay report replaces its expired earlier acceptance evidence.
+This qualifies only the fixed Riley surface; selected-child restoration/isolation,
+panel translation, inherited dialogs, RTL layout, countdown, translated approval
+results and complete-case acceptance remain separate.
+
+Task 300j owns the pending REQUEST04/LANG01 selected-child station binding:
+Jordan/German and Riley/Hebrew, approver independence and fresh kiosk re-entry.
+At preflight, `select_kiosk_account` checked English offered-choice names and the
+English selected-account description, then read `kiosk_request_form` with its
+English default; `kiosk_language_form` bound Jordan. Existing fixed-language qualifications
+do not establish multilingual account switching. Extend those shared operations
+with explicit pre-input language, selected-child identity and post-selection
+language/result bindings, preserving English consumers, ownership and single-use
+input guards. The `check_e2e_kiosk_language_restoration` selector and current-source
+input preparation are now registered in the working tree; shared implementation
+is in progress and qualification remains pending. Its current installed-snapshot
+entry is a capability slice, not task 300's latest-install Chinese journey.
+This supplies no panel/dialog/RTL/countdown/approval
+result or complete-case acceptance.
+
 ### App-grid search and Parent launch
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
@@ -881,6 +951,14 @@ make a fixed legacy package bundle current. Preserve immutable inputs and all
 snapshot freshness, provenance and ownership guards.
 
 #### Overlay entry qualification
+
+The task 300i regression passed the unchanged six shell-panel assertions on
+Ubuntu 26.04 in `20261004T114913Z-24503104`, with collection, worker shutdown,
+owned cleanup, restoration and preservation. `check_e2e_shell_panel` and its
+automatic artifact preparation both bind current-source package inputs; the
+snapshot lookup continues to derive the installed version from the verified
+package. Existing valid inputs are preserved and missing inputs use the shared
+artifact builder.
 
 `shell_panel.PLAN` / `ShellPanelJourney`, `journey_blocks.overlay_entry` and
 `onpc_request_flow::overlay_entry` passed `check_e2e_shell_panel` in run
@@ -2417,9 +2495,15 @@ package-command context or requiring a product-free transfer payload.
 Attempts and app-snapshot preparation verify the declared language assets;
 they never install packages, generate locales or download translations.
 Missing Chinese assets block the case with a preparation diagnostic. Reusable
-language installation is not a case stage; the product upgrade remains a
+language installation is not a case stage; the latest product installation remains a
 deliberate LIFE04 mutation inside the case. Do not install the product or change
 the child/station language as a side effect of installing language assets.
+
+Task 300's current recipe uses one verified current-package installation and one
+subsequent reboot. Tasks 300c/300d and the upgrade-based 300e/300f journey envelopes
+below remain historical qualifications; reuse their scoped Chinese observations
+and approval bindings without importing the old-release installation or upgrade.
+Recheck the changed fresh-install composition before claiming complete-case acceptance.
 
 The **user desktop-language switch is DESK13**, a shared building block, not
 case-local shell code or a locale-file edit. Its fixed consumer binds Jordan
@@ -4464,6 +4548,10 @@ Before the first live attempt, check the changed boundary end to end on the host
    put transport, fixture lifetime, provider input and reusable comparisons in
    their owning libraries. A new shared API gets a meaningful success/refusal
    regression and review of the guard's shared API list, never a case exemption.
+   Check each declared `system:` stage against the actual shared session registry
+   and controller decoder; a mocked worker-order test can hide an unregistered
+   operation. The overlay-language regression drives those declared stages
+   through `session_control.observe` before live entry.
    Review imported callable references (including recorder classes/actions) and
    qualified Perl calls, not just direct Python calls. The guard is a source
    regression check, not proof that an allowlisted library is reusable or safe;

@@ -76,6 +76,30 @@ OPERATIONS |= frozenset({
 })
 OPERATIONS |= frozenset({'parent-search-ready', 'parent-search-focused', 'parent-search-entered'})
 OPERATIONS |= frozenset({'parent-search-close-ready', 'parent-search-closed'})
+PARENT_LANGUAGE_CHOICES = ('en', 'de', 'zh-Hans', 'he')
+PARENT_LANGUAGE_OPERATIONS = frozenset({
+    'parent-language-initial', 'parent-language-open', 'parent-language-read',
+    'parent-language-save', 'parent-language-cancel', 'parent-language-state',
+    'parent-language-wrong-entry',
+    *('parent-language-choose-' + value.lower() for value in PARENT_LANGUAGE_CHOICES),
+})
+OPERATIONS |= PARENT_LANGUAGE_OPERATIONS
+KIOSK_LANGUAGE_OPERATIONS = frozenset({
+    'kiosk-language-initial', 'kiosk-language-open', 'kiosk-language-read',
+    'kiosk-language-save', 'kiosk-language-cancel', 'kiosk-language-wrong-entry',
+    *('kiosk-language-choose-' + value.lower() for value in PARENT_LANGUAGE_CHOICES),
+    *('kiosk-language-form-' + value.lower() for value in PARENT_LANGUAGE_CHOICES),
+})
+OPERATIONS |= KIOSK_LANGUAGE_OPERATIONS | {'kiosk-language-policy'}
+OVERLAY_LANGUAGE_OPERATIONS = frozenset(operation.replace('kiosk-', 'overlay-', 1)
+                                        for operation in KIOSK_LANGUAGE_OPERATIONS)
+OPERATIONS |= OVERLAY_LANGUAGE_OPERATIONS | {'overlay-language-policy'}
+ACCOUNT_LANGUAGE_LABELS = {
+    'en': ('Child account', 'Approving parent', 'Selected account: %s.', '%s: %s'),
+    'de': ('Kinderkonto', 'Genehmigender Elternteil', 'Ausgewähltes Konto: %s.', '%s: %s'),
+    'zh-Hans': ('孩子的账户', '批准请求的家长', '已选择的账户：%s。', '%s：%s'),
+    'he': ('חשבון ילד', 'הורה מאשר', 'החשבון שנבחר: %s.', '%s: %s'),
+}
 OPERATIONS |= frozenset({'shell-search-started', 'shell-search-wrong-result-refused',
                          'shell-search-cleared',
                          'shell-search-dismissed'})
@@ -100,6 +124,7 @@ OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
     'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
     'overlay-qualification-cancel', 'overlay-desktop'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | frozenset({'child-command-launch'})
+CHILD_DESKTOP_OPERATIONS |= OVERLAY_LANGUAGE_OPERATIONS - {'overlay-language-wrong-entry'}
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
@@ -531,6 +556,8 @@ PARENT_SAVE_OPERATIONS = {
 OPERATIONS |= frozenset(PARENT_SAVE_OPERATIONS)
 PARENT = 'Jamie (Parent)'
 OTHER_PARENT = 'Casey (Parent)'
+APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
+APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
 KIOSK = 'Oh No! Parent Control'
 KIOSK_USERNAME = 'oh-no-parent-control'
 GREETER_IDENTITIES = {PARENT: 'parent', OTHER_PARENT: 'other-parent',
@@ -602,6 +629,35 @@ KIOSK_ACCOUNT_REQUESTS = {
     'kiosk-approver-select': ('fixture-child', 'fixture-parent'),
     'kiosk-enabled-form': ('fixture-child', 'fixture-parent'),
 }
+KIOSK_LANGUAGE_BINDINGS = {operation: (operation, EXISTING_CHILD)
+                           for operation in KIOSK_LANGUAGE_OPERATIONS}
+KIOSK_LANGUAGE_BINDINGS.update({operation.replace('kiosk-language-', 'kiosk-riley-language-', 1):
+                               (operation, CHILD) for operation in KIOSK_LANGUAGE_OPERATIONS
+                               if not operation.endswith('-wrong-entry')})
+KIOSK_LANGUAGE_CASEY_FORMS = {}
+for operation, (binding, child) in tuple(KIOSK_LANGUAGE_BINDINGS.items()):
+    if '-language-form-' in operation:
+        KIOSK_LANGUAGE_BINDINGS[operation + '-casey'] = (binding, child)
+        KIOSK_LANGUAGE_CASEY_FORMS[operation + '-casey'] = child
+KIOSK_LANGUAGE_OPERATIONS = frozenset(KIOSK_LANGUAGE_BINDINGS)
+KIOSK_LANGUAGE_POLICIES = {'kiosk-language-policy': EXISTING_CHILD,
+                          'kiosk-riley-language-policy': CHILD}
+# Finite REQUEST04 bindings: field, destination, owning child, input/result language.
+KIOSK_LANGUAGE_ACCOUNTS = {
+    'kiosk-language-jordan-jamie': ('approver', PARENT, EXISTING_CHILD, 'en', 'en'),
+    'kiosk-language-riley-initial': ('child', CHILD, EXISTING_CHILD, 'de', 'en'),
+    'kiosk-language-jordan-restored': ('child', EXISTING_CHILD, CHILD, 'he', 'de'),
+    'kiosk-language-riley-restored': ('child', CHILD, EXISTING_CHILD, 'de', 'he'),
+    **{f'kiosk-language-{child}-{approver}': ('approver', name, owner, language, language)
+       for child, owner, language in (('jordan', EXISTING_CHILD, 'de'), ('riley', CHILD, 'he'))
+       for approver, name in (('casey', OTHER_PARENT), ('jamie-restored', PARENT))},
+}
+KIOSK_ACCOUNT_REQUESTS.update({operation: (
+    CHILD_IDENTITIES[name if field == 'child' else child],
+    APPROVER_IDENTITIES[name] if field == 'approver' else 'fixture-parent')
+    for operation, (field, name, child, _before, _after) in KIOSK_LANGUAGE_ACCOUNTS.items()})
+OPERATIONS |= KIOSK_LANGUAGE_OPERATIONS | frozenset(KIOSK_LANGUAGE_POLICIES)
+OPERATIONS |= {'kiosk-language-account-refusals'}
 KIOSK_DISABLED_REQUESTS = {
     'kiosk-disabled-child-select': ('fixture-child', 'other-fixture-parent'),
     'kiosk-disabled-form': ('fixture-child', 'other-fixture-parent'),
@@ -720,6 +776,8 @@ KIOSK_SESSION_OPERATIONS |= MATE_OPERATIONS | MATE_APPROVAL_OPERATIONS
 CHINESE_LANGUAGE_OPERATIONS = frozenset({'chinese-language-save', 'chinese-persisted-form'})
 OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
 KIOSK_SESSION_OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
+KIOSK_SESSION_OPERATIONS |= (KIOSK_LANGUAGE_OPERATIONS - {'kiosk-language-wrong-entry'}
+                             | {'kiosk-language-account-refusals'})
 KIOSK_RESTRICTION_OPERATIONS = frozenset({
     'kiosk-restriction-ready', 'kiosk-restriction-read',
     'kiosk-restriction-prepared-ready', 'kiosk-restriction-prepared-read',
@@ -730,8 +788,6 @@ KIOSK_ABOUT_OPERATIONS = frozenset({'kiosk-about-open', 'kiosk-about-read',
                                    'kiosk-about-close-ready', 'kiosk-about-closed'})
 OPERATIONS |= KIOSK_ABOUT_OPERATIONS | {'parent-kiosk-about-refused'}
 KIOSK_SESSION_OPERATIONS |= KIOSK_ABOUT_OPERATIONS
-APPROVER_IDENTITIES = {OTHER_PARENT: 'other-fixture-parent', PARENT: 'fixture-parent'}
-APPROVER_ACCOUNTS = {OTHER_PARENT: 'onpc-parent-casey', PARENT: 'onpc-parent-jamie'}
 # Public-ID inventory for external applications on the maintained Ubuntu 26.04
 # host.  An observed Builder ID is recorded only when the installed provider
 # owns it; it is not usable until the application and surface roots are also
@@ -1982,7 +2038,7 @@ class AccessibleUI:
             except UiError as error:
                 if str(error) not in (
                         'ui:incomplete-tree', 'ui:stale-picker', 'ui:stale-request-form',
-                        'ui:gdm-stale-tree',
+                        'ui:gdm-stale-tree', 'ui:language-stale',
                         'ui:system-prompt-observation-failed'):
                     raise
                 # Discard the entire observation. A child can disappear between
@@ -1992,6 +2048,8 @@ class AccessibleUI:
                 # defunct node while replacing its authentication prompt.
                 # Request account reads also require every node to be live;
                 # discard a stale read before resolving or acting on a selector.
+                # Language chooser reads use the same rule during startup and
+                # candidate relabeling; reacquisition never submits an input.
                 # Prompt scans can
                 # encounter the same disappearing objects; a failed scan never
                 # authorizes the predicate or any input.
@@ -2018,7 +2076,7 @@ class AccessibleUI:
                     checkpoint('timeout', attempt)
                 if incomplete is not None and str(incomplete) in (
                         'ui:stale-picker', 'ui:stale-request-form', 'ui:gdm-stale-tree',
-                        'ui:system-prompt-observation-failed'):
+                        'ui:language-stale', 'ui:system-prompt-observation-failed'):
                     raise incomplete
                 raise UiError('ui:timeout:' + code) from incomplete
             if checkpoint is not None:
@@ -2171,6 +2229,19 @@ class AccessibleUI:
         with self.language_scope(surface):
             self._complete_language_setup(surface)
 
+    def initial_kiosk_child(self, observation, window, *, notice=False, child=EXISTING_CHILD):
+        """Bind the selected child's public ID without completing language setup."""
+        nodes, edges, identities, _facts = observation
+        require(child in (CHILD, EXISTING_CHILD), 'ui:initial-child-binding')
+        uid = (self.fixture_uids.get(child) if self.fixture_uids is not None
+               else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
+        require(type(uid) is int and uid >= 1000, 'ui:initial-child')
+        prefix = 'kiosk-result-child-' if notice else 'kiosk-child-selected-'
+        selected = [node for node in self.snapshot_scope(nodes, edges, window)
+                    if identities[node].startswith(prefix)]
+        require(len(selected) == 1 and identities[selected[0]] == f'{prefix}{uid}'
+                and self.showing(selected[0]), 'ui:initial-child')
+
     def initial_kiosk_presentation(self, kind):
         """Read initial owned controls without invoking language setup.
 
@@ -2189,10 +2260,6 @@ class AccessibleUI:
                 window = self.snapshot_owned_target('kiosk-request-window', observation=observation)
                 if window is None:
                     return None
-                scope = self.snapshot_scope(nodes, edges, window)
-                uid = (self.fixture_uids.get(EXISTING_CHILD) if self.fixture_uids is not None
-                       else pwd.getpwnam(CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid)
-                require(type(uid) is int and uid >= 1000, 'ui:initial-child')
                 notice = self.snapshot_owned_target('update-required-dialog', observation=observation,
                                                     allow_unmapped_surface=True)
                 chooser = self.snapshot_owned_target('language-dialog', observation=observation,
@@ -2200,11 +2267,7 @@ class AccessibleUI:
                 if kind == 'notice' and notice is None:
                     require(chooser is None, 'ui:initial-notice-displaced')
                     return None
-                child_prefix = 'kiosk-result-child-' if kind == 'notice' else 'kiosk-child-selected-'
-                selected = [node for node in scope if identities[node].startswith(child_prefix)]
-                require(len(selected) == 1 and identities[selected[0]] == f'{child_prefix}{uid}' and
-                        self.showing(selected[0]),
-                        'ui:initial-child')
+                self.initial_kiosk_child(observation, window, notice=kind == 'notice')
                 if kind == 'notice':
                     require(chooser is None, 'ui:initial-notice-displaced')
                     controls = ('update-required-message', 'update-required-close', 'update-required-reboot')
@@ -2279,11 +2342,14 @@ class AccessibleUI:
     @contextmanager
     def language_scope(self, surface):
         """Share the owning-account chooser boundary between previews and E2E."""
-        require(surface in ('parent', 'kiosk'), 'ui:language-surface')
+        require(surface in ('parent', 'kiosk', 'overlay'), 'ui:language-surface')
+        if surface == 'overlay':
+            self.require_child_overlay_session()
         original = self.application_ids
         requested = original() if callable(original) else original
-        allowed = ((PARENT_APPLICATION,) if surface == 'parent'
-                   else (KIOSK_APPLICATION, CHILD_APPLICATION))
+        allowed = ((PARENT_APPLICATION,) if surface == 'parent' else
+                   (CHILD_APPLICATION,) if surface == 'overlay' else
+                   (KIOSK_APPLICATION, CHILD_APPLICATION))
         self.application_ids = tuple(value for value in allowed
                                      if requested is None or value in requested)
         try:
@@ -2294,13 +2360,274 @@ class AccessibleUI:
     def open_language_preferences(self, surface):
         with self.language_scope(surface):
             self.id_target('parent-window' if surface == 'parent' else 'kiosk-request-window')
-            self.activate_id(f'{surface}-menu-button')
+            self.activate_id('parent-menu-button' if surface == 'parent' else 'kiosk-menu-button')
             self.activate_id('parent-menu-preferences' if surface == 'parent'
                              else 'kiosk-menu-item-preferences')
             self.input_uncertain = True
             self.wait(lambda: self.snapshot_owned_target('language-dialog', check_prompt=True),
                       'language-preferences-open', prompt_in_predicate=True)
             self.input_uncertain = False
+
+    def read_parent_language(self, *, initial=False):
+        return self.read_language('parent', initial=initial)
+
+    def read_kiosk_language(self, *, initial=False, child=EXISTING_CHILD):
+        # The general chooser actions also serve the overlay. This installed
+        # observation specifically requires the dedicated station application.
+        with self.language_scope('kiosk'):
+            self.application_ids = tuple(value for value in self.application_ids
+                                         if value == KIOSK_APPLICATION)
+            return self.read_language('kiosk', initial=initial, child=child)
+
+    def read_overlay_language(self, *, initial=False):
+        return self.read_language('overlay', initial=initial)
+
+    def read_language(self, surface, *, initial=False, child=EXISTING_CHILD):
+        """Bounded owned chooser read; never complete startup or send input."""
+        with self.language_scope(surface):
+            namespace = 'parent' if surface == 'parent' else 'kiosk'
+            def read():
+                observation = self.read_snapshot()
+                nodes, edges, identities, facts = observation
+                require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                for node in nodes), 'ui:language-stale')
+                window = self.snapshot_owned_target('parent-window' if surface == 'parent' else
+                                                    'kiosk-request-window', observation=observation,
+                                                    check_prompt=True)
+                if window is None:
+                    return None
+                dialog = self.snapshot_owned_target('language-dialog', observation=observation,
+                                                    allow_unmapped_surface=True)
+                if dialog is None:
+                    return None
+                ready = self.snapshot_owned_target(namespace + '-language-ready', root=window,
+                                                   observation=observation)
+                loading = self.snapshot_owned_target(namespace + '-language-loading', root=window,
+                                                     observation=observation)
+                require((ready is None and loading is not None) if initial else ready is not None,
+                        'ui:language-entry')
+                if surface != 'parent':
+                    self.initial_kiosk_child(observation, window,
+                        child=CHILD if surface == 'overlay' else child)
+                def target(identity):
+                    value = self.snapshot_owned_target(identity, root=dialog, showing=False,
+                                                       observation=observation)
+                    require(value is not None and self.has_state(value, self.api.StateType.VISIBLE),
+                            'ui:language-control')
+                    return value
+                choices = {value: target('language-choice-' + value.lower()).get_name()
+                           for value in PARENT_LANGUAGE_CHOICES}
+                checked = [identities[node].removeprefix('language-choice-')
+                           for node in self.snapshot_scope(nodes, edges, dialog)
+                           if identities[node].startswith('language-choice-')
+                           and self.has_state(node, self.api.StateType.CHECKED)]
+                require(len(checked) == 1 and checked[0] in
+                        tuple(value.lower() for value in PARENT_LANGUAGE_CHOICES),
+                        'ui:language-checked')
+                save_labels = [node.get_name() for node in self.snapshot_scope(
+                    nodes, edges, target('language-continue'))
+                    if node.get_role_name() == 'label' and self.showing(node)]
+                require(len(save_labels) == 1, 'ui:language-save-label')
+                return {'initial': initial, 'checked': checked[0], 'choices': choices,
+                        'heading': target('language-title').get_name(),
+                        'save': target('language-continue').get_name(),
+                        'save_label': save_labels[0],
+                        'save_description': target('language-continue').get_description()}
+            return self.wait(read, surface + '-language-chooser', prompt_in_predicate=True)
+
+    def kiosk_language_form(self, language, *, overlay=False, child=EXISTING_CHILD):
+        """Owned LANG01 text and REQUEST03 projection, without startup input."""
+        require(child in (CHILD, EXISTING_CHILD), 'ui:language-child-binding')
+        surface = 'overlay' if overlay else 'kiosk'
+        with self.language_scope(surface):
+            self.language_save_completed(surface)
+            request = self.kiosk_request_form(enabled=True, language=language, overlay=overlay,
+                expected_selection=None if overlay else ('child', CHILD_IDENTITIES[child]))
+            def read():
+                observation = self.read_snapshot()
+                nodes, edges, _identities, _facts = observation
+                require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                for node in nodes), 'ui:language-stale')
+                form = self.snapshot_owned_target('kiosk-request-form', observation=observation,
+                                                  check_prompt=True)
+                if form is None:
+                    return None
+                texts, labels = {}, {}
+                for identity in ('kiosk-child-account-caption', 'kiosk-approver-account-caption',
+                                 'kiosk-duration-label-1800', 'kiosk-request-submit', 'kiosk-request-cancel'):
+                    control = self.snapshot_owned_target(identity, root=form, observation=observation)
+                    require(control is not None, 'ui:language-form-control')
+                    texts[identity] = control.get_name()
+                    if identity in ('kiosk-request-submit', 'kiosk-request-cancel'):
+                        visible = [node.get_name() for node in self.snapshot_scope(nodes, edges, control)
+                                   if node.get_role_name() == 'label' and self.showing(node)]
+                        require(len(visible) == 1, 'ui:language-form-label')
+                        labels[identity] = visible[0]
+                return {'request': request, 'texts': texts, 'labels': labels, 'chooser_absent': True}
+            return self.wait(read, 'kiosk-language-form', prompt_in_predicate=True)
+
+    def kiosk_language_policy(self, *, child=EXISTING_CHILD):
+        """Public English Parent policy; balances are independently observed."""
+        require(child in (CHILD, EXISTING_CHILD), 'ui:language-policy-child')
+        self.activate_id('parent-page-screen-limits')
+        self.parent_save_snapshot(child, True)
+        settings = self.settings(child)
+        balances = self.reach_time_explanation(child)
+        self.activate_id('parent-page-app-limits')
+        rows = self.wait(lambda: {'rows': self.app_rows(child)}, 'language-policy-rows')['rows']
+        self.activate_id('parent-page-screen-limits')
+        self.parent_save_snapshot(child, True)
+        return {'settings': settings, 'rows': [list(row) for row in rows],
+                'balances': {key: balances[key]['seconds'] for key in ('daily', 'one_time', 'total')}}
+
+    def kiosk_language_operation(self, operation):
+        require(operation in KIOSK_LANGUAGE_BINDINGS, 'ui:language-operation')
+        operation, child = KIOSK_LANGUAGE_BINDINGS[operation]
+        if operation == 'kiosk-language-wrong-entry':
+            return self.request_language_operation(operation, overlay=False, child=child)
+        with self.language_scope('kiosk'):
+            self.application_ids = tuple(value for value in self.application_ids
+                                         if value == KIOSK_APPLICATION)
+            return self.request_language_operation(operation, overlay=False, child=child)
+
+    def overlay_language_operation(self, operation):
+        return self.request_language_operation(operation, overlay=True)
+
+    def request_language_operation(self, operation, *, overlay, child=EXISTING_CHILD):
+        surface = 'overlay' if overlay else 'kiosk'
+        require(operation in (OVERLAY_LANGUAGE_OPERATIONS if overlay else KIOSK_LANGUAGE_OPERATIONS),
+                'ui:language-operation')
+        reader = self.read_overlay_language if overlay else lambda **kwargs: self.read_kiosk_language(
+            child=child, **kwargs)
+        if operation == surface + '-language-wrong-entry':
+            require(self.snapshot_owned_target('parent-window', check_prompt=True) is not None,
+                    'ui:language-refusal-entry')
+            require(self.snapshot_owned_target('kiosk-request-window', showing=False) is None,
+                    'ui:language-wrong-entry')
+            return {'refused': True}
+        # Strict application/session and fixed-child proof precedes every input.
+        if operation == surface + '-language-initial':
+            return {'language': reader(initial=True)}
+        if operation.startswith(surface + '-language-form-'):
+            language = next(value for value in PARENT_LANGUAGE_CHOICES
+                            if operation.endswith('-' + value.lower()))
+            return {'language_form': self.kiosk_language_form(language, overlay=overlay, child=child)}
+        if operation == surface + '-language-open':
+            with self.language_scope(surface):
+                require(self.snapshot_owned_target('language-dialog', showing=False,
+                        check_prompt=True, allow_unmapped_surface=True) is None,
+                        'ui:language-already-open')
+                self.id_target('kiosk-language-ready')
+                observation = self.read_snapshot()
+                window = self.request_surface(observation, overlay=overlay)
+                self.initial_kiosk_child(observation, window, child=CHILD if overlay else child)
+                self.open_language_preferences(surface)
+        else:
+            reader(initial=operation == surface + '-language-save' and
+                self.snapshot_owned_target('kiosk-language-ready') is None)
+            if operation.startswith(surface + '-language-choose-'):
+                language = next(value for value in PARENT_LANGUAGE_CHOICES
+                                if operation.endswith('-' + value.lower()))
+                self.choose_language(surface, language)
+            elif operation in (surface + '-language-save', surface + '-language-cancel'):
+                (self.save_language if operation.endswith('-save') else self.cancel_language)(surface)
+                try:
+                    observation = self.read_snapshot()
+                    window = self.request_surface(observation, overlay=overlay)
+                    self.initial_kiosk_child(observation, window, child=CHILD if overlay else child)
+                except BaseException:
+                    self.input_uncertain = True
+                    raise
+                return {}
+        return {'language': reader()}
+
+    def parent_language_management(self):
+        """Read visible page labels separately from the switch's accessible name."""
+        with self.language_scope('parent'):
+            def read():
+                observation = self.read_snapshot()
+                nodes, edges, _identities, _facts = observation
+                require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                for node in nodes), 'ui:language-stale')
+                page = self.snapshot_owned_target('parent-screen-limits-page',
+                    observation=observation, check_prompt=True)
+                if page is None:
+                    return None
+                toggle = self.snapshot_owned_target('parent-screen-limit-toggle', root=page,
+                                                    observation=observation)
+                if toggle is None:
+                    return None
+                labels = [node.get_name() for node in self.snapshot_scope(nodes, edges, page)
+                          if node.get_role_name() == 'label' and self.showing(node)]
+                require(0 < len(labels) <= 64 and all(type(text) is str and len(text) <= 512
+                                                    for text in labels), 'ui:language-labels')
+                return {'management': toggle.get_name(), 'management_labels': labels}
+            return self.wait(read, 'parent-language-management', prompt_in_predicate=True)
+
+    def parent_language_state(self):
+        """Read management language and policy projection with no setup handler.
+
+        The finite installed binding preserves the initial zero allowance. Page
+        navigation only reveals public controls; it never edits policy.
+        """
+        with self.language_scope('parent'):
+            self.language_save_completed('parent')
+            child = self.parent_initial_selection()
+            account = next(key for key, value in CHILD_IDENTITIES.items() if value == child)
+            self.activate_id('parent-page-screen-limits')
+            self.parent_save_snapshot(account, False)
+            allowance = self.id_target('parent-daily-limit-selector')
+            labels = [node.get_name() for node in self.nodes(allowance, strict=True)
+                      if node.get_role_name() == 'label' and self.showing(node)]
+            require(len(labels) == 1 and type(labels[0]) is str and len(labels[0]) <= 80
+                    and re.fullmatch(r'0\D+', labels[0]),
+                    'ui:language-allowance')
+            management = self.parent_language_management()
+            self.activate_id('parent-page-app-limits')
+            rows = self.wait(lambda: {'rows': self.app_rows(account)},
+                             'language-policy-rows')['rows']
+            self.activate_id('parent-page-screen-limits')
+            self.parent_save_snapshot(account, False)
+            return {'child': child, 'limit_enabled': False, 'allowance_minutes': 0,
+                    'rows': [list(row) for row in rows], **management,
+                    'chooser_absent': True}
+
+    def parent_language_operation(self, operation):
+        require(operation in PARENT_LANGUAGE_OPERATIONS, 'ui:language-operation')
+        if operation == 'parent-language-wrong-entry':
+            # A fresh complete window-absence proof is the refusal, without a
+            # timeout masquerading as evidence or an attempted menu action.
+            self.new_parent_window_entry()
+            require(self.snapshot_owned_target('language-dialog', showing=False,
+                    check_prompt=True, allow_unmapped_surface=True) is None,
+                    'ui:language-wrong-entry')
+            return {'refused': True}
+        if operation == 'parent-language-initial':
+            return {'language': self.read_parent_language(initial=True)}
+        if operation == 'parent-language-state':
+            return {'language_state': self.parent_language_state()}
+        if operation == 'parent-language-open':
+            with self.language_scope('parent'):
+                require(self.snapshot_owned_target('language-dialog', showing=False,
+                        check_prompt=True, allow_unmapped_surface=True) is None,
+                        'ui:language-already-open')
+                self.id_target('parent-language-ready')
+                self.open_language_preferences('parent')
+        else:
+            # A complete owned chooser proof precedes every candidate/response.
+            self.read_parent_language(initial=operation == 'parent-language-save' and
+                self.snapshot_owned_target('parent-language-ready') is None)
+            if operation.startswith('parent-language-choose-'):
+                language = next(value for value in PARENT_LANGUAGE_CHOICES
+                                if operation.endswith('-' + value.lower()))
+                self.choose_language('parent', language)
+            elif operation == 'parent-language-save':
+                self.save_language('parent')
+                return {}
+            elif operation == 'parent-language-cancel':
+                self.cancel_language('parent')
+                return {}
+        return {'language': self.read_parent_language()}
 
     def choose_language(self, surface, language):
         # Finite customer input; never derive target identities from translated names.
@@ -2329,7 +2656,8 @@ class AccessibleUI:
                 if any(self.has_state(node, self.api.StateType.DEFUNCT)
                        for node in observation[0]):
                     return False
-                if self.snapshot_owned_target(f'{surface}-language-ready', check_prompt=True,
+                namespace = 'parent' if surface == 'parent' else 'kiosk'
+                if self.snapshot_owned_target(f'{namespace}-language-ready', check_prompt=True,
                                               observation=observation) is None:
                     return False
                 dialog = self.snapshot_owned_target('language-dialog', showing=False,
@@ -6911,8 +7239,8 @@ class AccessibleUI:
                            overlay=False, language='en'):
         """Read REQUEST03's default-duration station state after accounts load."""
         require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
-        require(language in ('en', 'zh-Hans') and (language == 'en' or
-                enabled and not overlay and not no_child and not no_approver),
+        require(language in PARENT_LANGUAGE_CHOICES and (language == 'en' or
+                enabled and not no_child and not no_approver),
                 'ui:kiosk-language-binding')
         require(type(overlay) is bool and (not overlay or (
             enabled and not no_child and not no_approver and (
@@ -7080,8 +7408,10 @@ class AccessibleUI:
                 name, canonical = selected[0]
                 control.clear_cache_single()
                 description = ' '.join(control.get_description().split())
-                expected_description = (f'Selected account: {name}.' if language == 'en'
-                                        else f'已选择的账户：{name}。')
+                expected_description = {
+                    'en': 'Selected account: %s.', 'de': 'Ausgewähltes Konto: %s.',
+                    'zh-Hans': '已选择的账户：%s。', 'he': 'החשבון שנבחר: %s.',
+                }[language] % name
                 if description != expected_description:
                     # The selected label ID and the trigger description are
                     # published separately. Read both again after the update.
@@ -8122,7 +8452,8 @@ class AccessibleUI:
 
         return self.wait(observe, 'kiosk-approver-baseline', prompt_in_predicate=True)
 
-    def kiosk_account_snapshot(self, field, *, require_enabled=True, overlay=False):
+    def kiosk_account_snapshot(self, field, *, require_enabled=True, overlay=False,
+                               child=None, language=None):
         """One complete owned snapshot for a station account input boundary."""
         require(field in ('child', 'approver'), 'ui:kiosk-account-field')
         require(not overlay or field == 'approver', 'ui:overlay-child-selection')
@@ -8142,6 +8473,15 @@ class AccessibleUI:
         form = self.snapshot_owned_target(
             'kiosk-request-form', root=window, observation=observation)
         require(form is not None, 'ui:kiosk-account-surface')
+        if child is not None:
+            self.initial_kiosk_child(observation, window, child=child)
+        if language is not None:
+            require(child is not None and language in ACCOUNT_LANGUAGE_LABELS,
+                    'ui:kiosk-language-binding')
+            child_selector = self.snapshot_owned_target('kiosk-child-selector', root=form,
+                observation=observation)
+            require(child_selector is not None and ' '.join(child_selector.get_description().split()) ==
+                    ACCOUNT_LANGUAGE_LABELS[language][2] % child, 'ui:kiosk-pre-language')
         selector = self.snapshot_owned_target(
             f'kiosk-{field}-selector', root=form, showing=False, observation=observation)
         require(selector is not None and self.has_state(selector, self.api.StateType.VISIBLE)
@@ -8150,12 +8490,18 @@ class AccessibleUI:
         return selector, form, observation
 
     def select_kiosk_account(self, field, name, *, expected, enabled=True, inspect_only=False,
-                             duration_seconds=1800, custom_text=None, overlay=False):
+                             duration_seconds=1800, custom_text=None, overlay=False,
+                             child=None, language='en', result_language=None):
         """UI15: inspect the exact offered set, optionally select and read back."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
         require(type(inspect_only) is bool, 'ui:kiosk-inspection-binding')
         require(field in ('child', 'approver'), 'ui:kiosk-account-field')
+        result_language = language if result_language is None else result_language
+        require(language in ACCOUNT_LANGUAGE_LABELS and result_language in ACCOUNT_LANGUAGE_LABELS
+                and (child is not None or language == result_language == 'en')
+                and (field == 'child' or language == result_language)
+                and (not overlay or child in (None, CHILD)), 'ui:kiosk-language-binding')
         accounts = CHILD_ACCOUNTS if field == 'child' else APPROVER_ACCOUNTS
         require(type(expected) is tuple and len(expected) == len(set(expected))
                 and set(expected) <= set(accounts) and name in expected,
@@ -8169,15 +8515,18 @@ class AccessibleUI:
             require(identity not in bindings, 'ui:duplicate-choice-identity')
             bindings[identity] = label
         selector, form, observation = self.wait(
-            lambda: self.kiosk_account_snapshot(field, require_enabled=False, overlay=overlay),
+            lambda: self.kiosk_account_snapshot(field, require_enabled=False, overlay=overlay,
+                child=child, language=language if child is not None else None),
             'kiosk-account-snapshot', prompt_in_predicate=True)
         if self.snapshot_owned_target('kiosk-language-ready', observation=observation) is None:
             # First station entry can leave the current child's setup open.
             # Complete it before requiring an enabled account selector, then
             # reacquire after that separate input and its confirmed result.
+            require(language == 'en', 'ui:kiosk-startup-language')
             self.complete_request_language_setup()
             selector, form, observation = self.wait(
-                lambda: self.kiosk_account_snapshot(field, overlay=overlay),
+                lambda: self.kiosk_account_snapshot(field, overlay=overlay, child=child,
+                    language=language if child is not None else None),
                 'kiosk-account-snapshot', prompt_in_predicate=True)
         require(self.has_state(selector, self.api.StateType.SENSITIVE),
                 'ui:kiosk-account-unavailable')
@@ -8186,12 +8535,12 @@ class AccessibleUI:
                 f'kiosk-{field}-choices', root=form, observation=observation) is None,
                 'ui:kiosk-choices-already-open')
         self._invoke_target(selector)
-        if inspect_only:
-            self.input_uncertain = True
+        self.input_uncertain = True
         self.invalidate_observation()
 
         def offered():
-            _selector, form, observation = self.kiosk_account_snapshot(field, overlay=overlay)
+            _selector, form, observation = self.kiosk_account_snapshot(field, overlay=overlay,
+                child=child, language=language if child is not None else None)
             nodes, snapshot, identities, _facts = observation
             choices = self.snapshot_owned_target(
                 f'kiosk-{field}-choices', root=form, observation=observation)
@@ -8208,9 +8557,16 @@ class AccessibleUI:
                 require(self.has_state(node, self.api.StateType.VISIBLE)
                         and self.has_state(node, self.api.StateType.SENSITIVE),
                         'ui:kiosk-account-unavailable')
-                label = 'Child account' if field == 'child' else 'Approving parent'
-                require(' '.join(node.get_name().split()) == f'{label}: {bindings[identity]}',
+                label = ACCOUNT_LANGUAGE_LABELS[language][0 if field == 'child' else 1]
+                require(' '.join(node.get_name().split()) ==
+                        ACCOUNT_LANGUAGE_LABELS[language][3] % (label, bindings[identity]),
                         'ui:kiosk-choice-label')
+                visible_labels = [entry.get_name() for entry in self.snapshot_scope(nodes, snapshot, node)
+                                  if entry.get_role_name() == 'label' and self.showing(entry)]
+                # Older synthetic/default consumers need no added shape. Bound
+                # multilingual input proves literal account names separately.
+                if child is not None:
+                    require(visible_labels == [bindings[identity]], 'ui:kiosk-choice-name')
                 found[identity] = node
             require(set(found) == set(bindings), 'ui:kiosk-eligible-set')
             if inspect_only:
@@ -8218,6 +8574,7 @@ class AccessibleUI:
             return next(found[identity] for identity in found if bindings[identity] == name)
 
         target = self.wait(offered, 'kiosk-offered-accounts', prompt_in_predicate=True)
+        self.input_uncertain = False
         if inspect_only:
             self.input_uncertain = False
             return None
@@ -8241,8 +8598,10 @@ class AccessibleUI:
                           for identity, label in bindings.items() if label == name)
             if not matches or identities[matches[0]] != wanted:
                 return None
+            if child is not None:
+                self.initial_kiosk_child(observation, form, child=name if field == 'child' else child)
             selector.clear_cache_single()
-            if ' '.join(selector.get_description().split()) != f'Selected account: {name}.':
+            if ' '.join(selector.get_description().split()) != ACCOUNT_LANGUAGE_LABELS[result_language][2] % name:
                 return None
             if self.snapshot_owned_target(f'kiosk-{field}-choices', root=form,
                                           observation=observation) is not None:
@@ -8254,7 +8613,10 @@ class AccessibleUI:
             self.input_uncertain = False
             result = self.kiosk_request_form(enabled=enabled, expected_selection=(field, canonical[name]),
                                              duration_seconds=duration_seconds, custom_text=custom_text,
-                                             overlay=overlay)
+                                             overlay=overlay, language=result_language)
+            if child is not None:
+                require(result['child'] == CHILD_IDENTITIES[name if field == 'child' else child],
+                        'ui:kiosk-result-child')
         except BaseException:
             # Missing selection, language completion or complete form proof
             # remains terminal, even after a separately confirmed action.
@@ -9393,6 +9755,29 @@ class AccessibleUI:
         elif operation == 'parent-window':
             self.complete_parent_language_setup()
             self.parent()
+        elif operation in PARENT_LANGUAGE_OPERATIONS:
+            result.update(self.parent_language_operation(operation))
+        elif operation in KIOSK_LANGUAGE_OPERATIONS:
+            result.update(self.kiosk_language_operation(operation))
+        elif operation in OVERLAY_LANGUAGE_OPERATIONS:
+            result.update(self.overlay_language_operation(operation))
+        elif operation == 'kiosk-language-account-refusals':
+            for owner, before, after, code in (
+                    (CHILD, 'de', 'de', 'ui:initial-child'),
+                    (EXISTING_CHILD, 'en', 'en', 'ui:kiosk-pre-language'),
+                    (EXISTING_CHILD, 'de', 'he', 'ui:kiosk-language-binding')):
+                try:
+                    self.select_kiosk_account('approver', OTHER_PARENT, expected=(PARENT, OTHER_PARENT),
+                        child=owner, language=before, result_language=after)
+                except UiError as error:
+                    require(str(error) == code and not self.input_uncertain, 'ui:language-refusal')
+                else:
+                    raise UiError('ui:language-refusal-accepted')
+            result['refused'] = True
+        elif operation in KIOSK_LANGUAGE_POLICIES:
+            result['language_policy'] = self.kiosk_language_policy(child=KIOSK_LANGUAGE_POLICIES[operation])
+        elif operation == 'overlay-language-policy':
+            result['language_policy'] = self.kiosk_language_policy(child=CHILD)
         elif operation == 'parent-window-count':
             result['count'] = self.parent_window_count()
         elif operation == 'parent-restart-ready':
@@ -9688,7 +10073,12 @@ class AccessibleUI:
                 expected=(CHILD, EXISTING_CHILD) if field == 'child' else (PARENT, OTHER_PARENT),
                 inspect_only=True)
         elif operation in KIOSK_ACCOUNT_REQUESTS:
-            if operation in ('multiple-child-closed', 'multiple-approver-closed'):
+            if operation in KIOSK_LANGUAGE_ACCOUNTS:
+                field, name, child, language, result_language = KIOSK_LANGUAGE_ACCOUNTS[operation]
+                result['request'] = self.select_kiosk_account(field, name,
+                    expected=(CHILD, EXISTING_CHILD) if field == 'child' else (PARENT, OTHER_PARENT),
+                    child=child, language=language, result_language=result_language)
+            elif operation in ('multiple-child-closed', 'multiple-approver-closed'):
                 result['request'] = self.collapse_kiosk_child_choices(
                     operation.split('-')[1], enabled=True)
             elif operation == 'multiple-preserved':

@@ -299,7 +299,8 @@ def test_qualification_uses_shared_snapshot_and_guarded_envelope(tmp_path):
     version = json.loads((ROOT / 'data/app.json').read_bytes())['version']
     assert context.installed_snapshot == 'onpc-v' + version
     assert KioskEligibleChoicesQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
-    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
+    from tools.test_storage import named_input
+    assert check.ASSETS == named_input(package_source=True)
 
 
 def test_ineligible_profile_reuses_all_pairs_and_owned_fixture(tmp_path):

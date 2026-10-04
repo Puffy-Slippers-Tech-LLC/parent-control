@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify direct and normal Shell-panel child overlay entry."""
+"""Qualify installed Jordan kiosk personal language selection and persistence."""
 import sys
 from check_graphical_smoke import main as smoke
 from tools.test_storage import named_input
@@ -8,8 +8,7 @@ ASSETS = named_input(package_source=True)
 
 
 def main():
-    return smoke(assets=ASSETS, provision_credentials=True,
-                 challenges=True, challenge_profile='shell-panel')
+    return smoke(assets=ASSETS, provision_credentials=True, kiosk_language=True)
 
 
 if __name__ == '__main__':

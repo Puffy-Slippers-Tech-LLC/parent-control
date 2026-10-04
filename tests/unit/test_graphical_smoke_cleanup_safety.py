@@ -219,7 +219,8 @@ def test_stale_artifacts_refuse_before_connection_or_lease(tmp_path):
     assert result['outcomes']['infrastructure']['outcome'] == 'failed'
 
 
-@pytest.mark.parametrize('mode', ['chinese_native_auth', 'kiosk_approved_flow'])
+@pytest.mark.parametrize('mode', ['chinese_native_auth', 'kiosk_approved_flow', 'parent_language',
+                                 'kiosk_language', 'overlay_language', 'kiosk_language_restoration'])
 def test_native_approval_stages_complete_installed_payload_before_vm(tmp_path, monkeypatch, mode):
     from contextlib import nullcontext
 

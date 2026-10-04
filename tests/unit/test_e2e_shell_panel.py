@@ -304,13 +304,39 @@ def test_qualification_cancel_is_owned_and_preserves_uncertain_input(monkeypatch
 
 
 def test_fixed_selector_registration_and_snapshot_envelope(monkeypatch):
+    from tools.test_storage import named_input
     calls = []
     monkeypatch.setattr(check, 'smoke', lambda **kw: calls.append(kw) or 0)
     assert check.main() == 0 and calls[0]['challenge_profile'] == 'shell-panel'
+    assert calls[0]['assets'] == named_input(package_source=True)
+    assert calls[0]['assets'] != named_input()
     context = SimpleNamespace()
     journey = ShellPanelQualification.journey(context, Mock())
     assert journey.plan is PLAN and context.installed_snapshot.startswith('onpc-v')
     assert all(tag[3:] in a.OPERATIONS for tag in PLAN.screen_tags.values() if tag.startswith('ui:'))
+
+
+@pytest.mark.parametrize('name', ['check_e2e_shell_panel', 'check_e2e_shell_panel.py'])
+@pytest.mark.parametrize('exists', [False, True])
+def test_shell_panel_prepares_current_inputs_and_preserves_existing(monkeypatch, name, exists):
+    import tools.test_commands as commands
+    from tools.test_storage import named_input
+    from tests.support.paths import ROOT
+    expected = str(named_input(package_source=True))
+    allocate = Mock(side_effect=lambda path: path)
+    validate = Mock()
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: exists)
+    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
+    monkeypatch.setattr(commands, 'artifact_path', validate)
+    result = commands.qualification_artifact_command(ROOT, 'integration', [name])
+    if exists:
+        assert result is None
+        validate.assert_called_once_with(expected)
+        allocate.assert_not_called()
+    else:
+        assert result[-2:] == ['--output', expected]
+        allocate.assert_called_once_with(expected)
+        validate.assert_not_called()
 
 
 @pytest.mark.parametrize(('route', 'fault'), [

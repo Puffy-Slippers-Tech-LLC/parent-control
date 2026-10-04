@@ -35,7 +35,7 @@ WORKER_APIS = {
     'onpc_parent': {'login_functional', 'login_standard_functional', 'enter_desktop',
                     'sign_in', 'launch', 'select_child', 'open_for_child',
                     'open_from_app_grid', 'search_whole_query', 'launch_search_result',
-                    'open_search', 'focus_search', 'enter_search_query', 'set_allowance'},
+                    'open_search', 'focus_search', 'enter_search_query', 'set_allowance', 'language_selection'},
     'onpc_request_exit': {'enter_station', 'escape'},
     'onpc_desktop_session': {'switch_user'},
     'onpc_window': {'close'},

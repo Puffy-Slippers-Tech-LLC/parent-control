@@ -1545,6 +1545,7 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         executed = [call for call in control.calls if '--list' not in call]
         assert [call[1] for call in executed] == ['artifacts', *phases]
         assert 'prepare' in executed[0]
+        assert '--for-vm' in executed[0]
         assert all(item.state == 'Passed' for item in run.categories)
         assert control.builds == 1
         assert all(run.artifacts['build-a'] in call for call in executed[1:])
@@ -1570,12 +1571,17 @@ def test_entire_plan_discovers_ready_cases_and_preserves_failure(
         return
     assert len([call for call in control.calls if 'compare' in call]) == 1
     assert len([call for call in control.calls if 'publish' in call]) == 1
-    package = [call for call in control.calls if 'artifacts' in call]
+    package = [call for call in control.calls if 'artifacts' in call and '--for-vm' not in call]
     assert package[-1][-2:] == [run.artifacts['build-a'], run.artifacts['build-b']]
     assert set(package[-1][-2:]) == {'/tmp/onpc-test-artifacts-fake1', '/tmp/onpc-test-artifacts-fake2'}
     if not includes_vm:
         assert not any(call[1] in ('system', 'e2e') for call in control.calls)
         return
+    preparation = [call for call in control.calls if '--for-vm' in call]
+    assert len(preparation) == 1
+    assert preparation[0][-2:] == ['--candidate', run.artifacts['build-a']]
+    assert all(run.artifacts['build-vm'] in call for call in control.calls
+               if call[1] in ('system', 'e2e') and '--list' not in call)
     e2e = [call for call in control.calls if 'e2e' in call and '--list' not in call]
     assert len(e2e) == int('e2e' in phases)
     if e2e:

@@ -80,6 +80,53 @@ def test_preparation_can_reuse_but_explicit_build_remains_fresh():
     assert reusable == [[*fresh[0], '--reuse']]
 
 
+@pytest.mark.parametrize('status,package_format', [(3, 'deb'), (5, 'rpm'), (6, None), (0, None), (130, None)])
+@pytest.mark.parametrize('candidate_format', [None, 'deb', 'rpm'])
+def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
+        tmp_path, monkeypatch, capsys, status, package_format, candidate_format):
+    import vm_artifacts
+    import build_test_artifacts
+    output = tmp_path / 'output'
+    candidate = tmp_path / 'candidate' if candidate_format else None
+    verify = Mock(return_value={'artifacts': {'package': {'path': 'app.' + str(candidate_format)}}})
+    monkeypatch.setattr(build_test_artifacts, 'verify', verify)
+    authorize = Mock()
+    monkeypatch.setattr(vm_artifacts, 'check', authorize)
+    allocate = Mock(return_value=str(output))
+    monkeypatch.setattr(vm_artifacts.test_retention, 'allocate', allocate)
+    control = Mock()
+    control.run.side_effect = [status, 0]
+    result = vm_artifacts.prepare(ROOT, control, {}, candidate=candidate)
+    authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
+    assert control.run.call_args_list[0].args[0] == [
+        '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+        '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe', '--mode', 'online',
+        '--overwrite', 'true', *VM_ARGS]
+    if package_format is None:
+        assert result == (status or 2)
+        assert control.run.call_count == 1
+        allocate.assert_not_called()
+        verify.assert_not_called()
+    elif candidate_format == package_format:
+        assert result == 0 and control.run.call_count == 1
+        allocate.assert_not_called()
+        verify.assert_called_once_with(candidate)
+        assert capsys.readouterr().out.strip() == 'run-tests: output=' + str(candidate)
+    else:
+        assert result == 0
+        assert control.run.call_args.args[0] == [
+            '/usr/bin/python3', '-B', str(ROOT / 'tools/build_test_artifacts.py'),
+            *(['--reuse'] if package_format == 'deb' else []),
+            '--package-format', package_format, '--output', str(output)]
+        allocate.assert_called_once()
+
+
+def test_vm_preparation_plan_uses_selected_vm():
+    planned, safety = commands.plan(ROOT, 'artifacts', ['prepare', '--for-vm'])
+    assert planned == [commands.python_file(ROOT, 'tools/vm_artifacts.py', *VM_ARGS)]
+    assert not safety
+
+
 @pytest.mark.parametrize('output', [
     '/etc/onpc-input', '/tmp/unrelated', '/tmp/onpc-input/nested',
     '/tmp/../tmp/onpc-input', 'onpc-input', '/tmp//onpc-input',
@@ -419,7 +466,7 @@ def test_detached_e2e_failed_build_never_starts_privileged_runner(tmp_path, monk
     monkeypatch.setattr(regression_process.Control, 'run', execute)
     assert regression_process.category_run(ROOT, 'e2e', [], pipe=False) == 130
     execute.assert_called_once()
-    assert execute.call_args.args[0][2].endswith('/tools/build_test_artifacts.py')
+    assert execute.call_args.args[0][2].endswith('/tools/vm_artifacts.py')
 
 
 @pytest.fixture

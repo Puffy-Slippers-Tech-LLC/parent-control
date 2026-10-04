@@ -107,9 +107,20 @@ tools/run-tests system --vm NAME --list --area authorization --test 'test_real_s
 ```
 
 Bare `tools/run-tests system --vm NAME` builds its required package input automatically;
-combinations including `host` reuse host's qualified input.
+combinations including `host` reuse host's qualified input when its format matches
+the verified VM baseline. Fedora selects RPM inputs; Ubuntu selects DEB inputs.
+`tools/run-tests artifacts prepare --for-vm --vm NAME` prepares the same inputs
+for focused `system --artifacts PATH --area AREA --test CASE` runs. Format
+selection uses the pinned baseline's read-only probe; it never infers the OS
+from the VM name. RPM preparation builds fresh; DEB retains verified cache reuse.
 
-Installation/reboot package checks start from `onpc_baseline`. Authorization,
+Installation/reboot package checks start from `onpc_baseline`. The controller
+passes the explicit phase to the package check: before reboot, broker activation
+must succeed while `ListManagedUsers` must return the exact `RebootRequired`
+D-Bus error; after reboot, that method must succeed. A transport error or another
+refusal never satisfies the reboot gate. Diagnostics-only activation must preserve
+generated policy state before reboot; policy generation is required afterward.
+Authorization,
 enforcement and session checks restore the retained `onpc-v<release>` app snapshot
 before each area, using the same shared preparation as
 `tools/prepare-appsnapshot --vm NAME --y --overwrite false` and E2E. A missing version snapshot

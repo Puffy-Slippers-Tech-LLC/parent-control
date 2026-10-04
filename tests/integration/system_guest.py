@@ -122,7 +122,7 @@ def package_path():
     return PAYLOAD / ('package.rpm' if (PAYLOAD / 'package.rpm').exists() else 'package.deb')
 
 
-def verify_package():
+def verify_package_files():
     package = package_path()
     if package.suffix == '.rpm':
         identity = '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}'
@@ -131,6 +131,17 @@ def verify_package():
         require(installed == expected, 'package-version')
         require(not run(['rpm', '--verify', 'oh-no-parent-control']), 'package-file-digests')
         require(run(['getenforce']) == 'Enforcing', 'selinux-enforcing')
+    else:
+        require(run(['dpkg-query', '-W', '-f=${Status}', 'oh-no-parent-control']) ==
+                'install ok installed', 'package-status')
+        require(run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control']) ==
+                run(['dpkg-deb', '-f', str(package), 'Version']), 'package-version')
+        require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'package-file-digests')
+
+
+def verify_package():
+    verify_package_files()
+    if package_path().suffix == '.rpm':
         # RPM can commit its database despite a failed post-transaction
         # scriptlet. Require the configured app and its independent boot gate.
         config = Path('/etc/oh-no-parent-control/config.json').stat()
@@ -142,12 +153,6 @@ def verify_package():
              '/com/puffyslippers/OhNoParentControl1', BUS, 'ListManagedUsers'])
         for unit in (BROKER, 'oh-no-parent-control-execution-policy-ready.service'):
             require(run(['systemctl', 'is-active', unit]) == 'active', 'service-ready')
-    else:
-        require(run(['dpkg-query', '-W', '-f=${Status}', 'oh-no-parent-control']) ==
-                'install ok installed', 'package-status')
-        require(run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control']) ==
-                run(['dpkg-deb', '-f', str(package), 'Version']), 'package-version')
-        require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'package-file-digests')
 
 
 def before_install():
@@ -230,12 +235,13 @@ def upgrade():
 
 def installed_group(path):
     groups = {
-        '/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop': 'sudo',
+        '/usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop':
+            'wheel' if package_path().suffix == '.rpm' else 'sudo',
     }
     return grp.getgrnam(groups.get(str(path), 'root')).gr_gid
 
 
-def activate_broker():
+def activate_broker(*, reboot_required=False):
     # The static Type=dbus broker starts on demand. Use the explicitly allowed
     # public product interface, not an introspection interface its bus policy
     # does not expose. Suppress account labels returned by the read-only method.
@@ -243,8 +249,27 @@ def activate_broker():
     run(['busctl', '--system', 'call', 'org.freedesktop.DBus', '/org/freedesktop/DBus',
          'org.freedesktop.DBus', 'StartServiceByName', 'su', BUS, '0'])
     require(run(['systemctl', 'is-active', BROKER]) == 'active', 'dbus-activation')
+    if reboot_required:
+        verify_reboot_gate()
+        return
     run(['busctl', '--system', '--quiet', 'call', BUS,
          '/com/puffyslippers/OhNoParentControl1', BUS, 'ListManagedUsers'])
+
+
+def verify_reboot_gate():
+    # Check the protocol error name, not translated command stderr or a generic
+    # failure. A transport failure or successful policy call must fail this check.
+    from gi.repository import Gio, GLib
+    connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+    try:
+        connection.call_sync(BUS, '/com/puffyslippers/OhNoParentControl1', BUS,
+            'ListManagedUsers', None, GLib.VariantType.new('(a(uss))'),
+            Gio.DBusCallFlags.NONE, 30000, None)
+    except GLib.Error as error:
+        require(Gio.DBusError.get_remote_error(error) == BUS + '.Error.RebootRequired',
+                'broker-reboot-error')
+    else:
+        raise GuestError('broker-policy-available-before-reboot')
 
 
 def wait_for_boot():
@@ -260,13 +285,9 @@ def wait_for_boot():
     print(f'onpc-system: stage=boot-readiness outcome=complete state={state}', flush=True)
 
 
-def installed():
+def installed(*, reboot_required=False):
     wait_for_boot()
-    require(run(['dpkg-query', '-W', '-f=${Status}', 'oh-no-parent-control']) == 'install ok installed',
-            'package-status')
-    version = run(['dpkg-deb', '-f', str(PAYLOAD / 'package.deb'), 'Version'])
-    require(run(['dpkg-query', '-W', '-f=${Version}', 'oh-no-parent-control']) == version, 'package-version')
-    require(not run(['dpkg', '--verify', 'oh-no-parent-control']), 'package-file-digests')
+    verify_package_files()
     expectations = json.loads((PAYLOAD / 'installed-files.json').read_text())
     for entry in expectations:
         path = Path(entry['path'])
@@ -282,19 +303,14 @@ def installed():
             require(info.st_gid == installed_group(path), 'installed-group')
     private = Path('/etc/oh-no-parent-control/config.json').stat()
     require(private.st_uid == 0 and stat.S_IMODE(private.st_mode) == 0o600, 'configuration-permissions')
-    activate_broker()
+    rules_before = execution_rule_state() if reboot_required else None
+    activate_broker(reboot_required=reboot_required)
     for unit in (BROKER, 'accounts-daemon.service', 'fapolicyd.service', 'display-manager.service'):
         require(run(['systemctl', 'is-active', unit]) == 'active', 'service-ready')
-    require('pam_oh_no_parent_control.so' in Path('/etc/pam.d/common-auth').read_text(), 'pam-auth')
-    require('pam_malcontent.so' in Path('/etc/pam.d/common-account').read_text(), 'pam-account')
-    account_stack = Path('/etc/pam.d/common-account').read_text()
-    require('pam_oh_no_parent_control.so' in account_stack and
-            account_stack.index('pam_malcontent.so') <
-            account_stack.index('pam_oh_no_parent_control.so'), 'pam-runtime-cap')
-    require('oh-no-parent-control-clear-session-runtime-max' not in
-            Path('/etc/pam.d/common-session').read_text() and not
-            Path('/usr/libexec/oh-no-parent-control-clear-session-runtime-max').exists(),
-            'obsolete-session-runtime-hook')
+    if package_path().suffix == '.rpm':
+        require(run(['systemctl', 'is-active', 'oh-no-parent-control-execution-policy-ready.service']) ==
+                'active', 'service-ready')
+    verify_pam()
     for name in ('child.request-own-access', 'kiosk.request-access'):
         path = Path('/usr/share/polkit-1/actions') / f'tech.puffyslippers.com.ohnoparentcontrol.{name}.policy'
         root = ET.parse(path).getroot()
@@ -303,9 +319,72 @@ def installed():
                  '/usr/share/gnome-session/sessions/oh-no-parent-control.session',
                  '/usr/share/polkit-1/rules.d/00-oh-no-parent-control-session.rules'):
         require(Path(path).is_file(), 'session-or-polkit-registration')
-    rules = Path('/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules')
-    require(rules.is_file() and rules.stat().st_uid == 0, 'generated-execution-rules')
+    if reboot_required:
+        # Diagnostics-only activation must preserve existing upgrade policy and
+        # must not generate policy on a fresh installation before reboot.
+        require(execution_rule_state() == rules_before, 'policy-changed-before-reboot')
+    else:
+        rules = Path('/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules')
+        require(rules.is_file() and rules.stat().st_uid == 0, 'generated-execution-rules')
     require(bool(run(['fapolicyd-cli', '--list'])), 'loaded-execution-rules')
+
+
+def execution_rule_state():
+    state = {}
+    for name in ('01-oh-no-parent-control-deny.rules', '89-oh-no-parent-control.rules'):
+        path = Path('/etc/fapolicyd/rules.d', name)
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            state[name] = None
+        else:
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == 0, 'generated-execution-rules')
+            state[name] = (info.st_mode, info.st_uid, info.st_gid, sha(path))
+    return state
+
+
+def verify_pam():
+    fedora = package_path().suffix == '.rpm'
+    stacks = (('system-auth', 'system-auth', 'system-auth'),
+              ('password-auth', 'password-auth', 'password-auth'),
+              ('fingerprint-auth', 'fingerprint-auth', 'fingerprint-auth'),
+              ('smartcard-auth', 'smartcard-auth', 'smartcard-auth')) if fedora else (
+              ('common-auth', 'common-account', 'common-session'),)
+    if fedora:
+        run(['authselect', 'check'])
+        profile = run(['authselect', 'current', '--raw']).split()
+        require(bool(profile) and profile[0] == 'custom/oh-no-parent-control', 'pam-profile')
+    for auth, account, session in stacks:
+        contents = {name: Path('/etc/pam.d', name).read_text() for name in (auth, account, session)}
+        auth_stack = '\n'.join(line for line in contents[auth].splitlines()
+                              if line.lstrip().startswith('auth'))
+        require('pam_oh_no_parent_control.so' in auth_stack, 'pam-auth')
+        account_stack = '\n'.join(line for line in contents[account].splitlines()
+                                 if line.lstrip().startswith('account'))
+        require('pam_malcontent.so' in account_stack, 'pam-account')
+        require('pam_oh_no_parent_control.so' in account_stack and
+                account_stack.index('pam_malcontent.so') <
+                account_stack.index('pam_oh_no_parent_control.so'), 'pam-runtime-cap')
+        require('oh-no-parent-control-clear-session-runtime-max' not in contents[session],
+                'obsolete-session-runtime-hook')
+    require(not Path('/usr/libexec/oh-no-parent-control-clear-session-runtime-max').exists(),
+            'obsolete-session-runtime-hook')
+
+
+def reboot_requested():
+    if package_path().suffix == '.rpm':
+        path = Path('/run/oh-no-parent-control-reboot-required')
+        return path.is_file() and path.read_text().strip() == 'reboot'
+    path = Path('/run/reboot-required.pkgs')
+    return (Path('/run/reboot-required').is_file() and path.is_file() and
+            'oh-no-parent-control' in path.read_text().splitlines())
+
+
+def reboot_cleared():
+    if package_path().suffix == '.rpm':
+        return not Path('/run/oh-no-parent-control-reboot-required').exists()
+    path = Path('/run/reboot-required.pkgs')
+    return not path.exists() or 'oh-no-parent-control' not in path.read_text().splitlines()
 
 
 def retain_identity_for_redaction(uid):

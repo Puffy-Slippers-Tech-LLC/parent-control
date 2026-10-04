@@ -424,10 +424,12 @@ def category_run(root, category, argv, *, pipe=True):
                 return status
         if category == 'e2e' and '--list' not in argv and not any(
                 value.startswith('--artifacts=') for value in commands[0]):
+            from vm_selection import arguments as vm_arguments
             directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-', dir='/tmp')
             print('run-tests: output=' + directory, flush=True)
             status = control.run(test_commands.python_file(
-                root, 'tools/build_test_artifacts.py', '--reuse', '--output', directory), cwd=root, env=env)
+                root, 'tools/vm_artifacts.py', '--output', directory,
+                *vm_arguments()), cwd=root, env=env)
             if status:
                 return status
             commands, _ = test_commands.plan(root, category, [*argv, '--artifacts=' + directory])

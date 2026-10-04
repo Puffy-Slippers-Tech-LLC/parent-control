@@ -750,10 +750,10 @@ class Run:
 
     def complete_host(self, job, result):
         status, output = result
-        if job.key in ('build-a', 'build-b') and status == 0:
+        if job.key in ('build-a', 'build-b', 'build-vm') and status == 0:
             matches = re.findall(r'^run-tests: output=(/[^\n]+/onpc-test-artifacts-[A-Za-z0-9_-]+)$', output, re.M)
             if (len(matches) != 1 or job.key in self.artifacts
-                    or matches[0] in self.artifacts.values()):
+                    or job.key != 'build-vm' and matches[0] in self.artifacts.values()):
                 job.item.state = 'Failed'
                 job.item.failures = max(1, job.item.failures)
                 self.report.snapshot(self.categories)
@@ -901,7 +901,7 @@ class Run:
         authorization()
         discovery.done, discovery.state = 1, 'Passed'
         discovery.stop_timer()
-        self.host_jobs([Job('artifacts', build, self.command('artifacts', 'prepare'), key='build-a')])
+        self.host_jobs([Job('artifacts', build, self.command('artifacts', 'prepare', '--for-vm'), key='build-a')])
         if self.control.stopped.is_set() or build.state != 'Passed':
             return
         self.vm_tests(system, graphical, ready)
@@ -954,9 +954,18 @@ class Run:
         return ready
 
     def vm_tests(self, system, graphical, ready):
+        artifacts = self.artifacts.get('build-a')
+        if 'host' in self.phases and (system is not None or ready):
+            build = Category('VM package input preparation', 1, count_overall=False)
+            self.categories.insert(self.categories.index(system or graphical), build)
+            self.host_jobs([Job('artifacts', build, self.command('artifacts', 'prepare',
+                '--for-vm', '--candidate', artifacts), key='build-vm')])
+            if self.control.stopped.is_set() or build.state != 'Passed':
+                return
+            artifacts = self.artifacts['build-vm']
         if system is not None:
             self.dashboard.controller_category = ('system', self.phases.index('system') + 1, len(self.phases))
-            status, _ = self.execute(system, self.command('system', '--artifacts', self.artifacts['build-a']), events=True)
+            status, _ = self.execute(system, self.command('system', '--artifacts', artifacts), events=True)
             if self.control.stopped.is_set():
                 return
             if status:
@@ -966,7 +975,7 @@ class Run:
             # One dispatcher invocation keeps prerequisite checks and the VM
             # lease at suite scope. The controller reports each case and stops
             # on case/transition failure; its final status includes suite cleanup.
-            self.execute(graphical, self.command('e2e', '--artifacts', self.artifacts['build-a'],
+            self.execute(graphical, self.command('e2e', '--artifacts', artifacts,
                                                  '--ready'), events=True)
         elif graphical is not None:
             graphical.state = 'Interrupted' if self.control.stopped.is_set() else 'Failed'

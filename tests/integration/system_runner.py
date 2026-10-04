@@ -1189,6 +1189,9 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
     lease.save('ssh-bootstrap')
     with mounted_guest(guestfs, lease, with_root=True) as (g, root):
         os_id, version = baseline.guest_contract.inspected_release(g, root)
+        package = directory / 'input' / ('package.rpm' if os_id == 'fedora' else 'package.deb')
+        if not observation_only:
+            require(package.is_file(), 'assets:package-platform-mismatch:' + os_id)
         if os_id == 'ubuntu':
             baseline.guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
             from chinese_language_assets import verify as verify_chinese
@@ -1215,8 +1218,7 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
         if observation_only:
             marker['scope'] = 'graphical-observation-only'
         else:
-            marker['package_sha256'] = baseline.digest(directory / 'input' /
-                ('package.rpm' if os_id == 'fedora' else 'package.deb'))
+            marker['package_sha256'] = baseline.digest(package)
             # A restored installation snapshot may contain helpers, bytecode
             # and assets removed from the new input manifest. Start fresh;
             # overwriting just the files still declared would retain them.
@@ -1327,6 +1329,7 @@ def pytest_command(run, phase, selection):
     qualification = (['-p', 'system_qualification', '--onpc-qualification-failure']
                      if selection.qualification_failure and phase == 'authorization' else [])
     return ['env', f'ONPC_EXPECTED_RUN={run}', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1',
+            f'ONPC_SYSTEM_PHASE={phase}',
             'ONPC_REGRESSION_EVENTS=1', f'ONPC_REGRESSION_PRIVATE={PAYLOAD}/results',
             f'PYTHONPATH={PAYLOAD}',
             'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-m', 'pytest',

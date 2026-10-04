@@ -319,8 +319,8 @@ def test_ready_selection_builds_artifacts_then_dispatches_only_e2e(monkeypatch, 
         aggregate.assert_not_called()
         assert build.call_count == (1 if status else 2)
         assert build.call_args_list[0].args[0] == [
-            '/usr/bin/python3', '-B', str(ROOT / 'tools/build_test_artifacts.py'),
-            '--reuse', '--output', directory]
+            '/usr/bin/python3', '-B', str(ROOT / 'tools/vm_artifacts.py'),
+            '--output', directory, *VM_ARGS]
         if status:
             assert result == status
             execute.assert_not_called()

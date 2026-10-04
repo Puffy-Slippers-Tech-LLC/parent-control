@@ -117,7 +117,7 @@ Signed-By:
     assert ubuntu_archive_sources(expected) == expected
 
 
-@pytest.mark.parametrize('failure', [None, 'write', 'readback', 'missing-tools', 'symlink'])
+@pytest.mark.parametrize('failure', [None, 'write', 'readback', 'missing-tools', 'symlink', 'wrong-package'])
 @pytest.mark.parametrize('observation_only', [False, True])
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
 def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_path, failure, observation_only, package_format):
@@ -128,7 +128,8 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
     lease.source.uuid = UUID
     (tmp_path / 'input').mkdir()
     if not observation_only:
-        (tmp_path / ('input/package.' + package_format)).write_bytes(b'package')
+        staged_format = ('rpm' if package_format == 'deb' else 'deb') if failure == 'wrong-package' else package_format
+        (tmp_path / ('input/package.' + staged_format)).write_bytes(b'package')
     (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
     g, files = bootstrap_guest()
     if package_format == 'rpm':
@@ -166,9 +167,10 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
             files[authorized] = b'wrong-key'
     g.close.side_effect = close
     (tmp_path / 'ssh-key.pub').write_bytes(b'ssh-ed25519 QUFB onpc-system-test\n')
-    if failure:
+    if failure and not (failure == 'wrong-package' and observation_only):
         with patch.object(runner, 'retire_snapshot_payload', retire), pytest.raises(
-                (runner.CommandError, runner.Error, ValueError)):
+                (runner.CommandError, runner.Error, ValueError),
+                match='assets:package-platform-mismatch' if failure == 'wrong-package' else None):
             runner.bootstrap(commands, lease, tmp_path, guestfs, observation_only=observation_only)
         assert g.close.call_count == (2 if failure == 'readback' else 1)
     else:
@@ -293,6 +295,8 @@ def test_pytest_command_selects_both_required_tests_without_skips():
     before = runner.pytest_command(RUN, 'installed', selection)
     after = runner.pytest_command(RUN, 'rebooted', selection)
     assert 'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1' in before
+    assert 'ONPC_SYSTEM_PHASE=installed' in before
+    assert 'ONPC_SYSTEM_PHASE=rebooted' in after
     assert before[-1].endswith('::test_first_install_requests_reboot')
     assert after[-1].endswith('::test_reboot_applies_installation')
     assert before[-2] == after[-2]

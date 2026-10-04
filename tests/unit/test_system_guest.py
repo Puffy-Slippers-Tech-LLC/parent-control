@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock
 
 import pytest
 
@@ -131,11 +131,58 @@ def test_hostname_comes_from_verified_preparation_record(tmp_path, monkeypatch, 
     ('/usr/libexec/oh-no-parent-control-broker', 'root'),
     ('/unrelated/com.puffyslippers.OhNoParentControl.Parent.desktop', 'root'),
 ])
-def test_installed_groups_match_exact_maintainer_and_dependency_paths(monkeypatch, path, group):
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_installed_groups_match_exact_maintainer_and_dependency_paths(monkeypatch, path, group, package_format):
+    monkeypatch.setattr(guest, 'package_path', lambda: Path('package.' + package_format))
     lookup = Mock(return_value=Mock(gr_gid=42))
     monkeypatch.setattr(guest.grp, 'getgrnam', lookup)
     assert guest.installed_group(Path(path)) == 42
-    lookup.assert_called_once_with(group)
+    lookup.assert_called_once_with('wheel' if group == 'sudo' and package_format == 'rpm' else group)
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('fault', [None, 'auth', 'account', 'order', 'obsolete', 'profile'])
+def test_installed_pam_checks_each_platform_stack(tmp_path, monkeypatch, package_format, fault):
+    monkeypatch.setattr(guest, 'package_path', lambda: Path('package.' + package_format))
+    monkeypatch.setattr(guest, 'Path', lambda *parts: tmp_path / Path(*parts).relative_to('/'))
+    pam = tmp_path / 'etc/pam.d'
+    pam.mkdir(parents=True)
+    auth = '' if fault == 'auth' else 'auth required pam_oh_no_parent_control.so\n'
+    account = ('account required pam_malcontent.so\n' if fault != 'account' else '')
+    cap = 'account required pam_oh_no_parent_control.so\n'
+    account = cap + account if fault == 'order' else account + cap
+    session = 'session optional oh-no-parent-control-clear-session-runtime-max\n' if fault == 'obsolete' else ''
+    if package_format == 'rpm':
+        for name in ('system-auth', 'password-auth', 'fingerprint-auth', 'smartcard-auth'):
+            (pam / name).write_text(auth + account + session)
+    else:
+        for name, contents in (('common-auth', auth), ('common-account', account), ('common-session', session)):
+            (pam / name).write_text(contents)
+    run = Mock(side_effect=['', '' if fault == 'profile' else 'custom/oh-no-parent-control with-faillock'])
+    monkeypatch.setattr(guest, 'run', run)
+    if fault and not (fault == 'profile' and package_format == 'deb'):
+        with pytest.raises(guest.GuestError):
+            guest.verify_pam()
+    else:
+        guest.verify_pam()
+    assert run.call_count == (2 if package_format == 'rpm' else 0)
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('state', ['absent', 'requested', 'malformed'])
+def test_reboot_marker_requires_platform_request_and_removal(tmp_path, monkeypatch, package_format, state):
+    monkeypatch.setattr(guest, 'package_path', lambda: Path('package.' + package_format))
+    monkeypatch.setattr(guest, 'Path', lambda value: tmp_path / Path(value).name)
+    if state != 'absent':
+        if package_format == 'rpm':
+            (tmp_path / 'oh-no-parent-control-reboot-required').write_text(
+                'reboot\n' if state == 'requested' else 'invalid\n')
+        else:
+            (tmp_path / 'reboot-required').touch()
+            (tmp_path / 'reboot-required.pkgs').write_text(
+                'oh-no-parent-control\n' if state == 'requested' else 'another-package\n')
+    assert guest.reboot_requested() == (state == 'requested')
+    assert guest.reboot_cleared() == (state == 'absent' or package_format == 'deb' and state == 'malformed')
 
 
 def test_activation_uses_allowed_public_method_without_logging_account_reply(monkeypatch):
@@ -155,6 +202,75 @@ def test_failed_broker_activation_is_not_retried(monkeypatch):
     with pytest.raises(guest.CommandError, match='activation-failed'):
         guest.activate_broker()
     assert run.call_count == 2
+
+
+def test_before_reboot_activation_checks_gate_without_policy_success(monkeypatch):
+    run = Mock(side_effect=['', 'u 1', 'active'])
+    gate = Mock()
+    monkeypatch.setattr(guest, 'run', run)
+    monkeypatch.setattr(guest, 'verify_reboot_gate', gate)
+    guest.activate_broker(reboot_required=True)
+    assert run.call_count == 3
+    gate.assert_called_once_with()
+
+
+@pytest.mark.parametrize('reboot_required,fault', [(True, None), (True, 'created'),
+    (True, 'modified'), (True, 'deleted'), (False, None), (False, 'missing')])
+def test_installed_policy_checks_follow_explicit_reboot_phase(
+        tmp_path, monkeypatch, reboot_required, fault):
+    monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
+    (tmp_path / 'installed-files.json').write_text('[]')
+    monkeypatch.setattr(guest, 'wait_for_boot', Mock())
+    monkeypatch.setattr(guest, 'verify_package_files', Mock())
+    monkeypatch.setattr(guest, 'package_path', lambda: Path('package.deb'))
+    monkeypatch.setattr(guest, 'verify_pam', Mock())
+    path = MagicMock()
+    path.stat.return_value = Mock(st_uid=0, st_mode=0o600)
+    path.is_file.return_value = True
+    rules = Mock()
+    rules.stat.return_value = Mock(st_uid=0)
+    rules.is_file.return_value = fault != 'missing'
+    monkeypatch.setattr(guest, 'Path', lambda value: rules if value.endswith(
+        '/89-oh-no-parent-control.rules') else path)
+    monkeypatch.setattr(guest.ET, 'parse', Mock())
+    monkeypatch.setattr(guest, 'run', Mock(return_value='active'))
+    activation = Mock()
+    monkeypatch.setattr(guest, 'activate_broker', activation)
+    before = None if fault == 'created' else 'original-policy'
+    after = {'created': 'new-policy', 'modified': 'changed-policy', 'deleted': None}.get(fault, before)
+    state = Mock(side_effect=[before, after])
+    monkeypatch.setattr(guest, 'execution_rule_state', state)
+    if fault:
+        with pytest.raises(guest.GuestError, match=(
+                'policy-changed-before-reboot' if reboot_required else 'generated-execution-rules')):
+            guest.installed(reboot_required=reboot_required)
+    else:
+        guest.installed(reboot_required=reboot_required)
+    activation.assert_called_once_with(reboot_required=reboot_required)
+    assert state.call_count == (2 if reboot_required else 0)
+
+
+@pytest.mark.parametrize('reply', ['reboot', 'other-error', 'transport-error', 'success'])
+def test_reboot_gate_requires_exact_dbus_error(monkeypatch, reply):
+    from gi.repository import Gio, GLib
+    connection = Mock()
+    connection.call_sync.side_effect = None if reply == 'success' else GLib.Error('failure')
+    monkeypatch.setattr(Gio, 'bus_get_sync', Mock(return_value=connection))
+    error_name = {'reboot': guest.BUS + '.Error.RebootRequired',
+                  'other-error': guest.BUS + '.Error.NotAuthorized'}.get(reply)
+    monkeypatch.setattr(Gio.DBusError, 'get_remote_error', Mock(return_value=error_name))
+    if reply == 'reboot':
+        guest.verify_reboot_gate()
+    else:
+        with pytest.raises(guest.GuestError, match='broker-'):
+            guest.verify_reboot_gate()
+    Gio.bus_get_sync.assert_called_once_with(Gio.BusType.SYSTEM, None)
+    connection.call_sync.assert_called_once()
+    call = connection.call_sync.call_args.args
+    assert call[:5] == (guest.BUS, '/com/puffyslippers/OhNoParentControl1', guest.BUS,
+                       'ListManagedUsers', None)
+    assert call[5].dup_string() == '(a(uss))'
+    assert call[6:] == (Gio.DBusCallFlags.NONE, 30000, None)
 
 
 @pytest.mark.parametrize('status,state', [(0, b'running\n'), (1, b'degraded\n')])

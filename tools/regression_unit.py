@@ -1,5 +1,10 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+VM artifact-selection regressions in test_test_launchers, test_regression,
+test_system_guest and test_system_runner use private pytest files and process-local package/VM command
+doubles only. No live VM, build, cache or new cleanup owner is introduced; their
+existing compatible classifications remain valid.
+
 Kiosk locale cases in request_time_estimate, adapters, core, service_contract
 and systemd_unit use process-local D-Bus/systemd doubles and tiny tmp_path
 environment files. They launch no real agent, change no host locale and retain

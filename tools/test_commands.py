@@ -246,6 +246,7 @@ Aggregate aliases (no suite selectors)
   The granular inventory supplies both host's suites and fix-tests round 1.
   Bare artifacts runs two builds and their reproducibility comparison.
   artifacts prepare reuses matching verified inputs or builds on a miss.
+  artifacts prepare --for-vm --vm NAME selects RPM/DEB from the verified baseline.
   artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-NAME'
   builds into a new named directory
   for fixed integration consumers; existing paths are never overwritten.
@@ -680,6 +681,11 @@ def plan(root, category, argv):
             return [command], False
         if category == 'artifacts' and argv == ['prepare']:
             return [[*command, '--reuse']], False
+        if category == 'artifacts' and (argv == ['prepare', '--for-vm'] or
+                len(argv) == 4 and argv[:3] == ['prepare', '--for-vm', '--candidate']):
+            from vm_selection import arguments
+            candidate = ['--candidate', artifact_path(argv[3])] if len(argv) == 4 else []
+            return [python_file(root, 'tools/vm_artifacts.py', *candidate, *arguments())], False
         if category == 'artifacts' and len(argv) == 3 and argv[:2] == ['build', '--output']:
             return [[*command, '--output', artifact_output(argv[2])]], False
         if action == 'verify' and len(argv) == 2:
@@ -748,10 +754,12 @@ def _main(argv=None, *, detached=False):
             planned, _ = plan(root, category, options)
             if not any(value.startswith('--artifacts=') for value in planned[0]):
                 from test_retention import allocate
+                from vm_selection import arguments as vm_arguments
                 directory = allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
                 print('run-tests: output=' + directory, flush=True)
                 status = subprocess.run(
-                    python_file(root, 'tools/build_test_artifacts.py', '--reuse', '--output', directory),
+                    python_file(root, 'tools/vm_artifacts.py', '--output', directory,
+                                *vm_arguments()),
                     cwd=root, env=host.environment(root), check=False).returncode
                 if status:
                     return status if status > 0 else 128 - status

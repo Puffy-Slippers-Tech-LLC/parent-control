@@ -306,12 +306,15 @@ def report(tmp_path):
 
 
 @pytest.mark.parametrize('failed', [False, True])
-def test_overall_excludes_preparation_but_keeps_its_status(report, tmp_path, monkeypatch, failed):
-    run = regression.Run(tmp_path, report, Control(), phases=('e2e',))
+@pytest.mark.parametrize('phase', ['system', 'e2e'])
+def test_overall_excludes_preparation_but_keeps_its_status(report, tmp_path, monkeypatch, failed, phase):
+    run = regression.Run(tmp_path, report, Control(), phases=(phase,))
     monkeypatch.setattr(run, 'discover_vm', lambda *_: ['case'])
     monkeypatch.setattr(regression, 'authorization', lambda: None)
     monkeypatch.setattr(run, 'host_jobs', lambda *_: None)
     run.run_vm_only()
+    discovery = run.categories[0]
+    discovery.done, discovery.state = 1, 'Passed'
     preparation, suite = run.categories[1:]
     preparation.done, preparation.state = 1, 'Failed' if failed else 'Passed'
     preparation.failures = int(failed)
@@ -320,6 +323,7 @@ def test_overall_excludes_preparation_but_keeps_its_status(report, tmp_path, mon
     assert run.dashboard.ANSI.sub('', lines[-1]) == 'Overall - 37% (9/24) - 0.0m'
     assert lines[-1].startswith('\033[31m' if failed else '\033[97;1m')
     assert 'Package input preparation' in '\n'.join(lines)
+    assert 'Discovery and prerequisites' in '\n'.join(lines)
 
 
 @pytest.mark.parametrize('kind,fields', [

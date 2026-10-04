@@ -1067,7 +1067,11 @@ publishing tests; see [publishing](../docs/Publishing.md#local-publishing-tests)
 
 Counts are collected pytest cases, registered installed-system executions and
 E2E variants. A non-pytest command (such as static checks, Node's complete suite,
-or an artifact build) counts as one check. Totals show `?` while discovery is
+or an explicitly selected artifact build) counts as one check. Discovery and
+prerequisites, cleanup prerequisites, and automatic package input preparation
+remain visible but do not contribute to overall completed or total counts.
+For `system`, those counts include only registered installed-system executions.
+Totals show `?` while discovery is
 incomplete. Completed counts include failed cases, so 100% means execution
 completed; only a green check means success. A failing prerequisite or VM
 attempt blocks its dependent operations. Skipped or expected-failure cases are

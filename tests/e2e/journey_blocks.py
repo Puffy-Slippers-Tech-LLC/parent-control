@@ -82,14 +82,18 @@ def filter_screens(kind, mask, prefix):
             for action in ('open', *FILTER_OPTIONS[kind], 'read', 'closed')}
 
 
-def custom_child_selection(prefix, child):
-    """Three public selector checkpoints, reusable with distinct stage IDs."""
+def custom_child_selection(prefix, child, *, route='action'):
+    """Public selector checkpoints; choose the input route before execution."""
     require(child in ('child', 'existing'), 'journey:custom-child')
+    require(route in ('action', 'keyboard'), 'journey:child-picker-route')
     operations = (('child-picker-opened', 'child-choice-highlighted', 'parent-selected')
                   if child == 'child' else ('existing-child-picker-opened',
                       'existing-child-choice-highlighted', 'existing-returned'))
-    return {f'{prefix}-{suffix}': 'ui:' + operation
-            for suffix, operation in zip(('open', 'focus', 'selected'), operations)}
+    if route == 'keyboard':
+        operations = (operations[0].replace('-opened', '-presented'), *operations[1:])
+    return {**({f'{prefix}-ready': 'ui:parent-child-picker-ready'} if route == 'keyboard' else {}),
+            **{f'{prefix}-{suffix}': 'ui:' + operation
+               for suffix, operation in zip(('open', 'focus', 'selected'), operations)}}
 
 
 def custom_save_entry(prefix, child):

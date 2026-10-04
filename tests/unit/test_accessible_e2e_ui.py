@@ -3376,6 +3376,76 @@ def test_password_widget_contents_are_never_traversed():
     assert list(ui_for(secret).nodes()) == [secret]
 
 
+@pytest.mark.parametrize('fault', ['', 'already-focused', 'inactive', 'owner', 'missing',
+    'duplicate', 'disabled', 'open', 'focus-missing', 'focus-outside', 'focus-hidden',
+    'focus-duplicate', 'replaced', 'uncertain'])
+def test_retained_child_picker_keyboard_proof_binds_owned_focus_and_never_replays(fault):
+    native = Node(role='toggle button')
+    picker = Node(identity='parent-child-selector', children=[native])
+    outside = Node(identity='parent-page-screen-limits')
+    root = Node(identity='parent-window', children=[picker, outside])
+    root.states.add('active')
+    root.action.get_action_name = lambda _: 'focus.parent-child-selector'
+    ui = ui_for(root)
+    if fault == 'inactive': root.states.remove('active')
+    if fault == 'owner': ui.owner_pids = lambda: {999}
+    if fault == 'missing': root.children.remove(picker)
+    if fault == 'duplicate': root.children.append(Node(identity=picker.identity))
+    if fault == 'disabled': picker.states.remove('sensitive')
+    if fault == 'open': root.children.append(Node(identity='parent-child-popover'))
+    if fault == 'already-focused': native.states.add('focused')
+    if fault == 'uncertain': ui.input_uncertain = True
+
+    def focus(_):
+        if fault != 'focus-missing':
+            (outside if fault == 'focus-outside' else native).states.add('focused')
+        if fault == 'focus-hidden': native.states.remove('showing')
+        if fault == 'focus-duplicate': picker.states.add('focused')
+        if fault == 'replaced':
+            replacement = Node(identity=picker.identity, children=[Node(states=('visible', 'showing', 'sensitive', 'focused'))])
+            root.children[0] = replacement
+            replacement.parent = root
+        return True
+
+    root.action.do_action.side_effect = focus
+    success = fault in ('', 'already-focused')
+    if success:
+        result = ui.run('parent-child-picker-ready', '')
+        assert result['focused'] is True and ui.input_uncertain
+        decoder = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
+        assert decoder.observe('parent-child-picker-ready')['focused'] is True
+    else:
+        with pytest.raises(UiError): ui.run('parent-child-picker-ready', '')
+    if success or fault.startswith('focus-') or fault in ('replaced', 'uncertain'):
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.run('parent-child-picker-ready', '')
+    assert root.action.do_action.call_count == (0 if fault in (
+        'already-focused', 'inactive', 'owner', 'missing', 'duplicate', 'disabled', 'open', 'uncertain') else 1)
+    picker.action.do_action.assert_not_called()
+    outside.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('opened', [False, True])
+def test_missing_child_popup_is_terminal_without_input_replay(opened):
+    picker = Node(identity='parent-child-selector')
+    picker.action.get_action_name = lambda _: 'menu.popup'
+    ui = ui_for(Node(identity='parent-window', children=[picker]))
+    with pytest.raises(UiError, match='timeout:automation-id'):
+        ui.open_child_picker(accessible_ui.CHILD, opened=opened)
+    assert ui.input_uncertain
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.open_child_picker(accessible_ui.CHILD, opened=opened)
+    assert picker.action.do_action.call_count == (0 if opened else 1)
+
+
+@pytest.mark.parametrize('operation', ['parent-child-picker-ready', 'child-picker-presented'])
+@pytest.mark.parametrize('focused', [False, 1, None])
+def test_keyboard_picker_decoder_refuses_unconfirmed_input_or_result(operation, focused):
+    result = dict(operation=operation, outcome='passed', interface='AT-SPI', focused=focused)
+    decoder = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
+    with pytest.raises(EvidenceError, match='ui:response'): decoder.observe(operation)
+
+
 @pytest.mark.parametrize('fault', [None, 'changed-child', 'unreviewed-text'])
 def test_return_exports_only_sanitized_settings_without_hidden_prior_selection(fault):
     settings = {'child': 'fixture-child', 'limit_enabled': False, 'allowance': ['30 minutes']}

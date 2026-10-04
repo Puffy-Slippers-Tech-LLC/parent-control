@@ -457,9 +457,14 @@ sub kiosk_language_restoration {
     $journey->seen($_) for ('final-cancel', 'final-returned');
     $journey->declare_invocations($invocations);
     $journey->declare_challenges($challenges);
-    onpc_gdm::sign_in_challenge($journey, 'return-parent', 'return-greeter', 'return-focused', 'return-desktop');
+    my $returned_desktop = onpc_gdm::sign_in_challenge(
+        $journey, 'return-parent', 'return-greeter', 'return-focused', 'return-desktop');
+    # Desktop discovery does not establish that the retained Parent window is
+    # active. Use ordinary app entry once, then independently bind that window
+    # before policy reads or a popup requiring compositor focus.
+    onpc_parent::launch($journey, $returned_desktop, 'management', 'return-desktop');
     $journey->seen('jordan-policy-after');
-    onpc_allowance_boundaries::select_child($journey, 'riley-final');
+    onpc_allowance_boundaries::select_child($journey, 'riley-final', 'keyboard');
     $journey->seen($_) for ('riley-policy-after', 'parent-english-open', 'parent-english-close');
     $journey->finish();
 }

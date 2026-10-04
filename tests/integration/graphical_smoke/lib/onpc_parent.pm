@@ -122,13 +122,15 @@ sub launch {
     $desktop_stage //= 'desktop';
     die 'parent:launch-binding' unless (@_ == 3 || @_ == 4) && ref($journey) eq 'onpc_journey'
         && ($desktop_stage eq 'desktop' || $desktop_stage eq 'reboot-desktop'
-            || $desktop_stage eq 'same-desktop' || $desktop_stage eq 'repeat-desktop')
+            || $desktop_stage eq 'same-desktop' || $desktop_stage eq 'repeat-desktop'
+            || $desktop_stage eq 'return-desktop')
         && ($expected eq 'management' || $expected eq 'denied' || $expected eq 'initial-language');
     $journey->consume_observation($desktop_stage, $desktop);
     # The controller executes the installed command once as this desktop user.
     # A transport failure is uncertain input; no terminal/search fallback.
     my $prefix = $desktop_stage eq 'same-desktop' ? 'same-'
-        : $desktop_stage eq 'repeat-desktop' ? 'repeat-' : '';
+        : $desktop_stage eq 'repeat-desktop' ? 'repeat-'
+        : $desktop_stage eq 'return-desktop' ? 'return-' : '';
     $journey->seen($prefix . 'parent-command');
     return $journey->seen($prefix . ($expected eq 'management' ? 'parent-window'
         : $expected eq 'initial-language' ? 'initial-language' : 'management-denied'));

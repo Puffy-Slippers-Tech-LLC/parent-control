@@ -190,7 +190,8 @@ def test_public_policy_reader_projects_actual_balances_and_retains_settings(faul
     toggle = Node(identity='parent-screen-limit-toggle', states=('visible', 'showing', 'sensitive', 'checked'))
     allowance = Node(identity='parent-daily-limit-selector', children=[Node(
         '15 minutes' if fault == 'allowance' else '0 minutes', 'label')])
-    root = Node(identity='parent-window', children=[picker, toggle, allowance])
+    root = Node(identity='parent-window', children=[picker, toggle, allowance,
+        Node(identity='parent-app-search')])
     ui = ui_for(root)
     ui.parent = Mock(return_value=root)
     ui.reveal_id = Mock()

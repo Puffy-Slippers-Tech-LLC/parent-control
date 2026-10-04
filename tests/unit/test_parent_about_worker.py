@@ -190,13 +190,14 @@ def test_direct_launch_uncertainty_or_missing_result_stops_case(entry, fault):
 
 @pytest.mark.parametrize('expected', ['management', 'denied'])
 @pytest.mark.parametrize('fault', ['', 'stale', 'binding', 'uncertain'])
-def test_shared_launch_consumes_independent_desktop_once(expected, fault):
+@pytest.mark.parametrize('prefix', ['', 'return-'])
+def test_shared_launch_consumes_independent_desktop_once(expected, fault, prefix):
     result = json.loads(run_perl(r'''
 use strict;
 use warnings;
 use JSON::PP;
 our @events;
-my ($expected, $fault) = @ARGV;
+my ($expected, $fault, $prefix) = @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub record_info { }
@@ -205,24 +206,26 @@ require onpc_parent;
 require onpc_journey;
 my $journey = onpc_journey->new(prefix => 'unit', review => 0, exchange => sub {
     push @events, $_[0];
-    die 'uncertain submission' if $fault eq 'uncertain' && $_[0] eq 'parent-command';
+    die 'uncertain submission' if $fault eq 'uncertain' && $_[0] eq $prefix . 'parent-command';
     return {};
 });
-my $desktop = $journey->seen('desktop');
+my $desktop_stage = $prefix . 'desktop';
+my $desktop = $journey->seen($desktop_stage);
 $journey->seen('unrelated') if $fault eq 'stale';
 @events = ();
 my $ok = eval { onpc_parent::launch($journey, $desktop,
-    $fault eq 'binding' ? 'whole-query' : $expected); 1; };
-my $replay = eval { onpc_parent::launch($journey, $desktop, $expected); 1; };
+    $fault eq 'binding' ? 'whole-query' : $expected, $desktop_stage); 1; };
+my $replay = eval { onpc_parent::launch($journey, $desktop, $expected, $desktop_stage); 1; };
 print encode_json({ok => $ok ? 1 : 0, replay => $replay ? 1 : 0, events => \@events});
-''', expected, fault).stdout)
+''', expected, fault, prefix).stdout)
     assert result['ok'] == (not fault)
     # A rejected binding has consumed no input/proof; a corrected first call
     # remains possible. Submitted, uncertain and stale calls cannot replay.
     assert bool(result['replay']) == (fault == 'binding')
-    target = 'parent-window' if expected == 'management' else 'management-denied'
-    assert result['events'] == ([] if fault == 'stale' else ['parent-command']
-                                if fault == 'uncertain' else ['parent-command', target])
+    target = prefix + ('parent-window' if expected == 'management' else 'management-denied')
+    command = prefix + 'parent-command'
+    assert result['events'] == ([] if fault == 'stale' else [command]
+                                if fault == 'uncertain' else [command, target])
 
 
 @pytest.mark.parametrize('fault', ['', 'missing', 'stale', 'replay', 'checkpoint'])

@@ -83,8 +83,36 @@ After choosing an account, it first confirms the chosen public UID and selector
 description, with the offered list closed, in a fresh owned snapshot. A newly
 selected child's language dialog may disable the form; this read does not require
 enabled controls. Only that proof permits the shared language helper's separate
-Continue input. Missing selection, language completion or full form readback
+Continue input. Discard the successful selection snapshot before observing
+language readiness: a complete traversal can read the old readiness marker
+before the new child's UID and translated description. Missing selection,
+language completion or full form readback
 keeps the selection terminal and prevents replay.
+
+The station restoration qualification's return to Parent reuses
+`onpc_parent::launch` with the fresh `return-desktop` receipt. Its separate
+`return-parent-window` checkpoint uses the existing `switch-parent` observer
+to require the owned active window before policy reads and child-picker input.
+Shell desktop discovery and readable background controls do not establish
+window activation. A failed command or active-window read stops the sequence;
+neither is retried through another input route.
+
+For the retained Parent picker after session return, callers select
+`custom_child_selection(..., route='keyboard')` and the matching
+`onpc_allowance_boundaries::select_child` route before input. The public window
+focus action targets `parent-child-selector`; a fresh owned snapshot requires
+an active window and unique visible, sensitive native focus within that
+ID-resolved selector. GTK delegates MenuButton focus to its internal toggle;
+this is focus containment, not anonymous-node targeting. A consumed exact
+focus receipt permits one Space. The separate `*-picker-presented` observation
+requires the popup and UID-scoped choice before the existing focus/Enter/selected
+readbacks. Failure is terminal and never falls back from a failed popup action.
+Real GTK regression covers policy-page reads both alone and after input to
+another owned preview window, which reproduced the direct-popup timeout.
+The additional preview uses the existing private bus/display and owned cleanup;
+UI parallel classification remains private. Unit doubles and waited Perl retain
+their existing unit/cleanup classifications. Policy collection explicitly waits
+for the public App Limits control before reading its rows.
 
 Account selection acquires its initial complete snapshot through the bounded
 read wait. A defunct node discards the whole request observation; the same wait
@@ -127,7 +155,7 @@ Chinese first-presentation reader uses that same selected-child/result-child
 identity guard. Parent-only child-control helpers do not accept kiosk IDs.
 `kiosk_language_form` independently reads button
 labels and accessible names plus REQUEST03 values; neither reader performs
-automatic startup Save. `kiosk_language_policy` observes the declared Jordan
+automatic startup Save. `kiosk_language_policy` observes the declared child's
 settings, balances and application rows through public Parent controls.
 Its Save-completion receipt establishes idle controls; `settings` separately
 reads the allowance-bearing policy values. The receipt is not a settings snapshot.

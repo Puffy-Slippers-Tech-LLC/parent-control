@@ -59,8 +59,11 @@ SCREENS.update({
     'final-cancel': 'ui:kiosk-request-cancel', 'final-returned': 'ui:gdm-station-returned',
     'return-greeter': 'ui:gdm-list', 'return-focused': 'ui:gdm-focused',
     'return-qualified': 'ui:gdm-parent-recipient', 'return-rechecked': 'ui:gdm-parent-recipient-rechecked',
-    'return-desktop': 'ui:desktop', 'jordan-policy-after': 'ui:kiosk-language-policy',
-    **custom_child_selection('riley-final', 'child'),
+    'return-desktop': 'ui:desktop',
+    'return-parent-command': 'ui:parent-command-launch',
+    'return-parent-window': 'ui:switch-parent',
+    'jordan-policy-after': 'ui:kiosk-language-policy',
+    **custom_child_selection('riley-final', 'child', route='keyboard'),
     'riley-policy-after': 'ui:kiosk-riley-language-policy',
     'parent-english-open': 'ui:parent-language-open', 'parent-english-close': 'ui:parent-language-cancel',
 })

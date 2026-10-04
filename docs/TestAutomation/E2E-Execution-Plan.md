@@ -19,12 +19,12 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **300j — [Qualify kiosk selected-child language restoration](E2E-Tasks/300j-kiosk-language-restoration.md)**.
+Next task: **300k — [Qualify Chinese first presentation after the latest installation](E2E-Tasks/300k-chinese-current-install.md)**.
 
-The current session drives only 300j through its exact German/Hebrew restoration
-acceptance and close-out. Its active launcher checkpoint remains authoritative
-for progress, not for superseded planning prose. After 300j, advance to **300k**
-and leave further execution to the normal one-task process.
+Task 300j's exact German/Hebrew restoration qualification and required kiosk,
+English selector, overlay-language and case 6 regressions passed on Ubuntu 26.04.
+Its delivered scope and evidence are recorded in the queue and LANG01 catalogue.
+Task 300k begins in a fresh session under the normal one-task process.
 
 Task 300 was too broad: it combined independent customer histories and several
 unqualified surface/result bindings. The

@@ -1,6 +1,7 @@
 package onpc_allowance_boundaries;
 use strict;
 use warnings;
+use JSON::PP ();
 use testapi ();
 use onpc_progress ();
 use onpc_journey ();
@@ -23,9 +24,17 @@ sub reload_child {
 
 sub select_child {
     onpc_progress::operation('Selecting and independently reading the declared child');
-    my ($journey, $prefix) = @_;
-    die 'allowance:selection-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    my ($journey, $prefix, $route) = @_;
+    $route //= 'action';
+    die 'allowance:selection-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /\A[a-z][a-z0-9-]*\z/ && ($route eq 'action' || $route eq 'keyboard');
+    if ($route eq 'keyboard') {
+        my $ready = seen($journey, "$prefix-ready");
+        die 'allowance:picker-focus' unless defined($ready->{observed})
+            && $ready->{observed} eq "$prefix-ready"
+            && JSON::PP::is_bool($ready->{ui_focused}) && $ready->{ui_focused};
+        testapi::send_key('spc');
+    }
     seen($journey, "$prefix-$_") for ('open', 'focus');
     testapi::send_key('ret');
     seen($journey, "$prefix-selected");

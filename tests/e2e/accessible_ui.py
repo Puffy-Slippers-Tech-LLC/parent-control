@@ -427,6 +427,9 @@ PICKER_OPERATIONS = {
     'child-picker-opened': CHILD, 'new-child-picker-opened': NEW_CHILD,
     'existing-child-picker-opened': EXISTING_CHILD, 'discovery-child-picker-opened': EXISTING_CHILD,
 }
+PRESENTED_PICKER_OPERATIONS = {operation.replace('-opened', '-presented'): child
+                              for operation, child in PICKER_OPERATIONS.items()}
+OPERATIONS |= frozenset(PRESENTED_PICKER_OPERATIONS) | {'parent-child-picker-ready'}
 HIGHLIGHT_OPERATIONS = {
     'child-choice-highlighted': CHILD, 'new-child-choice-highlighted': NEW_CHILD,
     'existing-child-choice-highlighted': EXISTING_CHILD,
@@ -2474,6 +2477,7 @@ class AccessibleUI:
         settings = self.settings(child)
         balances = self.reach_time_explanation(child)
         self.activate_id('parent-page-app-limits')
+        self.id_target('parent-app-search', sensitive=True)
         rows = self.wait(lambda: {'rows': self.app_rows(child)}, 'language-policy-rows')['rows']
         self.activate_id('parent-page-screen-limits')
         self.parent_save_snapshot(child, True)
@@ -5736,18 +5740,72 @@ class AccessibleUI:
         self.input_uncertain = False
         return result
 
-    def open_child_picker(self, child):
+    def focus_child_picker(self):
+        """Qualify one native Space input before opening a retained popup.
+
+        After input to another Wayland client, GtkMenuButton.popup() can use
+        an obsolete implicit-grab serial despite an active Parent window.
+        Select this keyboard route before input, never after a failed popup.
+        """
+        require(not self.input_uncertain, 'ui:uncertain-input')
+
+        def recipient():
+            observation = self.read_snapshot()
+            nodes, edges, _identities, _facts = observation
+            root = self.snapshot_owned_target('parent-window', observation=observation,
+                                              check_prompt=True)
+            require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+                    'ui:child-picker-window')
+            require(self.snapshot_owned_target('parent-child-popover', root=root,
+                    observation=observation) is None, 'ui:child-picker-already-open')
+            selector = self.snapshot_owned_target('parent-child-selector', root=root,
+                                                 observation=observation)
+            require(selector is not None
+                    and self.has_state(selector, self.api.StateType.SENSITIVE),
+                    'ui:unusable-target')
+            # GTK delegates a MenuButton's native focus to its internal toggle.
+            # Resolve only the public selector ID; read focus containment inside
+            # that complete owned scope, never identify an anonymous target.
+            focused = [node for node in self.snapshot_scope(nodes, edges, selector)
+                       if self.has_state(node, self.api.StateType.FOCUSED)]
+            require(len(focused) <= 1, 'ui:child-picker-ambiguous-focus')
+            require(all(self.showing(node) and self.has_state(node, self.api.StateType.SENSITIVE)
+                        for node in focused), 'ui:child-picker-focus-state')
+            return root, selector, bool(focused)
+
+        owner, target, has_focus = self.wait(recipient, 'child-picker-entry', prompt_in_predicate=True)
+        if not has_focus:
+            self.activate_id('parent-window', action_name='focus.parent-child-selector')
+        self.input_uncertain = True
+
+        def focused():
+            current_owner, current, has_focus = recipient()
+            require(current_owner == owner and current == target, 'ui:child-picker-replaced')
+            return has_focus
+
+        self.wait(focused, 'child-picker-focus', prompt_in_predicate=True)
+        return True  # The worker consumes this proof once and sends Space.
+
+    def open_child_picker(self, child, *, opened=False):
         """UI15 opening: activate by ID and focus the UID-scoped choice by ID."""
-        require(child in CHILD_IDENTITIES, 'ui:child-binding')
-        self.activate_id('parent-child-selector', action_name='menu.popup')
-        choices = self.id_target('parent-child-choices')
-        choice = self.wait(
-            lambda: self.child_id_control(
-                child, 'parent-child-choice-', root=choices, showing=False,
-            ),
-            'child-choice',
-        )
-        self.focus(choice)
+        require(child in CHILD_IDENTITIES and type(opened) is bool, 'ui:child-binding')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        if not opened:
+            self.activate_id('parent-child-selector', action_name='menu.popup')
+        self.input_uncertain = True
+        try:
+            choices = self.id_target('parent-child-choices')
+            choice = self.wait(
+                lambda: self.child_id_control(
+                    child, 'parent-child-choice-', root=choices, showing=False,
+                ),
+                'child-choice',
+            )
+            self.input_uncertain = False
+            self.focus(choice)
+        except BaseException:
+            self.input_uncertain = True
+            raise
         return True
 
     def child_highlighted(self, child):
@@ -8611,6 +8669,11 @@ class AccessibleUI:
         try:
             self.wait(selected, 'kiosk-request-form', prompt_in_predicate=True)
             self.input_uncertain = False
+            # Selection and language setup are separate result boundaries.
+            # A traversal can read the old readiness marker before the new
+            # child's UID/description. Do not let that selection snapshot
+            # suppress the new child's asynchronous first-run chooser.
+            self.invalidate_observation()
             result = self.kiosk_request_form(enabled=enabled, expected_selection=(field, canonical[name]),
                                              duration_seconds=duration_seconds, custom_text=custom_text,
                                              overlay=overlay, language=result_language)
@@ -9867,6 +9930,10 @@ class AccessibleUI:
             result['save'] = self.parent_save_operation(operation)
         elif operation in PICKER_OPERATIONS:
             result['focused'] = self.open_child_picker(PICKER_OPERATIONS[operation])
+        elif operation == 'parent-child-picker-ready':
+            result['focused'] = self.focus_child_picker()
+        elif operation in PRESENTED_PICKER_OPERATIONS:
+            result['focused'] = self.open_child_picker(PRESENTED_PICKER_OPERATIONS[operation], opened=True)
         elif operation in HIGHLIGHT_OPERATIONS:
             self.child_highlighted(HIGHLIGHT_OPERATIONS[operation])
         elif operation == 'parent-page-wrong-child-refused':

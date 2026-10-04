@@ -94,6 +94,66 @@ def test_bound_selector_uses_independent_identity_language_and_terminal_result(f
     ui.complete_request_language_setup.assert_not_called()
 
 
+@pytest.mark.parametrize('startup', ['unset', 'saved', 'save-failed'])
+def test_selected_child_snapshot_cannot_supply_later_language_readiness(startup):
+    ui, selector, choices, expected, child = translated_accounts(before='de', after='en')
+    window = ui.find_id('kiosk-request-window')
+    readiness = ui.find_id('kiosk-language-ready')
+    save = Node('Save', identity='language-continue')
+    dialog = Node(identity='language-dialog', children=[save])
+    dialog.parent = window
+    dialog.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
+        get_n_targets=lambda: 1, get_target=lambda _: window)]
+    snapshot = ui.kiosk_account_snapshot
+    selected_reads = []
+
+    def mixed_selection(*args, **kwargs):
+        result = snapshot(*args, **kwargs)
+        if choices.children[0].action.do_action.called and not selected_reads:
+            # A complete traversal is not atomic: it can read the old ready
+            # marker before the new UID and English selector description.
+            selected_reads.append(ui._observation_generation)
+            if startup != 'saved':
+                readiness.identity = 'kiosk-language-loading'
+                window.children.append(dialog)
+        return result
+
+    ui.kiosk_account_snapshot = mixed_selection
+    ui.complete_request_language_setup = Mock(wraps=ui.complete_request_language_setup)
+
+    def committed(_):
+        if startup != 'save-failed':
+            readiness.identity = 'kiosk-language-ready'
+            window.children.remove(dialog)
+        return True
+
+    save.action.do_action.side_effect = committed
+    call = lambda: ui.select_kiosk_account('child', public.CHILD, expected=expected,
+        child=child, language='de', result_language='en')
+    with ui.observation():
+        if startup == 'save-failed':
+            with pytest.raises(public.UiError, match='timeout:language-saved'):
+                call()
+            assert ui.input_uncertain
+            with pytest.raises(public.UiError, match='uncertain-input'):
+                call()
+        else:
+            result = call()
+            assert result['child'] == 'fixture-child'
+            assert result['duration_seconds'] == 1800 and result['allow_soft'] is False
+            assert result['custom_text'] is None
+            assert not ui.input_uncertain
+    selector.action.do_action.assert_called_once()
+    choices.children[0].action.do_action.assert_called_once()
+    if startup == 'saved':
+        save.action.do_action.assert_not_called()
+        ui.complete_request_language_setup.assert_not_called()
+    else:
+        save.action.do_action.assert_called_once()
+        ui.complete_request_language_setup.assert_called_once()
+    assert ui._observation_generation > selected_reads[0]
+
+
 def test_registration_inputs_shared_fragment_and_worker_distribution(monkeypatch, tmp_path):
     import e2e_worker
     import tools.test_commands as commands
@@ -330,6 +390,8 @@ def test_actual_worker_order_titles_and_no_input_after_refusal(monkeypatch, faul
     worker = worker.replace("if $stage eq 'station-branch';", "if $stage =~ /(?:initial|renewed)-station-branch$/;")
     worker = worker.replace("station_destination => 'default-request-form'", "station_destination => 'initial-request-window'")
     worker = worker.replace('return {observed => $stage};', r'''
+        return {observed => $stage, ui_focused => JSON::PP::true}
+            if $stage eq 'riley-final-ready';
         if ($stage eq 'return-qualified' || $stage eq 'return-rechecked') {
             return {observed => $stage, challenge => {id => 'return-parent', role => 'parent',
                 surface => 'gdm', check => $stage eq 'return-qualified' ? 'qualified' : 'rechecked'}};
@@ -345,3 +407,83 @@ def test_actual_worker_order_titles_and_no_input_after_refusal(monkeypatch, faul
     assert [event[1] for event in result['events'] if event[0] == 'title' and event[1] != 'shutdown'] == [
         'kiosk-language-restoration-' + stage for stage in expected]
     assert ['power', 'off'] in result['events'] if not fault else ['power', 'off'] not in result['events']
+    events = result['events']
+    if ['stage', 'riley-final-ready'] in events:
+        ready = events.index(['stage', 'riley-final-ready'])
+        if fault == 'riley-final-ready':
+            assert events[ready + 1:] == []
+        else:
+            assert events[ready + 1:ready + 4] == [
+                ['key', 'spc'], ['title', 'kiosk-language-restoration-riley-final-open'],
+                ['stage', 'riley-final-open']]
+    if fault:
+        assert events[-1] == ['stage', fault]
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong-stage', 'missing-focus', 'false-focus', 'numeric-focus'])
+def test_shared_keyboard_selection_requires_exact_focus_receipt(fault):
+    worker = WORKER.split('require onpc_kiosk_eligible_choices;')[0] + r'''
+require onpc_allowance_boundaries;
+require onpc_journey;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    my ($stage) = @_;
+    push @events, ['stage', $stage];
+    my $reply = {observed => $stage, ui_focused => JSON::PP::true};
+    if ($stage eq 'another-ready') {
+        FAULT
+    }
+    return $reply;
+});
+my $ok = eval { onpc_allowance_boundaries::select_child($journey, 'another', 'keyboard'); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
+'''
+    replacement = {'': '', 'wrong-stage': "$reply->{observed} = 'old-ready';",
+        'missing-focus': 'delete $reply->{ui_focused};',
+        'false-focus': '$reply->{ui_focused} = JSON::PP::false;',
+        'numeric-focus': '$reply->{ui_focused} = 1;'}[fault]
+    result = json.loads(run_perl(worker.replace('FAULT', replacement)).stdout)
+    if fault:
+        assert not result['ok'] and 'allowance:picker-focus' in result['error']
+        assert result['events'] == [['stage', 'another-ready']]
+    else:
+        assert result['ok'], result['error']
+        assert result['events'] == [['stage', 'another-ready'], ['key', 'spc'],
+            ['stage', 'another-open'], ['stage', 'another-focus'], ['key', 'ret'],
+            ['stage', 'another-selected']]
+
+
+def test_return_requires_app_entry_and_independent_active_window_before_policy():
+    stages = list(recipe.SCREENS)
+    start = stages.index('return-desktop')
+    assert stages[start:start + 6] == ['return-desktop', 'return-parent-command',
+        'return-parent-window', 'jordan-policy-after', 'riley-final-ready', 'riley-final-open']
+    assert recipe.SCREENS['return-parent-command'] == 'ui:parent-command-launch'
+    assert recipe.SCREENS['return-parent-window'] == 'ui:switch-parent'
+    assert recipe.SCREENS['riley-final-ready'] == 'ui:parent-child-picker-ready'
+    assert recipe.SCREENS['riley-final-open'] == 'ui:child-picker-presented'
+
+
+@pytest.mark.parametrize('fault', ['', 'inactive', 'wrong-owner', 'inactive-reply'])
+def test_return_window_proof_is_independent_of_visible_policy_controls(fault):
+    window = Node(identity='parent-window', children=[Node(identity='parent-child-selector')])
+    window.bus, window.path = ':1.42', '/public/parent'
+    if fault != 'inactive':
+        window.states.add('active')
+    ui = ui_for(window)
+    if fault == 'wrong-owner':
+        ui.owner_pids = lambda: {999}
+    operation = recipe.SCREENS['return-parent-window'][3:]
+    if fault in ('inactive', 'wrong-owner'):
+        with pytest.raises(public.UiError):
+            ui.run(operation, '')
+    else:
+        result = ui.run(operation, '')
+        if fault == 'inactive-reply':
+            result['window']['active'] = False
+        observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
+        if fault:
+            with pytest.raises(EvidenceError, match='switch-response'):
+                observer.observe(operation)
+        else:
+            assert observer.observe(operation)['window']['active'] is True
+    window.children[0].action.do_action.assert_not_called()

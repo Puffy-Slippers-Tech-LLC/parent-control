@@ -8,6 +8,10 @@ Child-desktop defaults and delayed upgrade replies in language_settings reuse
 the owned request preview/display/bus and tmp_path events. Agent preparation is
 a process-local transport double; no host agent/service/locale is touched.
 The existing compatible Request behavior and Feedback buckets still apply.
+The retained Parent picker regression adds a second sequentially closed preview
+through the same owned preview_applications fixture, private display/bus and
+tmp_path events. It introduces no shared service or cache; the existing Request
+behavior bucket and its whole-module resource reservation remain appropriate.
 """
 
 from dataclasses import dataclass

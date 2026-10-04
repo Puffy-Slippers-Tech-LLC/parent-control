@@ -217,6 +217,56 @@ def assert_no_policy_or_request_writes(path, *, expected_results=0):
         'RequestOwnAccess', 'RequestAccess', 'UpdateRequestPreferences', 'SetRequestMuted')]
 
 
+@pytest.mark.parametrize('other_window', [False, True])
+def test_parent_child_picker_after_language_policy_reads(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, other_window):
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD
+    from tests.support.keyboard import key_combo
+
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'parent', language='en')
+    wait(lambda: ui.showing('parent-screen-limit-toggle')
+         and ui.state('parent-screen-limit-toggle', ui.api.StateType.SENSITIVE),
+         'Parent controls ready')
+    def observer():
+        return AccessibleUI(ui.api, timeout=20, query_errors=ui.query_errors,
+            owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+            application_owners=ui.application_owners,
+            application_owner_history=ui.application_owner_history,
+            fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002})
+    reader = observer()
+    original = reader.kiosk_language_policy(child=CHILD)
+    assert reader.open_child_picker(EXISTING_CHILD)
+    reader.child_highlighted(EXISTING_CHILD)
+    key_combo(ui, 'parent-child-choice-1002', 'Return', state=ui.api.StateType.FOCUSED)
+    reader.selected_child(EXISTING_CHILD)
+    ui.activate('parent-screen-limit-toggle')
+    reader.parent_save_snapshot(EXISTING_CHILD, True)
+    if other_window:
+        launch_ui('request_component_preview', environment_overrides={
+            'ONPC_REQUEST_COMPONENT_OVERLAY': '1', 'ONPC_LANGUAGE_INITIAL': 'en'})
+        wait(lambda: ui.showing('kiosk-request-window')
+             and ui.state('kiosk-request-window', ui.api.StateType.ACTIVE),
+             'Other owned preview is active')
+        key_combo(ui, 'kiosk-request-window', '<Alt>F4', state=ui.api.StateType.ACTIVE)
+        wait(lambda: ui.state('parent-window', ui.api.StateType.ACTIVE),
+             'Parent is active again')
+    reader.kiosk_language_policy(child=EXISTING_CHILD)
+    assert reader.run('parent-child-picker-ready', '')['focused'] is True
+    # The installed worker starts a fresh observation after its single key.
+    # The host keyboard helper owns the equivalent independent input latch.
+    key_combo(ui, 'parent-window', 'space', state=ui.api.StateType.ACTIVE)
+    reader = observer()
+    assert reader.run('child-picker-presented', '')['focused'] is True
+    reader.child_highlighted(CHILD)
+    key_combo(ui, 'parent-child-choice-1001', 'Return', state=ui.api.StateType.FOCUSED)
+    reader.selected_child(CHILD)
+    assert reader.kiosk_language_policy(child=CHILD) == original
+    assert [event['event'] for event in read_events(path)
+            if event['event'] in ('set_preferences', 'set_parent_control',
+                                  'revoke_one_time_grant')] == ['set_parent_control']
+
+
 @pytest.mark.parametrize('language', ('en', 'de', 'zh-Hans', 'he'))
 @pytest.mark.parametrize('surface', ('kiosk', 'overlay'))
 def test_installed_kiosk_chooser_and_form_readers_through_real_gtk(

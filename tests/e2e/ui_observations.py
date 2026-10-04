@@ -34,6 +34,9 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'parent-child-picker-ready': 'Focusing the owned Parent child selector for keyboard opening',
+    **{operation: 'Checking the keyboard-opened child selector and focusing the declared child'
+       for operation in accessible_ui.PRESENTED_PICKER_OPERATIONS},
     **{operation: 'Observing the initial request station without automatic language setup: ' +
        operation.removeprefix('kiosk-initial-') for operation in accessible_ui.INITIAL_KIOSK_OPERATIONS},
     'station-initial-entry': 'Observing fresh station entry before any first-run handler',
@@ -1424,7 +1427,9 @@ class UiObservations:
                     and result['entry'] == {'destination': 'default-request-form'},
                     'ui:station-default-entry')
             expected['entry'] = {'destination': 'default-request-form'}
-        if operation in accessible_ui.PICKER_OPERATIONS:
+        if (operation in accessible_ui.PICKER_OPERATIONS
+                or operation in accessible_ui.PRESENTED_PICKER_OPERATIONS
+                or operation == 'parent-child-picker-ready'):
             require(type(result) is dict and set(result) == {*expected, 'focused'}
                     and result['focused'] is True, 'ui:response')
             expected['focused'] = True

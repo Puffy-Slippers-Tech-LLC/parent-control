@@ -53,6 +53,20 @@ def test_completion_rule_follows_terminal_width_on_resize(terminal):
     assert '─' * 46 in replay and '─' * 47 not in replay
 
 
+def test_reasoning_stall_renders_summary_and_handoff_without_raw_progress():
+    from rich.text import Text
+    from tests.support.write_e2e_fixtures import reply
+    stream = io.StringIO()
+    renderer = AgentRenderer(stream, hide_task_completion=True)
+    result = reply('stalled', 'not_run', summary='The competing explanations remain unresolved.',
+                   handoff='Recheck the retained failure with the stronger coordinator.')
+    renderer.event({'type': 'item.completed', 'item': {
+        'type': 'agent_message', 'text': json.dumps(result)}})
+    rendered = Text.from_ansi(stream.getvalue()).plain
+    assert 'Stalled' in rendered and result['summary'] in rendered
+    assert result['handoff'] in rendered and 'repair_outcome' not in rendered
+
+
 @pytest.mark.parametrize('width', [50, 80])
 def test_observer_reflow_keeps_message_continuations_under_first_word(terminal, width):
     terminal.resize(width, 24)

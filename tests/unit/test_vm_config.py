@@ -63,6 +63,19 @@ def test_missing_configuration_has_no_hardcoded_vm_fallback(tmp_path):
         vm_config.load('custom-test-vm', tmp_path / 'absent')
 
 
+@pytest.mark.parametrize('value, expected', [('true', True), ('false', False)])
+def test_clipboard_is_an_explicit_per_vm_option(tmp_path, value, expected):
+    configured = vm_config.load('custom-test-vm', write_config(tmp_path, clipboard=value))
+    assert configured.clipboard is expected
+    assert vm_config.load('custom-test-vm', write_config(tmp_path)).clipboard is False
+
+
+@pytest.mark.parametrize('value', [True, False, 1, None, '', 'yes', 'TRUE', []])
+def test_clipboard_option_rejects_ambiguous_values(tmp_path, value):
+    with pytest.raises(ValueError, match='vm-config:clipboard'):
+        vm_config.registry(write_config(tmp_path, clipboard=value))
+
+
 def test_display_name_preserves_case_and_hostname_is_lowercase(tmp_path):
     configured = vm_config.load('custom-Ubuntu26.04', write_config(tmp_path, name='custom-Ubuntu26.04'))
     assert configured.name == 'custom-Ubuntu26.04'

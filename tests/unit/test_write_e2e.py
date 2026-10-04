@@ -18,7 +18,7 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
     adviser = tmp_path / 'adviser with spaces.toml'
     adviser.write_bytes(workflow.ADVISER_CONFIG.read_bytes())
     monkeypatch.setattr(workflow, 'ADVISER_CONFIG', adviser)
-    command = workflow.session_command(tmp_path, phase)
+    command = workflow.session_command(tmp_path, dict(workflow.fresh_state('001'), phase=phase))
     config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
     assert command[command.index('--model') + 1] == 'gpt-6.1-sol'
     assert config['model_reasoning_effort'] == 'high'
@@ -45,31 +45,39 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
     assert command[-1] == '-' and '--ephemeral' in command
 
 
-@pytest.mark.parametrize('phase,attempts,model,effort', [
-    ('implement', 0, 'gpt-6.1-sol', 'high'),
-    ('live', 1, 'gpt-6.1-sol', 'high'),
-    ('live', 2, 'gpt-6.1-sol', 'high'),
-    ('recover', 0, 'gpt-6.1-sol', 'high'),
-    ('recover', 2, 'gpt-6.1-sol', 'high'),
-    ('recover', 5, 'gpt-6.1-sol', 'high'),
+@pytest.mark.parametrize('phase,attempts,tier,model,effort', [
+    ('implement', 0, 0, 'gpt-6.1-sol', 'high'),
+    ('live', 1, 0, 'gpt-6.1-sol', 'high'),
+    ('live', 2, 0, 'gpt-6-astra', 'high'),
+    ('recover', 0, 0, 'gpt-6.1-sol', 'high'),
+    ('recover', 2, 1, 'gpt-6-astra', 'high'),
+    ('recover', 5, 1, 'gpt-6-astra', 'high'),
+    ('recover', 1, 2, 'gpt-6-astra', 'xhigh'),
 ])
-def test_command_and_prompt_keep_high_independent_of_attempt_count(tmp_path, monkeypatch,
-                                                          phase, attempts, model, effort):
+def test_command_prompt_and_display_use_selected_tier(tmp_path, monkeypatch,
+                                                     phase, attempts, tier, model, effort):
+    prepare(tmp_path)
     monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/opt/codex')
-    command = workflow.session_command(tmp_path, phase, tmp_path, live_attempts=attempts)
+    state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts,
+                 failed_attempts=attempts, model_tier=tier, task_sessions=20)
+    command = workflow.session_command(tmp_path, state, tmp_path)
     config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
     assert command[command.index('--model') + 1] == model
     assert config['model_reasoning_effort'] == effort
-    assert config['features']['multi_agent'] is True
-    assert config['agents']['max_concurrent_threads_per_session'] == 1
+    assert config['features']['multi_agent'] is (model == 'gpt-6.1-sol')
+    assert config['agents']['enabled'] is (model == 'gpt-6.1-sol')
+    assert config['service_tier'] == 'default' and config['features']['fast_mode'] is False
     assert '--output-schema' in command and '--ephemeral' in command
-    state = dict(workflow.fresh_state('001'), phase=phase, live_attempts=attempts,
-                 task_sessions=20)  # Session count/preparation alone must not escalate.
     prompt = workflow.session_prompt(state)
-    label = f'GPT-6.1-Sol {effort.title()}'
+    label = ('GPT-6.1-Sol' if model == 'gpt-6.1-sol' else 'GPT-6-Astra') + ' ' + (
+        'Extra High' if effort == 'xhigh' else 'High')
     assert f'You are the {label} coordinator' in prompt
-    assert 'Consult before implementing such an unresolved\nrisky design' in prompt
-    assert 'e2e_adviser agent' in prompt
+    if model == 'gpt-6.1-sol':
+        assert 'Consult before implementing such an unresolved\nrisky design' in prompt
+        assert 'e2e_adviser agent' in prompt
+    else:
+        assert 'do not spawn an adviser' in prompt and 'e2e_adviser agent' not in prompt
+    assert f'({model} {effort})' in workflow.session_progress(tmp_path, state, 20)[-1]
     assert 'Prefer GPT-6.1-Sol High over Astra Low' in prompt
     assert 'Never use Sol High' not in prompt
     assert 'Leave investigation and repairs of this new failure to the next session' in prompt
@@ -96,12 +104,103 @@ def test_adviser_requires_evidence_and_retains_findings_across_handoffs():
         handoff='Prior question: ownership race. Finding: missing lease. Correction: hold the lease.'))
     for rule in ('failed verification without improving the explanation',
                  'conflicting evidence prevents', 'State the concrete escalation reason',
-                 'alone do not justify Astra', 'another consultation requires materially new evidence',
-                 'restart does not repeat the same consultation', 'No Extra High step is required'):
+                 'another consultation requires materially new evidence',
+                 'restart does not repeat the same consultation'):
         assert rule in prompt
     assert 'Prior question: ownership race.' in prompt
     role = tomllib.loads(workflow.ADVISER_CONFIG.read_text())
     assert 'Do not repeat a prior\nconsultation without materially new evidence' in role['developer_instructions']
+
+
+def test_failure_history_promotes_implementer_and_failed_repair_raises_effort(tmp_path):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = workflow.fresh_state('001')
+    assert workflow.session_model(state) == ('gpt-6.1-sol', 'high')
+    for expected in [('gpt-6.1-sol', 'high'), ('gpt-6-astra', 'high')]:
+        state = workflow.accept_result(tmp_path, state, reply(), before)
+        assert workflow.session_model(state) == expected
+    progress = dict(state['progress'], repair_outcome='failed_repair')
+    state = workflow.accept_result(tmp_path, state, reply(progress=progress), before)
+    assert workflow.session_model(state) == ('gpt-6-astra', 'xhigh')
+    state = workflow.accept_result(tmp_path, state, reply(progress=progress), before)
+    assert workflow.session_model(state) == ('gpt-6-astra', 'xhigh')
+    assert state['failed_attempts'] == state['live_attempts'] == 4
+
+
+def test_verified_progress_keeps_astra_high_and_carries_checkpoint_evidence(tmp_path):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = workflow.fresh_state('001')
+    for index in range(5):
+        progress = {'failure_checkpoint': f'lifecycle:step-{index + 1}',
+                    'furthest_checkpoint': f'lifecycle:step-{index}', 'repair_outcome': 'advanced'}
+        state = workflow.accept_result(tmp_path, state, reply(progress=progress), before)
+    assert workflow.session_model(state) == ('gpt-6-astra', 'high')
+    assert state['progress'] == progress
+    assert json.dumps(progress) in workflow.session_prompt(state)
+
+
+@pytest.mark.parametrize('tier', [0, 1, 2])
+@pytest.mark.parametrize('live', ['not_run', 'failed'])
+def test_blockers_preserve_tier_and_progress_without_spending_failed_attempt(tmp_path, tier, live):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = dict(workflow.fresh_state('001'), model_tier=tier, failed_attempts=1,
+                 live_attempts=1, progress=reply()['progress'])
+    updated = workflow.accept_result(tmp_path, state, reply('blocked', live), before)
+    assert updated['failed_attempts'] == 1 and updated['model_tier'] == tier
+    assert updated['progress'] == state['progress']
+    assert updated['phase'] == 'blocked'
+
+
+@pytest.mark.parametrize('tier,expected', [(0, 1), (1, 2), (2, 2)])
+def test_reasoning_stall_promotes_without_fabricating_live_attempt(tmp_path, tier, expected):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = dict(workflow.fresh_state('001'), model_tier=tier)
+    result = reply('stalled', 'not_run', host_validated=False)
+    updated = workflow.accept_result(tmp_path, state, result, before)
+    assert updated['phase'] == 'recover' and updated['model_tier'] == expected
+    assert updated['failed_attempts'] == updated['live_attempts'] == 0
+    assert workflow.queue_state(tmp_path)[0] == '001'
+
+
+@pytest.mark.parametrize('change', [
+    {'progress': None}, {'progress': {}},
+    {'progress': {'failure_checkpoint': 'x', 'furthest_checkpoint': '', 'repair_outcome': []}},
+    {'progress': {'failure_checkpoint': '', 'furthest_checkpoint': '', 'repair_outcome': 'diagnostic'}},
+    {'progress': {'failure_checkpoint': 'x' * 241, 'furthest_checkpoint': '', 'repair_outcome': 'advanced'}},
+    {'progress': {'failure_checkpoint': 'different', 'furthest_checkpoint': 'qualification:prepared',
+                  'repair_outcome': 'failed_repair'}},
+    {'progress': {'failure_checkpoint': 'qualification:entry', 'furthest_checkpoint': 'different',
+                  'repair_outcome': 'failed_repair'}},
+    {'status': 'stalled'},
+    {'status': 'blocked'},
+])
+def test_invalid_escalation_evidence_cannot_change_state_or_queue(tmp_path, change):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = workflow.accept_result(tmp_path, workflow.fresh_state('001'), reply(), before)
+    saved = json.dumps(state)
+    with pytest.raises(ValueError):
+        workflow.accept_result(tmp_path, state, dict(reply(), **change), before)
+    assert json.dumps(state) == saved and workflow.queue_state(tmp_path)[1] == before
+
+
+def test_legacy_handoffs_escalate_without_inventing_repair_evidence(tmp_path):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = workflow.fresh_state('001')
+    for key in ('failed_attempts', 'model_tier'):
+        state.pop(key)
+    state.update(phase='recover', live_attempts=2, task_sessions=5)
+    assert workflow.session_model(state) == ('gpt-6-astra', 'high')
+    result = reply()
+    result.pop('progress')
+    updated = workflow.accept_result(tmp_path, state, result, before)
+    assert updated['model_tier'] == 1 and updated['failed_attempts'] == 3
+    assert 'progress' not in updated
 
 
 def test_usage_retains_only_reported_nonnegative_counters_without_estimated_billing(tmp_path):
@@ -270,6 +369,15 @@ def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, 
     assert json.loads((tmp_path / 'checkpoint.json').read_text()) == state
 
 
+def test_saved_handoff_names_promoted_coordinator_even_if_agent_recommends_old_model(tmp_path):
+    state = dict(workflow.fresh_state('001'), phase='live', failed_attempts=2,
+                 handoff='Old recommendation: use Sol High.')
+    workflow.save_handoff(tmp_path, state, 'session limit reached', display=False)
+    saved = (tmp_path / 'handoff.txt').read_text()
+    assert 'Next coordinator and implementer: gpt-6-astra high.' in saved
+    assert state['handoff'] in saved
+
+
 def test_implementation_prompt_preserves_requested_boundary():
     prompt = workflow.session_prompt(workflow.fresh_state('001'))
     assert prompt.startswith(workflow.INITIAL_PROMPT)
@@ -331,13 +439,15 @@ def test_only_latest_handoff_crosses_into_each_live_retry(tmp_path):
     assert 'LATEST REPAIR' in prompt and 'CURRENT HANDOFF' not in prompt
 
 
+@pytest.mark.parametrize('tier', [0, 1, 2])
 @pytest.mark.parametrize('phase, in_flight', [('blocked', False), ('live', True), ('live', False)])
-def test_task_restart_inherits_only_its_own_consumed_sessions(tmp_path, monkeypatch, phase, in_flight):
+def test_task_restart_inherits_only_its_own_consumed_sessions(tmp_path, monkeypatch, phase, in_flight, tier):
     prepare(tmp_path)
     previous = tmp_path / 'previous-run'
     previous.mkdir()
     state = dict(workflow.fresh_state('001'), phase=phase, in_flight=in_flight,
-                 live_attempts=1, task_sessions=2, total_sessions=6,
+                 live_attempts=1, task_sessions=2, total_sessions=6, model_tier=tier,
+                 progress=reply()['progress'],
                  handoff='Previous baseline requirement blocked setup.')
     (previous / 'checkpoint.json').write_text(json.dumps(state))
     monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
@@ -346,6 +456,7 @@ def test_task_restart_inherits_only_its_own_consumed_sessions(tmp_path, monkeypa
     if in_flight:
         expected.update(phase='recover', in_flight=False, recovery_run=str(previous))
     assert restarted == expected
+    assert workflow.session_model(restarted) == workflow.MODEL_TIERS[tier]
     prompt = workflow.session_prompt(restarted)
     if expected['phase'] == 'recover':
         assert 'current source/evidence' in prompt and workflow.PLAN in prompt
@@ -517,6 +628,7 @@ def test_prerequisite_repair_suspends_consumer_without_acceptance_or_staging(tmp
     prepare(tmp_path)
     _, before = workflow.queue_state(tmp_path)
     state = dict(workflow.fresh_state('001'), task_sessions=3, live_attempts=2,
+                 failed_attempts=2, model_tier=2, progress=reply()['progress'],
                  in_flight=True, stage_candidates=['partial.py'],
                  stage_baseline={'unrelated.py': 'original'}, progress_keys=['1'])
     insert_prerequisite(tmp_path, no_dependencies)
@@ -524,10 +636,13 @@ def test_prerequisite_repair_suspends_consumer_without_acceptance_or_staging(tmp
         reply('blocked', 'not_run', host_validated=False, handoff='Keep partial consumer work.'), before)
     assert selected['task_id'] == '000a' and selected['phase'] == 'implement'
     assert selected['task_sessions'] == selected['live_attempts'] == 0
+    assert workflow.session_model(selected) == ('gpt-6.1-sol', 'high')
     assert selected['stage_candidates'] == [] and not selected['in_flight']
     consumer = selected['suspended_tasks']['001']
     assert consumer['phase'] == 'recover' and not consumer['in_flight']
     assert consumer['task_sessions'] == 3 and consumer['live_attempts'] == 2
+    assert workflow.session_model(consumer) == ('gpt-6-astra', 'xhigh')
+    assert consumer['progress'] == state['progress'] and consumer['failed_attempts'] == 2
     assert consumer['stage_candidates'] == ['partial.py']
     assert consumer['stage_baseline'] == {'unrelated.py': 'original'}
     assert consumer['handoff'] == 'Keep partial consumer work.'

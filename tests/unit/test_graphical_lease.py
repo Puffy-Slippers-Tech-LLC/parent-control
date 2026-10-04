@@ -46,6 +46,26 @@ def test_vnc_isolation_removes_all_host_listeners():
     runner.validate_host_sharing(root)
 
 
+@pytest.mark.parametrize('graphics_type', ['spice', 'vnc'])
+def test_clipboard_opt_in_survives_isolation_without_other_host_transfers(monkeypatch, graphics_type):
+    config = runner.baseline.guest_contract.vm_config
+    selected = config.selected()
+    from dataclasses import replace
+    monkeypatch.setattr(config, 'selected', lambda **_: replace(selected, clipboard=True))
+    root = ET.fromstring(runner.isolated_xml(xml(), UUID, RUN, graphics_type=graphics_type))
+    assert root.find('devices/graphics/clipboard').attrib == {'copypaste': 'yes'}
+    assert root.find('devices/graphics/filetransfer').attrib == {'enable': 'no'}
+    runner.validate_host_sharing(root)
+    if graphics_type == 'vnc':
+        runner.validate_private_vnc(root)
+    # Old disabled snapshots can still be stopped/recovered after opting in.
+    root.find('devices/graphics/clipboard').set('copypaste', 'no')
+    runner.validate_host_sharing(root)
+    root.find('devices/graphics/filetransfer').set('enable', 'yes')
+    with pytest.raises(runner.Error, match='guard:graphics-'):
+        runner.validate_host_sharing(root)
+
+
 @pytest.mark.parametrize('normalized', [False, True])
 @pytest.mark.parametrize('legacy', [False, True])
 def test_display_agent_accepts_normalized_and_legacy_isolation(normalized, legacy):

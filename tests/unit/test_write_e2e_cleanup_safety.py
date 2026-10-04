@@ -343,7 +343,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     assert json.loads((second / 'result.json').read_text())['sessions'] == 1
 
 
-def test_sol_high_survives_restart_and_new_task_with_attempt_history_intact(checkout):
+def test_escalation_survives_restart_and_new_task_resets_with_attempt_history_intact(checkout):
     root, _ = checkout
     script(root, {'result': reply()}, {'result': reply()},
            {'result': reply('task_complete', 'passed'), 'close': True},
@@ -357,15 +357,55 @@ def test_sol_high_survives_restart_and_new_task_with_attempt_history_intact(chec
     assert (first / 'checkpoint.json').read_bytes() == retained
     invocations = calls(root)
     assert [call['args'][call['args'].index('--model') + 1] for call in invocations] == [
-        'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol']
+        'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6-astra', 'gpt-6.1-sol']
     assert all('model_reasoning_effort="high"' in call['args'] for call in invocations)
-    assert 'You are the GPT-6.1-Sol High coordinator' in invocations[2]['prompt']
+    assert 'You are the GPT-6-Astra High coordinator' in invocations[2]['prompt']
+    assert 'agents.enabled=false' in invocations[2]['args']
     assert 'You are the GPT-6.1-Sol High coordinator' in invocations[3]['prompt']
     records = [json.loads(line) for line in (second / 'agent-usage.jsonl').read_text().splitlines()]
     assert [(row['session'], row['task_id'], row['model']) for row in records] == [
-        (3, '001', 'gpt-6.1-sol'), (4, '002', 'gpt-6.1-sol')]
+        (3, '001', 'gpt-6-astra'), (4, '002', 'gpt-6.1-sol')]
     assert [row['reasoning_effort'] for row in records] == ['high', 'high']
     assert all(row['usage'] is None for row in records)  # Missing usage is never zero.
+
+
+def test_failed_astra_repair_promotes_real_child_transport_and_restarts_at_xhigh(checkout):
+    root, _ = checkout
+    failed = dict(reply()['progress'], repair_outcome='failed_repair')
+    script(root, {'result': reply()}, {'result': reply()},
+           {'result': reply(progress=failed)},
+           {'result': reply('task_complete', 'passed'), 'close': True})
+    first, _ = select_vm(root, ['--sessions', '3'])
+    assert launcher.follow(first, io.StringIO()) == 0
+    assert json.loads((first / 'checkpoint.json').read_text())['model_tier'] == 2
+    second, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(second, io.StringIO()) == 0
+    invocation = calls(root)[-1]
+    assert invocation['args'][invocation['args'].index('--model') + 1] == 'gpt-6-astra'
+    assert 'model_reasoning_effort="xhigh"' in invocation['args']
+    assert 'You are the GPT-6-Astra Extra High coordinator' in invocation['prompt']
+    assert 'features.multi_agent=false' in invocation['args']
+    usage = json.loads((second / 'agent-usage.jsonl').read_text())
+    assert (usage['model'], usage['reasoning_effort']) == ('gpt-6-astra', 'xhigh')
+    assert workflow.queue_state(root)[0] == '002'
+
+
+def test_reasoning_stalls_promote_then_stop_at_final_tier_without_acceptance(checkout):
+    root, _ = checkout
+    script(root, *[{'result': reply('stalled', 'not_run', host_validated=False)} for _ in range(3)])
+    run, _ = select_vm(root, [])
+    assert launcher.follow(run, io.StringIO()) == 1
+    invocations = calls(root)
+    assert len(invocations) == 3
+    assert [call['args'][call['args'].index('--model') + 1] for call in invocations] == [
+        'gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-astra']
+    assert 'model_reasoning_effort="xhigh"' in invocations[-1]['args']
+    assert 'reasoning stalled at Astra Extra High' in (run / 'handoff.txt').read_text()
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert state['failed_attempts'] == state['live_attempts'] == 0
+    assert state['task_sessions'] == 3 and state['model_tier'] == 2
+    assert workflow.queue_state(root)[0] == '001'
+    assert subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, check=True).stdout == b''
 
 
 def test_prerequisite_completion_does_not_renew_suspended_consumer_cap(checkout):
@@ -887,7 +927,8 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(checkout, 
     (run / 'cancel').touch()
     assert launcher.follow(run, io.StringIO()) == 130
     handoff = (run / 'handoff.txt').read_text()
-    assert 'Continue with the launcher-selected coordinator and bounded sequential Astra advice' in handoff
+    assert 'Continue with the launcher-selected coordinator.' in handoff
+    assert 'Next coordinator and implementer: gpt-6.1-sol high.' in handoff
     assert 'Continue with GPT-6-Astra High' not in handoff
     recovered, started = select_vm(root, ['--sessions', '1'])
     assert started and recovered != run

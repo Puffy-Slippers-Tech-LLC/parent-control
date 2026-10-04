@@ -1,7 +1,7 @@
 {
   "type": "object",
   "properties": {
-    "status": {"type": "string", "enum": ["ready_for_vm", "task_complete", "blocked"]},
+    "status": {"type": "string", "enum": ["ready_for_vm", "task_complete", "blocked", "stalled"]},
     "task_id": {"type": "string"},
     "summary": {"type": "string"},
     "handoff": {"type": "string"},
@@ -17,8 +17,18 @@
     },
     "host_validated": {"type": "boolean"},
     "live_result": {"type": "string", "enum": ["not_run", "failed", "passed"]},
-    "stage_paths": {"type": "array", "items": {"type": "string"}}
+    "stage_paths": {"type": "array", "items": {"type": "string"}},
+    "progress": {
+      "type": "object",
+      "properties": {
+        "failure_checkpoint": {"type": "string", "maxLength": 240},
+        "furthest_checkpoint": {"type": "string", "maxLength": 240},
+        "repair_outcome": {"type": "string", "enum": ["advanced", "diagnostic", "failed_repair", "stalled", "not_applicable"]}
+      },
+      "required": ["failure_checkpoint", "furthest_checkpoint", "repair_outcome"],
+      "additionalProperties": false
+    }
   },
-  "required": ["status", "task_id", "summary", "handoff", "blocker", "host_validated", "live_result", "stage_paths"],
+  "required": ["status", "task_id", "summary", "handoff", "blocker", "host_validated", "live_result", "stage_paths", "progress"],
   "additionalProperties": false
 }

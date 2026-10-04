@@ -26,6 +26,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Root guest probes reuse those private lease/scratch trees and mocked transport
 # streams; snapshot connection checks mock SSH and the clock. Both existing
 # VM-control and app-snapshot cleanup buckets remain compatible.
+# Clipboard snapshot-policy checks use process-local configuration and XML only;
+# app-snapshot's existing compatible cleanup classification remains appropriate.
 # VM input-file checks use private pytest files/FIFO and in-memory descriptor,
 # stdin and SSH doubles, without touching a live VM, host stdin or shared state.
 # vm_control_cleanup_safety retains its existing compatible cleanup classification.
@@ -114,6 +116,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Missing-completion recovery uses private checkouts and waited owner/agent
 # doubles under the existing write-e2e fixture. No live VM or shared mutable
 # resource is added; cleanup and unit scheduling remain compatible.
+# Escalation/restart/stall checks use the same bounded, waited agent doubles;
+# there are no model calls, VM operations or additional shared resources.
 
 # Online snapshot, baseline CPU and maintenance recovery/rollback regressions
 # Per-VM spectator publication cleanup uses private tmp_path registrations and

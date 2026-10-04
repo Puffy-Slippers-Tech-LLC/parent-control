@@ -20,9 +20,8 @@ from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_a
 
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
 QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
-SESSION_MODELS = {'implement': ('gpt-6.1-sol', 'high'),
-                  'live': ('gpt-6.1-sol', 'high'),
-                  'recover': ('gpt-6.1-sol', 'high')}
+MODEL_TIERS = (('gpt-6.1-sol', 'high'), ('gpt-6-astra', 'high'),
+               ('gpt-6-astra', 'xhigh'))
 ADVISER_CONFIG = Path(__file__).resolve().with_name('write_e2e_adviser.toml')
 MAX_TASK_SESSIONS = 5
 INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md
@@ -48,7 +47,7 @@ def queue_state(root):
 
 def fresh_state(task):
     return {'task_id': task, 'phase': 'implement', 'live_attempts': 0,
-            'task_sessions': 0,
+            'task_sessions': 0, 'failed_attempts': 0, 'model_tier': 0,
             'summary': 'Implementation, host validation and the first live VM test remain.',
             'handoff': INITIAL_PROMPT, 'in_flight': False, 'stage_candidates': []}
 
@@ -144,7 +143,7 @@ def session_progress(root, state, count):
     summary = ('Writing task code + host validation + first live VM test; close on success, hand off on failure'
                if state['phase'] == 'implement' else
                f"Investigate/fix previous failure + host validation + live VM test {state['live_attempts'] + 1}; close on success, hand off on failure")
-    model, effort = session_model(state['phase'], state['live_attempts'])
+    model, effort = session_model(state)
     return [f'{task_label}: {title}',
             f"\033[1mSession [{state['task_sessions']}]\033[22m: {summary} ({model} {effort})"]
 
@@ -180,17 +179,23 @@ def task_progress(run, steps):
             else step for step in steps]
 
 
-def session_model(phase, live_attempts=0):
-    # Attempts remain acceptance history, not a proxy for reasoning difficulty.
-    return SESSION_MODELS[phase]
+def model_tier(state):
+    # Legacy unfinished checkpoints only recorded live attempts. New checkpoints
+    # distinguish substantive failures from blockers and interrupted sessions.
+    failed = state.get('failed_attempts', state.get('live_attempts', 0))
+    return max(state.get('model_tier', 0), 1 if failed >= 2 else 0)
 
 
-def session_command(root, phase, run=None, *, live_attempts=0):
-    model, effort = session_model(phase, live_attempts)
+def session_model(state):
+    return MODEL_TIERS[model_tier(state)]
+
+
+def session_command(root, state, run=None):
+    model, effort = session_model(state)
     command = launcher.agent_command(
         root, model, effort, run,
         schema=Path(__file__).with_name('write_e2e_response.schema.json'),
-        adviser_config=ADVISER_CONFIG)
+        adviser_config=ADVISER_CONFIG if model == 'gpt-6.1-sol' else None)
     # Personal Fast settings must not silently spend more of the weekly budget.
     command[-1:-1] = ['-c', 'service_tier="default"', '-c', 'features.fast_mode=false']
     return command
@@ -217,21 +222,30 @@ def session_prompt(state):
     from vm_selection import execution_instructions
     vm_instructions = execution_instructions()
     task = state['task_id']
-    phase = 'recover' if state['phase'] == 'blocked' else state['phase']
-    _, effort = session_model(phase, state.get('live_attempts', 0))
-    label = f'GPT-6.1-Sol {effort.title()}'
+    model, effort = session_model(state)
+    label = ('GPT-6.1-Sol' if model == 'gpt-6.1-sol' else 'GPT-6-Astra') + ' ' + (
+        'Extra High' if effort == 'xhigh' else 'High')
     model_policy = f"""You are the {label} coordinator and implementer for this session.
 Own implementation, mechanical repairs, test execution and close-out.
-Investigate ordinary failures yourself at Sol High. Delegate one bounded diagnosis
+The launcher starts at Sol High, promotes to Astra High after two unsuccessful
+substantive live attempts, and promotes immediately after a reasoning stall or
+an unsuccessful correction at the same checkpoint without meaningful progress.
+Astra High promotes to Astra Extra High on that same failed-repair/stall signal;
+different failures with verified progress keep Astra High. Promotion persists
+across restarts and prerequisite suspension; a new task starts at Sol High.
+Session counts, interruptions, external blockers and preparation alone do not
+promote. Keep all acceptance, cleanup and the five-session task cap intact.
+"""
+    if model == 'gpt-6.1-sol':
+        model_policy += """Investigate ordinary failures yourself. Delegate one bounded diagnosis
 or review to the e2e_adviser agent using GPT-6-Astra High only when a High repair
 failed verification without improving the explanation, conflicting evidence prevents
 a defensible correction, or a consequential security, concurrency or ownership
 design question remains unresolved. Consult before implementing such an unresolved
 risky design, including in the first session; a failed attempt is not required.
 State the concrete escalation reason and what High already established.
-Missing prerequisites, permissions, preparation failures and live-attempt count
-alone do not justify Astra: use their maintained repair or blocker routes.
-Do not delegate routine work or the whole task. No Extra High step is required.
+Missing prerequisites, permissions and preparation failures use their maintained
+repair or blocker routes. Do not delegate routine work or the whole task.
 Give it the exact question, relevant file/evidence paths, applicable contracts,
 attempted corrections, user decisions and expected deliverable; use a fresh context rather than a full
 conversation fork. Request concise findings, evidence, a proposed correction,
@@ -247,6 +261,11 @@ question. Cosmetic rewording, another session or another failed run is not new
 evidence. Carry the question, findings, attempted correction and remaining
 uncertainty in the handoff so a restart does not repeat the same consultation.
 Read-only access and sequential execution are not token budgets.
+"""
+    else:
+        model_policy += """You own the stronger-model repair directly. Delegation is disabled;
+do not spawn an adviser or hand implementation back to Sol. Use retained adviser
+findings when available, checking them against current source and evidence.
 """
     common = f"""
 Task {task}: follow AGENTS.md and {PLAN}, using its scoped reading routes.
@@ -264,8 +283,7 @@ and wait for tests and owned cleanup before returning.
 {model_policy}
 Prefer GPT-6.1-Sol High over Astra Low.
 Ignore model recommendations in older handoffs that conflict with this policy.
-The launcher selects GPT-6.1-Sol High from the first session through recovery
-and close-out, including new tasks. Astra provides exceptional bounded advice.
+The launcher-selected model owns this session through validation and close-out.
 Keep context focused: locate headings and symbols, then read complete relevant
 sections/functions and dependencies. Reuse unchanged context; avoid whole-file
 dumps and repeated broad scans. Use bounded diagnostic output and evidence paths.
@@ -275,6 +293,26 @@ Do not reduce required reading, assertions, validation or cleanup to save tokens
 Return the required structured result; only blockers requiring developer action
 return blocked so the launcher pauses for the user's answer. Keep summary under
 600 characters and handoff under 16000.
+Report progress with failure_checkpoint, furthest_checkpoint and repair_outcome.
+Use stable semantic checkpoint names scoped to the qualification/regression;
+reuse the previous identity for the same boundary, never a timestamp, report path
+or generic worker/SSH error. Record the furthest independently verified milestone
+and retain its evidence in the handoff. For a failed live attempt, repair_outcome
+is advanced (verified progress), diagnostic (new evidence only), or failed_repair
+(a correction failed again at the same checkpoint without meaningful progress).
+Only failed_repair triggers immediate promotion; diagnostic work still consumes
+an unsuccessful live attempt. Explain the correction and expected/actual result
+in the summary/handoff. Do not diagnose or retry a new live failure to fill these
+fields: classify from already collected evidence and use diagnostic when uncertain.
+If reasoning stalls with no useful authorized next step, return status stalled
+and repair_outcome stalled, with the evidence and remaining uncertainty. This
+may precede live execution; report the actual host/live outcome and finish owned
+cleanup. The launcher promotes the next session, or stops if already Extra High.
+Missing authority, external prerequisites and unresolved customer behavior remain
+blocked, never stalled. For blocked or task_complete use not_applicable.
+Use an empty failure_checkpoint when live_result is not failed; furthest_checkpoint
+may be empty when nothing has been independently verified.
+Previous progress: {json.dumps(state.get('progress'), ensure_ascii=False)}
 {BLOCKER_INSTRUCTIONS}
 Missing generated qualification assets are routine test preparation. Use the
 maintained artifact builder to prepare missing named inputs, then resume validation
@@ -348,7 +386,7 @@ After host checks pass, run this task's live VM acceptance, including required
 regressions, under the plan. Wait for validation and owned cleanup to finish.
 If live acceptance fails, preserve failure evidence and return ready_for_vm with
 host_validated true, live_result failed and a fresh handoff for the next coordinator
-selected by the launcher, with bounded Astra advice when needed.
+selected by the launcher.
 Leave investigation and repairs of this new failure to the next session; do not
 repair it, retry live acceptance or advance the pointer in this session.
 Do not end a normal session with only host validation: finish live VM validation
@@ -362,9 +400,35 @@ task_complete with live_result not_run after its host-only acceptance and close-
 """
 
 
+def validate_progress(state, result):
+    progress = result.get('progress')
+    if progress is None and 'progress' not in result and result['status'] != 'stalled':
+        # Retained results from an older launcher still use all acceptance guards.
+        return None
+    if (not isinstance(progress, dict)
+            or set(progress) != {'failure_checkpoint', 'furthest_checkpoint', 'repair_outcome'}
+            or any(not isinstance(progress[key], str) or len(progress[key]) > 240
+                   for key in ('failure_checkpoint', 'furthest_checkpoint'))):
+        raise ValueError('invalid escalation progress')
+    outcome = progress['repair_outcome']
+    allowed = ({'stalled'} if result['status'] == 'stalled' else
+               {'advanced', 'diagnostic', 'failed_repair'} if result['status'] == 'ready_for_vm'
+               else {'not_applicable'})
+    if (not isinstance(outcome, str) or outcome not in allowed
+            or bool(progress['failure_checkpoint'].strip()) != (result['live_result'] == 'failed')):
+        raise ValueError('escalation progress does not match validation outcome')
+    if outcome == 'failed_repair':
+        previous = state.get('progress') or {}
+        if (not previous.get('failure_checkpoint')
+                or progress['failure_checkpoint'] != previous['failure_checkpoint']
+                or progress['furthest_checkpoint'] != previous['furthest_checkpoint']):
+            raise ValueError('failed repair must retain the same failure and verified checkpoint')
+    return progress
+
+
 def accept_result(root, state, result, before):
     if (not isinstance(result, dict) or result.get('task_id') != state['task_id']
-            or result.get('status') not in ('ready_for_vm', 'task_complete', 'blocked')
+            or result.get('status') not in ('ready_for_vm', 'task_complete', 'blocked', 'stalled')
             or result.get('live_result') not in ('not_run', 'failed', 'passed')
             or type(result.get('host_validated')) is not bool
             or not isinstance(result.get('stage_paths'), list)
@@ -378,6 +442,7 @@ def accept_result(root, state, result, before):
         validate_blocker(blocker)
     elif blocker is not None:
         raise ValueError('only a blocked result may ask a question')
+    progress = validate_progress(state, result)
     current, after = queue_state(root)
     task = state['task_id']
     if any(after.get(key) != complete for key, complete in before.items() if key != task):
@@ -397,13 +462,27 @@ def accept_result(root, state, result, before):
     if status == 'ready_for_vm':
         if not result['host_validated'] or result['live_result'] != 'failed':
             raise ValueError('VM handoff lacks host validation or a matching live outcome')
+    if status == 'stalled' and result['live_result'] == 'passed':
+        raise ValueError('reasoning stall cannot claim passing live acceptance')
     updated = dict(state, summary=result['summary'], handoff=result['handoff'], in_flight=False)
+    updated['model_tier'] = model_tier(state)
+    updated['failed_attempts'] = state.get('failed_attempts', state.get('live_attempts', 0))
+    if status in ('ready_for_vm', 'stalled'):
+        if result['live_result'] == 'failed':
+            updated['failed_attempts'] += 1
+        if progress is not None:
+            updated['progress'] = progress
+        if status == 'stalled' or (progress and progress['repair_outcome'] == 'failed_repair'):
+            updated['model_tier'] = min(model_tier(state) + 1, len(MODEL_TIERS) - 1)
+        updated['model_tier'] = model_tier(updated)
     updated.pop('completion_recovery', None)
     updated.pop('blocker_id', None)
     updated['blocker'] = blocker
     if state['phase'] in ('implement', 'live', 'recover') and result['live_result'] != 'not_run':
         updated['live_attempts'] += 1
-    updated['phase'] = 'complete' if status == 'task_complete' else 'live' if status == 'ready_for_vm' else 'blocked'
+    updated['phase'] = ('complete' if status == 'task_complete' else
+                        'live' if status == 'ready_for_vm' else
+                        'recover' if status == 'stalled' else 'blocked')
     if current != task and status == 'blocked':
         return defer_to_prerequisite(root, updated)
     return updated
@@ -565,8 +644,10 @@ def save_handoff(run, state, reason, *, display=True):
             f"Recover interrupted task {state['task_id']}. Inspect {run / 'output'} and "
             f"{run / 'prompt.txt'}; verify retained test results and owned cleanup "
             "before retrying. Do not assume live acceptance passed or advance the "
-            "task. Continue with the launcher-selected coordinator and bounded sequential Astra advice "
-            "when needed. Last safe handoff:\n" + prompt)
+            "task. Continue with the launcher-selected coordinator. Last safe handoff:\n" + prompt)
+    if state['phase'] != 'complete' and not state.get('pending_completion'):
+        model, effort = session_model(state)
+        prompt = f'Next coordinator and implementer: {model} {effort}.\n\n' + prompt
     text = f"Task {state['task_id'] or 'none'}: {reason}. {state['summary']}\n\nNext session prompt:\n{prompt}\n"
     (run / 'handoff.txt').write_text(text, encoding='utf-8')
     launcher.atomic(run / 'checkpoint.json', state)
@@ -731,7 +812,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
                                                    'task_id': task, 'phase': state['phase']})
             progress_lines = session_progress(root, state, total)
             publish_progress(run, str(count), progress_lines)
-            model, effort = session_model(state['phase'], state['live_attempts'])
+            model, effort = session_model(state)
             print(f"\nwrite-e2e: session {count}{'/' + str(sessions) if sessions else ''}; "
                   f"task {task}; {model} {effort}", flush=True)
             try:
@@ -742,6 +823,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 state['stage_candidates'] = sorted(candidates)
                 launcher.atomic(run / 'checkpoint.json', state)
             updated = accept_result(root, state, result, before)
+            final_stall = result['status'] == 'stalled' and model_tier(state) == len(MODEL_TIERS) - 1
             if updated['phase'] == 'complete':
                 state.update(pending_completion=result, summary=result['summary'], handoff=result['handoff'])
                 launcher.atomic(run / 'checkpoint.json', state)
@@ -752,6 +834,9 @@ def worker(root, run, owner, sessions, tasks, state_json):
             if state['phase'] == 'complete':
                 state['completed_at'] = time.time()
             launcher.atomic(run / 'checkpoint.json', state)
+            if final_stall:
+                status, reason = 1, 'reasoning stalled at Astra Extra High; inspect the retained evidence'
+                break
             if state['phase'] == 'complete':
                 keys = state['progress_keys']
                 completions.append((task, state['task_sessions'],
@@ -904,8 +989,7 @@ def select(root, argv):
         state['vm'] = binding
         # Preflight transport/rendering only; do not spend a model session here.
         from launcher_render import AgentRenderer
-        session_command(root, 'implement' if state['phase'] == 'implement' else 'recover',
-                        live_attempts=state['live_attempts'])
+        session_command(root, state)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
                 str(root), str(run), str(owner), json.dumps(args.sessions),
                 json.dumps(args.tasks), json.dumps(state)]
@@ -960,8 +1044,9 @@ if __name__ == '__main__':
         state = json.loads((run / 'checkpoint.json').read_text())
         phase = options[0] if options else 'recover'
         attempts = int(options[1]) if len(options) > 1 else state.get('live_attempts', 0)
-        command = session_command(root, phase, run, live_attempts=attempts)
-        model, effort = session_model(phase, attempts)
+        state = dict(state, phase=phase, live_attempts=attempts)
+        command = session_command(root, state, run)
+        model, effort = session_model(state)
         metadata = {'session': state.get('total_sessions', state['task_sessions']),
                     'task_id': state['task_id'], 'phase': phase, 'model': model,
                     'reasoning_effort': effort, 'service_tier': 'default'}

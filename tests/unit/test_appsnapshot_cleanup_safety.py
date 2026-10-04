@@ -78,6 +78,21 @@ def test_channel_free_snapshot_refreshes_but_remains_recoverable(mode):
     assert app_snapshot.mode_mismatch(xml, mode, now=100000) == 'snapshot display-agent channel missing'
 
 
+@pytest.mark.parametrize('mode', ['online', 'offline'])
+def test_clipboard_opt_in_refreshes_disabled_snapshot_and_reuses_enabled(mode, monkeypatch):
+    domain = controller.system.isolated_xml(domain_xml(), UUID, 'a' * 32, graphics_type='vnc')
+    memory, state = ('internal', 'running') if mode == 'online' else ('no', 'shutoff')
+    xml = (f'<domainsnapshot><memory snapshot="{memory}"/><state>{state}</state>'
+           '<creationTime>100000</creationTime>' + domain + '</domainsnapshot>')
+    config = controller.system.baseline.guest_contract.vm_config
+    selected = config.selected()
+    from dataclasses import replace
+    monkeypatch.setattr(config, 'selected', lambda **_: replace(selected, clipboard=True))
+    assert app_snapshot.mode_mismatch(xml, mode, now=100000) == 'snapshot clipboard configuration changed'
+    assert app_snapshot.mode_mismatch(xml.replace('copypaste="no"', 'copypaste="yes"'),
+                                     mode, now=100000) is None
+
+
 @pytest.mark.parametrize('argv', [['--overwrite', 'yes'], ['--overwrite='],
     ['--overwrite', 'FALSE'], ['--over', 'false'], ['--snapshot', 'onpc-1.1'],
     ['--mode', 'running'], ['--mod', 'online']])

@@ -827,7 +827,7 @@ class AgentRenderer:
                 except ValueError:
                     result = None
                 if (isinstance(result, dict)
-                        and result.get('status') in ('fixed', 'blocked', 'ready_for_vm', 'task_complete')
+                        and result.get('status') in ('fixed', 'blocked', 'ready_for_vm', 'task_complete', 'stalled')
                         and isinstance(result.get('summary'), str)):
                     if self.hide_task_completion and result['status'] in ('task_complete', 'blocked'):
                         # The workflow validates success and owns blocked questions.
@@ -835,7 +835,7 @@ class AgentRenderer:
                         return
                     title = (result['status'].replace('_', ' ').capitalize()
                              if 'handoff' in result else 'Repair ' + result['status'])
-                    style = 'yellow' if result['status'] == 'blocked' else 'green'
+                    style = 'yellow' if result['status'] in ('blocked', 'stalled') else 'green'
                     text = result['summary']
                     if isinstance(result.get('handoff'), str):
                         text += '\n\nNext session prompt:\n\n' + result['handoff']

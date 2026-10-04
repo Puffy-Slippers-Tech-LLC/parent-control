@@ -64,6 +64,10 @@ use existing private pytest lease/scratch trees and process-local SSH/libvirt,
 stream and clock doubles. They add no live guest, socket, display, credentials,
 shared state or heavy construction; their compatible unit classifications hold.
 
+Per-VM clipboard policy checks use those same process-local configuration/libvirt
+doubles and private fixtures. Graphical-lease, VM-config and app-snapshot unit
+classifications remain compatible; no clipboard, live guest or new resource is used.
+
 Fresh-desktop, Shell-search and GDM recipient release bindings use tiny tmp_path
 metadata and a restored process-local ROOT patch; no VM, shared file, socket or
 display is accessed.
@@ -375,6 +379,8 @@ write_e2e write_e2e_cleanup_safety
 # Interrupted write-e2e close-out recovery reuses private pytest checkouts and
 # waited launcher/agent doubles. No live VM, display, cache or shared mutation;
 # the existing compatible unit and cleanup classifications remain applicable.
+# Escalation/restart/stall checks reuse those private checkouts and waited agent
+# doubles, adding no model calls, VM operations or shared resources.
 
 # Baseline mode/update/reboot tests mock every VM/package
 # mutation. Version checks spawn only bounded read-only dpkg comparisons with

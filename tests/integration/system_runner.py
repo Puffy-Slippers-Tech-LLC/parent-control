@@ -332,6 +332,12 @@ def announce_selection(selection):
         item.phase + '::' + item.case_id for item in selection.executions])
 
 
+def clipboard_policy():
+    """Host clipboard sharing is an explicit option of the selected VM."""
+    configured = baseline.guest_contract.vm_config.selected(required=False)
+    return 'yes' if configured is not None and configured.clipboard else 'no'
+
+
 def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
     """Use the fixed guest disk and private test display and transport."""
     baseline.domain_layout(xml, expected_uuid)
@@ -347,10 +353,10 @@ def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
     # Neither console listens on a host port/socket.
     graphics = ET.SubElement(devices, 'graphics', type='spice', autoport='yes')
     ET.SubElement(graphics, 'listen', type='none')
-    ET.SubElement(graphics, 'clipboard', copypaste='no')
+    ET.SubElement(graphics, 'clipboard', copypaste=clipboard_policy())
     ET.SubElement(graphics, 'filetransfer', enable='no')
     # Recreate only the guest display agent, never a supplied host channel.
-    # SPICE's clipboard and file-transfer restrictions still apply to it.
+    # Clipboard follows the selected VM option; file transfer stays disabled.
     channel = ET.SubElement(devices, 'channel', type='spicevmc')
     ET.SubElement(channel, 'target', type='virtio', name='com.redhat.spice.0')
     if graphics_type == 'vnc':
@@ -415,11 +421,18 @@ def validate_private_spice(display):
             # libvirt omits autoport when normalizing listen type='none'.
             # The exact listener and disabled ports remain mandatory below.
             display.get('autoport', 'yes') == 'yes', 'guard:graphics-endpoint')
+    clipboard = display.find('clipboard')
+    # A disabled clipboard remains safe for an old owner's cleanup after opt-in.
+    # Fresh snapshot reuse separately requires the current configured value.
+    require(clipboard is not None and clipboard.get('copypaste') in
+            ({'no', 'yes'} if clipboard_policy() == 'yes' else {'no'}),
+            'guard:graphics-clipboard')
     require(len(display) == 3 and
             {child.tag: dict(child.attrib) for child in display} == {
-                'listen': {'type': 'none'}, 'clipboard': {'copypaste': 'no'},
+                'listen': {'type': 'none'}, 'clipboard': dict(clipboard.attrib),
                 'filetransfer': {'enable': 'no'}} and
             all(len(child) == 0 for child in display), 'guard:graphics-listener')
+    require(set(clipboard.attrib) == {'copypaste'}, 'guard:graphics-clipboard')
 
 
 def validate_host_sharing(root, *, category='guard:host-sharing'):

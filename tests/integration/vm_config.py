@@ -21,6 +21,7 @@ class VMConfig:
     disk_anchor: Path
     enabled: bool = False
     id: str | None = None
+    clipboard: bool = False
 
     @property
     def hostname(self):
@@ -116,7 +117,7 @@ def execution(name=None, path=None):
 def validate_entry(document):
     if (not isinstance(document, dict) or
             not {'name', 'disk_anchor'} <= set(document) or
-            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id'}):
+            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id', 'clipboard'}):
         raise ValueError('vm-config:fields')
     name = validate_name(document['name'])
     value = document['disk_anchor']
@@ -127,13 +128,16 @@ def validate_entry(document):
     enabled = document.get('enabled', 'false')
     if enabled not in ('true', 'false'):
         raise ValueError('vm-config:enabled must be the string true or false')
+    clipboard = document.get('clipboard', 'false')
+    if clipboard not in ('true', 'false'):
+        raise ValueError('vm-config:clipboard must be the string true or false')
     identifier = document.get('id')
     if 'id' in document:
         if type(identifier) is int:
             identifier = str(identifier)
         if not isinstance(identifier, str) or not re.fullmatch(r'[1-9][0-9]*', identifier):
             raise ValueError('vm-config:id must be a positive decimal integer or string')
-    return VMConfig(name, Path(value), enabled == 'true', identifier)
+    return VMConfig(name, Path(value), enabled == 'true', identifier, clipboard == 'true')
 
 
 def load(name=None, path=None):

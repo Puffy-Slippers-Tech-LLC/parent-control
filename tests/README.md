@@ -530,19 +530,56 @@ commands and their results remain visually separate, including without color.
 task close-out, then starts no further session. Ctrl+C cancels immediately and
 waits for owned cleanup.
 
-Initial implementation, follow-up, recovery and new tasks use **GPT-6.1-Sol High**
-as coordinator and implementer. Attempt counts remain acceptance history;
-implementation, mechanical repairs, validation and close-out stay with Sol High.
-The existing five-session task cap is unchanged.
-Use one bounded **GPT-6-Astra High** consultation through the
+New tasks start with **GPT-6.1 Sol High** as coordinator and implementer. The
+launcher promotes the implementer automatically within the existing five-session
+task cap:
+
+| Evidence at the session boundary | Next coordinator and implementer |
+| --- | --- |
+| First unsuccessful substantive live attempt | Sol High gets one repair session |
+| Two unsuccessful substantive live attempts | GPT-6 Astra High, normally session 3 |
+| A correction fails at the same checkpoint without meaningful progress, or reasoning stalls | Sol High → Astra High; Astra High → Astra Extra High |
+| Further failures with verified progress or new diagnostic evidence | Keep the selected tier; the two-attempt promotion still applies |
+
+There is no obligatory Sol Extra High step. Promotion survives launcher restarts,
+answered blockers and prerequisite suspension; a new task resets to Sol High.
+An Astra Extra High reasoning stall stops the launcher early with retained
+evidence. Other incomplete outcomes retain the ordinary session cap. Promotion
+never renews that cap or bypasses acceptance, staging, ownership or cleanup.
+
+Structured results carry `progress`: a stable `failure_checkpoint` scoped to its
+qualification/regression, the `furthest_checkpoint` independently verified, and
+`repair_outcome` (`advanced`, `diagnostic`, `failed_repair`, `stalled` or
+`not_applicable`). Handoffs retain the supporting evidence, attempted correction
+and expected/actual result. Generic SSH/worker errors, timestamps and report paths
+are not checkpoint identities. `failed_repair` must match both previous checkpoint
+fields; advancing a verified milestone keeps the current tier. Classify from
+already collected evidence without diagnosing or retrying a new live failure;
+use `diagnostic` when uncertain. Diagnostic-only live failures still count toward
+the two-attempt promotion. Semantic classification remains the agent's
+responsibility; the launcher validates field consistency and enforces promotion.
+Legacy unfinished checkpoints use their retained live-attempt count to select
+Sol High or Astra High; missing repair evidence never implies Extra High.
+
+Only normal failed live handoffs and reasoning stalls with an actual failed live
+result increment the new unsuccessful-attempt counter. Blockers, interruptions,
+preparation and raw session counts do not promote. Missing authority, external
+prerequisites and customer behavior decisions still use the maintained blocker
+route. A reasoning stall with no useful authorized next step may return `stalled`
+before live execution, with the actual validation outcome and owned cleanup;
+it promotes without inventing a live attempt or asking the user an unnecessary
+question. Normal handoffs retain the host/live validation boundary below.
+
+While Sol High is coordinating, use one bounded **GPT-6-Astra High** consultation through the
 [read-only adviser](../tools/write_e2e_adviser.toml) when a High repair failed
 verification without improving the explanation, conflicting evidence prevents
 a defensible correction, or a consequential security, concurrency or ownership
 design question remains unresolved. State the concrete escalation reason and
 what High already established. Ordinary diagnosis, missing prerequisites,
-permissions and preparation failures use their maintained repair/blocker routes;
-session or live-attempt counts alone do not justify Astra. No Extra High step is
-required. Prefer Sol High over Astra Low for implementation and recovery.
+permissions and preparation failures use their maintained repair/blocker routes.
+After promotion, Astra owns implementation and validation directly, with
+delegation disabled; do not add an adviser or hand the repair back to Sol.
+Prefer Sol High over Astra Low for implementation and recovery.
 This policy overrides model recommendations in older saved handoffs.
 Consult before implementing such an unresolved risky design, including in the
 initial session without first spending a failed attempt. All coordinators and

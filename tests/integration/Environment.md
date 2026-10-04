@@ -27,6 +27,14 @@ The E2E inventory's `ubuntu26.04` environment label describes the currently
 supported guest OS independently of the VM name; adding an entry does not
 qualify its OS for Ubuntu-specific baseline preparation or installed tests.
 
+An optional `clipboard` field accepts the strings `"true"` and `"false"`
+(default `"false"`). It controls host/guest clipboard sharing in the interactive
+SPICE console, including maintenance and restored app snapshots. Stop owned
+maintenance before changing it and refresh the baseline through the preparation
+route. App preparation refreshes snapshots whose saved console policy differs. Disabled older layouts
+remain valid for owned cleanup after enabling it. The watch panels remain read-only;
+clipboard sharing is available through the interactive VM console.
+
 Set a literal `TEST_ACCOUNT_PASSWORD` in the host checkout's private mode-0600
 `.envrc`, then run `tools/prepare-baseline --vm NAME --mode manual` on the development host with the
 product-free Ubuntu 26.04 VM off. Missing, empty, placeholder or unsafe
@@ -286,8 +294,8 @@ existing guarded controllers; raw `virsh` commands bypass these contracts.
 Only the guarded runner may perform a normal test reset under its exclusive
 lease, outside a complete independent attempt. It restores the retained
 baseline, removes host transfer channels before boot while retaining the private
-SPICE display-agent channel for automatic resolution matching (clipboard and
-file transfers remain disabled),
+SPICE display-agent channel for automatic resolution matching and the selected
+VM's configured clipboard sharing (file transfers remain disabled),
 executes real guest operations, collects evidence, restores the baseline/prior
 persistent domain configuration, and leaves the VM off. It creates no new
 snapshot, overlay or cloned VM. Reboot inside a journey changes the real boot

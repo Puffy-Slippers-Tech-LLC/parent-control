@@ -200,6 +200,7 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py',
     'check_e2e_auth_result', 'check_e2e_auth_result.py',
     'check_e2e_kiosk_approved_flow', 'check_e2e_kiosk_approved_flow.py',
+    'check_e2e_chinese_native_auth', 'check_e2e_chinese_native_auth.py',
     'check_e2e_approval_flow', 'check_e2e_approval_flow.py',
     'check_e2e_request_choices', 'check_e2e_request_choices.py',
     'check_e2e_kiosk_no_child', 'check_e2e_kiosk_no_child.py',
@@ -216,7 +217,8 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
     import test_storage
 
     current_package = selector.removesuffix('.py') in (
-        'check_e2e_overlay_prompt', 'check_e2e_kiosk_approval')
+        'check_e2e_overlay_prompt', 'check_e2e_kiosk_approval',
+        'check_e2e_kiosk_approved_flow', 'check_e2e_chinese_native_auth')
     output = str(test_storage.named_input(package_source=current_package))
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)
@@ -236,6 +238,8 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
                                      'check_e2e_kiosk_entry', 'check_e2e_kiosk_entry.py',
                                      'check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
                                      'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py',
+                                     'check_e2e_kiosk_approved_flow', 'check_e2e_kiosk_approved_flow.py',
+                                     'check_e2e_chinese_native_auth', 'check_e2e_chinese_native_auth.py',
                                      'check_e2e_save_chooser', 'check_e2e_save_chooser.py',
                                      'check_e2e_match_editor', 'check_e2e_match_editor.py',
                                      'check_e2e_policy', 'check_e2e_policy.py',
@@ -271,7 +275,9 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
 
 @pytest.mark.parametrize('selector', ['check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
                                      'check_e2e_kiosk_entry', 'check_e2e_kiosk_entry.py',
-                                     'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py'])
+                                     'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py',
+                                     'check_e2e_kiosk_approved_flow', 'check_e2e_kiosk_approved_flow.py',
+                                     'check_e2e_chinese_native_auth', 'check_e2e_chinese_native_auth.py'])
 def test_request_regressions_preserve_current_inputs_and_ignore_legacy_bundle(monkeypatch, selector):
     import test_storage
     current = ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-current'

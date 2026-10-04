@@ -306,7 +306,10 @@ from regression_ui import Bucket
 # command/session doubles and waited Perl children; no shared VM, bus or GUI.
 # Chinese lifecycle uses those private doubles, recorder files and waited Perl;
 # no live bus, VM, GUI, shared cache or new cleanup resource.
+# Chinese native authentication shares those private doubles and waited Perl,
+# with private recorder/decoder files; no additional live cleanup owner.
 REVIEWED = frozenset("""
+chinese_native_auth_cleanup_safety
 chinese_kiosk_lifecycle_cleanup_safety
 package_upgrade_cleanup_safety
 upgrade_assets_cleanup_safety

@@ -82,10 +82,11 @@ sub enter_kiosk_mate_password {
     die "secret:input-refused\n" if $failed;
     my $ok = eval {
         my $reject = @_ == 2 && defined($wrong) && $wrong eq 'wrong';
-        my $binding = $reject ? 'rejection' : 'approval';
-        my $id = 'kiosk-mate-' . $binding;
-        die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
-            && (($journey->{prefix} // '') eq 'kiosk-' . $binding
+        my $chinese = @_ == 2 && defined($wrong) && $wrong =~ /\Achinese-(?:first|second)\z/;
+        my $binding = $chinese ? substr($wrong, 8) . '-approval' : $reject ? 'rejection' : 'approval';
+        my $id = 'kiosk-mate-' . ($chinese ? $wrong : $binding);
+        die 'secret:challenge' unless (@_ == 1 || $reject || $chinese) && ref($journey) eq 'onpc_journey'
+            && ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding
                 || ($journey->{prefix} // '') eq 'kiosk-approval-flow')
             && !$journey->{review} && !$challenges_used{$id};
         $challenges_used{$id} = 1;

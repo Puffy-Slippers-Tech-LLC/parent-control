@@ -9,7 +9,7 @@ import pytest
 
 from accessible_ui import CHILD, EXISTING_CHILD, PARENT, UiError
 from private_artifacts import EvidenceError
-from tests.support.accessible_ui import Node
+from tests.support.accessible_ui import Node, ui_for
 from tests.support.e2e_kiosk import WORKER, accounts_form
 from ui_observations import RequestObservation, UiObservations
 
@@ -372,6 +372,50 @@ def test_account_snapshot_uses_one_complete_read_for_input_boundary():
     ui.nodes = Mock(wraps=ui.nodes)
     assert ui.kiosk_account_snapshot('child')[0] is selector
     assert ui.nodes.call_count == 1
+
+
+@pytest.mark.parametrize('fault', ['query', 'stale', 'owner', 'present'])
+@pytest.mark.parametrize('persistent', [False, True])
+def test_parent_wrong_entry_requires_complete_refusal(monkeypatch, fault, persistent):
+    import accessible_ui as adapter
+
+    window = Node(identity='parent-window')
+    ui = ui_for(window)
+    now = [0.0]
+    ui.timeout = .4
+    ui.query_errors = (LookupError,)
+    monkeypatch.setattr(adapter, 'time', SimpleNamespace(
+        monotonic=lambda: now[0], sleep=lambda seconds: now.__setitem__(0, now[0] + seconds)))
+    original = ui.kiosk_account_snapshot
+    reads = []
+
+    def snapshot(field):
+        reads.append(ui._observation_generation)
+        if persistent or len(reads) == 1:
+            if fault == 'query':
+                raise LookupError('service-missing')
+            if fault == 'stale':
+                raise UiError('ui:stale-request-form')
+            if fault == 'owner':
+                raise UiError('ui:wrong-owner')
+            return object()  # A present form must never qualify wrong entry.
+        return original(field)
+
+    ui.kiosk_account_snapshot = snapshot
+    if fault in ('owner', 'present') or persistent:
+        with pytest.raises(UiError, match={
+                'query': 'timeout', 'stale': 'stale-request-form',
+                'owner': 'wrong-owner', 'present': 'wrong-entry-accepted'}[fault]):
+            ui.run('parent-kiosk-refused', '')
+    else:
+        assert ui.run('parent-kiosk-refused', '')['outcome'] == 'passed'
+    if fault in ('query', 'stale'):
+        assert len(reads) >= 2 and len(set(reads)) == len(reads)
+        assert now[0] == (.4 if persistent else .2)
+    else:
+        assert len(reads) == 1 and now[0] == 0
+    window.action.do_action.assert_not_called()
+    assert not ui.input_uncertain
 
 
 @pytest.mark.parametrize('field', ['child', 'approver'])

@@ -109,6 +109,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{chinese_native_auth}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::chinese_native_auth(\&exchange);
+        return;
+    }
     if ($ready->{chinese_kiosk_lifecycle}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

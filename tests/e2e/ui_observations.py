@@ -15,6 +15,8 @@ import system_runner as system
 # Collection replies need room for their full bounded semantic projection.
 # App rows still validate at most 256 fixed-format ID/access/match triples.
 RESPONSE_BYTE_LIMITS = {
+    **{operation: 8192 for operation in accessible_ui.CHINESE_MATE_ORDER},
+    **{operation: 8192 for operation in accessible_ui.CHINESE_LANGUAGE_OPERATIONS},
     **{operation: 8192 for operation in accessible_ui.INITIAL_KIOSK_OPERATIONS},
     **{operation: 32768 for operation in accessible_ui.CATALOGUE_ROW_OPERATIONS},
     'feedback-collection-events': 8192,
@@ -342,6 +344,10 @@ OPERATION_LABELS.update({operation: 'Activating an existing window and independe
                          for operation in accessible_ui.WINDOW_SWITCH_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying kiosk approval and its explicit public result'
                          for operation in accessible_ui.MATE_APPROVAL_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Preparing and independently reading the Chinese Jordan request'
+                         for operation in accessible_ui.CHINESE_VALID_BINDINGS})
+OPERATION_LABELS.update({operation: 'Saving or independently observing the persisted Chinese kiosk language'
+                         for operation in accessible_ui.CHINESE_LANGUAGE_OPERATIONS})
 OPERATION_LABELS.update({
     'text-wrong-entry': 'Refusing text input outside feedback',
     'text-disabled': 'Refusing text input to a disabled control',
@@ -512,6 +518,7 @@ class RequestObservation:
         overlay_valid = (operation in accessible_ui.OVERLAY_VALID_REQUESTS
                          or operation in accessible_ui.OVERLAY_INVALID_OPERATIONS)
         valid = {**accessible_ui.KIOSK_VALID_REQUESTS,
+                 **accessible_ui.CHINESE_VALID_REQUESTS,
                  **accessible_ui.OVERLAY_VALID_REQUESTS}.get(operation)
         if operation == 'overlay-request-form':
             require(observation == cls(
@@ -531,6 +538,8 @@ class RequestObservation:
         no_child = operation == 'kiosk-no-child-form'
         if valid is not None or invalid is not None:
             child, approver = 'fixture-child', 'fixture-parent'
+            if operation in accessible_ui.CHINESE_VALID_REQUESTS:
+                child = 'existing-fixture-child'
         no_approver = operation == 'kiosk-no-approver-form'
         if no_child:
             child = 'none'
@@ -940,6 +949,9 @@ class UiObservations:
                         index = 0
                     if index == 0:
                         self.mate_rejection = operation == accessible_ui.MATE_REJECTION_ORDER[0]
+                        self.mate_chinese = operation == accessible_ui.CHINESE_MATE_ORDER[0]
+                    if getattr(self, 'mate_chinese', False):
+                        order = accessible_ui.CHINESE_MATE_ORDER
                     if self.mate_rejection:
                         order = accessible_ui.MATE_REJECTION_ORDER
                     elif operation == 'kiosk-mate-submit-immediate':
@@ -952,6 +964,17 @@ class UiObservations:
                 if operation in accessible_ui.MATE_OPERATIONS | accessible_ui.SHELL_PROMPT_OPERATIONS:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
                 result = self._observe(operation, **({'child': child} if child else {}))
+                if operation == 'chinese-mate-open':
+                    self.mate_approval_checked = time.monotonic()
+                    self.chinese_returned = False
+                if operation == 'gdm-station-returned' and getattr(self, 'mate_chinese', False):
+                    require(self.mate_approval_index == 4, 'ui:mate-return-order')
+                    self.chinese_returned = True
+                if operation == 'chinese-persisted-form':
+                    require(getattr(self, 'mate_chinese', False) and self.mate_approval_index == 4
+                            and self.chinese_returned, 'ui:mate-fresh-session-order')
+                    self.mate_approval_index = 0
+                    self.chinese_returned = False
                 if operation == 'overlay-shell-open':
                     # Opening includes request submission, prompt discovery and
                     # refusal qualification. It grants no password authority;
@@ -1001,6 +1024,9 @@ class UiObservations:
                           'kiosk-initial-language-cancel': 'kiosk-initial-language'}
         if operation in initial_inputs:
             require(self.last_operation == initial_inputs[operation], 'ui:initial-input-order')
+        if operation == 'chinese-persisted-form':
+            require(getattr(self, 'mate_chinese', False) and self.mate_approval_index == 4
+                    and getattr(self, 'chinese_returned', False), 'ui:mate-fresh-session-order')
         require(child is None or (child in accessible_ui.NAMED_CUSTOM_CHILDREN and
                 operation in accessible_ui.NAMED_CHILD_OPERATIONS), 'ui:custom-child-binding')
         import re
@@ -1027,7 +1053,7 @@ class UiObservations:
                     re.fullmatch(r'[0-9a-f]{64}', self.boot_guard)), 'ui:boot-binding')
             binding = [self.boot_guard]
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation not in (
-                'kiosk-mate-open', 'kiosk-mate-rejection-open'):
+                'kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open'):
             binding = [self.boot_guard or '', self.mate_approval_identity]
         if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation != 'overlay-shell-open':
             binding = [self.boot_guard or '', self.shell_approval_identity]
@@ -1066,10 +1092,12 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
-        if operation in accessible_ui.INITIAL_KIOSK_OPERATIONS and operation != 'kiosk-initial-notice-return':
+        if (operation in accessible_ui.INITIAL_KIOSK_OPERATIONS and operation != 'kiosk-initial-notice-return'
+                or operation in accessible_ui.CHINESE_LANGUAGE_OPERATIONS):
             require(type(result) is dict and set(result) == {*expected, 'initial'}, 'ui:initial-response')
             value = result['initial']
-            kind = ('notice' if 'notice' in operation else 'language' if 'language' in operation else 'form')
+            kind = ('form' if operation in accessible_ui.CHINESE_LANGUAGE_OPERATIONS else
+                    'notice' if 'notice' in operation else 'language' if 'language' in operation else 'form')
             ids = ({'update-required-message', 'update-required-close', 'update-required-reboot'}
                    if kind == 'notice' else {'kiosk-child-account-caption', 'kiosk-approver-account-caption',
                        'kiosk-duration-label-1800', 'kiosk-request-submit', 'kiosk-request-cancel'} |
@@ -1204,15 +1232,28 @@ class UiObservations:
             if operation == 'kiosk-mate-submit-rejection':
                 require(value == {'rejected': True, 'cancelled': True, 'no_error': True}
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
-            elif operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-immediate'):
+            elif operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-immediate', 'chinese-mate-submit-success'):
                 require(value == {'approved': True, 'form_success': True,
                                   **({'immediate_exit': True} if operation.endswith('immediate') else {})}
                         and all(type(item) is bool for item in value.values()), 'ui:mate-result')
             else:
-                require(type(value) is dict and set(value) == {'challenge_id'} and
+                chinese = operation in accessible_ui.CHINESE_MATE_ORDER
+                fields = {'challenge_id'} | ({'provider', 'texts', 'child', 'approver', 'agent_id',
+                    'duration_seconds', 'allow_soft', 'rejected_proofs'} if chinese else set())
+                require(type(value) is dict and set(value) == fields and
                         type(value['challenge_id']) is str and
                         re.fullmatch(r'[0-9a-f]{64}', value['challenge_id']), 'ui:mate-identity')
-                if operation in ('kiosk-mate-open', 'kiosk-mate-rejection-open'):
+                if chinese:
+                    accessible_ui.validate_shell_metadata(value['provider'])
+                    require(value['provider']['locale'] in ('zh_CN.UTF-8', 'zh_CN.utf8', 'zh_CN')
+                            and type(value['agent_id']) is str and re.fullmatch(r'[0-9a-f]{64}', value['agent_id'])
+                            and value['texts'] == accessible_ui.chinese_mate_texts()
+                            and value['child'] == 'existing-fixture-child' and value['approver'] == 'fixture-parent'
+                            and type(value['duration_seconds']) is int and value['duration_seconds'] == 75
+                            and value['allow_soft'] is True and value['rejected_proofs'] == (
+                                list(accessible_ui.CHINESE_MATE_REFUSALS) if operation == 'chinese-mate-open' else []),
+                            'ui:mate-native-response')
+                if operation in ('kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open'):
                     require(value['challenge_id'] not in self.challenges, 'ui:challenge-replay')
                     self.challenges.add(value['challenge_id'])
                     self.mate_approval_identity = value['challenge_id']
@@ -1666,7 +1707,8 @@ class UiObservations:
                     'ui:kiosk-invalid-response')
             RequestObservation.from_request(value['request'], operation=operation)
             expected['invalid_choice'] = value
-        valid_requests = {**accessible_ui.KIOSK_VALID_REQUESTS, **accessible_ui.OVERLAY_VALID_REQUESTS}
+        valid_requests = {**accessible_ui.KIOSK_VALID_REQUESTS, **accessible_ui.OVERLAY_VALID_REQUESTS,
+                          **accessible_ui.CHINESE_VALID_REQUESTS}
         if operation in valid_requests:
             require(type(result) is dict and set(result) == {*expected, 'valid_choice'}, 'ui:response')
             value = result['valid_choice']
@@ -1681,7 +1723,8 @@ class UiObservations:
                 require(type(estimate) is dict and set(estimate) == {
                     'kind', 'text', 'seconds', 'precision_seconds'} and estimate['kind'] == 'fixed',
                     'ui:kiosk-valid-response')
-                require(estimate == {'kind': 'fixed', **accessible_ui.duration_projection(estimate['text'])},
+                require(estimate == {'kind': 'fixed', **accessible_ui.duration_projection(estimate['text'],
+                    **({'language': 'zh-Hans'} if operation in accessible_ui.CHINESE_VALID_REQUESTS else {}))},
                         'ui:kiosk-valid-response')
             expected['valid_choice'] = value
         if (operation in accessible_ui.KIOSK_OPERATIONS

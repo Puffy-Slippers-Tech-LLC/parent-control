@@ -228,6 +228,7 @@ TEXT_VALUES = {
     **{'overlay-invalid-' + key: ('kiosk-custom-duration', value)
        for key, value in KIOSK_INVALID_VALUES.items()},
     'kiosk-fraction': ('kiosk-custom-duration', '1.25'),
+    'chinese-kiosk-fraction': ('kiosk-custom-duration', '1.25'),
     'overlay-fraction': ('kiosk-custom-duration', '1.25'),
     'body-first': ('feedback-editor-input', 'Synthetic feedback first'),
     'body-smoke': ('feedback-editor-input', 'Synthetic feedback first\U0001f600'),
@@ -362,10 +363,14 @@ OPERATIONS |= frozenset({'parent-restart-ready', 'parent-restart-closed-refused'
                          'parent-restart-wrong-refused', 'parent-initial-selection'})
 
 
-def duration_projection(text):
+def duration_projection(text, *, language='en'):
     """Registered compact public duration, at the formatter's second precision."""
     require(type(text) is str and len(text) <= 32, 'ui:time-duration')
-    match = re.fullmatch(r'(?:(\d{1,6})h(?: ([1-5]?\d)m)?|([0-5]?\d)m)(?: ([1-5]?\d)s)?', text)
+    require(language in ('en', 'zh-Hans'), 'ui:time-language')
+    pattern = (r'(?:(\d{1,6})h(?: ([1-5]?\d)m)?|([0-5]?\d)m)(?: ([1-5]?\d)s)?'
+               if language == 'en' else
+               r'(?:(\d{1,6})小时(?: ([1-5]?\d)分钟)?|([0-5]?\d)分钟)(?: ([1-5]?\d)秒)?')
+    match = re.fullmatch(pattern, text)
     require(match is not None, 'ui:time-duration')
     hours, minutes, only_minutes, seconds = (int(value or 0) for value in match.groups())
     return {'text': text, 'seconds': hours * 3600 + (minutes + only_minutes) * 60 + seconds,
@@ -615,6 +620,12 @@ KIOSK_VALID_REQUESTS.update({f'kiosk-valid-fraction-soft-{action}': (75, '1.25',
 KIOSK_VALID_REQUESTS.update({f'kiosk-flow-{field}-select': (75, '1.25', True)
                              for field in ('child', 'approver')})
 KIOSK_VALID_OPERATIONS = frozenset(KIOSK_VALID_REQUESTS) | {'kiosk-valid-custom-open'}
+CHINESE_VALID_BINDINGS = {
+    'chinese-' + suffix: 'kiosk-valid-' + suffix for suffix in
+    ('custom-open', 'fraction-read', 'fraction-soft-select', 'fraction-soft-read')}
+CHINESE_VALID_REQUESTS = {operation: KIOSK_VALID_REQUESTS[binding]
+                          for operation, binding in CHINESE_VALID_BINDINGS.items()
+                          if binding in KIOSK_VALID_REQUESTS}
 OVERLAY_VALID_REQUESTS = {
     operation.replace('kiosk-', 'overlay-', 1): value
     for operation, value in KIOSK_VALID_REQUESTS.items() if operation.startswith('kiosk-valid-')
@@ -656,10 +667,28 @@ MATE_REJECTION_ORDER = ('kiosk-mate-rejection-open', 'kiosk-mate-rejection-quali
                         'kiosk-mate-rejection-rechecked', 'kiosk-mate-submit-rejection')
 MATE_APPROVAL_OPERATIONS |= frozenset(MATE_REJECTION_ORDER)
 MATE_APPROVAL_OPERATIONS |= frozenset({'kiosk-mate-submit-immediate'})
+CHINESE_MATE_ORDER = tuple('chinese-mate-' + suffix for suffix in
+                           ('open', 'qualified', 'rechecked', 'submit-success'))
+MATE_APPROVAL_OPERATIONS |= frozenset(CHINESE_MATE_ORDER)
 OPERATIONS |= MATE_APPROVAL_OPERATIONS
 MATE_REFUSALS = ('wrong-agent', 'owner', 'recipient', 'child', 'duration', 'apps',
                  'multiple-fields', 'hidden', 'disabled', 'unfocused', 'nonempty',
                  'stale', 'replaced')
+CHINESE_MATE_REFUSALS = (*MATE_REFUSALS, 'native-explanation', 'native-authenticate')
+
+
+def chinese_mate_texts():
+    # Fixed provider catalogue, with GTK mnemonic underscores removed. Native
+    # labels come from mate-polkit 1.26.1; product expectations are independent.
+    # https://github.com/mate-desktop/mate-polkit/blob/v1.26.1/po/zh_CN.po
+    # polkitmateauthenticationdialog.c selects the super-user explanation when
+    # its sole authentication identity differs from the agent's session user.
+    # This binding authenticates Jamie from the station-owned kiosk session.
+    return {'recipient': 'onpc-parent-jamie 的密码(P)：',
+            'message': '允许 Jordan (Child) 访问吗？\n请求时长：1 分钟、15 秒。\n'
+                       '在本次授权期间允许使用可临时解除封锁的应用。',
+            'cancel': '取消(C)', 'authenticate': '授权(A)',
+            'explanation': '一个程序正试图执行一个需要特权的动作。要求授权为超级用户来执行该动作。'}
 SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready'})
 SHELL_APPROVAL_ORDER = ('overlay-shell-open', 'overlay-shell-qualified',
                         'overlay-shell-rechecked', 'overlay-shell-submit-ready',
@@ -681,13 +710,16 @@ KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS | KIOSK_CHO
                             | {'kiosk-choice-refusals'})
 KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(KIOSK_INVALID_OPERATIONS) | frozenset(
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
-    if binding.startswith('kiosk-'))
+    if binding.startswith(('kiosk-', 'chinese-kiosk-')))
 STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry', 'station-initial-entry'})
 INITIAL_KIOSK_OPERATIONS = frozenset('kiosk-initial-' + suffix for suffix in (
     'notice', 'notice-close', 'notice-return', 'language', 'language-cancel', 'form'))
 OPERATIONS |= INITIAL_KIOSK_OPERATIONS | {'station-initial-entry'}
 KIOSK_SESSION_OPERATIONS |= INITIAL_KIOSK_OPERATIONS | {'station-initial-entry'}
 KIOSK_SESSION_OPERATIONS |= MATE_OPERATIONS | MATE_APPROVAL_OPERATIONS
+CHINESE_LANGUAGE_OPERATIONS = frozenset({'chinese-language-save', 'chinese-persisted-form'})
+OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
+KIOSK_SESSION_OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
 KIOSK_RESTRICTION_OPERATIONS = frozenset({
     'kiosk-restriction-ready', 'kiosk-restriction-read',
     'kiosk-restriction-prepared-ready', 'kiosk-restriction-prepared-read',
@@ -3562,7 +3594,8 @@ class AccessibleUI:
                     and self.snapshot_owned_target(identity, root=page, showing=False) is not None,
                     'ui:app-row-page')
         if identity == 'kiosk-custom-duration':
-            self.kiosk_valid_target(identity, overlay=getattr(self, 'text_overlay', False))
+            self.kiosk_valid_target(identity, child=child,
+                                    overlay=getattr(self, 'text_overlay', False))
         if identity == 'parent-match-rule-entry':
             self.match_entry(child, MATCH_APP, editor=True)
         require(not focused or self.has_state(node, self.api.StateType.FOCUSED),
@@ -3625,6 +3658,8 @@ class AccessibleUI:
             return None
         require(operation in TEXT_OPERATIONS, 'ui:text-operation')
         binding, action = TEXT_OPERATIONS[operation]
+        if binding == 'chinese-kiosk-fraction':
+            child = EXISTING_CHILD
         identity, _ = TEXT_VALUES[binding]
         if action == 'anchor':
             self.wait(lambda: self.text_recipient(identity), 'text-anchor-entry')
@@ -6873,9 +6908,12 @@ class AccessibleUI:
 
     def kiosk_request_form(self, *, enabled=False, expected_selection=None, no_child=False,
                            no_approver=False, duration_seconds=1800, custom_text=None,
-                           overlay=False):
+                           overlay=False, language='en'):
         """Read REQUEST03's default-duration station state after accounts load."""
         require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
+        require(language in ('en', 'zh-Hans') and (language == 'en' or
+                enabled and not overlay and not no_child and not no_approver),
+                'ui:kiosk-language-binding')
         require(type(overlay) is bool and (not overlay or (
             enabled and not no_child and not no_approver and (
                 expected_selection is None or expected_selection[0] == 'approver'))),
@@ -7042,7 +7080,9 @@ class AccessibleUI:
                 name, canonical = selected[0]
                 control.clear_cache_single()
                 description = ' '.join(control.get_description().split())
-                if description != f'Selected account: {name}.':
+                expected_description = (f'Selected account: {name}.' if language == 'en'
+                                        else f'已选择的账户：{name}。')
+                if description != expected_description:
                     # The selected label ID and the trigger description are
                     # published separately. Read both again after the update.
                     return None
@@ -7277,16 +7317,21 @@ class AccessibleUI:
     def _kiosk_valid_choice(self, operation):
         require(not self.input_uncertain, 'ui:uncertain-input')
         overlay = operation in OVERLAY_VALID_OPERATIONS
-        require(operation in KIOSK_VALID_OPERATIONS or overlay, 'ui:kiosk-valid-binding')
-        action = operation.replace('overlay-', 'kiosk-', 1) if overlay else operation
+        chinese = operation in CHINESE_VALID_BINDINGS
+        require(operation in KIOSK_VALID_OPERATIONS or overlay or chinese, 'ui:kiosk-valid-binding')
+        child = EXISTING_CHILD if chinese else CHILD
+        language = 'zh-Hans' if chinese else 'en'
+        action = (CHINESE_VALID_BINDINGS[operation] if chinese else
+                  operation.replace('overlay-', 'kiosk-', 1) if overlay else operation)
         if action == 'kiosk-valid-custom-open':
-            self._invoke_target(self.kiosk_valid_target('kiosk-duration-custom', overlay=overlay))
+            self._invoke_target(self.kiosk_valid_target('kiosk-duration-custom', child=child, overlay=overlay))
             self.invalidate_observation()
             self.wait(lambda: self.kiosk_valid_target('kiosk-custom-duration', awaiting_custom=True,
-                                                     overlay=overlay),
+                                                     child=child, overlay=overlay),
                       'kiosk-custom-open')
             return None
-        seconds, custom, soft = (OVERLAY_VALID_REQUESTS if overlay else KIOSK_VALID_REQUESTS)[operation]
+        seconds, custom, soft = (CHINESE_VALID_REQUESTS if chinese else
+                                OVERLAY_VALID_REQUESTS if overlay else KIOSK_VALID_REQUESTS)[operation]
         if operation in ('overlay-valid-approver-select', 'overlay-flow-approver-select'):
             self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT),
                 duration_seconds=seconds, custom_text=custom, overlay=True)
@@ -7301,7 +7346,7 @@ class AccessibleUI:
                 'kiosk-valid-soft-select', 'kiosk-valid-excluded-select',
                 'kiosk-valid-fraction-soft-select', 'kiosk-valid-fraction-excluded-select')
                 else f'kiosk-duration-{seconds}')
-            target = self.kiosk_valid_target(identity, overlay=overlay)
+            target = self.kiosk_valid_target(identity, child=child, overlay=overlay)
             if identity == 'kiosk-soft-apps-toggle':
                 root = self.snapshot_owned_target('kiosk-request-form', check_prompt=True)
                 self.set_toggle(identity, soft, root=root)
@@ -7312,26 +7357,26 @@ class AccessibleUI:
                 # changes. Reacquire its owned public result without replaying
                 # input; the complete form below still checks the exact choice.
                 self.wait(lambda: self.has_state(
-                    self.kiosk_valid_target(identity, overlay=overlay),
+                    self.kiosk_valid_target(identity, child=child, overlay=overlay),
                     self.api.StateType.PRESSED), 'kiosk-duration-selected')
         request = self.kiosk_request_form(enabled=True,
-            expected_selection=('approver', 'fixture-parent') if overlay else ('child', 'fixture-child'),
-            duration_seconds=seconds, custom_text=custom, overlay=overlay)
+            expected_selection=('approver', 'fixture-parent') if overlay else ('child', CHILD_IDENTITIES[child]),
+            duration_seconds=seconds, custom_text=custom, overlay=overlay, language=language)
         require(request['approver'] == 'fixture-parent' and request['allow_soft'] is soft,
                 'ui:kiosk-valid-choice')
         def estimate():
             node = self.snapshot_owned_target('kiosk-request-status', check_prompt=True)
             require(node is not None, 'ui:kiosk-estimate-missing')
             message = ' '.join(node.get_name().split())
-            if message == 'Calculating time estimate…':
+            if message == ('正在估算可用时间…' if chinese else 'Calculating time estimate…'):
                 return None
             if seconds == 0:
                 require(message == 'If approved, access until midnight.', 'ui:kiosk-rest-estimate')
                 return {'kind': 'midnight'}
-            prefix = 'Estimated time remaining if approved: '
+            prefix = '获批后预计可用时间：' if chinese else 'Estimated time remaining if approved: '
             require(message.startswith(prefix), 'ui:kiosk-estimate:request-denied'
                     if message == 'Request denied' else 'ui:kiosk-estimate')
-            return {'kind': 'fixed', **duration_projection(message.removeprefix(prefix))}
+            return {'kind': 'fixed', **duration_projection(message.removeprefix(prefix), language=language)}
         value = self.wait(estimate, 'kiosk-estimate')
         return {'request': request, 'estimate': value, 'observed_monotonic_ns': time.monotonic_ns()}
 
@@ -7346,15 +7391,18 @@ class AccessibleUI:
         return pid
 
     def mate_prompt(self, pid, *, observation=None, challenge=None, filled=False,
-                    binding=None):
+                    binding=None, language='en'):
         """MATE-only semantic adapter; never reads password contents or types.
 
-        English PAM recipient label and displayed policy message are public
+        Native PAM recipient label and displayed policy message are public
         meaning checks inside the sole service-owned authentication dialog.
         Missing context refuses; the form/broker cannot supply it instead.
         """
         require(binding is None or binding in MULTIPLE_MATE_BINDINGS, 'ui:mate-binding')
+        require(language in ('en', 'zh-Hans') and (language == 'en' or binding is None),
+                'ui:mate-language-binding')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
+        texts = chinese_mate_texts() if language == 'zh-Hans' else None
         if observation is None:
             self.invalidate_observation()
             observation = self.read_snapshot(protect_text=True)
@@ -7388,16 +7436,23 @@ class AccessibleUI:
         self.validate_mate_field(proof)
         labels = [facts[node]['name'] for node in controls
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
-        require(labels.count('Password for ' + APPROVER_ACCOUNTS[approver] + ':') == 1,
+        recipient = texts['recipient'] if texts else 'Password for ' + APPROVER_ACCOUNTS[approver] + ':'
+        require(labels.count(recipient) == 1,
                 'ui:mate-recipient-context-missing')
-        # The English catalogue keeps the complete request in one multiline
+        # Both qualified catalogues keep the complete request in one multiline
         # label. Check every sentence, including the explicit soft-app choice.
         message = (f'Grant {child} access?\nRequested time: 30 minutes.' if binding else
                    f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
                    'Allow soft blocked apps for this grant.')
-        require(labels.count(message) == 1, 'ui:mate-request-context-missing')
+        require(labels.count(texts['message'] if texts else message) == 1, 'ui:mate-request-context-missing')
+        if texts:
+            require(labels.count(texts['explanation']) == 1, 'ui:mate-native-explanation')
+            authenticators = [node for node in controls if facts[node]['role'] in ('push button', 'button')
+                             and facts[node]['showing'] and facts[node]['name'] == texts['authenticate']]
+            require(len(authenticators) == 1 and self.has_state(authenticators[0], self.api.StateType.SENSITIVE),
+                    'ui:mate-submit')
         buttons = [node for node in controls if facts[node]['role'] in ('push button', 'button')
-                   and facts[node]['showing'] and facts[node]['name'] == 'Cancel']
+                   and facts[node]['showing'] and facts[node]['name'] == (texts['cancel'] if texts else 'Cancel')]
         require(len(buttons) == 1 and self.has_state(buttons[0], self.api.StateType.SENSITIVE),
                 'ui:mate-cancel')
         current = (owner, dialog, field, buttons[0])
@@ -7412,7 +7467,13 @@ class AccessibleUI:
                    [(node.bus, node.path) for node in challenge]]
         return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
 
-    def wait_mate_prompt(self, *, binding=None):
+    def mate_agent_identity(self, pid):
+        import hashlib
+        payload = [Path('/proc/sys/kernel/random/boot_id').read_text(), os.getuid(), pid,
+                   Path('/proc/' + str(pid) + '/stat').read_text().rsplit(')', 1)[1].split()[19]]
+        return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
+
+    def wait_mate_prompt(self, *, binding=None, language='en'):
         """Bind a new challenge after Request's locale-driven agent restart.
 
         While no prompt is visible the service may have no MainPID. Once it
@@ -7428,15 +7489,18 @@ class AccessibleUI:
             if kind is None:
                 return None
             pid = self.mate_agent_pid()
-            challenge = self.mate_prompt(pid, observation=observation, binding=binding)
+            challenge = self.mate_prompt(pid, observation=observation, binding=binding,
+                                         **({'language': language} if language != 'en' else {}))
             require(self.mate_agent_pid() == pid, 'ui:mate-owner')
             return pid, challenge
         return self.wait(ready, 'mate-prompt', prompt_in_predicate=True)
 
-    def kiosk_approval_success(self, *, immediate=False, overlay=False, pinned=None):
+    def kiosk_approval_success(self, *, immediate=False, overlay=False, pinned=None, language='en'):
         """REQUEST11: explicit owned success, never prompt disappearance alone."""
         if overlay:
             self.require_child_overlay_session()
+        require(language in ('en', 'zh-Hans') and (language == 'en' or not overlay and not immediate),
+                'ui:approval-language')
         def success():
             self.invalidate_observation()
             window = (pinned[1] if pinned else
@@ -7471,7 +7535,8 @@ class AccessibleUI:
                 page = self.find_id('kiosk-result-page', root=window)
             if title is None or page is None or not self.showing(title) or not self.showing(page):
                 return False
-            require(title.get_name() == ('Time granted' if overlay else 'Request approved'),
+            require(title.get_name() == ('请求已获批准' if language == 'zh-Hans' else
+                                        'Time granted' if overlay else 'Request approved'),
                     'ui:kiosk-approval-result')
             # Latch the brief public result before a slower desktop-wide scan.
             if not pinned:
@@ -7496,18 +7561,23 @@ class AccessibleUI:
 
     def kiosk_mate_approval(self, operation):
         require(not self.input_uncertain, 'ui:uncertain-input')
+        chinese = operation in CHINESE_MATE_ORDER
+        language = 'zh-Hans' if chinese else 'en'
+        action = operation.replace('chinese-mate-', 'kiosk-mate-', 1) if chinese else operation
+        options = {'language': language} if chinese else {}
         pid = self.mate_agent_pid()
-        opening = operation in ('kiosk-mate-open', 'kiosk-mate-rejection-open')
-        submitting = operation in ('kiosk-mate-submit-success', 'kiosk-mate-submit-rejection',
+        opening = action in ('kiosk-mate-open', 'kiosk-mate-rejection-open')
+        submitting = action in ('kiosk-mate-submit-success', 'kiosk-mate-submit-rejection',
                                    'kiosk-mate-submit-immediate')
         try:
             if opening:
-                self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')
-                require(self.mate_prompt(pid) is None, 'ui:mate-already-open')
-                self._invoke_target(self.kiosk_valid_target('kiosk-request-submit'))
-                pid, challenge = self.wait_mate_prompt()
+                self.kiosk_valid_choice('chinese-fraction-soft-read' if chinese else 'kiosk-valid-fraction-soft-read')
+                require(self.mate_prompt(pid, **options) is None, 'ui:mate-already-open')
+                self._invoke_target(self.kiosk_valid_target('kiosk-request-submit',
+                    **({'child': EXISTING_CHILD} if chinese else {})))
+                pid, challenge = self.wait_mate_prompt(**options)
             else:
-                challenge = self.mate_prompt(pid, filled=submitting)
+                challenge = self.mate_prompt(pid, filled=submitting, **options)
                 require(challenge is not None, 'ui:mate-missing')
             identity = self.mate_challenge_identity(pid, challenge)
             if not opening:
@@ -7517,10 +7587,11 @@ class AccessibleUI:
                 # submit once, then read the brief product result in this process.
                 nodes, snapshot, _, facts = self.read_snapshot(protect_text=True)
                 current = self.mate_prompt(pid, observation=(nodes, snapshot, _, facts),
-                                           challenge=challenge, filled=True)
+                                           challenge=challenge, filled=True, **options)
                 buttons = [node for node in self.snapshot_scope(nodes, snapshot, current[1])
                            if facts[node]['role'] in ('button', 'push button')
-                           and facts[node]['name'] == 'Authenticate' and facts[node]['showing']]
+                           and facts[node]['name'] == (chinese_mate_texts()['authenticate'] if chinese
+                                                      else 'Authenticate') and facts[node]['showing']]
                 require(len(buttons) == 1 and self.has_state(buttons[0], self.api.StateType.SENSITIVE),
                         'ui:mate-submit')
                 self._invoke_target(buttons[0])
@@ -7528,9 +7599,21 @@ class AccessibleUI:
                     result = self.kiosk_mate_rejected(pid, challenge)
                     self.input_uncertain = True
                     return result
-                result = self.kiosk_approval_success(immediate=operation == 'kiosk-mate-submit-immediate')
+                result = self.kiosk_approval_success(immediate=operation == 'kiosk-mate-submit-immediate', **options)
                 self.input_uncertain = True  # This one submission is consumed even on success.
                 return result
+            if chinese:
+                provider = self.mate_provider_metadata(pid)
+                require(provider['locale'] in ('zh_CN.UTF-8', 'zh_CN.utf8', 'zh_CN'), 'ui:mate-native-locale')
+                rejected = self.mate_prompt_refusals(pid, challenge, language=language) if opening else []
+                # Refusal projections never grant input. Reacquire the original
+                # live challenge after them, with the same current service PID.
+                require(self.mate_agent_pid() == pid, 'ui:mate-owner')
+                self.mate_prompt(pid, challenge=challenge, **options)
+                return {'challenge_id': identity, 'provider': provider, 'texts': chinese_mate_texts(),
+                        'agent_id': self.mate_agent_identity(pid),
+                        'child': 'existing-fixture-child', 'approver': 'fixture-parent',
+                        'duration_seconds': 75, 'allow_soft': True, 'rejected_proofs': rejected}
             return {'challenge_id': identity}
         except BaseException:
             self.input_uncertain = True
@@ -7828,11 +7911,13 @@ class AccessibleUI:
         return validate_shell_metadata({'version': version, 'locale': locale,
                                         'keyboard': [list(source) for source in sources]})
 
-    def mate_prompt_refusals(self, pid, challenge):
+    def mate_prompt_refusals(self, pid, challenge, *, language='en'):
         """Exercise refusal on projections of a fresh real tree; no test input."""
         self.invalidate_observation()
         observation = self.read_snapshot(protect_text=True)
-        self.mate_prompt(pid, observation=observation, challenge=challenge)
+        options = {'language': language} if language != 'en' else {}
+        self.mate_prompt(pid, observation=observation, challenge=challenge, **options)
+        texts = chinese_mate_texts() if language == 'zh-Hans' else None
         nodes, snapshot, identities, facts = observation
         owner, dialog, field, cancel = challenge
         variants = []
@@ -7844,9 +7929,11 @@ class AccessibleUI:
         labels = [node for node in self.snapshot_scope(nodes, snapshot, dialog)
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
         recipient = next(node for node in labels
-                         if facts[node]['name'] == 'Password for ' + APPROVER_ACCOUNTS[PARENT] + ':')
-        message = next(node for node in labels if facts[node]['name'].startswith('Grant '))
-        for node, value, code in (
+                         if facts[node]['name'] == (texts['recipient'] if texts else
+                                                   'Password for ' + APPROVER_ACCOUNTS[PARENT] + ':'))
+        message = next(node for node in labels if facts[node]['name'] == texts['message']) if texts else next(
+            node for node in labels if facts[node]['name'].startswith('Grant '))
+        mutations = (
                 (recipient, 'Password for wrong-parent:', 'ui:mate-recipient-context-missing'),
                 (message, 'Grant wrong-child access?\nRequested time: 1 minute, 15 seconds.\n'
                  'Allow soft blocked apps for this grant.',
@@ -7855,10 +7942,28 @@ class AccessibleUI:
                  'Allow soft blocked apps for this grant.',
                  'ui:mate-request-context-missing'),
                 (message, f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.',
-                 'ui:mate-request-context-missing')):
+                 'ui:mate-request-context-missing'))
+        if texts:
+            mutations = (
+                (recipient, texts['recipient'].replace('onpc-parent-jamie', 'wrong-parent'),
+                 'ui:mate-recipient-context-missing'),
+                (message, texts['message'].replace('Jordan (Child)', 'wrong-child'), 'ui:mate-request-context-missing'),
+                (message, texts['message'].replace('1 分钟、15 秒', '5 分钟'), 'ui:mate-request-context-missing'),
+                (message, texts['message'].split('\n在本次授权')[0], 'ui:mate-request-context-missing'))
+        for node, value, code in mutations:
             projected = {key: dict(value) for key, value in facts.items()}
             projected[node]['name'] = value
             variants.append((pid, (nodes, snapshot, identities, projected), challenge, code))
+        if texts:
+            for key, role, wrong, code in (
+                    ('explanation', 'label', 'Authentication is required.', 'ui:mate-native-explanation'),
+                    ('authenticate', 'button', 'Authenticate', 'ui:mate-submit')):
+                node = next(node for node in self.snapshot_scope(nodes, snapshot, dialog)
+                            if facts[node]['name'] == texts[key] and
+                            (facts[node]['role'] == role or role == 'button' and facts[node]['role'] == 'push button'))
+                projected = {key: dict(value) for key, value in facts.items()}
+                projected[node]['name'] = wrong
+                variants.append((pid, (nodes, snapshot, identities, projected), challenge, code))
         ambiguous = {node: dict(value) for node, value in facts.items()}
         ambiguous[cancel]['role'] = 'password text'
         variants.append((pid, (nodes, snapshot, identities, ambiguous), challenge,
@@ -7866,7 +7971,7 @@ class AccessibleUI:
         variants.append((pid, observation, (owner, dialog, cancel, field), 'ui:mate-replacement'))
         for expected_pid, tree, expected_challenge, code in variants:
             try:
-                self.mate_prompt(expected_pid, observation=tree, challenge=expected_challenge)
+                self.mate_prompt(expected_pid, observation=tree, challenge=expected_challenge, **options)
             except UiError as error:
                 require(str(error) == code, 'ui:mate-refusal-mismatch')
             else:
@@ -7884,7 +7989,7 @@ class AccessibleUI:
                 require(str(error) == code, 'ui:mate-refusal-mismatch')
             else:
                 raise UiError('ui:mate-refusal-accepted')
-        return list(MATE_REFUSALS)
+        return list(CHINESE_MATE_REFUSALS if texts else MATE_REFUSALS)
 
     def kiosk_mate_cancel(self, *, refusals=False, binding=None):
         """One owned Request, guarded Cancel, complete absence and form readback."""
@@ -9607,13 +9712,20 @@ class AccessibleUI:
                 result['request'] = self.kiosk_request_form(enabled=True)
         elif operation in KIOSK_ACCOUNT_REFUSALS:
             if operation == 'parent-kiosk-refused':
-                self.parent()
-                try:
-                    self.kiosk_account_snapshot('child')
-                except UiError as error:
-                    require(str(error) == 'ui:kiosk-account-surface', 'ui:kiosk-wrong-refusal')
-                else:
+                def refused():
+                    # Negative proof needs the same complete read/reacquisition
+                    # boundary as account selection. A disappearing service is
+                    # not evidence that the kiosk surface is absent.
+                    if self.snapshot_owned_target('parent-window', check_prompt=True) is None:
+                        return None
+                    try:
+                        self.kiosk_account_snapshot('child')
+                    except UiError as error:
+                        if str(error) != 'ui:kiosk-account-surface':
+                            raise
+                        return True
                     raise UiError('ui:kiosk-wrong-entry-accepted')
+                self.wait(refused, 'parent-kiosk-refused', prompt_in_predicate=True)
             else:
                 for field, name, expected in (
                         ('child', PARENT, (CHILD, EXISTING_CHILD)),
@@ -9652,6 +9764,13 @@ class AccessibleUI:
                 raise UiError('ui:mate-wrong-entry-accepted')
         elif operation in MATE_APPROVAL_OPERATIONS:
             result['approval'] = self.kiosk_mate_approval(operation)
+        elif operation in CHINESE_LANGUAGE_OPERATIONS:
+            if operation == 'chinese-language-save':
+                self.kiosk_valid_target('kiosk-request-submit', child=EXISTING_CHILD)
+                self.open_language_preferences('kiosk')
+                self.choose_language('kiosk', 'zh-Hans')
+                self.save_language('kiosk')
+            result['initial'] = self.initial_kiosk_presentation('form')
         elif operation in MATE_OPERATIONS:
             result['mate'] = self.kiosk_mate_cancel(refusals=operation == 'kiosk-mate-refusals-cancel',
                 binding=operation if operation in MULTIPLE_MATE_BINDINGS else None)
@@ -9665,7 +9784,7 @@ class AccessibleUI:
                 raise UiError('ui:kiosk-valid-refusal-missing')
         elif operation in INVALID_REQUEST_OPERATIONS:
             result['invalid_choice'] = self.kiosk_invalid_choice(operation)
-        elif operation in KIOSK_VALID_OPERATIONS:
+        elif operation in KIOSK_VALID_OPERATIONS or operation in CHINESE_VALID_BINDINGS:
             value = self.kiosk_valid_choice(operation)
             if value is not None:
                 result['valid_choice'] = value

@@ -19,7 +19,21 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **300f — [Qualify Chinese native kiosk authentication](E2E-Tasks/300f-chinese-native-auth.md)**.
+Next task: **300 — [Installed personal-language acceptance](E2E-Tasks/300-localization.md)**.
+
+Task 300f is complete. Chinese native authentication passed all 14 assertions on
+the selected Ubuntu 26.04 VM in `20261004T073743Z-9a030ef1`, including two actual
+native Chinese prompts, fresh agent/challenge identities, guarded real approvals,
+persisted Chinese form and normal GDM returns. The required English approved-flow
+regression passed in `20261004T075449Z-01e10e04` after repairing its wrong-entry
+reader's missing bounded reacquisition on an incomplete accessibility query.
+The repair passed 1,933 affected host checks in `20261004T075211Z-82086cc0`.
+Both live runs passed collection, verified worker shutdown, callback closure,
+owned cleanup, baseline restoration, finalization and host/source preservation.
+See [the qualified Chinese binding](E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup).
+Task 300 retains its complete multilingual/RTL and uninterrupted Chinese
+lifecycle case, with no complete-case credit from these prerequisite slices.
+Begin that implementation in a fresh session. No developer decision is pending.
 
 Task 300e is complete. Its Chinese lifecycle qualification passed all 14
 assertions on every enabled VM (Ubuntu 26.04) in `20261004T044302Z-572b0ee7`,
@@ -33,8 +47,7 @@ All three runs passed collection, worker shutdown, callback closure, baseline
 restoration, finalization and host/source preservation. The input-selection
 repair passed 1,430 host checks in `20261004T043644Z-0fdeccf5`.
 See [the qualified Chinese slice](E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup).
-Start 300f in a fresh session; native Chinese authentication and task 300's
-complete multilingual/Chinese scenario retain their separate acceptance.
+Task 300's complete multilingual/Chinese scenario retains separate acceptance.
 No adviser was consulted and no developer decision is currently required.
 
 Task 300d qualified the genuine v1.2/current package upgrade on every enabled VM
@@ -46,7 +59,7 @@ passed. Both runs completed collection, worker shutdown, owned cleanup, baseline
 restoration and finalization. See [the qualified binding](E2E-Building-Blocks.md#genuine-package-upgrade).
 Task 300e now owns the Chinese no-reboot prompt and reboot/first-kiosk composition;
 300f owns Chinese native authentication after fresh kiosk entry. Both are
-unchecked prerequisites immediately before task 300, which retains its entire
+completed prerequisites immediately before task 300, which retains its entire
 multilingual/RTL and Chinese history without complete-case acceptance credit.
 
 Task 300c qualified the genuine v1.2/current dual-package FIX04 binding on every
@@ -55,8 +68,8 @@ regression passed in `20261003T234636Z-cd0eba55`. Independent repeated readback,
 entry/attempt/collision/replay refusals, preservation, collection and owned
 cleanup passed. See the [qualified scope](E2E-Building-Blocks.md#verified-upgrade-asset-transfer).
 This supplies package inputs without installation or complete-case credit.
-Task 300 remains unchecked: qualify its Chinese first-presentation/reboot
-composition and native authentication before registering its single complete case.
+Task 300 remains unchecked: compose the qualified Chinese first-presentation,
+reboot and native authentication operations in its single complete case.
 
 Task 300a qualified the Chinese baseline language slice and read-only FIX06 on
 every enabled VM (Ubuntu 26.04) in `20261003T210556Z-9dc87030`; the affected native
@@ -72,9 +85,8 @@ preservation passed. Host safety/ownership checks passed in
 `20261003T215408Z-2354ac86` (766 checks), with composition/source checks in
 `20261003T215549Z-5f4be22b`. This supplies no renewed Chinese desktop,
 product-language, native authentication or complete-scenario acceptance.
-Chinese first-presentation/reboot composition and the
-Chinese native authentication binding still need separate prerequisite slices
-before task 300 implements or registers its single complete case.
+Chinese first-presentation/reboot composition and native authentication were
+subsequently qualified by 300e and 300f; task 300 still owns its single complete case.
 
 This pointer must name the first unchecked active queue row. After completion,
 advance to the following unchecked row. An incomplete or blocked task keeps the

@@ -219,6 +219,53 @@ def test_stale_artifacts_refuse_before_connection_or_lease(tmp_path):
     assert result['outcomes']['infrastructure']['outcome'] == 'failed'
 
 
+@pytest.mark.parametrize('mode', ['chinese_native_auth', 'kiosk_approved_flow'])
+def test_native_approval_stages_complete_installed_payload_before_vm(tmp_path, monkeypatch, mode):
+    from contextlib import nullcontext
+
+    def stage(_source, destination, _commands):
+        destination.mkdir()
+        (destination / 'package.deb').write_bytes(b'fixed package input')
+
+    monkeypatch.setattr(smoke.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(smoke.os, 'getegid', lambda: 0)
+    monkeypatch.setattr(smoke, 'storage_session', nullcontext)
+    monkeypatch.setattr(smoke.runner.baseline.guest_contract, 'CHECKOUT', smoke.ROOT)
+    monkeypatch.setattr(smoke.os, 'umask', Mock())
+    monkeypatch.setattr(smoke.signal, 'signal', Mock())
+    monkeypatch.setattr(smoke.tempfile, 'mkdtemp', lambda **_: str(tmp_path))
+    monkeypatch.setattr(smoke, 'allocate', lambda factory, **kw: factory(**kw))
+    monkeypatch.setattr(smoke, 'inputs', lambda: {'consumer': mode})
+    monkeypatch.setattr(smoke.graphical_backend, 'check', lambda _: {})
+    monkeypatch.setattr(smoke, 'schedule_preflight', Mock())
+    monkeypatch.setattr(smoke, 'FixtureCredentials', Mock())
+    monkeypatch.setattr(smoke, 'credential_preflight', Mock())
+    monkeypatch.setattr(smoke.runner, 'artifact_source', lambda _: tmp_path)
+    monkeypatch.setattr(smoke.runner, 'stage_assets', stage)
+    monkeypatch.setattr(smoke, 'preflight_source', lambda *_args, **_kw: {})
+    # Stop after real installed_setup.stage and before importing VM adapters.
+    monkeypatch.setattr(smoke.runner, 'host_fingerprint', Mock(
+        side_effect=smoke.EvidenceError('fixture:staging-verified')))
+    imports = Mock()
+    monkeypatch.setattr(smoke.importlib, 'import_module', imports)
+    assert smoke.main(assets=tmp_path, provision_credentials=True, **{mode: True}) == 1
+    imports.assert_not_called()
+    payload = tmp_path / 'input'
+    assert not (tmp_path / 'assets').exists()
+    assert (payload / 'package.deb').read_bytes() == b'fixed package input'
+    selection = json.loads((payload / 'selected-inputs.json').read_bytes())
+    assert selection['scope'] == 'e2e-installed-setup'
+    assert selection['selection'] == {'consumer': mode}
+    inventory = json.loads((payload / 'transfer-sha256.json').read_bytes())
+    assert set(inventory) == {'package.deb', 'selected-inputs.json',
+                              'system_guest.py', 'e2e_dynamic_account.py',
+                              'owned_commands.py', 'guest_install_recipe.py', 'guest/redact.py'}
+    for name, digest in inventory.items():
+        assert smoke.runner.baseline.digest(payload / name) == digest
+    for name, entry in selection['files'].items():
+        assert inventory[name] == entry['sha256']
+
+
 def test_failed_observation_never_releases_graphical_input(tmp_path):
     import json
     (tmp_path / 'ready.request.json').write_text(json.dumps({'stage': 'ready', 'screenshot': None}))

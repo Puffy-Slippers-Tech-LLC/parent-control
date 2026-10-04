@@ -1482,7 +1482,13 @@ The [genuine package upgrade binding](E2E-Building-Blocks.md#genuine-package-upg
 is qualified by task 300d. The reusable Chinese first-presentation and
 reboot composition is qualified by task 300e through
 [the Chinese binding](E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup);
-the native authentication binding belongs to [300f](E2E-Tasks/300f-chinese-native-auth.md).
+the native authentication binding is qualified by task 300f through
+that same catalogue route. `request_flow.chinese_request` /
+`onpc_request_flow::prepare_chinese` and `kiosk_approved_flow.chinese_approval` /
+`onpc_request_flow::approve_chinese` supply the fixed Chinese request/challenge.
+`ChineseNativeAuthJourney` qualified two fresh kiosk approvals in
+`20261004T073743Z-9a030ef1`; its required English regression passed in
+`20261004T075449Z-01e10e04`, with collection and owned cleanup in both runs.
 The first-presentation slice is implemented by `ChineseKioskJourney` in
 [chinese_kiosk_lifecycle.py](../../tests/e2e/chinese_kiosk_lifecycle.py), using
 the shared continuous worker and two declared customer-reboot transitions.

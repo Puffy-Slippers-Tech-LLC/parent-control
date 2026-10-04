@@ -488,6 +488,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_kiosk_approval'], ['check_e2e_kiosk_approval.py'],
             ['check_e2e_auth_result'], ['check_e2e_auth_result.py'],
             ['check_e2e_kiosk_approved_flow'], ['check_e2e_kiosk_approved_flow.py'],
+            ['check_e2e_chinese_native_auth'], ['check_e2e_chinese_native_auth.py'],
             ['check_e2e_approval_flow'], ['check_e2e_approval_flow.py'],
             ['check_e2e_kiosk_rejection'], ['check_e2e_kiosk_rejection.py'],
             ['check_e2e_auth_prompt'], ['check_e2e_auth_prompt.py'],
@@ -540,6 +541,8 @@ def qualification_artifact_command(root, category, args):
         ['check_e2e_policy_legend'], ['check_e2e_policy_legend.py']) else
         named_input(package_source=True) if args in (
         ['check_e2e_kiosk_entry'], ['check_e2e_kiosk_entry.py'],
+        ['check_e2e_chinese_native_auth'], ['check_e2e_chinese_native_auth.py'],
+        ['check_e2e_kiosk_approved_flow'], ['check_e2e_kiosk_approved_flow.py'],
         ['check_e2e_overlay_prompt'], ['check_e2e_overlay_prompt.py'],
         ['check_e2e_kiosk_approval'], ['check_e2e_kiosk_approval.py'],
         ['check_e2e_allowance_boundaries'], ['check_e2e_allowance_boundaries.py'])

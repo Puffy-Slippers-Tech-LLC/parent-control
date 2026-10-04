@@ -67,7 +67,7 @@ first-run handler can save, dismiss or change it.
 Reuse LIFE04's package lifecycle path and LIFE02's reboot path. The genuine
 v1.2-to-current upgrade command and selected-child Chinese
 reboot-required/first-presentation composition are qualified by 300d and 300e;
-the Chinese MATE binding still needs qualification in 300f before this case can run.
+the Chinese MATE binding and its required English regression are qualified by 300f.
 The existing English MATE provider qualification does not qualify
 Chinese labels or a restarted agent. Use supported locale/session APIs and the
 normal unmodified PolicyKit agent; no dialog patching or injected translations.
@@ -149,9 +149,15 @@ regression in `20261004T003258Z-f006d805`. Reuse its
 Task **300e** qualified the
 [Chinese first-presentation/reboot slice](../E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup)
 in `20261004T044302Z-572b0ee7`, with its required regressions and close-out passed.
-The [native authentication slice](300f-chinese-native-auth.md), task 300f,
-remains immediately before this task. Qualify it before implementing or
-registering the single complete case. No complete-case live attempt has been made.
+The [native authentication binding](../E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup),
+task 300f, passed both Chinese approvals in `20261004T073743Z-9a030ef1` and its
+required English regression in `20261004T075449Z-01e10e04`; close-out is complete.
+Reuse `request_flow.chinese_request` / `onpc_request_flow::prepare_chinese` and
+`kiosk_approved_flow.chinese_approval` / `onpc_request_flow::approve_chinese`.
+These finite fragments own the request/challenge; this case owns entry, public
+return, persistence comparisons and the continuous history. Do not inherit the
+qualification's private fixture lifecycle.
+No complete-case live attempt has been made.
 
 ## Implementation entry
 
@@ -164,12 +170,11 @@ that work and installed acceptance are complete.
 
 Reuse task 300c's qualified dual-package transfer when adding the real upgrade
 composition; it does not install either package or supply upgrade acceptance.
-Compose task 300d's qualified upgrade command with 300e and 300f's delivered
-Chinese operations once those slices pass. Allocate exactly one numeric case
+Compose task 300d's qualified upgrade command with 300e and 300f's qualified
+Chinese operations. Allocate exactly one numeric case
 for the complete history; the Chinese phases
 are ordered assertions inside it. Reuse task 300a's qualified baseline language
-readiness and task 300b's qualified DESK13 setting. Qualify
-the native provider binding in 300f before registering that complete case, and
-reuse 300e's qualified Chinese update/reboot-required/first-presentation composition.
+readiness and task 300b's qualified DESK13 setting, with 300f's qualified native
+provider binding and 300e's Chinese update/reboot-required/first-presentation composition.
 Preserve the v1.2 package asset/version gate: unavailable verified upgrade inputs
 remain a blocker, never a simulated reboot-required state or a reinstall.

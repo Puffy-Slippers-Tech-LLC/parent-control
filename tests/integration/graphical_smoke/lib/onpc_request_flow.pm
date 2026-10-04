@@ -336,6 +336,56 @@ sub approve {
     $journey->consume_observation('new-returned', $journey->seen('new-returned'));
 }
 
+sub prepare_chinese {
+    onpc_progress::operation('Preparing the declared Chinese Jordan request');
+    my ($journey, $prefix) = @_;
+    die 'request-flow:chinese-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && ($prefix eq 'first' || $prefix eq 'second');
+    $journey->consume_observation("$prefix-duration", $journey->seen("$prefix-duration"));
+    onpc_text::replace_text($journey, 'chinese-kiosk-fraction', "$prefix-text");
+    for my $suffix ('apps', 'choices') {
+        $journey->consume_observation("$prefix-$suffix", $journey->seen("$prefix-$suffix"));
+    }
+}
+
+sub approve_chinese {
+    onpc_progress::operation('Approving one freshly qualified Chinese native challenge');
+    my ($journey, $prefix) = @_;
+    die 'approved-flow:chinese-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && ($prefix eq 'first' || $prefix eq 'second');
+    $journey->consume_observation("$prefix-approval-open", $journey->seen("$prefix-approval-open"));
+    onpc_password::enter_kiosk_mate_password($journey, "chinese-$prefix");
+    $journey->consume_observation("$prefix-approval-success", $journey->seen("$prefix-approval-success"));
+}
+
+sub chinese_native_auth {
+    onpc_progress::operation('Qualifying Chinese native approvals across two fresh kiosk sessions');
+    my ($exchange) = @_;
+    die 'chinese-auth:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'chinese-native-auth', review => 0);
+    onpc_gdm::reattach_functional();
+    my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen($_) for ('chinese-assets', 'wrong-entry');
+    my $other = onpc_parent::select_child($journey, 'returned',
+        $journey->seen('existing-child-picker-opened'), 'existing-child-picker-opened',
+        'existing-child-choice-highlighted', 'existing-returned');
+    $journey->consume_observation('existing-returned', $other);
+    $journey->seen($_) for ('other-enabled', 'other-saved', 'switch-user', 'gdm-switched');
+    onpc_gdm::enter_station($journey, '');
+    $journey->seen('other-first-parent');
+    $journey->seen('first-language');
+    prepare_chinese($journey, 'first');
+    approve_chinese($journey, 'first');
+    $journey->seen('first-returned');
+    onpc_gdm::enter_station($journey, 'cancel-');
+    $journey->seen('second-language');
+    prepare_chinese($journey, 'second');
+    approve_chinese($journey, 'second');
+    $journey->seen('second-returned');
+    $journey->finish();
+}
+
 # FLOW06: the caller supplies GDM and enabled policy, never a previous attempt.
 sub obtain_time {
     onpc_progress::operation('Obtaining time through a fresh request-station entry');

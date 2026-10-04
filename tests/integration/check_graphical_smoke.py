@@ -677,7 +677,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          attachment_boundaries=False, feedback_reset=False, feedback_block_semantics=False,
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
-         native_app=False, app_activity=False, chinese_language_assets=False, desktop_language=False):
+         native_app=False, app_activity=False, chinese_language_assets=False, desktop_language=False,
+         chinese_native_auth=False):
+    require(type(chinese_native_auth) is bool and (not chinese_native_auth or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'chinese_native_auth')
+            and isinstance(value, bool)))), 'smoke:chinese-auth-prerequisites')
     require(type(chinese_kiosk_lifecycle) is bool and (not chinese_kiosk_lifecycle or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1507,6 +1513,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'package-upgrade-qualification'
         if chinese_kiosk_lifecycle:
             result['scope'] = 'chinese-kiosk-lifecycle-qualification'
+        if chinese_native_auth:
+            result['scope'] = 'chinese-native-auth-qualification'
         started = time.monotonic()
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -1529,7 +1537,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     result['source_preflight'] = preflight_source(staged, upgrade=dual_packages)
                 if (parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
-                        or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or native_app or app_activity
+                        or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or native_app or app_activity
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
@@ -1859,6 +1867,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if kiosk_approved_flow:
                     from parent_setup_qualification import KioskApprovedFlowQualification
                     qualification_class = KioskApprovedFlowQualification
+                if chinese_native_auth:
+                    from parent_setup_qualification import ChineseNativeAuthQualification
+                    qualification_class = ChineseNativeAuthQualification
                 if approval_flow:
                     from parent_setup_qualification import ApprovalFlowRejectionQualification, ApprovalFlowCancelQualification
                     qualification_class = (ApprovalFlowRejectionQualification if approval_flow == 'rejection'

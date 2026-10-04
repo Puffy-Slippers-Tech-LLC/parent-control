@@ -68,6 +68,18 @@ def daily_station_entry():
     }
 
 
+def chinese_request(prefix):
+    """Finite Jamie/Jordan/75-second request on an already Chinese owned form."""
+    require(prefix in ('first', 'second'), 'request-flow:chinese-prefix')
+    return {
+        prefix + '-duration': 'ui:chinese-custom-open',
+        **{prefix + '-text-' + action: 'ui:text-chinese-kiosk-fraction-' + action
+           for action in ('focus', 'selected', 'read')},
+        prefix + '-apps': 'ui:chinese-fraction-soft-select',
+        prefix + '-choices': 'ui:chinese-fraction-soft-read',
+    }
+
+
 def overlay_authentication(*, result, prefix):
     """Declare Shell authentication separately from form/destination readback.
 

@@ -32,6 +32,14 @@ def obtain_time(*, initial, child, approver, duration_seconds, allow_soft, exit)
             **approval}
 
 
+def chinese_approval(prefix):
+    """One Chinese native challenge; caller owns fresh entry and GDM return."""
+    require(prefix in ('first', 'second'), 'approved-flow:chinese-prefix')
+    return {prefix + '-approval-' + suffix: 'ui:chinese-mate-' + operation
+            for suffix, operation in (('open', 'open'), ('qualified', 'qualified'),
+                                      ('rechecked', 'rechecked'), ('success', 'submit-success'))}
+
+
 # Keep the independent open-form/refusal qualification, then compose fresh FLOW06.
 _entry = list(APPROVAL_PLAN.screen_tags).index('cancel-station-list')
 SCREENS = dict(list(APPROVAL_PLAN.screen_tags.items())[:_entry])

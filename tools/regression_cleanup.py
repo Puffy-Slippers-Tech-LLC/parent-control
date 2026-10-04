@@ -95,7 +95,10 @@ from regression_resources import HOST_WORKERS
 # No added live resource or cleanup owner; unit and cleanup overlap is compatible.
 # Chinese lifecycle shares private pytest/recorder files and waited Perl only;
 # its live attempt inherits the existing envelope's lease and cleanup owner.
+# Chinese native authentication uses the same private host resources and the
+# installed envelope's unchanged live lease, worker and collection ownership.
 REVIEWED = frozenset('''
+chinese_native_auth
 chinese_kiosk_lifecycle
 package_upgrade
 upgrade_assets

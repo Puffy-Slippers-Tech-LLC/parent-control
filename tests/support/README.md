@@ -92,6 +92,10 @@ may reacquire before input or during offered/selected-value readback, retaining
 the original deadline. Persistent staleness refuses, and no selector or choice
 action runs inside a retry predicate. Fresh ownership, prompt and usability
 checks still apply after reacquisition.
+Parent wrong-entry qualification uses that same bounded read wait: query errors
+and stale trees invalidate the observation, and only a fresh complete surface
+refusal passes. Wrong ownership and an actually present request form remain
+terminal; the refusal check delivers no input.
 
 Native command launch acquires its session, desktop, window-absence and prompt
 proofs inside the shared bounded read wait. A query error discards that complete

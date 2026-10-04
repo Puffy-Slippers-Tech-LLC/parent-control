@@ -2407,6 +2407,12 @@ The read-only preservation proof pins Ubuntu's canonical `/usr/lib/os-release`
 and `/etc/locale.conf`. It records `/etc/default/locale`'s compatibility-link
 identity without opening that link as a regular file, refuses an unexpected or
 dangling destination and retains the shared asset reader's no-link guards.
+On installed entries, `native_fixtures_guest.product_tree` compares bounded,
+descriptor-pinned directory and regular-file witnesses for the product state;
+links, special files, replacement and content changes refuse. These private
+preservation witnesses never supply a customer result. Installed consumers use
+their existing public entry observation before FIX06, without borrowing FIX04's
+package-command context or requiring a product-free transfer payload.
 
 Attempts and app-snapshot preparation verify the declared language assets;
 they never install packages, generate locales or download translations.
@@ -2469,6 +2475,14 @@ button labels and system-owned explanatory/password text on the installed
 provider, including after kiosk agent restart and fresh kiosk entry. English
 provider evidence and translated product messages do not qualify these native
 results. Keep the agent unmodified and use supported locale/session APIs.
+The fixed Jamie-from-station binding uses MATE's single-other-user explanation,
+not its same-user explanation: the upstream
+[dialog branch](https://github.com/mate-desktop/mate-polkit/blob/v1.26.1/src/polkitmateauthenticationdialog.c#L653-L675)
+selects the super-user message when the sole authentication identity differs
+from the agent's user. `chinese_mate_texts` pins that Chinese catalogue string;
+its host public-tree fixture specifies the provider text independently and
+rejects the same-user and multiple-user branches. Native text still must pass
+on each actual prompt before credentials are released.
 The task 300e first-presentation/reboot slice
 is implemented in [chinese_kiosk_lifecycle.py](../../tests/e2e/chinese_kiosk_lifecycle.py)
 and `check_e2e_chinese_kiosk_lifecycle`, with qualification recorded below. It composes
@@ -2476,8 +2490,23 @@ genuine installation/activation, installed-product DESK13, explicit Chinese chil
 desktop renewal, one real current upgrade, Chinese initial notice and a second
 declared customer reboot before independently observed Chinese chooser/default
 and usable form. Initial public operations do not save a personal preference or
-submit approval. The [300f native authentication slice](E2E-Tasks/300f-chinese-native-auth.md)
-remains pending. Both precede task 300; the complete case's inventory binding
+submit approval. The task 300f native authentication slice,
+[chinese_native_auth.PLAN](../../tests/e2e/chinese_native_auth.py) /
+`check_e2e_chinese_native_auth`,
+passed all 14 assertions in `20261004T073743Z-9a030ef1` on Ubuntu 26.04:
+both native Chinese prompts and real approvals, fresh agent/challenge identities,
+persisted form language, normal GDM returns, collection and owned cleanup.
+The actual tuple was MATE `1.26.1-6`, `zh_CN.utf8`, `xkb/us` on both prompts.
+The required English approved-flow regression passed in `20261004T075449Z-01e10e04`;
+both runs passed collection, verified worker shutdown, callback closure, baseline
+restoration, finalization and host/source preservation. The English wrong-entry
+guard now uses the shared bounded read wait for incomplete or stale observations;
+only a complete owned refusal passes, with no input. The repair passed 1,933 host
+checks in `20261004T075211Z-82086cc0`. Task 300f is complete.
+Reuse `request_flow.chinese_request` / `onpc_request_flow::prepare_chinese` and
+`kiosk_approved_flow.chinese_approval` / `onpc_request_flow::approve_chinese` for
+the finite request and native challenge; callers own fresh entry and GDM return.
+Both prerequisites precede task 300; the complete case's inventory binding
 remains unallocated; these slices supply no complete-case acceptance.
 
 The Chinese first-presentation slice passed on every enabled VM (Ubuntu 26.04)
@@ -3678,6 +3707,7 @@ established. Do not present semantic or visual selectors as provider-owned IDs.
 
 | Provider / surface | Current gap and route-specific return condition | Affected consumers |
 | --- | --- | --- |
+| Chinese kiosk MATE Polkit agent | `mate_prompt(language='zh-Hans')`, `kiosk_mate_approval` and the shared Chinese request/approval fragments qualified by `check_e2e_chinese_native_auth` in `20261004T073743Z-9a030ef1`. Ubuntu 26.04, MATE `1.26.1-6`, actual locale `zh_CN.utf8`, keyboard `xkb/us`. Two fresh kiosk sessions passed actual Chinese system buttons/explanation/password label, exact Jamie/Jordan/75-second/soft-included context, fresh agent/challenge identities, same-challenge empty masked recipient guards, refusal projections, real approval, Chinese granted result and normal GDM return. The second entry retained Chinese without a chooser. Collection, worker shutdown, owned cleanup and restoration passed; required English regression passed in `20261004T075449Z-01e10e04`. [Qualified scope and callables](#chinese-language-preparation-and-desktop-language-setup). | Fixed Chinese AUTH01/AUTH02 and normal REQUEST11/12 ready; other tuples and task 300's complete history remain separate |
 | GNOME Shell desktop, panel, app grid, sessions, notifications, lock | Shell `50.1-0ubuntu1.2` exposed no nonempty public IDs. On the pinned Ubuntu 26.04, English-GDM, baseline-keyboard image, `AccessibleUI.standard_shell_desktop(no_prompt=True)` qualified unique Activities control and complete prompt-free observations for the fresh Parent and standard fixture buses through `check_e2e_fresh_desktop`. `check_e2e_desktop_keyring` also qualified the independent standard desktop readback after the prepared gcr Cancel branch below. `AccessibleUI.shell_search_snapshot` qualified fresh Parent search, result focus and launched window in case 3 (run `20260922T212944Z-ad23b979`). The fresh Parent split-query/result-focus and Escape/empty-field/Super/dismissal slice passed `check_e2e_shell_search_results` in run `20260923T180845Z-4df4db55`. `check_e2e_shell_search` independently requalified administrator launch/close and standard-account split-query readback, exact web description and stable launcher/window absence in run `20260923T191129Z-64de2a7a`, with private collection and owned cleanup; see [exact scope](#search-and-standard-sign-in-contracts). Normal child panel launch and deliberate singleton activation with open-overlay reveal passed [overlay entry qualification](#overlay-entry-qualification). Other necessary lock, retained-session and gameplay-panel observations remain unqualified. Session, power and connectivity inputs use shared system commands. | Fresh DESK01 Parent/standard and prepared standard gcr return, Parent SEARCH01/02/03/04/05/06 and standard SEARCH01/03/04 branches ready; DESK12 normal request/open-overlay reveal ready; other necessary DESK01/06–08/12, SEARCH01–06 and PANEL01–03 GUI bindings pending; DESK03–05, DESK11 locked-session return and LIFE02/03/06 inputs are system helpers; DESK10 uses the [qualified shortcut](#same-desktop-window-activation) |
 | GDM greeter | Historical installed/product-free list, recipient and Escape qualification remains harness evidence. Shared customer entry selects only the intended account, verifies two fresh recipient proofs, delivers once and independently observes the desktop or product denial. `onpc_gdm::sign_in_challenge` qualified two distinct Parent GDM challenges with independent desktops and shared DESK04 logout through `check_e2e_challenges` (run `20260924T192200Z-c833e973`), on the pinned Ubuntu 26.04 English-GDM, baseline-keyboard image. Its separate wrong-recipient exercise, durable assertions, reconciliation, private collection and owned cleanup passed. The intended child's [fresh success](#fresh-child-success-qualification) and [specific zero-time denial with normal return](#fresh-child-time-denial-and-return-qualification) are qualified on their recorded provider tuple. Wrong-account tours and keyring exercises remain harness-only. Retained locks, other challenge recipients and new account bindings remain pending. | GDM01–03/05–09 for unavoidable graphical entry; distinct Parent and fresh child success/zero-time denial with rejected-GDM return ready; GDM04 harness safety only |
 | Graphical VT6 getty/login | Retained routes refuse before image, secret or input access. Qualify a dedicated recipient/input adapter; serial proof cannot authorize graphical secret input. | Retained VT6 qualification modes |

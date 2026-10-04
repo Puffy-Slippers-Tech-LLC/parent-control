@@ -85,6 +85,53 @@ def readback(child, expected):
     return {'files': result, 'launchers': [desktop_id(asset[0]) for asset in ASSETS]}
 
 
+def product_tree(g, path, parent):
+    """Bounded read-only preservation witness for installed product directories.
+
+    Pin directories and regular files without following links. Contents stay
+    private: only this in-memory witness is compared, never sent as evidence.
+    """
+    require(g.realpath(path) == path)
+    before = g.lstatns(path)
+    count, size = 0, 0
+
+    def visit(parent, name, depth):
+        nonlocal count, size
+        count += 1
+        require(count <= 256 and depth <= 8)
+        info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        require(stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode))
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK |
+                     (os.O_DIRECTORY if stat.S_ISDIR(info.st_mode) else 0), dir_fd=parent)
+        with ExitStack() as stack:
+            stack.callback(os.close, fd)
+            require(os.fstat(fd) == info)
+            if stat.S_ISDIR(info.st_mode):
+                names = sorted(os.listdir(fd))
+                require(len(names) <= 256)
+                value = {name: visit(fd, name, depth + 1) for name in names}
+                require(sorted(os.listdir(fd)) == names)
+            else:
+                require(info.st_nlink == 1 and info.st_size <= LIMIT - size)
+                stream = stack.enter_context(os.fdopen(fd, 'rb', closefd=False))
+                data = stream.read(LIMIT - size + 1)
+                size += len(data)
+                require(size <= LIMIT)
+                value = hashlib.sha256(data).hexdigest()
+            # Reading can change atime; all identity, content and write clocks
+            # remain exact at both the descriptor and directory entry.
+            signature = lambda item: (identity(item), item.st_nlink)
+            require(signature(os.fstat(fd)) == signature(info)
+                    and signature(os.stat(name, dir_fd=parent, follow_symlinks=False)) == signature(info))
+            return signature(info), value
+
+    with directory(g.path(path).parent, parent) as (fd, guard):
+        result = visit(fd, g.path(path).name, 0)
+        guard()
+    require(g.lstatns(path) == before and g.realpath(path) == path)
+    return result
+
+
 def execute(action, expected, profile='native'):
     require(action in ('read', 'refuse'))
     require(profile in ('native', 'chinese'))
@@ -102,7 +149,7 @@ def execute(action, expected, profile='native'):
         g = LocalFiles()
         def state():
             # Engineering preservation proof only. No product probe supplies
-            # a customer result, and nothing is installed on this baseline.
+            # a customer result; absent baseline and installed state both stay unchanged.
             paths = ['/var/lib/AccountsService/users/' + name for name in session_control.ACCOUNTS.values()]
             paths += ['/etc/default/locale', '/etc/locale.conf',
                       '/var/lib/oh-no-parent-control', '/etc/oh-no-parent-control']
@@ -112,6 +159,10 @@ def execute(action, expected, profile='native'):
                     result[path] = None
                     continue
                 before = g.lstatns(path)
+                if path in ('/var/lib/oh-no-parent-control', '/etc/oh-no-parent-control'):
+                    require(stat.S_ISDIR(before['st_mode']))
+                    result[path] = product_tree(g, path, parent)
+                    continue
                 if path == '/etc/default/locale' and g.is_symlink(path):
                     # Ubuntu's compatibility link is preserved as a link. Read
                     # only its fixed canonical destination with the no-link

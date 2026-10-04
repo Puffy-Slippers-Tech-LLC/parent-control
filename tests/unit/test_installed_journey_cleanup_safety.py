@@ -70,7 +70,8 @@ def test_auth_prompt_qualification_reuses_owned_mate_envelope(selector, mode):
              and isinstance(node.func, ast.Name) and node.func.id == 'smoke']
     assert len(calls) == 1
     keywords = {item.arg: ast.unparse(item.value) for item in calls[0].keywords}
-    assets = 'named_input(package_source=True)' if selector == 'kiosk_approval' else 'named_input()'
+    assets = ('named_input(package_source=True)' if selector in ('kiosk_approval', 'kiosk_approved_flow')
+              else 'named_input()')
     assert keywords == {'assets': assets, 'provision_credentials': 'True',
                         mode: 'True'}
 import kiosk_cancel

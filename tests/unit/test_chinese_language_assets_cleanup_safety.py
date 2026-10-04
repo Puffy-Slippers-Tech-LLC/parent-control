@@ -36,6 +36,60 @@ def test_profile_independently_reads_locale_native_messages_and_glyphs_without_w
     assert all(call.args[0] == assets.LOCALE_COMMAND for call in g.command.call_args_list)
 
 
+@pytest.mark.parametrize('fault', ['', 'changed', 'added', 'link', 'directory-link', 'fifo',
+                                  'hardlink', 'oversized', 'ancestor-link'])
+def test_installed_chinese_verification_preserves_actual_product_directories(tmp_path, monkeypatch, fault):
+    g = assets.LocalFiles(tmp_path)
+    release = g.path('/usr/lib/os-release')
+    release.parent.mkdir(parents=True)
+    release.write_text('ID=ubuntu\nVERSION_ID="26.04"\n')
+    # Distribution identity is mocked; preservation reads use real filesystem
+    # directories, files and O_NOFOLLOW, never the synthetic asset reader.
+    monkeypatch.setattr(assets, 'read', lambda reader, path, limit: reader.path(path).read_bytes())
+    state = g.path('/var/lib/oh-no-parent-control/preferences')
+    state.mkdir(parents=True)
+    saved = state / '1000.json'
+    saved.write_text('{"language": "en"}')
+    config = g.path('/etc/oh-no-parent-control')
+    config.mkdir(parents=True)
+    (config / 'config.json').write_text('{}')
+    for path in (g.path('/var'), g.path('/var/lib'), state.parent, state,
+                 g.path('/etc'), config):
+        path.chmod(0o755)
+    if fault == 'link': (state / 'alias').symlink_to(saved)
+    if fault == 'directory-link': (config / 'alias').symlink_to(state, target_is_directory=True)
+    if fault == 'fifo': os.mkfifo(state / 'pipe')
+    if fault == 'hardlink': os.link(saved, state / 'hardlink')
+    if fault == 'oversized': saved.write_bytes(b'x' * (guest_helper.LIMIT + 1))
+    if fault == 'ancestor-link':
+        original = state.parent.parent
+        original.rename(original.with_name('original'))
+        original.symlink_to(original.with_name('original'), target_is_directory=True)
+    monkeypatch.setattr(guest_helper, 'ROOT_DIRECTORY', tmp_path)
+    monkeypatch.setattr(assets, 'LocalFiles', lambda: g)
+    monkeypatch.setattr(guest_helper, 'authority', lambda: (Mock(), SimpleNamespace(pw_uid=os.getuid()), 'desktop'))
+    monkeypatch.setattr(guest_helper.session_control, 'sessions', lambda: {})
+    monkeypatch.setattr(guest_helper.session_control, 'source_session', lambda *args: 'desktop')
+    def verify(reader):
+        if fault == 'changed': saved.write_text('{"language": "zh-Hans"}')
+        if fault == 'added': (state / 'new.json').write_text('{}')
+        return {'profile': 'chinese'}
+    verification = Mock(side_effect=verify)
+    monkeypatch.setattr(assets, 'verify', verification)
+    if fault:
+        with pytest.raises((ValueError, OSError)):
+            guest_helper.execute('read', {}, 'chinese')
+        if fault in ('changed', 'added'):
+            verification.assert_called_once_with(g)
+        else:
+            verification.assert_not_called()
+    else:
+        assert guest_helper.execute('read', {}, 'chinese') == {
+            'profile': 'chinese', 'unchanged_state': True}
+        assert saved.read_text() == '{"language": "en"}'
+        verification.assert_called_once_with(g)
+
+
 @pytest.mark.parametrize('fault', ['missing-locale', 'locale', 'missing-catalogue',
     'fallback', 'ambiguous', 'font', 'missing-font', 'owner', 'symlink', 'hardlink',
     'parent-mode', 'package', 'unowned', 'replacement', 'stale-bytes', 'duplicate-manifest'])

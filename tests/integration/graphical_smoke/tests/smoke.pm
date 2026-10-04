@@ -75,7 +75,7 @@ sub exchange {
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
     my $deadline = time + ($stage eq 'setup-detached' ? 1500
         : $stage eq 'package-submitted' || $stage eq 'upgrade-submitted' ? 780
-        : $stage eq 'reboot-installed-greeter' ? 780 : 420);
+        : $stage eq 'reboot-installed-greeter' || $stage eq 'second-reboot-greeter' ? 780 : 420);
     while (!-f "$stage.reply.json") {
         die 'smoke:controller-timeout' if time >= $deadline;
         if (defined($input) && !$consumed && -f "$stage.input.json") {
@@ -109,6 +109,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{chinese_kiosk_lifecycle}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_customer_reboot::run_chinese(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{package_upgrade}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

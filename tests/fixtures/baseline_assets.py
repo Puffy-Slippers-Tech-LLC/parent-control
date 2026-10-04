@@ -81,5 +81,23 @@ def catalogue_files(accounts, *, root=None, system_dir='/usr/share/applications'
     return files
 
 
+def desktop_settings_files(accounts):
+    """Keep fixture folder names stable across deliberate desktop-language changes.
+
+    The optional GTK renamer is not a product surface. Disable its legacy XDG
+    autostart and modern systemd entry through supported per-user overrides.
+    An empty regular unit is a systemd mask, avoiding a /dev/null symlink in
+    the fixture reconciler's strictly regular-file inventory.
+    """
+    files = {}
+    for role in ('child', 'other', 'parent'):
+        config = accounts[role].pw_dir + '/.config/'
+        files[config + 'autostart/user-dirs-update-gtk.desktop'] = (
+            b'[Desktop Entry]\nType=Application\nName=User folders update\nHidden=true\n',
+            0o644, role)
+        files[config + 'systemd/user/user-dirs-update-gtk.service'] = (b'', 0o644, role)
+    return files
+
+
 def files(accounts):
-    return native_files(accounts) | catalogue_files(accounts)
+    return native_files(accounts) | catalogue_files(accounts) | desktop_settings_files(accounts)

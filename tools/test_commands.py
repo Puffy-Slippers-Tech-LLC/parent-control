@@ -378,7 +378,8 @@ def qualification_artifact_command(root, category, args):
     """Prepare fixed Parent inputs in this run, including after retention expiry."""
     if category == 'integration' and args in (
             ['check_e2e_upgrade_assets'], ['check_e2e_upgrade_assets.py'],
-            ['check_e2e_package_upgrade'], ['check_e2e_package_upgrade.py']):
+            ['check_e2e_package_upgrade'], ['check_e2e_package_upgrade.py'],
+            ['check_e2e_chinese_kiosk_lifecycle'], ['check_e2e_chinese_kiosk_lifecycle.py']):
         from test_storage import named_input
         output = str(named_input(upgrade_source=True))
         if os.path.lexists(output):
@@ -538,6 +539,7 @@ def qualification_artifact_command(root, category, args):
         ['check_e2e_policy'], ['check_e2e_policy.py'],
         ['check_e2e_policy_legend'], ['check_e2e_policy_legend.py']) else
         named_input(package_source=True) if args in (
+        ['check_e2e_kiosk_entry'], ['check_e2e_kiosk_entry.py'],
         ['check_e2e_overlay_prompt'], ['check_e2e_overlay_prompt.py'],
         ['check_e2e_kiosk_approval'], ['check_e2e_kiosk_approval.py'],
         ['check_e2e_allowance_boundaries'], ['check_e2e_allowance_boundaries.py'])

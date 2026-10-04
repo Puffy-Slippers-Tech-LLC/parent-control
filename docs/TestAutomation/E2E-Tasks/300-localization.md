@@ -146,9 +146,11 @@ Task **300d** qualified LIFE04's genuine v1.2/current upgrade command on every
 enabled VM in `20261004T002735Z-d4779228`, with the current-only customer-reboot
 regression in `20261004T003258Z-f006d805`. Reuse its
 [qualified package binding](../E2E-Building-Blocks.md#genuine-package-upgrade).
-The remaining [Chinese first-presentation/reboot slice](300e-chinese-kiosk-lifecycle.md)
-and [native authentication slice](300f-chinese-native-auth.md) are allocated as
-300e and 300f immediately before this task. Qualify both before implementing or
+Task **300e** qualified the
+[Chinese first-presentation/reboot slice](../E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup)
+in `20261004T044302Z-572b0ee7`, with its required regressions and close-out passed.
+The [native authentication slice](300f-chinese-native-auth.md), task 300f,
+remains immediately before this task. Qualify it before implementing or
 registering the single complete case. No complete-case live attempt has been made.
 
 ## Implementation entry

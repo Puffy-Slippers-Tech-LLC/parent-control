@@ -42,10 +42,12 @@ def populate(files, metadata):
         message: '中文 ' + message for message in profile.CATALOGUES['mate-polkit']})
     files['/usr/share/locale-langpack/zh_CN/LC_MESSAGES/Linux-PAM.mo'] = catalogue({
         message: '中文 ' + message for message in profile.CATALOGUES['Linux-PAM']})
+    files['/usr/share/locale-langpack/zh_CN/LC_MESSAGES/gnome-shell.mo'] = catalogue({'Activities': '活动'})
     owners = {
         'locales-all': [profile.LOCALE_PATH], 'fonts-noto-cjk': [profile.FONT_PATH],
         'mate-polkit-common': ['/usr/share/locale/zh_CN/LC_MESSAGES/mate-polkit.mo'],
         'language-pack-zh-hans-base': ['/usr/share/locale-langpack/zh_CN/LC_MESSAGES/Linux-PAM.mo'],
+        'language-pack-gnome-zh-hans-base': ['/usr/share/locale-langpack/zh_CN/LC_MESSAGES/gnome-shell.mo'],
     }
     for owner, paths in owners.items():
         files[f'/var/lib/dpkg/info/{owner}.list'] = ('\n'.join(paths) + '\n').encode()

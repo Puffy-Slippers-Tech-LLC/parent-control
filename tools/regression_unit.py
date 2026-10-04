@@ -300,7 +300,10 @@ from regression_ui import Bucket
 # process-local lease/transport doubles. No real VM, bus or shared mutable path.
 # Upgrade command checks use private decoder/recorder files, process-local
 # command/session doubles and waited Perl children; no shared VM, bus or GUI.
+# Chinese lifecycle uses those private doubles, recorder files and waited Perl;
+# no live bus, VM, GUI, shared cache or new cleanup resource.
 REVIEWED = frozenset("""
+chinese_kiosk_lifecycle_cleanup_safety
 package_upgrade_cleanup_safety
 upgrade_assets_cleanup_safety
 desktop_language_cleanup_safety

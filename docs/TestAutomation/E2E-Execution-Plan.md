@@ -19,7 +19,23 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **300e — [Qualify Chinese kiosk first presentation and reboot continuity](E2E-Tasks/300e-chinese-kiosk-lifecycle.md)**.
+Next task: **300f — [Qualify Chinese native kiosk authentication](E2E-Tasks/300f-chinese-native-auth.md)**.
+
+Task 300e is complete. Its Chinese lifecycle qualification passed all 14
+assertions on every enabled VM (Ubuntu 26.04) in `20261004T044302Z-572b0ee7`,
+replacing the expired earlier report. The required kiosk-entry regression passed
+in `20261004T043928Z-7e4cf5c1` after its launcher and qualifier were bound to
+current-source package inputs instead of the fixed legacy v1.2 bundle.
+The required package-upgrade regression passed in `20261004T024908Z-8d5137eb`;
+its retained report is
+`output/test-runs/host/exports/onpc-artifact-export-v2s6wi_5/report.md`.
+All three runs passed collection, worker shutdown, callback closure, baseline
+restoration, finalization and host/source preservation. The input-selection
+repair passed 1,430 host checks in `20261004T043644Z-0fdeccf5`.
+See [the qualified Chinese slice](E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup).
+Start 300f in a fresh session; native Chinese authentication and task 300's
+complete multilingual/Chinese scenario retain their separate acceptance.
+No adviser was consulted and no developer decision is currently required.
 
 Task 300d qualified the genuine v1.2/current package upgrade on every enabled VM
 (Ubuntu 26.04) in `20261004T002735Z-d4779228`; the required current-only customer

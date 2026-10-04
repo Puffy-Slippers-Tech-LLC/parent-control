@@ -164,11 +164,12 @@ def rejected_gdm_return():
 
 def station_entry(prefix=''):
     """Minimal passwordless station entry, without unrelated account visits."""
-    require(prefix in ('', 'cancel-', 'escape-'), 'journey:station-binding')
+    require(prefix in ('', 'cancel-', 'escape-', 'initial-', 'renewed-'), 'journey:station-binding')
     return {
         prefix + 'station-list': 'ui:gdm-station-list',
         prefix + 'station-focused': 'ui:gdm-station-focused',
-        prefix + 'station-branch': 'ui:station-default-entry',
+        prefix + 'station-branch': 'ui:' + ('station-initial-entry' if prefix in ('initial-', 'renewed-')
+                                          else 'station-default-entry'),
     }
 
 

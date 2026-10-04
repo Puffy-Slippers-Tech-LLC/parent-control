@@ -80,13 +80,16 @@ def upgrade_current(journey, guard):
     return submit_release(journey, guard, UPGRADE, 'upgrade_package')
 
 
+def upgrade_actions():
+    return {'upgrade-refuse': entry_refusal, 'install-previous': install_previous,
+            'upgrade-entry': upgrade_entry, 'upgrade-current': upgrade_current}
+
+
 class PackageUpgradeJourney(ProductFreeEntryJourney):
     """Reusable lifecycle observations; the qualification owns only its envelope."""
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         require(context.verified.upgrade_inputs is not None, 'package-upgrade:inputs-required')
-        super().__init__(context, progress, plan, actions={
-            'upgrade-refuse': entry_refusal, 'install-previous': install_previous,
-            'upgrade-entry': upgrade_entry, 'upgrade-current': upgrade_current} if actions is None else actions)
+        super().__init__(context, progress, plan, actions=upgrade_actions() if actions is None else actions)
         self.previous_package = self.upgrade_package = None
         self.release_entry = self.activated_entry = None
 

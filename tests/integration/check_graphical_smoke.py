@@ -656,7 +656,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_eligible_choices=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
          challenges=False, challenge_profile='parent', product_free_entry=False, package_authority=False,
-         upgrade_assets=False, package_upgrade=False,
+         upgrade_assets=False, package_upgrade=False, chinese_kiosk_lifecycle=False,
          package_install=False, customer_reboot=False, app_row_observations=False, native_fixtures=False,
          catalogue_search=False, catalogue_filters=False, policy_legend=False, match_save_cancel=False,
          match_editor=False, access_choices=False, policy_edit=False, rejected_parent_rule=False,
@@ -678,6 +678,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
          native_app=False, app_activity=False, chinese_language_assets=False, desktop_language=False):
+    require(type(chinese_kiosk_lifecycle) is bool and (not chinese_kiosk_lifecycle or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'chinese_kiosk_lifecycle')
+            and isinstance(value, bool)))), 'smoke:chinese-kiosk-prerequisites')
     require(type(package_upgrade) is bool and (not package_upgrade or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1035,7 +1040,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(package_upgrade) is bool and not (package_upgrade and any((
         product_free_entry, package_authority, package_install, customer_reboot,
         chinese_language_assets, desktop_language, upgrade_assets))), 'smoke:package-upgrade-prerequisites')
-    dual_packages = upgrade_assets or package_upgrade
+    dual_packages = upgrade_assets or package_upgrade or chinese_kiosk_lifecycle
     product_free_entry = (product_free_entry or package_authority or package_install
                           or customer_reboot or chinese_language_assets or desktop_language or dual_packages)
     require(type(product_free_entry) is bool and (not product_free_entry or (
@@ -1500,6 +1505,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'upgrade-assets-qualification'
         if package_upgrade:
             result['scope'] = 'package-upgrade-qualification'
+        if chinese_kiosk_lifecycle:
+            result['scope'] = 'chinese-kiosk-lifecycle-qualification'
         started = time.monotonic()
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -1666,6 +1673,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if package_upgrade:
                     from parent_setup_qualification import PackageUpgradeQualification
                     qualification_class = PackageUpgradeQualification
+                if chinese_kiosk_lifecycle:
+                    from parent_setup_qualification import ChineseKioskLifecycleQualification
+                    qualification_class = ChineseKioskLifecycleQualification
                 if kiosk_entry:
                     from parent_setup_qualification import KioskEntryQualification
                     qualification_class = KioskEntryQualification

@@ -121,20 +121,24 @@ def system_locale():
     return list(locale)
 
 
-def snapshot(api):
+def snapshot(api, *, product_free=True):
     require(os.geteuid() == 0, 'root-transport')
     users = accounts()
     values = {str(item.pw_uid): {'name': item.pw_name, 'language': api.resolve(item)[1]}
               for item in users}
     require(accounts() == users, 'accounts-changed')
     # These are engineering preservation witnesses, not product acceptance.
-    require(not any(os.path.lexists(path) for path in (
+    absent = not any(os.path.lexists(path) for path in (
         '/var/lib/oh-no-parent-control', '/etc/oh-no-parent-control',
-        '/usr/bin/oh-no-parent-control-parent', '/usr/lib/oh-no-parent-control')),
-        'product-state-present')
+        '/usr/bin/oh-no-parent-control-parent', '/usr/lib/oh-no-parent-control'))
     package = sessions.call(['/usr/bin/dpkg-query', '-W', '-f=${binary:Package}\n'])
-    require(not any(item.split(':')[0] in ('oh-no-parent-control', 'oh-no-parent-control-dbgsym')
-                    for item in package.splitlines()), 'product-package-present')
+    installed = any(item.split(':')[0] == 'oh-no-parent-control' for item in package.splitlines())
+    if product_free:
+        require(absent, 'product-state-present')
+        require(not any(item.split(':')[0] in ('oh-no-parent-control', 'oh-no-parent-control-dbgsym')
+                        for item in package.splitlines()), 'product-package-present')
+    else:
+        require(installed and not absent, 'installed-product-required')
     # Each guarded SSH command has a new remote session. Preserve the local
     # graphical identities; remote transport lifetimes are owned by its guard.
     graphical = {key: item for key, item in sessions.sessions().items()
@@ -143,15 +147,15 @@ def snapshot(api):
             'system_locale': system_locale(), 'observer_locale': {
                 key: value for key, value in os.environ.items()
                 if key in ('LANG', 'LANGUAGE') or key.startswith('LC_')},
-            'product_free': True,
+            'product_free': product_free,
             'target_uid': str(pwd.getpwnam(sessions.ACCOUNTS[ROLE]).pw_uid)}
 
 
 def execute(action, role, language, api=None):
-    require(action in ('read', 'set', 'refuse', 'reject-inputs'), 'action')
+    require(action in ('read', 'read-installed', 'set', 'refuse', 'reject-inputs'), 'action')
     api = AccountsAPI() if api is None else api
-    if action == 'read':
-        return snapshot(api)
+    if action in ('read', 'read-installed'):
+        return snapshot(api, product_free=action == 'read')
     if action == 'set':
         return set_language(api, role, language)
     if action == 'refuse':

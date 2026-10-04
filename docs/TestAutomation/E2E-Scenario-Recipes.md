@@ -1479,11 +1479,19 @@ its prerequisite slices are qualified; do not split the three reported symptoms
 into variants or run this lifecycle as a German/Hebrew language matrix.
 
 The [genuine package upgrade binding](E2E-Building-Blocks.md#genuine-package-upgrade)
-is qualified by task 300d. The remaining reusable Chinese first-presentation and
-reboot composition belongs to [300e](E2E-Tasks/300e-chinese-kiosk-lifecycle.md);
+is qualified by task 300d. The reusable Chinese first-presentation and
+reboot composition is qualified by task 300e through
+[the Chinese binding](E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup);
 the native authentication binding belongs to [300f](E2E-Tasks/300f-chinese-native-auth.md).
-Those pending slices supply no complete-case acceptance and preserve every phase
-below in task 300's continuous recipe.
+The first-presentation slice is implemented by `ChineseKioskJourney` in
+[chinese_kiosk_lifecycle.py](../../tests/e2e/chinese_kiosk_lifecycle.py), using
+the shared continuous worker and two declared customer-reboot transitions.
+Initial public observations precede all generic chooser setup; Cancel exposes
+the Chinese form without a preference save. This slice passed on every enabled
+VM in `20261004T044302Z-572b0ee7`; task 300e's required package-upgrade and
+kiosk-entry regressions and close-out also passed.
+These slices supply no complete-case acceptance and preserve every phase below
+in task 300's continuous recipe.
 
 Finite inputs: selected child Jordan; approver Jamie; child desktop locale
 `zh_CN.UTF-8`; product language `zh-Hans`; Jamie and kiosk station desktop

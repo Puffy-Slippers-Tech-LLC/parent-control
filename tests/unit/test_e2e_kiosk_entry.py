@@ -99,7 +99,9 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online):
     import check_e2e_kiosk_entry as check
     from parent_setup_qualification import KioskEntryQualification
 
-    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
+    from tools.test_storage import named_input
+    assert check.ASSETS == named_input(package_source=True)
+    assert check.ASSETS != named_input()
     context = SimpleNamespace(directory=tmp_path)
     KioskEntryQualification.journey(context, lambda *_: None)
     version = json.loads((ROOT / 'data/app.json').read_bytes())['version']

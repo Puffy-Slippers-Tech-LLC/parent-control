@@ -67,4 +67,32 @@ sub run_upgrade {
     $journey->finish();
 }
 
+sub run_chinese {
+    onpc_progress::operation('Qualifying the continuous Chinese upgrade and first kiosk presentation');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'chinese-kiosk:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && keys(%$challenges) == 4;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'chinese-kiosk', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    install_entry($journey);
+    return_entry($journey);
+    $journey->seen($_) for qw(upgrade-context language-setting language-parent-logout);
+    onpc_gdm::sign_in_challenge($journey, 'chinese-child',
+        'language-installed-greeter', 'language-standard-focused', 'language-desktop');
+    $journey->seen('language-child-logout');
+    onpc_gdm::sign_in_challenge($journey, 'upgrade-parent',
+        'upgrade-installed-greeter', 'upgrade-parent-focused', 'upgrade-desktop');
+    $journey->seen($_) for qw(upgrade-ready upgrade-submitted upgrade-result upgrade-reread upgrade-switch);
+    onpc_gdm::enter_station($journey, 'initial-');
+    $journey->seen($_) for qw(initial-notice initial-notice-close initial-notice-return);
+    onpc_gdm::sign_in_challenge($journey, 'return-parent',
+        'return-installed-greeter', 'return-parent-focused', 'return-desktop');
+    $journey->seen($_) for qw(second-reboot-requested second-reboot-greeter);
+    onpc_gdm::enter_station($journey, 'renewed-');
+    $journey->seen($_) for qw(initial-language initial-language-cancel initial-form);
+    $journey->finish();
+}
+
 1;

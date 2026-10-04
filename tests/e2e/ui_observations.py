@@ -15,6 +15,7 @@ import system_runner as system
 # Collection replies need room for their full bounded semantic projection.
 # App rows still validate at most 256 fixed-format ID/access/match triples.
 RESPONSE_BYTE_LIMITS = {
+    **{operation: 8192 for operation in accessible_ui.INITIAL_KIOSK_OPERATIONS},
     **{operation: 32768 for operation in accessible_ui.CATALOGUE_ROW_OPERATIONS},
     'feedback-collection-events': 8192,
     'parent-checked-events': 8192,
@@ -31,6 +32,10 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Observing the initial request station without automatic language setup: ' +
+       operation.removeprefix('kiosk-initial-') for operation in accessible_ui.INITIAL_KIOSK_OPERATIONS},
+    'station-initial-entry': 'Observing fresh station entry before any first-run handler',
+    'chinese-standard-desktop': 'Observing the renewed Chinese child desktop',
     'overlay-shell-cancel-ready': 'Qualifying the real Shell request and fresh Cancel recipient',
     'overlay-shell-dismissed': 'Independently requiring Shell challenge disappearance',
     'overlay-shell-open': 'Opening and qualifying the declared Shell approval challenge',
@@ -991,6 +996,11 @@ class UiObservations:
             raise
 
     def _observe(self, operation, *, child=None):
+        initial_inputs = {'kiosk-initial-notice-close': 'kiosk-initial-notice',
+                          'kiosk-initial-notice-return': 'kiosk-initial-notice-close',
+                          'kiosk-initial-language-cancel': 'kiosk-initial-language'}
+        if operation in initial_inputs:
+            require(self.last_operation == initial_inputs[operation], 'ui:initial-input-order')
         require(child is None or (child in accessible_ui.NAMED_CUSTOM_CHILDREN and
                 operation in accessible_ui.NAMED_CHILD_OPERATIONS), 'ui:custom-child-binding')
         import re
@@ -1056,6 +1066,29 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation in accessible_ui.INITIAL_KIOSK_OPERATIONS and operation != 'kiosk-initial-notice-return':
+            require(type(result) is dict and set(result) == {*expected, 'initial'}, 'ui:initial-response')
+            value = result['initial']
+            kind = ('notice' if 'notice' in operation else 'language' if 'language' in operation else 'form')
+            ids = ({'update-required-message', 'update-required-close', 'update-required-reboot'}
+                   if kind == 'notice' else {'kiosk-child-account-caption', 'kiosk-approver-account-caption',
+                       'kiosk-duration-label-1800', 'kiosk-request-submit', 'kiosk-request-cancel'} |
+                       ({'language-title', 'language-continue', 'language-cancel'} if kind == 'language' else set()))
+            require(type(value) is dict and set(value) == {'kind', 'child', 'texts', 'default_chinese', 'input_free'}
+                    and value['kind'] == kind and value['child'] == 'other-fixture-child'
+                    and value['input_free'] is True and type(value['texts']) is dict
+                    and set(value['texts']) == ids and all(type(text) is str and 0 < len(text) <= 512
+                        for text in value['texts'].values()) and
+                    (type(value['default_chinese']) is bool if kind == 'language' else value['default_chinese'] is None),
+                    'ui:initial-response')
+            expected['initial'] = value
+        if operation == 'chinese-standard-desktop':
+            require(type(result) is dict and set(result) == {*expected, 'provider'}, 'ui:response')
+            expected['provider'] = accessible_ui.validate_shell_metadata(result['provider'])
+        if operation == 'station-initial-entry':
+            require(type(result) is dict and set(result) == {*expected, 'entry'} and
+                    result['entry'] == {'destination': 'initial-request-window'}, 'ui:initial-entry-response')
+            expected['entry'] = result['entry']
         if operation in ('native-opened', 'native-submitted', 'overlay-native-opened',
                          'overlay-native-submitted'):
             expected['activity'] = {'draft': 'ONPC fixture draft',

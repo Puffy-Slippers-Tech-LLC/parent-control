@@ -4136,6 +4136,57 @@ def test_session_prompt_classifier_distinguishes_and_refuses_without_input(sessi
         control.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('kind', ['mate-polkit', 'shell-polkit', 'keyring', 'unknown', 'directory-language'])
+def test_fresh_desktop_refusal_retains_prompt_facts_without_private_ui_values(kind):
+    ui, controls = semantic_prompt('unknown' if kind == 'directory-language' else kind)
+    application = ui.api.get_desktop(0).children[0]
+    application.name = 'user-dirs-update-gtk' if kind == 'directory-language' else application.name
+    application.children[0].name = 'PRIVATE_DIALOG_AND_ACCOUNT'
+    if kind == 'unknown':
+        application.name = 'PRIVATE_APPLICATION'
+    with pytest.raises(UiError, match='^ui:fresh-desktop-prompt$') as caught:
+        ui.shell_desktop_observation(no_prompt=True, language='zh-Hans')
+    diagnostic = accessible_ui.adapter_failure_diagnostic(caught.value)
+    assert diagnostic['system_prompts'] == [{
+        'kind': 'unknown' if kind == 'directory-language' else kind,
+        'source': 'directory-language' if kind == 'directory-language' else 'other',
+        'role': 'dialog', 'password_control': kind in ('mate-polkit', 'shell-polkit', 'keyring'),
+        'authentication_title': False,
+    }]
+    assert 'PRIVATE_' not in json.dumps(diagnostic)
+    for control in controls:
+        control.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'kind', 'source', 'role', 'boolean', 'extra', 'bound'])
+def test_prompt_failure_diagnostic_is_bounded_in_the_real_isolated_payload(tmp_path, fault):
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps({
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI',
+    }).encode()))
+    UiObservations(transport).observe('desktop')
+    prompt = {'kind': 'unknown', 'source': 'directory-language', 'role': 'dialog',
+              'password_control': False, 'authentication_title': False}
+    if fault in ('kind', 'source', 'role'):
+        prompt[fault] = 'PRIVATE_UI_VALUE'
+    elif fault == 'boolean':
+        prompt['password_control'] = 'PRIVATE_PASSWORD'
+    elif fault == 'extra':
+        prompt['text'] = 'PRIVATE_DOCUMENT'
+    prompts = [prompt] * (9 if fault == 'bound' else 1)
+    injected = ("    try:\n        error = UiError('ui:fresh-desktop-prompt')\n"
+                f"        error.system_prompts = {prompts!r}\n        raise error\n")
+    payload = transport.call.call_args.kwargs['input'].decode().replace(
+        '    try:\n        main()\n', injected)
+    result = subprocess.run(['/usr/bin/python3', '-I', '-'], input=payload.encode(),
+                            cwd=tmp_path, capture_output=True, timeout=10)
+    assert result.returncode == 1 and result.stdout == b''
+    diagnostic, refusal = result.stderr.decode().splitlines()
+    value = json.loads(diagnostic)
+    assert refusal == 'ui:fresh-desktop-prompt'
+    assert value.get('system_prompts') == (None if fault else prompts)
+    assert 'PRIVATE_' not in result.stderr.decode()
+
+
 def test_system_prompt_classification_uses_one_complete_snapshot_without_rereads():
     ui, _controls = semantic_prompt('keyring')
     pending = [ui.api.get_desktop(0)]

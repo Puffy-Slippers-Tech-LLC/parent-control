@@ -132,6 +132,7 @@ Snap, Flatpak and game fixtures as well as current declarations.
 | Input | Owner and lifetime |
 | --- | --- |
 | Fixed accounts, guest dependencies, welcome/idle settings | Baseline account/tool reconciliation |
+| Stable fixture folder names across desktop-language changes | `baseline_assets.desktop_settings_files`: per-fixture `Hidden=true` XDG autostart override and empty regular systemd user-unit mask for the optional GTK folder renamer; the shared fixture reconciler owns placement and read-only verification |
 | Serial getty and the 600-second console login window | [baseline_console.py](baseline_console.py); attempts only verify |
 | A/H/S/N GUI binaries, shared Python/GTK runtime and four child launchers | [baseline_assets.py](../fixtures/baseline_assets.py), installed by [baseline_fixtures.py](baseline_fixtures.py) |
 | Static native enforcement binaries and catalogue precedence/path witnesses | The same finite baseline declaration; engineering checks only verify |
@@ -149,6 +150,10 @@ retries have explicit regressions. Accounts/settings preserve unrelated state.
 All declaration, builder and runtime sources participate in the baseline digest,
 invalidating stale baselines and their derived app snapshots. Independent offline
 inspection verifies fixtures and console configuration before capture.
+The folder-renamer overrides use the supported [XDG autostart precedence](https://specifications.freedesktop.org/autostart/latest/)
+and [systemd empty-unit mask](https://github.com/systemd/systemd/blob/main/man/systemd.unit.xml).
+They preserve existing folder contents and mappings, account/session languages
+and all product-language assertions. Unknown prompts still refuse before input.
 Console preparation preserves an existing supported `LOGIN_TIMEOUT` entry or
 adds `LOGIN_TIMEOUT 600` when none is active. Duplicate or malformed entries
 refuse; test attempts only verify the prepared setting and never add it.

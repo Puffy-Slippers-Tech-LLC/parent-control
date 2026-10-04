@@ -17,6 +17,7 @@ import subprocess
 LOCALE = 'zh_CN.UTF-8'
 PACKAGES = ('locales-all=0', 'language-pack-zh-hans-base=0',
             'language-pack-zh-hans=0',
+            'language-pack-gnome-zh-hans-base=0', 'language-pack-gnome-zh-hans=0',
             'mate-polkit=0', 'mate-polkit-common=0',
             'libpam0g=0', 'fonts-noto-cjk=0')
 LOCALE_PATH = '/usr/lib/locale/zh_CN.utf8/LC_IDENTIFICATION'
@@ -26,6 +27,12 @@ CATALOGUES = {
                     'An application is attempting to perform an action that requires privileges. '
                     'Authentication is required to perform this action.'),
     'Linux-PAM': ('Password: ', 'Authentication failure'),
+    'gnome-shell': ('Activities',),
+}
+CATALOGUE_PACKAGES = {
+    'mate-polkit': ('mate-polkit-common',),
+    'Linux-PAM': ('language-pack-zh-hans-base', 'language-pack-zh-hans'),
+    'gnome-shell': ('language-pack-gnome-zh-hans-base', 'language-pack-gnome-zh-hans'),
 }
 GLYPHS = '中文密码授权取消身份验证'
 LIMIT = 32 * 1024 * 1024
@@ -193,8 +200,7 @@ def verify(g, os_id='ubuntu'):
                       for directory in ('locale', 'locale-langpack')]
         present = [path for path in candidates if g.exists(path) or g.is_symlink(path)]
         require(len(present) == 1, 'catalogue-identity')
-        data = packaged(present[0], ('mate-polkit-common',) if domain == 'mate-polkit'
-                        else ('language-pack-zh-hans-base', 'language-pack-zh-hans'), 2 * 1024 * 1024)
+        data = packaged(present[0], CATALOGUE_PACKAGES[domain], 2 * 1024 * 1024)
         catalog = gettext.GNUTranslations(io.BytesIO(data))
         values = [catalog.gettext(message) for message in messages]
         require(all(value != message and any('\u4e00' <= char <= '\u9fff' for char in value)
@@ -220,8 +226,8 @@ def preflight(g):
     paths += [f'/usr/share/{directory}/zh_CN/LC_MESSAGES/{domain}.mo'
               for directory in ('locale', 'locale-langpack') for domain in CATALOGUES]
     owned = set()
-    for name in ('locales-all', 'fonts-noto-cjk', 'mate-polkit-common',
-                 'language-pack-zh-hans-base', 'language-pack-zh-hans'):
+    for name in ('locales-all', 'fonts-noto-cjk',
+                 *(owner for owners in CATALOGUE_PACKAGES.values() for owner in owners)):
         listing = f'/var/lib/dpkg/info/{name}.list'
         if g.exists(listing) or g.is_symlink(listing):
             owned.update(read(g, listing, 2 * 1024 * 1024).decode().splitlines())

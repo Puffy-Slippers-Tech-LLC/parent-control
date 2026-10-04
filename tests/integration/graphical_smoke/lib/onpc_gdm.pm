@@ -61,7 +61,7 @@ sub enter_station {
     onpc_progress::operation('Entering the request station through the greeter');
     my ($journey, $prefix) = @_;
     die 'gdm:station-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && defined($prefix) && $prefix =~ /\A(?:cancel-|escape-)?\z/;
+        && defined($prefix) && $prefix =~ /\A(?:cancel-|escape-|initial-|renewed-)?\z/;
     die 'gdm:console' unless testapi::current_console() eq 'sut';
     my $list_stage = $prefix . 'station-list';
     my $focused_stage = $prefix . 'station-focused';
@@ -71,7 +71,8 @@ sub enter_station {
     testapi::send_key('ret');
     my $branch = $journey->seen($prefix . 'station-branch');
     die 'gdm:unresolved-session-choice' unless
-        ($branch->{station_destination} // '') eq 'default-request-form';
+        ($branch->{station_destination} // '') eq
+            ($prefix eq 'initial-' || $prefix eq 'renewed-' ? 'initial-request-window' : 'default-request-form');
     return $branch;
 }
 

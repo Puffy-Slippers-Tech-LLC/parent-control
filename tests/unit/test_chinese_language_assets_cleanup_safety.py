@@ -28,7 +28,7 @@ def test_profile_independently_reads_locale_native_messages_and_glyphs_without_w
     first = assets.verify(g)
     assert assets.verify(g) == first
     assert first['cjk_glyphs'] == len(set(assets.GLYPHS))
-    assert first['translations'] == {'mate-polkit': 4, 'Linux-PAM': 2}
+    assert first['translations'] == {'mate-polkit': 4, 'Linux-PAM': 2, 'gnome-shell': 1}
     assert first['locale'] == 'zh_CN.UTF-8' and first['provider'] == 'mate-polkit'
     assert (files, metadata) == before
     assert {call[0] for call in g.method_calls} <= {
@@ -77,6 +77,31 @@ def test_refusals_preserve_assets_and_never_prepare(fault):
         if fault == 'unowned': assets.preflight(g)
         else: assets.verify(g)
     assert files == before
+    g.write.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['package', 'missing', 'fallback', 'foreign-manifest'])
+def test_missing_chinese_shell_readiness_refuses_before_desktop_entry(fault):
+    g, files, metadata = guest()
+    path = '/usr/share/locale-langpack/zh_CN/LC_MESSAGES/gnome-shell.mo'
+    if fault == 'package':
+        files['/var/lib/dpkg/status'] = files['/var/lib/dpkg/status'].replace(
+            b'Package: language-pack-gnome-zh-hans-base', b'Package: unrelated')
+    elif fault == 'missing':
+        files.pop(path)
+        metadata.pop(path)
+    elif fault == 'fallback':
+        files[path] = catalogue({'Activities': 'Activities'})
+        files['/var/lib/dpkg/info/language-pack-gnome-zh-hans-base.md5sums'] = (
+            hashlib.md5(files[path], usedforsecurity=False).hexdigest() + '  ' + path.lstrip('/') + '\n').encode()
+    else:
+        manifest = '/var/lib/dpkg/info/language-pack-gnome-zh-hans-base.md5sums'
+        files['/var/lib/dpkg/info/language-pack-zh-hans-base.md5sums'] += files.pop(manifest)
+        metadata.pop(manifest)
+    before = copy.deepcopy((files, metadata))
+    with pytest.raises(ValueError):
+        assets.verify(g)
+    assert (files, metadata) == before
     g.write.assert_not_called()
 
 

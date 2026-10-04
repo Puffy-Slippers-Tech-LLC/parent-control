@@ -91,7 +91,10 @@ from regression_resources import HOST_WORKERS
 # live resource or cleanup owner; compatible unit and cleanup scheduling applies.
 # Upgrade command checks share private pytest evidence and waited Perl children.
 # No added live resource or cleanup owner; unit and cleanup overlap is compatible.
+# Chinese lifecycle shares private pytest/recorder files and waited Perl only;
+# its live attempt inherits the existing envelope's lease and cleanup owner.
 REVIEWED = frozenset('''
+chinese_kiosk_lifecycle
 package_upgrade
 upgrade_assets
 desktop_language

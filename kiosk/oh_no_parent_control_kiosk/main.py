@@ -1141,6 +1141,9 @@ class RequestWindow(Adw.ApplicationWindow):
         self._result_detail = localized(Gtk.Label, wrap=True, justify=Gtk.Justification.CENTER)
         set_automation_id(self._result_detail, "kiosk-result-detail")
         self._result_view.append(self._result_title)
+        self._result_child = Gtk.Label(visible=False)
+        set_automation_id(self._result_child, "kiosk-result-child-none")
+        self._result_view.append(self._result_child)
         self._result_view.append(self._result_detail)
         result_action_label = m.CLOSE if self._child_overlay else m.RETURN_TO_LOGIN
         self._result_action = localized(ArmoredButton, 
@@ -1947,6 +1950,14 @@ class RequestWindow(Adw.ApplicationWindow):
     def _show_result(self, title, detail):
         self._error_report = None
         self._report_row.set_visible(False)
+        # The result page replaces the form in the public accessibility tree.
+        # Retain the selected child as visible context, including restart
+        # notices, without requiring automation to inspect hidden form state.
+        account = self._request_content.selected_child_account()
+        self._result_child.set_label(account[1] if account else "")
+        set_automation_id(self._result_child,
+                          f"kiosk-result-child-{account[0]}" if account else "kiosk-result-child-none")
+        self._result_child.set_visible(title == m.RESTART_REQUIRED and account is not None)
         set_text(self._result_title, 'label', title)
         set_text(self._result_detail, 'label', detail)
         self._result_detail.set_visible(bool(detail))

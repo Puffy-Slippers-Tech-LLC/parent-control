@@ -2382,6 +2382,10 @@ The Ubuntu profile is implemented in
 and the existing dependency/baseline routes. Distribution-managed `locales-all`
 supplies `zh_CN.UTF-8`; MATE PolicyKit and Linux-PAM catalogues are read independently,
 with required Chinese strings, package-byte identity and Noto CJK glyph coverage.
+The profile also requires Ubuntu's `language-pack-gnome-zh-hans-base` and
+`language-pack-gnome-zh-hans`, independently verifying the packaged Shell
+`Activities` translation before any renewed Chinese desktop observation.
+The general Chinese language packs alone do not supply GNOME translations.
 Baseline source identity includes this module. Offline bootstrap and restored
 online app snapshots use the same read-only oracle. Fedora's existing preparation
 branch is preserved; no Chinese Fedora binding is claimed.
@@ -2432,6 +2436,11 @@ agree on exactly `zh_CN.UTF-8` or `zh_CN`; Ubuntu's
 removes the encoding suffix. No other region, fallback list or variant is
 accepted. This representation handling does not normalize preservation witnesses
 for other accounts or establish the language of a renewed desktop.
+After explicit child logout/login, `language_upgrade_entry` independently
+requires the same finite Chinese locale representations at both the setting
+and renewed-entry boundaries. It retains the actual renewed API value for
+upgrade preservation; every other account field and preservation witness remains
+exact. GNOME login can restore the encoding suffix removed by `SetLanguage`.
 Task 300b's bounded `check_e2e_desktop_language` setting/readback slice passed
 on every enabled VM (Ubuntu 26.04) in
 desktop-language qualification run `20261003T215747Z-6bd9c168`
@@ -2446,6 +2455,13 @@ API value, with undeclared-language and preservation refusals.
 This setting/readback slice supplies no renewed Chinese desktop or
 product-language result.
 
+Reusable fixture settings suppress the optional GTK folder-renaming prompt
+across deliberate desktop-language changes through per-user XDG autostart and
+systemd overrides. The [baseline fixture owner](../../tests/integration/Environment.md#reusable-preparation-ownership)
+reconciles and independently verifies them, preserving existing folder mappings
+and contents. This is supporting preparation; it changes no account language,
+product state or actual Chinese Shell assertion. Unexpected prompts still refuse.
+
 Chinese approval also needs a scoped extension of the
 [MATE provider binding](#external-provider-qualification). Reuse its ownership,
 selected-parent/context and secret-recipient guards; qualify the actual Chinese
@@ -2453,10 +2469,33 @@ button labels and system-owned explanatory/password text on the installed
 provider, including after kiosk agent restart and fresh kiosk entry. English
 provider evidence and translated product messages do not qualify these native
 results. Keep the agent unmodified and use supported locale/session APIs.
-The pending [300e first-presentation/reboot slice](E2E-Tasks/300e-chinese-kiosk-lifecycle.md)
-and [300f native authentication slice](E2E-Tasks/300f-chinese-native-auth.md) are
-allocated before task 300. The complete case's inventory binding remains
-unallocated; neither pending slice is runnable or passed here.
+The task 300e first-presentation/reboot slice
+is implemented in [chinese_kiosk_lifecycle.py](../../tests/e2e/chinese_kiosk_lifecycle.py)
+and `check_e2e_chinese_kiosk_lifecycle`, with qualification recorded below. It composes
+genuine installation/activation, installed-product DESK13, explicit Chinese child
+desktop renewal, one real current upgrade, Chinese initial notice and a second
+declared customer reboot before independently observed Chinese chooser/default
+and usable form. Initial public operations do not save a personal preference or
+submit approval. The [300f native authentication slice](E2E-Tasks/300f-chinese-native-auth.md)
+remains pending. Both precede task 300; the complete case's inventory binding
+remains unallocated; these slices supply no complete-case acceptance.
+
+The Chinese first-presentation slice passed on every enabled VM (Ubuntu 26.04)
+in `20261004T044302Z-572b0ee7`, including all 14 declared assertions, genuine
+package history, Chinese Shell renewal, both changed boots, initial notice and
+chooser/default/form, immutable comparisons and refusal gates. Collection,
+verified worker shutdown, callback closure, baseline restoration, finalization
+and host/source preservation passed. Shell was `50.1-0ubuntu1.3`,
+`zh_CN.UTF-8`, `xkb/us`. The required package-upgrade regression passed in
+`20261004T024908Z-8d5137eb`, with its retained report at
+`output/test-runs/host/exports/onpc-artifact-export-v2s6wi_5/report.md`.
+The required kiosk-entry regression passed in `20261004T043928Z-7e4cf5c1`.
+Its launcher and qualifier use `named_input(package_source=True)` so the
+verified package selects the current prepared snapshot, preserving legacy
+bundles rather than silently restoring their older release. Both regressions
+passed collection, worker shutdown, callback closure, baseline restoration,
+finalization and preservation. Task 300e is complete; no native authentication
+or complete-scenario result is supplied.
 
 ### Native fixture preparation
 
@@ -3820,7 +3859,10 @@ enabled VM in `20261004T003258Z-f006d805`. Both runs passed capture reconciliati
 private collection, worker shutdown, callback closure, owned cleanup, baseline
 restoration, finalization and host/source preservation. The upgrade after-cleanup
 record is `output/test-runs/privileged/allocations/onpc-e2e-evidence-njbxci0w/event-000032.json`;
-see [the live report](../../output/test-runs/host/reports/20261004T002735Z-d4779228/report.md).
+The historical live report was `20261004T002735Z-d4779228`; its bounded retention
+has expired. Task 300e's package-upgrade regression passed in
+`20261004T024908Z-8d5137eb`; its report is retained at
+`output/test-runs/host/exports/onpc-artifact-export-v2s6wi_5/report.md`.
 The recorded provider tuple is GDM `50.1-0ubuntu0.1`, Shell `50.1-0ubuntu1.3`,
 `en_US.UTF-8`, `xkb/us`. This supplies the package operation, not Chinese initial
 UI, post-upgrade reboot composition, native authentication or complete-case credit.

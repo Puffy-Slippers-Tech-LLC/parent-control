@@ -874,6 +874,15 @@ class PackageUpgradeQualification(ProductFreeEntryQualification):
         return PackageUpgradeJourney(context, progress)
 
 
+class ChineseKioskLifecycleQualification(ProductFreeEntryQualification):
+    upgrade_assets = True
+
+    @staticmethod
+    def journey(context, progress):
+        from chinese_kiosk_lifecycle import ChineseKioskJourney
+        return ChineseKioskJourney(context, progress)
+
+
 class RequestExitQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

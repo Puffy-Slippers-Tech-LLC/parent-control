@@ -150,6 +150,60 @@ def test_missing_baseline_is_a_read_only_refusal(prepared):
     assert guest.nodes == before
 
 
+def test_folder_renamer_overrides_are_owned_idempotent_and_preserve_folder_state(prepared):
+    guest, payload = prepared
+    accounts = fixture.accounts(guest)
+    for role in ('child', 'other', 'parent'):
+        config = accounts[role].pw_dir + '/.config'
+        guest.mkdir(config)
+        guest.chown(accounts[role].pw_uid, accounts[role].pw_gid, config)
+        guest.write(config + '/user-dirs.dirs', b'XDG_DOWNLOAD_DIR="$HOME/Downloads"\n')
+        guest.write(config + '/user-dirs.locale', b'en_US')
+    before = copy.deepcopy(guest.nodes)
+    fixture.reconcile(guest, payload)
+    for path, node in before.items():
+        assert guest.nodes[path] == node
+    declared = fixture.assets.desktop_settings_files(accounts)
+    assert len(declared) == 6
+    for path, (content, mode, role) in declared.items():
+        assert guest.read_file(path) == content
+        fixture.regular(guest, path, accounts[role].pw_uid, accounts[role].pw_gid, mode)
+        if path.endswith('.desktop'):
+            assert b'Hidden=true\n' in content
+        else:
+            assert path.endswith('/user-dirs-update-gtk.service') and content == b''
+    after = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    fixture.reconcile(guest, payload)
+    fixture.verify(guest)
+    assert guest.nodes == after and guest.writes == []
+
+
+@pytest.mark.parametrize('fault', ['collision', 'link', 'hardlink', 'owner', 'parent', 'bytes', 'missing'])
+@pytest.mark.parametrize('suffix', ['autostart/user-dirs-update-gtk.desktop',
+                                  'systemd/user/user-dirs-update-gtk.service'])
+def test_folder_renamer_overrides_refuse_unsafe_or_stale_state_without_writes(prepared, fault, suffix):
+    guest, payload = prepared
+    path = '/home/onpc-child-jordan/.config/' + suffix
+    if fault == 'collision':
+        guest.write(path, b'foreign')
+        guest.chown(1001, 1001, path)
+        guest.chmod(0o644, path)
+    else:
+        fixture.reconcile(guest, payload)
+        if fault == 'link': guest.links[path] = '/foreign'
+        if fault == 'hardlink': guest.nodes[path][0]['st_nlink'] = 2
+        if fault == 'owner': guest.nodes[path][0]['st_uid'] = 999
+        if fault == 'parent': guest.links[str(PurePosixPath(path).parent)] = '/foreign'
+        if fault == 'bytes': guest.write(path, b'foreign')
+        if fault == 'missing': del guest.nodes[path]
+    before = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    with pytest.raises((ValueError, KeyError)):
+        (fixture.reconcile(guest, payload) if fault == 'collision' else fixture.verify(guest))
+    assert guest.nodes == before and guest.writes == []
+
+
 def test_console_reconcile_twice_and_runtime_never_repairs():
     guest = Guest()
     guest.write('/etc/login.defs', b'# keep\nLOGIN_TIMEOUT\t60 # stock\nLOGIN_RETRIES 3\n')

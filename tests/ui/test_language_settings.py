@@ -120,6 +120,42 @@ def frontend(surface):
     return 'parent' if surface == 'parent' else 'kiosk'
 
 
+@pytest.mark.parametrize('scenario', ('normal', 'reboot-required'))
+def test_chinese_initial_e2e_reader_uses_real_owned_controls(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, monkeypatch, scenario):
+    from tests.e2e import accessible_ui as module
+    from tests.e2e.chinese_kiosk_lifecycle import NOTICE, FORM, CHOOSER
+
+    # The existing private preview owns its bus, display and process. Bind its
+    # finite child UID to the installed reader's role, without changing owners.
+    path = launch_language(launch_ui, tmp_path, 'kiosk',
+                          child_desktop='zh_CN.UTF-8', scenario=scenario)
+    reader = automation.reader
+    monkeypatch.setattr(reader, 'fixture_uids', {module.EXISTING_CHILD: 1001})
+    wait_for_accessible_state(
+        lambda: automation.showing('update-required-dialog' if scenario == 'reboot-required'
+                                  else 'language-dialog'), 'Chinese initial presentation')
+    if scenario == 'reboot-required':
+        first = reader.initial_kiosk_presentation('notice')
+        assert first['texts'] == NOTICE
+        assert reader.close_initial_notice() == first
+        assert automation.showing('kiosk-result-action')
+        assert not [event for event in read_events(path) if event['event'] == 'reboot-requested']
+    else:
+        first = reader.initial_kiosk_presentation('language')
+        assert first['texts'] == {**FORM, **CHOOSER}
+        assert first['default_chinese'] is True
+        assert reader.cancel_initial_language() == first
+        assert reader.initial_kiosk_presentation('form')['texts'] == FORM
+    assert not committed(path)
+    records = read_events(path)
+    assert not [event for event in records if event.get('method') in (
+        'RequestOwnAccess', 'RequestAccess', 'UpdateRequestPreferences', 'SetRequestMuted')]
+    assert not [event for event in records if event['event'] in (
+        'set_preferences', 'set_parent_control', 'revoke_one_time_grant', 'feedback',
+        'logout', 'close_overlay', 'language-committed', 'reboot-requested')]
+
+
 def committed(path):
     return [event['language'] for event in read_events(path)
             if event['event'] == 'language-committed']

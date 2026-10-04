@@ -82,6 +82,8 @@ OPERATIONS |= frozenset({'shell-search-started', 'shell-search-wrong-result-refu
 OPERATIONS |= frozenset({'standard-management-denied'})
 STANDARD_OPERATIONS |= frozenset({'standard-management-denied'})
 STANDARD_OPERATIONS |= frozenset({'standard-parent-command-launch', 'standard-parent-closed'})
+OPERATIONS |= frozenset({'chinese-standard-desktop'})
+STANDARD_OPERATIONS |= frozenset({'chinese-standard-desktop'})
 OPERATIONS |= frozenset({'standard-search-qualified'})
 STANDARD_OPERATIONS |= frozenset({'standard-search-qualified'})
 NATIVE_PRODUCT = 'ONPC Allowed Fixture'
@@ -680,7 +682,11 @@ KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS | KIOSK_CHO
 KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(KIOSK_INVALID_OPERATIONS) | frozenset(
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
     if binding.startswith('kiosk-'))
-STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry'})
+STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry', 'station-initial-entry'})
+INITIAL_KIOSK_OPERATIONS = frozenset('kiosk-initial-' + suffix for suffix in (
+    'notice', 'notice-close', 'notice-return', 'language', 'language-cancel', 'form'))
+OPERATIONS |= INITIAL_KIOSK_OPERATIONS | {'station-initial-entry'}
+KIOSK_SESSION_OPERATIONS |= INITIAL_KIOSK_OPERATIONS | {'station-initial-entry'}
 KIOSK_SESSION_OPERATIONS |= MATE_OPERATIONS | MATE_APPROVAL_OPERATIONS
 KIOSK_RESTRICTION_OPERATIONS = frozenset({
     'kiosk-restriction-ready', 'kiosk-restriction-read',
@@ -2132,6 +2138,111 @@ class AccessibleUI:
         """Scope shared language IDs to the requested frontend application."""
         with self.language_scope(surface):
             self._complete_language_setup(surface)
+
+    def initial_kiosk_presentation(self, kind):
+        """Read initial owned controls without invoking language setup.
+
+        Read the result page's public child identity for restart notices and
+        the selected form child for language/form observations. Only the
+        modal's own visible controls may authorize its input.
+        """
+        require(kind in ('notice', 'language', 'form'), 'ui:initial-kind')
+        with self.language_scope('kiosk'):
+            def read():
+                observation = self.read_snapshot()
+                nodes, edges, identities, facts = observation
+                require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                for node in nodes), 'ui:initial-stale')
+                self.handle_system_prompt(observation=(nodes, edges, facts))
+                window = self.snapshot_owned_target('kiosk-request-window', observation=observation)
+                if window is None:
+                    return None
+                scope = self.snapshot_scope(nodes, edges, window)
+                uid = (self.fixture_uids.get(EXISTING_CHILD) if self.fixture_uids is not None
+                       else pwd.getpwnam(CHILD_ACCOUNTS[EXISTING_CHILD]).pw_uid)
+                require(type(uid) is int and uid >= 1000, 'ui:initial-child')
+                notice = self.snapshot_owned_target('update-required-dialog', observation=observation,
+                                                    allow_unmapped_surface=True)
+                chooser = self.snapshot_owned_target('language-dialog', observation=observation,
+                                                     allow_unmapped_surface=True)
+                if kind == 'notice' and notice is None:
+                    require(chooser is None, 'ui:initial-notice-displaced')
+                    return None
+                child_prefix = 'kiosk-result-child-' if kind == 'notice' else 'kiosk-child-selected-'
+                selected = [node for node in scope if identities[node].startswith(child_prefix)]
+                require(len(selected) == 1 and identities[selected[0]] == f'{child_prefix}{uid}' and
+                        self.showing(selected[0]),
+                        'ui:initial-child')
+                if kind == 'notice':
+                    require(chooser is None, 'ui:initial-notice-displaced')
+                    controls = ('update-required-message', 'update-required-close', 'update-required-reboot')
+                    root = notice
+                else:
+                    require(notice is None, 'ui:initial-unexpected-notice')
+                    if kind == 'language' and chooser is None:
+                        return None
+                    if kind == 'form':
+                        require(chooser is None, 'ui:initial-chooser-still-open')
+                        if self.snapshot_owned_target('kiosk-language-ready', root=window,
+                                                      observation=observation) is None:
+                            return None
+                    controls = ('kiosk-child-account-caption', 'kiosk-approver-account-caption',
+                                'kiosk-duration-label-1800', 'kiosk-request-submit', 'kiosk-request-cancel')
+                    root = window
+                texts = {}
+                for identity in controls:
+                    node = self.snapshot_owned_target(identity, root=root, observation=observation)
+                    require(node is not None, 'ui:initial-control')
+                    name = node.get_name()
+                    require(type(name) is str and 0 < len(name) <= 512, 'ui:initial-text')
+                    texts[identity] = name
+                chinese = None
+                if kind == 'language':
+                    for identity in ('language-title', 'language-continue', 'language-cancel'):
+                        node = self.snapshot_owned_target(identity, root=chooser, observation=observation)
+                        require(node is not None, 'ui:initial-control')
+                        texts[identity] = node.get_name()
+                    candidate = self.snapshot_owned_target('language-choice-zh-hans', root=chooser,
+                                                           showing=False, observation=observation)
+                    require(candidate is not None, 'ui:initial-candidate')
+                    checked = [node for node in self.snapshot_scope(nodes, edges, chooser)
+                               if identities[node].startswith('language-choice-') and
+                               self.has_state(node, self.api.StateType.CHECKED)]
+                    require(len(checked) == 1, 'ui:initial-selection')
+                    chinese = checked[0] == candidate
+                return {'kind': kind, 'child': 'other-fixture-child', 'texts': texts,
+                        'default_chinese': chinese, 'input_free': True}
+            return self.wait(read, 'initial-kiosk-' + kind, prompt_in_predicate=True)
+
+    def close_initial_notice(self):
+        value = self.initial_kiosk_presentation('notice')
+        require(value['texts'] == {
+            'update-required-message': '请重启计算机，以使 Oh No! Parent Control 正常工作。',
+            'update-required-close': '关闭', 'update-required-reboot': '立即重启'},
+            'ui:initial-notice-language')
+        self.activate_id('update-required-close')
+        self.input_uncertain = True
+        self.wait(lambda: self.snapshot_owned_target('kiosk-result-action', check_prompt=True)
+                  if self.snapshot_owned_target('update-required-dialog') is None else None,
+                  'initial-notice-closed', prompt_in_predicate=True)
+        self.input_uncertain = False
+        return value
+
+    def return_initial_notice(self):
+        require(self.snapshot_owned_target('update-required-dialog') is None and
+                self.snapshot_owned_target('language-dialog') is None, 'ui:initial-return-modal')
+        self.id_target('kiosk-result-title')
+        self.activate_id('kiosk-result-action')
+        # The next separately guarded greeter read proves the session return.
+        self.input_uncertain = True
+
+    def cancel_initial_language(self):
+        value = self.initial_kiosk_presentation('language')
+        require(value['default_chinese'] is True and
+                value['texts']['language-title'] == '选择语言' and
+                value['texts']['language-cancel'] == '取消', 'ui:initial-chooser-language')
+        self.cancel_language('kiosk')
+        return value
 
     @contextmanager
     def language_scope(self, surface):
@@ -6041,8 +6152,9 @@ class AccessibleUI:
         require(target is not None, 'ui:desktop')
         return target
 
-    def shell_desktop_observation(self, *, no_prompt=False):
+    def shell_desktop_observation(self, *, no_prompt=False, language='en'):
         """One complete Shell desktop read, shared by entry and TIME01."""
+        require(language in ('en', 'zh-Hans'), 'ui:desktop-language-binding')
         root = self.api.get_desktop(0)
         require(root is not None, 'ui:incomplete-tree')
         snapshot, facts, identities = {}, {}, {}
@@ -6053,8 +6165,12 @@ class AccessibleUI:
             error.add_note('desktop observation contains a defunct node')
             raise error
         if no_prompt:
-            require(self.system_prompt_kind(observation=(nodes, snapshot, facts)) is None,
-                    'ui:fresh-desktop-prompt')
+            diagnostics = []
+            if self.system_prompt_kind(observation=(nodes, snapshot, facts),
+                                       diagnostics=diagnostics) is not None:
+                error = UiError('ui:fresh-desktop-prompt')
+                error.system_prompts = diagnostics
+                raise error
         # Resolve candidates from the complete read before issuing live owner
         # checks. Querying Parent/Role/Name again for every Shell descendant can
         # consume the entry deadline before its two-second stability readback.
@@ -6065,7 +6181,8 @@ class AccessibleUI:
         if not owners:
             return None
         panels = [node for node in self.snapshot_scope(nodes, snapshot, owners[0])
-                  if facts[node]['role'] == 'toggle button' and facts[node]['name'] == 'Activities'
+                  if facts[node]['role'] == 'toggle button' and facts[node]['name'] ==
+                  ('Activities' if language == 'en' else '活动')
                   and self.showing(node)
                   and self.has_state(node, self.api.StateType.SENSITIVE)]
         require(len(panels) <= 1, 'ui:shell-desktop-ambiguous')
@@ -6133,14 +6250,14 @@ class AccessibleUI:
         require_active_launch_session()
         return result
 
-    def standard_shell_desktop(self, *, no_prompt=False):
+    def standard_shell_desktop(self, *, no_prompt=False, language='en'):
         """Shell 50 English desktop observation on the bound fixture user's bus.
 
         This external-provider adapter recognizes Shell's public Activities toggle;
         it authorizes no Shell input, menu, search, lock or retained-session route.
         """
         def observe():
-            value = self.shell_desktop_observation(no_prompt=no_prompt)
+            value = self.shell_desktop_observation(no_prompt=no_prompt, language=language)
             return value[1] if value else None
         if not no_prompt:
             return self.wait(observe, 'shell-desktop')
@@ -6619,6 +6736,13 @@ class AccessibleUI:
             return {'destination': 'default-request-form'}
 
         return self.wait(destination, 'station-default-destination')
+
+    def station_initial_entry(self, owner):
+        """Require the fresh station window; leave its first modal untouched."""
+        require(owner == 'station', 'ui:station-default-branch')
+        self.wait(lambda: self.snapshot_owned_target('kiosk-request-window', check_prompt=True),
+                  'station-initial-window', prompt_in_predicate=True)
+        return {'destination': 'initial-request-window'}
 
     def observe_absence(self, surface, target, *, name, mode, stable_seconds=None):
         """UI11: registered positive surfaces and complete fresh exclusion reads."""
@@ -8788,7 +8912,7 @@ class AccessibleUI:
         require(len(bindings) <= 1, 'ui:ambiguous-system-prompt')
         return bindings[0] if bindings else None
 
-    def system_prompt_kind(self, *, observation=None, nonsecret_surface=None):
+    def system_prompt_kind(self, *, observation=None, nonsecret_surface=None, diagnostics=None):
         """Read one complete tree and classify a visible authentication modal.
 
         This is the provider-specific G02 adapter.  It recognizes only the
@@ -8849,7 +8973,22 @@ class AccessibleUI:
                     continue
                 if not owned:
                     candidates.append(kind or 'unknown')
-        require(len(candidates) <= 1, 'ui:ambiguous-system-prompt')
+                    if diagnostics is not None:
+                        # Fixed categories only; never retain application names,
+                        # dialog text, account names or password content. These
+                        # facts come from this same complete refusal snapshot.
+                        diagnostics.append({
+                            'kind': kind or 'unknown',
+                            'source': ('directory-language' if facts[application]['name'].casefold()
+                                       == 'user-dirs-update-gtk' else 'other'),
+                            'role': (facts[surface]['role'] if facts[surface]['role']
+                                     in ('alert', 'dialog') else 'other-modal'),
+                            'password_control': password, 'authentication_title': prompt_title,
+                        })
+        if len(candidates) > 1:
+            error = UiError('ui:ambiguous-system-prompt')
+            error.system_prompts = diagnostics
+            raise error
         return candidates[0] if candidates else None
 
     def pointer_target(self, node):
@@ -8867,13 +9006,18 @@ class AccessibleUI:
             return
         self.handling_prompt = True
         try:
-            kind = (self.system_prompt_kind(nonsecret_surface=nonsecret_surface)
+            diagnostics = []
+            kind = (self.system_prompt_kind(nonsecret_surface=nonsecret_surface,
+                                           diagnostics=diagnostics)
                     if observation is None else self.system_prompt_kind(
-                        observation=observation, nonsecret_surface=nonsecret_surface))
+                        observation=observation, nonsecret_surface=nonsecret_surface,
+                        diagnostics=diagnostics))
             if kind is not None:
                 require(self.prompt_session in ('station', 'desktop'),
                         'ui:system-prompt-session')
-                raise UiError('ui:system-prompt-refused:' + self.prompt_session + ':' + kind)
+                error = UiError('ui:system-prompt-refused:' + self.prompt_session + ':' + kind)
+                error.system_prompts = diagnostics
+                raise error
         except self.query_errors as error:
             refusal = UiError('ui:system-prompt-observation-failed')
             for note in getattr(error, '__notes__', ()):
@@ -8930,6 +9074,18 @@ class AccessibleUI:
             result['branch'] = self.station_entry_branch(self.branch_owner)
         elif operation == 'station-default-entry':
             result['entry'] = self.station_default_entry(self.branch_owner)
+        elif operation == 'station-initial-entry':
+            result['entry'] = self.station_initial_entry(self.branch_owner)
+        elif operation in INITIAL_KIOSK_OPERATIONS:
+            suffix = operation.removeprefix('kiosk-initial-')
+            if suffix in ('notice', 'language', 'form'):
+                result['initial'] = self.initial_kiosk_presentation(suffix)
+            elif suffix == 'notice-close':
+                result['initial'] = self.close_initial_notice()
+            elif suffix == 'notice-return':
+                self.return_initial_notice()
+            else:
+                result['initial'] = self.cancel_initial_language()
         elif operation in GREETER_OPERATIONS:
             if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
                 result['denial'] = self.gdm_child_time_denied()
@@ -9025,6 +9181,14 @@ class AccessibleUI:
         elif operation == 'parent-desktop-provider':
             self.standard_shell_desktop(no_prompt=True)
             result['provider'] = self.shell_provider_metadata()
+        elif operation == 'chinese-standard-desktop':
+            require_active_launch_session()
+            self.standard_shell_desktop(no_prompt=True, language='zh-Hans')
+            # Use the very same scoped Shell owner for provenance; English
+            # search discovery cannot establish this Chinese desktop.
+            owner, _, _ = self.wait(lambda: self.shell_desktop_observation(
+                no_prompt=True, language='zh-Hans'), 'chinese-shell-owner', prompt_in_predicate=True)
+            result['provider'] = self._shell_provider_metadata(owner)
         elif operation == 'keyring-cancel-standard':
             self.cancel_keyring_prompt()
         elif operation in ('desktop', 'standard-desktop'):
@@ -9859,7 +10023,7 @@ def main():
     if sys.argv[1] in STATION_BRANCH_OPERATIONS:
         account, branch_owner = greeter_account(
             station_branch=True,
-            station_required=sys.argv[1] == 'station-default-entry')
+            station_required=sys.argv[1] in ('station-default-entry', 'station-initial-entry'))
         greeter, kiosk = branch_owner == 'greeter', branch_owner == 'station'
     else:
         account = greeter_account() if greeter else pwd.getpwnam(
@@ -9960,6 +10124,16 @@ def adapter_failure_diagnostic(error):
             queries.append({'interface': parts[1], 'method': parts[2]})
     diagnostic = {'event': 'ui-adapter-failure', 'locations': locations[-12:],
                   'queries': queries[-8:]}
+    prompts = getattr(error, 'system_prompts', None)
+    if type(prompts) is list and 0 < len(prompts) <= 8 and all(
+            type(item) is dict and set(item) == {
+                'kind', 'source', 'role', 'password_control', 'authentication_title'}
+            and item['kind'] in ('mate-polkit', 'shell-polkit', 'keyring', 'unknown')
+            and item['source'] in ('directory-language', 'other')
+            and item['role'] in ('alert', 'dialog', 'other-modal')
+            and type(item['password_control']) is bool
+            and type(item['authentication_title']) is bool for item in prompts):
+        diagnostic['system_prompts'] = [dict(item) for item in prompts]
     # Distinguish disappearing objects from transport/provider failures without
     # retaining the error message, bus name, object path or other UI values.
     # This is evidence only: the original exception and refusal stay unchanged.

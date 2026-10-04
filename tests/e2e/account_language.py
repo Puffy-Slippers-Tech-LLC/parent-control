@@ -40,7 +40,9 @@ def guest_source():
 
 
 class AccountLanguage:
-    def __init__(self, transport, verified):
+    def __init__(self, transport, verified, *, product_free=True):
+        require(type(product_free) is bool, 'account-language:product-binding')
+        self.product_free = product_free
         self.transport, self.verified = transport, verified
         self.identity = copy.deepcopy(transport.config)
         self.attempted = False
@@ -62,10 +64,10 @@ class AccountLanguage:
 
     def read(self):
         with operation('Reading system account languages and preservation witnesses'):
-            value = self.command('read')
+            value = self.command('read' if self.product_free else 'read-installed')
         require(set(value) == {'accounts', 'sessions', 'system_locale', 'observer_locale',
                               'product_free', 'target_uid'}
-                and value['product_free'] is True and type(value['accounts']) is dict
+                and value['product_free'] is self.product_free and type(value['accounts']) is dict
                 and 0 < len(value['accounts']) <= 128 and value['target_uid'] in value['accounts']
                 and all(type(uid) is str and uid.isdecimal() and type(item) is dict
                         and set(item) == {'name', 'language'}
@@ -115,4 +117,4 @@ class AccountLanguage:
                 'session_renewal_required': True,
                 'independent_readback': True, 'other_accounts_unchanged': True,
                 'observer_and_system_locale_unchanged': True, 'session_unchanged': True,
-                'product_free': True}
+                'product_free': self.product_free}

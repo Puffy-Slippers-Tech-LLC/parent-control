@@ -233,6 +233,7 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_allowance_boundaries', 'check_e2e_allowance_boundaries.py',
+                                     'check_e2e_kiosk_entry', 'check_e2e_kiosk_entry.py',
                                      'check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
                                      'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py',
                                      'check_e2e_save_chooser', 'check_e2e_save_chooser.py',
@@ -269,8 +270,9 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
+                                     'check_e2e_kiosk_entry', 'check_e2e_kiosk_entry.py',
                                      'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py'])
-def test_auth_regressions_preserve_current_inputs_and_ignore_legacy_bundle(monkeypatch, selector):
+def test_request_regressions_preserve_current_inputs_and_ignore_legacy_bundle(monkeypatch, selector):
     import test_storage
     current = ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-current'
     legacy = test_storage.named_input()

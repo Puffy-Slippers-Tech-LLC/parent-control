@@ -56,10 +56,17 @@ def read_password(root=ROOT):
 
 def matches(password, encoded):
     """libcrypt verifies the guest's native SHA-512/yescrypt password hash."""
+    from ctypes.util import find_library
+
     if not encoded or encoded.startswith(('!', '*')):
         return False
     with _crypt_lock:
-        library = ctypes.CDLL('libcrypt.so.1')
+        # Ubuntu and Fedora expose different libcrypt SONAMEs. Resolve the
+        # native ABI, including when this function is staged into the guest.
+        name = find_library('crypt')
+        if name is None:
+            raise OSError('native password hashing library unavailable')
+        library = ctypes.CDLL(name)
         library.crypt.argtypes = (ctypes.c_char_p, ctypes.c_char_p)
         library.crypt.restype = ctypes.c_char_p
         actual = library.crypt(password.encode('ascii'), encoded.encode('ascii'))

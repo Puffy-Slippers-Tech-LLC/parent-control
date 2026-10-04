@@ -1,4 +1,6 @@
 import os
+import ctypes.util
+import inspect
 from unittest.mock import Mock
 
 import pytest
@@ -51,6 +53,35 @@ def test_native_hash_verification():
     assert config.matches('Hello world!', '$6$saltstring$svn8UoSVapNtMuq1ukKS4tPQd8iKwSMHWjl/O817G3uBnIFNjnQJuesI68u4OTLiBFdcbYEdFCoEOfaS35inz1')
     assert not config.matches('incorrect', '$6$saltstring$svn8UoSVapNtMuq1ukKS4tPQd8iKwSMHWjl/O817G3uBnIFNjnQJuesI68u4OTLiBFdcbYEdFCoEOfaS35inz1')
     assert not config.matches('anything', '!')
+
+
+@pytest.mark.parametrize('name', ['libcrypt.so.1', 'libcrypt.so.2'])
+@pytest.mark.parametrize('actual', [b'encoded-hash', b'different-hash', None])
+def test_native_hash_verification_resolves_guest_abi(monkeypatch, name, actual):
+    resolve = Mock(return_value=name)
+    library = Mock()
+    library.crypt.return_value = actual
+    load = Mock(return_value=library)
+    monkeypatch.setattr(ctypes.util, 'find_library', resolve)
+    monkeypatch.setattr(config.ctypes, 'CDLL', load)
+    # Online snapshot verification stages only this function's source.
+    namespace = dict(ctypes=config.ctypes, hmac=config.hmac, _crypt_lock=config._crypt_lock)
+    exec(inspect.getsource(config.matches), namespace)
+    assert namespace['matches']('fixture-password', 'encoded-hash') is (actual == b'encoded-hash')
+    resolve.assert_called_once_with('crypt')
+    load.assert_called_once_with(name)
+    library.crypt.assert_called_once_with(b'fixture-password', b'encoded-hash')
+    assert library.crypt.argtypes == (ctypes.c_char_p, ctypes.c_char_p)
+    assert library.crypt.restype == ctypes.c_char_p
+
+
+def test_native_hash_verification_refuses_missing_library(monkeypatch):
+    monkeypatch.setattr(ctypes.util, 'find_library', lambda _: None)
+    load = Mock()
+    monkeypatch.setattr(config.ctypes, 'CDLL', load)
+    with pytest.raises(OSError, match='native password hashing library unavailable'):
+        config.matches('fixture-password', 'encoded-hash')
+    load.assert_not_called()
 
 
 def test_keyrings_are_backed_up_and_repeat_without_new_keyring_is_noop(tmp_path):

@@ -35,10 +35,11 @@ def accounts():
     guest.enable_diagnostics()
     names = dict(child1='onpc-child-riley', child2='onpc-child-jordan',
                  parent1='onpc-parent-jamie', parent2='onpc-parent-casey')
+    administrator_group = 'wheel' if guest.package_path().suffix == '.rpm' else 'sudo'
     # Refuse collisions. The retained baseline is the account cleanup boundary.
     for role, options in (
         ('unrelated', ['--create-home', '--shell', '/bin/bash']),
-        ('locked', ['--create-home', '--shell', '/bin/bash', '--groups', 'sudo']),
+        ('locked', ['--create-home', '--shell', '/bin/bash', '--groups', administrator_group]),
         ('noninteractive', ['--no-create-home', '--shell', '/usr/sbin/nologin']),
         ('system', ['--system', '--no-create-home', '--shell', '/usr/sbin/nologin']),
     ):

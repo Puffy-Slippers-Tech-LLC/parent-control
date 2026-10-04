@@ -19,15 +19,17 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **300c — [Qualify verified upgrade asset transfer](E2E-Tasks/300c-upgrade-assets.md)**.
+Next task: **300 — [Installed personal-language acceptance](E2E-Tasks/300-localization.md)**.
 
-Task 300c extracts the missing dual-package FIX04 binding before task 300:
-verify and transfer genuine v1.2 and current packages in one product-free
-guarded attempt, with independent readback and no installation. The existing
-E2E transfer/provenance path binds one package; the system runner's prior-package
-option does not qualify this customer-journey binding. Task 300 remains unchecked.
-After this slice, allocate real upgrade/reboot-required composition and Chinese
-native authentication qualification before registering the complete case.
+Task 300c qualified the genuine v1.2/current dual-package FIX04 binding on every
+enabled VM (Ubuntu 26.04) in `20261003T234321Z-f5394d82`; the affected one-package
+regression passed in `20261003T234636Z-cd0eba55`. Independent repeated readback,
+entry/attempt/collision/replay refusals, preservation, collection and owned
+cleanup passed. See the [qualified scope](E2E-Building-Blocks.md#verified-upgrade-asset-transfer).
+This supplies package inputs without installation or complete-case credit.
+Task 300 remains unchecked: allocate and qualify real upgrade/reboot-required
+composition and Chinese native authentication before registering its single
+complete case.
 
 Task 300a qualified the Chinese baseline language slice and read-only FIX06 on
 every enabled VM (Ubuntu 26.04) in `20261003T210556Z-9dc87030`; the affected native

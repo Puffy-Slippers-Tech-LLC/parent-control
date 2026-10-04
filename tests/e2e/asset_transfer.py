@@ -19,6 +19,13 @@ from system_runner import mounted_guest
 sys.path.pop(0)
 
 DESTINATION = '/var/lib/onpc-e2e-assets'
+TRANSFER_REFUSALS = frozenset('transfer:' + condition for condition in (
+    'outside-provisioning', 'inventory-mismatch', 'package-mismatch',
+    'unsafe-parent', 'destination-exists', 'unsafe-preservation-parent',
+    'unsafe-preservation-file', 'unsafe-source', 'source-replaced',
+    'copied-digest-mismatch', 'source-changed', 'copied-tree-mismatch',
+    'preservation-changed',
+))
 
 from guest_observations import ASSETS as OBSERVE
 
@@ -34,11 +41,23 @@ def preservation_witness(g):
         paths += [account_root + '/' + name for name in g.find(account_root + '/')]
     witness = {}
     for path in paths:
-        require(not g.is_symlink(path), 'transfer:unsafe-preservation-file')
-        if g.exists(path):
+        linked = g.is_symlink(path)
+        if g.exists(path) or linked:
             info = g.lstatns(path)
-            require(stat.S_ISREG(info['st_mode']), 'transfer:unsafe-preservation-file')
-            witness[path] = (g.checksum('sha256', path), {
+            if linked:
+                # Ubuntu 26.04's compatibility alias is not an asset input.
+                # Preserve the link itself without hashing through it; the
+                # canonical regular file has its own independent witness.
+                require(path == '/etc/default/locale'
+                        and g.exists(path)
+                        and g.readlink(path) == '../locale.conf'
+                        and g.realpath(path) == '/etc/locale.conf',
+                        'transfer:unsafe-preservation-file')
+                content = {'link': '../locale.conf'}
+            else:
+                require(stat.S_ISREG(info['st_mode']), 'transfer:unsafe-preservation-file')
+                content = g.checksum('sha256', path)
+            witness[path] = (content, {
                 key: info[key] for key in ('st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink', 'st_size')})
         else:
             witness[path] = None
@@ -122,9 +141,13 @@ class AssetTransfer:
                 self._receipt['packages'] = self.verified.upgrade_inputs['packages']
             print('e2e:asset-transfer-verified', file=sys.stderr, flush=True)
             return dict(self._receipt)
-        except BaseException:
+        except BaseException as error:
             self._failure = 'transfer:provisioning-failed'
-            print('e2e:asset-transfer-rejected', file=sys.stderr, flush=True)
+            # Outer cleanup may classify an unknown exception generically.
+            # Retain only our finite diagnoses, never arbitrary error text.
+            code = str(error) if isinstance(error, EvidenceError) and str(error) in TRANSFER_REFUSALS else (
+                self._failure)
+            print('e2e:asset-transfer-rejected code=' + code, file=sys.stderr, flush=True)
             raise
 
     def observe(self, observations):

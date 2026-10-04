@@ -118,6 +118,55 @@ def test_two_packages_keep_separate_sources_bytes_and_single_use_cleanup(upgrade
     assert guest.uploads == len(verified.asset_files)
 
 
+@pytest.mark.parametrize('fault', ['', 'canonical-bytes', 'alias-replaced', 'wrong-target', 'other-link',
+                                  'missing-canonical', 'canonical-link', 'canonical-fifo'])
+def test_ubuntu_locale_alias_preserves_link_and_canonical_file(upgrade, fault):
+    verified, transfer, api = captured(upgrade)
+    guest = upgrade[3]
+    guest.path('/etc/default').mkdir()
+    canonical = guest.path('/etc/locale.conf')
+    canonical.write_bytes(b'LANG=en_US.UTF-8\n')
+    alias = guest.path('/etc/default/locale')
+    alias.symlink_to('../locale.conf')
+    before = asset_transfer.preservation_witness(guest) if not fault else None
+    if fault == 'wrong-target':
+        alias.unlink()
+        alias.symlink_to('../passwd')
+    elif fault == 'other-link':
+        guest.path('/etc/hostname').symlink_to('locale.conf')
+    elif fault in ('missing-canonical', 'canonical-link', 'canonical-fifo'):
+        canonical.unlink()
+        if fault == 'canonical-link':
+            canonical.symlink_to('passwd')
+        elif fault == 'canonical-fifo':
+            os.mkfifo(canonical)
+    elif fault:
+        upload = guest.upload
+        def mutate(*args):
+            upload(*args)
+            if fault == 'canonical-bytes':
+                canonical.write_bytes(b'LANG=zh_CN.UTF-8\n')
+            else:
+                alias.unlink()
+                alias.write_bytes(b'LANG=en_US.UTF-8\n')
+        guest.upload = mutate
+    if fault:
+        with pytest.raises(EvidenceError, match='unsafe-preservation-file|preservation-changed'):
+            transfer.provision(upgrade[2], api)
+        assert guest.closed
+        if fault in ('wrong-target', 'other-link', 'missing-canonical', 'canonical-link', 'canonical-fifo'):
+            assert guest.uploads == 0
+        with pytest.raises(EvidenceError, match='already-attempted'):
+            transfer.provision(upgrade[2], api)
+        with pytest.raises(EvidenceError, match='verified-provisioning-required'):
+            transfer.observe(Mock())
+    else:
+        transfer.provision(upgrade[2], api)
+        assert alias.is_symlink() and alias.readlink().as_posix() == '../locale.conf'
+        assert canonical.read_bytes() == b'LANG=en_US.UTF-8\n'
+        assert asset_transfer.preservation_witness(guest) == before
+
+
 @pytest.mark.parametrize('fault', ['', 'bytes', 'identity', 'mode', 'owner', 'extra'])
 def test_exact_booted_guest_program_reads_real_package_metadata_and_tree(upgrade, tmp_path, capsys, fault):
     verified, transfer, api = captured(upgrade)

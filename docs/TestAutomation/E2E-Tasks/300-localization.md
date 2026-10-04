@@ -133,13 +133,15 @@ the prerequisite slices. DESK13's `AccountLanguage.submit` / `confirm` report
 the actual confirmed API language (`zh_CN` on Ubuntu), the submitted
 `requested_locale` (`zh_CN.UTF-8`) and required session renewal. Use the shared
 helper without replaying uncertain input or adding an implicit renewal.
-Task **300c** now owns the missing dual-package FIX04 binding: existing
-`VerifiedInputs` and `AssetTransfer` bind only one package. The system runner's
-`--previous-artifacts` route is engineering coverage, not qualification of this
-customer composition. After 300c passes, LIFE04 still needs real upgrade
-composition, and the native authentication provider still needs Chinese
-qualification. Allocate those remaining prerequisite slices before implementing
-or registering the single complete case. No live attempt has been made.
+Task **300c** qualified the genuine v1.2/current dual-package FIX04 binding through
+`stage_upgrade_assets`, `VerifiedInputs(upgrade=True)` and `AssetTransfer` on every
+enabled VM (Ubuntu 26.04) in `20261003T234321Z-f5394d82`; the one-package regression
+passed in `20261003T234636Z-cd0eba55`. Reuse its
+[qualified transfer/readback scope](../E2E-Building-Blocks.md#verified-upgrade-asset-transfer).
+LIFE04 still needs real upgrade composition, and the native authentication
+provider still needs Chinese qualification. Allocate those remaining prerequisite
+slices before implementing or registering the single complete case. No
+complete-case live attempt has been made.
 
 ## Implementation entry
 
@@ -150,7 +152,7 @@ its consumer and split independent capability work before implementation. No
 executable selector is registered by this brief. Leave this row unchecked until
 that work and installed acceptance are complete.
 
-Qualify task 300c's dual-package transfer before adding the real upgrade
+Reuse task 300c's qualified dual-package transfer when adding the real upgrade
 composition; it does not install either package or supply upgrade acceptance.
 Allocate exactly one numeric case for the complete history; the Chinese phases
 are ordered assertions inside it. Reuse task 300a's qualified baseline language

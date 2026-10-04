@@ -20,9 +20,10 @@ class GuestFiles:
     def mount(self, *_): pass
     def sync(self): pass
     def close(self): self.closed = True
-    def realpath(self, name): return name
+    def realpath(self, name): return '/' + self.path(name).resolve().relative_to(self.root).as_posix()
     def exists(self, name): return self.path(name).exists()
     def is_symlink(self, name): return self.path(name).is_symlink()
+    def readlink(self, name): return self.path(name).readlink().as_posix()
     def mkdir(self, name): self.path(name).mkdir()
     def chown(self, *_): pass
     def chmod(self, mode, name): self.path(name).chmod(mode)

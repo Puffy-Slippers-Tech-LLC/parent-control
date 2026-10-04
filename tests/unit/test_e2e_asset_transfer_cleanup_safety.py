@@ -141,6 +141,24 @@ def test_booted_corruption_cannot_be_cleared_by_a_later_good_reply(attempt):
     assert vm.read.call_count == 1
 
 
+@pytest.mark.parametrize('error', [transfer.EvidenceError('private-canary'),
+                                 OSError('private-canary'), KeyboardInterrupt('private-canary'),
+                                 transfer.EvidenceError('transfer:source-changed')])
+def test_transfer_failure_diagnostic_is_finite_and_private(attempt, capsys, error):
+    control, lease, guest, api = attempt
+    guest.upload = Mock(side_effect=error)
+    with pytest.raises(type(error)):
+        control.provision(lease, api)
+    output = capsys.readouterr().err
+    expected = 'transfer:source-changed' if str(error) == 'transfer:source-changed' else (
+        'transfer:provisioning-failed')
+    assert 'e2e:asset-transfer-rejected code=' + expected in output
+    assert 'private-canary' not in output
+    assert guest.closed
+    with pytest.raises(transfer.EvidenceError, match='already-attempted'):
+        control.provision(lease, api)
+
+
 def execute_observation(guest, capsys, *, wrong_owner=False):
     """Run the exact guest probe over real copied bytes without root or a VM.
 

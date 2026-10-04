@@ -2327,12 +2327,43 @@ authentication outcome or app behavior being tested.
 
 | ID | Kind | Supporting operation and boundary | Existing source | Status |
 | --- | --- | --- | --- | --- |
-| FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt; stage finite synthetic files through guarded SSH. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); [transfer safety](../../tests/unit/test_e2e_asset_transfer_cleanup_safety.py), case 1 qualification. `SyntheticFiles.call('stage')` supplies the [synthetic text files](#synthetic-file-commands); its six finite `profile` values supply the qualified [attachment boundaries](#attachment-rejection-boundaries), with exact receipt/readback and cleanup. Reusable fixture readiness belongs to FIX06, not transfer or installation during an attempt. The genuine v1.2/current dual-package binding is pending [task 300c](E2E-Tasks/300c-upgrade-assets.md); existing one-package readiness does not qualify it. | existing transfer, synthetic-text and six attachment-boundary profiles ready; dual-package upgrade transfer pending |
+| FIX04 | A | Transfer the existing verified asset manifest to the powered-off guarded guest before the attempt; stage finite synthetic files through guarded SSH. No asset installation or arbitrary bundle interface. | `AssetTransfer.provision` / `observe` in [asset_transfer.py](../../tests/e2e/asset_transfer.py); [transfer safety](../../tests/unit/test_e2e_asset_transfer_cleanup_safety.py), case 1 qualification. `SyntheticFiles.call('stage')` supplies the [synthetic text files](#synthetic-file-commands); its six finite `profile` values supply the qualified [attachment boundaries](#attachment-rejection-boundaries), with exact receipt/readback and cleanup. Reusable fixture readiness belongs to FIX06, not transfer or installation during an attempt. `stage_upgrade_assets` and `VerifiedInputs(upgrade=True)` supply the [qualified genuine v1.2/current dual-package binding](#verified-upgrade-asset-transfer). | existing transfer, synthetic-text, six attachment-boundary profiles and Ubuntu amd64 dual-package upgrade transfer ready |
 | FIX06 | A | Independently verify one declared reusable fixture profile after baseline restore. Read-only files, launchers and ownership checks; no installation, repair, app launch or product-state setup. | Native: `NativeFixtures.verify` / `fixture_actions` in [native_fixtures.py](../../tests/e2e/native_fixtures.py), with guarded reads in [native_fixtures_guest.py](../../tests/e2e/native_fixtures_guest.py); see [native preparation](#native-fixture-preparation). Native Jordan-bound verification/catalogue qualified by `check_e2e_native_fixtures` in `20261001T024817Z-a8a37e09`, with affected regression in `20261003T210811Z-d41b9452`. Chinese: `fixture_actions(profile='chinese')` and `chinese_language_assets.verify`; [language preparation](#chinese-language-preparation-and-desktop-language-setup). `check_e2e_chinese_language_assets` qualified wrong-entry refusal, independent valid readback and unchanged state on Ubuntu 26.04 in `20261003T210556Z-9dc87030`. Tasks 035d/035a/035b, 109p, 116p and 126p extend their finite baseline profiles and verification before consumers; they do not broaden FIX04. FIX05 retains the separate real Lunar profile. | native file/catalogue and Chinese asset verification ready; other profiles planned |
 | FIX03 | A | Prepare one declared account-eligibility profile before a kiosk journey: multiple, no child, no approver or ineligible approver. Do not generalize FIX02 into arbitrary account mutation. | `EmptyAccountFixture.prepare` / `e2e_dynamic_account.prepare_empty` changes only the two canonical children's account type, preserving identities, existing administrators and the station; outer lease cleanup restores the profile. `kiosk_no_child.PLAN` / `onpc_kiosk_no_child::run` qualified this profile through `check_e2e_kiosk_no_child` in run `20260924T064646Z-19f2aad6`, with shared station navigation requalified in run `20260924T173643Z-8d742069`. `AccessibleUI.kiosk_request_form(no_child=True)` and `RequestObservation.from_request` independently require the exact empty child set and no-child explanation, disabled Request/duration/soft-app/approver controls and no authentication prompt. Valid station entry, wrong-entry refusal, repeated public readback, sanitized collection, owned cleanup and baseline restoration passed without product-policy mutation. Complete case 54 separately passed via `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run` and `tools/run-tests e2e --id '54'`, adding public Cancel/GDM return; wrong-entry refusal remains qualification-only. The no-approver callables and independent case 55 acceptance below supply the second ready profile. `kiosk_multiple.PLAN` / `onpc_kiosk_multiple::run` supply the qualified multiple profile below. `kiosk_multiple.INELIGIBLE_PLAN` / `KioskIneligibleJourney` supplies the locked-administrator exclusion profile qualified below. | ready; multiple/no-child/no-approver/locked-approver profiles |
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX05 | A | Validate the one declared, manually prepared Lunar/AppImageLauncher/Minecraft profile after the normal installed-snapshot restore and before the attempt. Read-only setup verification, not installation, policy configuration or customer acceptance. | No callable yet. Task 295 binds versions/digests, original AppImage and launcher/autostart routes, local world, credential references and ordinary restore/provisioning ownership. Refuse missing/drifted assets; never synthesize a denial. [Profile contract](#lunar-client-preparation-and-observation-gate). | pending |
+
+### Verified upgrade asset transfer
+
+`check_e2e_upgrade_assets` qualified FIX04's genuine v1.2/current package binding
+on every enabled VM (Ubuntu 26.04, amd64) in `20261003T234321Z-f5394d82`.
+`stage_upgrade_assets` in [system_runner.py](../../tests/integration/system_runner.py)
+and `VerifiedInputs(upgrade=True)` in [provenance.py](../../tests/e2e/provenance.py)
+bind separate source/manifests and exact bytes before the powered-off transfer.
+The maintained builder pins the signed v1.2 tag and source commit; current must
+be newer, with a distinct package digest and matching product/architecture.
+The qualified inputs were `1.2+ppa1~ubuntu26.04.1` and
+`1.3+ppa1~ubuntu26.04.1`. Missing inputs use maintained automatic preparation;
+valid inputs are preserved, never fabricated by rewriting version metadata.
+
+`AssetTransfer.provision` / `observe` and the finite
+[qualification](../../tests/e2e/upgrade_assets_qualification.py) passed independent
+repeated booted-guest identity/digest readback, product-free administrator entry,
+wrong-attempt/powered-on/collision/replay refusals and preservation of accounts,
+locales, desktop session and unrelated files. The offline witness preserves
+Ubuntu's exact `/etc/default/locale` → `../locale.conf` link identity and separately
+hashes its canonical regular file; other links, dangling or unsafe targets still
+refuse. Asset link/owner/immutability and consumed-failure guards remain required.
+[Upgrade safety](../../tests/unit/test_upgrade_assets_cleanup_safety.py) covers
+these boundaries through the real transfer, decoder and recorder.
+
+The affected one-package `check_e2e_product_free_entry` regression passed in
+`20261003T234636Z-cd0eba55`. Both runs passed private collection, worker shutdown,
+callback closure, owned cleanup, baseline restoration, finalization and
+host/source preservation. GDM `50.1-0ubuntu0.1`, Shell `50.1-0ubuntu1.3`,
+`en_US.UTF-8` and `xkb/us` were observed. No package installation, upgrade,
+reboot-required result, Chinese authentication or complete-case credit is supplied.
 
 ### Chinese language preparation and desktop-language setup
 
@@ -3696,6 +3727,13 @@ the report is `output/test-runs/host/reports/20260924T203125Z-f94d7c37/report.md
 Package execution/notice and installation composition have their separate
 qualifications below; complete case 2 is qualified [separately](#clean-installation-journey). This qualification
 supplies no complete-scenario credit.
+
+The affected one-package regression passed again on every enabled VM (Ubuntu
+26.04) in `20261003T234636Z-cd0eba55`, with GDM `50.1-0ubuntu0.1`, Shell
+`50.1-0ubuntu1.3`, `en_US.UTF-8` and `xkb/us`. All entry/context assertions,
+collection, worker shutdown, callback closure, owned cleanup, baseline restoration
+and host/source preservation passed. The dual-package scope is qualified
+[separately](#verified-upgrade-asset-transfer).
 
 ### Administrator package command and output
 

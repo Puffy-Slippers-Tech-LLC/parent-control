@@ -10,6 +10,9 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **300a** — Declared Chinese baseline language assets and independent FIX06 readiness verification.
 - **300b** — DESK13 child desktop-language setting through AccountsService, with independent readback and preservation/refusal qualification.
 - **300c** — Verified genuine v1.2/current package transfer and independent readback for the product-free upgrade journey.
+- **300d** — Real v1.2-to-current package upgrade command, independent completion/reboot notice and unchanged-boot result after old-release activation.
+- **300e** — Chinese no-reboot prompt, same-attempt reboot and Chinese initial kiosk chooser/default/form composition.
+- **300f** — Chinese native MATE authentication and real approval/result on two fresh kiosk sessions.
 
 Estimate: 60–90 minutes.
 Session exception: The installed persistence and account-isolation history includes a real upgrade without reboot, the required reboot and renewed kiosk sessions in one continuous case, retaining independent language choices and unchanged policy results throughout.
@@ -61,10 +64,11 @@ Product language selection still uses the existing public chooser operations.
 Observe first presentation before `complete_language_setup` or any generic
 first-run handler can save, dismiss or change it.
 
-Reuse LIFE04's package lifecycle path and LIFE02's reboot path. The real
-v1.2-to-current upgrade without reboot, selected-child reboot-required result
-and Chinese MATE authentication binding need qualification before this
-case can run. The existing English MATE provider qualification does not qualify
+Reuse LIFE04's package lifecycle path and LIFE02's reboot path. The genuine
+v1.2-to-current upgrade command is qualified; the selected-child Chinese
+reboot-required/first-presentation composition and Chinese MATE binding still
+need qualification in 300e and 300f before this case can run.
+The existing English MATE provider qualification does not qualify
 Chinese labels or a restarted agent. Use supported locale/session APIs and the
 normal unmodified PolicyKit agent; no dialog patching or injected translations.
 
@@ -138,10 +142,14 @@ Task **300c** qualified the genuine v1.2/current dual-package FIX04 binding thro
 enabled VM (Ubuntu 26.04) in `20261003T234321Z-f5394d82`; the one-package regression
 passed in `20261003T234636Z-cd0eba55`. Reuse its
 [qualified transfer/readback scope](../E2E-Building-Blocks.md#verified-upgrade-asset-transfer).
-LIFE04 still needs real upgrade composition, and the native authentication
-provider still needs Chinese qualification. Allocate those remaining prerequisite
-slices before implementing or registering the single complete case. No
-complete-case live attempt has been made.
+Task **300d** qualified LIFE04's genuine v1.2/current upgrade command on every
+enabled VM in `20261004T002735Z-d4779228`, with the current-only customer-reboot
+regression in `20261004T003258Z-f006d805`. Reuse its
+[qualified package binding](../E2E-Building-Blocks.md#genuine-package-upgrade).
+The remaining [Chinese first-presentation/reboot slice](300e-chinese-kiosk-lifecycle.md)
+and [native authentication slice](300f-chinese-native-auth.md) are allocated as
+300e and 300f immediately before this task. Qualify both before implementing or
+registering the single complete case. No complete-case live attempt has been made.
 
 ## Implementation entry
 
@@ -154,10 +162,12 @@ that work and installed acceptance are complete.
 
 Reuse task 300c's qualified dual-package transfer when adding the real upgrade
 composition; it does not install either package or supply upgrade acceptance.
-Allocate exactly one numeric case for the complete history; the Chinese phases
+Compose task 300d's qualified upgrade command with 300e and 300f's delivered
+Chinese operations once those slices pass. Allocate exactly one numeric case
+for the complete history; the Chinese phases
 are ordered assertions inside it. Reuse task 300a's qualified baseline language
 readiness and task 300b's qualified DESK13 setting. Qualify
-the real update/reboot-required composition and the Chinese native provider
-binding in bounded prerequisite slices before registering that complete case.
+the Chinese update/reboot-required/first-presentation composition in 300e and the
+native provider binding in 300f before registering that complete case.
 Preserve the v1.2 package asset/version gate: unavailable verified upgrade inputs
 remain a blocker, never a simulated reboot-required state or a reinstall.

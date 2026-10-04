@@ -19,7 +19,19 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **300 — [Installed personal-language acceptance](E2E-Tasks/300-localization.md)**.
+Next task: **300e — [Qualify Chinese kiosk first presentation and reboot continuity](E2E-Tasks/300e-chinese-kiosk-lifecycle.md)**.
+
+Task 300d qualified the genuine v1.2/current package upgrade on every enabled VM
+(Ubuntu 26.04) in `20261004T002735Z-d4779228`; the required current-only customer
+reboot regression passed in `20261004T003258Z-f006d805`. Authentic old-release
+installation/activation, one real current-package upgrade, independent final
+completion/reboot notice, unchanged boot after upgrade, refusal and preservation
+passed. Both runs completed collection, worker shutdown, owned cleanup, baseline
+restoration and finalization. See [the qualified binding](E2E-Building-Blocks.md#genuine-package-upgrade).
+Task 300e now owns the Chinese no-reboot prompt and reboot/first-kiosk composition;
+300f owns Chinese native authentication after fresh kiosk entry. Both are
+unchecked prerequisites immediately before task 300, which retains its entire
+multilingual/RTL and Chinese history without complete-case acceptance credit.
 
 Task 300c qualified the genuine v1.2/current dual-package FIX04 binding on every
 enabled VM (Ubuntu 26.04) in `20261003T234321Z-f5394d82`; the affected one-package
@@ -27,9 +39,8 @@ regression passed in `20261003T234636Z-cd0eba55`. Independent repeated readback,
 entry/attempt/collision/replay refusals, preservation, collection and owned
 cleanup passed. See the [qualified scope](E2E-Building-Blocks.md#verified-upgrade-asset-transfer).
 This supplies package inputs without installation or complete-case credit.
-Task 300 remains unchecked: allocate and qualify real upgrade/reboot-required
-composition and Chinese native authentication before registering its single
-complete case.
+Task 300 remains unchecked: qualify its Chinese first-presentation/reboot
+composition and native authentication before registering its single complete case.
 
 Task 300a qualified the Chinese baseline language slice and read-only FIX06 on
 every enabled VM (Ubuntu 26.04) in `20261003T210556Z-9dc87030`; the affected native
@@ -45,7 +56,7 @@ preservation passed. Host safety/ownership checks passed in
 `20261003T215408Z-2354ac86` (766 checks), with composition/source checks in
 `20261003T215549Z-5f4be22b`. This supplies no renewed Chinese desktop,
 product-language, native authentication or complete-scenario acceptance.
-Real upgrade composition and the
+Chinese first-presentation/reboot composition and the
 Chinese native authentication binding still need separate prerequisite slices
 before task 300 implements or registers its single complete case.
 

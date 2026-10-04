@@ -89,7 +89,10 @@ from regression_resources import HOST_WORKERS
 # remains compatible in both cleanup and unit scheduling, with no live VM/GUI.
 # Upgrade asset checks share those private file/child lifetimes. They add no
 # live resource or cleanup owner; compatible unit and cleanup scheduling applies.
+# Upgrade command checks share private pytest evidence and waited Perl children.
+# No added live resource or cleanup owner; unit and cleanup overlap is compatible.
 REVIEWED = frozenset('''
+package_upgrade
 upgrade_assets
 desktop_language
 vm_internet native_fixtures baseline_fixtures chinese_language_assets

@@ -179,9 +179,11 @@ def destination(current, source, uid, action):
     return greeter and original is None
 
 
-def package_digest():
+def package_digest(binding='current'):
     """Read the immutable FIX04 package, retaining descriptor/path identity."""
-    path = Path('/var/lib/onpc-e2e-assets/package.deb')
+    require(binding in ('current', 'previous'), 'package-binding')
+    path = Path('/var/lib/onpc-e2e-assets/' + (
+        'previous/package.deb' if binding == 'previous' else 'package.deb'))
     require(path.parent.resolve() == path.parent, 'package-parent')
     parent = path.parent.stat()
     require(parent.st_uid == 0 and not parent.st_mode & 0o022, 'package-parent')

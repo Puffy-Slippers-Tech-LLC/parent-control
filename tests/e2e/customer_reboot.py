@@ -28,7 +28,7 @@ def refuse_reboot(journey, guard):
     try:
         journey.submit_reboot(guard)
     except EvidenceError as error:
-        require(str(error) == 'customer-reboot:reboot-entry', 'customer-reboot:wrong-refusal')
+        require(str(error) == journey.plan.prefix + ':reboot-entry', 'customer-reboot:wrong-refusal')
     else:
         require(False, 'customer-reboot:wrong-entry-accepted')
     return {**refuse_command(journey, guard), 'reboot_refused': True}

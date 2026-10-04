@@ -74,7 +74,7 @@ sub exchange {
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
     my $deadline = time + ($stage eq 'setup-detached' ? 1500
-        : $stage eq 'package-submitted' ? 780
+        : $stage eq 'package-submitted' || $stage eq 'upgrade-submitted' ? 780
         : $stage eq 'reboot-installed-greeter' ? 780 : 420);
     while (!-f "$stage.reply.json") {
         die 'smoke:controller-timeout' if time >= $deadline;
@@ -109,6 +109,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{package_upgrade}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_customer_reboot::run_upgrade(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{clean_install}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

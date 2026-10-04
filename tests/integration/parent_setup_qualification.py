@@ -865,6 +865,15 @@ class CustomerRebootQualification(ProductFreeEntryQualification):
         return CustomerRebootJourney(context, progress)
 
 
+class PackageUpgradeQualification(ProductFreeEntryQualification):
+    upgrade_assets = True
+
+    @staticmethod
+    def journey(context, progress):
+        from package_upgrade import PackageUpgradeJourney
+        return PackageUpgradeJourney(context, progress)
+
+
 class RequestExitQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

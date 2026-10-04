@@ -656,7 +656,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_eligible_choices=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
          challenges=False, challenge_profile='parent', product_free_entry=False, package_authority=False,
-         upgrade_assets=False,
+         upgrade_assets=False, package_upgrade=False,
          package_install=False, customer_reboot=False, app_row_observations=False, native_fixtures=False,
          catalogue_search=False, catalogue_filters=False, policy_legend=False, match_save_cancel=False,
          match_editor=False, access_choices=False, policy_edit=False, rejected_parent_rule=False,
@@ -678,6 +678,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
          native_app=False, app_activity=False, chinese_language_assets=False, desktop_language=False):
+    require(type(package_upgrade) is bool and (not package_upgrade or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'package_upgrade')
+            and isinstance(value, bool)))), 'smoke:package-upgrade-prerequisites')
     require(type(desktop_language) is bool and (not desktop_language or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1027,8 +1032,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(upgrade_assets) is bool and not (upgrade_assets and any((
         product_free_entry, package_authority, package_install, customer_reboot,
         chinese_language_assets, desktop_language))), 'smoke:upgrade-assets-prerequisites')
+    require(type(package_upgrade) is bool and not (package_upgrade and any((
+        product_free_entry, package_authority, package_install, customer_reboot,
+        chinese_language_assets, desktop_language, upgrade_assets))), 'smoke:package-upgrade-prerequisites')
+    dual_packages = upgrade_assets or package_upgrade
     product_free_entry = (product_free_entry or package_authority or package_install
-                          or customer_reboot or chinese_language_assets or desktop_language or upgrade_assets)
+                          or customer_reboot or chinese_language_assets or desktop_language or dual_packages)
     require(type(product_free_entry) is bool and (not product_free_entry or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1489,6 +1498,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'desktop-language-qualification'
         if upgrade_assets:
             result['scope'] = 'upgrade-assets-qualification'
+        if package_upgrade:
+            result['scope'] = 'package-upgrade-qualification'
         started = time.monotonic()
         def interrupted(*_):
             raise KeyboardInterrupt
@@ -1503,12 +1514,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 staged = None
                 if assets is not None:
                     staged = directory / 'assets'
-                    if upgrade_assets:
+                    if dual_packages:
                         runner.stage_upgrade_assets(assets, staged, commands)
                     else:
                         runner.stage_assets(runner.artifact_source(assets), staged, commands)
                     staged.chmod(0o700)
-                    result['source_preflight'] = preflight_source(staged, upgrade=upgrade_assets)
+                    result['source_preflight'] = preflight_source(staged, upgrade=dual_packages)
                 if (parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or native_app or app_activity
@@ -1652,6 +1663,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if customer_reboot:
                     from parent_setup_qualification import CustomerRebootQualification
                     qualification_class = CustomerRebootQualification
+                if package_upgrade:
+                    from parent_setup_qualification import PackageUpgradeQualification
+                    qualification_class = PackageUpgradeQualification
                 if kiosk_entry:
                     from parent_setup_qualification import KioskEntryQualification
                     qualification_class = KioskEntryQualification

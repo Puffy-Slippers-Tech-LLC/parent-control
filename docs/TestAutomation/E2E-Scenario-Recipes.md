@@ -1478,6 +1478,13 @@ binding or acceptance result is registered yet. Register one complete case after
 its prerequisite slices are qualified; do not split the three reported symptoms
 into variants or run this lifecycle as a German/Hebrew language matrix.
 
+The [genuine package upgrade binding](E2E-Building-Blocks.md#genuine-package-upgrade)
+is qualified by task 300d. The remaining reusable Chinese first-presentation and
+reboot composition belongs to [300e](E2E-Tasks/300e-chinese-kiosk-lifecycle.md);
+the native authentication binding belongs to [300f](E2E-Tasks/300f-chinese-native-auth.md).
+Those pending slices supply no complete-case acceptance and preserve every phase
+below in task 300's continuous recipe.
+
 Finite inputs: selected child Jordan; approver Jamie; child desktop locale
 `zh_CN.UTF-8`; product language `zh-Hans`; Jamie and kiosk station desktop
 language English; two ordinary 75-second, soft-app-included requests. Jordan

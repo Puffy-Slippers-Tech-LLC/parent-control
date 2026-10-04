@@ -29,6 +29,45 @@ def submit_install(journey, guard):
     return result
 
 
+def submit_release(journey, guard, binding, slot):
+    """Finite upgrade leaves keep consumed commands in their recipe-owned slots."""
+    from package_command import OLD_INSTALL, UPGRADE
+    require((binding, slot) in ((OLD_INSTALL, 'previous_package'), (UPGRADE, 'upgrade_package')),
+            'package-install:release-binding')
+    require(getattr(journey, slot) is None, 'package-install:replay')
+    guard()
+    command = PackageCommand(journey.transport, journey.context.verified)
+    setattr(journey, slot, command)
+    label = 'previous' if binding == OLD_INSTALL else 'current'
+    result = command.submit(binding, command.verified.upgrade_inputs['packages'][label]['sha256'],
+                            command.identity)
+    guard()
+    return result
+
+
+def observe_release(command, label, before, *, changed_boot=False):
+    """Independent completion, public installed version and preservation proof."""
+    require(command is not None and label in ('previous', 'current'), 'package-install:missing-command')
+    output = command.read_result()
+    first, second = command.read_identity(), command.read_identity()
+    require(first == second, 'package-install:unstable-readback')
+    require(first['version'] == command.verified.upgrade_inputs['packages'][label]['version'],
+            'package-install:installed-version')
+    preserved = dict(first['preserved'])
+    if label == 'previous':
+        # A genuine first installation creates package/dependency accounts.
+        # Every pre-existing identity/language remains independently unchanged.
+        preserved['accounts'] = {uid: preserved['accounts'].get(uid)
+                                 for uid in before['preserved']['accounts']}
+    require(preserved == before['preserved'], 'package-install:preservation')
+    require((first['boot'] != before['boot'] if changed_boot else first['boot'] == before['boot']),
+            'package-install:boot-continuity')
+    if not changed_boot:
+        require(first['session'] == before['session'], 'package-install:session-changed')
+    return {**output, 'installed_version': first['version'], 'boot_sha256': first['boot'],
+            'preservation_verified': True, 'independent_readback': True}, first
+
+
 def observe_install(journey):
     """A separate checkpoint must establish completion and the final notice."""
     require(journey.package is not None, 'package-install:missing-command')

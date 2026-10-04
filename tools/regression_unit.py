@@ -298,7 +298,10 @@ from regression_ui import Bucket
 # classifications remain valid; no cleanup inventory change is needed.
 # Upgrade asset checks use private tiny DEBs, waited dpkg/Perl children and
 # process-local lease/transport doubles. No real VM, bus or shared mutable path.
+# Upgrade command checks use private decoder/recorder files, process-local
+# command/session doubles and waited Perl children; no shared VM, bus or GUI.
 REVIEWED = frozenset("""
+package_upgrade_cleanup_safety
 upgrade_assets_cleanup_safety
 desktop_language_cleanup_safety
 localization

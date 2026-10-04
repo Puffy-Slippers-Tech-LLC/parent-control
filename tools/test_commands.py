@@ -377,7 +377,8 @@ def allocate_artifact_output(value):
 def qualification_artifact_command(root, category, args):
     """Prepare fixed Parent inputs in this run, including after retention expiry."""
     if category == 'integration' and args in (
-            ['check_e2e_upgrade_assets'], ['check_e2e_upgrade_assets.py']):
+            ['check_e2e_upgrade_assets'], ['check_e2e_upgrade_assets.py'],
+            ['check_e2e_package_upgrade'], ['check_e2e_package_upgrade.py']):
         from test_storage import named_input
         output = str(named_input(upgrade_source=True))
         if os.path.lexists(output):

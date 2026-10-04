@@ -11,8 +11,9 @@ from package_upgrade import PLAN as UPGRADE_PLAN, PackageUpgradeJourney, upgrade
 from private_artifacts import require
 
 
-def renewed_desktop(prefix, role):
-    return {prefix + stage: tag for stage, tag in fresh_desktop(role).items()}
+def renewed_desktop(prefix, role, *, product_free=False):
+    return {prefix + stage: tag for stage, tag in
+            fresh_desktop(role, product_free=product_free).items()}
 
 
 CHILD = renewed_desktop('language-', 'other-child')

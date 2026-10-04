@@ -179,10 +179,12 @@ class JourneyPlan:
                     self.prefix + ':challenge-plan')
             recipient = ('gdm-parent-recipient' if role == 'parent' else
                          'gdm-child-recipient' if role == 'child' else 'gdm-standard-recipient')
-            focus = ('gdm-focused' if role == 'parent' else
-                     'gdm-child-focused' if role == 'child' else 'gdm-standard-focused')
+            focus = (('gdm-focused', 'gdm-product-free-focused') if role == 'parent' else
+                     ('gdm-child-focused',) if role == 'child' else
+                     ('gdm-standard-focused', 'gdm-product-free-standard-focused'))
             require(stages.index(first) > 0
-                    and self.screen_tags[stages[stages.index(first) - 1]] == 'ui:' + focus
+                    and self.screen_tags[stages[stages.index(first) - 1]] in
+                        tuple('ui:' + operation for operation in focus)
                     and self.screen_tags[first] == 'ui:' + recipient
                     and self.screen_tags[second] == 'ui:' + recipient + '-rechecked',
                     self.prefix + ':challenge-plan')

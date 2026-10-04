@@ -336,6 +336,11 @@ def test_current_chinese_binding_has_setup_before_one_install_and_one_reboot():
     assert stages.index('reboot-greeter') < stages.index('initial-language') < stages.index('initial-form')
     assert PLAN.reboot_transitions == (('reboot-requested', 'reboot-greeter'),)
     assert PLAN.stage_actions['package-submitted'] == 'install-package'
+    assert PLAN.screen_tags['language-installed-greeter'] == 'ui:gdm-product-free-standard-list'
+    assert PLAN.screen_tags['language-standard-focused'] == 'ui:gdm-product-free-standard-focused'
+    assert PLAN.screen_tags['install-installed-greeter'] == 'ui:gdm-product-free-list'
+    assert PLAN.screen_tags['install-parent-focused'] == 'ui:gdm-product-free-focused'
+    assert PLAN.screen_tags['return-installed-greeter'] == 'ui:gdm-list'
     assert not any('upgrade' in value or 'approval' in value or 'language-save' in value
                    for value in (*PLAN.stage_actions.values(), *PLAN.screen_tags.values()))
 
@@ -347,3 +352,12 @@ def test_routine_login_has_no_wrong_account_visit_or_prompt_dismissal():
         assert not any('wrong' in value or 'other-parent' in value or 'dismiss' in value
                        for value in (*stages, *stages.values()))
         assert len(stages) == 5
+
+
+def test_product_free_desktop_binding_refuses_invalid_roles_and_result():
+    from journey_blocks import fresh_desktop
+    from private_artifacts import EvidenceError
+    for role, expected, binding in (('child', 'success', True), ('parent', 'time-denied', True),
+                                    ('other-child', 'success', 'true')):
+        with pytest.raises(EvidenceError):
+            fresh_desktop(role, expected, product_free=binding)

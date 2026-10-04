@@ -1523,6 +1523,68 @@ def test_gdm_product_free_adapter_focuses_declared_parent_without_station():
     parent.action.do_action.assert_not_called()
 
 
+def test_current_chinese_renewal_enters_child_then_parent_before_installation():
+    from chinese_current_install import PLAN
+    parent, standard, _station = semantic_gdm_rows(standard=True)
+    ui, _shell = semantic_gdm_ui(rows=[standard, parent])
+    for stage in ('language-installed-greeter', 'language-standard-focused',
+                  'install-installed-greeter', 'install-parent-focused'):
+        assert ui.run(PLAN.screen_tags[stage][3:], '')['outcome'] == 'passed'
+    standard.component.grab_focus.assert_called_once_with()
+    parent.component.grab_focus.assert_called_once_with()
+    standard.action.do_action.assert_not_called()
+    parent.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['station', 'missing-parent', 'missing-child', 'duplicate-child',
+                                  'disabled-child', 'prompt', 'wrong-owner'])
+def test_product_free_standard_entry_refuses_wrong_shape_before_focus(fault):
+    parent, standard, station = semantic_gdm_rows(standard=True)
+    rows = [parent, standard]
+    if fault == 'station': rows.append(station)
+    if fault == 'missing-parent': rows.remove(parent)
+    if fault == 'missing-child': rows.remove(standard)
+    if fault == 'duplicate-child': rows.append(Node(accessible_ui.EXISTING_CHILD, 'push button'))
+    if fault == 'disabled-child': standard.states.remove('sensitive')
+    field = Node('Password', 'password text') if fault == 'prompt' else None
+    applications = []
+    if fault == 'wrong-owner':
+        rows.remove(standard)
+        applications.append(Node('Unrelated', 'application', children=[standard]))
+    ui, _shell = semantic_gdm_ui(rows=rows, field=field, applications=applications)
+    with pytest.raises(UiError):
+        ui.run('gdm-product-free-standard-list', '')
+    standard.component.grab_focus.assert_not_called()
+    parent.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong-role', 'skip-first', 'intervening-focus'])
+def test_product_free_standard_entry_retains_fresh_challenge_order(fault):
+    def call(argv, **kwargs):
+        operation = argv[3]
+        result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation in accessible_ui.GREETER_NAVIGATION: result['focused'] = True
+        return json.dumps(result).encode()
+    transport = SimpleNamespace(call=Mock(side_effect=call))
+    ui = UiObservations(transport)
+    ui.observe('gdm-product-free-standard-list')
+    ui.observe('gdm-product-free-standard-focused')
+    challenge = {'id': 'pre-install-child', 'role': 'other-child', 'surface': 'gdm',
+                 'check': 'qualified'}
+    if fault == 'wrong-role':
+        with pytest.raises(EvidenceError, match='recipient-order'):
+            ui.observe_challenge('gdm-parent-recipient', {**challenge, 'role': 'parent'})
+        return
+    if fault != 'skip-first':
+        ui.observe_challenge('gdm-standard-recipient', challenge)
+    if fault == 'intervening-focus': ui.observe('gdm-product-free-standard-focused')
+    if fault in ('skip-first', 'intervening-focus'):
+        with pytest.raises(EvidenceError, match='challenge-order'):
+            ui.observe_challenge('gdm-standard-recipient-rechecked', {**challenge, 'check': 'rechecked'})
+    else:
+        ui.observe_challenge('gdm-standard-recipient-rechecked', {**challenge, 'check': 'rechecked'})
+
+
 def test_gdm_product_free_and_installed_bindings_reject_the_opposite_fixture_shape():
     parent, station = semantic_gdm_rows()
     product_free, _shell = semantic_gdm_ui(rows=[parent, station])

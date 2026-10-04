@@ -140,7 +140,7 @@ def observed_text(entry, binding):
     }
 
 
-def fresh_desktop(account, expected='success'):
+def fresh_desktop(account, expected='success', *, product_free=False):
     """Direct fixture entry, with fresh recipient proofs before secret input.
 
     Deliberate wrong-account visits belong to the separate harness qualification.
@@ -148,6 +148,9 @@ def fresh_desktop(account, expected='success'):
     require(account in ('parent', 'other-child', 'child'), 'journey:desktop-binding')
     require(expected in ('success', 'time-denied') and
             (expected == 'success' or account == 'child'), 'journey:desktop-result')
+    require(type(product_free) is bool and
+            (not product_free or account in ('parent', 'other-child')),
+            'journey:desktop-product-binding')
     if account == 'child':
         return {
             'installed-greeter': 'ui:gdm-child-list',
@@ -159,18 +162,20 @@ def fresh_desktop(account, expected='success'):
         }
     if account == 'other-child':
         return {
-            'installed-greeter': 'ui:gdm-standard-list',
-            'standard-focused': 'ui:gdm-standard-focused',
+            'installed-greeter': ('ui:gdm-product-free-standard-list' if product_free
+                                  else 'ui:gdm-standard-list'),
+            'standard-focused': ('ui:gdm-product-free-standard-focused' if product_free
+                                 else 'ui:gdm-standard-focused'),
             'standard-recipient-qualified': 'ui:gdm-standard-recipient',
             'standard-recipient-rechecked': 'ui:gdm-standard-recipient-rechecked',
             'desktop': 'ui:standard-desktop',
         }
     return {
-        'installed-greeter': 'ui:gdm-list',
-        'parent-focused': 'ui:gdm-focused',
+        'installed-greeter': 'ui:gdm-product-free-list' if product_free else 'ui:gdm-list',
+        'parent-focused': 'ui:gdm-product-free-focused' if product_free else 'ui:gdm-focused',
         'recipient-qualified': 'ui:gdm-parent-recipient',
         'recipient-rechecked': 'ui:gdm-parent-recipient-rechecked',
-        'desktop': 'ui:desktop',
+        'desktop': 'ui:fresh-parent-desktop' if product_free else 'ui:desktop',
     }
 
 
@@ -239,11 +244,8 @@ def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
 
 def product_free_desktop():
     """Fresh administrator login and command context before installing the app."""
-    stages = fresh_desktop('parent')
+    stages = fresh_desktop('parent', product_free=True)
     stages.update({
-        'installed-greeter': 'ui:gdm-product-free-list',
-        'parent-focused': 'ui:gdm-product-free-focused',
-        'desktop': 'ui:fresh-parent-desktop',
         'command-context': 'system:parent-command-context',
     })
     return stages

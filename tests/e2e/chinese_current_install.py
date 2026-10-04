@@ -12,9 +12,9 @@ from private_artifacts import require
 from product_free_entry import ProductFreeEntryJourney
 
 
-CHILD = renewed_desktop('language-', 'other-child')
+CHILD = renewed_desktop('language-', 'other-child', product_free=True)
 CHILD['language-desktop'] = 'ui:chinese-standard-desktop'
-ADMIN = renewed_desktop('install-', 'parent')
+ADMIN = renewed_desktop('install-', 'parent', product_free=True)
 RETURN = renewed_desktop('return-', 'parent')
 SCREENS = {
     'wrong-entry': 'ui:gdm-product-free-list', **product_free_desktop(),

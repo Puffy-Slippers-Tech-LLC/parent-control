@@ -2557,6 +2557,14 @@ and approval bindings without importing the old-release installation or upgrade.
 Task 300k owns qualification of the changed fresh-install composition before
 task 300 claims complete-case acceptance; it is pending.
 
+Pre-install renewal binds `fresh_desktop(..., product_free=True)` through
+`renewed_desktop` for Jordan and Jamie. The product-free standard list/focus
+operations reuse the owned GDM semantic adapter, requiring both declared rows
+and absence of the station before focus. Installed standard entry still requires
+the station. Both bindings retain the same role-specific, ordered fresh password
+recipient proofs; changing package lifetime never relaxes authentication guards.
+The current-install qualification supplies live coverage of this new binding.
+
 The **user desktop-language switch is DESK13**, a shared building block, not
 case-local shell code or a locale-file edit. Its fixed consumer binds Jordan
 and `zh_CN.UTF-8`; it independently confirms the system account language while
@@ -4665,6 +4673,10 @@ Before the first live attempt, check the changed boundary end to end on the host
    appropriate host regression before fixing it.
    Include the relevant preceding transition in that regression: a fresh widget
    may work while the same retained widget fails after session/window input.
+   Check package lifetime at every renewed entry: installed GDM list/focus
+   operations require the station account, while product-free operations prove
+   its absence. A reused login fragment must explicitly bind that lifetime
+   before authentication; a matching child row cannot satisfy the wrong list.
    Record the hypothesis, the observation that would distinguish it, and the
    actual result in the existing attempt/handoff. If the added prerequisite
    passes but the same boundary still fails, retire that explanation as

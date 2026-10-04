@@ -152,6 +152,8 @@ OPERATION_LABELS = {
     'gdm-product-free-list': 'Reading the product-free greeter account list',
     'gdm-product-free-provider': 'Recording the product-free greeter provider tuple',
     'gdm-product-free-focused': 'Checking the product-free Parent account is focused',
+    'gdm-product-free-standard-list': 'Reading the product-free standard-account greeter list',
+    'gdm-product-free-standard-focused': 'Checking the product-free standard account is focused',
     'gdm-product-free-select-parent': 'Checking the product-free Parent password prompt',
     'gdm-product-free-returned': 'Checking the product-free greeter list after dismissal',
     'gdm-dismissed': 'Checking the password prompt was dismissed',
@@ -1855,7 +1857,7 @@ class UiObservations:
         elif operation == 'gdm-standard-wrong-recipient-refused':
             require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')
         elif operation == 'gdm-standard-recipient':
-            require(self.last_operation == 'gdm-standard-focused',
+            require(self.last_operation in ('gdm-standard-focused', 'gdm-product-free-standard-focused'),
                     'ui:recipient-order')
         elif operation == 'gdm-standard-recipient-rechecked':
             require(self.last_operation == 'gdm-standard-recipient', 'ui:recipient-order')

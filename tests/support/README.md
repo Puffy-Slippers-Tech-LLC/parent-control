@@ -88,6 +88,11 @@ language readiness: a complete traversal can read the old readiness marker
 before the new child's UID and translated description. Missing selection,
 language completion or full form readback
 keeps the selection terminal and prevents replay.
+`test_selected_child_snapshot_cannot_supply_later_language_readiness` in the
+[restoration regressions](../unit/test_kiosk_language_restoration_cleanup_safety.py)
+models the mixed-time traversal and failed Save. Keep this transition test when
+optimizing snapshot reuse; a complete tree is not a simultaneous view of all
+widget properties.
 
 The station restoration qualification's return to Parent reuses
 `onpc_parent::launch` with the fresh `return-desktop` receipt. Its separate
@@ -109,6 +114,11 @@ requires the popup and UID-scoped choice before the existing focus/Enter/selecte
 readbacks. Failure is terminal and never falls back from a failed popup action.
 Real GTK regression covers policy-page reads both alone and after input to
 another owned preview window, which reproduced the direct-popup timeout.
+`test_parent_child_picker_after_language_policy_reads` in the
+[language UI tests](../ui/test_language_settings.py) preserves that preceding
+input/return history. Active-window proof alone did not repair the live failure;
+do not reduce this regression to a newly launched window or infer popup success
+from focus/action acknowledgement.
 The additional preview uses the existing private bus/display and owned cleanup;
 UI parallel classification remains private. Unit doubles and waited Perl retain
 their existing unit/cleanup classifications. Policy collection explicitly waits

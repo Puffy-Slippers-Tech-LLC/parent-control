@@ -1125,6 +1125,13 @@ Scratch initialization publishes a complete owner atomically from a recorded
 staging slot; interrupted initialization and deletion can resume without
 adopting unknown payloads or losing the directory identity.
 
+Artifact exports also use a bounded journal: each export starts a retention
+session, so exporting the same report repeatedly can evict a different report
+still needed for close-out. Reuse an existing retained export, preserve required
+reports before their execution journal rotates, and verify their actual paths
+after the final export/preparation/check. A remembered export path is not a
+retention guarantee; see [artifact access](#prompt-free-test-artifact-access).
+
 When the developer explicitly authorizes discarding saved results, use
 `tools/cleanup-e2e --vm NAME --discard-completed` for all completed registered
 execution results of that VM, or `tools/cleanup-e2e --host-only --discard-completed`
@@ -1713,6 +1720,15 @@ layers actually measured and include the separate child-language results.
 
 ### Handling test failures
 
+On resume, reconcile the current working tree, the active runner's actual
+selection, and the latest retained category/attempt results with the handoff.
+The handoff can predate an already tested correction or a still-running retry.
+Attach to a matching run through the maintained launcher and let its cleanup
+finish; do not mistake attachment for execution of new arguments. Coordinate
+one editor for the same task when another agent is active, including close-out;
+the VM lease does not serialize source/document edits. Preserve existing work
+and valid results instead of restarting the whole investigation.
+
 Tests protect required behavior and catch regressions. Current app behavior is
 not sufficient evidence that a failing expectation is wrong. Investigate the
 failure against the authoritative specification/design requirement and any
@@ -1738,6 +1754,16 @@ assertion can indicate a regression; its failure type alone does not establish
 a mechanical test issue. Report the cause, correction and verification in the
 normal work summary. A test's disagreement with the app alone never justifies
 classifying the test as broken.
+
+Read the failed operation's retained error and independent result, not only a
+generic worker/SSH error or its last printed title. A title may precede a failed
+exchange. Use the [composition preflight](../docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight)
+to distinguish competing explanations and retire disproven repair hypotheses.
+A pre-acquisition busy-controller refusal follows the
+[VM ownership contract](../docs/Mandates/VM-Mandate.MD#authority-and-operation);
+it supplies no product result and does not invalidate independently passed
+categories. Once ownership is released and readiness is established, retry only
+the unexecuted/failed selection with its original assertions.
 
 ### Coverage maintenance workflow
 

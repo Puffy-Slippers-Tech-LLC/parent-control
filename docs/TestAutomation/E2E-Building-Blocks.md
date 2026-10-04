@@ -4550,6 +4550,9 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | Keyboard assumptions select the wrong child or menu item | Use UI14's ID-addressed navigation, verify the intended highlighted row, then press Enter. Verify the selected child independently. Ordinary Parent launch/reopening uses PARENT01's direct command and independent window result; only explicit app-grid discovery cases use whole-query SEARCH05/06. |
 | An acknowledged action has no durable evidence, or belongs to the wrong step | Store the observation and any required next-phase start before publishing the reply; guard ownership again after storage. An acknowledgement may immediately permit input. Storage or guard failure latches terminal failure. |
 | A stale observation appears to prove returning to the same child | Reconcile one fresh semantic result per ordered stage. Compare the returned child, switch state and allowance with the initial displayed settings. Missing, reused or reordered evidence refuses. Worker exit zero alone cannot pass. |
+| A complete accessibility traversal combines old readiness with a new account identity (300j) | Completeness is not atomicity. Confirm the selected UID and closed list, then discard that snapshot before the separate language-readiness/setup boundary. Regress the mixed-time traversal, saved/unset language and failed Save without input replay. Reuse the [shared account-selection implementation](../../tests/support/README.md#host-and-guest-boundaries), rather than adding sleeps or treating submitted values as results. |
+| A retained Parent window is active but its direct popup still does not open (300j) | Reproduce the preceding input to another window and return to Parent, not only the isolated picker. Active-window proof passed while the original failure remained, so activation alone was an insufficient explanation. The qualified shared keyboard route proves selector focus, sends one Space and independently reads the popup; select it before input, never as a retry after an uncertain popup action. See the exact [qualified binding](#personal-language-selection) and `test_parent_child_picker_after_language_policy_reads` in the [real GTK regressions](../../tests/ui/test_language_settings.py). |
+| A resumed brief describes a failure although newer repairs or tests already exist (300j) | Reconcile the checkout, active runner selection and retained reports before editing or rerunning. A run title emitted before the exchange completes is not confirmed result evidence. Preserve valid completed slices and retry only outstanding work; follow [failure handling](../../tests/README.md#handling-test-failures) and [VM ownership](../Mandates/VM-Mandate.MD#authority-and-operation). |
 | Choosing package inputs | Build artifacts when the installed product needs to include current changes. Runs use the supplied artifacts and allow concurrent checkout edits; private staged artifacts remain integrity-checked. |
 | VM is off but baseline acquisition reports `guard:source-changed` | Inspect the saved run phase and inactive configuration through the approved readers. An interrupted `isolated` setup can retain the test configuration. Use recorded graphical cleanup; do not edit the journal, recreate the baseline or treat powered-off status alone as restored state. |
 | A small fake collection passes but the installed app's reply exceeds the transport limit | Test the complete observation through serialization and both buffered/streamed transport at realistic and maximum declared sizes, including repeated save events (017b). Keep byte, item-count and schema bounds consistent. [App-row regressions](../../tests/unit/test_e2e_app_rows.py) and [trace regressions](../../tests/unit/test_e2e_feedback_read.py) exercise realistic collections and reject oversized/partial results. |
@@ -4660,6 +4663,15 @@ Before the first live attempt, check the changed boundary end to end on the host
    one cause or a diagnostic that distinguishes remaining explanations before
    another live attempt. Reproduce a mechanical defect in the smallest
    appropriate host regression before fixing it.
+   Include the relevant preceding transition in that regression: a fresh widget
+   may work while the same retained widget fails after session/window input.
+   Record the hypothesis, the observation that would distinguish it, and the
+   actual result in the existing attempt/handoff. If the added prerequisite
+   passes but the same boundary still fails, retire that explanation as
+   insufficient; do not repeat the same repair or call the prerequisite a fix.
+   Separate a reproduced symptom from an unverified toolkit mechanism in code
+   comments and handoffs. A later passed input/result boundary establishes the
+   repair; merely reaching its worker title does not.
    Preserve behavior decisions under the existing
    [failure contract](../../tests/README.md#handling-test-failures); wider retries
    and longer timeouts are not explanations.

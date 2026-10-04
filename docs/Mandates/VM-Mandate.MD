@@ -64,6 +64,17 @@ and supplies no live qualification.
   excluding older controllers that still require it exclusively. Existing
   unfinished legacy journals refuse new execution until recovered; evidence
   is never discarded to enable parallelism.
+- **Controller contention:** Checkout activity locks do not reserve the VM
+  across every category transition or exclude work from another checkout.
+  For `state:busy-controller` or a launcher ownership refusal, inspect the
+  retained failure location and current runner/owner through authorized
+  read-only diagnostics. A refusal before acquisition is infrastructure
+  contention, not a product assertion. Attach only to a matching run in the
+  current checkout; otherwise let the foreign owner finish its normal cleanup.
+  Do not stop its VM/processes, clear locks/journals, or refresh the baseline
+  to make room. Recheck readiness through the maintained route after release,
+  then retry only the affected selection. If the owner cannot finish without
+  external action, report that concrete blocker and preserve completed results.
 
 ## VM observation mandate
 

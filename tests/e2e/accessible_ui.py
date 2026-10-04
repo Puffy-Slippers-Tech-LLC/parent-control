@@ -5743,8 +5743,11 @@ class AccessibleUI:
     def focus_child_picker(self):
         """Qualify one native Space input before opening a retained popup.
 
-        After input to another Wayland client, GtkMenuButton.popup() can use
-        an obsolete implicit-grab serial despite an active Parent window.
+        The real GTK regression
+        test_parent_child_picker_after_language_policy_reads reproduces a
+        failed direct popup after input to another client, despite an active
+        Parent window. Preserve that history; activation alone was insufficient.
+        The observation does not itself prove a particular compositor cause.
         Select this keyboard route before input, never after a failed popup.
         """
         require(not self.input_uncertain, 'ui:uncertain-input')

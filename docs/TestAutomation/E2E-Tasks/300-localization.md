@@ -46,8 +46,12 @@ recipe; neither an English approval nor a mocked/product-only prompt suffices.
 
 Reuse the current-only LIFE04 path and LIFE02, FIX04/FIX06, DESK13 and LANG01.
 Chinese assets belong to baseline preparation; attempts verify them. Reuse
-`ChineseKioskJourney` initial-presentation operations in
+`ChinesePresentationMixin` initial-presentation comparisons in
 [chinese_kiosk_lifecycle.py](../../../tests/e2e/chinese_kiosk_lifecycle.py),
+the qualified `chinese_current_install.PLAN` / `ChineseCurrentInstallJourney`
+composition in [chinese_current_install.py](../../../tests/e2e/chinese_current_install.py),
+and shared worker `chinese_desktop_renewal`, `chinese_initial_notice` and
+`chinese_initial_form` leaves. Reuse
 `request_flow.chinese_request` / `onpc_request_flow::prepare_chinese` and
 `kiosk_approved_flow.chinese_approval` / `onpc_request_flow::approve_chinese`.
 The case supplies finite values, public return and persistence comparisons;
@@ -55,7 +59,10 @@ shared operations own selectors, lifecycle and authentication mechanics.
 
 Task 300e's historical upgrade qualification and 300f's two Chinese approvals
 remain scoped evidence in the [catalogue](../E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup).
-Task 300k qualifies the changed current-install composition. Reuse current
+Task 300k qualified the current-install composition in
+`20261004T185057Z-2010e28f`; required customer-reboot and historical Chinese
+lifecycle regressions passed in `20261004T185756Z-2e816150` and
+`20261004T190226Z-07180c48`. Reuse current
 callables and valid evidence, never the old qualification's dual-package
 lifecycle or restored attempt.
 
@@ -68,9 +75,8 @@ preserves every original obligation in tasks 306–310, with bounded prerequisit
 qualifications; no multilingual, RTL, offline, draft, countdown or translated
 approval assertion is dropped.
 
-Task 300j retains its own German/Hebrew restoration qualification unchanged.
-After it closes, the next task is 300k, then this Chinese case. This session
-does not execute those later tasks. Current briefs/recipes supersede the old
+Tasks 300j and 300k retain their completed scoped qualifications. This Chinese
+case is the next task and starts in a fresh session. Current briefs/recipes supersede the old
 saved task-300 handoff's combined-case and Chinese-upgrade wording; preserve
 launcher checkpoints and historical evidence.
 

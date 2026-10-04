@@ -489,7 +489,6 @@ This planning allocation qualifies no new route:
 
 | Pending binding | Qualification task | Complete scenario |
 | --- | --- | --- |
-| Chinese current-install / single-reboot first presentation | 300k | 300 |
 | Enabled Chinese Parent state across child selection | 306a | 306 account/offline persistence; 307 Parent presentation |
 | Permitted installed Hebrew direction/bidi/legibility observations | 307a; separate qualification for each surface | 307–310 |
 | Parent inherited About/feedback text and retained synthetic draft | 307b | 307 |
@@ -2554,8 +2553,28 @@ Task 300's current recipe uses one verified current-package installation and one
 subsequent reboot. Tasks 300c/300d and the upgrade-based 300e/300f journey envelopes
 below remain historical qualifications; reuse their scoped Chinese observations
 and approval bindings without importing the old-release installation or upgrade.
-Task 300k owns qualification of the changed fresh-install composition before
-task 300 claims complete-case acceptance; it is pending.
+Task 300k qualified the fresh-install composition through
+`check_e2e_chinese_current_install` on Ubuntu 26.04 in
+`20261004T185057Z-2010e28f`. `chinese_current_install.PLAN` /
+`ChineseCurrentInstallJourney` compose one current-package installation and one
+reboot, reusing `ChinesePresentationMixin` and the worker's
+`chinese_desktop_renewal`, `chinese_initial_notice` and `chinese_initial_form`
+leaves. All 11 assertions passed: product-free entry/refusals, Chinese assets and
+renewed desktop, installation completion/version/notice with independent
+unchanged-boot reread, the first Chinese restart notice, changed boot and fresh
+greeter, then untouched Jordan Chinese chooser/default and form after Cancel
+without saving. No Parent policy setup was needed for these initial observations.
+
+Required customer-reboot and historical Chinese kiosk lifecycle regressions
+passed in `20261004T185756Z-2e816150` and `20261004T190226Z-07180c48`.
+All three runs passed collection, worker shutdown, callback closure, owned
+cleanup, baseline restoration, finalization and host/source preservation.
+Reports remain under `output/test-runs/host/reports/<run>/report.md`.
+Scoped host safety/composition checks and source validation passed. The isolated
+guest payload includes `session_control`; its real isolated-import regression
+and synthetic transport fixtures protect that dependency boundary. This qualifies
+first presentation only; task 300 still owns the complete single-reboot history
+with two genuine Chinese approvals.
 
 Pre-install renewal binds `fresh_desktop(..., product_free=True)` through
 `renewed_desktop` for Jordan and Jamie. The product-free standard list/focus
@@ -2563,7 +2582,7 @@ operations reuse the owned GDM semantic adapter, requiring both declared rows
 and absence of the station before focus. Installed standard entry still requires
 the station. Both bindings retain the same role-specific, ordered fresh password
 recipient proofs; changing package lifetime never relaxes authentication guards.
-The current-install qualification supplies live coverage of this new binding.
+The current-install qualification supplies live coverage of both product-free bindings.
 
 The **user desktop-language switch is DESK13**, a shared building block, not
 case-local shell code or a locale-file edit. Its fixed consumer binds Jordan
@@ -4639,6 +4658,11 @@ Before the first live attempt, check the changed boundary end to end on the host
    For a custom journey class, also call the real recorder entry point through
    worker startup: its constructor must accept and forward `plan` and keyword
    `actions`. Direct class tests and a mocked recorder do not cover this boundary.
+   For standalone guest observers, execute the actual stdin payload with isolated
+   Python from a private directory. An invalid operation must reach the argument
+   refusal before any host UI or account access; checkout imports must not hide
+   a missing bundled dependency. Keep synthetic transport fixtures aligned with
+   that same dependency bundle.
    Drive a changed comparison subclass through the real `InstalledJourney.step`
    as well: helper names must not override another recorder hook accidentally.
    Verify both the inherited observation validation and the new comparison run

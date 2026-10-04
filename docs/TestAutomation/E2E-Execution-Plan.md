@@ -19,12 +19,12 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **300k — [Qualify Chinese first presentation after the latest installation](E2E-Tasks/300k-chinese-current-install.md)**.
+Next task: **300 — [Chinese latest-install kiosk lifecycle](E2E-Tasks/300-localization.md)**.
 
-Task 300j's exact German/Hebrew restoration qualification and required kiosk,
-English selector, overlay-language and case 6 regressions passed on Ubuntu 26.04.
-Its delivered scope and evidence are recorded in the queue and LANG01 catalogue.
-Task 300k begins in a fresh session under the normal one-task process.
+Task 300k's current-install, single-reboot Chinese first-presentation qualification
+and required customer-reboot and Chinese kiosk lifecycle regressions passed on
+Ubuntu 26.04. Its delivered scope and evidence are recorded in the queue and
+catalogue. Task 300 begins in a fresh session under the normal one-task process.
 
 Task 300 was too broad: it combined independent customer histories and several
 unqualified surface/result bindings. The
@@ -38,7 +38,7 @@ retain their relative order; panel and report scenarios follow their actual
 pending dependencies. No scenario registration or acceptance is claimed by
 this reconciliation.
 
-Task 300k qualifies the changed current-install composition before task 300.
+Task 300k qualified the changed current-install composition for task 300.
 Use one latest verified current-source package from a product-free baseline,
 not a v1.2 upgrade. Historical 300c/300d evidence remains historical, and the
 old saved handoff's combined-case/upgrade wording is superseded by the current

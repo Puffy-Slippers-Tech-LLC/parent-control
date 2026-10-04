@@ -1476,7 +1476,9 @@ This is **one complete planned case** owned by
 retain every original assertion under the
 [acceptance decomposition](#personal-language-acceptance-decomposition).
 No numeric coverage ID, executable binding or acceptance is registered yet.
-Task 300k first qualifies the revised fresh-install composition. Register one
+Task 300k qualified the revised fresh-install first presentation in
+`20261004T185057Z-2010e28f`, with both required lifecycle regressions passed.
+Register one
 complete Chinese case after its prerequisites pass; keep all three reported
 symptoms in this continuous history, without a German/Hebrew lifecycle matrix.
 
@@ -1502,8 +1504,12 @@ the Chinese form without a preference save. This slice passed on every enabled
 VM in `20261004T044302Z-572b0ee7`; task 300e's required package-upgrade and
 kiosk-entry regressions and close-out also passed.
 These slices supply no complete-case acceptance. Recheck their shared observations
-with the fresh-install, single-reboot sequence below and qualify any missing
-composition before registering task 300's continuous case.
+within task 300's continuous case. `ChineseCurrentInstallJourney` in
+[chinese_current_install.py](../../tests/e2e/chinese_current_install.py) now
+qualifies the fresh-install, single-reboot sequence through the initial form.
+It reuses `ChinesePresentationMixin` and the same worker renewal/notice/form
+leaves as the historical qualification. Qualify any additional missing binding
+before registering task 300's continuous case.
 
 Finite inputs: selected child Jordan; approver Jamie; child desktop locale
 `zh_CN.UTF-8`; product language `zh-Hans`; Jamie and kiosk station desktop

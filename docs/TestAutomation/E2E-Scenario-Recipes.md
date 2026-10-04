@@ -1471,12 +1471,14 @@ their fast technical coverage.
 
 ### Chinese kiosk language lifecycle (planned task 300)
 
-This is the fixed Chinese lifecycle segment of **one complete planned case**
-owned by [task 300](E2E-Tasks/300-localization.md), alongside that task's existing
-representative personal-language acceptance. No numeric coverage ID, executable
-binding or acceptance result is registered yet. Register one complete case after
-its prerequisite slices are qualified; do not split the three reported symptoms
-into variants or run this lifecycle as a German/Hebrew language matrix.
+This is **one complete planned case** owned by
+[task 300](E2E-Tasks/300-localization.md). The independent multilingual histories
+retain every original assertion under the
+[acceptance decomposition](#personal-language-acceptance-decomposition).
+No numeric coverage ID, executable binding or acceptance is registered yet.
+Task 300k first qualifies the revised fresh-install composition. Register one
+complete Chinese case after its prerequisites pass; keep all three reported
+symptoms in this continuous history, without a German/Hebrew lifecycle matrix.
 
 Use the [current-package installation binding](E2E-Building-Blocks.md#customer-package-install-composition)
 and LIFE02 reboot for a fresh installation of the latest verified current-source
@@ -1532,6 +1534,133 @@ chooser before the initial-language assertions. Preserve the shared request,
 authorization and policy results, ordinary owned cleanup and the uninterrupted
 latest installation → Chinese pre-reboot prompt → reboot → first kiosk → approval
 → fresh kiosk → approval history.
+
+### Personal-language acceptance decomposition
+
+Task 300 originally combined independent customer histories and unqualified
+bindings. The developer authorized smaller tasks, while this session completes
+only 300j. Preserve the following original acceptance mapping; each scenario is
+one complete case, not a fragment of a resumed VM attempt. These task IDs are
+planning IDs, not numeric coverage IDs. Allocate one stable inventory binding
+per complete recipe during implementation; none is registered or passed here.
+
+| Original task-300 acceptance | Complete scenario owner | Missing capability / prerequisite |
+| --- | --- | --- |
+| 1: first-run default, native names, Save/Cancel and checked translated text | 306 account/offline persistence; Chinese untouched first presentation remains 300 | Existing LANG01; 306a enabled Parent/child-selection readback |
+| 2 and 5: independent administrator/two-child choices, child/approver switches, overlay/kiosk sharing, relaunch/re-entry/session renewal and offline packaged German/CJK/Hebrew | 306 | 300j station restoration; 306a; existing Internet isolation |
+| 3: overlay-to-panel refresh, reopening/resume, countdown and natural expiry without reset/grants/policy changes | 310 | 310a plus existing retained-session, tooltip/menu, minute/final-tick and natural-expiry tasks |
+| 4: inherited About/feedback, synthetic draft/reply, unchanged names/numbers | 307 Parent; 308 overlay; 309 kiosk | 307b, 308a, 309a; real child/station report-entry gates remain 187o/187k |
+| 4: ordinary translated approval/result per request surface | 308 overlay; 300 kiosk | 308b genuine Shell approval; existing 300f Chinese MATE binding |
+| 6: installed Hebrew RTL and restored LTR, direction/alignment, legible unclipped text, mixed-script bidi, stable IDs, matching labels, keyboard/focus | 307 Parent/dialogs; 308 overlay/dialogs; 309 kiosk/dialogs; 310 panel/tooltip/menu | 307a permitted public observation route, then each surface's own qualification |
+| 7: latest-package installation, Chinese pre-reboot prompt, one reboot, untouched Chinese chooser/form and two real Chinese approvals across fresh sessions | 300 | 300k revised current-install composition; historical upgrade evidence alone is insufficient |
+
+Every scenario retains unchanged account/application names, numeric values,
+synthetic content, selections and policy/time comparisons where relevant.
+Exhaustive chooser/failure/layout/scale permutations remain with
+[UI coverage](UI-and-E2E-Coverage.md); that allocation does not replace the
+representative installed Hebrew checks. Public semantics must independently
+prove presentation; private widget inspection, catalogue direction, a saved
+language value or review images alone cannot pass RTL/bidi/legibility assertions.
+If the required public observation is unavailable under the UI mandate, retain
+that specific gate and obtain the missing acceptance decision.
+
+### Personal-language persistence (planned task 306)
+
+One complete case: Jamie product language `zh-Hans`, Jordan `de`, Riley
+`he`; all three desktop languages and the station remain English. Through
+public Parent setup, give each child a 60-minute daily allowance with zero grant
+and capture its app-policy rows. Record exact initial values before each child
+session; compare active time using declared monotonic elapsed bounds.
+
+Observe representative untouched English default/native names before saving
+choices. Save Jamie's Chinese in Parent, select Riley → Jordan → Riley and
+independently require Jamie's checked Chinese and management text for each UID.
+Use public child/station Preferences for Jordan German and Riley Hebrew.
+For one declared candidate change (Riley Hebrew → German), Cancel and reopen
+to require Hebrew. Switch kiosk Jordan → Riley → Jordan and Jamie → Casey →
+Jamie; language follows the child only.
+Keep duration 75 seconds and soft apps included; compare accounts/numbers
+without submitting. Riley's overlay and kiosk must show the same saved Hebrew.
+
+Use InternetIsolation before the multilingual changes/readbacks and independently
+confirm isolation. Close/relaunch Parent and Riley's overlay, exit/re-enter kiosk,
+and renew Riley's desktop session through public qualified routes. Require
+persisted choices, German/CJK/Hebrew translated visible/accessibility text and no
+repeated first-run chooser without downloads. Restore Internet through its
+shared owner and independently read public policy/app values. No other
+scenario's approval or panel rendering is needed to pass this account history.
+
+### Parent language presentation (planned task 307)
+
+One complete Parent English → Hebrew → English history for Jamie, selecting
+Riley with its recorded 60-minute allowance, zero grant and captured app rules.
+At each language, independently observe management/Preferences and inherited
+About/feedback text. Hebrew must be RTL with logical alignment, correct mixed
+Hebrew/Latin bidi and legible unclipped text; English must restore LTR.
+Read stable IDs, matching translated visible/accessibility labels and keyboard
+focus/navigation through the qualified installed observation route.
+
+Use exact body `שלום Alex 75` and reply `rtl-check@example.invalid`.
+After entry, close the dialog normally, change language through Preferences and
+reopen; compare retained body/reply before new input. Preserve account/application
+names, numeric policy and focus at each input/result boundary. No Send or
+external-link action. A public modal/draft-lifetime limitation remains a concrete
+gate; host fixtures or privately restored content cannot replace this history.
+
+### Overlay language presentation (planned task 308)
+
+One complete Riley overlay English → Hebrew → English presentation history,
+with Jamie selected, 75 seconds and soft apps included. Capture the native
+activity and synthetic content through the existing approval/return binding.
+Observe form, About and genuine error-report language, RTL/LTR, logical
+alignment, mixed-script bidi, legibility/clipping, stable IDs, visible/accessibility
+labels and keyboard/focus. Retain body `שלום Alex 75` and reply
+`rtl-check@example.invalid` across normal report closure, public language
+change and real reopening before any new input; preserve names/request values.
+
+Use 187o's genuine public trigger and actual cooldown timing; no injected error.
+The same-draft/public-reopen route must be qualified before composition.
+After restored LTR is verified, save Hebrew again and perform one genuine
+75-second soft-included approval. The desktop/native Shell agent remains English;
+the product request/result is Hebrew. Require correct recipient/secret guards,
+ordinary translated success, return to the same usable activity with unchanged
+content and the expected public time increment. Do not send feedback.
+
+### Kiosk language presentation (planned task 309)
+
+One complete restricted kiosk English → Hebrew → English history for Riley,
+Jamie, 75 seconds and soft apps included, with English station desktop.
+Observe form, About and genuine report using the same exact synthetic body/reply
+as task 308. Retain the draft across normal report close, language change and
+actual reopening before new input. Change approver and back while requiring
+the child's checked language and translated form remain unchanged.
+
+Require installed RTL/logical alignment, restored LTR, correct mixed-script
+bidi, legible unclipped Hebrew, matching accessible labels, stable IDs and usable
+keyboard/focus. Preserve literal names, request numbers and station restrictions.
+Use 187k's real error trigger/re-entry timing; unsupported draft reopening is
+a retained gate, not permission for private errors/state. No report submission
+or external-link activation. Ordinary translated kiosk approvals remain in
+task 300's continuous Chinese case.
+
+### Panel language and expiry (planned task 310)
+
+One uninterrupted Riley child history with an initial 10-minute daily-only
+allowance, zero grant and recorded app-policy rows. Use the declared native
+activity, capturing its synthetic content. Change English → Hebrew → English
+through overlay Preferences, close/reopen it and resume the retained child
+session. Independently observe shared choice and refreshed panel, tooltip and
+animation menu using their qualified public operations.
+
+Require Hebrew RTL/logical alignment, restored English LTR, correct mixed
+text/numbers, legible unclipped text, matching visible/accessibility labels,
+stable IDs and usable keyboard/focus. Compare public time with actual elapsed
+bounds at each transition; choices cannot reset time, grant extra access or
+alter saved policy. Observe genuine minute and final-second progression through
+TIME02, then use the activity until natural TIME04 expiry. Require the lock to
+own harmless normal input and desktop access to end; manual locking cannot
+substitute. Declare exact sample windows/tolerances in the finite case plan
+before execution; missed windows fail rather than restoring or resetting time.
 
 ## Coverage ownership and remaining limits
 

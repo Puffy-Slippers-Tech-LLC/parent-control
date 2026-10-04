@@ -121,24 +121,20 @@ tools/run-tests --vm onpc-Ubuntu26.04 integration check_e2e_overlay_language
 
 Shared Parent launch changes retain case 6 under the execution contract. Run
 each selected VM with the launcher's ownership/watch/snapshot/collection/cleanup
-guards. These selectors supply only their exact qualifications, never task 300's
-full multilingual/RTL or Chinese lifecycle acceptance.
+guards. These selectors supply only their exact qualifications, never the
+complete Chinese or multilingual/RTL scenarios in the acceptance decomposition.
 
 ## Session boundary
 
-The initial planning repair qualified nothing; `write-e2e` is now implementing
-this slice. After this fixed station
-restoration slice passes, task 300 still owns independent account persistence
-across all surfaces, panel refresh, inherited dialogs/drafts, installed Hebrew
-RTL and restored LTR, countdown/expiry, translated approval results, offline use
-and its uninterrupted Chinese latest-install/reboot/two-native-approval history.
-Recheck those exact bindings before registering its one complete case; extract
-any remaining missing capability without reducing that acceptance.
+This session completes only this fixed station restoration slice and its
+required regressions. Its finite German/Hebrew acceptance is unchanged.
+The [acceptance decomposition](../E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition)
+assigns the remaining independent histories and missing capabilities to tasks
+300k, 300 and 306–310. After close-out, advance the next-task pointer to 300k;
+leave those tasks to normal later execution. This slice supplies no complete-case
+acceptance.
 
-The launcher's saved handoff for suspended task 300 still describes a Chinese
-upgrade history. That wording predates the developer's scope change and is
-superseded by the current task 300 brief and linked recipe. At close-out, retain
-300j's exact German/Hebrew qualification scope and give the resumed consumer a
-handoff using the latest-install Chinese sequence. Re-read task 300's current
-prerequisites and recipe when resuming it; do not restore 300c/300d as required
-upgrade prerequisites or edit prior launcher checkpoints, prompts or evidence.
+The launcher's saved task-300 handoff predates both the latest-install scope
+and this decomposition. Current briefs and recipes supersede its combined-case
+and Chinese-upgrade wording. Preserve checkpoints, prompts and evidence; do not
+restore 300c/300d as required upgrade prerequisites.

@@ -417,7 +417,7 @@ guards without calling Parent-only child-control helpers. Existing
 the Parent reader does not qualify another application.
 Selected-child restoration/isolation, panel,
 inherited dialogs, RTL layout, countdown and translated approval results remain
-separate bindings to recheck before task 300's complete composition.
+separate bindings owned by the personal-language decomposition below.
 
 Task 300i qualified the fixed Riley child-overlay LANG01 binding.
 `read_overlay_language` and
@@ -457,6 +457,32 @@ is in progress and qualification remains pending. Its current installed-snapshot
 entry is a capability slice, not task 300's latest-install Chinese journey.
 This supplies no panel/dialog/RTL/countdown/approval
 result or complete-case acceptance.
+
+The remaining personal-language bindings follow the
+[acceptance decomposition](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition).
+This planning allocation qualifies no new route:
+
+| Pending binding | Qualification task | Complete scenario |
+| --- | --- | --- |
+| Chinese current-install / single-reboot first presentation | 300k | 300 |
+| Enabled Chinese Parent state across child selection | 306a | 306 account/offline persistence; 307 Parent presentation |
+| Permitted installed Hebrew direction/bidi/legibility observations | 307a; separate qualification for each surface | 307–310 |
+| Parent inherited About/feedback text and retained synthetic draft | 307b | 307 |
+| Hebrew overlay product approval/result with ordinary native Shell authentication | 308b | 308 |
+| Overlay form/About/real error report and same-draft language changes | 308a, after 187o's genuine public trigger | 308 |
+| Restricted kiosk form/About/real report and same-draft language changes | 309a, after 187k's genuine public trigger | 309 |
+| Panel/tooltip/menu language refresh after overlay changes and session resume | 310a, after existing tooltip/menu and retained-session qualifications | 310 countdown/natural expiry |
+
+Current Parent language-state readback assumes disabled limits/zero allowance;
+306a must qualify the enabled Chinese binding. Existing feedback entry/readers
+are Parent/English-bound; shared IDs do not establish translated child/station
+routes. Host GTK direction probes and review images do not prove installed
+RTL/bidi/legibility. Missing permitted public presentation or same-draft report
+reopening remains an explicit gate in these tasks, not claimed readiness.
+The existing fixed countdown observations do not qualify translation,
+minute/final-second progression or natural expiry; retain those earlier queued
+capabilities before composing 310. No future selector listed in these briefs is
+registered merely by this table.
 
 ### App-grid search and Parent launch
 
@@ -2503,7 +2529,8 @@ Task 300's current recipe uses one verified current-package installation and one
 subsequent reboot. Tasks 300c/300d and the upgrade-based 300e/300f journey envelopes
 below remain historical qualifications; reuse their scoped Chinese observations
 and approval bindings without importing the old-release installation or upgrade.
-Recheck the changed fresh-install composition before claiming complete-case acceptance.
+Task 300k owns qualification of the changed fresh-install composition before
+task 300 claims complete-case acceptance; it is pending.
 
 The **user desktop-language switch is DESK13**, a shared building block, not
 case-local shell code or a locale-file edit. Its fixed consumer binds Jordan

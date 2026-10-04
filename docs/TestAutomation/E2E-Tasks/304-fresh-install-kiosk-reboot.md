@@ -22,6 +22,5 @@ Start from the product-free Ubuntu baseline, install the verified current packag
 Register one pending numeric case, its finite recipe, shared worker and exact
 selector during implementation; regenerate coverage through the maintained
 `tools/generate_test_coverage.sh` route. No executable selector exists yet.
-Historical clean-install case 2 and task 300's upgrade language history do not
+Historical clean-install case 2 and task 300's Chinese latest-install history do not
 supply this acceptance. Preserve failures, reconciliation and owned cleanup.
-

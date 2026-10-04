@@ -65,6 +65,7 @@ def test_fedora_public_purge_uses_frozen_cleanup_and_preserves_retry_data(
     preference = machine.write('var/lib/oh-no-parent-control/preferences/1004.json', 'saved preferences')
     log = machine.write('var/log/oh-no-parent-control/broker/day.log', 'retained log')
     source = machine.prepare_script(script_source('postrm', 'fedora')).read_text()
+    monkeypatch.setattr(purge_module, 'Path', lambda value: tmp_path / str(value).lstrip('/'))
     monkeypatch.setattr(purge_module.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(purge_module.platform, 'freedesktop_os_release', lambda: {
         'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'})
@@ -129,6 +130,8 @@ def test_native_confirmation_is_default_and_yes_is_explicit(purge_module, monkey
     monkeypatch.setattr(purge_module, 'cleanup_source', lambda: 'fixed cleanup')
     monkeypatch.setattr(purge_module, 'secure', Mock())
     monkeypatch.setattr(purge_module, 'verify_fedora_pam', Mock())
+    monkeypatch.setattr(purge_module, 'debian_purged', lambda: True)
+    monkeypatch.setattr(purge_module, 'verify_purged_data', Mock())
     queries = iter([True, False])
     monkeypatch.setattr(purge_module, 'rpm_installed', lambda: next(queries))
     run = Mock(return_value=SimpleNamespace(stdout=purge_module.PRODUCT))

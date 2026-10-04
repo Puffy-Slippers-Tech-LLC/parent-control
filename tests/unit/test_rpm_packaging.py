@@ -35,6 +35,9 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     assert not (payload / 'usr/share/pam-configs').exists()
     assert (payload / 'usr/lib64/security/pam_oh_no_parent_control.so').is_file()
     assert (payload / 'usr/libexec/oh-no-parent-control-fedora-pam').is_file()
+    assert (payload / 'usr/bin/oh-no-parent-control-purge').read_bytes() == (ROOT / 'packaging/purge.py').read_bytes()
+    assert (payload / 'usr/share/oh-no-parent-control/lifecycle/postrm').read_text() == (
+        runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))['render'](ROOT, 'fedora', 'postrm').replace('#DEBHELPER#', ''))
     assert (payload / 'usr/lib/oh-no-parent-control/parent/oh_no_parent_control_parent/main.py').is_file()
     broker = (payload / 'usr/lib/systemd/system/oh-no-parent-control-broker.service').read_text()
     assert 'Group=wheel\n' in broker and 'Group=sudo' not in broker

@@ -155,7 +155,6 @@ def test_notice_bootstrap_and_cleanup_do_not_follow_substituted_configuration(ma
     assert protected.read_text() == "preserved\n"
 
 
-@ubuntu_only
 def test_purge_removes_saved_state_logs_and_empty_policy(machine):
     machine.baseline()
     machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
@@ -167,12 +166,11 @@ def test_purge_removes_saved_state_logs_and_empty_policy(machine):
     assert not (machine.root / "var/log/oh-no-parent-control").exists()
     assert not (machine.root / "etc/fapolicyd/compiled.rules").exists()
     assert not (machine.root / "etc/fapolicyd/compiled.rules.prev").exists()
-    assert "deb-systemd-invoke stop fapolicyd.service" in machine.commands
+    assert machine.service_command + " stop fapolicyd.service" in machine.commands
     assert "systemctl disable fapolicyd.service" in machine.commands
     assert machine.commands.index("systemctl daemon-reload") < machine.commands.index("stop fapolicyd.service")
 
 
-@ubuntu_only
 def test_remove_retains_preferences_until_later_purge(machine):
     path = machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
     assert machine.run("postrm", "remove").returncode == 0
@@ -184,7 +182,7 @@ def test_remove_retains_preferences_until_later_purge(machine):
 
 @pytest.mark.parametrize(('machine', 'action'), [
     ('ubuntu', 'remove'), ('ubuntu', 'purge'), ('ubuntu', 'abort-install'),
-    ('fedora', 'remove'),
+    ('fedora', 'remove'), ('fedora', 'purge'),
 ], indirect=['machine'])
 def test_removal_preserves_unsettled_probe_generations(machine, action):
     witness = machine.write("run/oh-no-parent-control/probes/" + "1" * 32 + "/witness",
@@ -268,7 +266,6 @@ def test_changed_home_owner_is_preserved(machine):
     assert (machine.root / "account").exists()
 
 
-@ubuntu_only
 def test_purge_does_not_follow_saved_state_symlink(machine):
     outside = machine.write("unrelated/keep", "keep")
     (machine.root / "var/lib/oh-no-parent-control/linked").symlink_to(outside.parent)
@@ -276,7 +273,6 @@ def test_purge_does_not_follow_saved_state_symlink(machine):
     assert outside.read_text() == "keep"
 
 
-@ubuntu_only
 def test_purge_refuses_substituted_log_directory(machine):
     outside = machine.write("unrelated/keep", "keep")
     (machine.root / "var/log").mkdir()
@@ -360,7 +356,6 @@ def test_failed_policy_reload_keeps_baseline_for_retry(machine):
     assert (machine.root / "var/lib/oh-no-parent-control/fapolicyd-before-install/complete").exists()
 
 
-@ubuntu_only
 def test_purge_refuses_nested_bind_mount_before_deleting_any_content(machine):
     path = machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
     result = machine.run("postrm", "purge", MOUNTED_PATH=str(path.parent))
@@ -402,7 +397,6 @@ def test_later_purge_does_not_request_another_reboot(machine):
     assert not (machine.root / "run/reboot-required").exists()
 
 
-@ubuntu_only
 def test_owned_integrations_removed_but_later_admin_hook_survives_purge(machine):
     hook = machine.integration("gdm-presession", machine.gdm_hook)
     fallback = machine.integration("fapolicyd-fallback", "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules")

@@ -137,14 +137,18 @@ prerequisites. Full runs retain all explicit package lifecycle checks.
 
 The `removal` area starts product-free and keeps installation, configuration,
 refused removal of an edited owned integration, retry, erase, reboot, health
-verification and reinstall in one guarded attempt on either distribution.
-The same case executes across three explicit removal phases; a failed phase
+verification, reinstall, package-delivered purge and a fresh reinstall in one
+guarded attempt on either distribution.
+The same case executes across five explicit lifecycle phases; a failed phase
 stops later transitions. Package checks are its installation prerequisites.
 The shared assertions cover cleared live restrictions/grants, removed payload
 and generated integrations, retained preferences/logs, unrelated account
-preservation, native execution, GDM session health and reinstalled readiness.
-RPM erase retains preferences/logs and has no purge action. Debian's reboot
-notice conffile intentionally survives ordinary removal. Automatic GDM login
+preservation, native execution, GDM and password-login health, reinstalled
+readiness, and fresh policy/request defaults after purge. Ordinary erase retains
+preferences/logs; the explicit installed `oh-no-parent-control-purge --yes` action
+deletes them through the native package manager and shared guarded cleanup.
+Debian's reboot notice conffile intentionally survives ordinary removal.
+Automatic GDM login
 and API policy setup are engineering fixtures, not completed customer E2E
 acceptance; the public removal/reinstall journey retains its own queue and
 qualification requirements.

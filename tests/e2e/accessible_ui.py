@@ -122,7 +122,7 @@ NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'desktop', 'search-ready', 'search-focused', 'search-entered', 'grid',
     'grid-refusals', 'command-launch', 'command-refusals', 'wrong-entry',
     'opened', 'submit', 'resubmit', 'submitted', 'close', 'closed',
-    'activity', 'activity-wrong-entry'))
+    'activity', 'activity-wrong-entry', 'command-blocked'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-absent'})
@@ -133,7 +133,7 @@ OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | frozenset({'child-command-launch'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_LANGUAGE_OPERATIONS - {'overlay-language-wrong-entry'}
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
-    'desktop', 'command-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
+    'desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
 OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
     'overlay-website-read', 'overlay-privacy-read', 'overlay-support-read',
@@ -625,7 +625,7 @@ GDM_SESSION_LABELS = {
     'Log In': 'sign-in', 'Cancel': 'cancel',
 }
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form', 'kiosk-child-choices-closed',
-                              'kiosk-no-child-form', 'kiosk-no-approver-form'})
+                              'kiosk-no-child-form', 'kiosk-no-approver-form', 'kiosk-lifecycle-defaults'})
 KIOSK_CHOICE_OPERATIONS = frozenset({'kiosk-child-choices-open', 'kiosk-approver-baseline',
     'multiple-child-open', 'multiple-approver-open'})
 OPERATIONS |= KIOSK_OPERATIONS | KIOSK_CHOICE_OPERATIONS
@@ -9054,7 +9054,7 @@ class AccessibleUI:
         self.wait(focused, 'parent-result-focus')
         self.input_uncertain = False
 
-    def native_launch_command(self, instance='primary', *, child=EXISTING_CHILD):
+    def native_launch_command(self, instance='primary', *, child=EXISTING_CHILD, blocked=False):
         """APP01: one fixed native command in Jordan's active desktop session.
 
         FIX06 verifies the baseline inputs before this operation. Submission is
@@ -9062,6 +9062,7 @@ class AccessibleUI:
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(instance == 'primary', 'ui:native-binding')
+        require(type(blocked) is bool, 'ui:native-binding')
         require(child in (CHILD, EXISTING_CHILD), 'ui:native-child-binding')
         def ready():
             require_active_launch_session()
@@ -9077,11 +9078,21 @@ class AccessibleUI:
         # complete negative/ownership results still refuse immediately.
         self.wait(ready, 'native-launch-ready', prompt_in_predicate=True)
         self.input_uncertain = True
-        subprocess.run([
+        result = subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+            *(['--wait', '--pipe'] if blocked else []),
             '--service-type=exec',
             '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
-        ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
+        ], stdin=subprocess.DEVNULL, capture_output=True, check=not blocked, timeout=15)
+        if blocked:
+            require(result.returncode in (1, 203) and len(result.stdout) + len(result.stderr) <= 65536
+                    and any(message in result.stderr for message in (
+                        b'Permission denied', b'Operation not permitted')), 'ui:native-execution-denial')
+            stable = time.monotonic()
+            def absent():
+                require(self.native_app_closed(), 'ui:native-blocked-window')
+                return time.monotonic() - stable >= 2
+            self.wait(absent, 'native-blocked-absence')
 
     def native_app_snapshot(self, submitted, *, pending=False, with_window=False):
         """APP02/03: public owned window and finite independent activity projection."""
@@ -9137,6 +9148,8 @@ class AccessibleUI:
             self.wait(self.native_app_closed, 'native-closed')
         elif operation == 'native-command-launch':
             self.native_launch_command(child=child)
+        elif operation == 'native-command-blocked':
+            self.native_launch_command(child=child, blocked=True)
         elif operation == 'native-command-refusals':
             require(self.native_app_closed(), 'ui:native-wrong-entry')
             for instance, uncertain, expected in (
@@ -10279,6 +10292,8 @@ class AccessibleUI:
             else:
                 self.kiosk_restrictions(prepared=prepared)
         elif operation == 'kiosk-request-form':
+            result['request'] = self.kiosk_request_form()
+        elif operation == 'kiosk-lifecycle-defaults':
             result['request'] = self.kiosk_request_form()
         elif operation == 'kiosk-no-child-form':
             result['request'] = self.kiosk_request_form(no_child=True)

@@ -338,6 +338,10 @@ from regression_ui import Bucket
 # account/session/command doubles and bounded synthetic responses. No live VM,
 # account, service, PAM, package database, socket or display is changed; the
 # system_removal module is compatible with other private unit work.
+# Public purge safety checks use private pytest machine/source files and native
+# package/PAM/ownership doubles; their relocated shared-cleanup shell is bounded
+# and waited. No live package, account, service, bus, display or shared path is
+# changed. package_purge_cleanup_safety is compatible in unit and cleanup scopes.
 REVIEWED = frozenset("""
 package_purge_cleanup_safety
 system_removal

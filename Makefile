@@ -83,7 +83,7 @@ EXTENSION_PACK_ASSETS += ../$(MESSAGE_ASSET) ../common/oh_no_parent_control_ui/l
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
-MANPAGES := oh-no-parent-control.1 oh-no-parent-control-parent.1
+MANPAGES := oh-no-parent-control.1 oh-no-parent-control-parent.1 oh-no-parent-control-purge.1
 
 # GNU gettext catalogues use canonical locale names (pt_BR, zh_Hans).
 # Compilation during package staging writes only into that private DESTDIR.

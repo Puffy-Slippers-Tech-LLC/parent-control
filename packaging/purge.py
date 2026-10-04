@@ -58,6 +58,22 @@ def rpm_installed():
     return PRODUCT in result.stdout.splitlines()
 
 
+def debian_purged():
+    result = subprocess.run(['dpkg-query', '-W', '-f=${Package}\t${db:Status-Abbrev}\n'],
+                            check=True, text=True, stdout=subprocess.PIPE)
+    for row in result.stdout.splitlines():
+        fields = row.split('\t')
+        if fields[0] == PRODUCT and (len(fields) != 2 or fields[1][1:2] != 'n'):
+            return False
+    return True
+
+
+def verify_purged_data():
+    for path in (Path('/var/lib/oh-no-parent-control'), Path('/var/log/oh-no-parent-control')):
+        if path.exists() or path.is_symlink():
+            raise ValueError('purge:saved-data-remains')
+
+
 def verify_fedora_pam():
     subprocess.run(['authselect', 'check'], check=True)
     current = subprocess.run(['authselect', 'current', '--raw'], check=True,
@@ -89,6 +105,8 @@ def purge(*, yes=False):
     # Read trusted package-owned bytes before the transaction erases this
     # executable and its source. No erased product import/helper is needed.
     source = cleanup_source()
+    for path in (Path('/var/lib/oh-no-parent-control'), Path('/var/log/oh-no-parent-control')):
+        secure(path, missing=True)
     if target == 'ubuntu':
         identity = subprocess.run(['dpkg-query', '-W', '-f=${Package}', PRODUCT],
                                   check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
@@ -97,6 +115,10 @@ def purge(*, yes=False):
         subprocess.run(['apt-get', '-o', 'DPkg::Lock::Timeout=120', 'purge',
                         *(['-y'] if yes else []), PRODUCT],
                        check=True)
+        if not debian_purged():
+            raise ValueError('purge:package-not-purged')
+        verify_purged_data()
+        print('oh-no-parent-control: saved-state purge outcome=accepted')
         return
     if not rpm_installed():
         raise ValueError('purge:package-not-installed')
@@ -111,6 +133,8 @@ def purge(*, yes=False):
     # Exact roots, symlink/mount refusals and retained retry records remain
     # shared with Debian purge; this adds no independent deletion algorithm.
     subprocess.run(['/bin/sh', '-s', '--', 'purge'], input=source, text=True, check=True)
+    verify_purged_data()
+    print('oh-no-parent-control: saved-state purge outcome=accepted')
 
 
 def main():

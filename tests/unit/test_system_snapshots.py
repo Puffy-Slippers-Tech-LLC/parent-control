@@ -116,7 +116,7 @@ def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monk
     assert suite._input_bundle is frozen
 
 
-@pytest.mark.parametrize('failed_phase', [None, 'removal', 'removed-rebooted'])
+@pytest.mark.parametrize('failed_phase', [None, *system.REMOVAL_PHASES])
 def test_removal_is_one_continuous_history_and_failure_stops_transitions(
         tmp_path, monkeypatch, failed_phase):
     selection = system.resolve_selection('removal', inventories=INVENTORIES)
@@ -139,7 +139,8 @@ def test_removal_is_one_continuous_history_and_failure_stops_transitions(
     else:
         system.installed_run(vm, lease, tmp_path, selection)
     expected = ['installed', 'reboot', 'rebooted', 'removal',
-                'reboot', 'removed-rebooted', 'reboot', 'reinstalled-rebooted']
+                'reboot', 'removed-rebooted', 'reboot', 'reinstalled-rebooted',
+                'reboot', 'purged-rebooted', 'reboot', 'purge-reinstalled-rebooted']
     assert events == (expected[:expected.index(failed_phase) + 1] if failed_phase else expected)
     assert vm.call.call_args_list[0].args[0] == system.guest_command(RUN, 'install')
     lease.prepare.assert_not_called()

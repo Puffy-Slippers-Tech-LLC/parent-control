@@ -42,7 +42,8 @@ PAYLOAD = '/var/tmp/onpc-system-input'
 TAG = 'onpc-system-run:'
 QUALIFICATION_CASE = 'test_method_role_matrix[ListManagedUsers-parent1]'
 QUALIFICATION_FAILURE = 'harness:qualification-failure'
-REMOVAL_PHASES = ('removal', 'removed-rebooted', 'reinstalled-rebooted')
+REMOVAL_PHASES = ('removal', 'removed-rebooted', 'reinstalled-rebooted',
+                  'purged-rebooted', 'purge-reinstalled-rebooted')
 PHASE_ORDER = ('installed', 'rebooted', *REMOVAL_PHASES, 'authorization', 'enforcement', 'session')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
@@ -76,6 +77,8 @@ PHASE_PREREQUISITES = {
     'removal': ('installed-phase', 'guest-reboot', 'native-enforcement-fixture'),
     'removed-rebooted': ('removal-phase', 'guest-reboot', 'desktop-health'),
     'reinstalled-rebooted': ('reinstall-phase', 'guest-reboot', 'boot-readiness'),
+    'purged-rebooted': ('purge-phase', 'guest-reboot', 'desktop-health'),
+    'purge-reinstalled-rebooted': ('purge-reinstall-phase', 'guest-reboot', 'boot-readiness'),
     'authorization': ('retained-app-snapshot', 'authorization-accounts'),
     'enforcement': ('retained-app-snapshot', 'native-enforcement-fixture'),
     'session': ('retained-app-snapshot', 'one-shot-gdm-grant-fixture-and-second-reboot'),

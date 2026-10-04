@@ -155,7 +155,7 @@ class JourneyPlan:
                         self.prefix + ':trace-plan')
         require(type(self.reboot_transition) is tuple and
                 type(self.additional_reboot_transitions) is tuple and
-                len(self.additional_reboot_transitions) <= 1 and
+                len(self.additional_reboot_transitions) <= 4 and
                 (self.reboot_transition or not self.additional_reboot_transitions),
                 self.prefix + ':reboot-plan')
         prior = -1
@@ -398,7 +398,8 @@ class InstalledJourney:
         require(not self.failed and len(matches) == 1, self.plan.prefix + ':reboot-entry')
         index = matches[0]
         submitted = self.reboot_submitted if index == 0 else index in self.additional_reboots_submitted
-        prior_observed = index == 0 or self.reboot_observed
+        prior_observed = index == 0 or (self.reboot_observed and
+            all(previous in self.additional_reboots_observed for previous in range(1, index)))
         require(not submitted and prior_observed and self.boot is not None,
                 self.plan.prefix + ':reboot-replay')
         guard()

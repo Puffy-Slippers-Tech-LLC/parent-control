@@ -22,7 +22,15 @@ NOTICE = '*** REBOOT REQUIRED: reboot before using the kiosk session. ***'
 LIMIT = 1024 * 1024
 OLD_INSTALL = 'install-previous-release'
 UPGRADE = 'upgrade-staged-package'
-BINDINGS = (BINDING, OLD_INSTALL, UPGRADE)
+REMOVE = 'remove-current-package'
+PURGE = 'purge-current-package'
+REINSTALL = 'reinstall-staged-package'
+FRESH_INSTALL = 'install-after-purge'
+LIFECYCLE = (REMOVE, PURGE, REINSTALL, FRESH_INSTALL)
+INSTALLATIONS = (BINDING, REINSTALL, FRESH_INSTALL)
+REMOVAL_NOTICE = '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***'
+PURGE_COMPLETE = 'oh-no-parent-control: saved-state purge outcome=accepted'
+BINDINGS = (BINDING, OLD_INSTALL, UPGRADE, *LIFECYCLE)
 
 
 def guest_phase(binding, packages):
@@ -101,20 +109,48 @@ def guest_read(packages):
                            env={**os.environ, 'LC_ALL': 'C'})
     session_control.require(query.returncode in (0, 1), 'package-query')
     lines = query.stdout.decode().splitlines()
-    session_control.require((query.returncode == 1 and (lines == [
+    retained_configuration = (not fedora and query.returncode == 0 and len(lines) == 2
+                              and lines[0] == 'deinstall ok config-files')
+    session_control.require(retained_configuration or (query.returncode == 1 and (lines == [
         'package oh-no-parent-control is not installed'] if fedora else not lines)) or
         (query.returncode == 0 and len(lines) == (3 if fedora else 2) and lines[0] == (
             'oh-no-parent-control' if fedora else 'install ok installed')
             and (not fedora or lines[2] == 'x86_64')), 'package-query')
     source = session_control.source_session(session_control.sessions(),
         pwd.getpwnam(session_control.ACCOUNTS['parent']).pw_uid)
-    return {'version': lines[1] if query.returncode == 0 else None,
+    return {'version': lines[1] if query.returncode == 0 and not retained_configuration else None,
         'boot': hashlib.sha256(Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest(),
         'preserved': {'accounts': values, 'system_locale': system_locale(), 'files': files,
                       'observer_locale': {key: value for key, value in os.environ.items()
                           if key in ('LANG', 'LANGUAGE') or key.startswith('LC_')}},
         'session': source, 'packages': {label: session_control.package_digest(label)
                                       for label in packages}}
+
+
+def guest_lifecycle_phase(binding, packages):
+    """Recheck the public native package phase immediately before consuming input."""
+    import subprocess
+    session_control.require(binding in LIFECYCLE and type(packages) is dict
+                            and set(packages) == {'current'}, 'package-identities')
+    item = packages['current']
+    session_control.require(item['name'] == 'oh-no-parent-control'
+                            and session_control.package_digest() == item['sha256'], 'package-identity')
+    if session_control.package_format() == 'rpm':
+        query = subprocess.run(['/usr/bin/rpm', '-q', '--queryformat',
+            '%{NAME}\n%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n%{ARCH}\n', 'oh-no-parent-control'],
+            capture_output=True, timeout=30, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'})
+        installed = query.returncode == 0 and query.stdout.decode().splitlines() == [
+            item['name'], item['version'], item['architecture']]
+        absent = query.returncode == 1 and query.stdout.decode().splitlines() == [
+            'package oh-no-parent-control is not installed']
+    else:
+        query = subprocess.run(['/usr/bin/dpkg-query', '-W', '-f=${Status}\n${Version}\n',
+                                'oh-no-parent-control'], capture_output=True, timeout=30)
+        lines = query.stdout.decode().splitlines()
+        installed = query.returncode == 0 and lines == ['install ok installed', item['version']]
+        absent = (query.returncode == 1 and not lines) or (
+            query.returncode == 0 and lines == ['deinstall ok config-files', item['version']])
+    session_control.require(installed if binding in (REMOVE, PURGE) else absent, 'package-phase')
 
 
 def guest_submit(binding, expected, packages=None):
@@ -128,20 +164,30 @@ def guest_submit(binding, expected, packages=None):
         in os.getgrouplist(account.pw_name, account.pw_gid), 'administrator-authority')
     source = session_control.source_session(session_control.sessions(), account.pw_uid)
     label = 'previous' if binding == OLD_INSTALL else 'current'
-    actual = session_control.package_digest() if binding == BINDING else session_control.package_digest(label)
+    actual = session_control.package_digest() if binding in (BINDING, *LIFECYCLE) else session_control.package_digest(label)
     session_control.require(actual == expected, 'package-changed')
-    boot = guest_phase(binding, packages) if binding != BINDING else None
+    boot = guest_phase(binding, packages) if binding in (OLD_INSTALL, UPGRADE) else None
+    if binding in LIFECYCLE:
+        guest_lifecycle_phase(binding, packages)
     session_control.require(session_control.source_session(
         session_control.sessions(), account.pw_uid) == source, 'source-changed')
     if session_control.package_format() == 'rpm':
-        session_control.require(binding == BINDING, 'historical-release-ubuntu-only')
-        argv = ('/usr/bin/dnf', '--quiet', 'install', '-y', str(session_control.package_path()))
+        session_control.require(binding in (BINDING, *LIFECYCLE), 'historical-release-ubuntu-only')
+        argv = (('/usr/bin/dnf', '--quiet', 'remove', '-y', 'oh-no-parent-control')
+                if binding == REMOVE else
+                ('/usr/bin/dnf', '--quiet', 'install', '-y', str(session_control.package_path())))
     else:
-        argv = (*ARGV[:-1], '/var/lib/onpc-e2e-assets/previous/package.deb') if binding == OLD_INSTALL else ARGV
+        argv = (('/usr/bin/apt-get', '-o', 'DPkg::Lock::Timeout=120', 'remove', '-y',
+                 'oh-no-parent-control') if binding == REMOVE else
+                (*ARGV[:-1], '/var/lib/onpc-e2e-assets/previous/package.deb') if binding == OLD_INSTALL else ARGV)
+    if binding == PURGE:
+        argv = ('/usr/bin/oh-no-parent-control-purge', '--yes')
     # FIX04 owns this root-only parent. An uncertain exec leaves the marker in
     # place, and another controller object cannot replay it in this attempt.
     marker = {BINDING: '.package-install-used', OLD_INSTALL: '.previous-install-used',
-              UPGRADE: '.package-upgrade-used'}[binding]
+              UPGRADE: '.package-upgrade-used', REMOVE: '.package-remove-used',
+              PURGE: '.package-purge-used', REINSTALL: '.package-reinstall-used',
+              FRESH_INSTALL: '.package-fresh-install-used'}[binding]
     fd = os.open('/var/lib/onpc-e2e-assets/' + marker,
                  os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     if boot is not None:
@@ -171,7 +217,10 @@ def guest_source(*, read=False):
             'BINDING = ' + repr(BINDING) + '\nARGV = ' + repr(ARGV) + '\n' +
             'OLD_INSTALL = ' + repr(OLD_INSTALL) + '\nUPGRADE = ' + repr(UPGRADE) + '\n' +
             'BINDINGS = ' + repr(BINDINGS) + '\n' +
-            inspect.getsource(guest_phase) + inspect.getsource(guest_read) +
+            'LIFECYCLE = ' + repr(LIFECYCLE) + '\nREMOVE = ' + repr(REMOVE) + '\n' +
+            'PURGE = ' + repr(PURGE) + '\nREINSTALL = ' + repr(REINSTALL) + '\n' +
+            'FRESH_INSTALL = ' + repr(FRESH_INSTALL) + '\n' +
+            inspect.getsource(guest_phase) + inspect.getsource(guest_read) + inspect.getsource(guest_lifecycle_phase) +
             inspect.getsource(guest_submit) +
             '\nimport sys, json\n' + (
                 'print(json.dumps(guest_read(json.loads(sys.argv[1])), sort_keys=True))\n' if read else
@@ -185,6 +234,7 @@ class PackageCommand:
         self.attempted = False
         self.receipt = None
         self.binding = None
+        self.entry = None
         # Transport belongs to one attempt. A second controller cannot replay
         # an uncertain submission before it reaches the exclusive guest marker.
         if not hasattr(transport, 'package_attempts'):
@@ -195,9 +245,11 @@ class PackageCommand:
         require(identity == self.identity == self.transport.config, 'package:wrong-attempt')
         require(not self.attempted and binding not in self.transport.package_attempts, 'package:replay')
         self.verified.recheck()
-        if binding != BINDING:
+        if binding in (OLD_INSTALL, UPGRADE):
             require(self.verified.upgrade_inputs is not None, 'package:upgrade-inputs-required')
-        expected = (self.verified.inputs['package_sha256'] if binding == BINDING else
+        if binding in LIFECYCLE:
+            require(self.verified.upgrade_inputs is None, 'package:lifecycle-current-only')
+        expected = (self.verified.inputs['package_sha256'] if binding in (BINDING, *LIFECYCLE) else
                     self.verified.upgrade_inputs['packages'][
                         'previous' if binding == OLD_INSTALL else 'current']['sha256'])
         require(type(digest) is str and re.fullmatch('[0-9a-f]{64}', digest)
@@ -210,11 +262,16 @@ class PackageCommand:
             require(context['package_sha256'] == self.verified.inputs['package_sha256'], 'package:wrong-artifact')
             self.validate_input(binding, digest, identity)
             arguments = [binding, digest]
-            if binding != BINDING:
+            if binding in (OLD_INSTALL, UPGRADE):
                 arguments.append(json.dumps(self.verified.upgrade_inputs['packages'], sort_keys=True))
                 entry = self.read_identity()
                 require(entry['version'] == (None if binding == OLD_INSTALL else
                         self.verified.upgrade_inputs['packages']['previous']['version']), 'package:wrong-phase')
+            elif binding in LIFECYCLE:
+                arguments.append(json.dumps(self.package_identities(), sort_keys=True))
+                self.entry = self.read_identity()
+                require(self.entry['version'] == (self.package_identities()['current']['version']
+                        if binding in (REMOVE, PURGE) else None), 'package:wrong-phase')
             self.attempted = True  # Even transport failure is uncertain input.
             self.binding = binding
             self.transport.package_attempts.add(binding)
@@ -277,13 +334,19 @@ class PackageCommand:
         text = raw.decode('utf-8', errors='strict')
         text = re.sub(r'\x1b\[[0-9;]*m', '', text)
         lines = text.splitlines()
-        require(COMPLETE in lines and (lines[-1] == NOTICE if self.binding != OLD_INSTALL else
-                lines[-1] in (COMPLETE, NOTICE)), 'package:completion-notice')
-        if 'package.rpm' in self.verified.asset_files:
+        removing = self.binding in (REMOVE, PURGE)
+        if removing:
+            require((lines[-1] == REMOVAL_NOTICE if self.binding == REMOVE else
+                    REMOVAL_NOTICE in lines and PURGE_COMPLETE in lines), 'package:completion-notice')
+        else:
+            require(COMPLETE in lines and (lines[-1] == NOTICE if self.binding != OLD_INSTALL else
+                    lines[-1] in (COMPLETE, NOTICE)), 'package:completion-notice')
+        if removing or self.binding in LIFECYCLE or 'package.rpm' in self.verified.asset_files:
             identity = self.read_identity()
-            require(identity['version'] == self.package_identities()['current']['version'],
+            require(identity['version'] == (None if removing else self.package_identities()['current']['version']),
                     'package:installed-version')
         # Retain actual matched public lines, never arbitrary package diagnostics.
         return {'operation': self.binding, 'outcome': 'passed', 'exit_status': status,
-                'interface': 'SSH stdout/stderr', 'completion': lines[lines.index(COMPLETE)],
-                'notice': NOTICE if lines[-1] == NOTICE else None}
+                'interface': 'SSH stdout/stderr', 'completion': (PURGE_COMPLETE if self.binding == PURGE
+                    else None if removing else lines[lines.index(COMPLETE)]),
+                'notice': REMOVAL_NOTICE if removing else NOTICE if lines[-1] == NOTICE else None}

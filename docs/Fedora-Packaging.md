@@ -137,9 +137,18 @@ Final erase runs shared enforcement/PAM cleanup in `%preun`; upgrade removal
 callbacks return immediately. A failed `%preun` attempts shared abort-remove
 restoration and returns failure. `%postun` performs the remaining owned account,
 integration and baseline cleanup after payload erasure and systemd reload.
-RPM has no Debian purge action: erase retains preferences/logs. Post-erase
-failures retain ownership records for resolution; RPM cannot restore erased
-payload automatically. These differences require live upgrade/removal testing.
+Native RPM erase retains preferences/logs. The package also ships the explicit
+`sudo oh-no-parent-control-purge [--yes]` action. It loads trusted standalone
+shared cleanup before DNF5 erases its payload, uses the supported
+[`--no-autoremove` option](https://dnf5.readthedocs.io/en/latest/commands/remove.8.html),
+verifies exact package absence and restored active PAM, then completes shared
+guarded cleanup before deleting product state/logs. No checkout is needed.
+Post-erase failures retain ownership records for resolution; RPM cannot restore
+erased payload automatically. Reinstall the package normally from its RPM or
+repository, resolve the conflict and repeat the packaged command to retry; the
+same reinstall restores the command after ordinary removal. See the
+[shared removal/purge contract](SystemDesign/Package-Removal.md#remove-purge-and-retry).
+These differences require live upgrade/removal/purge testing.
 
 Configuration restores ordinary SELinux labels for generated integrations and
 keeps SELinux enforcing. A package marker under `/run` repeats the kiosk reboot

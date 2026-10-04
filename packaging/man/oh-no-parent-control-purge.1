@@ -1,0 +1,45 @@
+.TH OH-NO-PARENT-CONTROL-PURGE 1 "October 2026" "Oh No! Parent Control" "User Commands"
+.SH NAME
+oh-no-parent-control-purge \- remove the package and its saved preferences and logs
+.SH SYNOPSIS
+.B sudo oh-no-parent-control-purge
+.RB [ --yes ]
+.SH DESCRIPTION
+Explicitly remove Oh No! Parent Control and delete its saved product state and
+logs. Root privileges are required. Ordinary APT or DNF removal retains these
+preferences and logs; this action deletes them.
+.PP
+Ubuntu uses APT purge. Fedora uses DNF remove without dependency autoremove,
+then verifies package absence and restored PAM and completes the same guarded
+cleanup before deleting saved data. Cleanup source is read from trusted
+package-owned files before the transaction erases this command and its source.
+.PP
+Ownership changes, active kiosk sessions, mounted directories and modified
+administrator integrations cause refusal. Resolve the reported conflict and
+repeat the command. A failed or interrupted Fedora post-erase cleanup cannot
+restore erased payload. Reinstall the package normally from your RPM or package
+repository, resolve the conflict and run this command again. After ordinary
+Fedora removal, reinstall likewise restores the packaged purge action.
+.PP
+Purge preserves unrelated accounts/files, dependencies, system journals and
+personal desktop settings in ordinary users' homes. The package-created kiosk
+account/home is removed only after its ownership and inactive session are
+verified. Purge does not reboot, force logout or restart the desktop.
+.SH OPTIONS
+.TP
+.B --yes
+Answer yes to the native package-manager transaction confirmation. All identity,
+ownership and cleanup guards still apply. Without this option, normal native
+confirmation remains enabled.
+.SH FILES
+.TP
+.I /var/lib/oh-no-parent-control/
+Product preferences and lifecycle ownership records.
+.TP
+.I /var/log/oh-no-parent-control/
+Product diagnostic history.
+.SH SEE ALSO
+.BR oh-no-parent-control (1),
+.BR oh-no-parent-control-parent (1)
+.SH AUTHOR
+Puffy Slippers Tech LLC.

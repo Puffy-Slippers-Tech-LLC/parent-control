@@ -12,6 +12,7 @@ import system_removal as removal
 
 
 @pytest.mark.parametrize('entry', ['remove', 'removed_rebooted', 'reinstalled_rebooted',
+                                 'purged_rebooted', 'purge_reinstalled_rebooted',
                                  'verify_removed', 'password_login_health'])
 def test_guard_refusal_precedes_removal_actions(monkeypatch, entry):
     monkeypatch.setattr(removal.guest, 'guard', Mock(side_effect=removal.guest.GuestError('identity')))
@@ -225,6 +226,57 @@ def test_pam_comments_and_inactive_backups_are_preserved(removed_machine):
     path('/etc/pam.d/login').write_text('# auth required pam_oh_no_parent_control.so\nauth required pam_unix.so\n')
     path('/etc/pam.d/login.pam-old').write_text('auth required pam_oh_no_parent_control.so\n')
     removal.verify_pam_removed()
+
+
+@pytest.mark.parametrize('residue', [None, 'state', 'logs', 'symlink', 'notice'])
+def test_purge_requires_all_saved_data_and_notice_payload_removed(removed_machine, residue):
+    state, _, path, launch = removed_machine
+    path('/var/log/oh-no-parent-control').rmdir()
+    roots = {'state': '/var/lib/oh-no-parent-control', 'logs': '/var/log/oh-no-parent-control',
+             'symlink': '/var/lib/oh-no-parent-control', 'notice': removal.DEBIAN_NOTICE}
+    if residue:
+        target = path(roots[residue])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if residue == 'symlink':
+            target.symlink_to(target.parent / 'missing')
+        elif residue == 'notice':
+            target.write_text('retained conffile')
+        else:
+            target.mkdir()
+        with pytest.raises(removal.guest.GuestError, match=(
+                'payload-remains' if residue == 'notice' else 'saved-data-remains')):
+            removal.verify_removed(state, purged=True)
+    else:
+        removal.verify_removed(state, purged=True)
+        assert launch.call_count == 2
+
+
+@pytest.mark.parametrize('changed', [None, 'apps', 'request', 'parent_control_enabled'])
+def test_purge_reinstall_checks_fresh_defaults_and_zero_grant(monkeypatch, tmp_path, changed):
+    defaults = {'apps': {}, 'request': {'kiosk_muted': True}, 'parent_control_enabled': False}
+    state = {'accounts': {'child': 1004, 'other': 1005, 'parent': 1003},
+             'defaults': defaults, 'other': 'other', 'purge_reinstall_boot': 'old'}
+    path = tmp_path / 'state.json'
+    path.write_text(json.dumps(state))
+    monkeypatch.setattr(removal, 'state_path', lambda: path)
+    monkeypatch.setattr(removal.guest, 'guard', Mock())
+    monkeypatch.setattr(removal.guest, 'enable_diagnostics', Mock())
+    monkeypatch.setattr(removal.guest, 'installed', Mock())
+    monkeypatch.setattr(removal.guest, 'reboot_cleared', lambda: True)
+    monkeypatch.setattr(removal, 'boot', lambda: 'new')
+    current = dict(defaults)
+    if changed:
+        current[changed] = {'apps': {'app.desktop': {}}, 'request': {'kiosk_muted': False},
+                            'parent_control_enabled': True}[changed]
+    monkeypatch.setattr(removal, 'call', Mock(return_value=[json.dumps(current)]))
+    monkeypatch.setattr(removal, 'accepted', lambda result: result)
+    monkeypatch.setattr(removal, 'account_digest', lambda uid: 'other')
+    monkeypatch.setattr(removal, 'account_property', lambda *args: [0, 0])
+    if changed:
+        with pytest.raises(removal.guest.GuestError, match='defaults-not-fresh'):
+            removal.purge_reinstalled_rebooted(Mock())
+    else:
+        removal.purge_reinstalled_rebooted(Mock())
 
 
 def test_original_authselect_uses_recorded_profile_and_features(removed_machine):

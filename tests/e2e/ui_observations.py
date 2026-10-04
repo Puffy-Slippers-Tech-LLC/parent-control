@@ -543,6 +543,16 @@ class RequestObservation:
         valid = {**accessible_ui.KIOSK_VALID_REQUESTS,
                  **accessible_ui.CHINESE_VALID_REQUESTS,
                  **accessible_ui.OVERLAY_VALID_REQUESTS}.get(operation)
+        if operation == 'kiosk-lifecycle-defaults':
+            require(observation.child in accessible_ui.CHILD_IDENTITIES.values()
+                    and observation.approver in accessible_ui.APPROVER_IDENTITIES.values(), 'ui:request')
+            require(observation == cls(surface='kiosk', form_count=1,
+                child=observation.child, approver=observation.approver, duration_seconds=1800,
+                custom_text=None, allow_soft=False, child_selector_enabled=True,
+                approver_selector_enabled=False, duration_enabled=False, soft_choice_enabled=False,
+                request_enabled=False, cancel_enabled=True, message='screen-limit-disabled', mute=None),
+                'ui:request')
+            return observation
         if operation == 'overlay-request-form':
             require(observation == cls(
                 surface='child-overlay', form_count=1, child='fixture-child',

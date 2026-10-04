@@ -14,6 +14,24 @@ The lifecycle targets clean installations: conflicting accounts, hooks, or
 fallback rules require administrator resolution and are never adopted or
 overwritten.
 
+The package ships `oh-no-parent-control-purge` on both distributions. Run
+`sudo oh-no-parent-control-purge` to remove the package and explicitly delete
+its saved preferences and logs; `--yes` accepts native package-manager
+confirmation for unattended execution without bypassing any guard. Ubuntu
+uses APT purge. Fedora uses DNF5 remove with dependency autoremove disabled,
+verifies exact RPM absence and restored active PAM, then executes the shared
+standalone `postrm purge` source captured from trusted package-owned files
+before erasure. No source checkout, RPM force/skip-script flag or independent
+directory-deletion implementation is involved.
+
+The shared cleanup must finish owned integration, account and execution-policy
+restoration before deleting state/logs. Refusals retain the records needed for
+resolution. An interrupted or failed Fedora post-erase operation cannot restore
+erased payload or the command. Reinstall the package from the RPM/repository,
+resolve the conflict and repeat the packaged purge action. After ordinary
+Fedora removal, the same normal reinstall restores the purge command. Ordinary
+RPM erase continues retaining preferences/logs.
+
 ## Payload and reversible enforcement cleanup
 
 The executables, Python modules, compiled PAM module, GNOME extension, assets,

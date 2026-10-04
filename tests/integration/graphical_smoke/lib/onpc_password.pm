@@ -87,7 +87,8 @@ sub enter_kiosk_mate_password {
         my $id = 'kiosk-mate-' . ($chinese ? $wrong : $binding);
         die 'secret:challenge' unless (@_ == 1 || $reject || $chinese) && ref($journey) eq 'onpc_journey'
             && ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding
-                || ($journey->{prefix} // '') eq 'kiosk-approval-flow')
+                || ($journey->{prefix} // '') eq 'kiosk-approval-flow'
+                || (!$reject && ($journey->{prefix} // '') eq 'package-removal'))
             && !$journey->{review} && !$challenges_used{$id};
         $challenges_used{$id} = 1;
         $authentication_started = 1;

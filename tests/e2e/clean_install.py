@@ -1,16 +1,14 @@
 """Case 2: one product-free installation, reboot, defaults and station exit."""
 
 from installed_journey import JourneyPlan
-from journey_blocks import parent_management, product_free_desktop, reboot_desktop, station_entry
+from journey_blocks import parent_management, package_installation, reboot_desktop, station_entry
 from journey_checks import allowed_app_rows, installed_accounts
 from package_install import check_install_result
 from package_journey import record_package_journey
 from ui_observations import SettingsObservation
 
 
-INSTALL = product_free_desktop()
-INSTALL.update({'package-submitted': 'system:parent-command-context',
-                'package-result': 'system:parent-command-context'})
+INSTALL = package_installation()
 MANAGE = {
     **parent_management(),
     'apps-page': 'ui:parent-apps-page',

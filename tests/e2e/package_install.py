@@ -1,6 +1,7 @@
 """LIFE04 install: compose verified administrator submission and public readback."""
 
 from installed_journey import InstalledJourney, JourneyPlan
+from journey_blocks import package_installation
 from package_command import BINDING, PackageCommand
 from private_artifacts import require
 from product_free_entry import ProductFreeEntryJourney, SCREENS, refuse_command
@@ -8,8 +9,7 @@ from product_free_entry import ProductFreeEntryJourney, SCREENS, refuse_command
 
 PLAN = JourneyPlan(
     prefix='package-install', worker_mode='package_install',
-    screen_tags={**SCREENS, 'package-submitted': 'system:parent-command-context',
-                 'package-result': 'system:parent-command-context'},
+    screen_tags={'wrong-entry': SCREENS['wrong-entry'], **package_installation()},
     phases={'ready': 'setup', 'setup-detached': 'setup',
             **{stage: 'step-1' for stage in SCREENS},
             'package-submitted': 'step-2', 'package-result': 'step-2'},

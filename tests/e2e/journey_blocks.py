@@ -230,6 +230,19 @@ def product_free_desktop():
     return stages
 
 
+def package_installation():
+    """LIFE04 declaration: fresh admin entry, one input and separate readback.
+
+    The caller owns phase/assertion boundaries, package selection and any
+    qualification-only wrong-entry checks. No reboot is implicit.
+    """
+    return {
+        **product_free_desktop(),
+        'package-submitted': 'system:parent-command-context',
+        'package-result': 'system:parent-command-context',
+    }
+
+
 def reboot_desktop():
     """Fresh administrator observations for the declared post-reboot challenge."""
     return {'reboot-' + stage: tag for stage, tag in fresh_desktop('parent').items()}

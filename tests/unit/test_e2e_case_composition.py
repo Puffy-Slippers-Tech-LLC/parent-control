@@ -281,16 +281,47 @@ def test_worker_guard_allows_semantic_labels_and_logging():
 
 def test_entry_fragments_do_not_share_mutable_recipe_state():
     from journey_blocks import (fresh_desktop, parent_management, parent_reopen, parent_search,
-                                product_free_desktop, reboot_desktop, station_entry, observed_text)
+                                product_free_desktop, package_installation, reboot_desktop, station_entry, observed_text)
     for factory, args in ((fresh_desktop, ('parent',)), (fresh_desktop, ('other-child',)),
                           (fresh_desktop, ('child',)),
                           (parent_search, ()), (parent_management, ()), (parent_reopen, ()),
-                          (product_free_desktop, ()), (reboot_desktop, ()),
+                          (product_free_desktop, ()), (package_installation, ()), (reboot_desktop, ()),
                           (station_entry, ('cancel-',)), (observed_text, ('renamed', 'body-clear'))):
         expected = factory(*args)
         changed = factory(*args)
         changed.clear()
         assert factory(*args) == expected
+
+
+def test_install_fragment_preserves_customer_and_qualification_boundaries():
+    from clean_install import PLAN as customer
+    from package_install import PLAN as qualification
+    from package_upgrade import PLAN as upgrade
+    from chinese_kiosk_lifecycle import PLAN as chinese
+    from journey_blocks import package_installation
+
+    # Independent public operation/order oracle; a wrong-entry refusal is a
+    # qualification assertion, never an extra customer step or implicit reboot.
+    expected = [
+        ('installed-greeter', 'ui:gdm-product-free-list'),
+        ('parent-focused', 'ui:gdm-product-free-focused'),
+        ('recipient-qualified', 'ui:gdm-parent-recipient'),
+        ('recipient-rechecked', 'ui:gdm-parent-recipient-rechecked'),
+        ('desktop', 'ui:fresh-parent-desktop'),
+        ('command-context', 'system:parent-command-context'),
+        ('package-submitted', 'system:parent-command-context'),
+        ('package-result', 'system:parent-command-context'),
+    ]
+    assert list(package_installation().items()) == expected
+    assert list(customer.screen_tags.items())[:len(expected)] == expected
+    for plan in (qualification, upgrade, chinese):
+        assert list(plan.screen_tags.items())[:len(expected) + 1] == [
+            ('wrong-entry', 'ui:gdm-product-free-list'), *expected]
+    assert customer.stage_actions == {'package-submitted': 'install-package'}
+    assert qualification.stage_actions['wrong-entry'] == 'refuse-command'
+    assert upgrade.stage_actions['package-submitted'] == chinese.stage_actions['package-submitted'] == 'install-previous'
+    assert customer.phases['package-result'] == 'step-1'
+    assert qualification.phases['package-result'] == 'step-2'
 
 
 def test_routine_login_has_no_wrong_account_visit_or_prompt_dismissal():

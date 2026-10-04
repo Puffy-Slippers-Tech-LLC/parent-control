@@ -65,9 +65,9 @@ Observe first presentation before `complete_language_setup` or any generic
 first-run handler can save, dismiss or change it.
 
 Reuse LIFE04's package lifecycle path and LIFE02's reboot path. The genuine
-v1.2-to-current upgrade command is qualified; the selected-child Chinese
-reboot-required/first-presentation composition and Chinese MATE binding still
-need qualification in 300e and 300f before this case can run.
+v1.2-to-current upgrade command and selected-child Chinese
+reboot-required/first-presentation composition are qualified by 300d and 300e;
+the Chinese MATE binding still needs qualification in 300f before this case can run.
 The existing English MATE provider qualification does not qualify
 Chinese labels or a restarted agent. Use supported locale/session APIs and the
 normal unmodified PolicyKit agent; no dialog patching or injected translations.
@@ -169,7 +169,7 @@ Chinese operations once those slices pass. Allocate exactly one numeric case
 for the complete history; the Chinese phases
 are ordered assertions inside it. Reuse task 300a's qualified baseline language
 readiness and task 300b's qualified DESK13 setting. Qualify
-the Chinese update/reboot-required/first-presentation composition in 300e and the
-native provider binding in 300f before registering that complete case.
+the native provider binding in 300f before registering that complete case, and
+reuse 300e's qualified Chinese update/reboot-required/first-presentation composition.
 Preserve the v1.2 package asset/version gate: unavailable verified upgrade inputs
 remain a blocker, never a simulated reboot-required state or a reinstall.

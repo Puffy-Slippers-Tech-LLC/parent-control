@@ -140,6 +140,15 @@ every pipeline remains bounded to 64 RPCs.
 
 ## Extend without hiding the scenario
 
+Package lifecycle declarations reuse `journey_blocks.package_installation` in
+case 2 and LIFE04 qualification; LIFE02, genuine upgrade and Chinese lifecycle
+plans inherit that same fragment. It declares fresh administrator entry,
+submission and separate readback without a reboot or wrong-entry exercise.
+Callers retain phase boundaries, assertions and current/previous package binding;
+`PackageCommand` and `package_install.submit_release` / `observe_release` own
+the guarded command and independent result. The fragment adds no resource or
+cleanup lifetime; existing unit/cleanup classifications remain applicable.
+
 Native activity transitions reuse `journey_blocks.native_activity_entry` /
 `onpc_app_rows::native_activity_entry` for
 launch/use/capture and `native_activity_resume` for an independently observed

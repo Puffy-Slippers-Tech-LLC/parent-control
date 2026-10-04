@@ -722,6 +722,7 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
     e2e = tmp_path / 'tests/e2e'
     e2e.mkdir(parents=True)
     (e2e / 'accessible_ui.py').write_text(source)
+    (e2e / 'session_control.py').write_text('SESSION_CONTROL = True\n')
     (e2e / 'public_atspi.py').write_text(reader)
     (e2e / 'block_semantics.py').write_text('SEMANTICS = True\n')
     (e2e / 'feedback_formats.py').write_text('FORMATS = True\n')
@@ -735,6 +736,10 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
     raw = json.dumps(result).encode()
     expected = (
         'import sys, types\n'
+        'session_control = types.ModuleType("session_control")\n'
+        'sys.modules["session_control"] = session_control\n'
+        'exec(compile(' + repr('SESSION_CONTROL = True\n') + ', "session_control.py", "exec"), '
+        'session_control.__dict__)\n'
         'public_atspi = types.ModuleType("public_atspi")\n'
         'sys.modules["public_atspi"] = public_atspi\n'
         'exec(compile(' + repr(reader) + ', "public_atspi.py", "exec"), '

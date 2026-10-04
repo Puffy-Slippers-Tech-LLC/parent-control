@@ -286,6 +286,7 @@ OPERATION_LABELS.update({
     'gdm-station-focused': 'Checking the request station is focused',
     'gdm-station-returned': 'Checking the usable greeter after leaving the request station',
     'kiosk-request-form': 'Reading the request-station form and unavailable controls',
+    'kiosk-lifecycle-defaults': 'Reading the request-station defaults after the lifecycle transition',
     'kiosk-restriction-ready': 'Checking and focusing the request station before an ordinary shortcut',
     'kiosk-restriction-read': 'Verifying the station remains request-only after an ordinary shortcut',
     'kiosk-restriction-prepared-ready': 'Checking and focusing the prepared request before an ordinary shortcut',

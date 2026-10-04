@@ -52,31 +52,35 @@ regressions. Historical upgrade evidence does not qualify the new composition.
 
 ## Current validation boundary
 
-Host composition, refusal/ownership, recorder, source and two real GTK
-first-presentation checks passed. Auto baseline preparation completed after the
-pre-lease `baseline:preparation-outdated` refusal; that refusal was not a live
-attempt.
+Host composition, refusal/ownership, recorder and source validation passed:
+`20261004T182558Z-16efaa1b` contains 2517 unit checks plus source validation.
+Plan, inventory and coverage consistency also passed; the earlier two real GTK
+first-presentation checks remain applicable. Changes affect tests and
+documentation only, so no package build is required.
 
-The first live current-install attempt, `20261004T180943Z-25f6f7fb`, failed
-after independently verified Chinese assets, the `zh_CN` account readback and
-`language-parent-logout`. The next checkpoint is `language-installed-greeter`
-(`ui:gdm-standard-list`). Expected: fresh child-entry greeter, then the renewed
-Chinese desktop before installation. Actual: no successful greeter observation;
-the runner recorded `e2e:worker-execution-failed` and `command:failed:ssh`.
-The retained `private/command-0367-stderr.txt` establishes a mechanical binding
-defect: Jamie and Jordan each had one owned row, but installed standard entry
-required the absent kiosk account (`ui:gdm-account-cardinality`). The host
-regression reproduced that same refusal. Pre-install Jordan renewal and Jamie
-return now explicitly use the product-free list/focus binding, proving station
-absence and preserving ordered, role-specific fresh recipient proofs.
-Worker cleanup, baseline restoration and finalization finished; the
-VM is off. No product installation, reboot or first kiosk presentation was
-reached. The lifecycle regressions remain unrun.
+The earlier product-free renewal failure was reproduced as a mechanical
+binding defect: installed standard entry required the absent kiosk account.
+Pre-install Jordan renewal and Jamie return now explicitly use the product-free
+list/focus binding, proving station absence and preserving ordered,
+role-specific fresh recipient proofs. The second live attempt verified this
+correction, the renewed Chinese desktop, current-package installation and
+independent reread, the unchanged-boot Chinese restart notice, normal return,
+customer reboot submission and `e2e:boot-change-verified`.
 
-Resume from `output/test-runs/host/reports/20261004T180943Z-25f6f7fb/report.md`
-and its `category-001.log`. Private attempt/evidence allocations are
-`onpc-graphical-smoke-c5oezl6s` and `onpc-e2e-evidence-vd3vnyuj` under the
-maintained privileged allocation root. Use the approved artifact reader for
-their retained error logs. Host-verify the correction, then rerun the fixed
-qualification and the two required regressions.
+That attempt failed at `chinese-current-install.customer-reboot.greeter`.
+Expected: a successful fresh greeter observation after the independently
+confirmed new boot. Actual: `reboot-greeter` has a request but no successful
+reply; the runner recorded `e2e:worker-execution-failed`, `CommandError` and
+secondary `command:failed:ssh`. Its cause remains uninvestigated at the session
+failure boundary. Post-reboot Chinese chooser/default/form acceptance and both
+required lifecycle regressions remain unrun. Worker cleanup, baseline
+restoration and finalization passed; the lease is complete and the VM is off.
+
+Resume from `output/test-runs/host/reports/20261004T182828Z-50571e3e/report.md`
+and its `category-001.log`, `failure.json` and `progress.json`. Retained
+allocations are `onpc-graphical-smoke-y0f5d4dl`,
+`onpc-e2e-evidence-ajvpxne8` and `onpc-e2e-evidence-jld0qd1w` under the
+maintained privileged allocation root. Use the approved artifact reader to
+investigate this new failure, then host-verify a settled correction and rerun
+the qualification and the two required regressions.
 Keep this task and the plan pointer unchanged until all acceptance passes.

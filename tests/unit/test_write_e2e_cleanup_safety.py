@@ -34,6 +34,8 @@ def wait_for(path):
 def checkout(tmp_path, monkeypatch):
     prepare(tmp_path)
     subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True)
+    subprocess.run(['git', 'config', 'user.name', 'Launcher test'], cwd=tmp_path, check=True)
+    subprocess.run(['git', 'config', 'user.email', 'launcher@example.invalid'], cwd=tmp_path, check=True)
     (tmp_path / '.git/info/exclude').write_text(
         'bin/\nscript.json\ncalls.jsonl\nagent-ready-*\nrelease*\n'
         'nested-ready\ncleanup-started\nnested-cleaned\n')
@@ -77,6 +79,101 @@ def finish_answered_run(run, spawned, output=None):
     # A broken resume must fail this regression instead of hanging the suite.
     spawned[-1].wait(timeout=20)
     return launcher.follow(run, output or io.StringIO())
+
+
+def three_task_batch(root):
+    (root / workflow.QUEUE).write_text(''.join(
+        f'| [ ] | {task} | Task {task} |\n' for task in ('001', '002', '003', '004')))
+    return [{'result': reply('task_complete', 'passed', task_id=task), 'close': True}
+            for task in ('001', '002', '003')]
+
+
+def optimization_reply(**values):
+    return reply('task_complete', 'not_run', task_id='003', stage_paths=['shared.py'], **values)
+
+
+@pytest.mark.parametrize('empty_queue', [False, True])
+def test_three_completed_tasks_commit_then_optimize_before_fourth_task(checkout, empty_queue):
+    root, _ = checkout
+    (root / 'unrelated').write_text('pre-staged work')
+    subprocess.run(['git', 'add', '--', 'unrelated'], cwd=root, check=True)
+    steps = three_task_batch(root)
+    if empty_queue:
+        queue = root / workflow.QUEUE
+        queue.write_text(queue.read_text().replace('| [ ] | 004 | Task 004 |\n', ''))
+    script(root, *steps,
+           {'result': optimization_reply(), 'writes': {'shared.py': 'reusable mechanics'}})
+    run, _ = select_vm(root, ['--tasks', '3'])
+    assert launcher.follow(run, io.StringIO()) == 0
+    history = subprocess.run(['git', 'log', '--reverse', '--format=%s'], cwd=root,
+                             capture_output=True, text=True, check=True).stdout.splitlines()
+    assert history == ['TA: Completed task 001', 'TA: Completed task 002',
+                       'TA: Completed task 003', 'TA: Refactored task 001 to 003']
+    assert workflow.queue_state(root)[0] == (None if empty_queue else '004')
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert state['optimization']['pending'] == []
+    assert state['optimization']['last_checkpoint']['tasks'] == ['001', '002', '003']
+    assert json.loads((run / 'result.json').read_text())['tasks'] == 3
+    invocation = calls(root)[-1]
+    assert '## Ask 1' in invocation['prompt'] and '## Ask 2' in invocation['prompt']
+    assert 'gpt-6.1-sol' in invocation['args'] and 'model_reasoning_effort="high"' in invocation['args']
+    assert 'features.multi_agent=false' in invocation['args']
+    staged = subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=root,
+                            capture_output=True, text=True, check=True).stdout
+    assert staged.strip() == 'unrelated'
+    tracked = subprocess.run(['git', 'ls-tree', '--name-only', 'HEAD'], cwd=root,
+                             capture_output=True, text=True, check=True).stdout
+    assert 'unrelated' not in tracked
+
+
+def test_batch_checkpoint_survives_separate_runs_budget_and_interrupted_optimization(checkout):
+    root, _ = checkout
+    script(root, *three_task_batch(root),
+           {'result': optimization_reply(), 'invalid': True, 'writes': {'shared.py': 'partial fix'}},
+           {'result': optimization_reply(), 'writes': {'shared.py': 'validated fix'}})
+    for count in (1, 2, 3):
+        run, _ = select_vm(root, ['--sessions', '1'])
+        assert launcher.follow(run, io.StringIO()) == 0
+        state = json.loads((run / 'checkpoint.json').read_text())
+        assert state['optimization']['pending'] == [f'{task:03}' for task in range(1, count + 1)]
+    assert state['optimization_session'] and state['phase'] == 'optimize'
+    interrupted, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(interrupted, io.StringIO()) == 1
+    assert workflow.queue_state(root)[0] == '004'
+    recovered, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(recovered, io.StringIO()) == 0
+    assert all('## Ask 1' in call['prompt'] for call in calls(root)[3:])
+    state = json.loads((recovered / 'checkpoint.json').read_text())
+    assert state['optimization']['pending'] == []
+    assert len(calls(root)) == 5
+    assert subprocess.run(['git', 'log', '--format=%s'], cwd=root, capture_output=True,
+                          text=True, check=True).stdout.count('TA: Refactored task 001 to 003') == 1
+
+
+def test_early_worker_spawn_failure_preserves_carried_batch(checkout, monkeypatch):
+    root, _ = checkout
+    script(root, *three_task_batch(root),
+           {'result': optimization_reply(), 'writes': {'shared.py': 'reusable mechanics'}})
+    first, _ = select_vm(root, ['--tasks', '2', '--sessions', '2'])
+    assert launcher.follow(first, io.StringIO()) == 0
+    popen = subprocess.Popen
+
+    def fail_worker(*args, **kwargs):
+        if '--worker' in args[0]:
+            raise OSError('worker spawn interrupted')
+        return popen(*args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(subprocess, 'Popen', fail_worker)
+        with pytest.raises(OSError, match='worker spawn interrupted'):
+            select_vm(root, ['--sessions', '1'])
+    third, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(third, io.StringIO()) == 0
+    state = json.loads((third / 'checkpoint.json').read_text())
+    assert state['optimization']['pending'] == ['001', '002', '003']
+    audit, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(audit, io.StringIO()) == 0
+    assert json.loads((audit / 'checkpoint.json').read_text())['optimization']['pending'] == []
 
 
 def test_first_session_success_closes_and_stages_without_another_session(checkout):
@@ -130,7 +227,9 @@ def test_staging_failure_keeps_accepted_handoff_and_restarts_without_agent(check
     assert 'staging remains' in handoff and result['handoff'] in handoff
     retained = (run / 'checkpoint.json').read_bytes()
     (root / 'ignored-task.txt').unlink()
-    selected = workflow.initial_state(root, run.parent)
+    recovery = run.parent / ('c' * 32)
+    recovery.mkdir()
+    selected = workflow.initial_state(root, run.parent, destination=recovery)
     assert selected['task_id'] == '002'
     assert len(calls(root)) == 1
     assert (run / 'checkpoint.json').read_bytes() == retained
@@ -453,10 +552,12 @@ def test_completion_stages_changes_from_every_session_despite_omitted_stage_path
     assert launcher.follow(first, io.StringIO()) == 0
     second, _ = select_vm(root, ['--sessions', '1'])
     assert launcher.follow(second, io.StringIO()) == 0
-    staged = subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=root,
-                            capture_output=True, text=True, check=True).stdout.splitlines()
-    assert set(staged) == {workflow.PLAN, workflow.QUEUE,
-                           'implementation.py', 'final-note.md'}
+    committed = subprocess.run(['git', 'ls-tree', '-r', '--name-only', 'HEAD'], cwd=root,
+                               capture_output=True, text=True, check=True).stdout.splitlines()
+    assert set(committed) == {workflow.PLAN, workflow.QUEUE,
+                              'implementation.py', 'final-note.md'}
+    assert subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=root,
+                          capture_output=True, text=True, check=True).stdout == ''
     assert unrelated.read_text() == 'pre-existing work'
 
 

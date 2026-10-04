@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import subprocess
@@ -65,7 +66,9 @@ def agent(root):
         task = result['task_id']
         queue.write_text(queue.read_text().replace(f'| [ ] | {task} |', f'| [x] | {task} |'))
         plan = root / 'docs/TestAutomation/E2E-Execution-Plan.md'
-        plan.write_text('Next task: **002 — [Second](second.md)**.\n')
+        remaining = re.findall(r'^\| \[ \] \| ([^|]+) \|', queue.read_text(), re.MULTILINE)
+        plan.write_text(f'Next task: **{remaining[0].strip()} — Next**.\n' if remaining else
+                        'All active tasks complete.\n')
     destination = Path(args[args.index('--output-last-message') + 1])
     destination.write_text(json.dumps(result) if not step.get('invalid') else 'bad result')
     print(json.dumps({'type': 'item.completed', 'item': {

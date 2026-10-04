@@ -1046,3 +1046,110 @@ def test_staging_refuses_nonfile_or_external_paths_before_git(tmp_path, path):
     prepare(tmp_path)
     with pytest.raises(ValueError, match='explicit checkout files'):
         workflow.stage_task(tmp_path, [workflow.PLAN, workflow.QUEUE, path])
+
+
+@pytest.fixture
+def commit_checkout(tmp_path):
+    prepare(tmp_path)
+    subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True)
+    subprocess.run(['git', 'config', 'user.name', 'Launcher test'], cwd=tmp_path, check=True)
+    subprocess.run(['git', 'config', 'user.email', 'launcher@example.invalid'], cwd=tmp_path, check=True)
+    return tmp_path
+
+
+@pytest.mark.parametrize('optimization,empty', [(False, False), (True, False), (True, True)])
+def test_commit_interruption_recovers_once_including_deleted_paths(commit_checkout, optimization, empty):
+    root = commit_checkout
+    (root / 'deleted').write_text('old mechanics')
+    subprocess.run(['git', 'add', '--', workflow.PLAN, workflow.QUEUE, 'deleted'], cwd=root, check=True)
+    subprocess.run(['git', 'commit', '-qm', 'Baseline'], cwd=root, check=True)
+    (root / 'deleted').unlink()
+    state = dict(workflow.fresh_state('001'), commit_required=True, in_flight=True)
+    if optimization:
+        state['optimization'] = {'pending': ['000a', '000b', '001'], 'last_checkpoint': None}
+        state['optimization_session'] = True
+        result = reply('task_complete', 'not_run', stage_paths=[] if empty else ['deleted'])
+    else:
+        (root / workflow.QUEUE).write_text('| [x] | 001 | First |\n| [ ] | 002 | Second |\n')
+        (root / workflow.PLAN).write_text('Next task: **002 — Next**.\n')
+        result = reply('task_complete', 'passed', stage_paths=[workflow.PLAN, workflow.QUEUE, 'deleted'])
+    before = {'001': False, '002': False}
+    state['queue_before'] = workflow.queue_state(root)[1] if optimization else before
+    state['pending_completion'] = result
+    # Model death after Git returns but before the accepted state is checkpointed.
+    paths = workflow.stage_completion(root, state, result)
+    workflow.finish_commit(root, root, state, paths)
+    persisted = json.loads((root / 'checkpoint.json').read_text())
+    recovered = workflow.recover_completion(root, root, persisted)
+    assert subprocess.run(['git', 'rev-list', '--count', 'HEAD'], cwd=root,
+                          capture_output=True, text=True, check=True).stdout.strip() == '2'
+    assert recovered['phase'] == 'complete' and 'commit_intent' not in recovered
+    if optimization:
+        assert recovered['optimization']['pending'] == []
+        assert recovered['optimization']['last_checkpoint']['tasks'] == ['000a', '000b', '001']
+    else:
+        assert recovered['optimization']['pending'] == ['001']
+
+
+def test_commit_failure_retries_without_recounting_or_reacceptance(commit_checkout, monkeypatch):
+    root = commit_checkout
+    before = workflow.queue_state(root)[1]
+    (root / workflow.QUEUE).write_text('| [x] | 001 | First |\n| [ ] | 002 | Second |\n')
+    (root / workflow.PLAN).write_text('Next task: **002 — Next**.\n')
+    result = reply('task_complete', 'passed')
+    state = dict(workflow.fresh_state('001'), commit_required=True, in_flight=True,
+                 queue_before=before, pending_completion=result)
+    git = workflow.git_output
+
+    def refuse_commit(root, *args, **kwargs):
+        if 'commit' in args:
+            return subprocess.CompletedProcess(args, 1, '', 'commit hook refused')
+        return git(root, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(workflow, 'git_output', refuse_commit)
+        with pytest.raises(ValueError, match='commit hook refused'):
+            workflow.recover_completion(root, root, state)
+    assert state.get('optimization', {}).get('pending', []) == []
+    persisted = json.loads((root / 'checkpoint.json').read_text())
+    recovered = workflow.recover_completion(root, root, persisted)
+    assert recovered['optimization']['pending'] == ['001']
+    assert recovered['completion_recorded']
+
+
+def test_completion_refuses_overlapping_preexisting_staged_work(commit_checkout):
+    root = commit_checkout
+    state = dict(workflow.fresh_state('001'), commit_required=True, protected_staged=[workflow.QUEUE])
+    with pytest.raises(ValueError, match='pre-existing staged work'):
+        workflow.stage_completion(root, state, reply('task_complete', 'passed'))
+    assert subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True,
+                          text=True, check=True).stdout == ''
+
+
+@pytest.mark.parametrize('mutation', ['head', 'worktree', 'index'])
+def test_commit_recovery_refuses_external_changes(commit_checkout, mutation):
+    root = commit_checkout
+    state = dict(workflow.fresh_state('001'), commit_required=True)
+    paths = workflow.stage_completion(root, state, reply('task_complete', 'passed'))
+    workflow.finish_commit(root, root, state, paths)
+    if mutation == 'head':
+        subprocess.run(['git', 'commit', '--allow-empty', '-qm', 'External commit'], cwd=root, check=True)
+    else:
+        (root / workflow.PLAN).write_text('External edit')
+        if mutation == 'index':
+            subprocess.run(['git', 'add', '--', workflow.PLAN], cwd=root, check=True)
+    with pytest.raises(ValueError, match='HEAD changed outside pending completion'):
+        workflow.finish_commit(root, root, state, paths)
+
+
+def test_optimization_rejects_unvalidated_completion_or_queue_changes(tmp_path):
+    prepare(tmp_path)
+    state = workflow.start_optimization(dict(workflow.fresh_state('001'), optimization={
+        'pending': ['000a', '000b', '001'], 'last_checkpoint': None}))
+    _, before = workflow.queue_state(tmp_path)
+    with pytest.raises(ValueError, match='passing validation'):
+        workflow.accept_result(tmp_path, state, reply('task_complete', 'not_run', host_validated=False), before)
+    (tmp_path / workflow.QUEUE).write_text('| [x] | 001 | First |\n| [ ] | 002 | Second |\n')
+    (tmp_path / workflow.PLAN).write_text('Next task: **002 — Next**.\n')
+    with pytest.raises(ValueError, match='queue status or order'):
+        workflow.accept_result(tmp_path, state, reply('task_complete', 'not_run'), before)

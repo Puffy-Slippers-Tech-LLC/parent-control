@@ -381,6 +381,9 @@ write_e2e write_e2e_cleanup_safety
 # the existing compatible unit and cleanup classifications remain applicable.
 # Escalation/restart/stall checks reuse those private checkouts and waited agent
 # doubles, adding no model calls, VM operations or shared resources.
+# Batch optimization and commit recovery use the same private checkouts, local
+# Git identity/configuration and waited agent doubles; compatible overlap remains
+# valid without touching the developer's Git index, history, hooks or identity.
 
 # Baseline mode/update/reboot tests mock every VM/package
 # mutation. Version checks spawn only bounded read-only dpkg comparisons with

@@ -118,6 +118,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # resource is added; cleanup and unit scheduling remain compatible.
 # Escalation/restart/stall checks use the same bounded, waited agent doubles;
 # there are no model calls, VM operations or additional shared resources.
+# Optimization cadence/interruptions and completion commits reuse isolated Git
+# checkouts with local identity and waited doubles; no host Git state or new
+# cleanup resource is shared, so the existing compatible classification applies.
 
 # Online snapshot, baseline CPU and maintenance recovery/rollback regressions
 # Per-VM spectator publication cleanup uses private tmp_path registrations and

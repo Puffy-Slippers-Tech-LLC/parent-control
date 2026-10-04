@@ -499,7 +499,7 @@ tools/write-e2e --vm NAME --stop
 ```
 
 `--sessions N` limits the total number of new sessions across implementation,
-live verification, retries and subsequent tasks. A new run with no options
+live verification, retries, optimization and subsequent tasks. A new run with no options
 defaults to 5 sessions and 1 completed task. A new run with `--tasks N` but no
 `--sessions` has no total session limit. Each task can use at most 5 sessions
 per new launcher process. A restarted launcher retains the task's cumulative
@@ -511,7 +511,7 @@ The next task starts with its own cap of 5.
 `--tasks N` limits completed tasks and defaults
 to `1`. Both limits accept positive integers for a new run; the launcher stops
 when either limit is reached. A task counts only after acceptance, queue
-close-out and successful staging. An empty active
+close-out, successful staging and its completion commit. An empty active
 queue stops the workflow. A task blocker pauses for your answer as described below.
 With a live run, an invocation without
 parameters attaches without changing limits. Explicit `--tasks` and `--sessions`
@@ -529,6 +529,43 @@ commands and their results remain visually separate, including without color.
 `--stop` finishes the current session, including test cleanup and its handoff or
 task close-out, then starts no further session. Ctrl+C cancels immediately and
 waits for owned cleanup.
+
+After each completed task, the launcher stages its owned paths and commits them
+as `TA: Completed task ID` before selecting another task. Git uses literal paths
+and `commit --only` so unrelated staged files remain outside the commit. Agents
+return explicit owned paths and never commit themselves. A path overlapping
+pre-existing staged work refuses close-out rather than committing that work.
+A staging or commit
+failure retains the accepted result; restart retries close-out without repeating
+valid acceptance. Commit intent is checkpointed before Git writes. Recovery
+recognizes only the matching immediate commit with unchanged owned files, avoiding
+a duplicate after interruption; an unexpected HEAD or changed files refuse.
+Missing Git identity or a failing commit hook remains an actionable close-out
+failure; the launcher does not change Git configuration or bypass hooks.
+
+Every **three accepted and committed tasks**, a fresh **GPT-6.1 Sol High** session
+runs before another queue task. Its scope is the batch's exact three completed
+queue IDs, displayed as the actual first-to-last ID range (IDs may have suffixes
+or inserted prerequisites). It analyzes evidenced lessons from successful work
+and merges useful guidance into the owning instructions/mandates without
+duplicates. It also audits the batch's delivered or affected ready E2E cases:
+cases compose shared building blocks, harness and libraries with finite case
+data, ordering and assertions; one-off mechanics move to their reusable owners.
+It preserves behavior, qualifications and guards, completes affected validation
+and resource review, then the launcher stages the fix and commits it as
+`TA: Refactored task FIRST to LAST`. A verified audit with no needed edits still
+gets an empty checkpoint commit. Optimization cannot close or reorder queue rows.
+
+The existing retained checkpoint owns pending batch IDs, the last optimized batch
+and commit, and any active optimization handoff/commit intent. It survives
+separate launcher runs, prerequisite suspension, stops and interruptions.
+Tasks predating this policy are not retroactively counted. Optimization uses the
+session budget and its own five-session cap, renewed on restart; it does not
+count against `--tasks`. A due optimization runs even after the task limit, while
+`--sessions`, stop and cancellation can defer it. Restart performs the due work
+before another task, including when the active queue is empty. No parallel or
+adviser agents run during optimization. A blocked optimization uses the same
+developer question and answer recovery as task work.
 
 New tasks start with **GPT-6.1 Sol High** as coordinator and implementer. The
 launcher promotes the implementer automatically within the existing five-session
@@ -656,7 +693,7 @@ Only a prerequisite requiring external action or an unresolved behavior decision
 returns a blocker with the actual validation outcome. A passing session completes
 the plan's acceptance, checks the row and advances its sole pointer. It returns an explicit
 list of task-related code, test and
-close-out files; the launcher stages those files without committing before
+close-out files; the launcher stages and commits those files before
 starting another session. This staging uses literal Git paths and needs no
 agent-side Git permission grant. Task 192 retains the plan's explicit host-only exception.
 Staged code is the baseline; agents do not analyze staged diffs.
@@ -665,7 +702,7 @@ Close-out ignores reported paths that are absent from both the working tree and
 the Git index, such as temporary briefs created and deleted within the task.
 Tracked deletions still stage normally. If staging fails after acceptance, the
 launcher retains the accepted result and current handoff. Restart revalidates
-that result against the saved queue state and retries only its staging before
+that result against the saved queue state and retries only its staging/commit before
 selecting the next task; it does not repeat the completed live acceptance or
 rewrite the previous run's evidence. Recovery preserves newly queued unchecked
 tasks; changes to existing task order or another task's status still refuse.

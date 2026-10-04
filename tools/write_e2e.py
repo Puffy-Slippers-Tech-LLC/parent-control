@@ -24,6 +24,7 @@ MODEL_TIERS = (('gpt-6.1-sol', 'high'), ('gpt-6-astra', 'high'),
                ('gpt-6-astra', 'xhigh'))
 ADVISER_CONFIG = Path(__file__).resolve().with_name('write_e2e_adviser.toml')
 MAX_TASK_SESSIONS = 5
+OPTIMIZATION_INTERVAL = 3
 INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md
 through host validation and the first live VM test. Close the task if it passes;
 if it fails, hand off the failure to the next session.
@@ -105,6 +106,8 @@ def select_task_state(task, state):
     selected = dict(pending.pop(task)) if task in pending else fresh_state(task)
     if pending:
         selected['suspended_tasks'] = pending
+    if 'optimization' in state:
+        selected['optimization'] = state['optimization']
     return selected
 
 
@@ -119,6 +122,8 @@ def defer_to_prerequisite(root, state, *, recovery_run=None):
     pending[state['task_id']] = consumer
     selected = fresh_state(current)
     selected['suspended_tasks'] = pending
+    if 'optimization' in state:
+        selected['optimization'] = state['optimization']
     selected['total_sessions'] = state.get('total_sessions', state.get('task_sessions', 0))
     if recovery_run is not None:
         selected.update(phase='recover', recovery_run=str(recovery_run),
@@ -129,6 +134,11 @@ def defer_to_prerequisite(root, state, *, recovery_run=None):
 
 
 def session_progress(root, state, count):
+    if state.get('optimization_session'):
+        batch = state['optimization']['pending']
+        return [f"Optimization: tasks {batch[0]} to {batch[-1]}",
+                f"Session [{state['task_sessions']}]: lessons and reusable E2E composition "
+                '(gpt-6.1-sol high)']
     task = state['task_id']
     queue = (root / QUEUE).read_text().split('## Deferred future work', 1)[0]
     row = re.search(r'^\| \[[ x]\] \| ' + re.escape(task) + r' \| ([^|]+) \|', queue, re.MULTILINE)
@@ -187,6 +197,8 @@ def model_tier(state):
 
 
 def session_model(state):
+    if state.get('optimization_session'):
+        return MODEL_TIERS[0]
     return MODEL_TIERS[model_tier(state)]
 
 
@@ -195,7 +207,7 @@ def session_command(root, state, run=None):
     command = launcher.agent_command(
         root, model, effort, run,
         schema=Path(__file__).with_name('write_e2e_response.schema.json'),
-        adviser_config=ADVISER_CONFIG if model == 'gpt-6.1-sol' else None)
+        adviser_config=ADVISER_CONFIG if model == 'gpt-6.1-sol' and not state.get('optimization_session') else None)
     # Personal Fast settings must not silently spend more of the weekly budget.
     command[-1:-1] = ['-c', 'service_tier="default"', '-c', 'features.fast_mode=false']
     return command
@@ -219,6 +231,8 @@ def record_usage(run, metadata, usage):
 
 
 def session_prompt(state):
+    if state.get('optimization_session'):
+        return optimization_prompt(state)
     from vm_selection import execution_instructions
     vm_instructions = execution_instructions()
     task = state['task_id']
@@ -273,7 +287,8 @@ This tools/write-e2e session stops at the phase boundary below.
 {vm_instructions}
 
 Treat staged code as the baseline. Do not analyze staged diffs or compare it to
-HEAD; read current source as needed. The launcher owns staging. Do not commit,
+HEAD; read current source as needed. The launcher owns staging and commits after
+each completed task. Do not commit,
 push, publish, invoke write-e2e/fix-tests, or access prior
 Codex sessions, memories or transcripts.
 Run tests through tools/run-tests for owned cancellation; preserve
@@ -400,6 +415,92 @@ task_complete with live_result not_run after its host-only acceptance and close-
 """
 
 
+def optimization_prompt(state):
+    batch = state['optimization']['pending']
+    return f"""You are the GPT-6.1-Sol High coordinator and implementer for this session.
+Follow AGENTS.md and the ownership map in docs/TestAutomation/README.md.
+This is the mandatory optimization after three completed tasks, not a queue task.
+
+## Scope
+Tasks {batch[0]} to {batch[-1]} in {QUEUE}; exact completed IDs: {', '.join(batch)}.
+Do not implement or close another task, change queue status/order or advance its pointer.
+
+## Ask 1
+Analyze lessons and successful experiences from this batch that can make future
+tasks easier, increase first-time pass rate, reduce trial-and-error sessions and
+completion time. Read current implementations, delivered queue scope and existing
+runner evidence referenced by close-out. Add or merge actionable guidance into
+its owning instructions or mandates; search existing guidance and avoid duplicates.
+Do not create a lessons archive or infer lessons unsupported by evidence.
+
+## Ask 2
+Audit the E2E case code delivered or affected by this batch, including its ready
+case bindings in tests/e2e/scenarios.json. Each ready case must be a composition
+of reusable building blocks, harness and libraries with finite case data, ordering
+and assertions. Refactor one-off mechanics into the existing shared owners to
+maximize reuse across cases. Preserve customer assertions, provider qualifications,
+ownership, guards and acceptance; do not broaden this batch to unrelated cases.
+Use tests/support/README.md and the shared task contract in
+docs/TestAutomation/E2E-Execution-Contracts.md. Read applicable mandates before edits.
+Complete affected regressions and resource review. Runtime/provider changes need
+their required live qualification; documentation-only changes need no live run.
+Validate changed Markdown through tools/read-only links. Wait for owned cleanup.
+
+The launcher owns staging and commits the validated fix as
+"TA: Refactored task {batch[0]} to {batch[-1]}". Do not commit, push, publish or
+invoke write-e2e/fix-tests. Preserve unrelated staged and unstaged work. Read
+current source; do not inspect prior Codex sessions, memories or transcripts.
+No delegation. Run tests through tools/run-tests and preserve ONPC_WORKFLOW_DIRECTORY.
+This optimization is resumable; recheck interrupted operations and owned cleanup
+using the retained runner evidence before continuing. Missing authority or a
+required behavior decision returns blocked with a concrete question.
+
+Return the existing structured result with task_id {state['task_id']}.
+Use task_complete only when both asks, affected validation and cleanup are done,
+host_validated true, live_result passed or not_run as appropriate, progress outcome
+not_applicable, and explicit optimization-owned stage_paths (deletions included).
+No changes or lessons is a valid audited outcome; report the evidence in summary.
+A failed live validation returns ready_for_vm with host_validated true and a
+failed live_result; unresolved work without a developer blocker returns stalled.
+Keep summary under 600 characters and handoff under 16000; carry only findings,
+decisions, remaining work, exact selectors and evidence paths across sessions.
+{BLOCKER_INSTRUCTIONS}
+
+Previous optimization handoff:
+{state['handoff']}
+User answer: {json.dumps(state.get('user_answer'), ensure_ascii=False)}
+Recovery evidence: {state.get('recovery_run', 'current workflow directory')}
+"""
+
+
+def optimization_due(state):
+    return len(state.get('optimization', {}).get('pending', [])) >= OPTIMIZATION_INTERVAL
+
+
+def record_completion(state):
+    """Count accepted, committed tasks exactly once across close-out recovery."""
+    if state.get('optimization_session') or state.get('completion_recorded'):
+        return
+    ledger = state.setdefault('optimization', {'pending': [], 'last_checkpoint': None})
+    if len(ledger['pending']) >= OPTIMIZATION_INTERVAL:
+        raise ValueError('optimization is due before another task can complete')
+    ledger['pending'].append(state['task_id'])
+    state['completion_recorded'] = True
+
+
+def start_optimization(state):
+    batch = state['optimization']['pending']
+    if len(batch) != OPTIMIZATION_INTERVAL:
+        raise ValueError('optimization checkpoint must contain exactly three completed tasks')
+    selected = fresh_state(batch[-1])
+    selected.update(optimization=state['optimization'], optimization_session=True,
+                    phase='optimize', commit_required=True,
+                    handoff='Analyze this completed batch and audit its reusable E2E composition.')
+    if state.get('suspended_tasks'):
+        selected['suspended_tasks'] = state['suspended_tasks']
+    return selected
+
+
 def validate_progress(state, result):
     progress = result.get('progress')
     if progress is None and 'progress' not in result and result['status'] != 'stalled':
@@ -445,6 +546,23 @@ def accept_result(root, state, result, before):
     progress = validate_progress(state, result)
     current, after = queue_state(root)
     task = state['task_id']
+    if state.get('optimization_session'):
+        if list(after.items()) != list(before.items()):
+            raise ValueError('optimization changed queue status or order')
+        if result['status'] == 'task_complete' and (
+                not result['host_validated'] or result['live_result'] == 'failed'):
+            raise ValueError('optimization completion lacks passing validation')
+        if result['status'] != 'task_complete' and result['stage_paths']:
+            raise ValueError('incomplete optimization requested staging')
+        if result['status'] == 'ready_for_vm' and (
+                not result['host_validated'] or result['live_result'] != 'failed'):
+            raise ValueError('optimization handoff lacks matching live outcome')
+        if result['status'] == 'stalled' and result['live_result'] == 'passed':
+            raise ValueError('optimization stall cannot claim passing live acceptance')
+        return dict(state, summary=result['summary'], handoff=result['handoff'],
+                    in_flight=False, blocker=blocker, progress=progress,
+                    phase='complete' if result['status'] == 'task_complete' else
+                          'blocked' if result['status'] == 'blocked' else 'optimize')
     if any(after.get(key) != complete for key, complete in before.items() if key != task):
         raise ValueError('agent changed another task status; inspect the queue')
     status = result['status']
@@ -512,15 +630,16 @@ def wait_for_answer(run, state, progress_key):
     return True
 
 
-def stage_task(root, paths):
+def stage_task(root, paths, *, require_closeout=True):
     """Stage only explicit reported files; never interpret Git pathspec magic."""
     paths = list(dict.fromkeys(paths))
-    if not {PLAN, QUEUE}.issubset(paths):
+    if require_closeout and not {PLAN, QUEUE}.issubset(paths):
         raise ValueError('completed task must include plan and queue in stage_paths')
     for value in paths:
         path = Path(value)
         if (not value or '\x00' in value or path.is_absolute() or '..' in path.parts
-                or '.git' in path.parts or value != path.as_posix() or path == Path('.')
+                or '.git' in path.parts or path.parts[:1] == ('output',)
+                or value != path.as_posix() or path == Path('.')
                 or (root / path).is_dir()
                 or any(parent.is_symlink() for parent in (root / path).parents if parent != root)):
             raise ValueError('stage_paths must contain explicit checkout files')
@@ -532,11 +651,12 @@ def stage_task(root, paths):
     # index. It has no deletion to stage. Keep indexed deletions and symlinks.
     paths = [path for path in paths if path in tracked or os.path.lexists(root / path)]
     if not paths:
-        return
+        return []
     result = subprocess.run(['git', '--literal-pathspecs', 'add', '--', *paths], cwd=root,
                             env=launcher.environment(), capture_output=True, text=True)
     if result.returncode:
         raise ValueError('task staging failed: ' + result.stderr.strip())
+    return paths
 
 
 def worktree_snapshot(root):
@@ -577,12 +697,100 @@ def stage_completion(root, state, result):
     current = worktree_snapshot(root)
     changed = [path for path in state['stage_candidates']
                if path in current and current[path] != state.get('stage_baseline', {}).get(path)]
-    stage_task(root, [*result['stage_paths'], *changed])
+    paths = [*result['stage_paths'], *changed]
+    overlap = set(paths).intersection(state.get('protected_staged', []))
+    if state.get('commit_required') and overlap:
+        raise ValueError('completion overlaps pre-existing staged work: ' + ', '.join(sorted(overlap)))
+    return stage_task(root, paths,
+                      require_closeout=not state.get('optimization_session'))
 
 
-def recover_completion(root, run, state):
+def git_output(root, *arguments, check=True):
+    return subprocess.run(['git', *arguments], cwd=root, env=launcher.environment(),
+                          capture_output=True, text=True, check=check)
+
+
+def finish_commit(root, run, state, paths):
+    """Checkpoint commit intent before writing Git, and recognize a completed write."""
+    head = git_output(root, 'rev-parse', '--verify', 'HEAD', check=False)
+    parent = head.stdout.strip() if head.returncode == 0 else None
+    batch = state.get('optimization', {}).get('pending', [])
+    message = (f'TA: Refactored task {batch[0]} to {batch[-1]}'
+               if state.get('optimization_session') else f"TA: Completed task {state['task_id']}")
+    intent = state.get('commit_intent')
+    if intent is not None:
+        if intent['message'] != message or intent['paths'] != paths:
+            raise ValueError('completion commit scope changed; inspect retained checkpoint')
+        if parent != intent['parent']:
+            # A worker may die after Git commits but before the checkpoint is saved.
+            # Only the exact immediate commit and unchanged owned files earn credit.
+            subject = git_output(root, 'log', '-1', '--format=%s').stdout.strip()
+            parents = git_output(root, 'log', '-1', '--format=%P').stdout.strip()
+            changed = git_output(root, 'diff-tree', '--root', '--no-commit-id',
+                                 '--name-only', '-r', '-z', 'HEAD').stdout.split('\0')
+            matches = (not paths or (
+                git_output(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
+                           '--', *paths).stdout == intent['entries']
+                and not git_output(root, '--literal-pathspecs', 'status', '--porcelain',
+                                   '--untracked-files=all', '--ignored', '-z', '--', *paths).stdout))
+            if (subject != message or parents != (intent['parent'] or '')
+                    or not set(filter(None, changed)).issubset(paths) or not matches):
+                raise ValueError('HEAD changed outside pending completion commit; inspect checkpoint')
+            return parent
+    else:
+        entries = (git_output(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
+                             '--', *paths).stdout if paths else '')
+        state['commit_intent'] = {'parent': parent, 'message': message, 'paths': paths,
+                                  'entries': entries}
+        launcher.atomic(run / 'checkpoint.json', state)
+    if paths:
+        entries = git_output(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
+                             '--', *paths).stdout
+        if (entries != state['commit_intent']['entries']
+                or git_output(root, '--literal-pathspecs', 'diff', '--quiet', '--',
+                              *paths, check=False).returncode != 0):
+            raise ValueError('owned files changed after staging; inspect pending commit')
+    # --only prevents unrelated pre-staged files from entering either commit.
+    # An audit with no edits still records its completed checkpoint as an empty commit.
+    arguments = ['--literal-pathspecs', 'commit', '--only', '--allow-empty', '-m', message]
+    if paths:
+        arguments += ['--', *paths]
+    result = git_output(root, *arguments, check=False)
+    if result.returncode:
+        raise ValueError('completion commit failed: ' + result.stderr.strip())
+    # Verify the same committed write on the normal path as on recovery; hooks
+    # must not silently change the validated content or include unrelated files.
+    return finish_commit(root, run, state, paths)
+
+
+def finish_completion(root, run, state, result, updated):
+    if state.get('commit_intent'):
+        paths = state['commit_intent']['paths']
+    else:
+        paths = stage_completion(root, state, result)
+    if state.get('commit_required'):
+        commit = finish_commit(root, run, state, paths)
+        if state.get('optimization_session'):
+            updated['optimization'] = {'pending': [], 'last_checkpoint': {
+                'tasks': list(state['optimization']['pending']), 'commit': commit}}
+            updated.pop('optimization_session', None)
+        else:
+            record_completion(updated)
+    updated.pop('commit_intent', None)
+    updated.pop('pending_completion', None)
+    updated.pop('worktree_before', None)
+    return updated
+
+
+def recover_completion(root, run, state, *, destination=None):
     """Retry accepted staging, or reconcile missing completion in a fresh session."""
     current, after = queue_state(root)
+    if state.get('optimization_session'):
+        result = state.get('pending_completion')
+        if result is None:
+            return state
+        updated = accept_result(root, state, result, state['queue_before'])
+        return finish_completion(root, destination or run, state, result, updated)
     if (not state.get('in_flight') or current == state['task_id']
             or not after.get(state['task_id']) or not state.get('queue_before')):
         return state
@@ -610,10 +818,8 @@ def recover_completion(root, run, state):
               'before starting the next task.', flush=True)
         return dict(state, phase='recover', in_flight=False, completion_recovery=True,
                     recovery_run=str(run), queue_before=before)
-    stage_completion(root, state, result)
-    updated.pop('pending_completion', None)
-    updated.pop('worktree_before', None)
-    print(f"write-e2e: recovered completed task {state['task_id']}; staging passed.", flush=True)
+    updated = finish_completion(root, destination or run, state, result, updated)
+    print(f"write-e2e: recovered completed task {state['task_id']}; close-out passed.", flush=True)
     return updated
 
 
@@ -637,7 +843,8 @@ def save_handoff(run, state, reason, *, display=True):
     prompt = state['handoff']
     if state.get('pending_completion'):
         prompt = (f"Task {state['task_id']} passed acceptance and queue close-out; staging remains. "
-                  "Restart tools/write-e2e to retry staging from the retained result before "
+                  "Staging and/or its completion commit remain. "
+                  "Restart tools/write-e2e to retry close-out from the retained result before "
                   "starting the next task. Do not rerun acceptance.\n" + prompt)
     elif state['in_flight']:
         prompt = (
@@ -729,6 +936,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, cancel)
     state = json.loads(state_json)
+    state['commit_required'] = True
     total = state.get('total_sessions', state.get('task_sessions', 0))
     count, completed, status, reason = 0, 0, 0, 'session limit reached'
     completions = []
@@ -741,7 +949,18 @@ def worker(root, run, owner, sessions, tasks, state_json):
                              replaces=keys)
 
     try:
+        if state.get('closeout_recovery_run'):
+            previous = Path(state.pop('closeout_recovery_run'))
+            state = recover_completion(root, previous, state, destination=run)
+            if state['phase'] == 'complete' and not optimization_due(state):
+                state = select_task_state(queue_state(root)[0], state)
+                total = state.get('task_sessions', 0)
+            state['commit_required'] = True
+            launcher.atomic(run / 'checkpoint.json', state)
         while True:
+            if state['phase'] == 'complete' and optimization_due(state):
+                state = start_optimization(state)
+                launcher.atomic(run / 'checkpoint.json', state)
             if state['phase'] == 'blocked':
                 if not wait_for_answer(run, state, str(count)):
                     reason = 'paused at your request'
@@ -766,7 +985,8 @@ def worker(root, run, owner, sessions, tasks, state_json):
                     status, reason = 1, 'task session limit reached'
                     launcher.atomic(run / 'limits.json', dict(limits, closed=True))
                     break
-                if completed >= tasks or (sessions is not None and count >= sessions):
+                if ((completed >= tasks and not state.get('optimization_session'))
+                        or (sessions is not None and count >= sessions)):
                     reason = 'task limit reached' if completed >= tasks else 'session limit reached'
                     launcher.atomic(run / 'limits.json', dict(limits, closed=True))
                     break
@@ -777,7 +997,9 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 reason = 'stopped at a session boundary'
                 break
             task, before = queue_state(root)
-            if state.get('completion_recovery'):
+            if state.get('optimization_session'):
+                task = state['task_id']
+            elif state.get('completion_recovery'):
                 before = validate_completion_queue(state, before)
                 # The pointer already names the next task. Keep the interrupted
                 # task and its original status baseline until acceptance is proven.
@@ -789,6 +1011,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 break
             if state['phase'] == 'complete':
                 state = select_task_state(task, state)
+                state['commit_required'] = True
                 compact_completions()
                 if task_session_limit_reached(state):
                     status, reason = 1, 'task session limit reached'
@@ -804,6 +1027,9 @@ def worker(root, run, owner, sessions, tasks, state_json):
             prompt = session_prompt(state)
             (run / 'prompt.txt').write_text(prompt, encoding='utf-8')
             state.setdefault('stage_baseline', worktree_snapshot(root))
+            if 'protected_staged' not in state:
+                state['protected_staged'] = list(filter(None, git_output(
+                    root, 'diff', '--cached', '--name-only', '-z').stdout.split('\0')))
             state['worktree_before'] = worktree_snapshot(root)
             state['queue_before'] = before
             state['in_flight'] = True
@@ -823,12 +1049,15 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 state['stage_candidates'] = sorted(candidates)
                 launcher.atomic(run / 'checkpoint.json', state)
             updated = accept_result(root, state, result, before)
-            final_stall = result['status'] == 'stalled' and model_tier(state) == len(MODEL_TIERS) - 1
+            optimizing = bool(state.get('optimization_session'))
+            final_stall = (not optimizing and result['status'] == 'stalled'
+                           and model_tier(state) == len(MODEL_TIERS) - 1)
             if updated['phase'] == 'complete':
                 state.update(pending_completion=result, summary=result['summary'], handoff=result['handoff'])
                 launcher.atomic(run / 'checkpoint.json', state)
-                stage_completion(root, state, result)
-                completed += 1
+                updated = finish_completion(root, run, state, result, updated)
+                if not optimizing:
+                    completed += 1
             state = updated
             state.pop('worktree_before', None)
             if state['phase'] == 'complete':
@@ -837,7 +1066,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
             if final_stall:
                 status, reason = 1, 'reasoning stalled at Astra Extra High; inspect the retained evidence'
                 break
-            if state['phase'] == 'complete':
+            if state['phase'] == 'complete' and not optimizing:
                 keys = state['progress_keys']
                 completions.append((task, state['task_sessions'],
                                     state['completed_at'] - state['started_at'], keys, progress_lines[0]))
@@ -880,7 +1109,7 @@ def positive(value):
     return int(value)
 
 
-def initial_state(root, directory):
+def initial_state(root, directory, *, destination=None, defer_closeout=False):
     task, _ = queue_state(root)
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
@@ -888,7 +1117,33 @@ def initial_state(root, directory):
         # Progress keys name frames in one launcher, unlike cumulative task sessions.
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             saved.pop('progress_keys', None)
-        state = recover_completion(root, previous, state)
+        if defer_closeout and (state.get('closeout_recovery_run') or state.get('pending_completion')
+                or (state.get('in_flight') and queue_state(root)[1].get(state['task_id']))):
+            state.setdefault('closeout_recovery_run', str(previous))
+            used = state.get('task_sessions', 0)
+            return dict(state, total_sessions=used,
+                        task_session_limit=used + MAX_TASK_SESSIONS)
+        state = recover_completion(root, previous, state, destination=destination)
+        if state.get('optimization_session'):
+            if state.get('in_flight') and state.get('worktree_before') is not None:
+                candidates = set(state.get('stage_candidates', []))
+                candidates.update(session_changes(root, state['worktree_before']))
+                state['stage_candidates'] = sorted(candidates)
+            question_path = previous / 'question.json'
+            if state.get('phase') == 'blocked' and question_path.exists():
+                question = json.loads(question_path.read_text())
+                if question['id'] == state.get('blocker_id') and question.get('answer') is not None:
+                    state.update(phase='optimize', recovery_run=str(previous),
+                                 user_answer={'question': question['question'], 'answer': question['answer']})
+                    state.pop('blocker_id', None)
+                    state.pop('blocker', None)
+            if state.get('in_flight'):
+                state.update(phase='optimize', in_flight=False, recovery_run=str(previous))
+            used = state.get('task_sessions', 0)
+            return dict(state, total_sessions=used,
+                        task_session_limit=used + MAX_TASK_SESSIONS)
+        if state['phase'] == 'complete' and optimization_due(state):
+            return start_optimization(state)
         # Completion reconciliation uses recorded candidates and the recovering
         # agent's explicit owned paths. A scan after the old run ended would
         # wrongly attribute later developer work to the interrupted task.
@@ -941,6 +1196,7 @@ def select(root, argv):
         execution_selection(configured.name if configured else None)
     binding = execution_binding()
     initial_limits = {}
+    initial_checkpoint = {}
 
     def parse(attaching=False):
         parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
@@ -985,17 +1241,19 @@ def select(root, argv):
         if args.tasks is None:
             args.tasks = 1
         initial_limits.update(sessions=args.sessions, tasks=args.tasks, started=0)
-        state = initial_state(root, run.parent)
+        state = initial_state(root, run.parent, defer_closeout=True)
         state['vm'] = binding
         # Preflight transport/rendering only; do not spend a model session here.
         from launcher_render import AgentRenderer
         session_command(root, state)
+        initial_checkpoint.update(state)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
                 str(root), str(run), str(owner), json.dumps(args.sessions),
                 json.dumps(args.tasks), json.dumps(state)]
     return launcher.select(root, 'write-e2e', command, stop='--stop' in argv, stop_marker='stop',
                            on_attach=attach,
                            on_start=lambda run: (launcher.atomic(run / 'limits.json', initial_limits),
+                                                 launcher.atomic(run / 'checkpoint.json', initial_checkpoint),
                                                  save_binding(run, binding)))
 
 

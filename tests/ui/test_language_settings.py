@@ -205,6 +205,30 @@ def test_installed_parent_management_reader_keeps_visible_and_accessible_text_se
     assert_no_policy_or_request_writes(path)
 
 
+def test_parent_hebrew_public_text_and_keyboard_navigation(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from tests.support.keyboard import press_key
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'parent', language='en')
+    wait(lambda: ui.showing('parent-language-ready'), 'saved startup ready')
+    reader = ui.reader
+    for language, heading in (('en', 'Choose your language'),
+                              ('he', 'בחירת השפה שלך'), ('en', 'Choose your language')):
+        reader.open_language_preferences('parent')
+        reader.choose_language('parent', language)
+        focused = reader.language_presentation('parent', focus=True)
+        assert focused == {'heading': heading,
+            'choices': {'en': 'English', 'de': 'Deutsch', 'zh-Hans': '中文（简体）', 'he': 'עברית'},
+            'checked': language, 'focused': 'language-cancel'}
+        press_key(ui, 'language-cancel', 'Tab', state=ui.api.StateType.FOCUSED)
+        assert reader.language_presentation('parent') == {**focused, 'focused': 'language-continue'}
+        reader.save_language('parent')
+        reader.open_language_preferences('parent')
+        assert reader.read_parent_language()['checked'] == language
+        reader.cancel_language('parent')
+    assert_no_policy_or_request_writes(path)
+
+
 def assert_no_policy_or_request_writes(path, *, expected_results=0):
     records = read_events(path)
     assert not [event for event in records if event['event'] in (

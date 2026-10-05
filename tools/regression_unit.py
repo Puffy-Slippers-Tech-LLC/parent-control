@@ -361,6 +361,9 @@ from regression_ui import Bucket
 # package/PAM/ownership doubles; their relocated shared-cleanup shell is bounded
 # and waited. No live package, account, service, bus, display or shared path is
 # changed. package_purge_cleanup_safety is compatible in unit and cleanup scopes.
+# Parent Hebrew observations add private text/focus doubles, recorder files and
+# synchronously waited bounded Perl children to parent_language_cleanup_safety.
+# No VM, shared bus/path or new resource owner; its compatible classification stays.
 REVIEWED = frozenset("""
 package_lifecycle_cleanup_safety
 package_purge_cleanup_safety

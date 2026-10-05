@@ -37,7 +37,7 @@ WORKER_APIS = {
                     'sign_in', 'launch', 'select_child', 'open_for_child',
                     'open_from_app_grid', 'search_whole_query', 'launch_search_result',
                     'open_search', 'focus_search', 'enter_search_query', 'set_allowance', 'language_selection',
-                    'named_management'},
+                    'named_management', 'language_navigation'},
     'onpc_request_exit': {'enter_station', 'escape'},
     'onpc_desktop_session': {'switch_user'},
     'onpc_window': {'close'},

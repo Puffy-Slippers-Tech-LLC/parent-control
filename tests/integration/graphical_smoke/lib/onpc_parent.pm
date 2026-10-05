@@ -187,6 +187,41 @@ sub qualify_language {
     $journey->finish();
 }
 
+sub language_navigation {
+    onpc_progress::operation('Checking owned language controls and keyboard focus');
+    my ($journey, $before, $after) = @_;
+    die 'parent:language-navigation-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && $before =~ /^[a-z][a-z0-9-]*$/ && $after =~ /^[a-z][a-z0-9-]*$/;
+    $journey->consume_observation($before, $journey->seen($before));
+    testapi::send_key('tab');
+    $journey->consume_observation($after, $journey->seen($after));
+}
+
+sub qualify_rtl {
+    onpc_progress::operation('Qualifying Parent Hebrew public text and keyboard navigation');
+    my ($exchange) = @_;
+    die 'parent:rtl-arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    require onpc_journey;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'parent-rtl', review => 0);
+    my $desktop = login_functional($journey);
+    $journey->consume_observation('initial-language', launch($journey, $desktop, 'initial-language'));
+    $journey->consume_observation($_, $journey->seen($_)) for qw(initial-save initial-state);
+    for my $prefix ('english-entry', 'hebrew', 'english-return') {
+        language_selection($journey, $prefix);
+        language_navigation($journey, "$prefix-focus", "$prefix-tabbed");
+        for my $suffix ('save', 'state', 'reopen') {
+            my $stage = "$prefix-$suffix";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+        language_navigation($journey, "$prefix-refocus", "$prefix-retabbed");
+        for my $suffix ('cancel', 'preserved') {
+            my $stage = "$prefix-$suffix";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+    }
+    $journey->finish();
+}
+
 sub qualify_language_isolation {
     onpc_progress::operation('Qualifying Parent Chinese language across enabled child selection');
     my ($exchange) = @_;

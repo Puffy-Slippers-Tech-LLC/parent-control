@@ -10,38 +10,42 @@ Estimate: 20–30 minutes.
 
 ## Scope and acceptance
 
-Qualify a bounded public observation route for Parent and its language chooser:
-English → Hebrew → English through Preferences. After stable-ID resolution,
-independently observe actual RTL direction/logical alignment, restored LTR,
-matching visible/accessibility labels, mixed Hebrew/Latin text and usable keyboard
-navigation/focus. Preserve selected child, policy and control identities.
-
-This is a missing capability: current host direction tests inspect GTK widgets
-directly and review images explicitly supply no test outcome. They do not
-establish installed acceptance. Determine whether the supported public semantics
-can prove the required presentation, including legible, unclipped Hebrew and
-correct bidi rendering. Catalogue direction, selected language, text presence,
-private GTK probes and screenshots alone cannot supply that proof. Follow the
-UI mandate's geometry/layout restrictions; if the required result has no
-permitted observation route, retain that concrete gate and obtain the missing
-acceptance decision before claiming qualification. Do not weaken the requirement
-or silently authorize a new selector technique.
-
-Refuse wrong owner, duplicate/missing IDs, stale or incomplete attributes, wrong
-direction and mismatched focus/results; qualify independent valid entry.
+Qualify Parent and its language chooser through an English → Hebrew → English
+Preferences history. Independently compare public logical Text with the heading's
+accessible name, the four native choices and checked language. Observe Cancel
+focus, one normal Tab, then fresh Save focus in each language, including a second
+independent chooser entry. Save and Cancel preserve selected child, zero disabled
+allowance, policy rows and control identities; compare management text separately.
+Refuse wrong owner, duplicate/missing IDs, stale or incomplete text, disabled
+controls, mismatched labels and unexpected focus before further input/reply.
 
 ## Shared implementation
 
-Start at `AccessibleUI.read_language` / `parent_language_management`,
-[localization_review.py](../../../tests/support/localization_review.py),
-[test_automation_identity.py](../../../tests/ui/test_automation_identity.py) and
-the [UI mandate](../../Mandates/UI-Automation-Mandate.MD).
-Extend one shared bounded observation contract, usable by later GTK surfaces;
-each later surface still requires its own installed qualification.
+`AccessibleUI.language_presentation` extends the shared bounded LANG01 reader
+with public Text/name, ID-addressed focus actions and FOCUSED observations. Later surfaces require
+their own qualification. `ParentRtlJourney` / `RTL_PLAN` in
+[parent_language.py](../../../tests/e2e/parent_language.py) retain the finite
+history and independent literal/policy comparisons. `onpc_parent::language_navigation`
+owns the guarded keyboard step; `qualify_rtl` composes the fixed slice.
+Keep the affected public-observation/keyboard safety regressions and real GTK
+direction/alignment checks in [test_automation_identity.py](../../../tests/ui/test_automation_identity.py).
 
 ## Implementation entry
 
-Planned selector: `check_e2e_parent_rtl`; unregistered and unqualified.
-Register its fixed binding before invoking
-`tools/run-tests integration check_e2e_parent_rtl`.
-Retain Parent LANG01 and affected public-observation/keyboard safety checks. Host layout permutations remain with UI coverage.
+Registered selector: `check_e2e_parent_rtl`; installed qualification pending.
+Retain `check_e2e_parent_language` and affected host safety checks.
+
+## Acceptance gate — rendered presentation
+
+Resolved by the developer on 2026-10-05: remove visual review for this and all
+future tasks and retain the no-geometry mandate. Apply the owning
+[presentation acceptance rule](../../Mandates/UI-Automation-Mandate.MD#input-and-independent-results).
+Public logical text, labels, identities, keyboard focus/navigation and unchanged
+values remain acceptance. Pixel rendering, glyph order, clipping, font legibility
+and visual alignment are excluded; no installed visual proof is claimed.
+Existing host GTK direction/alignment engineering checks remain applicable.
+
+The prior session established that public logical text and formatting cannot
+independently prove rendered glyph order or unclipped legibility. It ran no VM
+attempt and established no product defect. Its proposed geometry/visual-review
+exception was rejected; it is not an authorized route.

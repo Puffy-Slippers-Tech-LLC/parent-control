@@ -38,6 +38,16 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 ## Host and guest boundaries
 
+`AccessibleUI.language_presentation` reuses LANG01 ownership/choice reads,
+bounded public Text/name comparison and the dialog's ID-addressed focus action.
+`onpc_parent::language_navigation` sends one Tab only after the Cancel focus proof
+and independently requires Save focus. Qualification values and immutable policy
+comparisons stay in `ParentRtlJourney`; other surfaces still need live qualification.
+These operations add no process, storage, bus or cleanup owner. Unit/cleanup
+probes keep private node/recorder fixtures and waited Perl children; GTK coverage
+uses the existing private preview/display. Existing classifications apply.
+Follow the mandate's no-visual acceptance rule; logical text is no pixel verdict.
+
 Overlay About reads reuse `journey_blocks.overlay_license_read`,
 `onpc_about::overlay_license` and the shared `AccessibleUI.clickable_link` reader.
 The child-owned About scope and close proof precede normal Alt-F4; fresh absence

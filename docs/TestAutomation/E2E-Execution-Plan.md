@@ -37,9 +37,14 @@ the delivered scope and reports.
 
 Task 307a now qualifies the missing permitted installed Hebrew presentation
 observations. Reuse the delivered language-aware Parent observations and
-300g–300j bindings; do not infer presentation from a saved language, host GTK
-probes or screenshots alone. Leave inherited dialogs, translated approval,
+300g–300j bindings and the mandate's public logical-text/keyboard acceptance.
+Leave inherited dialogs, translated approval,
 panel/countdown and expiry work with their queued owners.
+
+Task 307a's [rendered-presentation gate](E2E-Tasks/307a-installed-rtl-observations.md#acceptance-gate--rendered-presentation)
+records the developer's decision to remove visual review from this and all future
+tasks while retaining the geometry prohibition. Installed public text/focus
+qualification remains pending; no visual acceptance or product defect is claimed.
 
 ## Current scope
 

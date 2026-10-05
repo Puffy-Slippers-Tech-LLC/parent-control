@@ -20,7 +20,7 @@ Compose the [fixed panel recipe](../E2E-Scenario-Recipes.md#panel-language-and-e
 in one uninterrupted case with a publicly prepared short daily-only allowance
 and zero grant. Change Riley's product language English → Hebrew → English
 through the overlay, close/reopen it and resume the child session. Observe panel,
-tooltip/menu, shared overlay choice, all RTL/LTR and mixed-number assertions,
+tooltip/menu, shared overlay choice, Hebrew/restored English logical text and mixed-number assertions,
 minute/final-second progression and normal natural expiry locking while using
 the declared native app. Compare policy/app limits and public time against
 elapsed bounds; language changes must not reset time or grant access. Observe

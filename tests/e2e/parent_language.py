@@ -106,6 +106,51 @@ class ParentLanguageJourney(InstalledJourney):
         self.language_captures.add(stage)
 
 
+RTL_SCREENS = {
+    **fresh_desktop('parent'), 'desktop': 'ui:parent-language-wrong-entry',
+    'parent-command': 'ui:parent-command-launch',
+    'initial-language': 'ui:parent-language-initial',
+    'initial-save': 'ui:parent-language-save', 'initial-state': 'ui:parent-language-state',
+}
+for prefix, language in (('english-entry', 'en'), ('hebrew', 'he'), ('english-return', 'en')):
+    RTL_SCREENS.update({
+        **selection(prefix, language),
+        prefix + '-focus': 'ui:parent-language-presentation-focus',
+        prefix + '-tabbed': 'ui:parent-language-presentation-read',
+        prefix + '-save': 'ui:parent-language-save',
+        prefix + '-state': 'ui:parent-language-state',
+        prefix + '-reopen': 'ui:parent-language-open',
+        prefix + '-refocus': 'ui:parent-language-presentation-focus',
+        prefix + '-retabbed': 'ui:parent-language-presentation-read',
+        prefix + '-cancel': 'ui:parent-language-cancel',
+        prefix + '-preserved': 'ui:parent-language-state',
+    })
+RTL_PLAN = JourneyPlan(prefix='parent-rtl', worker_mode='parent_rtl', screen_tags=RTL_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in RTL_SCREENS}, 'installed-greeter': 'start'},
+    invocations=tuple(RTL_SCREENS))
+
+
+class ParentRtlJourney(ParentLanguageJourney):
+    """Public logical text/navigation qualification under the no-visual mandate."""
+    def __init__(self, context, progress, plan=RTL_PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+
+    def check_settings(self, stage, observed):
+        operation = self.plan.screen_tags.get(stage, '')[3:]
+        if operation not in ('parent-language-presentation-focus', 'parent-language-presentation-read'):
+            return super().check_settings(stage, observed)
+        InstalledJourney.check_settings(self, stage, observed)
+        require(stage not in self.language_captures, 'language:capture-replay')
+        value = observed['ui']['language_presentation']
+        require(value == {'heading': TEXTS[self.candidate][1],
+            'choices': {key: text[0] for key, text in TEXTS.items()},
+            'checked': self.candidate,
+            'focused': 'language-cancel' if operation.endswith('-focus') else 'language-continue'},
+            'language:presentation-text-or-focus')
+        self.language_captures.add(stage)
+
+
 # One fixed prerequisite slice for the later account/offline history. Desktop
 # languages stay English; no child login or temporary grant occurs here.
 ISOLATION_SCREENS = {

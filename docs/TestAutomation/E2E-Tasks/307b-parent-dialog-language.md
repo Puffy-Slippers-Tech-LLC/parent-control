@@ -16,7 +16,8 @@ Estimate: 20–30 minutes.
 
 Qualify Parent's shared About/feedback binding in English and Hebrew, reusing
 the presentation reader from 307a. Observe inherited translated controls and
-RTL/LTR on both dialogs, unchanged product/application names, and the exact
+Hebrew/restored English logical text on both dialogs under the mandate's
+no-visual acceptance rule, unchanged product/application names, and the exact
 synthetic body `שלום Alex 75` and reply `rtl-check@example.invalid`.
 Close only the dialog, change language through public Preferences, reopen and
 independently compare the retained draft/reply before any new input. Preserve

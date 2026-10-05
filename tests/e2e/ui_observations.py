@@ -1189,6 +1189,17 @@ class UiObservations:
             if operation.endswith('-wrong-entry'):
                 require(result == {**expected, 'refused': True}, 'ui:language-refusal')
                 expected['refused'] = True
+            elif operation in ('parent-language-presentation-focus', 'parent-language-presentation-read'):
+                value = result.get('language_presentation')
+                require(type(value) is dict and set(value) == {'heading', 'choices', 'checked', 'focused'}
+                        and type(value['heading']) is str and 0 < len(value['heading']) <= 512
+                        and value['checked'] in ('en', 'he')
+                        and value['choices'] == {'en': 'English', 'de': 'Deutsch',
+                            'zh-Hans': '中文（简体）', 'he': 'עברית'}
+                        and value['focused'] == ('language-cancel' if operation.endswith('-focus')
+                                                else 'language-continue'),
+                        'ui:language-presentation')
+                expected['language_presentation'] = value
             elif operation in accessible_ui.PARENT_LANGUAGE_ALLOWANCES:
                 require(result.get('allowance') == {'minutes': 60, 'saved': True},
                         'ui:language-allowance-response')

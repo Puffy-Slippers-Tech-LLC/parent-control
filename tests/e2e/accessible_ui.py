@@ -101,6 +101,7 @@ PARENT_LANGUAGE_OPERATIONS = frozenset({
     'parent-language-initial', 'parent-language-open', 'parent-language-read',
     'parent-language-save', 'parent-language-cancel', 'parent-language-state',
     'parent-language-wrong-entry',
+    'parent-language-presentation-focus', 'parent-language-presentation-read',
     *('parent-language-choose-' + value.lower() for value in PARENT_LANGUAGE_CHOICES),
     *PARENT_LANGUAGE_STATES, *PARENT_LANGUAGE_ALLOWANCES, *PARENT_LANGUAGE_SELECTIONS,
 })
@@ -2629,6 +2630,56 @@ class AccessibleUI:
                 return {}
         return {'language': reader()}
 
+    def language_presentation(self, surface, *, focus=False):
+        """Logical Text/name and keyboard proof; no geometry or visual verdict.
+
+        Later surfaces reuse this reader but require their own live binding.
+        Focus Cancel once; the caller owns one Tab and independent Save focus.
+        """
+        require(type(focus) is bool, 'ui:language-presentation-binding')
+        with self.language_scope(surface):
+            chooser = self.read_language(surface)
+            identity = 'language-cancel' if focus else 'language-continue'
+            if focus:
+                require(not self.input_uncertain, 'ui:uncertain-input')
+                dialog = self.id_target('language-dialog')
+                target = self.id_target(identity, root=dialog, sensitive=True)
+                # GTK exposes ID-addressed focus actions on the owning surface;
+                # its native buttons do not implement Component.GrabFocus.
+                self._invoke_target(dialog, action_name='focus.' + identity)
+                self.input_uncertain = True
+                self.invalidate_observation()
+            def read():
+                observation = self.read_snapshot()
+                nodes, edges, _ids, _facts = observation
+                require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                for node in nodes), 'ui:language-stale')
+                dialog = self.snapshot_owned_target('language-dialog', observation=observation,
+                    check_prompt=True, allow_unmapped_surface=True)
+                require(dialog is not None, 'ui:language-presentation-dialog')
+                title = self.snapshot_owned_target('language-title', root=dialog,
+                    observation=observation)
+                target = self.snapshot_owned_target(identity, root=dialog,
+                    observation=observation)
+                require(title is not None and target is not None, 'ui:language-presentation-control')
+                require(self.has_state(target, self.api.StateType.SENSITIVE),
+                        'ui:language-presentation-disabled')
+                if not self.has_state(target, self.api.StateType.FOCUSED):
+                    return None
+                text = title.get_text_iface()
+                require(text is not None, 'ui:language-presentation-text')
+                count = text.get_character_count()
+                require(type(count) is int and 0 < count <= 512, 'ui:language-presentation-count')
+                logical = text.get_text(0, count)
+                require(type(logical) is str and len(logical) == count
+                        and logical == title.get_name() == chooser['heading'],
+                        'ui:language-presentation-label')
+                return {'heading': logical, 'choices': chooser['choices'],
+                        'checked': chooser['checked'], 'focused': identity}
+            value = self.wait(read, 'language-presentation-focus', prompt_in_predicate=True)
+            self.input_uncertain = False
+            return value
+
     def parent_language_management(self):
         """Read visible page labels separately from the switch's accessible name."""
         with self.language_scope('parent'):
@@ -2708,6 +2759,9 @@ class AccessibleUI:
             return {'refused': True}
         if operation == 'parent-language-initial':
             return {'language': self.read_parent_language(initial=True)}
+        if operation in ('parent-language-presentation-focus', 'parent-language-presentation-read'):
+            return {'language_presentation': self.language_presentation('parent',
+                focus=operation.endswith('-focus'))}
         if operation == 'parent-language-state':
             return {'language_state': self.parent_language_state()}
         if operation in PARENT_LANGUAGE_SELECTIONS:

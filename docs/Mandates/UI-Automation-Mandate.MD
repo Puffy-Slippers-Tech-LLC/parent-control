@@ -158,6 +158,15 @@ the geometry prohibition or authorize skipping unrelated active blockers.
 
 ## Input and independent results
 
+- **Presentation acceptance:** The developer removed visual inspection/review
+  from this task and all future tasks on 2026-10-05. Keep the geometry prohibition.
+  Qualify public logical text, matching accessible labels, stable identities,
+  keyboard focus/navigation and preserved user values. Pixel rendering, glyph
+  order, clipping, font legibility and visual alignment are excluded from
+  automated acceptance; do not claim those results from text or language values.
+  Existing host GTK direction/alignment engineering checks remain applicable.
+  Retained screenshots and the required VM watch are evidence/observation only
+  and require no visual reviewer or visual pass decision.
 - After ID lookup (or qualified external-provider resolution), names, roles,
   text and states may verify meaning and results.
   Prefer invoking the ID-resolved control's public accessibility action directly,

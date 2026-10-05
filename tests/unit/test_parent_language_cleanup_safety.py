@@ -10,6 +10,7 @@ import pytest
 import accessible_ui as public
 import check_e2e_parent_language as selector
 import check_e2e_parent_language_isolation as isolation_selector
+import check_e2e_parent_rtl as rtl_selector
 import check_graphical_smoke as smoke
 import installed_journey
 import parent_language as language
@@ -51,6 +52,116 @@ def chooser_tree(*, initial=False, selected='en'):
     marker = Node(identity='parent-language-loading' if initial else 'parent-language-ready')
     window = Node(identity='parent-window', children=[marker, dialog])
     return ui_for(window), window, dialog, controls
+
+
+def test_rtl_selector_assets_and_worker_registration(monkeypatch, tmp_path):
+    from parent_setup_qualification import ParentRtlQualification
+    import e2e_worker
+    import tools.test_commands as commands
+    launch = Mock(return_value=0)
+    monkeypatch.setattr(rtl_selector, 'smoke', launch)
+    assert rtl_selector.main() == 0
+    launch.assert_called_once_with(assets=rtl_selector.ASSETS, provision_credentials=True, parent_rtl=True)
+    context = SimpleNamespace(directory=tmp_path)
+    journey = ParentRtlQualification.journey(context, Mock())
+    assert journey.plan is language.RTL_PLAN and context.installed_snapshot.startswith('onpc-v')
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
+    monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(rtl_selector.ASSETS)))
+    for name in ('check_e2e_parent_rtl', 'check_e2e_parent_rtl.py'):
+        assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name])[-1] == str(rtl_selector.ASSETS)
+    assert all(tag[3:] in public.OPERATIONS and tag[3:] in OPERATION_LABELS
+               for tag in language.RTL_SCREENS.values())
+    distribution = e2e_worker.distribution_inputs()
+    assert b'qualify_rtl' in distribution['lib/onpc_parent.pm']
+    assert b'parent_rtl' in distribution['tests/smoke.pm']
+
+
+@pytest.mark.parametrize('extra', [{}, {'parent_language': True}, {'fresh_desktop': 'parent'},
+                                  {'approval_flow': 'cancel'}])
+def test_rtl_mode_refuses_before_vm(extra):
+    args = {'assets': 'inputs', 'provision_credentials': True, **extra} if extra else {}
+    with pytest.raises(CommandError, match='parent-rtl-prerequisites'):
+        smoke.main(parent_rtl=True, **args)
+
+
+@pytest.mark.parametrize('selected', ['en', 'he'])
+@pytest.mark.parametrize('focus', [True, False])
+@pytest.mark.parametrize('fault', ['', 'wrong-owner', 'duplicate', 'missing', 'stale', 'disabled',
+                                  'text', 'count', 'focus', 'focus-refused'])
+def test_presentation_public_text_focus_and_refusal(selected, focus, fault):
+    ui, window, dialog, controls = chooser_tree(selected=selected)
+    title = controls[4]
+    logical = language.TEXTS[selected][1]
+    text = SimpleNamespace(get_character_count=Mock(return_value=len(logical)),
+                           get_text=Mock(return_value=logical))
+    title.get_text_iface = lambda: text
+    target = controls[6 if focus else 5]
+    dialog.action.get_action_name = lambda _: 'focus.language-cancel'
+    def focused_action(_index):
+        target.states.add('focused')
+        return True
+    dialog.action.do_action.side_effect = focused_action
+    if not focus: target.states.add('focused')
+    if fault == 'wrong-owner': ui.owner_pids = lambda: {999}
+    if fault == 'duplicate': dialog.children.append(Node(identity=target.identity))
+    if fault == 'missing': dialog.children.remove(title)
+    if fault == 'stale': title.states.add('defunct')
+    if fault == 'disabled': target.states.discard('sensitive')
+    if fault == 'text': text.get_text.return_value = 'x' * len(logical)
+    if fault == 'count': text.get_character_count.return_value = True
+    if fault == 'focus':
+        target.states.discard('focused')
+        dialog.action.do_action.side_effect = lambda _index: True
+    if fault == 'focus-refused': dialog.action.do_action.side_effect = lambda _index: False
+    failed = bool(fault) and not (fault == 'focus-refused' and not focus)
+    if failed:
+        with pytest.raises(public.UiError): ui.language_presentation('parent', focus=focus)
+    else:
+        assert ui.language_presentation('parent', focus=focus) == {
+            'heading': logical, 'choices': chooser_value(selected)['choices'],
+            'checked': selected, 'focused': target.identity}
+        assert not ui.input_uncertain
+    for node in controls: node.action.do_action.assert_not_called()
+    if focus and fault in ('', 'text', 'count', 'focus', 'focus-refused'):
+        dialog.action.do_action.assert_called_once()
+    elif not focus:
+        dialog.action.do_action.assert_not_called()
+    target.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'focus', 'choice', 'text', 'extra', 'replay'])
+def test_presentation_decoder_and_real_recorder_step(tmp_path, fault):
+    stage = 'hebrew-tabbed'
+    operation = 'parent-language-presentation-read'
+    value = {'heading': language.TEXTS['he'][1], 'choices': chooser_value()['choices'],
+             'checked': 'he', 'focused': 'language-continue'}
+    if fault == 'focus': value['focused'] = 'language-cancel'
+    if fault == 'choice': value['checked'] = 'en'
+    if fault == 'text': value['heading'] = language.TEXTS['en'][1]
+    if fault == 'extra': value['private'] = True
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+               'language_presentation': value}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(payload, ensure_ascii=False).encode()))
+    observer = UiObservations(transport)
+    if fault in ('focus', 'extra'):
+        with pytest.raises(EvidenceError): observer.observe(operation)
+        with pytest.raises(EvidenceError, match='previous-failure'): observer.observe(operation)
+        transport.call.assert_called_once()
+    else:
+        assert observer.observe(operation) == payload
+    journey = language.ParentRtlJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.committed, journey.candidate = 'en', 'he'
+    journey.steps = [{'stage': item} for item in journey.plan.stages[:journey.plan.stages.index(stage)]]
+    journey.boot = 'a' * 64
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value=payload))
+    if fault == 'replay': journey.language_captures.add(stage)
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
 
 
 def test_selector_snapshot_assets_and_all_operation_registration(monkeypatch, tmp_path):
@@ -352,6 +463,22 @@ def test_actual_worker_order_titles_and_no_later_input(fault):
         [['key', 'alt-f4']] if 'closed' in expected else [])
 
 
+@pytest.mark.parametrize('fault', ['', *list(language.RTL_SCREENS)[4:]])
+def test_rtl_worker_actual_order_and_no_keyboard_after_refusal(fault):
+    worker = WORKER.replace('onpc_parent::qualify_language(', 'onpc_parent::qualify_rtl(')
+    result = json.loads(run_perl(worker, fault).stdout)
+    stages = list(language.RTL_SCREENS)[4:]
+    expected = stages if not fault else stages[:stages.index(fault) + 1]
+    assert [event[1] for event in result['events'] if event[0] == 'seen'] == expected
+    assert [event[1] for event in result['events'] if event[0] == 'title'] == [
+        'parent-rtl-' + stage for stage in expected]
+    assert bool(result['ok']) == (not fault), result['error']
+    assert (['finish'] in result['events']) == (not fault)
+    keys = [['key', 'tab'] for index, stage in enumerate(expected)
+            if stage.endswith(('-focus', '-refocus')) and index + 1 < len(expected)]
+    assert [event for event in result['events'] if event[0] == 'key'] == keys
+
+
 @pytest.mark.parametrize('fault', ['', *list(language.PLAN.screen_tags)[:4]])
 def test_complete_worker_includes_fresh_authentication_and_refusal(monkeypatch, fault):
     if fault: monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', fault)
@@ -623,7 +750,8 @@ def test_real_recorder_step_validates_before_reply_and_freezes_policy(tmp_path, 
 
 
 @pytest.mark.parametrize('fault', ['', 'meaning', 'durability'])
-@pytest.mark.parametrize('journey_type', [language.ParentLanguageJourney, language.ParentLanguageIsolationJourney])
+@pytest.mark.parametrize('journey_type', [language.ParentLanguageJourney,
+    language.ParentLanguageIsolationJourney, language.ParentRtlJourney])
 def test_real_recorder_entry_accepts_custom_plan_and_refuses_before_reply(
         session, tmp_path, monkeypatch, fault, journey_type):
     expected = session.payload['assertions'][0]

@@ -392,7 +392,7 @@ DESK10 needs no Shell switcher GUI adapter.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
-| LANG01 | C | Observe the owned frontend's untouched first-run language chooser or open its public Preferences chooser; read the checked choice and native names, select one declared candidate, apply Save or Cancel once, and independently observe closure, readiness, translated labels and the retained choice after reopening. Callers own language/account values, relaunches, isolation and policy comparisons. | `AccessibleUI.language_scope`, `open_language_preferences`, `choose_language`, `save_language`, `cancel_language` and `language_save_completed` in [accessible_ui.py](../../tests/e2e/accessible_ui.py); installed observations `read_parent_language`, `parent_language_management`, `parent_language_operation` and `parent_language_state`, registered through `ui_observations.py`; finite literals/recipe in [parent_language.py](../../tests/e2e/parent_language.py) and shared worker `onpc_parent::language_selection` / `qualify_language`. The `initial-language` launch result observes first presentation without the ordinary `parent-window` automatic Save; lifecycle observations use `parent-language-state`. Visible page titles and accessible switch names are independently compared; stale chooser snapshots are reacquired under the original bounded deadline without replaying input. `check_e2e_parent_language` passed on Ubuntu 26.04 in `20261004T092815Z-1784595b`: untouched English first choice and four native names, English/German/Simplified Chinese/Hebrew Save and checked-choice/text readback, Chinese Cancel preserving German, normal relaunch persistence, unchanged selected child/zero allowance/app-policy projection and wrong-entry refusal. Required case 6 passed in `20261004T093246Z-b19110a7`; collection, owned cleanup, baseline restoration and preservation passed. The fixed Chinese kiosk Save binding remains qualified under [Chinese language preparation](#chinese-language-preparation-and-desktop-language-setup). | pending overall; stated Parent, fixed Jordan kiosk, fixed Riley overlay and Jordan/German–Riley/Hebrew station restoration/approver isolation bindings qualified (see below); other isolation bindings, panel, inherited dialogs, RTL layout, countdown and complete-case acceptance remain separate |
+| LANG01 | C | Observe the owned frontend's untouched first-run language chooser or open its public Preferences chooser; read the checked choice and native names, select one declared candidate, apply Save or Cancel once, and independently observe closure, readiness, translated labels and the retained choice after reopening. Callers own language/account values, relaunches, isolation and policy comparisons. | `AccessibleUI.language_scope`, `open_language_preferences`, `choose_language`, `save_language`, `cancel_language` and `language_save_completed` in [accessible_ui.py](../../tests/e2e/accessible_ui.py); installed observations `read_parent_language`, `parent_language_management`, `parent_language_operation` and `parent_language_state`, registered through `ui_observations.py`; finite literals/recipe in [parent_language.py](../../tests/e2e/parent_language.py) and shared worker `onpc_parent::language_selection` / `qualify_language`. The `initial-language` launch result observes first presentation without the ordinary `parent-window` automatic Save; lifecycle observations use `parent-language-state`. Visible page titles and accessible switch names are independently compared; stale chooser snapshots are reacquired under the original bounded deadline without replaying input. `check_e2e_parent_language` passed on Ubuntu 26.04 in `20261004T092815Z-1784595b`: untouched English first choice and four native names, English/German/Simplified Chinese/Hebrew Save and checked-choice/text readback, Chinese Cancel preserving German, normal relaunch persistence, unchanged selected child/zero allowance/app-policy projection and wrong-entry refusal. Required case 6 passed in `20261004T093246Z-b19110a7`; collection, owned cleanup, baseline restoration and preservation passed. The fixed Chinese kiosk Save binding remains qualified under [Chinese language preparation](#chinese-language-preparation-and-desktop-language-setup). | pending overall; stated Parent, fixed Jordan kiosk, fixed Riley overlay and Jordan/German–Riley/Hebrew station restoration/approver isolation bindings qualified (see below); other isolation bindings, panel, inherited dialogs, Hebrew logical text/keyboard, countdown and complete-case acceptance remain separate |
 
 The dedicated-kiosk LANG01 fixed Jordan binding passed
 `check_e2e_kiosk_language` on Ubuntu 26.04 in `20261004T103336Z-73d60bd2`:
@@ -416,7 +416,7 @@ guards without calling Parent-only child-control helpers. Existing
 `CHINESE_LANGUAGE_OPERATIONS` only supplies the fixed Chinese Save/form result;
 the Parent reader does not qualify another application.
 Selected-child restoration/isolation, panel,
-inherited dialogs, RTL layout, countdown and translated approval results remain
+inherited dialogs, Hebrew logical text/keyboard, countdown and translated approval results remain
 separate bindings owned by the personal-language decomposition below.
 
 Task 300i qualified the fixed Riley child-overlay LANG01 binding.
@@ -440,7 +440,7 @@ All three passed collection, worker shutdown, callback closure, owned cleanup,
 baseline restoration, finalization and host/source preservation. The refreshed
 overlay report replaces its expired earlier acceptance evidence.
 This qualifies only the fixed Riley surface; selected-child restoration/isolation,
-panel translation, inherited dialogs, RTL layout, countdown, translated approval
+panel translation, inherited dialogs, Hebrew logical text/keyboard, countdown, translated approval
 results and complete-case acceptance remain separate.
 
 Task 300j qualified the REQUEST04/LANG01 selected-child station binding through
@@ -546,7 +546,7 @@ This planning allocation qualifies no new route:
 
 | Pending binding | Qualification task | Complete scenario |
 | --- | --- | --- |
-| Permitted installed Hebrew direction/bidi/legibility observations | 307a; separate qualification for each surface | 307–310 |
+| Installed Hebrew logical text, labels and keyboard/focus observations | 307a; separate qualification for each surface | 307–310 |
 | Parent inherited About/feedback text and retained synthetic draft | 307b | 307 |
 | Hebrew overlay product approval/result with ordinary native Shell authentication | 308b | 308 |
 | Overlay form/About/real error report and same-draft language changes | 308a, after 187o's genuine public trigger | 308 |
@@ -555,8 +555,8 @@ This planning allocation qualifies no new route:
 
 Parent enabled-state readback is qualified for English and Chinese only.
 Existing feedback entry/readers are Parent/English-bound; shared IDs do not establish translated child/station
-routes. Host GTK direction probes and review images do not prove installed
-RTL/bidi/legibility. Missing permitted public presentation or same-draft report
+routes. Follow the [no-visual presentation acceptance rule](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results);
+host GTK direction checks remain engineering coverage. Missing public text/focus or same-draft report
 reopening remains an explicit gate in these tasks, not claimed readiness.
 The existing fixed countdown observations do not qualify translation,
 minute/final-second progression or natural expiry; retain those earlier queued

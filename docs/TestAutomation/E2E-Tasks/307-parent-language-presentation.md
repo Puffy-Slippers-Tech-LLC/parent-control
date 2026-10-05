@@ -15,8 +15,9 @@ Estimate: 20–30 minutes.
 
 Compose one complete English → Hebrew → English Parent history from the
 [fixed recipe](../E2E-Scenario-Recipes.md#parent-language-presentation-planned-task-307).
-Observe management and Preferences, inherited About/feedback, logical direction,
-legibility/clipping and mixed-script bidi through qualified public observations.
+Observe management and Preferences, inherited About/feedback logical text and
+exact mixed-script content through qualified public observations under the
+[no-visual acceptance rule](../../Mandates/UI-Automation-Mandate.MD#input-and-independent-results).
 Retain child/application names, policy, stable IDs, keyboard usability and focus.
 Compare the synthetic body/reply through dialog close, language change and
 reopen before new input. Host-only direction assertions cannot pass this case.

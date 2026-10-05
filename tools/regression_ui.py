@@ -118,6 +118,8 @@ GROUPS = (
     ('Feedback', ('test_parent_feedback.py', 'test_error_feedback.py'), 6),
     # Match invalid/Reset matrix shares the owned private preview/display and
     # bounded keyboard workers of the valid matrix; keep this module together.
+    # Allowance keyboard checks reuse the same preview, guarded input and tiny
+    # tmp_path event files; no new shared resource or cleanup owner.
     ('Preview smoke', ('test_preview_smoke.py',), 6),
     # About launches independent per-test applications. Give its module a
     # separate worker deadline so the long preview matrices cannot consume

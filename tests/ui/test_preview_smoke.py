@@ -93,6 +93,132 @@ def test_parent_preview_publishes_and_loads_management_controls(
     assert ui.target("parent-child-selector").get_accessible_id() == "parent-child-selector"
 
 
+def test_parent_daily_allowance_keyboard_buffers_and_scopes_input(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from tests.support.keyboard import key_combo, type_text
+
+    events = tmp_path / "allowance-keyboard.jsonl"
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state, events_path=events)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    selector = "parent-daily-limit-selector"
+    ui.focus("parent-daily-limit-row")
+    key_combo(ui, "parent-daily-limit-row", "Tab", state=ui.api.StateType.FOCUSED)
+    wait_for_accessible_state(lambda: ui.state(selector, ui.api.StateType.FOCUSED),
+                              "Tab reaches the identified allowance selector")
+    def press(key):
+        key_combo(ui, selector, key, state=ui.api.StateType.FOCUSED)
+    def draft(value):
+        wait_for_accessible_state(
+            lambda: ui.target(selector).get_description() == f"Daily allowance: {value}",
+            "keyboard buffer is publicly readable",
+        )
+    def saves():
+        return [record['daily_limit_minutes'] for record in read_events(events)
+                if record['event'] == 'set_parent_control']
+    def selected_choice(choice, label):
+        wait_for_accessible_state(
+            lambda: ui.target(choice).get_description() == f"Selected daily allowance: {label}",
+            "matching popup item appears selected",
+        )
+
+    guidance = ui.target(selector).get_description()
+    type_text(ui, selector, "15")
+    assert ui.target(selector).get_description() == guidance
+    press("Return")
+    assert saves() == []
+    press("Escape")
+    type_text(ui, selector, "2.5h")
+    draft("2.5 hours")
+    assert saves() == []
+    press("Return")
+    wait_for_accessible_state(lambda: saves() == [150], "typed hours commit on Enter")
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.focus(selector)
+    press("Down")
+    draft("3 hours")
+    press("Up")
+    draft("2.5 hours")
+    press("Escape")
+    assert saves() == [150]
+    type_text(ui, selector, "15")
+    assert ui.target(selector).get_description() == guidance
+    press("Escape")
+    assert saves() == [150]
+    press("Down")
+    press("Return")
+    wait_for_accessible_state(lambda: saves() == [150, 180], "arrow choice commits on Enter")
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.focus(selector)
+    type_text(ui, selector, "15m")
+    draft("15 minutes")
+    assert saves() == [150, 180]
+    press("Return")
+    wait_for_accessible_state(lambda: saves() == [150, 180, 15],
+                              "typed minutes commit on Enter")
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.focus(selector)
+    type_text(ui, selector, "2.5")
+    ui.focus("parent-screen-limit-toggle")
+    ui.focus(selector)
+    press("Return")
+    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-15"),
+                              "leaving cancels the draft; Enter opens the normal popup")
+    ui.focus("parent-daily-limit-15")
+    type_text(ui, "parent-daily-limit-15", "2.5h")
+    draft("2.5 hours")
+    selected_choice("parent-daily-limit-150", "2.5 hours")
+    assert ui.showing("parent-daily-limit-150")
+    assert saves() == [150, 180, 15]
+    key_combo(ui, "parent-daily-limit-15", "Escape", state=ui.api.StateType.FOCUSED)
+    wait_for_accessible_state(lambda: not ui.showing("parent-daily-limit-15"),
+                              "Escape closes the popup without committing typed choice")
+    assert saves() == [150, 180, 15]
+    assert ui.target(selector).get_description() == guidance
+    ui.activate(selector)
+    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-15"),
+                              "allowance popup reopens")
+    ui.focus("parent-daily-limit-15")
+    type_text(ui, "parent-daily-limit-15", "15h")
+    draft("15 hours")
+    selected_choice("parent-daily-limit-900", "15 hours")
+    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-900"),
+                              "typed choice is visible in the expanded preset list")
+    key_combo(ui, "parent-daily-limit-15", "Return", state=ui.api.StateType.FOCUSED)
+    wait_for_accessible_state(lambda: not ui.showing("parent-daily-limit-15"),
+                              "Enter closes the popup after committing typed choice")
+    wait_for_accessible_state(lambda: saves() == [150, 180, 15, 900],
+                              "popup typed choice is saved only on Enter")
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.activate(selector)
+    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-15"),
+                              "allowance popup opens for Custom shortcut")
+    ui.focus("parent-daily-limit-15")
+    key_combo(ui, "parent-daily-limit-15", "c", state=ui.api.StateType.FOCUSED)
+    draft("Custom value")
+    selected_choice("parent-daily-limit-custom", "Custom amount")
+    assert ui.showing("parent-daily-limit-custom")
+    assert not ui.showing("parent-custom-daily-limit")
+    key_combo(ui, "parent-daily-limit-15", "Escape", state=ui.api.StateType.FOCUSED)
+    wait_for_accessible_state(lambda: not ui.showing("parent-daily-limit-custom"),
+                              "Escape cancels Custom and closes the popup")
+    assert saves() == [150, 180, 15, 900]
+    ui.activate(selector)
+    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-900"),
+                              "committed value remains selected after cancelling Custom")
+    selected_choice("parent-daily-limit-900", "15 hours")
+    ui.focus("parent-daily-limit-15")
+    key_combo(ui, "parent-daily-limit-15", "c", state=ui.api.StateType.FOCUSED)
+    key_combo(ui, "parent-daily-limit-15", "Return", state=ui.api.StateType.FOCUSED)
+    wait_for_accessible_state(
+        lambda: ui.state("parent-custom-daily-limit", ui.api.StateType.FOCUSED),
+        "Custom shortcut in the popup focuses the entry",
+    )
+    key_combo(ui, "parent-custom-daily-limit", "<Control>a", state=ui.api.StateType.FOCUSED)
+    type_text(ui, "parent-custom-daily-limit", "91")
+    wait_for_accessible_state(lambda: saves() == [150, 180, 15, 900, 91],
+                              "typing in Custom reaches its own editor")
+
+
 def test_parent_daily_allowance_menu_opens_and_selects(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     from tests.support.keyboard import key_combo, type_text

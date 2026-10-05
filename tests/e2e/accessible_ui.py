@@ -10767,6 +10767,25 @@ def allowance_failure_diagnostic(ui=None):
                 showing=False, observation=observation)
             diagnostic['expanded'] = (None if selector is None else
                 ui.has_state(selector, ui.api.StateType.EXPANDED))
+            if selector is not None:
+                selector_nodes = list(ui.nodes(selector, strict=True))
+                diagnostic['selector_nodes'] = len(selector_nodes)
+                related = []
+                for node in selector_nodes:
+                    for relation in node.get_relation_set():
+                        if relation.get_relation_type() != ui.api.RelationType.CONTROLLER_FOR:
+                            continue
+                        require(relation.get_n_targets() <= 8, 'ui:diagnostic-bound')
+                        for index in range(relation.get_n_targets()):
+                            target = relation.get_target(index)
+                            descendants = list(ui.nodes(target, strict=True))
+                            related.append({
+                                'visible': ui.has_state(target, ui.api.StateType.VISIBLE),
+                                'showing': ui.has_state(target, ui.api.StateType.SHOWING),
+                                'nodes': len(descendants),
+                                'custom': sum(public_automation_id(child) == 'parent-daily-limit-custom'
+                                              for child in descendants)})
+                diagnostic['controlled_popups'] = related
         except Exception:
             # Evidence availability must not change the original refusal.
             diagnostic['controls'] = None
@@ -10783,7 +10802,7 @@ def allowance_failure_diagnostic(ui=None):
                     r'File "[^"\n]*/oh_no_parent_control_parent/main\.py", line ([0-9]+), in (prepare|do_measure)\b',
                     result.stdout)]
             diagnostic['exception_types'] = re.findall(
-                r'^(TypeError|ValueError|RuntimeError|AttributeError|RecursionError):',
+                r'(?:^|error_type=)(TypeError|ValueError|RuntimeError|AttributeError|RecursionError)(?::|\b)',
                 result.stdout, re.MULTILINE)
         except (OSError, subprocess.SubprocessError):
             diagnostic['callback_frames'] = None

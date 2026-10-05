@@ -320,6 +320,26 @@ caret, allowing more digits; the allowance picker also stays usable so a click
 from the textbox opens it immediately. Subsequent custom and preset commits
 remain serialized in interaction order. Conflicting controls stay disabled until
 the queue drains.
+Keyboard controllers on the allowance selector and its popup collect explicit
+`m`/`h` preset input silently and display a matching offered option as a pending
+choice, including its popup selection marker and accessible description, while
+the popup stays open. The committed index changes only on confirmation.
+Each exact preset match clears the accumulated text while retaining its pending
+index, allowing another complete choice to be typed immediately before confirmation.
+An explicit GTK viewport scrolls each buffered preset into view using
+`Gtk.Viewport.scroll_to`, without moving keyboard focus. Custom remains in the
+fixed footer outside the scrolling list.
+Incomplete or invalid typed text leaves the committed option displayed;
+raw input never replaces the label. Up/Down buffer adjacent options, and `c`
+buffers Custom. Enter confirms a buffered choice through the existing selection
+handler and closes the popup; confirming Custom focuses the inline entry.
+Escape closes the popup without changing the allowance. Focus leave, popup
+closure and preference reload also discard unconfirmed input. The custom entry is outside these
+controllers. Typed values must exactly match a preset; no rounding is applied.
+The allowance MenuButton subclass makes the identified selector its single
+closed-popup tab stop and public focus recipient, while the opened popup uses
+GTK's native traversal. This avoids delegating focus to an anonymous internal
+toggle and leaves keyboard recipient checks addressable by the selector ID.
 Invalid edits retain the last saved value. Reloading a child's preferences also
 restores that value in the custom editor and clears the rejected-draft error,
 including when the saved allowance is a preset. Successful autosaves preserve

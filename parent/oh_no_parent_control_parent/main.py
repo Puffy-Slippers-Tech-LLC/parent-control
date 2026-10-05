@@ -12,6 +12,7 @@ import hashlib
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 from common.oh_no_parent_control_ui.diagnostic_events import configure_console, log_version
 import os
+import re
 import sys
 import threading
 import time
@@ -124,6 +125,20 @@ def _daily_limit_selection(minutes):
         return CUSTOM_DAILY_LIMIT_INDEX, True
 
 
+def _daily_limit_keyboard_selection(text):
+    """Resolve explicit minute/hour input to an offered preset, never round."""
+    match = re.fullmatch(r"([0-9]+)(?:\.([0-9]+))?([mh])", text.lower())
+    if match is None:
+        return None
+    whole, fraction, unit = match.groups()
+    scale = 10 ** len(fraction or "")
+    numerator = (int(whole) * scale + int(fraction or "0")) * (60 if unit == "h" else 1)
+    minutes, remainder = divmod(numerator, scale)
+    if remainder or minutes not in DAILY_LIMIT_PRESETS:
+        return None
+    return DAILY_LIMIT_PRESETS.index(minutes)
+
+
 def _time_status_subtitle(status):
     grant = format_duration(status["one_time_grant_remaining_seconds"])
     daily = format_duration(status["daily_allowance_remaining_seconds"])
@@ -136,6 +151,21 @@ def _time_status_subtitle(status):
 def _app_automation_key(app_id):
     """Return a stable, non-identifying ID fragment for a launcher identity."""
     return hashlib.sha256(app_id.encode("utf-8")).hexdigest()[:16]
+
+
+class DailyLimitSelector(Gtk.MenuButton):
+    """Keep keyboard focus on the identified selector rather than its toggle."""
+
+    def do_grab_focus(self):
+        return Gtk.Widget.do_grab_focus(self)
+
+    def do_focus(self, direction):
+        popover = self.get_popover()
+        if popover is not None and popover.get_visible():
+            return popover.child_focus(direction)
+        # One tab stop for the public selector, without an extra anonymous
+        # toggle stop. The popup retains GTK's ordinary focus traversal.
+        return False if self.has_focus() else self.grab_focus()
 
 
 class DailyLimitPopover(Gtk.Popover):
@@ -662,14 +692,18 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["daily-limit-row"],
         )
         daily_limit_row.add_prefix(self._setting_icon("x-office-calendar-symbolic"))
+        set_automation_id(daily_limit_row, "parent-daily-limit-row")
         # Expose each choice as a named button in a Gtk.Popover. Gtk.DropDown
         # presents a combo-box role here but no AT-SPI selection or action
         # interface, which prevents assistive technology from selecting a
         # daily allowance.
         self._daily_limit_selected = 0
+        self._daily_limit_keyboard_text = ""
+        self._daily_limit_keyboard_index = None
         self._daily_limit_choices = []
-        self._daily_limit = localized(Gtk.MenuButton, 
+        self._daily_limit = localized(DailyLimitSelector,
             label=_daily_limit_label(0),
+            focusable=True,
             css_classes=["daily-limit-button"],
         )
         self._daily_limit.set_sensitive(False)
@@ -682,6 +716,15 @@ class ParentWindow(Adw.ApplicationWindow):
         allowance_popover = self._daily_limit_popover()
         self._daily_limit.set_popover(allowance_popover)
         self._daily_limit.set_create_popup_func(allowance_popover.prepare)
+        for widget in (self._daily_limit, allowance_popover):
+            keys = Gtk.EventControllerKey.new()
+            keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+            keys.connect("key-pressed", self._daily_limit_key_pressed)
+            widget.add_controller(keys)
+        focus = Gtk.EventControllerFocus.new()
+        focus.connect("leave", self._clear_daily_limit_keyboard)
+        self._daily_limit.add_controller(focus)
+        allowance_popover.connect("closed", self._clear_daily_limit_keyboard)
         daily_limit_row.add_suffix(self._daily_limit)
         screen_limit_rows.append(daily_limit_row)
         self._custom_daily_limit = localized(Adw.ActionRow, 
@@ -1899,8 +1942,9 @@ class ParentWindow(Adw.ApplicationWindow):
             )
             choices.append(choice)
         menu = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, width_request=300)
+        self._daily_limit_viewport = Gtk.Viewport(child=choices)
         choices_scroll = Gtk.ScrolledWindow(
-            child=choices,
+            child=self._daily_limit_viewport,
             # DailyLimitPopover caps the whole popup to the available space;
             # keep the choices shrinkable while the custom action stays fixed.
             propagate_natural_height=True,
@@ -1958,8 +2002,11 @@ class ParentWindow(Adw.ApplicationWindow):
         return choice
 
     def _update_daily_limit_choice_styles(self):
+        displayed = self._daily_limit_keyboard_index
+        if displayed is None:
+            displayed = self._daily_limit_selected
         for choice, marker, index in self._daily_limit_choices:
-            selected = index == self._daily_limit_selected
+            selected = index == displayed
             label = (m.CUSTOM_AMOUNT_2 if index == CUSTOM_DAILY_LIMIT_INDEX
                      else _daily_limit_label(DAILY_LIMIT_PRESETS[index]))
             accessible_text(choice, 
@@ -1978,6 +2025,7 @@ class ParentWindow(Adw.ApplicationWindow):
         if self._loading or self._selected_uid() is None:
             return
         self._daily_limit_selected = selected
+        self._clear_daily_limit_keyboard()
         is_custom = selected == CUSTOM_DAILY_LIMIT_INDEX
         set_text(self._daily_limit, 'label', m.CUSTOM_VALUE if is_custom else _daily_limit_label(
             DAILY_LIMIT_PRESETS[selected],
@@ -1989,6 +2037,96 @@ class ParentWindow(Adw.ApplicationWindow):
             self._custom_daily_limit_entry.grab_focus()
             return
         self._save_parent_control(self._enabled.get_active())
+
+    def _clear_daily_limit_keyboard(self, *_args):
+        self._daily_limit_keyboard_text = ""
+        self._daily_limit_keyboard_index = None
+        self._update_daily_limit_choice_styles()
+        selected = self._daily_limit_selected
+        set_text(self._daily_limit, 'label', m.CUSTOM_VALUE if selected == CUSTOM_DAILY_LIMIT_INDEX
+                 else _daily_limit_label(DAILY_LIMIT_PRESETS[selected]))
+        accessible_text(self._daily_limit, [Gtk.AccessibleProperty.DESCRIPTION],
+                        [m.CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE])
+
+    def _daily_limit_key_pressed(self, _controller, keyval, _keycode, state):
+        """Buffer only within the selector; custom-entry input has its own owner."""
+        if (self._loading or self._selected_uid() is None or
+                not self._daily_limit.is_sensitive() or
+                not self._enabled.get_active() or
+                state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.ALT_MASK |
+                         Gdk.ModifierType.SUPER_MASK)):
+            return False
+        if keyval in (Gdk.KEY_c, Gdk.KEY_C):
+            self._daily_limit_keyboard_text = ""
+            self._daily_limit_keyboard_index = CUSTOM_DAILY_LIMIT_INDEX
+            self._show_daily_limit_keyboard_choice()
+            return True
+        if keyval == Gdk.KEY_Escape:
+            self._clear_daily_limit_keyboard()
+            self._daily_limit.popdown()
+            return True
+        if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+            if self._daily_limit_keyboard_index is not None:
+                self._daily_limit_changed(None, self._daily_limit_keyboard_index)
+                return True
+            if self._daily_limit_keyboard_text:
+                return True
+            # A focused popup choice keeps its normal Enter activation.
+            if not self._daily_limit.get_popover().get_visible():
+                self._daily_limit.popup()
+                return True
+            return False
+        if keyval == Gdk.KEY_space and not self._daily_limit.get_popover().get_visible():
+            self._daily_limit.popup()
+            return True
+        if keyval in (Gdk.KEY_Up, Gdk.KEY_Down, Gdk.KEY_KP_Up, Gdk.KEY_KP_Down):
+            index = self._daily_limit_keyboard_index
+            if index is None:
+                index = self._daily_limit_selected
+            step = -1 if keyval in (Gdk.KEY_Up, Gdk.KEY_KP_Up) else 1
+            self._daily_limit_keyboard_index = max(0, min(CUSTOM_DAILY_LIMIT_INDEX, index + step))
+            self._daily_limit_keyboard_text = ""
+            self._show_daily_limit_keyboard_choice()
+            return True
+        character = chr(Gdk.keyval_to_unicode(keyval)).lower()
+        if keyval == Gdk.KEY_BackSpace:
+            text = self._daily_limit_keyboard_text[:-1]
+        elif character in "0123456789.mh":
+            text = (self._daily_limit_keyboard_text + character)[:16]
+        else:
+            return False
+        self._daily_limit_keyboard_text = text
+        self._daily_limit_keyboard_index = _daily_limit_keyboard_selection(text)
+        if self._daily_limit_keyboard_index is not None:
+            self._daily_limit_keyboard_text = ""
+        self._show_daily_limit_keyboard_choice()
+        return True
+
+    def _show_daily_limit_keyboard_choice(self):
+        """Display an offered option without changing the committed allowance."""
+        self._update_daily_limit_choice_styles()
+        index = self._daily_limit_keyboard_index
+        if index is None:
+            index = self._daily_limit_selected
+        label = (m.CUSTOM_VALUE if index == CUSTOM_DAILY_LIMIT_INDEX
+                 else _daily_limit_label(DAILY_LIMIT_PRESETS[index]))
+        set_text(self._daily_limit, 'label', label)
+        accessible_text(self._daily_limit, [Gtk.AccessibleProperty.DESCRIPTION],
+                        [m.CHOOSE_THE_SELECTED_CHILD_S_DAILY_SCREEN_TIME_ALLOWANCE
+                         if self._daily_limit_keyboard_index is None else
+                         m.DAILY_ALLOWANCE_DESCRIPTION % {'duration': label}])
+        self._scroll_daily_limit_keyboard_choice()
+
+    def _scroll_daily_limit_keyboard_choice(self):
+        index = self._daily_limit_keyboard_index
+        # Custom is the fixed footer, outside the scrolling preset list.
+        if (index is None or index == CUSTOM_DAILY_LIMIT_INDEX or
+                not self._daily_limit_viewport.get_mapped()):
+            return
+        for choice, _marker, choice_index in self._daily_limit_choices:
+            if choice_index == index:
+                self._daily_limit_viewport.scroll_to(choice, None)
+                return
 
     def _custom_daily_limit_changed(self, *_args):
         self._cancel_custom_daily_limit_save()
@@ -2038,6 +2176,7 @@ class ParentWindow(Adw.ApplicationWindow):
         """Restore the selected child's saved allowance, including its editor."""
         selected, is_custom = _daily_limit_selection(minutes)
         self._daily_limit_selected = selected
+        self._clear_daily_limit_keyboard()
         set_text(self._daily_limit, 'label', m.CUSTOM_VALUE if is_custom else _daily_limit_label(minutes))
         self._update_daily_limit_choice_styles()
         self._custom_daily_limit.set_visible(is_custom)

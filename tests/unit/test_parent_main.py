@@ -11,6 +11,7 @@ from common.oh_no_parent_control_ui import messages as m
 from parent.oh_no_parent_control_parent.main import (
     ACCOUNT_REFRESH_SECONDS, APPLICATION_ICON_NAME, APP_LIST_STATES, CATALOG_ROW_BATCH_SIZE, CUSTOM_DAILY_LIMIT_INDEX, DAILY_LIMIT_PRESETS, MATCH_RULES, MAX_TIME_STATUS_RETRIES, STATES, ParentAccountSelector, ParentWindow, _can_start, _daily_limit_label, _daily_limit_selection, _minutes_label,
     _time_status_subtitle,
+    _daily_limit_keyboard_selection,
 )
 from parent.oh_no_parent_control_parent.preview_data import (
     PREVIEW_USERS, PreviewBrokerClient, PREVIEW_THUNDERBIRD_ICON,
@@ -173,6 +174,8 @@ class ParentWindowTests(unittest.TestCase):
 
     def custom_save_window(self):
         class Window:
+            _clear_daily_limit_keyboard = ParentWindow._clear_daily_limit_keyboard
+            _show_daily_limit_keyboard_choice = ParentWindow._show_daily_limit_keyboard_choice
             _custom_daily_limit_changed = ParentWindow._custom_daily_limit_changed
             _daily_limit_minutes = ParentWindow._daily_limit_minutes
             _save_parent_control = ParentWindow._save_parent_control
@@ -194,6 +197,8 @@ class ParentWindowTests(unittest.TestCase):
             "parent_control_enabled": True, "daily_time_limit_minutes": 15,
         }
         window._daily_limit_selected = CUSTOM_DAILY_LIMIT_INDEX
+        window._update_daily_limit_choice_styles = mock.Mock()
+        window._scroll_daily_limit_keyboard_choice = mock.Mock()
         for name in ("_account", "_revoke", "_daily_limit", "_apps_group",
                      "_custom_daily_limit"):
             setattr(window, name, mock.Mock())
@@ -827,6 +832,147 @@ class ParentWindowTests(unittest.TestCase):
         self.assertEqual(_daily_limit_label(90), "1.5 hours")
         self.assertEqual(_daily_limit_selection(30), (2, False))
         self.assertEqual(_daily_limit_selection(31), (CUSTOM_DAILY_LIMIT_INDEX, True))
+
+    def test_keyboard_allowance_requires_units_and_an_exact_preset(self):
+        for text, minutes in (("15m", 15), ("15h", 900), ("2.5h", 150),
+                              ("0m", 0), ("23.5H", 1410)):
+            self.assertEqual(_daily_limit_keyboard_selection(text), DAILY_LIMIT_PRESETS.index(minutes))
+        for text in ("15", "2.5", "31m", "24h", "-15m", "1.001h", "m", "2..5h"):
+            self.assertIsNone(_daily_limit_keyboard_selection(text))
+
+    def test_keyboard_allowance_buffers_cancels_and_commits_without_early_save(self):
+        from parent.oh_no_parent_control_parent.main import Gdk
+        window = self.custom_save_window()
+        window._daily_limit_key_pressed = ParentWindow._daily_limit_key_pressed.__get__(window)
+        window._daily_limit_changed = ParentWindow._daily_limit_changed.__get__(window)
+        window._update_daily_limit_choice_styles = mock.Mock()
+        window._daily_limit_selected = DAILY_LIMIT_PRESETS.index(15)
+        window._clear_daily_limit_keyboard()
+        def key(value, modifiers=0):
+            return window._daily_limit_key_pressed(None, value, 0, modifiers)
+        for char in "2.5":
+            self.assertTrue(key(ord(char)))
+        self.assertEqual(window._daily_limit_selected, DAILY_LIMIT_PRESETS.index(15))
+        window._start_parent_control_save.assert_not_called()
+        key(Gdk.KEY_Escape)
+        self.assertIsNone(window._daily_limit_keyboard_index)
+        key(Gdk.KEY_Down)
+        key(Gdk.KEY_Up)
+        key(Gdk.KEY_Down)
+        window._start_parent_control_save.assert_not_called()
+        key(Gdk.KEY_Return)
+        window._start_parent_control_save.assert_called_once_with(1001, True, 30)
+        self.assertFalse(key(ord('c'), Gdk.ModifierType.CONTROL_MASK))
+        key(ord('c'))
+        window._custom_daily_limit_entry.grab_focus.assert_not_called()
+        key(Gdk.KEY_Return)
+        window._custom_daily_limit.set_visible.assert_called_with(True)
+        window._custom_daily_limit_entry.grab_focus.assert_called_once()
+
+    def test_keyboard_typing_buffers_until_enter_and_escape_discards_choice(self):
+        from parent.oh_no_parent_control_parent.main import Gdk
+        window = self.custom_save_window()
+        window._daily_limit_key_pressed = ParentWindow._daily_limit_key_pressed.__get__(window)
+        window._daily_limit_changed = ParentWindow._daily_limit_changed.__get__(window)
+        window._update_daily_limit_choice_styles = mock.Mock()
+        window._daily_limit_selected = DAILY_LIMIT_PRESETS.index(15)
+        window._clear_daily_limit_keyboard()
+        window._daily_limit.reset_mock()
+        for char in "2.5":
+            window._daily_limit_key_pressed(None, ord(char), 0, 0)
+        window._daily_limit.set_label.assert_called_with("15 minutes")
+        window._start_parent_control_save.assert_not_called()
+        window._daily_limit_key_pressed(None, ord('h'), 0, 0)
+        window._daily_limit.set_label.assert_called_with("2.5 hours")
+        window._start_parent_control_save.assert_not_called()
+        self.assertEqual(window._daily_limit_selected, DAILY_LIMIT_PRESETS.index(15))
+        window._daily_limit_key_pressed(None, Gdk.KEY_Escape, 0, 0)
+        window._daily_limit.popdown.assert_called_once()
+        window._daily_limit.set_label.assert_called_with("15 minutes")
+        window._start_parent_control_save.assert_not_called()
+        for char in "2.5h":
+            window._daily_limit_key_pressed(None, ord(char), 0, 0)
+        window._daily_limit_key_pressed(None, Gdk.KEY_Return, 0, 0)
+        window._start_parent_control_save.assert_called_once_with(1001, True, 150)
+        self.assertEqual(window._daily_limit.popdown.call_count, 2)
+        self.assertEqual(window._daily_limit_selected, DAILY_LIMIT_PRESETS.index(150))
+
+    def test_keyboard_exact_match_resets_typing_for_another_pending_choice(self):
+        from parent.oh_no_parent_control_parent.main import Gdk
+        window = self.custom_save_window()
+        window._daily_limit_key_pressed = ParentWindow._daily_limit_key_pressed.__get__(window)
+        window._daily_limit_changed = ParentWindow._daily_limit_changed.__get__(window)
+        committed = DAILY_LIMIT_PRESETS.index(15)
+        window._daily_limit_selected = committed
+        window._clear_daily_limit_keyboard()
+
+        def type_choice(text, minutes):
+            for char in text:
+                window._daily_limit_key_pressed(None, ord(char), 0, 0)
+            self.assertEqual(window._daily_limit_keyboard_text, "")
+            self.assertEqual(window._daily_limit_keyboard_index, DAILY_LIMIT_PRESETS.index(minutes))
+            self.assertEqual(window._daily_limit_selected, committed)
+            window._start_parent_control_save.assert_not_called()
+
+        type_choice("15h", 900)
+        window._daily_limit.set_label.assert_called_with("15 hours")
+        type_choice("0m", 0)
+        window._daily_limit.set_label.assert_called_with("0 minutes")
+        window._daily_limit_key_pressed(None, Gdk.KEY_Escape, 0, 0)
+        self.assertEqual(window._daily_limit_selected, committed)
+        self.assertIsNone(window._daily_limit_keyboard_index)
+        window._start_parent_control_save.assert_not_called()
+        window._daily_limit.popdown.assert_called_once()
+
+        type_choice("15h", 900)
+        type_choice("0m", 0)
+        window._daily_limit_key_pressed(None, Gdk.KEY_Return, 0, 0)
+        window._start_parent_control_save.assert_called_once_with(1001, True, 0)
+        self.assertEqual(window._daily_limit_selected, DAILY_LIMIT_PRESETS.index(0))
+        self.assertEqual(window._daily_limit.popdown.call_count, 2)
+
+    def test_keyboard_pending_choice_styles_restore_on_escape(self):
+        window = self.custom_save_window()
+        window._daily_limit_selected = DAILY_LIMIT_PRESETS.index(15)
+        pending = DAILY_LIMIT_PRESETS.index(120)
+        committed_choice, committed_marker = mock.Mock(), mock.Mock()
+        pending_choice, pending_marker = mock.Mock(), mock.Mock()
+        window._daily_limit_choices = [
+            (committed_choice, committed_marker, window._daily_limit_selected),
+            (pending_choice, pending_marker, pending),
+        ]
+        window._update_daily_limit_choice_styles = (
+            ParentWindow._update_daily_limit_choice_styles.__get__(window))
+        window._daily_limit_keyboard_index = pending
+        window._show_daily_limit_keyboard_choice()
+        pending_choice.add_css_class.assert_called_with("selected")
+        pending_marker.add_css_class.assert_called_with("selected")
+        committed_choice.remove_css_class.assert_called_with("selected")
+        window._clear_daily_limit_keyboard()
+        committed_choice.add_css_class.assert_called_with("selected")
+        pending_choice.remove_css_class.assert_called_with("selected")
+        window._start_parent_control_save.assert_not_called()
+
+    def test_keyboard_pending_preset_scrolls_into_view_without_moving_focus(self):
+        choice = mock.Mock()
+        viewport = mock.Mock()
+        window = SimpleNamespace(
+            _daily_limit_keyboard_index=DAILY_LIMIT_PRESETS.index(900),
+            _daily_limit_choices=[(choice, mock.Mock(), DAILY_LIMIT_PRESETS.index(900))],
+            _daily_limit_viewport=viewport,
+        )
+        viewport.get_mapped.return_value = True
+        ParentWindow._scroll_daily_limit_keyboard_choice(window)
+        viewport.scroll_to.assert_called_once_with(choice, None)
+        choice.grab_focus.assert_not_called()
+        viewport.reset_mock()
+        window._daily_limit_keyboard_index = CUSTOM_DAILY_LIMIT_INDEX
+        ParentWindow._scroll_daily_limit_keyboard_choice(window)
+        viewport.scroll_to.assert_not_called()
+        window._daily_limit_keyboard_index = DAILY_LIMIT_PRESETS.index(900)
+        viewport.get_mapped.return_value = False
+        ParentWindow._scroll_daily_limit_keyboard_choice(window)
+        viewport.scroll_to.assert_not_called()
 
     def test_time_explanation_shows_both_amounts_and_remaining_time(self):
         status = {

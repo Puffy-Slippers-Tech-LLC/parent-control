@@ -25,6 +25,7 @@ PERSISTENCE = {
     'persist-back-focus': 'ui:child-choice-highlighted',
     'persist-back-selected': 'ui:parent-selected',
     'persist-saved': 'ui:allowance-15-read',
+    **allowance_selection('persist-choice', ('custom',)),
     'persist-editor': 'ui:custom-15-reopen',
 }
 PLAN = JourneyPlan(

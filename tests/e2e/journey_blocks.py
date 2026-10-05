@@ -39,6 +39,7 @@ def allowance_selection(prefix, values, *, response='confirm', original=0):
     final = values[-1] if response == 'confirm' else original
     return prefixed_stages(prefix, {
         'ready': f'ui:allowance-keyboard-{values[0]}-ready',
+        'opened': f'ui:allowance-keyboard-{values[0]}-opened',
         **{f'highlight-{index}': f'ui:allowance-keyboard-{value}-highlighted'
            for index, value in enumerate(values)},
         response: f'ui:allowance-keyboard-{final}-' + ('confirmed' if response == 'confirm' else 'cancelled'),

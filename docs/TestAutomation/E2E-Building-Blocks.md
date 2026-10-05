@@ -624,8 +624,13 @@ registered merely by this table.
 PARENT06's reusable keyboard allowance selection is
 `journey_blocks.allowance_selection(prefix, values, response='confirm', original=0)`
 → `onpc_allowance_selection::select(journey, prefix, values, response)`.
-`AccessibleUI.allowance_keyboard` supplies ready/highlighted/confirmed/cancelled
-public boundaries; `allowance_keyboard_recipient` proves owned, unique focus.
+`AccessibleUI.allowance_keyboard` supplies ready/opened/highlighted/confirmed/cancelled
+public boundaries. Ready focuses the closed selector; the worker sends one
+native Space, then opened proves the expanded selector and its unique usable
+focus before typing. Opening preserves native popup focus instead of moving it
+back to the button. `allowance_keyboard_recipient` checks the appropriate closed
+or expanded state at each input. Public highlight descriptions come from the
+identified selector, so opaque native popup trees need no choice IDs.
 Host UI calls the same worker block through
 `tests.support.gui_blocks.select_allowance`; only keyboard transport differs.
 All offered presets use minutes/hours typing; `c` chooses Custom. Values are
@@ -634,9 +639,20 @@ and Escape reads back the declared original. Custom confirmation requires entry
 focus. The selector must remain noneditable throughout. Follow the
 [keyboard exception](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception);
 no row-ID activation, positional selection or geometry is used by this block.
-Case 159, named-child saves and rapid-save qualification share it; historical
+Cases 158/159, rejection baselines, named-child saves and rapid-save qualification share it; historical
 direct-action qualification below does not qualify this new keyboard route.
-Keyboard live qualification is pending VM 2 validation.
+Keyboard live qualification remains pending on VM 2 (Fedora 44). Case 159 run
+`20261005T183200Z-6f124ff4` timed out at the first `15h` highlight: the selector
+was expanded with one usable focused recipient but still displayed zero, and
+bounded diagnostics observed no allowance key callback. Collection failed;
+owned cleanup and baseline restoration passed. Host keyboard and custom-editor
+checks pass; these do not establish installed qualification.
+The revised opening sequence was exercised in the existing VM 2 maintenance
+session: closed-selector focus, native Space, independently observed expanded
+popup/focus, `15h` highlight, replacement `15m` highlight, Enter and closed
+15-minute readback all passed. This diagnostic used the maintained VM key
+transport and the snapshot's existing diagnostic package; it does not replace
+the current-source E2E run or qualify the worker's VNC typing transport.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |

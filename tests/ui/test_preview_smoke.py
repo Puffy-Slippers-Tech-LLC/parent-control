@@ -441,6 +441,9 @@ def test_parent_shared_allowance_keyboard_replaces_highlight_and_cancels(
                 if record['event'] == 'set_parent_control']
     original = saves()
     reader.allowance_keyboard(CHILD, 900, 'ready')
+    keyboard.deliver_allowance(reader, lambda: keyboard.raw_allowance_key('space'),
+                               child=CHILD, expanded=False)
+    reader.allowance_keyboard(CHILD, 900, 'opened')
     for text, minutes in (('15h', 900), ('0m', 0)):
         keyboard.deliver_allowance(reader, lambda: keyboard.raw_allowance_text(text), child=CHILD)
         reader.allowance_keyboard(CHILD, minutes, 'highlighted')

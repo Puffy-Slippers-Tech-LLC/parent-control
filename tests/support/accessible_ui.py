@@ -122,7 +122,7 @@ def ui_for(root, *, provider_contracts=None, qualify_prompts=True):
         do_action=lambda action, index: action.do_action(index)), StateType=SimpleNamespace(
         SHOWING='showing', VISIBLE='visible', SENSITIVE='sensitive', DEFUNCT='defunct',
         FOCUSED='focused', SELECTED='selected', CHECKED='checked', PRESSED='pressed', EDITABLE='editable', MODAL='modal',
-        ACTIVE='active'),
+        ACTIVE='active', EXPANDED='expanded'),
         RelationType=SimpleNamespace(CONTROLLED_BY='controlled-by'),
         CoordType=SimpleNamespace(SCREEN='screen'),
         ScrollType=SimpleNamespace(ANYWHERE='anywhere')), timeout=0,

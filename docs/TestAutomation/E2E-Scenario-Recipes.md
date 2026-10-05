@@ -827,8 +827,10 @@ Bindings: flow = boundaries / save-order.
 
 Cases 158 and 159 compose `journey_blocks.allowance_selection` and
 `onpc_allowance_selection::select`, the same block used by host UI through
-`tests.support.gui_blocks.select_allowance`. Case 158 chooses preset 15 and
-restores its rejected-draft baseline through this block. Case 159 starts from Jordan's enabled saved zero:
+`tests.support.gui_blocks.select_allowance`. Case 158 chooses preset 15,
+restores its rejected-draft baseline and opens Custom with `c`/Enter through
+this block. Reopening an already visible custom editor observes its exact saved
+value without opening the popup again. Case 159 starts from Jordan's enabled saved zero:
 type `15h`, observe the 15-hour highlight, then type `0m` and observe zero in the
 same open popup; Enter confirms only zero. Reopen, type `15h`, Escape and read
 the original zero. Type `c`, confirm and require the focused Custom entry before

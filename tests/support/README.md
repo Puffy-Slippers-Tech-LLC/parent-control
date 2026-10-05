@@ -77,8 +77,10 @@ dispatch and reuse without replacing inputs.
 `AccessibleUI.allowance_keyboard` share the Parent allowance keyboard block.
 Host previews execute it with `gui_blocks.select_allowance` and guarded
 `keyboard.deliver_allowance`; installed cases use the normal worker keyboard.
-Every input boundary proves public window/selector/popup ownership and unique
-usable focus within the selector scope. Individual choice IDs are unnecessary
+Every input boundary proves public window/selector ownership and unique usable
+focus within the selector scope. The opening Space requires a closed selector;
+typing and Enter/Escape require the independently observed expanded selector.
+Individual choice IDs are unnecessary
 under the [daily allowance exception](../../docs/Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception).
 Cases own preset sequences, original-value comparisons and save assertions.
 No VM/distro branches or new display, process, storage or cleanup lifetime are

@@ -49,7 +49,7 @@ def lookup(ui, index):
 @pytest.mark.parametrize('fault,code', [
     ('child', 'wrong-child'), ('disabled', 'unusable-target'),
     ('textbox', 'allowance-textbox'), ('focus', 'allowance-focus'),
-    ('duplicate-focus', 'allowance-focus'), ('owner', 'wrong-owner'),
+    ('duplicate-focus', 'allowance-focus'), ('popup', 'allowance-popup'), ('owner', 'wrong-owner'),
 ])
 def test_allowance_keyboard_refuses_unsafe_recipient(preset_ui, fault, code):
     ui, window, selector, choice = preset_ui
@@ -67,6 +67,8 @@ def test_allowance_keyboard_refuses_unsafe_recipient(preset_ui, fault, code):
         choice.states.remove('focused')
     elif fault == 'duplicate-focus':
         selector.states.add('focused')
+    elif fault == 'popup':
+        selector.states.remove('expanded')
     else:
         ui.root().get_process_id = lambda: 101
     choice.action.do_action.reset_mock()
@@ -75,13 +77,18 @@ def test_allowance_keyboard_refuses_unsafe_recipient(preset_ui, fault, code):
     choice.action.do_action.assert_not_called()
 
 
-def test_allowance_keyboard_observes_highlight_without_choice_id(preset_ui):
+@pytest.mark.parametrize('opaque', [False, True])
+def test_allowance_keyboard_observes_highlight_without_choice_id(preset_ui, opaque):
     ui, window, selector, choice = preset_ui
     window.states.add('active')
     with ui.observation():
         ui.activate_id(selector.identity)
     choice.states.add('focused')
     choice.identity = ''
+    selector.description = 'Daily allowance: 15 minutes'
+    if opaque:
+        selector.children = selector.children[:1]
+        selector.states.add('focused')
     assert ui.allowance_keyboard(accessible_ui.CHILD, 15, 'highlighted') == {
         'value': 15, 'phase': 'highlighted'}
     choice.action.do_action.assert_not_called()
@@ -101,6 +108,38 @@ def test_allowance_keyboard_delivery_never_replays_uncertain_input(preset_ui):
     with pytest.raises(AssertionError, match='uncertain'):
         deliver_allowance(ui, send)
     send.assert_called_once_with()
+
+
+def test_allowance_ready_focuses_closed_selector_without_opening_it(preset_ui):
+    ui, window, selector, choice = preset_ui
+    window.states.add('active')
+    ui.parent_save_snapshot = Mock()
+    ui.reach_time_explanation = Mock()
+    ui.activate_id = Mock(side_effect=lambda *_args, **_kwargs: selector.states.add('focused'))
+    assert ui.allowance_keyboard(accessible_ui.CHILD, 15, 'ready') == {
+        'value': 15, 'phase': 'ready'}
+    ui.activate_id.assert_called_once_with(
+        'parent-window', action_name='focus.parent-daily-limit-selector')
+    selector.action.do_action.assert_not_called()
+    assert 'expanded' not in selector.states
+    selector.states.add('expanded')
+    ui.activate_id.reset_mock()
+    with pytest.raises(UiError, match='allowance-popup'):
+        ui.allowance_keyboard(accessible_ui.CHILD, 15, 'ready')
+    ui.activate_id.assert_not_called()
+
+
+def test_allowance_opened_preserves_native_popup_focus(preset_ui):
+    ui, window, selector, choice = preset_ui
+    window.states.add('active')
+    with ui.observation():
+        ui.activate_id(selector.identity)
+    choice.states.add('focused')
+    ui.activate_id = Mock()
+    assert ui.allowance_keyboard(accessible_ui.CHILD, 15, 'opened') == {
+        'value': 15, 'phase': 'opened'}
+    ui.activate_id.assert_not_called()
+    assert 'focused' not in selector.states
 
 
 @pytest.fixture
@@ -124,6 +163,7 @@ def preset_ui():
         assert ui._observation_cache == []
         choices.parent = allowance
         allowance.children = [label, choices]
+        allowance.states.add('expanded')
         return True
 
     def select(_index):
@@ -132,6 +172,7 @@ def preset_ui():
         replacement = Node('15 minutes', 'label')
         replacement.parent = allowance
         allowance.children = [replacement]
+        allowance.states.discard('expanded')
         return True
 
     allowance.action.do_action.side_effect = open_picker

@@ -49,20 +49,28 @@ sub exercise {
         && ($profile eq 'full' || $profile eq 'installed');
     for my $value ($profile eq 'installed' ? (1) : (0, 1, 15, 1439)) {
         my $prefix = "boundary-$value";
+        onpc_allowance_selection::select($journey, "$prefix-choice", ['custom'], 'confirm');
         seen($journey, "$prefix-open");
         onpc_text::replace_text($journey, "daily-$value", "$prefix-text");
         seen($journey, "$prefix-saved");
         reload_child($journey, $prefix);
+        if ($value == 0 || $value == 15) {
+            seen($journey, "$prefix-reloaded-preset-read");
+            onpc_allowance_selection::select($journey, "$prefix-reopen-choice", ['custom'], 'confirm');
+        }
         seen($journey, "$prefix-reopen");
     }
     for my $binding ($profile eq 'installed' ? ('over') : ('empty', 'letters', 'negative', 'fraction', 'maximum', 'over')) {
         my $prefix = "invalid-$binding";
         onpc_allowance_selection::select($journey, "$prefix-baseline", [15], 'confirm');
-        seen($journey, "$prefix-$_") for ('baseline-read', 'open');
+        seen($journey, "$prefix-baseline-read");
+        onpc_allowance_selection::select($journey, "$prefix-choice", ['custom'], 'confirm');
+        seen($journey, "$prefix-open");
         onpc_text::replace_text($journey, "daily-invalid-$binding", "$prefix-text");
         seen($journey, "$prefix-rejected");
         reload_child($journey, $prefix);
         seen($journey, "$prefix-unchanged");
+        onpc_allowance_selection::select($journey, "$prefix-reopen-choice", ['custom'], 'confirm');
         seen($journey, "$prefix-reopen");
     }
 }

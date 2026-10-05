@@ -427,13 +427,15 @@ def test_allowance_installed_sample_preserves_rejection_and_real_reopen_checks()
     stages = list(PLAN.screen_tags)
     assert 'system:parent-continuous-activity' not in PLAN.screen_tags.values()
     presets = [PLAN.screen_tags[stage] for stage in stages if stage.startswith('preset-')]
-    assert presets == [f'ui:allowance-{value}-{action}' for value in (15,)
-                       for action in ('select', 'read')]
+    assert presets == [f'ui:allowance-keyboard-15-{phase}'
+                       for phase in ('ready', 'opened', 'highlighted', 'confirmed')] + [
+                           'ui:allowance-15-read']
     for value in (1,):
         assert stages.index(f'boundary-{value}-saved') < stages.index(f'boundary-{value}-reopen')
     for binding in ('over',):
         prefix = 'invalid-' + binding
-        assert PLAN.screen_tags[prefix + '-baseline'] == 'ui:allowance-15-select'
+        assert PLAN.screen_tags[prefix + '-baseline-confirm'] == 'ui:allowance-keyboard-15-confirmed'
+        assert PLAN.screen_tags[prefix + '-baseline-read'] == 'ui:allowance-15-read'
         assert PLAN.screen_tags[prefix + '-unchanged'] == 'ui:allowance-15-read'
         assert PLAN.screen_tags[prefix + '-reopen'] == 'ui:custom-15-reopen'
         assert stages.index(prefix + '-rejected') < stages.index(prefix + '-unchanged')
@@ -647,6 +649,7 @@ def test_custom_reopen_checks_the_declared_reload_or_retained_selection(
     # In-memory public observations only; no additional shared resources.
     from accessible_ui import AccessibleUI, CHILD, UiError
     ui = Mock()
+    ui.snapshot_owned_target.return_value = None  # This branch tests reopening a hidden editor.
     choice = ui.id_target.return_value
     choice.get_description.return_value = (
         'Daily allowance: Custom amount' if wrong_selection else

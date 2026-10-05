@@ -31,6 +31,7 @@ sub run {
     onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
     onpc_allowance_boundaries::reload_child($journey, 'persist');
     $journey->seen('persist-saved');
+    onpc_allowance_selection::select($journey, 'persist-choice', ['custom'], 'confirm');
     $journey->seen('persist-editor');
     $journey->finish();
 }

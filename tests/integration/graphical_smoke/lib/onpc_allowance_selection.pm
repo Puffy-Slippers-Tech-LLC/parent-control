@@ -20,6 +20,8 @@ sub select {
                     && $value >= 60 && $value <= 1410 && $value % 30 == 0);
     }
     $journey->consume_observation("$prefix-ready", $journey->seen("$prefix-ready"));
+    testapi::send_key('spc');
+    $journey->consume_observation("$prefix-opened", $journey->seen("$prefix-opened"));
     for my $index (0 .. $#$values) {
         my $value = $values->[$index];
         my $text = $value eq 'custom' ? 'c'

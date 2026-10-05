@@ -990,7 +990,7 @@ def test_unoffered_presets_refuse_before_input(minutes):
 
 
 @pytest.mark.parametrize('value', [0, 15, 900, 'custom'])
-@pytest.mark.parametrize('phase', ['ready', 'confirmed', 'cancelled'])
+@pytest.mark.parametrize('phase', ['ready', 'opened', 'confirmed', 'cancelled'])
 def test_allowance_keyboard_controller_requires_exact_public_boundary(value, phase):
     operation = f'allowance-keyboard-{value}-{phase}'
     result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
@@ -1048,7 +1048,11 @@ def test_allowance_failure_diagnostic_excludes_text_and_preserves_query_failure(
     assert 'private' not in json.dumps(result)
 
 
-def test_allowance_failure_diagnostic_reports_only_known_callback_frames(monkeypatch):
+@pytest.mark.parametrize('description,highlight', [
+    ('Daily allowance: 15 hours', 900), ('Daily allowance: Custom value', 'custom'),
+    ('private description', None),
+])
+def test_allowance_failure_diagnostic_reports_only_known_callback_frames(monkeypatch, description, highlight):
     journal = ('  File "/usr/lib/oh-no-parent-control/parent/oh_no_parent_control_parent/main.py", '
                'line 170, in do_measure\n'
                'TypeError: private details\n'
@@ -1056,11 +1060,17 @@ def test_allowance_failure_diagnostic_reports_only_known_callback_frames(monkeyp
     monkeypatch.setattr(accessible_ui.subprocess, 'run', Mock(side_effect=[
         SimpleNamespace(stdout='(false,)'), SimpleNamespace(stdout=journal)]))
     selector = Node(identity='parent-daily-limit-selector',
-                    states=('visible', 'showing', 'sensitive', 'expanded'))
+                    description=description,
+                    states=('visible', 'showing', 'sensitive', 'expanded', 'focused'),
+                    children=[Node('15 hours', 'label'), Node('private label', 'label')])
     ui = ui_for(Node(identity='parent-window', children=[selector]))
     ui.api.StateType.EXPANDED = 'expanded'
     result = accessible_ui.allowance_failure_diagnostic(ui)
     assert result['expanded'] is True
+    assert result['selector_focused'] is True
+    assert result['focused_recipients'] == 1
+    assert result['highlight'] == highlight
+    assert result['displayed_values'] == [900]
     assert result['callback_frames'] == [{'line': 170, 'function': 'do_measure'}]
     assert result['exception_types'] == ['TypeError']
     assert 'private' not in json.dumps(result)
@@ -1122,9 +1132,21 @@ def test_custom_allowance_reads_only_exact_public_saved_value(value, monkeypatch
         entry.states.remove('focused')
     assert ui.custom_allowance(child, value, action='saved') == {
         'minutes': value, 'action': 'saved'}
+    selector = ui.id_target('parent-daily-limit-selector')
+    selector.children = [Node('Custom value', 'label')]
+    for action in ('reopen', 'reopen-current'):
+        assert ui.custom_allowance(child, value, action=action) == {
+            'minutes': value, 'action': action}
+        ui.activate_id.assert_not_called()
     ui.api.Text.get_text.return_value = '9'
     with pytest.raises(UiError, match='ui:text-value'):
         ui.custom_allowance(child, value, action='saved')
+    with pytest.raises(UiError, match='ui:text-value'):
+        ui.custom_allowance(child, value, action='reopen')
+    selector.children = [Node('15 minutes', 'label')]
+    with pytest.raises(UiError, match='ui:allowance-selection'):
+        ui.custom_allowance(child, value, action='reopen')
+    ui.activate_id.assert_not_called()
 
 
 @pytest.mark.parametrize('child', [accessible_ui.CHILD, accessible_ui.EXISTING_CHILD])

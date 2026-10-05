@@ -3,13 +3,14 @@
 import time
 
 
-def deliver_allowance(ui, send, *, child=None):
+def deliver_allowance(ui, send, *, child=None, expanded=True):
     """Daily dropdown exception: freshly owned scope and unique keyboard focus."""
     from tests.e2e.accessible_ui import CHILD, NAMED_CUSTOM_CHILDREN
     if ui.input_uncertain:
         raise AssertionError('Keyboard input is uncertain')
     ui.invalidate_observation()
-    ui.allowance_keyboard_recipient(NAMED_CUSTOM_CHILDREN.get(child, child) or CHILD)
+    ui.allowance_keyboard_recipient(NAMED_CUSTOM_CHILDREN.get(child, child) or CHILD,
+                                    expanded=expanded)
     ui.input_uncertain = True
     send()
     ui.input_uncertain = False

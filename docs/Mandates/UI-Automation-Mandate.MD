@@ -99,11 +99,14 @@ and independent result checks apply to both routes.
 - **Daily allowance keyboard exception (UI and E2E):** The Parent daily
   allowance dropdown may select presets by typing minutes/hours (`15h`, `0m`)
   and Custom by typing `c`, followed by Enter or Escape. Use the shared allowance
-  selection block in both suites. Resolve the owning window, selector and popup
-  by public ID; prove one visible, enabled focused recipient within that owned
-  selector scope before each keyboard batch. Individual choices may be observed
-  by their public highlight descriptions within this scope, without resolving
-  or activating a choice ID. Reject ambiguous focus/highlights and wrong owners.
+  selection block in both suites. Focus the closed selector, send one native
+  Space, and independently observe opening before typing; preserve the popup's
+  resulting focus. Resolve the owning window and selector by
+  public ID; prove the selector's expanded state and one visible, enabled focused
+  recipient within its owned scope before each keyboard batch. Read its public
+  highlight description, without resolving or activating a choice ID. Popup
+  descendants need not be exposed by the toolkit. Reject ambiguous focus and
+  wrong owners.
   Typing only highlights; the popup stays open and saved allowance is preserved.
   Enter commits the latest highlight; Escape preserves the original allowance;
   confirming Custom focuses its entry. The selector remains a button, never an

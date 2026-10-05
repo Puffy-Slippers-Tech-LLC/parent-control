@@ -410,7 +410,7 @@ OPERATIONS |= ALLOWANCE_OPERATIONS
 ALLOWANCE_KEYBOARD_OPERATIONS = {
     f'allowance-keyboard-{value}-{phase}': (value, phase)
     for value in (*PRESETS, 'custom')
-    for phase in ('ready', 'highlighted', 'confirmed', 'cancelled')
+    for phase in ('ready', 'opened', 'highlighted', 'confirmed', 'cancelled')
 }
 OPERATIONS |= ALLOWANCE_KEYBOARD_OPERATIONS.keys()
 TIME_EXPLANATION_OPERATIONS = frozenset({
@@ -5708,7 +5708,7 @@ class AccessibleUI:
                                       showing=True) is not None, 'ui:wrong-child')
         self.id_target('parent-daily-limit-selector', root=root, sensitive=True)
 
-    def allowance_keyboard_recipient(self, child=CHILD):
+    def allowance_keyboard_recipient(self, child=CHILD, *, expanded=True):
         """Exception-scoped focus proof; no row IDs, positions or geometry."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         self.allowance_entry(child)
@@ -5718,7 +5718,11 @@ class AccessibleUI:
         require(selector.get_role_name() not in ('text', 'entry', 'password text')
                 and not self.has_state(selector, self.api.StateType.EDITABLE),
                 'ui:allowance-textbox')
-        self.id_target('parent-daily-limit-choices', root=selector)
+        # GTK may expose the popup as an opaque controlled surface. Its
+        # identified MenuButton still publishes expanded state and contains
+        # the keyboard recipient; do not require popup rows or their IDs.
+        require(self.has_state(selector, self.api.StateType.EXPANDED) == expanded,
+                'ui:allowance-popup')
         focused = [node for node in self.nodes(selector, strict=True)
                    if self.has_state(node, self.api.StateType.FOCUSED)]
         require(len(focused) == 1 and self.showing(focused[0])
@@ -5732,25 +5736,38 @@ class AccessibleUI:
         require((value, phase) in ALLOWANCE_KEYBOARD_OPERATIONS.values(),
                 'ui:allowance-binding')
         self.allowance_entry(child)  # Wrong child/disabled refuses before opening.
+        selector = self.id_target('parent-daily-limit-selector', sensitive=True)
+        require(selector.get_role_name() not in ('text', 'entry', 'password text')
+                and not self.has_state(selector, self.api.StateType.EDITABLE), 'ui:allowance-textbox')
         if phase == 'ready':
             self.parent_save_snapshot(child, True)
-            if self.absent_id('parent-daily-limit-choices', within='parent-window'):
-                self.reach_time_explanation(child)
-            if self.absent_id('parent-daily-limit-choices', within='parent-window'):
-                self.activate_id('parent-daily-limit-selector')
-            self.wait(lambda: self.allowance_keyboard_recipient(child), 'allowance-keyboard-focus')
+            require(not self.has_state(selector, self.api.StateType.EXPANDED),
+                    'ui:allowance-popup')
+            self.reach_time_explanation(child)
+            # Focus the closed button. The worker opens it with native Space,
+            # then independently observes the popup before typing. A direct
+            # menu.popup action can report expanded without usable key routing.
+            self.activate_id('parent-window', action_name='focus.parent-daily-limit-selector')
+            def focused():
+                current = self.id_target('parent-daily-limit-selector', sensitive=True)
+                return self.has_state(current, self.api.StateType.FOCUSED)
+            self.wait(focused, 'allowance-keyboard-focus')
+            self.allowance_keyboard_recipient(child, expanded=False)
+        elif phase == 'opened':
+            self.wait(lambda: self.has_state(
+                self.id_target('parent-daily-limit-selector', sensitive=True),
+                self.api.StateType.EXPANDED), 'allowance-keyboard-open')
+            self.allowance_keyboard_recipient(child)
         elif phase == 'highlighted':
-            label = 'Custom amount' if value == 'custom' else PRESET_LABELS[value]
+            label = 'Custom value' if value == 'custom' else PRESET_LABELS[value]
             def highlighted():
                 selector = self.allowance_keyboard_recipient(child)
-                selected = [node.get_description() for node in self.nodes(selector, strict=True)
-                            if node.get_description().startswith('Selected daily allowance: ')]
-                require(len(selected) <= 1, 'ui:allowance-ambiguous-highlight')
-                return selected == ['Selected daily allowance: ' + label]
+                return selector.get_description() == 'Daily allowance: ' + label
             self.wait(highlighted, 'allowance-keyboard-highlight')
         else:
-            self.wait(lambda: self.absent_id('parent-daily-limit-choices', within='parent-window'),
-                      'allowance-keyboard-close')
+            self.wait(lambda: not self.has_state(
+                self.id_target('parent-daily-limit-selector', sensitive=True), self.api.StateType.EXPANDED),
+                'allowance-keyboard-close')
             selector = self.id_target('parent-daily-limit-selector', sensitive=True)
             require(not self.has_state(selector, self.api.StateType.EDITABLE)
                     and selector.get_role_name() not in ('text', 'entry', 'password text'),
@@ -5772,14 +5789,22 @@ class AccessibleUI:
                 and action in ('open', 'saved', 'reopen', 'reopen-current'),
                 'ui:allowance-binding')
         self.allowance_entry(child)
-        if action == 'open':
-            editor = self.snapshot_owned_target('parent-custom-daily-limit', showing=False)
-            if editor is not None and self.has_state(editor, self.api.StateType.VISIBLE):
-                # The previous reopen may already have returned this editor.
-                # Reuse that visible editor without an unnecessary picker action.
-                self.text_recipient('parent-custom-daily-limit', child=child)
-                return {'minutes': minutes, 'action': action}
+        editor_visible = False
         if action in ('open', 'reopen', 'reopen-current'):
+            editor = self.snapshot_owned_target('parent-custom-daily-limit', showing=False)
+            editor_visible = editor is not None and self.has_state(editor, self.api.StateType.VISIBLE)
+            if editor_visible:
+                # Reloads of custom values and the shared keyboard choice can
+                # already expose the editor. Reobserve it without reopening a
+                # native popup merely to activate the same choice again.
+                self.text_recipient('parent-custom-daily-limit', child=child)
+                if action == 'open':
+                    return {'minutes': minutes, 'action': action}
+                selector = self.id_target('parent-daily-limit-selector', sensitive=True)
+                require([node.get_name() for node in self.nodes(selector, strict=True)
+                         if node.get_role_name() == 'label' and self.showing(node)]
+                        == ['Custom value'], 'ui:allowance-selection')
+        if action in ('open', 'reopen', 'reopen-current') and not editor_visible:
             self.parent_save_snapshot(child, True)
             if action == 'reopen' and minutes in (0, 15):
                 self.allowance_preset(child, minutes, action='read')
@@ -11003,6 +11028,19 @@ def allowance_failure_diagnostic(ui=None):
             if selector is not None:
                 selector_nodes = list(ui.nodes(selector, strict=True))
                 diagnostic['selector_nodes'] = len(selector_nodes)
+                diagnostic['selector_focused'] = ui.has_state(selector, ui.api.StateType.FOCUSED)
+                diagnostic['focused_recipients'] = sum(
+                    ui.has_state(node, ui.api.StateType.FOCUSED) for node in selector_nodes)
+                # Publish only recognized offered values, never arbitrary UI text.
+                description = selector.get_description()
+                diagnostic['highlight'] = next((value for value, label in
+                    (*PRESET_LABELS.items(), ('custom', 'Custom value'))
+                    if description == 'Daily allowance: ' + label), None)
+                offered_labels = {label: value for value, label in
+                    (*PRESET_LABELS.items(), ('custom', 'Custom value'))}
+                diagnostic['displayed_values'] = [offered_labels[name]
+                    for node in selector_nodes if node.get_role_name() == 'label'
+                    and (name := node.get_name()) in offered_labels]
                 diagnostic['selector_choices'] = sum(
                     public_automation_id(node) == 'parent-daily-limit-choices'
                     for node in selector_nodes)

@@ -69,7 +69,7 @@ _KEYS = {
     'right': 'Right', 'left': 'Left', 'shift-right': '<Shift>Right',
     'backspace': 'BackSpace', 'ret': 'Return', 'esc': 'Escape',
     'alt-f4': '<Alt>F4',
-    'tab': 'Tab', 'shift-tab': '<Shift>Tab',
+    'tab': 'Tab', 'shift-tab': '<Shift>Tab', 'spc': 'space',
 }
 
 
@@ -145,7 +145,7 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
             elif event[0] == 'key':
                 if block == 'allowance':
                     keyboard.deliver_allowance(ui, lambda: keyboard.raw_allowance_key(_KEYS[event[1]]),
-                                               child=child)
+                                               child=child, expanded=event[1] != 'spc')
                     continue
                 # Filter composites immediately poll exact popup absence after
                 # Escape. Dogtail's default one-second post-key sleep adds three

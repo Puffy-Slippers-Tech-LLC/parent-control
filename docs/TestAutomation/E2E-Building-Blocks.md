@@ -606,6 +606,10 @@ for the remaining bindings:
 | Panel/tooltip/menu language refresh after overlay changes and session resume | 310a, after existing tooltip/menu and retained-session qualifications | 310 countdown/natural expiry |
 
 Parent enabled-state readback is qualified for English and Chinese only.
+Task [307c](E2E-Tasks/307c-parent-hebrew-policy.md) owns the missing Riley/Hebrew
+60-minute policy and public-balance binding before complete Parent task 307;
+the current reader and duration parser reject Hebrew. This pending capability
+supplies no product-failure or live-acceptance evidence.
 Feedback entry/readers include the stated Parent English/Hebrew binding; shared IDs do not establish translated child/station
 routes. Follow the [no-visual presentation acceptance rule](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results);
 host GTK direction checks remain engineering coverage. Missing public text/focus or same-draft report

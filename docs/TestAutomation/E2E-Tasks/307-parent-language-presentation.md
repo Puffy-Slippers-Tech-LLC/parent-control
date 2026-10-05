@@ -8,6 +8,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **306a** — Parent account/policy language observations.
 - **307a** — Installed Parent Hebrew/LTR presentation route.
 - **307b** — Inherited Parent About/feedback language and retained synthetic draft.
+- **307c** — Enabled Riley 60-minute Hebrew management, policy and balance observations.
 
 Estimate: 20–30 minutes.
 
@@ -35,7 +36,10 @@ worker input. `ParentDialogLanguageJourney` / `DIALOG_PLAN` in
 `tests/e2e/parent_language.py` demonstrate the qualified fixed history; the case
 must declare its own endpoints and immutable comparisons through shared APIs.
 The qualified disabled-zero policy does not supply the recipe's enabled
-60-minute Hebrew management readback. Verify that exact binding before composing it.
+60-minute Hebrew management readback. Preflight confirmed that
+`PARENT_LANGUAGE_STATES`, `parent_language_state`, `time_explanation` and
+`duration_projection` accept English/Chinese enabled bindings only. Task 307c
+must qualify the exact Hebrew binding before this case is registered or composed.
 
 ## Implementation entry
 

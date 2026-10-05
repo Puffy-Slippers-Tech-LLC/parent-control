@@ -1,7 +1,7 @@
 """Finite independent qualification of rapid custom allowance saves."""
 
 from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop, parent_management
+from journey_blocks import fresh_desktop, parent_management, allowance_selection
 from ui_observations import SettingsObservation
 
 SCREENS = {**fresh_desktop('parent'), **parent_management(),
@@ -9,7 +9,8 @@ SCREENS = {**fresh_desktop('parent'), **parent_management(),
            'enable': 'ui:parent-toggle-enabled', 'enabled': 'ui:parent-save-enabled'}
 for entry in ('first', 'second'):
     SCREENS.update({
-        f'{entry}-preset': 'ui:allowance-15-select',
+        **allowance_selection(entry + '-preset', (15,)),
+        **allowance_selection(entry + '-choice', ('custom',)),
         f'{entry}-open': 'ui:custom-6-open',
         f'{entry}-focus': 'ui:text-daily-6-focus',
         f'{entry}-wrong-child': 'ui:parent-trace-wrong-child-refused',

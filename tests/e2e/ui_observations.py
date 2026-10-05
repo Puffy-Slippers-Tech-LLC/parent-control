@@ -34,6 +34,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Checking the owned daily allowance keyboard ' + phase
+       for operation, (_value, phase) in accessible_ui.ALLOWANCE_KEYBOARD_OPERATIONS.items()},
     'parent-child-picker-ready': 'Focusing the owned Parent child selector for keyboard opening',
     **{operation: 'Checking the keyboard-opened child selector and focusing the declared child'
        for operation in accessible_ui.PRESENTED_PICKER_OPERATIONS},
@@ -1805,6 +1807,15 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'custom_allowance'}
                     and result['custom_allowance'] == projection, 'ui:custom-allowance-response')
             expected['custom_allowance'] = projection
+        if operation in accessible_ui.ALLOWANCE_KEYBOARD_OPERATIONS:
+            value, phase = accessible_ui.ALLOWANCE_KEYBOARD_OPERATIONS[operation]
+            projection = {'value': value, 'phase': phase}
+            extra = {'time_explanation'} if phase == 'highlighted' else set()
+            require(type(result) is dict and set(result) == {*expected, 'allowance_keyboard', *extra}
+                    and result['allowance_keyboard'] == projection
+                    and type(result['allowance_keyboard']['value']) is type(value),
+                    'ui:allowance-keyboard-response')
+            expected['allowance_keyboard'] = projection
         if operation in accessible_ui.ALLOWANCE_OPERATIONS:
             projection = ({'refusal': operation.removeprefix('allowance-')}
                           if operation in ('allowance-wrong-child', 'allowance-disabled')
@@ -1812,11 +1823,13 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'allowance'}
                     and result['allowance'] == projection, 'ui:allowance-response')
             expected['allowance'] = projection
-        if operation in accessible_ui.TIME_EXPLANATION_OPERATIONS:
+        keyboard_highlight = (operation in accessible_ui.ALLOWANCE_KEYBOARD_OPERATIONS
+                              and accessible_ui.ALLOWANCE_KEYBOARD_OPERATIONS[operation][1] == 'highlighted')
+        if operation in accessible_ui.TIME_EXPLANATION_OPERATIONS or keyboard_highlight:
             require(type(result) is dict and set(result) == {*expected, 'time_explanation'},
                     'ui:time-response')
             value = result['time_explanation']
-            if operation.endswith(('read', 'reread')):
+            if operation.endswith(('read', 'reread')) or keyboard_highlight:
                 require(type(value) is dict and set(value) == {
                     'child', 'expanded', 'daily', 'one_time', 'total', 'observed_monotonic_ns'}
                     and value['child'] == accessible_ui.CHILD_IDENTITIES[

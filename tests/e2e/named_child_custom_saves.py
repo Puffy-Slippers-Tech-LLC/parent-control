@@ -1,5 +1,5 @@
 """Finite qualification recipe for independent named-child custom saves."""
-from accessible_ui import NAMED_CUSTOM_OPERATIONS
+from accessible_ui import NAMED_CUSTOM_OPERATIONS, ALLOWANCE_KEYBOARD_OPERATIONS
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import (fresh_desktop, parent_management,
                             custom_child_selection, custom_save_entry, ordinary_custom_save)
@@ -21,7 +21,8 @@ SCREENS.update({
 })
 CHILDREN = {stage: ('child' if stage.startswith('riley-') else 'existing')
             for stage, tag in SCREENS.items()
-            if tag[3:] in NAMED_CUSTOM_OPERATIONS or tag == 'ui:parent-custom-save-trace'}
+            if tag[3:] in NAMED_CUSTOM_OPERATIONS or tag[3:] in ALLOWANCE_KEYBOARD_OPERATIONS
+            or tag == 'ui:parent-custom-save-trace'}
 PLAN = JourneyPlan(
     prefix='named-child-custom-saves', worker_mode='named_child_custom_saves',
     screen_tags=SCREENS,

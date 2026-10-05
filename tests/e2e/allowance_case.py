@@ -1,7 +1,7 @@
 """Case 158: one preset, custom edit and rejection with real per-child persistence."""
 
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import fresh_desktop, parent_management, parent_reopen
+from journey_blocks import fresh_desktop, parent_management, parent_reopen, allowance_selection
 from allowance_boundaries import boundary_screens
 from ui_observations import SettingsObservation
 
@@ -12,8 +12,8 @@ ENTRY = {
     'allowance-configured': 'ui:time-explanation-setup-zero-read',
 }
 VALUES = {
-    **{f'preset-{value}-{action}': f'ui:allowance-{value}-{action}'
-       for value in (15,) for action in ('select', 'read')},
+    **allowance_selection('preset-15', (15,)),
+    'preset-15-read': 'ui:allowance-15-read',
     **boundary_screens(accepted=(1,), invalid=('over',)),
 }
 PERSISTENCE = {

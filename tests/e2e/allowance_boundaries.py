@@ -2,6 +2,7 @@
 from installed_journey import InstalledJourney, JourneyPlan
 from allowance import SCREENS as ORDINARY_SCREENS
 from allowance_values import ACCEPTED, INVALID
+from journey_blocks import allowance_selection
 
 def boundary_screens(accepted=ACCEPTED, invalid=tuple(INVALID)):
     """Share operation declarations; callers choose the size of their sample."""
@@ -29,7 +30,7 @@ def boundary_screens(accepted=ACCEPTED, invalid=tuple(INVALID)):
 
     for binding in invalid:
         prefix = 'invalid-' + binding
-        screens[prefix + '-baseline'] = 'ui:allowance-15-select'
+        screens.update(allowance_selection(prefix + '-baseline', (15,)))
         screens[prefix + '-baseline-read'] = 'ui:allowance-15-read'
         screens[prefix + '-open'] = 'ui:custom-15-open'
         for action in ('focus', 'selected', 'read'):

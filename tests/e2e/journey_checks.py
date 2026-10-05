@@ -5,6 +5,7 @@ from functools import partial
 
 from private_artifacts import require
 from ui_observations import AppRowsObservation
+from installed_journey import InstalledJourney
 
 
 def check_balances(journey, observed, expected_seconds=900):
@@ -19,6 +20,15 @@ def check_balances(journey, observed, expected_seconds=900):
         require(value['observed_monotonic_ns'] > earlier, 'time-explanation:observation-order')
     journey.earlier_time_observation = value['observed_monotonic_ns']
     observed['comparison'] = {'ordinary_balances': True, 'independent_read': earlier is not None}
+
+
+class AllowanceJourney(InstalledJourney):
+    """Compare caller-declared saved balances before each keyboard reply."""
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage in self.plan.balance_checks:
+            check_balances(self, observed, self.plan.balance_checks[stage])
 
 
 def allowed_app_rows(journey, observed):

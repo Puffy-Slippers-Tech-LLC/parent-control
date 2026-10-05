@@ -388,6 +388,12 @@ ALLOWANCE_OPERATIONS = frozenset({
 }) | frozenset(f'allowance-{value}-{action}' for value in PRESETS
               for action in ('select', 'read', 'reopen'))
 OPERATIONS |= ALLOWANCE_OPERATIONS
+ALLOWANCE_KEYBOARD_OPERATIONS = {
+    f'allowance-keyboard-{value}-{phase}': (value, phase)
+    for value in (*PRESETS, 'custom')
+    for phase in ('ready', 'highlighted', 'confirmed', 'cancelled')
+}
+OPERATIONS |= ALLOWANCE_KEYBOARD_OPERATIONS.keys()
 TIME_EXPLANATION_OPERATIONS = frozenset({
     'time-explanation-collapse', 'time-explanation-collapsed',
     'time-explanation-expand', 'time-explanation-wrong-child',
@@ -555,7 +561,7 @@ NAMED_TIME_OPERATIONS = frozenset({
     'time-explanation-setup-thirty-read', 'time-explanation-read',
     'time-explanation-config-wrong-child', 'time-explanation-config-wrong-state',
 })
-NAMED_CHILD_OPERATIONS = NAMED_CUSTOM_OPERATIONS | NAMED_TIME_OPERATIONS
+NAMED_CHILD_OPERATIONS = NAMED_CUSTOM_OPERATIONS | NAMED_TIME_OPERATIONS | ALLOWANCE_KEYBOARD_OPERATIONS.keys()
 OPERATIONS |= NAMED_CUSTOM_OPERATIONS
 PARENT_SAVE_OPERATIONS = {
     'multiple-other-saved': {
@@ -5594,6 +5600,59 @@ class AccessibleUI:
                                       showing=True) is not None, 'ui:wrong-child')
         self.id_target('parent-daily-limit-selector', root=root, sensitive=True)
 
+    def allowance_keyboard_recipient(self, child=CHILD):
+        """Exception-scoped focus proof; no row IDs, positions or geometry."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        self.allowance_entry(child)
+        root = self.parent()
+        require(self.has_state(root, self.api.StateType.ACTIVE), 'ui:allowance-window')
+        selector = self.id_target('parent-daily-limit-selector', root=root, sensitive=True)
+        require(selector.get_role_name() not in ('text', 'entry', 'password text')
+                and not self.has_state(selector, self.api.StateType.EDITABLE),
+                'ui:allowance-textbox')
+        self.id_target('parent-daily-limit-choices', root=selector)
+        focused = [node for node in self.nodes(selector, strict=True)
+                   if self.has_state(node, self.api.StateType.FOCUSED)]
+        require(len(focused) == 1 and self.showing(focused[0])
+                and self.has_state(focused[0], self.api.StateType.SENSITIVE)
+                and not self.has_state(focused[0], self.api.StateType.DEFUNCT),
+                'ui:allowance-focus')
+        return selector
+
+    def allowance_keyboard(self, child, value, phase):
+        """PARENT06 public boundaries shared by UI and E2E keyboard transports."""
+        require((value, phase) in ALLOWANCE_KEYBOARD_OPERATIONS.values(),
+                'ui:allowance-binding')
+        self.allowance_entry(child)  # Wrong child/disabled refuses before opening.
+        if phase == 'ready':
+            self.parent_save_snapshot(child, True)
+            if self.absent_id('parent-daily-limit-choices', within='parent-window'):
+                self.reach_time_explanation(child)
+            if self.absent_id('parent-daily-limit-choices', within='parent-window'):
+                self.activate_id('parent-daily-limit-selector')
+            self.wait(lambda: self.allowance_keyboard_recipient(child), 'allowance-keyboard-focus')
+        elif phase == 'highlighted':
+            label = 'Custom amount' if value == 'custom' else PRESET_LABELS[value]
+            def highlighted():
+                selector = self.allowance_keyboard_recipient(child)
+                selected = [node.get_description() for node in self.nodes(selector, strict=True)
+                            if node.get_description().startswith('Selected daily allowance: ')]
+                require(len(selected) <= 1, 'ui:allowance-ambiguous-highlight')
+                return selected == ['Selected daily allowance: ' + label]
+            self.wait(highlighted, 'allowance-keyboard-highlight')
+        else:
+            self.wait(lambda: self.absent_id('parent-daily-limit-choices', within='parent-window'),
+                      'allowance-keyboard-close')
+            selector = self.id_target('parent-daily-limit-selector', sensitive=True)
+            require(not self.has_state(selector, self.api.StateType.EDITABLE)
+                    and selector.get_role_name() not in ('text', 'entry', 'password text'),
+                    'ui:allowance-textbox')
+            if phase == 'confirmed' and value == 'custom':
+                self.text_recipient('parent-custom-daily-limit', focused=True, child=child)
+            else:
+                self.allowance_preset(child, value, action='read')
+        return {'value': value, 'phase': phase}
+
     def custom_allowance(self, child, minutes, *, action):
         """Read a saved editor after reload or reopen its retained custom choice.
 
@@ -10081,7 +10140,11 @@ class AccessibleUI:
             self.complete_parent_language_setup()
             self.parent_empty()
         elif operation == 'named-custom-setup':
-            self.configure_time_controls(child, initial_enabled=False, minutes=0, final_enabled=True)
+            initial = self.settings(child)
+            require(initial == {'child': CHILD_IDENTITIES[child], 'limit_enabled': False,
+                                'allowance': ['0 minutes']}, 'ui:time-initial-state')
+            self.set_toggle('parent-screen-limit-toggle', True, root=self.parent())
+            self.parent_save_snapshot(child, True)
         elif operation == 'named-custom-wrong-child-refused':
             self.allowance_entry(child)
             other = EXISTING_CHILD if child == CHILD else CHILD
@@ -10228,6 +10291,11 @@ class AccessibleUI:
                 require(str(error) == 'ui:about-interval-entry', 'ui:about-interval-refusal')
             else:
                 raise UiError('ui:about-interval-wrong-entry-accepted')
+        elif operation in ALLOWANCE_KEYBOARD_OPERATIONS:
+            result['allowance_keyboard'] = self.allowance_keyboard(
+                child, *ALLOWANCE_KEYBOARD_OPERATIONS[operation])
+            if ALLOWANCE_KEYBOARD_OPERATIONS[operation][1] == 'highlighted':
+                result['time_explanation'] = self.time_explanation(child)
         elif operation in ALLOWANCE_OPERATIONS:
             result['allowance'] = self.allowance_operation(operation)
         elif operation in TIME_EXPLANATION_OPERATIONS:
@@ -10809,7 +10877,7 @@ def allowance_failure_diagnostic(ui=None):
             controls = {}
             present = {}
             for identity in ('parent-daily-limit-selector', 'parent-daily-limit-custom',
-                             'parent-custom-daily-limit'):
+                             'parent-custom-daily-limit', 'parent-daily-limit-choices'):
                 present[identity] = sum(value == identity for value in observation[2].values())
                 node = ui.snapshot_owned_target(identity, showing=False, observation=observation)
                 controls[identity] = None if node is None else {
@@ -10824,6 +10892,9 @@ def allowance_failure_diagnostic(ui=None):
             if selector is not None:
                 selector_nodes = list(ui.nodes(selector, strict=True))
                 diagnostic['selector_nodes'] = len(selector_nodes)
+                diagnostic['selector_choices'] = sum(
+                    public_automation_id(node) == 'parent-daily-limit-choices'
+                    for node in selector_nodes)
                 related = []
                 for node in selector_nodes:
                     for relation in node.get_relation_set():
@@ -10938,7 +11009,8 @@ def main():
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)
     except UiError:
-        if sys.argv[1] in ALLOWANCE_OPERATIONS or sys.argv[1] in CUSTOM_ALLOWANCE_OPERATIONS:
+        if (sys.argv[1] in ALLOWANCE_OPERATIONS or sys.argv[1] in CUSTOM_ALLOWANCE_OPERATIONS
+                or sys.argv[1] in ALLOWANCE_KEYBOARD_OPERATIONS):
             print(json.dumps(allowance_failure_diagnostic(ui), sort_keys=True),
                   file=sys.stderr, flush=True)
         if sys.argv[1] in STANDARD_OPERATIONS:

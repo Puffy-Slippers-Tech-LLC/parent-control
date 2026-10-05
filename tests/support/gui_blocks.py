@@ -26,12 +26,17 @@ require onpc_format;
 require onpc_feedback_states;
 require onpc_app_rows;
 require onpc_feedback_privacy;
+require onpc_allowance_selection;
 my ($block, @arguments) = @ARGV;
 my $journey = onpc_journey->new(prefix => 'host-gui', review => 0, exchange => sub {
     push @events, ['observe', $_[0]];
     return {observed => $_[0]};
 });
 if ($block eq 'replace') { onpc_text::replace_text($journey, @arguments); }
+elsif ($block eq 'allowance') {
+    $arguments[1] = decode_json($arguments[1]);
+    onpc_allowance_selection::select($journey, @arguments);
+}
 elsif ($block eq 'filter') { onpc_app_rows::filter($journey, @arguments); }
 elsif ($block eq 'match-editor') { onpc_app_rows::match_editor($journey, @arguments); }
 elsif ($block eq 'match-response') { onpc_app_rows::match_response($journey, @arguments); }
@@ -66,6 +71,16 @@ _KEYS = {
 }
 
 
+def select_allowance(ui, values, *, response='confirm', original=0, child=None):
+    """Run the installed allowance block on the host's private display."""
+    from tests.e2e.journey_blocks import allowance_selection
+    from tests.e2e.accessible_ui import NAMED_CUSTOM_CHILDREN
+    child = next((alias for alias, label in NAMED_CUSTOM_CHILDREN.items() if label == child), child)
+    operations = allowance_selection('choice', values, response=response, original=original)
+    return run_block(ui, 'allowance', 'choice', json.dumps(values), response,
+                     child=child, operations=operations)
+
+
 def run_block(ui, block, *arguments, child=None, operations=None, child_bindings=None):
     """Execute once, stopping at the first failed observation or input.
 
@@ -73,7 +88,7 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
     memory. It reads shared modules without opening a display or socket. Real input still
     reacquires its public recipient; no precomputed observation is evidence.
     """
-    from tests.e2e.accessible_ui import TEXT_OPERATIONS, TEXT_VALUES, FILTER_OPERATIONS
+    from tests.e2e.accessible_ui import TEXT_OPERATIONS, TEXT_VALUES, FILTER_OPERATIONS, ALLOWANCE_KEYBOARD_OPERATIONS
 
     events = json.loads(run_perl(_TRACE, block, *arguments).stdout)
     if not isinstance(events, list) or not 0 < len(events) <= 4096:
@@ -97,6 +112,8 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
                     binding, action = TEXT_OPERATIONS[operation]
                     identity = ('feedback-editor-input' if action == 'anchor'
                                 else TEXT_VALUES[binding][0])
+                elif operation in ALLOWANCE_KEYBOARD_OPERATIONS:
+                    identity = 'parent-daily-limit-selector'
                 elif operation.endswith('-link-target'):
                     identity = 'feedback-link-target'
                 elif operation.endswith('-focus'):
@@ -119,6 +136,10 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
                 else:
                     observations[stage] = ui.run(operation, '', **binding)
             elif event[0] == 'key':
+                if block == 'allowance':
+                    keyboard.deliver_allowance(ui, lambda: keyboard.raw_allowance_key(_KEYS[event[1]]),
+                                               child=child)
+                    continue
                 # Filter composites immediately poll exact popup absence after
                 # Escape. Dogtail's default one-second post-key sleep adds three
                 # minutes to the five query matrices without proving closure.
@@ -130,7 +151,10 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
                     **pacing)
                 filter_read = False
             elif event[0] == 'text':
-                keyboard.type_text(ui, identity, event[1], interval=event[2] / 1000)
+                if block == 'allowance':
+                    keyboard.deliver_allowance(ui, lambda: keyboard.raw_allowance_text(event[1]), child=child)
+                else:
+                    keyboard.type_text(ui, identity, event[1], interval=event[2] / 1000)
             else:
                 raise ValueError('Invalid GUI block event')
     return observations

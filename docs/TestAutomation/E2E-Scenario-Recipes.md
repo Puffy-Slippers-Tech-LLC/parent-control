@@ -146,7 +146,7 @@ Large durations test selection and displayed arithmetic without waiting to expir
 | --- | --- |
 | Daily presets (158) | Select/read 15 minutes. The complete preset matrix belongs to UI tests. |
 | Daily custom (158) | Accept 1; reject 1441 with saved 15, then reopen and read 15. UI tests retain 0, 1, 15, 1439 and invalid empty, abc, −1, 0.5, 1440, 1441. The API's 1440 allowance remains engineering coverage. |
-| Daily saving (159) | Type valid 5 followed promptly by 6; final saved value is 6. Switch to Riley, save 7, return and read Jordan=6/Riley=7. Launch Parent again without closing it: PARENT01 → UI13(one management window) → PARENT03/UI12(same selected child and values). Qualify the public window-count projection with this consumer. Close/reopen and repeat the value read. Pause/Enter/focus commit permutations belong to UI tests; real save ordering stays here. Do not assert a minimum visible Saving animation duration. |
+| Daily saving (159) | From Jordan's enabled zero, use the shared keyboard allowance block: `15h` then `0m` in one popup, unchanged public balances before Enter; Enter confirms zero. Reopen, type `15h`, Escape and read unchanged zero. `c`/Enter focuses Custom. Type valid 5 followed promptly by 6; final saved value is 6. Switch to Riley, select Custom with the same block, save 7, return and read Jordan=6/Riley=7. Launch Parent again without closing it: PARENT01 → UI13(one management window) → PARENT03/UI12(same selected child and values). Close/reopen and repeat the value read. Full preset and commit matrices belong to UI tests; real save ordering stays here. Do not assert a minimum visible Saving animation duration. |
 | E2E-005 profiles | daily-only: positive daily, no grant; grant-only: zero daily with real 10-minute approval before edits; combined: positive daily plus a real 10-minute addition. Enabled edits: daily-only/combined 4→5→0→5 minutes; grant-only 0→4→0. At zero, daily-only must deny access while combined retains its grant. Re-read actual D and the original grant deadline; if navigation exhausts a required margin, fail preparation rather than inject usage. |
 | Request presets (38/41) | Select 5 minutes, read its footer and actual approval prompt, then approve. UI tests own all 5, 15, 30, 60, 120, 240 choices on both surfaces. |
 | Request custom (39/42) | Reject 0.09 locally, then request and approve 1.25 minutes (75 seconds). UI tests own valid 0.1, 0.5, 1.25, 1440 and invalid empty, abc, −1, 0, 0.09, 1440.1, comma decimal 1,5, including whole-second display conversion. |
@@ -824,6 +824,18 @@ to compare saved values. Task 028 qualifies only this LIFE01 slice.
 **Choose allowances and save edits.** Cases 158, 159.
 
 Bindings: flow = boundaries / save-order.
+
+Cases 158 and 159 compose `journey_blocks.allowance_selection` and
+`onpc_allowance_selection::select`, the same block used by host UI through
+`tests.support.gui_blocks.select_allowance`. Case 158 chooses preset 15 and
+restores its rejected-draft baseline through this block. Case 159 starts from Jordan's enabled saved zero:
+type `15h`, observe the 15-hour highlight, then type `0m` and observe zero in the
+same open popup; Enter confirms only zero. Reopen, type `15h`, Escape and read
+the original zero. Type `c`, confirm and require the focused Custom entry before
+rapid 5→6. Riley's custom 7 entry uses the same keyboard selection block.
+The shared named-child and rapid-save qualifications reuse it. Selector/popup
+ownership and unique focus remain mandatory; no choice-ID activation or
+VM/distro-specific selection belongs in this composition.
 
 1. P → PARENT03(off,zero,editor disabled) → FLOW16(allowance=0,final=on).
 2. boundaries: installed samples from the allowance table {PARENT06 → PARENT08 → PARENT03 → UI12}; save-order: watch(PARENT08){PARENT06(rapid edits)} → PARENT02(other), retaining real save ordering and single-instance checks.

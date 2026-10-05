@@ -985,6 +985,21 @@ def test_unoffered_presets_refuse_before_input(minutes):
     ui.activate_id.assert_not_called()
 
 
+@pytest.mark.parametrize('value', [0, 15, 900, 'custom'])
+@pytest.mark.parametrize('phase', ['ready', 'confirmed', 'cancelled'])
+def test_allowance_keyboard_controller_requires_exact_public_boundary(value, phase):
+    operation = f'allowance-keyboard-{value}-{phase}'
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+              'allowance_keyboard': {'value': value, 'phase': phase}}
+    transport = SimpleNamespace(call=Mock(return_value=(json.dumps(result) + '\n').encode()))
+    reader = UiObservations(transport)
+    assert reader.observe(operation)['allowance_keyboard'] == {'value': value, 'phase': phase}
+    result['allowance_keyboard']['phase'] = 'highlighted'
+    transport.call.return_value = (json.dumps(result) + '\n').encode()
+    with pytest.raises(EvidenceError, match='allowance-keyboard-response'):
+        reader.observe(operation)
+
+
 @pytest.mark.parametrize('output,active', [('(true,)\n', True), ('(false,)\n', False),
                                           ('private unexpected output', None)])
 def test_allowance_failure_diagnostic_reports_only_public_idle_boolean(monkeypatch, output, active):

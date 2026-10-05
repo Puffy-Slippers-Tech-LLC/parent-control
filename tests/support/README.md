@@ -38,6 +38,18 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 ## Host and guest boundaries
 
+`journey_blocks.allowance_selection`, `onpc_allowance_selection::select` and
+`AccessibleUI.allowance_keyboard` share the Parent allowance keyboard block.
+Host previews execute it with `gui_blocks.select_allowance` and guarded
+`keyboard.deliver_allowance`; installed cases use the normal worker keyboard.
+Every input boundary proves public window/selector/popup ownership and unique
+usable focus within the selector scope. Individual choice IDs are unnecessary
+under the [daily allowance exception](../../docs/Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception).
+Cases own preset sequences, original-value comparisons and save assertions.
+No VM/distro branches or new display, process, storage or cleanup lifetime are
+introduced: the Perl expansion is waited and existing preview/VM owners remain.
+Existing unit and UI parallelism classifications apply.
+
 `AccessibleUI.language_presentation` reuses LANG01 ownership/choice reads,
 bounded public Text/name comparison and the dialog's ID-addressed focus action.
 `onpc_parent::language_navigation` sends one Tab only after the Cancel focus proof

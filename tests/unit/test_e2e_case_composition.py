@@ -51,6 +51,7 @@ WORKER_APIS = {
     'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy', 'review_parent_report',
                               'close_parent_report'},
     'onpc_allowance_boundaries': {'exercise', 'reload_child', 'select_child', 'custom_value'},
+    'onpc_allowance_selection': {'select'},
     'onpc_text': {'replace_text', 'append_scalar', 'observed_custom_edits'},
     'onpc_format': {'apply_block', 'apply_bold', 'apply_inline', 'apply_all'},
     'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',

@@ -424,7 +424,7 @@ our (@stages, @keys); our ($fault) = @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub record_info { }
-sub send_key { push @main::keys, $_[0]; die 'uncertain' if $main::fault eq 'input'; }
+sub send_key { push @main::keys, $_[0]; die 'uncertain' if $main::fault eq 'input' && $_[0] eq 'ctrl-a'; }
 sub type_string { push @main::keys, $_[0]; }
 package main;
 require onpc_feedback_states;
@@ -446,7 +446,7 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
     assert result['stages'] == (stages[:stages.index(boundary) + 1] if fault else stages)
     assert bool(result['ok']) is (not fault)
     if not fault:
-        assert result['keys'] == ['ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2
+        assert result['keys'] == ['15m', 'ret', 'c', 'ret', 'ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2
 
 
 def test_custom_trace_renamed_stage_and_immutable_input_gate(tmp_path):
@@ -520,10 +520,10 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
         assert result['stages'] == (expected[:expected.index(boundary) + 1] if fault else expected)
         assert bool(result['ok']) is (not fault)
         if fault == 'wrong-child-proof':
-            assert not result['keys']
+            assert result['keys'] == ['c', 'ret']
         if not fault:
-            assert result['keys'] == ['ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2 + [
-                'ret', 'ctrl-a', '7', 'ret', 'ret']
+            assert result['keys'] == ['c', 'ret', 'ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2 + [
+                'ret', 'c', 'ret', 'ctrl-a', '7', 'ret', 'ret']
     assert PLAN.child_bindings['first-rapid'] == 'existing'
     assert PLAN.child_bindings['riley-text-read'] == 'child'
     assert PLAN.settings_checks['final-away-selected'].child == 'existing-fixture-child'
@@ -564,9 +564,26 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
         assert result['stages'] == (expected[:expected.index(fault) + 1] if fault else expected)
         assert bool(result['ok']) is (not fault)
         if fault == 'jordan-rapid':
-            assert not result['keys']
+            assert result['keys'] == ['15h', '0m', 'ret', '15h', 'esc', 'c', 'ret']
     assert PLAN.settings_checks['repeat-selected'] == 'final-back-selected'
     assert PLAN.child_bindings['jordan-rapid'] == 'existing'
+
+
+@pytest.mark.parametrize('daily', [0, 900])
+def test_save_order_checks_saved_balance_before_highlight_reply(tmp_path, daily):
+    from journey_checks import AllowanceJourney
+    from save_order import PLAN
+    journey = AllowanceJourney(SimpleNamespace(directory=tmp_path), Mock(), PLAN)
+    observed = {'ui': {'time_explanation': {
+        'observed_monotonic_ns': 100,
+        **{key: {'seconds': seconds, 'precision_seconds': 1}
+           for key, seconds in (('daily', daily), ('one_time', 0), ('total', daily))}}}}
+    if daily:
+        with pytest.raises(EvidenceError, match='ordinary-balances'):
+            journey.check_settings('jordan-preset-highlight-0', observed)
+    else:
+        journey.check_settings('jordan-preset-highlight-0', observed)
+        assert observed['comparison']['ordinary_balances'] is True
 
 
 @pytest.mark.parametrize('count,valid', [(1, True), (0, False), (2, False),
@@ -633,7 +650,7 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
         if fault in expected[:2]:
             assert not result['keys']
         if not fault:
-            assert result['keys'] == ['ret', 'ctrl-a', '7']
+            assert result['keys'] == ['ret', 'c', 'ret', 'ctrl-a', '7']
     with pytest.raises(EvidenceError, match='ordinary-custom-value'):
         ordinary_custom_save('independent', 'child', 8)
 

@@ -29,6 +29,22 @@ def custom_allowance(prefix, minutes):
     })
 
 
+def allowance_selection(prefix, values, *, response='confirm', original=0):
+    """PARENT06 keyboard fragment; cases own values and preservation assertions."""
+    from accessible_ui import PRESETS
+    require(type(values) is tuple and 1 <= len(values) <= 4
+            and all(value == 'custom' or type(value) is int and value in PRESETS for value in values)
+            and response in ('confirm', 'cancel') and type(original) is int and original in PRESETS,
+            'journey:allowance-keyboard')
+    final = values[-1] if response == 'confirm' else original
+    return prefixed_stages(prefix, {
+        'ready': f'ui:allowance-keyboard-{values[0]}-ready',
+        **{f'highlight-{index}': f'ui:allowance-keyboard-{value}-highlighted'
+           for index, value in enumerate(values)},
+        response: f'ui:allowance-keyboard-{final}-' + ('confirmed' if response == 'confirm' else 'cancelled'),
+    })
+
+
 def language_selection(prefix, language, *, surface, child='existing'):
     """LANG01 chooser fragment; caller owns candidate and response expectations."""
     import re
@@ -123,6 +139,7 @@ def custom_save_entry(prefix, child):
     require(child in ('child', 'existing'), 'journey:custom-child')
     other = 'existing' if child == 'child' else 'child'
     return {
+        **allowance_selection(prefix + '-choice', ('custom',)),
         f'{prefix}-open': 'ui:custom-6-open',
         f'{prefix}-focus': 'ui:text-daily-6-focus',
         f'{prefix}-wrong-child': 'ui:named-custom-wrong-child-refused',
@@ -141,6 +158,7 @@ def ordinary_custom_save(prefix, child, value):
     return {
         **custom_child_selection(prefix, child),
         f'{prefix}-setup': 'ui:named-custom-setup',
+        **allowance_selection(prefix + '-choice', ('custom',)),
         f'{prefix}-editor': f'ui:custom-{value}-open',
         f'{prefix}-wrong-child': 'ui:named-custom-wrong-child-refused',
         **{f'{prefix}-text-{suffix}': f'ui:text-daily-{value}-{suffix}'

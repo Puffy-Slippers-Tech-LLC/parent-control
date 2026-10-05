@@ -9,6 +9,7 @@ use onpc_parent ();
 use onpc_text ();
 use onpc_allowance_boundaries ();
 use onpc_lifecycle ();
+use onpc_allowance_selection ();
 
 sub stable_trace {
     onpc_progress::operation('Starting and collecting unchanged public feedback samples');
@@ -90,6 +91,7 @@ sub custom_save_entry {
     die 'trace:custom-entry' unless @_ == 5 && ref($journey) eq 'onpc_journey'
         && $entry =~ /\A[a-z][a-z0-9-]*\z/ && ($child eq 'child' || $child eq 'existing')
         && $first eq '5' && $last eq '6';
+    onpc_allowance_selection::select($journey, "$entry-choice", ['custom'], 'confirm');
     rejection_observe($journey, "$entry-$_") for ('open', 'focus', 'wrong-child', 'wrong-surface');
     onpc_text::observed_custom_edits($journey, "$entry-rapid", $first, $last, $child);
     rejection_observe($journey, "$entry-saved");
@@ -104,7 +106,9 @@ sub ordinary_custom_save {
         && defined($entry) && $entry =~ /\A[a-z][a-z0-9-]*\z/
         && defined($value) && $value eq '7';
     onpc_allowance_boundaries::select_child($journey, $entry);
-    rejection_observe($journey, "$entry-$_") for ('setup', 'editor', 'wrong-child');
+    rejection_observe($journey, "$entry-setup");
+    onpc_allowance_selection::select($journey, "$entry-choice", ['custom'], 'confirm');
+    rejection_observe($journey, "$entry-$_") for ('editor', 'wrong-child');
     onpc_text::replace_text($journey, "daily-$value", "$entry-text");
     rejection_observe($journey, "$entry-saved");
 }
@@ -136,6 +140,8 @@ sub run_save_order {
     $journey->consume_observation('parent-selected',
         onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing'));
     rejection_observe($journey, $_) for ('disabled-refused', 'setup');
+    onpc_allowance_selection::select($journey, 'jordan-preset', [900, 0], 'confirm');
+    onpc_allowance_selection::select($journey, 'jordan-cancel', [900], 'cancel');
     custom_save_entry($journey, 'jordan', 'existing', 5, 6);
     ordinary_custom_save($journey, 'riley', 7);
     onpc_allowance_boundaries::select_child($journey, 'final-away');
@@ -164,7 +170,7 @@ sub run_custom_save_trace {
     $journey->consume_observation('parent-selected', $selected);
     rejection_observe($journey, $_) for ('disabled-refused', 'enable', 'enabled');
     for my $entry ('first', 'second') {
-        rejection_observe($journey, "$entry-preset");
+        onpc_allowance_selection::select($journey, "$entry-preset", [15], 'confirm');
         custom_save_entry($journey, $entry, 'child', 5, 6);
     }
     $journey->finish();

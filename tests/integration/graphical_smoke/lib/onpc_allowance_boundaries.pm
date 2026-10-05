@@ -6,6 +6,7 @@ use testapi ();
 use onpc_progress ();
 use onpc_journey ();
 use onpc_allowance ();
+use onpc_allowance_selection ();
 use onpc_text ();
 
 sub seen {
@@ -56,7 +57,8 @@ sub exercise {
     }
     for my $binding ($profile eq 'installed' ? ('over') : ('empty', 'letters', 'negative', 'fraction', 'maximum', 'over')) {
         my $prefix = "invalid-$binding";
-        seen($journey, "$prefix-$_") for ('baseline', 'baseline-read', 'open');
+        onpc_allowance_selection::select($journey, "$prefix-baseline", [15], 'confirm');
+        seen($journey, "$prefix-$_") for ('baseline-read', 'open');
         onpc_text::replace_text($journey, "daily-invalid-$binding", "$prefix-text");
         seen($journey, "$prefix-rejected");
         reload_child($journey, $prefix);

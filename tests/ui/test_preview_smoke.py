@@ -394,6 +394,7 @@ def test_parent_all_daily_presets_through_installed_reader(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     from gi.repository import GLib
     from tests.e2e.accessible_ui import AccessibleUI, CHILD
+    from tests.support.gui_blocks import select_allowance
 
     path = tmp_path / "all-daily-presets.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
@@ -408,14 +409,50 @@ def test_parent_all_daily_presets_through_installed_reader(
         dispatch=lambda: GLib.MainContext.default().iteration(False),
     )
     for minutes in (0, 15, 30, 45, *range(60, 1411, 30)):
-        for action in ('select', 'read'):
-            assert reader.allowance_preset(CHILD, minutes, action=action) == {
-                'minutes': minutes, 'saved': True}
+        select_allowance(reader, (minutes,), child=CHILD)
+        assert reader.allowance_preset(CHILD, minutes, action='read') == {
+            'minutes': minutes, 'saved': True}
         wait_for_accessible_state(
             lambda: any(record['event'] == 'set_parent_control'
                         and record['daily_limit_minutes'] == minutes
                         for record in read_events(path)),
             f"preset {minutes} independently committed")
+
+
+def test_parent_shared_allowance_keyboard_replaces_highlight_and_cancels(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD
+    from tests.support.gui_blocks import select_allowance
+    from tests.support import keyboard
+
+    path = tmp_path / 'keyboard-choice-events.jsonl'
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state, events_path=path)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    reader = AccessibleUI(
+        ui.api, timeout=10, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    def saves():
+        return [record['daily_limit_minutes'] for record in read_events(path)
+                if record['event'] == 'set_parent_control']
+    original = saves()
+    reader.allowance_keyboard(CHILD, 900, 'ready')
+    for text, minutes in (('15h', 900), ('0m', 0)):
+        keyboard.deliver_allowance(reader, lambda: keyboard.raw_allowance_text(text), child=CHILD)
+        reader.allowance_keyboard(CHILD, minutes, 'highlighted')
+        assert saves() == original  # Each complete match resets typing without saving.
+    keyboard.deliver_allowance(reader, lambda: keyboard.raw_allowance_key('Return'), child=CHILD)
+    reader.allowance_keyboard(CHILD, 0, 'confirmed')
+    wait_for_accessible_state(lambda: saves() == original + [0], 'latest highlight saves')
+    select_allowance(reader, (900,), response='cancel', original=0, child=CHILD)
+    assert saves() == original + [0]
+    select_allowance(reader, ('custom',), child=CHILD)
+    assert saves() == original + [0]
+    reader.text_recipient('parent-custom-daily-limit', focused=True, child=CHILD)
 
 
 def test_parent_daily_preset_and_custom_limit_autosave(

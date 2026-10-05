@@ -2,8 +2,10 @@
 
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (fresh_desktop, parent_management, parent_reopen,
-                            custom_child_selection, custom_save_entry, ordinary_custom_save)
+                            custom_child_selection, custom_save_entry, ordinary_custom_save,
+                            allowance_selection)
 from ui_observations import SettingsObservation
+from journey_checks import AllowanceJourney
 
 
 ENTRY = {**fresh_desktop('parent'), **parent_management()}
@@ -17,6 +19,8 @@ ENTRY.update({
     'setup': 'ui:named-custom-setup',
 })
 EDITS = {
+    **allowance_selection('jordan-preset', (900, 0)),
+    **allowance_selection('jordan-cancel', (900,), response='cancel', original=0),
     **custom_save_entry('jordan', 'existing'),
     **ordinary_custom_save('riley', 'child', 7),
     **custom_child_selection('final-away', 'existing'),
@@ -41,6 +45,10 @@ CHILDREN = {stage: 'existing' for stage in (
     'disabled-refused', 'setup', 'jordan-open', 'jordan-focus',
     'jordan-wrong-child', 'jordan-rapid', 'jordan-saved',
     'jordan-reopened', 'jordan-final-read', 'jordan-after-restart')}
+CHILDREN.update({stage: 'existing' for stage in (
+    *allowance_selection('jordan-preset', (900, 0)),
+    *allowance_selection('jordan-cancel', (900,), response='cancel', original=0),
+    *allowance_selection('jordan-choice', ('custom',)))})
 PLAN = JourneyPlan(
     prefix='save-order', worker_mode='save_order', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',
@@ -52,6 +60,8 @@ PLAN = JourneyPlan(
     child_bindings=CHILDREN,
     accessibility_inputs={'jordan-rapid': ('parent-custom-trace-focus', 6, 'custom-save')},
     keyboard_inputs={'jordan-rapid': (5, 6)},
+    balance_checks={stage: 0 for stage in (
+        'jordan-preset-highlight-0', 'jordan-preset-highlight-1', 'jordan-cancel-highlight-0')},
     settings_checks={
         'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
         'jordan-back-selected': SettingsObservation('existing-fixture-child', True, ('6 minutes',)),
@@ -65,7 +75,7 @@ PLAN = JourneyPlan(
 
 
 def execute(recorder, context):
-    record_installed_journey(recorder, context, PLAN, timeout=1800)
+    record_installed_journey(recorder, context, PLAN, timeout=1800, journey_type=AllowanceJourney)
 
 
 E2E_CASES = {'save-order': execute}

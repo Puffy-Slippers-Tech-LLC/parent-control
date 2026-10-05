@@ -7,6 +7,7 @@ use onpc_journey ();
 use onpc_parent ();
 use onpc_lifecycle ();
 use onpc_allowance_boundaries ();
+use onpc_allowance_selection ();
 use onpc_feedback_states ();
 
 sub run {
@@ -23,7 +24,8 @@ sub run {
     $journey->seen('editor-disabled');
     $journey->seen('allowance-configured');
     for my $value (15) {
-        $journey->seen("preset-$value-$_") for ('select', 'read');
+        onpc_allowance_selection::select($journey, "preset-$value", [$value], 'confirm');
+        $journey->seen("preset-$value-read");
     }
     onpc_allowance_boundaries::exercise($journey, 'installed');
     onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');

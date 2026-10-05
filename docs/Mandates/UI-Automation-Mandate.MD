@@ -96,9 +96,22 @@ and independent result checks apply to both routes.
 
 ## Target identity and provider exception
 
+- **Daily allowance keyboard exception (UI and E2E):** The Parent daily
+  allowance dropdown may select presets by typing minutes/hours (`15h`, `0m`)
+  and Custom by typing `c`, followed by Enter or Escape. Use the shared allowance
+  selection block in both suites. Resolve the owning window, selector and popup
+  by public ID; prove one visible, enabled focused recipient within that owned
+  selector scope before each keyboard batch. Individual choices may be observed
+  by their public highlight descriptions within this scope, without resolving
+  or activating a choice ID. Reject ambiguous focus/highlights and wrong owners.
+  Typing only highlights; the popup stays open and saved allowance is preserved.
+  Enter commits the latest highlight; Escape preserves the original allowance;
+  confirming Custom focuses its entry. The selector remains a button, never an
+  editable textbox. This exception uses no geometry, positions or VM/distro
+  branches and does not relax identity requirements for other dropdowns.
 - For GUI operations required by the feature under test, and unavoidable
   graphical authentication, except for the external-provider exception below,
-  every automated UI target
+  and the daily allowance keyboard exception above, every automated UI target
   must be resolved by a stable public `automation-id`,
   scoped to its owning application and surface. Shared controls use one ID
   contract across surfaces, suites and helpers. Reject missing, duplicate,

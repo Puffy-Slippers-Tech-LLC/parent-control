@@ -46,6 +46,63 @@ def lookup(ui, index):
     return ui.find_provider_control('future-provider', 'future-surface', str(index))
 
 
+@pytest.mark.parametrize('fault,code', [
+    ('child', 'wrong-child'), ('disabled', 'unusable-target'),
+    ('textbox', 'allowance-textbox'), ('focus', 'allowance-focus'),
+    ('duplicate-focus', 'allowance-focus'), ('owner', 'wrong-owner'),
+])
+def test_allowance_keyboard_refuses_unsafe_recipient(preset_ui, fault, code):
+    ui, window, selector, choice = preset_ui
+    window.states.add('active')
+    with ui.observation():
+        ui.activate_id(selector.identity)
+    choice.states.add('focused')
+    if fault == 'child':
+        window.children[0].children[0].identity = 'parent-child-selected-1002'
+    elif fault == 'disabled':
+        selector.states.remove('sensitive')
+    elif fault == 'textbox':
+        selector.states.add('editable')
+    elif fault == 'focus':
+        choice.states.remove('focused')
+    elif fault == 'duplicate-focus':
+        selector.states.add('focused')
+    else:
+        ui.root().get_process_id = lambda: 101
+    choice.action.do_action.reset_mock()
+    with pytest.raises(UiError, match=code):
+        ui.allowance_keyboard_recipient(accessible_ui.CHILD)
+    choice.action.do_action.assert_not_called()
+
+
+def test_allowance_keyboard_observes_highlight_without_choice_id(preset_ui):
+    ui, window, selector, choice = preset_ui
+    window.states.add('active')
+    with ui.observation():
+        ui.activate_id(selector.identity)
+    choice.states.add('focused')
+    choice.identity = ''
+    assert ui.allowance_keyboard(accessible_ui.CHILD, 15, 'highlighted') == {
+        'value': 15, 'phase': 'highlighted'}
+    choice.action.do_action.assert_not_called()
+
+
+def test_allowance_keyboard_delivery_never_replays_uncertain_input(preset_ui):
+    from tests.support.keyboard import deliver_allowance
+    ui, window, selector, choice = preset_ui
+    window.states.add('active')
+    with ui.observation():
+        ui.activate_id(selector.identity)
+    choice.states.add('focused')
+    send = Mock(side_effect=RuntimeError('uncertain transport'))
+    with pytest.raises(RuntimeError, match='uncertain transport'):
+        deliver_allowance(ui, send)
+    assert ui.input_uncertain
+    with pytest.raises(AssertionError, match='uncertain'):
+        deliver_allowance(ui, send)
+    send.assert_called_once_with()
+
+
 @pytest.fixture
 def preset_ui():
     label = Node('15 minutes', 'label')

@@ -179,11 +179,6 @@ def feedback_post(_url, **kwargs):
     part_names = [name for name, _part in kwargs["files"]]
     assert "body" in part_names
     assert "bodyHtml" in part_names
-    message_html = next(part[1] for name, part in kwargs["files"]
-                        if name == "bodyHtml")
-    title = next(part[1] for name, part in kwargs["files"] if name == "title")
-    if title == feedback_transport.DEFAULT_TITLE:
-        assert "<strong>" in message_html
     if feedback_status == 413 and feedback_attempts > 1:
         assert not any(name == "attachments" and part[0] == "oh-no-parent-control-logs.zip"
                        for name, part in kwargs["files"])

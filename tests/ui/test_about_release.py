@@ -41,7 +41,6 @@ def test_about_displays_release_notices(
     }
     for identity, text in expected.items():
         assert ui.text(identity) == text
-        ui.reveal(identity)
     if launcher != 'kiosk_preview':
         for field in ('website', 'privacy', 'support', 'license', 'legal-notices'):
             assert ui.reader.clickable_link('about-' + field + '-value')

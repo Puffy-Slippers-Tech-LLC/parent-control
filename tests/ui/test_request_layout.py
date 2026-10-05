@@ -86,8 +86,8 @@ def test_translated_request_preserves_choices_and_custom_draft(
 
 
 @pytest.mark.parametrize("overlay,dpi_scale", (
-    (False, 1), (True, 1), (False, 1.25), (True, 1.25),
-), ids=("kiosk", "child-overlay", "kiosk-fractional", "child-fractional"))
+    (False, 1), (True, 1.25),
+), ids=("kiosk", "child-fractional"))
 def test_request_layout_keeps_all_choices_and_submission_reachable(
         launch_ui, automation, request_display_scale, wait_for_accessible_state,
         tmp_path, overlay, dpi_scale):

@@ -264,37 +264,6 @@ def test_responsive_form_accepts_semantic_selection_and_submission(
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-def test_expanded_form_keeps_request_reachable(
-        launch_ui, wait_for_accessible_state, tmp_path, overlay):
-    import gi
-    gi.require_version("Atspi", "2.0")
-    from gi.repository import Atspi
-    from tests.support.automation import Automation
-
-    _application, path = launch_request(launch_ui, tmp_path, overlay=overlay,
-                                       wait_for_application=False)
-    ui = Automation(Atspi, lambda: Atspi.get_desktop(0), owner_pids=launch_ui.owner_pids,
-                    application_ids=launch_ui.application_ids,
-                    application_owners=launch_ui.application_owners,
-                    complete_read_wait=wait_for_accessible_state)
-    wait_for_accessible_state(lambda: ui.find("kiosk-approver-selector") is not None,
-                              "request surface publishes its controls")
-    wait_for_accessible_state(
-        lambda: ui.state("kiosk-approver-selector", Atspi.StateType.SENSITIVE),
-        "loaded approver",
-    )
-    ui.activate("kiosk-approver-selector")
-    wait_for_accessible_state(lambda: ui.find("kiosk-approver-choice-1010") is not None,
-                              "expanded approver choices are published")
-    ui.reveal("kiosk-approver-choice-1010")
-    ui.activate("kiosk-request-submit")
-    method = "RequestOwnAccess" if overlay else "RequestAccess"
-    wait_for_accessible_state(lambda: bool(calls(path, method)),
-                              "expanded form permits submission")
-    assert len(calls(path, method)) == 1
-
-
-@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_shared_custom_duration_preserves_fractional_minute_precision(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
     path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,

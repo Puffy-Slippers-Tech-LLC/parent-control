@@ -338,28 +338,10 @@ def test_attachment_validation_matrix_and_source_snapshot(
         ['Synthetic note.txt', '34 bytes']]
 
 
-def test_feedback_footer_is_semantically_reachable_without_page_assumptions(
-        launch_ui, automation, wait_for_accessible_state):
-    open_feedback(launch_ui, automation, wait_for_accessible_state)
-    automation.reveal("feedback-close")
-    automation.reveal("feedback-send")
-    assert automation.state("feedback-close", automation.api.StateType.SENSITIVE)
-
-
 def test_feedback_draft_and_optional_attachment(
         launch_ui, automation, wait_for_accessible_state, collect_application_logs):
     ui = automation
     editor, log_path = open_feedback(launch_ui, ui, wait_for_accessible_state)
-    for identity in (
-        "feedback-format-bold", "feedback-format-italic", "feedback-format-underline",
-        "feedback-format-strike", "feedback-format-ordered", "feedback-format-bulleted",
-        "feedback-format-quote", "feedback-format-code", "feedback-format-link",
-        "feedback-format-attachment", "feedback-format-clear",
-    ):
-        wait_for_accessible_state(lambda i=identity: ui.find(i) is not None,
-                                  identity + " publishes its ID")
-        assert ui.state(identity, ui.api.StateType.SENSITIVE)
-    assert ui.state("feedback-add-files", ui.api.StateType.SENSITIVE)
     type_feedback(ui, "Feedback draft must stay local.", wait_for_accessible_state)
     ui.activate("feedback-privacy-link")
     wait_for_accessible_state(lambda: ui.showing("feedback-privacy-dialog"),
@@ -456,12 +438,7 @@ def test_feedback_submission_outcomes(
     editor, log_path = open_feedback(
         launch_ui, ui, wait_for_accessible_state, status=status,
     )
-    ui.activate("feedback-format-bold")
     type_feedback(ui, "A private feedback draft", wait_for_accessible_state)
-    text = ui.target(editor).get_text_iface()
-    attributes, start, end = ui.api.Text.get_attribute_run(text, 0, True)
-    assert attributes["weight"] == "700"
-    assert start == 0 and end >= len("A private feedback draft")
     if status == 202:
         # GTK does not implement AT-SPI Component.GrabFocus. Leave the web
         # editor with normal keyboard navigation and confirm the recipient

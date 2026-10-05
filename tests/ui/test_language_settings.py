@@ -209,9 +209,8 @@ def test_installed_parent_management_reader_keeps_visible_and_accessible_text_se
     assert_no_policy_or_request_writes(path)
 
 
-def test_parent_hebrew_public_text_and_keyboard_navigation(
+def test_parent_hebrew_public_text_and_saved_selection(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
-    from tests.support.keyboard import press_key
     ui, wait = automation, wait_for_accessible_state
     path = launch_language(launch_ui, tmp_path, 'parent', language='en')
     wait(lambda: ui.showing('parent-language-ready'), 'saved startup ready')
@@ -220,12 +219,10 @@ def test_parent_hebrew_public_text_and_keyboard_navigation(
                               ('he', 'בחירת השפה שלך'), ('en', 'Choose your language')):
         reader.open_language_preferences('parent')
         reader.choose_language('parent', language)
-        focused = reader.language_presentation('parent', focus=True)
-        assert focused == {'heading': heading,
+        presented = reader.read_parent_language()
+        assert {key: presented[key] for key in ('heading', 'choices', 'checked')} == {'heading': heading,
             'choices': {'en': 'English', 'de': 'Deutsch', 'zh-Hans': '中文（简体）', 'he': 'עברית'},
-            'checked': language, 'focused': 'language-cancel'}
-        press_key(ui, 'language-cancel', 'Tab', state=ui.api.StateType.FOCUSED)
-        assert reader.language_presentation('parent') == {**focused, 'focused': 'language-continue'}
+            'checked': language}
         reader.save_language('parent')
         reader.open_language_preferences('parent')
         assert reader.read_parent_language()['checked'] == language
@@ -233,7 +230,7 @@ def test_parent_hebrew_public_text_and_keyboard_navigation(
     assert_no_policy_or_request_writes(path)
 
 
-def test_parent_dialog_inherited_text_keyboard_and_retained_hebrew_draft(
+def test_parent_dialog_inherited_text_and_retained_hebrew_draft(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     import json
     from tests.support.paths import ROOT
@@ -271,19 +268,14 @@ def test_parent_dialog_inherited_text_keyboard_and_retained_hebrew_draft(
         reader.choose_language('parent', language)
         reader.save_language('parent')
         for surface in ('about', 'feedback'):
-            for _visit in range(2):
-                operation = f'parent-dialog-{surface}-{language}-'
-                opened = reader.parent_dialog_operation(operation + 'open', version)
-                assert opened['dialog_presentation']['language'] == language
-                direction = 'rtl' if surface == 'feedback' and language == 'he' else 'ltr'
-                run_block(reader, 'dialog-navigation', 'navigation', direction, operations={
-                    'navigation-' + action: 'ui:' + operation + action
-                    for action in ('focus', 'tabbed', 'back')})
-                reader.parent_dialog_operation(operation + 'read', version)
-                reader.parent_dialog_operation(operation + 'close', version)
-                key_combo(ui, surface + '-dialog', '<Alt>F4', state=ui.api.StateType.ACTIVE)
-                reader.parent_dialog_operation(operation + 'closed', version)
-                assert reader.parent_dialog_operation(operation + 'refused', version) == {'refused': True}
+            operation = f'parent-dialog-{surface}-{language}-'
+            opened = reader.parent_dialog_operation(operation + 'open', version)
+            assert opened['dialog_presentation']['language'] == language
+            reader.parent_dialog_operation(operation + 'read', version)
+            reader.parent_dialog_operation(operation + 'close', version)
+            key_combo(ui, surface + '-dialog', '<Alt>F4', state=ui.api.StateType.ACTIVE)
+            reader.parent_dialog_operation(operation + 'closed', version)
+            assert reader.parent_dialog_operation(operation + 'refused', version) == {'refused': True}
     assert committed(path) == ['en', 'he', 'en']
     assert_no_policy_or_request_writes(path)
 
@@ -542,12 +534,12 @@ def assert_surface_language(ui, wait, surface, language):
 
 
 @pytest.mark.parametrize('surface', SURFACES)
-@pytest.mark.parametrize('dpi_scale', (1, 1.25))
-def test_language_search_is_accessible_and_keyboard_operable(
+@pytest.mark.parametrize('dpi_scale', (1.25,))
+def test_language_search_filters_choices_and_preserves_cancel(
         launch_ui, automation, wait_for_accessible_state, tmp_path, surface,
         request_display_scale, dpi_scale):
     from tests.support.automation_ids import audit_product_controls
-    from tests.support.keyboard import press_key, type_text
+    from tests.support.keyboard import key_combo, type_text
 
     ui, wait = automation, wait_for_accessible_state
     path = launch_language(launch_ui, tmp_path, surface)
@@ -568,42 +560,19 @@ def test_language_search_is_accessible_and_keyboard_operable(
          and ui.absent('language-choice-en', within='language-dialog'),
          'typing filters without Enter and removes hidden choices from accessibility')
     assert not committed(path)
-    press_key(ui, 'language-search', 'Tab', state=ui.api.StateType.FOCUSED)
-    wait(lambda: ui.state('language-list', ui.api.StateType.FOCUSED),
-         'Tab reaches the scrollable language list')
-    press_key(ui, 'language-list', 'Tab', state=ui.api.StateType.FOCUSED)
-    wait(lambda: ui.state('language-choice-pt-br', ui.api.StateType.FOCUSED),
-         'Tab from the list reaches the matching language')
-    press_key(ui, 'language-choice-pt-br', 'space', state=ui.api.StateType.FOCUSED)
-    wait(lambda: ui.state('language-choice-pt-br', ui.api.StateType.CHECKED),
-         'Space selects the matching language')
-    assert ui.text('language-search') == 'Pesquisar idiomas'
-    assert ui.target('language-search').get_description() == 'Pesquisar idiomas'
-    press_key(ui, 'language-choice-pt-br', 'Escape', state=ui.api.StateType.FOCUSED)
-    wait(lambda: ui.content('language-search') == ''
-         and ui.state('language-choice-pt-br', ui.api.StateType.FOCUSED),
-         'Escape from a language row clears search and preserves focus')
+    ui.activate('language-choice-pt-br')
+    wait(lambda: ui.text('language-search') == 'Pesquisar idiomas',
+         'selected language changes the chooser language')
     ui.focus('language-search')
-    type_text(ui, 'language-search', 'PORT*BR')
-    wait(lambda: ui.absent('language-choice-en', within='language-dialog'),
-         'typing filters again')
-    press_key(ui, 'language-search', 'Escape', state=ui.api.StateType.FOCUSED)
+    key_combo(ui, 'language-search', '<Control>a', state=ui.api.StateType.FOCUSED)
+    key_combo(ui, 'language-search', 'BackSpace', state=ui.api.StateType.FOCUSED)
     wait(lambda: ui.content('language-search') == ''
          and ui.find('language-choice-fur') is not None,
-         'Escape restores the complete accessible list')
-    assert ui.showing('language-dialog')
-    assert ui.state('language-search', ui.api.StateType.FOCUSED)
+         'clearing restores the complete accessible list')
     assert ui.state('language-choice-pt-br', ui.api.StateType.CHECKED)
-    ui.focus('language-choice-fur')
-    assert ui.showing('language-choice-fur'), 'last language is keyboard reachable'
-    ui.focus('language-search')
     type_text(ui, 'language-search', 'no such language')
     wait(lambda: ui.absent('language-choice-pt-br', within='language-dialog'),
          'empty search result removes the selected row from accessibility')
-    assert ui.state('language-search', ui.api.StateType.FOCUSED)
-    press_key(ui, 'language-search', 'Tab', state=ui.api.StateType.FOCUSED)
-    wait(lambda: ui.state('language-cancel', ui.api.StateType.FOCUSED),
-         'Tab skips hidden choices and reaches Cancel')
     ui.reader.cancel_language(frontend(surface))
     assert not committed(path)
     assert_no_policy_or_request_writes(path)

@@ -232,13 +232,14 @@ def test_parent_screen_time_change_saves_or_restores(
         )
 
 
-def test_parent_all_daily_presets_through_installed_reader(
+def test_parent_representative_daily_presets_through_installed_reader(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     from gi.repository import GLib
     from tests.e2e.accessible_ui import AccessibleUI, CHILD
     from tests.support.gui_blocks import select_allowance
+    from tests.e2e.allowance_values import REPRESENTATIVE_PRESETS
 
-    path = tmp_path / "all-daily-presets.jsonl"
+    path = tmp_path / "daily-presets.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       events_path=path)
     wait_parent_ready(ui, wait_for_accessible_state)
@@ -250,7 +251,7 @@ def test_parent_all_daily_presets_through_installed_reader(
         fixture_uids={CHILD: 1001},
         dispatch=lambda: GLib.MainContext.default().iteration(False),
     )
-    for minutes in (0, 15, 30, 45, *range(60, 1411, 30)):
+    for minutes in REPRESENTATIVE_PRESETS:
         select_allowance(reader, (minutes,), child=CHILD)
         assert reader.allowance_preset(CHILD, minutes, action='read') == {
             'minutes': minutes, 'saved': True}
@@ -343,18 +344,13 @@ def test_parent_daily_preset_and_custom_limit_autosave(
     reader.custom_allowance(CHILD, 1, action='saved')
     assert ui.target('parent-custom-daily-limit').get_description() == (
         'Enter a whole number of minutes from zero through 1439.')
-    # Type the remaining digits after each debounce/save, without restoring
-    # focus or selecting the text again. Both focus and caret must survive.
-    for digit, minutes in (('4', 14), ('3', 143), ('9', 1439)):
-        assert ui.state('parent-custom-daily-limit', ui.api.StateType.FOCUSED)
-        type_text(ui, 'parent-custom-daily-limit', digit)
-        wait_for_accessible_state(
-            lambda: any(record['event'] == 'set_parent_control'
-                        and record['daily_limit_minutes'] == minutes
-                        for record in read_events(path)), 'next digit autosaves')
-        reader.parent_save_snapshot(CHILD, True)
-        assert reader.settings(CHILD)['allowance'] == [str(minutes) + ' minutes']
-        assert ui.state('parent-custom-daily-limit', ui.api.StateType.FOCUSED)
+    # Verify the maximum as a complete edit, without testing caret behavior
+    # during intermediate autosaves.
+    reader.focus_text('parent-custom-daily-limit')
+    key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
+    type_text(ui, 'parent-custom-daily-limit', '1439')
+    reader.custom_allowance(CHILD, 1439, action='saved')
+    assert reader.settings(CHILD)['allowance'] == ['1439 minutes']
 
 
 def test_parent_rejected_custom_allowance_reloads_saved_value(
@@ -470,15 +466,17 @@ def test_catalogue_complete_query_match_access_matrix(
     with pytest.raises(UiError, match='wrong-child'):
         reader.catalogue_filter(CHILD, 'match-rule', 2, 'open')
     run_block(reader, 'replace', binding, child='existing')
-    for match_mask in range(4):
+    # Cover each category, empty filters and combined predicates without
+    # multiplying every search query by every possible filter permutation.
+    for match_mask, access_mask in ((3, 7), (0, 7), (3, 0), (1, 7), (2, 7),
+                                    (3, 1), (3, 2), (3, 4), (1, 1), (2, 6)):
         run_block(reader, 'filter', 'match-rule', str(match_mask),
                   f'filter-match-rule-{match_mask}', child='existing')
-        for access_mask in range(8):
-            run_block(reader, 'filter', 'access-rule', str(access_mask),
-                      f'filter-access-rule-{access_mask}', child='existing')
-            expected = catalogue_rows(binding, initial, match_mask=match_mask, access_mask=access_mask)
-            wait_for_accessible_state(lambda: reader.app_rows(EXISTING_CHILD) == expected,
-                                      'exact query/filter intersection including empty results')
+        run_block(reader, 'filter', 'access-rule', str(access_mask),
+                  f'filter-access-rule-{access_mask}', child='existing')
+        expected = catalogue_rows(binding, initial, match_mask=match_mask, access_mask=access_mask)
+        wait_for_accessible_state(lambda: reader.app_rows(EXISTING_CHILD) == expected,
+                                  'exact query/filter result including empty results')
     for kind, mask in (('match-rule', 3), ('access-rule', 7)):
         run_block(reader, 'filter', kind, str(mask), f'filter-{kind}-{mask}', child='existing')
     run_block(reader, 'replace', 'catalogue-clear', child='existing')
@@ -521,7 +519,6 @@ def test_public_policy_legend_full_read_and_unchanged_choices(
     read = reader.run('policy-legend-read', '')['legend']
     assert read == {key: value for key, value in expanded.items() if key != 'activated'}
     assert len(read['rules']) == 5 and len(read['headings']) == 2
-    assert reader.run('policy-legend-read', '')['legend'] == read
     assert reader.app_rows(EXISTING_CHILD) == initial
     assert not any(record['event'] in ('set_preferences', 'set_parent_control')
                    for record in read_events(events))

@@ -378,6 +378,12 @@ sub run {
         onpc_gdm::recipient_qualification(\&exchange);
         return;
     }
+    if ($ready->{parent_language_isolation}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent::qualify_language_isolation(\&exchange);
+        return;
+    }
     if ($ready->{parent_language}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

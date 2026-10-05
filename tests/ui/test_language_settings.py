@@ -217,6 +217,40 @@ def assert_no_policy_or_request_writes(path, *, expected_results=0):
         'RequestOwnAccess', 'RequestAccess', 'UpdateRequestPreferences', 'SetRequestMuted')]
 
 
+def test_enabled_parent_language_reader_keeps_real_gtk_names_and_numeric_balances(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from tests.e2e.accessible_ui import CHILD, EXISTING_CHILD
+    from tests.support.keyboard import key_combo
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'parent', language='en')
+    wait(lambda: ui.showing('parent-language-ready'), 'saved startup ready')
+    reader = ui.reader
+    reader.fixture_uids = {CHILD: 1001, EXISTING_CHILD: 1002}
+    reader.allowance_preset(CHILD, 60, action='select')
+    original = reader.parent_language_state(child=CHILD, enabled=True, language='en')
+    reader.open_language_preferences('parent')
+    reader.choose_language('parent', 'zh-Hans')
+    reader.save_language('parent')
+    for account, uid, name in ((EXISTING_CHILD, 1002, 'jordan'), (CHILD, 1001, 'riley')):
+        reader.open_child_picker(account)
+        reader.child_highlighted(account)
+        key_combo(ui, f'parent-child-choice-{uid}', 'Return', state=ui.api.StateType.FOCUSED)
+        assert reader.run(f'parent-language-{name}-selected', '')['child_selection'] == {
+            'child': 'fixture-child' if account == CHILD else 'existing-fixture-child'}
+    translated = reader.parent_language_state(child=CHILD, enabled=True, language='zh-Hans')
+    assert translated['management'] == '限制屏幕时间'
+    assert {'限制屏幕时间', '每日可用时间', '今日剩余时间'} <= set(translated['management_labels'])
+    for key in ('child', 'account_name', 'limit_enabled', 'allowance_minutes', 'rows', 'app_names'):
+        assert translated[key] == original[key]
+    assert translated['account_name'] == CHILD and translated['allowance_minutes'] == 60
+    assert translated['app_names']
+    for value in (original, translated):
+        assert [value['balances'][key]['seconds'] for key in ('daily', 'one_time', 'total')] == [2820, 900, 2820]
+        assert value['chooser_absent'] is True
+    writes = [event for event in read_events(path) if event['event'] == 'set_parent_control']
+    assert len(writes) == 1 and writes[0]['daily_limit_minutes'] == 60
+
+
 @pytest.mark.parametrize('other_window', [False, True])
 def test_parent_child_picker_after_language_policy_reads(
         launch_ui, automation, wait_for_accessible_state, tmp_path, other_window):

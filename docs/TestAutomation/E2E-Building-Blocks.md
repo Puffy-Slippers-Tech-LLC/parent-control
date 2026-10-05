@@ -483,13 +483,38 @@ was regenerated after case 6. This installed-snapshot capability supplies no
 latest-install Chinese, panel/dialog/RTL/countdown/approval-result or
 complete-language-scenario acceptance.
 
+Task 306a qualified Jamie's Chinese Parent language across enabled Riley/Jordan
+selection on Ubuntu 26.04 in `20261005T064245Z-f3e34714` through
+`check_e2e_parent_language_isolation`. Each child has its own immutable English
+60-minute policy/name/balance capture. Chinese Riley → Jordan → Riley reads
+before and after normal relaunch prove selected UID, unchanged account/app names
+and policy, checked Chinese choice, zero grant and balances within the declared
+600-second elapsed bound. The untouched reopened window reads Jordan, the first
+alphabetically listed child, without first-run setup before explicitly selecting
+Riley. Parent language persistence does not imply child-selector persistence.
+
+`AccessibleUI.parent_language_state(child=..., enabled=True, language=...)`
+adds the explicit English/Chinese bindings while retaining the disabled/zero
+reader. `child_selection` and `parent-language-{riley,jordan}-selected` prove
+closed picker and selected UID/name independently of the English-only settings
+reader. `time_explanation` / `reach_time_explanation` carry the declared language;
+`app_rows(include_names=True)` reads public names with the complete policy rows.
+`ParentLanguageIsolationJourney` / `ISOLATION_PLAN` in `parent_language.py` and
+`onpc_parent::qualify_language_isolation` own the finite qualification.
+Required Parent-language and kiosk-restoration regressions passed in
+`20261005T064855Z-182479a8` and `20261005T065436Z-d38a43df` respectively.
+All three runs passed collection, worker shutdown, owned cleanup, baseline
+restoration, finalization and host/source preservation. Host validation passed
+2,621 unit checks, source and six GTK checks. Shared Parent launch mechanics are
+unchanged. This qualifies only the stated enabled binding, not complete account/
+offline scenarios, Hebrew Parent policy readback or presentation/dialog matrices.
+
 The remaining personal-language bindings follow the
 [acceptance decomposition](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition).
 This planning allocation qualifies no new route:
 
 | Pending binding | Qualification task | Complete scenario |
 | --- | --- | --- |
-| Enabled Chinese Parent state across child selection | 306a | 306 account/offline persistence; 307 Parent presentation |
 | Permitted installed Hebrew direction/bidi/legibility observations | 307a; separate qualification for each surface | 307–310 |
 | Parent inherited About/feedback text and retained synthetic draft | 307b | 307 |
 | Hebrew overlay product approval/result with ordinary native Shell authentication | 308b | 308 |
@@ -497,9 +522,8 @@ This planning allocation qualifies no new route:
 | Restricted kiosk form/About/real report and same-draft language changes | 309a, after 187k's genuine public trigger | 309 |
 | Panel/tooltip/menu language refresh after overlay changes and session resume | 310a, after existing tooltip/menu and retained-session qualifications | 310 countdown/natural expiry |
 
-Current Parent language-state readback assumes disabled limits/zero allowance;
-306a must qualify the enabled Chinese binding. Existing feedback entry/readers
-are Parent/English-bound; shared IDs do not establish translated child/station
+Parent enabled-state readback is qualified for English and Chinese only.
+Existing feedback entry/readers are Parent/English-bound; shared IDs do not establish translated child/station
 routes. Host GTK direction probes and review images do not prove installed
 RTL/bidi/legibility. Missing permitted public presentation or same-draft report
 reopening remains an explicit gate in these tasks, not claimed readiness.

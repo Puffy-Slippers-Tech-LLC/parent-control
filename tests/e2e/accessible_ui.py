@@ -84,11 +84,25 @@ OPERATIONS |= frozenset({
 OPERATIONS |= frozenset({'parent-search-ready', 'parent-search-focused', 'parent-search-entered'})
 OPERATIONS |= frozenset({'parent-search-close-ready', 'parent-search-closed'})
 PARENT_LANGUAGE_CHOICES = ('en', 'de', 'zh-Hans', 'he')
+PARENT_LANGUAGE_STATES = {
+    f'parent-language-{name}-enabled-{language.lower()}': (child, language)
+    for name, child in (('riley', 'child'), ('jordan', 'existing'))
+    for language in ('en', 'zh-Hans')
+}
+PARENT_LANGUAGE_ALLOWANCES = {
+    'parent-language-riley-allowance': 'child',
+    'parent-language-jordan-allowance': 'existing',
+}
+PARENT_LANGUAGE_SELECTIONS = {
+    'parent-language-riley-selected': 'child',
+    'parent-language-jordan-selected': 'existing',
+}
 PARENT_LANGUAGE_OPERATIONS = frozenset({
     'parent-language-initial', 'parent-language-open', 'parent-language-read',
     'parent-language-save', 'parent-language-cancel', 'parent-language-state',
     'parent-language-wrong-entry',
     *('parent-language-choose-' + value.lower() for value in PARENT_LANGUAGE_CHOICES),
+    *PARENT_LANGUAGE_STATES, *PARENT_LANGUAGE_ALLOWANCES, *PARENT_LANGUAGE_SELECTIONS,
 })
 OPERATIONS |= PARENT_LANGUAGE_OPERATIONS
 KIOSK_LANGUAGE_OPERATIONS = frozenset({
@@ -2579,33 +2593,49 @@ class AccessibleUI:
                 return {'management': toggle.get_name(), 'management_labels': labels}
             return self.wait(read, 'parent-language-management', prompt_in_predicate=True)
 
-    def parent_language_state(self):
+    def parent_language_state(self, *, child=None, enabled=False, language=None):
         """Read management language and policy projection with no setup handler.
 
-        The finite installed binding preserves the initial zero allowance. Page
-        navigation only reveals public controls; it never edits policy.
+        The original binding preserves disabled/zero state. Explicit enabled
+        bindings read a 60-minute allowance and language-aware public balances.
         """
         with self.language_scope('parent'):
             self.language_save_completed('parent')
-            child = self.parent_initial_selection()
-            account = next(key for key, value in CHILD_IDENTITIES.items() if value == child)
+            selected = self.parent_initial_selection()
+            account = (next(key for key, value in CHILD_IDENTITIES.items() if value == selected)
+                       if child is None else child)
+            require(account in (CHILD, EXISTING_CHILD) and type(enabled) is bool
+                    and (language in ('en', 'zh-Hans') if enabled else language is None),
+                    'ui:language-state-binding')
+            require(selected == CHILD_IDENTITIES[account], 'ui:wrong-child')
             self.activate_id('parent-page-screen-limits')
-            self.parent_save_snapshot(account, False)
+            self.parent_save_snapshot(account, enabled)
             allowance = self.id_target('parent-daily-limit-selector')
             labels = [node.get_name() for node in self.nodes(allowance, strict=True)
                       if node.get_role_name() == 'label' and self.showing(node)]
             require(len(labels) == 1 and type(labels[0]) is str and len(labels[0]) <= 80
-                    and re.fullmatch(r'0\D+', labels[0]),
+                    and (labels[0] == ('1 hour' if language == 'en' else '1 小时')
+                         if enabled else re.fullmatch(r'0\D+', labels[0])),
                     'ui:language-allowance')
             management = self.parent_language_management()
+            balances = self.reach_time_explanation(account, language=language) if enabled else None
             self.activate_id('parent-page-app-limits')
-            rows = self.wait(lambda: {'rows': self.app_rows(account)},
+            if enabled:
+                self.id_target('parent-app-limits-page')
+                self.id_target('parent-app-search', sensitive=True)
+            rows = self.wait(lambda: {'rows': self.app_rows(account, include_names=True)
+                                     if enabled else self.app_rows(account)},
                              'language-policy-rows')['rows']
             self.activate_id('parent-page-screen-limits')
-            self.parent_save_snapshot(account, False)
-            return {'child': child, 'limit_enabled': False, 'allowance_minutes': 0,
-                    'rows': [list(row) for row in rows], **management,
-                    'chooser_absent': True}
+            self.parent_save_snapshot(account, enabled)
+            result = {'child': selected, 'limit_enabled': enabled,
+                      'allowance_minutes': 60 if enabled else 0,
+                      'rows': [list(row[:3]) for row in rows], **management,
+                      'chooser_absent': True}
+            if enabled:
+                result.update(account_name=account, app_names=[[row[0], row[3]] for row in rows],
+                              balances=balances)
+            return result
 
     def parent_language_operation(self, operation):
         require(operation in PARENT_LANGUAGE_OPERATIONS, 'ui:language-operation')
@@ -2621,6 +2651,16 @@ class AccessibleUI:
             return {'language': self.read_parent_language(initial=True)}
         if operation == 'parent-language-state':
             return {'language_state': self.parent_language_state()}
+        if operation in PARENT_LANGUAGE_SELECTIONS:
+            child = NAMED_CUSTOM_CHILDREN[PARENT_LANGUAGE_SELECTIONS[operation]]
+            return {'child_selection': self.child_selection(child)}
+        if operation in PARENT_LANGUAGE_STATES:
+            child, language = PARENT_LANGUAGE_STATES[operation]
+            return {'language_state': self.parent_language_state(
+                child=NAMED_CUSTOM_CHILDREN[child], enabled=True, language=language)}
+        if operation in PARENT_LANGUAGE_ALLOWANCES:
+            child = NAMED_CUSTOM_CHILDREN[PARENT_LANGUAGE_ALLOWANCES[operation]]
+            return {'allowance': self.allowance_preset(child, 60, action='select')}
         if operation == 'parent-language-open':
             with self.language_scope('parent'):
                 require(self.snapshot_owned_target('language-dialog', showing=False,
@@ -5281,7 +5321,7 @@ class AccessibleUI:
                                       showing=True) is not None, 'ui:wrong-child')
         return root
 
-    def time_explanation(self, child):
+    def time_explanation(self, child, *, language='en'):
         """PARENT20: one read-only showing explanation; never reveal or expand."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
         edges, identities, facts = {}, {}, {}
@@ -5317,12 +5357,16 @@ class AccessibleUI:
         require(explanation.get_role_name() == 'label', 'ui:time-label')
         text = explanation.get_name()
         require(type(text) is str and len(text) <= 256, 'ui:time-label')
-        match = re.fullmatch(
-            r'Daily allowance remaining: ([^\n]+)\nOne-time grant remaining: ([^\n]+)\n'
-            r'Remaining time: ([^\n]+) — the larger of the two amounts\.', text)
+        require(language in ('en', 'zh-Hans'), 'ui:time-language')
+        pattern = (r'Daily allowance remaining: ([^\n]+)\nOne-time grant remaining: ([^\n]+)\n'
+                   r'Remaining time: ([^\n]+) — the larger of the two amounts\.'
+                   if language == 'en' else
+                   r'每日可用时间剩余：([^\n]+)\n临时授权时间剩余：([^\n]+)\n'
+                   r'剩余可用时间：([^\n]+)，取两者中的较大值。')
+        match = re.fullmatch(pattern, text)
         require(match is not None, 'ui:time-label')
         return {'child': CHILD_IDENTITIES[child], 'expanded': True,
-                **{key: duration_projection(value) for key, value in
+                **{key: duration_projection(value, language=language) for key, value in
                    zip(('daily', 'one_time', 'total'), match.groups())},
                 'observed_monotonic_ns': time.monotonic_ns()}
 
@@ -5386,17 +5430,17 @@ class AccessibleUI:
         self.id_target('parent-time-explanation')
         return {'expanded': True}
 
-    def reach_time_explanation(self, child):
+    def reach_time_explanation(self, child, *, language='en'):
         """PARENT09: expand only a proven collapsed section, then use PARENT20."""
         self.time_explanation_entry(child)
         try:
-            return self.time_explanation(child)
+            return self.time_explanation(child, language=language)
         except UiError as error:
             if str(error) != 'ui:time-collapsed':
                 raise
         self.activate_id('parent-time-status', action_name='row.activate')
         self.id_target('parent-time-explanation')
-        return self.time_explanation(child)
+        return self.time_explanation(child, language=language)
 
     def configure_time_controls(self, child, *, initial_enabled, minutes, final_enabled):
         """FLOW02: finite preset inputs, real saves and explicit final enablement.
@@ -5841,6 +5885,25 @@ class AccessibleUI:
     def selected_child(self, child):
         """UI15 closed-picker result followed by PARENT03, after caller's Enter."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
+        self.child_picker_closed()
+        return self.settings(child)
+
+    def child_selection(self, child):
+        """UI15: independently prove closed picker and selected UID/name.
+
+        Policy readers remain separate so a translated selection never enters
+        the English-only PARENT03 allowance reader.
+        """
+        require(child in CHILD_IDENTITIES, 'ui:child-binding')
+        self.child_picker_closed()
+        root = self.parent()
+        picker = self.id_target('parent-child-selector', root=root, sensitive=True)
+        require(self.child_id_control(child, 'parent-child-selected-', root=picker,
+                                      showing=True) is not None, 'ui:selected-child')
+        return {'child': CHILD_IDENTITIES[child]}
+
+    def child_picker_closed(self):
+        """Shared complete, stale-safe popup disappearance observation."""
         def closed():
             root = self.find_id('parent-window')
             if root is None:
@@ -5850,7 +5913,6 @@ class AccessibleUI:
                         for node in nodes), 'ui:stale-picker')
             return self.absent_id('parent-child-popover', within='parent-window')
         self.wait(closed, 'picker-close')
-        return self.settings(child)
 
     def parent_page(self, child, page):
         """PARENT04: select the declared page and observe its usable controls."""
@@ -5877,7 +5939,7 @@ class AccessibleUI:
         self.reveal_id('parent-filter-match-rule', root=root)
         print('ui:parent-page=filters-ready', file=sys.stderr, flush=True)
 
-    def app_rows(self, child, *, maximum=256, expected_ids=None):
+    def app_rows(self, child, *, maximum=256, expected_ids=None, include_names=False):
         """PARENT12/UI13: complete public row projection, without policy expectations.
 
         Off-viewport controls remain readable through AT-SPI. Visibility means
@@ -5885,7 +5947,7 @@ class AccessibleUI:
         or catalogue/backend query is used. Return immutable (ID, access, match)
         tuples only after a complete owned traversal and loaded-page check.
         """
-        require(child in CHILD_IDENTITIES and type(maximum) is int
+        require(child in CHILD_IDENTITIES and type(include_names) is bool and type(maximum) is int
                 and 0 <= maximum <= 256, 'ui:app-row-binding')
         require(expected_ids is None or (type(expected_ids) is tuple
                 and len(set(expected_ids)) == len(expected_ids)
@@ -5958,7 +6020,12 @@ class AccessibleUI:
                            root=match_control, showing=False, observation=observation) is not None]
             require(len(matches) == 1, 'ui:app-row-match')
             target(identity + '-match-' + matches[0], match_control)
-            result.append((identity, choices[0], matches[0]))
+            value = (identity, choices[0], matches[0])
+            if include_names:
+                name = row.get_name()
+                require(type(name) is str and 0 < len(name) <= 512, 'ui:app-row-name')
+                value += (name,)
+            result.append(value)
         result = tuple(sorted(result))
         require(expected_ids is None or {row[0] for row in result} == set(expected_ids),
                 'ui:app-row-set')

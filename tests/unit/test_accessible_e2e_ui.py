@@ -406,6 +406,32 @@ def test_time_explanation_reads_public_balances_twice_without_input(monkeypatch)
         node.component.scroll_to.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', ['', 'mixed-heading', 'english-duration', 'wrong-child'])
+@pytest.mark.parametrize('collapsed', [False, True])
+def test_chinese_time_reader_keeps_owned_identity_and_language_through_expansion(fault, collapsed):
+    ui, root, picker, section, explanation, collapse = time_explanation_ui()
+    explanation.name = ('每日可用时间剩余：1小时\n临时授权时间剩余：0分钟\n'
+                        '剩余可用时间：1小时，取两者中的较大值。')
+    if fault == 'mixed-heading': explanation.name = explanation.name.replace('临时授权时间剩余：', 'One-time grant remaining: ')
+    if fault == 'english-duration': explanation.name = explanation.name.replace('1小时', '1h')
+    if fault == 'wrong-child': picker.children[0].identity = 'parent-child-selected-1002'
+    if collapsed:
+        explanation.states.clear(); collapse.states.clear()
+    def expand(identity, **kwargs):
+        assert identity == 'parent-time-status'
+        explanation.states.update({'visible', 'showing'})
+        collapse.states.update({'visible', 'showing'})
+    ui.activate_id = Mock(side_effect=expand)
+    if fault:
+        with pytest.raises(UiError): ui.reach_time_explanation(accessible_ui.CHILD, language='zh-Hans')
+        assert ui.activate_id.call_count == (int(collapsed) if fault != 'wrong-child' else 0)
+    else:
+        value = ui.reach_time_explanation(accessible_ui.CHILD, language='zh-Hans')
+        assert value['child'] == 'fixture-child' and value['expanded'] is True
+        assert [value[key]['seconds'] for key in ('daily', 'one_time', 'total')] == [3600, 0, 3600]
+        assert ui.activate_id.call_count == int(collapsed)
+
+
 @pytest.mark.parametrize('present', [False, True])
 def test_new_parent_window_entry_refuses_existing_window_without_input(present):
     ui, *_ = time_explanation_ui()

@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import pytest
 import accessible_ui as public
 import check_e2e_parent_language as selector
+import check_e2e_parent_language_isolation as isolation_selector
 import check_graphical_smoke as smoke
 import installed_journey
 import parent_language as language
@@ -78,6 +79,40 @@ def test_selector_snapshot_assets_and_all_operation_registration(monkeypatch, tm
     assert b'parent_language' in distribution['tests/smoke.pm']
     assert b'qualify_language' in distribution['lib/onpc_parent.pm']
     assert language.PLAN.screen_tags['same-parent-window'] == 'ui:parent-language-state'
+
+
+def test_isolation_selector_and_complete_registered_composition(monkeypatch, tmp_path):
+    from parent_setup_qualification import ParentLanguageIsolationQualification
+    import e2e_worker
+    import tools.test_commands as commands
+    launch = Mock(return_value=0)
+    monkeypatch.setattr(isolation_selector, 'smoke', launch)
+    assert isolation_selector.main() == 0
+    launch.assert_called_once_with(assets=isolation_selector.ASSETS,
+        provision_credentials=True, parent_language_isolation=True)
+    context = SimpleNamespace(directory=tmp_path)
+    journey = ParentLanguageIsolationQualification.journey(context, Mock())
+    assert journey.plan is language.ISOLATION_PLAN
+    assert context.installed_snapshot.startswith('onpc-v')
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
+    monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(isolation_selector.ASSETS)))
+    for name in ('check_e2e_parent_language_isolation', 'check_e2e_parent_language_isolation.py'):
+        command = commands.qualification_artifact_command(Path.cwd(), 'integration', [name])
+        assert command[-1] == str(isolation_selector.ASSETS)
+    assert set(language.ISOLATION_PLAN.phases) == set(language.ISOLATION_PLAN.stages)
+    assert all(tag[3:] in public.OPERATIONS and tag[3:] in OPERATION_LABELS
+               for tag in language.ISOLATION_SCREENS.values())
+    distribution = e2e_worker.distribution_inputs()
+    assert b'qualify_language_isolation' in distribution['lib/onpc_parent.pm']
+    assert b'parent_language_isolation' in distribution['tests/smoke.pm']
+
+
+@pytest.mark.parametrize('extra', [{}, {'parent_language': True}, {'fresh_desktop': 'parent'},
+                                  {'approval_flow': 'cancel'}])
+def test_isolation_mode_refuses_before_vm(extra):
+    args = {'assets': 'inputs', 'provision_credentials': True, **extra} if extra else {}
+    with pytest.raises(CommandError, match='parent-language-isolation-prerequisites'):
+        smoke.main(parent_language_isolation=True, **args)
 
 
 @pytest.mark.parametrize('name', ['check_e2e_parent_language', 'check_e2e_parent_language.py'])
@@ -333,6 +368,159 @@ def test_complete_worker_includes_fresh_authentication_and_refusal(monkeypatch, 
     assert result['events'].count(['secret']) == (0 if fault else 1)
 
 
+@pytest.mark.parametrize('fault', ['', *list(language.ISOLATION_SCREENS)[4:]])
+def test_isolation_actual_worker_sequence_and_refusal(fault):
+    worker = WORKER.replace('onpc_parent::qualify_language(', 'onpc_parent::qualify_language_isolation(')
+    worker = worker.replace("return {observed => $stage};",
+        "return {observed => $stage, ui_focused => JSON::PP::true};")
+    result = json.loads(run_perl(worker, fault).stdout)
+    stages = list(language.ISOLATION_SCREENS)[4:]
+    expected = stages if not fault else stages[:stages.index(fault) + 1]
+    assert [event[1] for event in result['events'] if event[0] == 'seen'] == expected
+    assert [event[1] for event in result['events'] if event[0] == 'title'] == [
+        'parent-language-isolation-' + stage for stage in expected]
+    assert bool(result['ok']) == (not fault), result['error']
+    assert (['finish'] in result['events']) == (not fault)
+    keys = []
+    for index, stage in enumerate(expected):
+        if stage.endswith('-ready') and ('-setup-' in stage or stage.startswith(('riley-', 'jordan-', 'reopened-'))):
+            if index + 1 < len(expected): keys.append(['key', 'spc'])
+        elif stage.endswith('-focus'):
+            if index + 1 < len(expected): keys.append(['key', 'ret'])
+        elif stage == 'close-ready' and index + 1 < len(expected): keys.append(['key', 'alt-f4'])
+    assert [event for event in result['events'] if event[0] == 'key'] == keys
+
+
+def enabled_value(child='child', selected='en', elapsed=0):
+    account = public.NAMED_CUSTOM_CHILDREN[child]
+    value = state_value(selected)
+    value.update(child=public.CHILD_IDENTITIES[account], account_name=account,
+        limit_enabled=True, allowance_minutes=60,
+        management_labels=sorted(language.ENABLED_LABELS[selected]),
+        app_names=[[value['rows'][0][0], 'Fixture application']],
+        balances={'child': public.CHILD_IDENTITIES[account], 'expanded': True,
+                  'observed_monotonic_ns': (100 + elapsed) * 10**9})
+    for key, seconds in (('daily', 3600), ('one_time', 0), ('total', 3600)):
+        text = ('1h' if seconds else '0m') if selected == 'en' else ('1小时' if seconds else '0分钟')
+        value['balances'][key] = public.duration_projection(text, language=selected)
+    return value
+
+
+@pytest.mark.parametrize('child', ['child', 'existing'])
+@pytest.mark.parametrize('fault', ['', 'wrong-uid', 'wrong-label', 'duplicate', 'stale', 'open'])
+def test_language_selection_proves_uid_and_closed_picker_without_english_settings(child, fault):
+    account = public.NAMED_CUSTOM_CHILDREN[child]
+    uid = 1001 if child == 'child' else 1002
+    selected = Node(identity=f'parent-child-selected-{uid}', children=[Node(account, 'label')])
+    if fault == 'wrong-uid': selected.identity = f'parent-child-selected-{uid + 10}'
+    if fault == 'wrong-label': selected.children[0].name = 'wrong account'
+    if fault == 'stale': selected.states.add('defunct')
+    picker = Node(identity='parent-child-selector', children=[selected])
+    if fault == 'duplicate': picker.children.append(deepcopy(selected))
+    window = Node(identity='parent-window', children=[picker,
+        Node(identity='parent-daily-limit-selector', children=[Node('1 小时', 'label')])])
+    if fault == 'open': window.children.append(Node(identity='parent-child-popover'))
+    ui = ui_for(window); ui.timeout = .05
+    ui.settings = Mock(side_effect=AssertionError('English settings reader'))
+    operation = f'parent-language-{"riley" if child == "child" else "jordan"}-selected'
+    if fault:
+        with pytest.raises(public.UiError): ui.parent_language_operation(operation)
+    else:
+        assert ui.parent_language_operation(operation) == {
+            'child_selection': {'child': public.CHILD_IDENTITIES[account]}}
+    ui.settings.assert_not_called()
+    picker.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('child', ['child', 'existing'])
+@pytest.mark.parametrize('fault', ['', 'wrong-child', 'extra', 'missing', 'replay'])
+def test_language_selection_decoder_and_recorder_refuse_before_reply(tmp_path, child, fault):
+    name = 'riley' if child == 'child' else 'jordan'
+    operation = f'parent-language-{name}-selected'
+    value = {'child': public.CHILD_IDENTITIES[public.NAMED_CUSTOM_CHILDREN[child]]}
+    if fault == 'wrong-child': value['child'] = 'wrong-child'
+    if fault == 'extra': value['private'] = 'canary'
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+    if fault != 'missing': payload['child_selection'] = value
+    observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(payload).encode())))
+    if fault in ('wrong-child', 'extra', 'missing'):
+        with pytest.raises(EvidenceError): observer.observe(operation)
+        with pytest.raises(EvidenceError, match='previous-failure'): observer.observe(operation)
+    else:
+        assert observer.observe(operation) == payload
+    journey = language.ParentLanguageIsolationJourney(SimpleNamespace(directory=tmp_path), Mock())
+    stage = name + '-selected'
+    journey.steps = [{'stage': item} for item in journey.plan.stages[:journey.plan.stages.index(stage)]]
+    journey.boot = 'a' * 64
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value=payload))
+    if fault == 'replay': journey.language_captures.add(stage)
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+
+
+@pytest.mark.parametrize('child', ['child', 'existing'])
+@pytest.mark.parametrize('fault', ['', 'account', 'names', 'grant', 'translated-number', 'extra', 'timestamp'])
+def test_enabled_real_decoder_explicit_account_and_public_numbers(child, fault):
+    name = 'riley' if child == 'child' else 'jordan'
+    operation = f'parent-language-{name}-enabled-zh-hans'
+    value = enabled_value(child, 'zh-Hans')
+    if fault == 'account': value['child'] = 'wrong-child'
+    if fault == 'names': value['app_names'][0][0] = 'parent-app-' + 'b' * 16
+    if fault == 'grant': value['balances']['one_time']['seconds'] = 5
+    if fault == 'translated-number': value['balances']['daily']['text'] = '1h'
+    if fault == 'extra': value['balances']['private'] = 'no'
+    if fault == 'timestamp': value['balances']['observed_monotonic_ns'] = True
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'language_state': value}
+    observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(payload).encode())))
+    if fault:
+        with pytest.raises(EvidenceError): observer.observe(operation)
+        with pytest.raises(EvidenceError, match='previous-failure'): observer.observe(operation)
+    else:
+        assert observer.observe(operation) == payload
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong-child', 'policy', 'name', 'mixed', 'missing-text',
+                                  'grant', 'increase', 'elapsed', 'replay'])
+@pytest.mark.parametrize('stage,child', [('riley-state', 'child'),
+    ('prior-window', 'child'), ('same-parent-window', 'existing'),
+    ('reopened-riley-state', 'child'), ('reopened-jordan-state', 'existing'),
+    ('reopened-riley-return-state', 'child')])
+def test_enabled_recorder_real_step_immutable_comparison_before_reply(tmp_path, fault, stage, child):
+    journey = language.ParentLanguageIsolationJourney(SimpleNamespace(directory=tmp_path), Mock())
+    baseline = enabled_value(child)
+    journey.check_settings('riley-before' if child == 'child' else 'jordan-before',
+                           {'ui': {'language_state': baseline}})
+    baseline['app_names'][0][1] = 'mutated caller input'
+    assert journey.policies[child]['app_names'][0][1] == 'Fixture application'
+    journey.committed = journey.candidate = 'zh-Hans'
+    journey.steps = [{'stage': value} for value in journey.plan.stages[:journey.plan.stages.index(stage)]]
+    journey.boot = 'a' * 64
+    value = enabled_value(child, 'zh-Hans', 10)
+    if fault == 'wrong-child':
+        value = enabled_value('existing' if child == 'child' else 'child', 'zh-Hans', 10)
+    if fault == 'policy': value['rows'][0][1] = 'permanent'
+    if fault == 'name': value['app_names'][0][1] = 'different application'
+    if fault == 'mixed': value['management_labels'].append('Screen Time Limit')
+    if fault == 'missing-text': value['management_labels'].remove('每日可用时间')
+    if fault == 'grant': value['balances']['one_time']['seconds'] = 1
+    if fault == 'increase': value['balances']['daily']['seconds'] = value['balances']['total']['seconds'] = 3603
+    if fault == 'elapsed': value['balances']['observed_monotonic_ns'] = 701 * 10**9
+    if fault == 'replay': journey.language_captures.add(stage)
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={'language_state': value}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+
+
 @pytest.mark.parametrize('allowance', ['0 minutes', '0 Minuten', '0 分钟', '0 דקות', '30 minutes', 'wrong'])
 @pytest.mark.parametrize('selected_language,title', [
     ('en', 'Screen Time Limit'), ('de', 'Bildschirmzeit begrenzen'),
@@ -363,6 +551,45 @@ def test_public_policy_projection_reads_translated_allowance_without_changing_se
     picker.action.do_action.assert_not_called()
     toggle.action.do_action.assert_not_called()
     amount.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('child', ['child', 'existing'])
+@pytest.mark.parametrize('selected_language', ['en', 'zh-Hans'])
+@pytest.mark.parametrize('fault', ['', 'wrong-child', 'wrong-allowance', 'disabled', 'stale'])
+def test_enabled_state_reader_requires_explicit_child_and_translated_allowance(child, selected_language, fault):
+    account = public.NAMED_CUSTOM_CHILDREN[child]
+    uid = 1001 if child == 'child' else 1002
+    selected = Node(identity=f'parent-child-selected-{uid}', children=[Node(account, 'label')])
+    if fault == 'wrong-child': selected.identity = 'parent-child-selected-' + str(1003 - (uid - 1000))
+    picker = Node(identity='parent-child-selector', children=[selected])
+    toggle = Node(language.TEXTS[selected_language][4], identity='parent-screen-limit-toggle',
+                  states=('visible', 'showing', 'sensitive', 'checked'))
+    if fault == 'disabled': toggle.states.remove('checked')
+    label = '1 hour' if selected_language == 'en' else '1 小时'
+    if fault == 'wrong-allowance': label = '30 minutes'
+    amount = Node(identity='parent-daily-limit-selector', children=[Node(label, 'label')])
+    screen, apps = Node(identity='parent-page-screen-limits'), Node(identity='parent-page-app-limits')
+    page = Node(identity='parent-screen-limits-page', children=[toggle,
+        *(Node(text, 'label') for text in sorted(language.ENABLED_LABELS[selected_language]))])
+    window = Node(identity='parent-window', children=[Node(identity='parent-language-ready'),
+        picker, amount, screen, apps, page,
+        Node(identity='parent-app-limits-page', children=[Node(identity='parent-app-search')])])
+    if fault == 'stale': selected.states.add('defunct')
+    ui = ui_for(window); ui.timeout = .05
+    value = enabled_value(child, selected_language)
+    ui.app_rows = Mock(return_value=tuple(tuple(row) + (name[1],)
+        for row, name in zip(value['rows'], value['app_names'])))
+    ui.reach_time_explanation = Mock(return_value=value['balances'])
+    if fault:
+        with pytest.raises(public.UiError):
+            ui.parent_language_state(child=account, enabled=True, language=selected_language)
+        ui.app_rows.assert_not_called()
+    else:
+        result = ui.parent_language_state(child=account, enabled=True, language=selected_language)
+        assert result == value
+        ui.app_rows.assert_called_once_with(account, include_names=True)
+        ui.reach_time_explanation.assert_called_once_with(account, language=selected_language)
+    for node in (picker, toggle, amount): node.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['', 'text', 'checked', 'policy', 'visible-title', 'storage', 'replay'])
@@ -396,7 +623,9 @@ def test_real_recorder_step_validates_before_reply_and_freezes_policy(tmp_path, 
 
 
 @pytest.mark.parametrize('fault', ['', 'meaning', 'durability'])
-def test_real_recorder_entry_accepts_custom_plan_and_refuses_before_reply(session, tmp_path, monkeypatch, fault):
+@pytest.mark.parametrize('journey_type', [language.ParentLanguageJourney, language.ParentLanguageIsolationJourney])
+def test_real_recorder_entry_accepts_custom_plan_and_refuses_before_reply(
+        session, tmp_path, monkeypatch, fault, journey_type):
     expected = session.payload['assertions'][0]
     tags = {'entry-start': 'system:parent-command-context', 'entry-one': 'system:parent-command-context',
             'entry-two': 'system:parent-command-context', 'chooser': 'ui:parent-language-initial'}
@@ -418,7 +647,7 @@ def test_real_recorder_entry_accepts_custom_plan_and_refuses_before_reply(sessio
     monkeypatch.setattr(session_control, 'observe', Mock(return_value={'outcome': 'passed'}))
     def worker(**options):
         journey = options['guarded_observe'].__self__
-        assert isinstance(journey, language.ParentLanguageJourney) and journey.plan is plan
+        assert type(journey) is journey_type and journey.plan is plan
         journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
         journey.boot = 'a' * 64
         journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': journey.boot}))
@@ -438,12 +667,12 @@ def test_real_recorder_entry_accepts_custom_plan_and_refuses_before_reply(sessio
             recorder.assertion(assertion['assertion_id'], artifact_ids=[ref])
         return dict(outcome='passed', shutdown_verified=True, worker_stopped=True, callback_closed=True)
     context.run_worker = worker
-    monkeypatch.setattr(language.ParentLanguageJourney, 'validate', lambda _: [])
+    monkeypatch.setattr(journey_type, 'validate', lambda _: [])
     if fault:
         with pytest.raises((EvidenceError, OSError)):
             installed_journey.record_installed_journey(recorder, context, plan, actions={},
-                                                      journey_type=language.ParentLanguageJourney)
+                                                      journey_type=journey_type)
         assert not (context.directory / 'chooser.reply.json').exists()
     else:
         installed_journey.record_installed_journey(recorder, context, plan, actions={},
-                                                  journey_type=language.ParentLanguageJourney)
+                                                  journey_type=journey_type)

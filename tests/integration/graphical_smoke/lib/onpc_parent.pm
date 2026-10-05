@@ -187,6 +187,45 @@ sub qualify_language {
     $journey->finish();
 }
 
+sub qualify_language_isolation {
+    onpc_progress::operation('Qualifying Parent Chinese language across enabled child selection');
+    my ($exchange) = @_;
+    die 'parent:language-isolation-arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    require onpc_journey;
+    require onpc_lifecycle;
+    require onpc_allowance_boundaries;
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => 'parent-language-isolation', review => 0);
+    my $desktop = login_functional($journey);
+    $journey->consume_observation('initial-language', launch($journey, $desktop, 'initial-language'));
+    $journey->consume_observation('initial-save', $journey->seen('initial-save'));
+    for my $child ('riley', 'jordan') {
+        onpc_allowance_boundaries::select_child($journey, "$child-setup", 'keyboard');
+        for my $suffix ('enabled', 'saved', 'allowance', 'before') {
+            my $stage = "$child-$suffix";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+    }
+    language_selection($journey, 'chinese');
+    $journey->consume_observation('chinese-save', $journey->seen('chinese-save'));
+    for my $prefix ('riley', 'jordan', 'riley-return') {
+        onpc_allowance_boundaries::select_child($journey, $prefix, 'keyboard');
+        for my $suffix ('state', 'choice', 'close') {
+            my $stage = "$prefix-$suffix";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+    }
+    onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
+    for my $prefix ('reopened-riley', 'reopened-jordan', 'reopened-riley-return') {
+        onpc_allowance_boundaries::select_child($journey, $prefix, 'keyboard');
+        for my $suffix ('state', 'choice', 'close') {
+            my $stage = "$prefix-$suffix";
+            $journey->consume_observation($stage, $journey->seen($stage));
+        }
+    }
+    $journey->finish();
+}
+
 # FLOW15's bounded GDM/fresh/Parent/success route. Other routes remain unsupported.
 sub enter_desktop {
     onpc_progress::operation('Entering the Parent desktop');

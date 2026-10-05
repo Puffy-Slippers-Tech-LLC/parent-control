@@ -35,6 +35,15 @@ and translated approval are owned by their separate recipes.
 Reuse LANG01, REQUEST04, the normal Parent/overlay command entries and
 `InternetIsolation`; cases supply finite values/order/assertions, not new
 selectors, private preference writes or a copy of qualification workers.
+For Parent's enabled 60-minute English/Chinese reads, reuse
+`AccessibleUI.parent_language_state(child=..., enabled=True, language=...)`
+and its registered `parent-language-{riley,jordan}-enabled-{en,zh-hans}`
+operations. The `parent-language-{riley,jordan}-selected` observations prove
+UID/name and closed picker without invoking the English-only settings reader.
+Use each child's own immutable policy/name/balance capture. A reopened Parent
+starts with Jordan in these fixtures; explicitly select Riley before a Riley
+read. The [support guide](../../../tests/support/README.md#host-and-guest-boundaries)
+owns these shared entry and readback details.
 
 ## Implementation entry
 

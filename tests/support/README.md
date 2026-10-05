@@ -163,6 +163,22 @@ and reacquisition never replays a language choice, Save or Cancel.
 page separately from the switch's accessible name. Callers compare each against
 independent literal expectations; the English title and accessible name use
 different capitalization. The read adds no input or resource owner.
+`parent_language_state` retains the disabled/zero projection and adds explicit
+Riley/Jordan enabled 60-minute English/Chinese bindings. The shared
+`time_explanation` / `reach_time_explanation` read the declared language's public
+text and durations; `app_rows(include_names=True)` includes bounded public names
+in the same complete owned policy snapshot. Page navigation waits for public
+App Limits readiness before reading. Callers own per-child immutable policy/name
+captures, zero-grant assertions and finite elapsed-time comparisons.
+`child_selection` shares the stale-safe closed-picker wait with `selected_child`
+and independently resolves the selected UID/name. Parent language selection
+bindings use that identity-only proof before their language-aware policy read,
+without entering PARENT03's English-only allowance reader.
+Normal Parent relaunch starts with the first alphabetically listed child; it
+does not restore the closed window's selection. Bind the untouched reopened
+state to that child, then select each declared child explicitly and compare
+against its own immutable capture. Language persistence must not accidentally
+assert child-selector persistence or invoke automatic first-run Save.
 `language_fixture.py` supplies preview-only saved/read/save outcomes and tiny
 caller-owned release files; it is not a substitute for installed persistence.
 `read_kiosk_language` shares the bounded chooser reader while requiring the

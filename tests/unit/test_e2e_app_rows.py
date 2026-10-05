@@ -709,6 +709,18 @@ def test_complete_rows_are_immutable_and_include_off_viewport_controls_without_i
     assert ui.app_rows(accessible_ui.CHILD) == ((ROW, 'conditional', 'precise'),)
 
 
+@pytest.mark.parametrize('name', ['Fixture application', '', 'x' * 513])
+def test_language_names_share_complete_owned_policy_projection(name):
+    ui, page, rows, row, buttons, match = app_ui()
+    row.name = name
+    if name and len(name) <= 512:
+        assert ui.app_rows(accessible_ui.CHILD, include_names=True) == ((ROW, 'allowed', 'precise', name),)
+    else:
+        with pytest.raises(accessible_ui.UiError, match='app-row-name'):
+            ui.app_rows(accessible_ui.CHILD, include_names=True)
+    for node in (row, *buttons, match): node.action.do_action.assert_not_called()
+
+
 def access_ui():
     ui, page, rows, row, buttons, match = app_ui()
     root = ui.find_id('parent-window')

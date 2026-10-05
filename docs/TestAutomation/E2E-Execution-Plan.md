@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **306a — [Qualify Parent language across child selection](E2E-Tasks/306a-parent-language-isolation.md)**.
+Next task: **306 — [Personal languages persist across accounts and offline use](E2E-Tasks/306-language-persistence.md)**.
 
 Task 300's complete Chinese latest-install case 254 and both required
 current-install/native-auth regressions passed on Ubuntu 26.04, including
@@ -29,11 +29,12 @@ by the developer's Fedora scope decision; Ubuntu evidence supplies no Fedora
 acceptance.
 
 The [acceptance decomposition](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition)
-retains the independent language histories in tasks 306–310. Task 306a qualifies
-Parent's own Chinese language across enabled Riley/Jordan selection before
-task 306's account/offline persistence scenario. Reuse the delivered 300g/300j
-bindings and extend the declared Parent observation; do not infer Chinese policy
-readback from the English-only reader. Leave later presentation, approval,
+retains the independent language histories in tasks 306–310. Task 306a qualified
+Parent's own Chinese language across enabled Riley/Jordan selection and normal
+relaunch, with both required language regressions and cleanup passed on Ubuntu
+26.04. Task 306 composes the complete account/offline persistence scenario.
+Reuse the delivered language-aware Parent observations and 300g–300j bindings;
+do not infer Chinese policy readback from the English-only reader. Leave later presentation, approval,
 panel/countdown and expiry work with its queued owners.
 
 ## Current scope

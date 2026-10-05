@@ -1155,13 +1155,28 @@ class UiObservations:
             if operation.endswith('-wrong-entry'):
                 require(result == {**expected, 'refused': True}, 'ui:language-refusal')
                 expected['refused'] = True
-            elif operation == 'parent-language-state':
+            elif operation in accessible_ui.PARENT_LANGUAGE_ALLOWANCES:
+                require(result.get('allowance') == {'minutes': 60, 'saved': True},
+                        'ui:language-allowance-response')
+                expected['allowance'] = result['allowance']
+            elif operation in accessible_ui.PARENT_LANGUAGE_SELECTIONS:
+                account = accessible_ui.NAMED_CUSTOM_CHILDREN[
+                    accessible_ui.PARENT_LANGUAGE_SELECTIONS[operation]]
+                require(result.get('child_selection') == {
+                    'child': accessible_ui.CHILD_IDENTITIES[account]}, 'ui:language-selected-child')
+                expected['child_selection'] = result['child_selection']
+            elif operation == 'parent-language-state' or operation in accessible_ui.PARENT_LANGUAGE_STATES:
                 value = result.get('language_state')
-                require(type(value) is dict and set(value) == {
+                binding = accessible_ui.PARENT_LANGUAGE_STATES.get(operation)
+                keys = {
                     'child', 'limit_enabled', 'allowance_minutes', 'rows', 'management',
                     'management_labels', 'chooser_absent'}
+                if binding:
+                    keys |= {'account_name', 'app_names', 'balances'}
+                require(type(value) is dict and set(value) == keys
                     and value['child'] in accessible_ui.CHILD_IDENTITIES.values()
-                    and value['limit_enabled'] is False and value['allowance_minutes'] == 0
+                    and value['limit_enabled'] is bool(binding)
+                    and value['allowance_minutes'] == (60 if binding else 0)
                     and type(value['allowance_minutes']) is int and value['chooser_absent'] is True
                     and type(value['management_labels']) is list
                     and 0 < len(value['management_labels']) <= 64
@@ -1170,6 +1185,35 @@ class UiObservations:
                     and type(value['management']) is str and 0 < len(value['management']) <= 512,
                     'ui:language-state')
                 AppRowsObservation.from_rows(value['rows'])
+                if binding:
+                    child, language = binding
+                    account = accessible_ui.NAMED_CUSTOM_CHILDREN[child]
+                    require(value['child'] == accessible_ui.CHILD_IDENTITIES[account]
+                            and value['account_name'] == account
+                            and type(value['app_names']) is list
+                            and len(value['app_names']) == len(value['rows'])
+                            and all(type(row) is list and len(row) == 2
+                                    and row[0] == policy[0] and type(row[1]) is str
+                                    and 0 < len(row[1]) <= 512
+                                    for row, policy in zip(value['app_names'], value['rows'])),
+                            'ui:language-account-or-app-names')
+                    balances = value['balances']
+                    require(type(balances) is dict and set(balances) == {
+                        'child', 'expanded', 'daily', 'one_time', 'total', 'observed_monotonic_ns'}
+                        and balances['child'] == value['child'] and balances['expanded'] is True
+                        and type(balances['observed_monotonic_ns']) is int
+                        and 0 < balances['observed_monotonic_ns'] < 10**20,
+                        'ui:language-balances')
+                    for key in ('daily', 'one_time', 'total'):
+                        item = balances[key]
+                        require(type(item) is dict and set(item) == {'text', 'seconds', 'precision_seconds'}
+                                and type(item['seconds']) is int and type(item['precision_seconds']) is int,
+                                'ui:language-balances')
+                        try:
+                            parsed = accessible_ui.duration_projection(item['text'], language=language)
+                        except accessible_ui.UiError:
+                            require(False, 'ui:language-balances')
+                        require(item == parsed, 'ui:language-balances')
                 expected['language_state'] = value
             elif language_operation.startswith(('kiosk-language-form-', 'overlay-language-form-')):
                 value = result.get('language_form')

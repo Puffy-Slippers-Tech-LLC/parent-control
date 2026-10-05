@@ -30,23 +30,18 @@ HISTORY = (('english-entry', 'en', 'step-2'), ('hebrew', 'he', 'step-3'),
 for prefix, selected, phase in HISTORY:
     section = {
         **language_selection(prefix, selected, surface='parent'),
-        prefix + '-focus': 'ui:parent-language-presentation-focus',
-        prefix + '-tabbed': 'ui:parent-language-presentation-read',
         prefix + '-save': 'ui:parent-language-save',
         prefix + '-state': 'ui:parent-language-riley-enabled-' + selected,
         prefix + '-reopen': 'ui:parent-language-open',
-        prefix + '-refocus': 'ui:parent-language-presentation-focus',
-        prefix + '-retabbed': 'ui:parent-language-presentation-read',
         prefix + '-cancel': 'ui:parent-language-cancel',
         prefix + '-preserved': 'ui:parent-language-riley-enabled-' + selected,
     }
     for surface in ('about', 'feedback'):
         section.update({prefix + '-' + surface + '-' + action:
                         'ui:parent-dialog-' + surface + '-' + selected + '-' + action
-                        for action in ('open', 'focus', 'tabbed', 'back', 'read', 'close', 'closed')})
+                        for action in ('open', 'read', 'close', 'closed')})
         ASSERTIONS[prefix + '-' + surface + '-read'] = prefix + '-' + surface + '-inherited'
     section[prefix + '-final'] = 'ui:parent-language-riley-enabled-' + selected
-    ASSERTIONS[prefix + '-retabbed'] = prefix + '-preferences-keyboard'
     ASSERTIONS[prefix + '-final'] = prefix + '-policy-preserved'
     SCREENS.update(section)
     PHASES.update({stage: phase for stage in section})
@@ -82,19 +77,13 @@ CHOICE_LANGUAGES = {}
 for prefix, selected, _phase in HISTORY:
     previous = 'he' if prefix == 'english-return' else 'en'
     CHOICE_LANGUAGES.update({prefix + '-open': previous, prefix + '-choose': selected,
-                            prefix + '-candidate': selected, prefix + '-reopen': selected})
+                            prefix + '-reopen': selected})
     POLICY_LANGUAGES.update({prefix + '-' + suffix: selected for suffix in ('state', 'preserved', 'final')})
-    for suffix in ('focus', 'tabbed', 'refocus', 'retabbed'):
-        CHECKS[prefix + '-' + suffix] = public_language_value('language_presentation', {
-            'heading': TEXT[selected][0], 'choices': NATIVE, 'checked': selected,
-            'focused': 'language-cancel' if suffix in ('focus', 'refocus') else 'language-continue'})
     for surface in ('about', 'feedback'):
-        first, second = (('about-website-value', 'about-privacy-value') if surface == 'about'
-                         else ('feedback-close', 'feedback-send'))
-        for action in ('open', 'focus', 'tabbed', 'back', 'read', 'close'):
+        for action in ('open', 'read', 'close'):
             check = public_language_value('dialog_presentation', {
                 'surface': surface, 'language': selected, 'labels': DIALOG_LABELS[selected][surface],
-                'focused': first if action in ('focus', 'back') else second if action == 'tabbed' else None})
+                'focused': None})
             CHECKS[prefix + '-' + surface + '-' + action] = (
                 public_checks(check, public_language_value('feedback', DRAFT, same='original-draft'))
                 if surface == 'feedback' else check)

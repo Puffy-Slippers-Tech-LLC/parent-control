@@ -79,7 +79,7 @@ sub run_collection {
 }
 
 sub run_parent_save_trace {
-    onpc_progress::operation('Qualifying Parent saving and control inhibition during accessibility input');
+    onpc_progress::operation('Qualifying one Parent input and its settled saved result');
     my ($exchange) = @_;
     die 'trace:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
     return run_control_trace($exchange, 'parent-save-trace');

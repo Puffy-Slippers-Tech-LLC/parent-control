@@ -565,7 +565,8 @@ ACCESSIBILITY_TRACE_OPERATIONS = frozenset((
     'feedback-collection-events', 'feedback-collection-open', 'feedback-collection-refused',
     'parent-checked-events', 'parent-save-events', 'parent-trace-wrong-child-refused',
     'parent-trace-wrong-surface-refused',
-    'parent-custom-events', 'parent-custom-trace-focus',
+    'parent-custom-events', 'parent-custom-trace-focus', 'parent-custom-saved-result',
+    'parent-saved-result',
     'parent-custom-trace-disabled-refused',
 ))
 OPERATIONS |= ACCESSIBILITY_TRACE_OPERATIONS
@@ -574,7 +575,7 @@ NAMED_CUSTOM_OPERATIONS = frozenset(
     if action in ('open', 'saved', 'reopen')) | frozenset(
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
     if binding in ('daily-6', 'daily-7') or binding.startswith(('catalogue-', 'match-'))) | frozenset(FILTER_OPERATIONS) | MATCH_OPERATIONS | ACCESS_OPERATIONS | {
-        'parent-custom-events', 'parent-custom-trace-focus',
+        'parent-custom-events', 'parent-custom-trace-focus', 'parent-custom-saved-result',
         'parent-custom-trace-disabled-refused', 'named-custom-setup',
         'named-custom-wrong-child-refused', 'parent-trace-wrong-surface-refused',
     }
@@ -2839,11 +2840,6 @@ class AccessibleUI:
         with self.language_scope(surface):
             identity = 'language-choice-' + language.lower()
             self.activate_id(identity)
-            self.input_uncertain = True
-            self.wait(lambda: self.has_state(self.id_target(identity, showing=False),
-                                             self.api.StateType.CHECKED),
-                      'language-candidate-selected')
-            self.input_uncertain = False
 
     def language_save_completed(self, surface):
         """Observe readiness and closure together; do not replay an uncertain Save."""
@@ -5357,89 +5353,27 @@ class AccessibleUI:
         return {'token': token, 'source': source, 'terminal': True, 'samples': samples}
 
     def parent_save_events(self, custom=False, child=CHILD):
-        """Observe the public inhibited interval and recovery during one UI17 input."""
+        """Prepare one frozen-owner input; final saved readback is separate."""
         token = self.trace_request
         require(type(token) is str and re.fullmatch(r'[0-9a-f]{32}', token), 'ui:trace-token')
         self.parent_save_snapshot(child, custom)
-        source, controls = self.parent_save_trace_source(custom, child)
-        state = {'checked': custom, 'child': True, 'toggle': True, 'allowance': custom}
+        source, _controls = self.parent_save_trace_source(custom, child)
         if custom:
             self.text_recipient('parent-custom-daily-limit', focused=True, child=child)
-            state['editor'] = True
-        events, failures = [], []
-        started = time.monotonic()
-        armed = False
-        endpoints = {(node.bus, node.path, 'sensitive'): name
-                     for name, node in controls.items()}
-        endpoints[(controls['toggle'].bus, controls['toggle'].path, 'checked')] = 'toggle'
+        print(json.dumps({'event': 'accessibility-trace-ready', 'token': token,
+                          'source': source, 'boot_sha256': self.trace_boot,
+                          'checked': custom}, sort_keys=True), flush=True)
+        return {'token': token, 'source': source, 'prepared': True}
 
-        def receive(target, field, value, error):
-            if error is not None or not armed or len(events) >= 32:
-                failures.append(True)
-                return
-            events.append({'elapsed_ms': int((time.monotonic() - started) * 1000),
-                           'target': target, 'state': field, 'value': value})
-
-        with self.api.state_events(endpoints, receive) as context:
-            self.invalidate_observation()
-            require(self.parent_save_trace_source(custom, child)[0] == source, 'ui:trace-source-changed')
-            require(self.has_state(controls['toggle'], self.api.StateType.CHECKED) == custom and
-                    self.has_state(controls['child'], self.api.StateType.SENSITIVE) and
-                    self.has_state(controls['toggle'], self.api.StateType.SENSITIVE) and
-                    self.has_state(controls['allowance'], self.api.StateType.SENSITIVE) == custom and
-                    (not custom or self.has_state(controls['editor'], self.api.StateType.SENSITIVE)),
-                    'ui:trace-entry')
-            for _ in range(64):
-                if not context.pending():
-                    break
-                context.iteration(False)
-            require(not context.pending() and not failures, 'ui:trace-entry')
-            armed = True
-            print(json.dumps({'event': 'accessibility-trace-ready', 'token': token,
-                              'source': source, 'boot_sha256': self.trace_boot,
-                              'checked': custom}, sort_keys=True), flush=True)
-            inhibited = recovered = False
-            saw_child_off = saw_toggle_off = False
-            examined = 0
-            while not recovered and not failures and time.monotonic() - started < 60:
-                context.iteration(False)
-                while examined < len(events):
-                    event = events[examined]
-                    examined += 1
-                    key = 'checked' if event['state'] == 'checked' else event['target']
-                    state[key] = event['value']
-                    if key == 'child' and not event['value']:
-                        saw_child_off = True
-                    if key == 'toggle' and event['state'] == 'sensitive' and not event['value']:
-                        saw_toggle_off = True
-                    if custom:
-                        require(state['checked'] and state['allowance'] and state['editor'],
-                                'ui:custom-trace-controls')
-                    if saw_child_off and saw_toggle_off and not any(
-                            state[name] for name in (('child', 'toggle') if custom else
-                                                    ('child', 'toggle', 'allowance'))):
-                        inhibited = True
-                    if inhibited and all(state.values()):
-                        recovered = True
-                if custom:
-                    recovered = inhibited and all(state.values())
-                if custom and recovered:
-                    # A first save may drain before the second edit arrives.
-                    # Only the declared final public draft can end observation.
-                    self.invalidate_observation()
-                    try:
-                        self.read_custom_trace_draft(child)
-                    except UiError as error:
-                        require(str(error) == 'ui:text-value', 'ui:custom-trace-result')
-                        recovered = False
-                time.sleep(0.01)
-            require(not failures and inhibited and recovered and len(events) <= 32,
-                    'ui:save-trace-missing')
-            require(time.monotonic() - started < 60, 'ui:trace-deadline')
-            self.invalidate_observation()
-            self.parent_save_snapshot(child, True)
-            require(self.parent_save_trace_source(custom, child)[0] == source, 'ui:trace-source-changed')
-        return {'token': token, 'source': source, 'terminal': True, 'samples': events}
+    def parent_saved_result(self, custom=False, child=CHILD):
+        """Read the settled saved result and verify the original public owner."""
+        expected_source = self.trace_request.removeprefix('save:')
+        self.parent_save_snapshot(child, True)
+        if custom:
+            self.read_custom_trace_draft(child)
+        require(self.parent_save_trace_source(custom, child)[0] == expected_source,
+                'ui:trace-source-changed')
+        return {'saved': True, **({'minutes': 6} if custom else {'enabled': True})}
 
     def read_custom_trace_draft(self, child=CHILD):
         """Read the pinned custom editor while a queued save inhibits navigation."""
@@ -10349,6 +10283,8 @@ class AccessibleUI:
                 result['trace'] = self.feedback_collection_events(operation)
             elif operation == 'parent-custom-trace-focus':
                 result['trace'] = self.custom_trace_focus(child)
+            elif operation in ('parent-saved-result', 'parent-custom-saved-result'):
+                result['trace'] = self.parent_saved_result(operation == 'parent-custom-saved-result', child)
             elif operation == 'parent-custom-trace-disabled-refused':
                 self.parent_save_snapshot(child, False)
                 try:

@@ -141,7 +141,7 @@ sub language_selection {
     my ($journey, $prefix) = @_;
     die 'parent:language-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
         && $prefix =~ /^[a-z][a-z0-9-]*$/;
-    for my $suffix ('open', 'choose', 'candidate') {
+    for my $suffix ('open', 'choose') {
         my $stage = "$prefix-$suffix";
         $journey->consume_observation($stage, $journey->seen($stage));
     }
@@ -198,17 +198,15 @@ sub language_navigation {
 }
 
 sub language_presentation_roundtrip {
-    onpc_progress::operation('Checking language keyboard navigation and independent reopened choice');
+    onpc_progress::operation('Saving language and checking the independently reopened preference');
     my ($journey, $prefix) = @_;
     die 'parent:language-roundtrip-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
         && $prefix =~ /^[a-z][a-z0-9-]*$/;
     language_selection($journey, $prefix);
-    language_navigation($journey, "$prefix-focus", "$prefix-tabbed");
     for my $suffix ('save', 'state', 'reopen') {
         my $stage = "$prefix-$suffix";
         $journey->consume_observation($stage, $journey->seen($stage));
     }
-    language_navigation($journey, "$prefix-refocus", "$prefix-retabbed");
     for my $suffix ('cancel', 'preserved') {
         my $stage = "$prefix-$suffix";
         $journey->consume_observation($stage, $journey->seen($stage));
@@ -216,7 +214,7 @@ sub language_presentation_roundtrip {
 }
 
 sub qualify_rtl {
-    onpc_progress::operation('Qualifying Parent Hebrew public text and keyboard navigation');
+    onpc_progress::operation('Qualifying Parent Hebrew public text and saved language');
     my ($exchange) = @_;
     die 'parent:rtl-arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
     require onpc_journey;
@@ -262,12 +260,10 @@ sub qualify_dialog_language {
         language_selection($journey, $language);
         $journey->consume_observation($_, $journey->seen($_)) for ("$language-save", "$language-state");
         for my $surface ('about', 'feedback') {
-            for my $visit ('first', 'independent') {
-                my $prefix = "$language-$surface-$visit";
-                dialog_visit($journey, $prefix,
-                    $language eq 'hebrew' && $surface eq 'feedback' ? 'rtl' : 'ltr');
-                $journey->consume_observation("$prefix-refused", $journey->seen("$prefix-refused"));
-            }
+            my $prefix = "$language-$surface-first";
+            dialog_visit($journey, $prefix,
+                $language eq 'hebrew' && $surface eq 'feedback' ? 'rtl' : 'ltr');
+            $journey->consume_observation("$prefix-refused", $journey->seen("$prefix-refused"));
         }
     }
     $journey->finish();
@@ -284,12 +280,11 @@ sub dialog_close {
 }
 
 sub dialog_visit {
-    onpc_progress::operation('Reading inherited Parent dialog text draft and keyboard focus');
+    onpc_progress::operation('Reading inherited Parent dialog text and retained draft');
     my ($journey, $prefix, $direction) = @_;
     die 'parent:dialog-visit-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && $prefix =~ /^[a-z][a-z0-9-]*$/ && $direction =~ /^(ltr|rtl)$/;
     $journey->consume_observation("$prefix-open", $journey->seen("$prefix-open"));
-    dialog_navigation($journey, $prefix, $direction);
     $journey->consume_observation("$prefix-read", $journey->seen("$prefix-read"));
     dialog_close($journey, $prefix);
 }

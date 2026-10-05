@@ -1,4 +1,4 @@
-"""Finite qualification of saving and control inhibition during one Parent input."""
+"""Finite qualification of one Parent save and its settled public result."""
 
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop

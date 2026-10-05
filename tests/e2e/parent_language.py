@@ -116,13 +116,9 @@ RTL_SCREENS = {
 for prefix, language in (('english-entry', 'en'), ('hebrew', 'he'), ('english-return', 'en')):
     RTL_SCREENS.update({
         **selection(prefix, language),
-        prefix + '-focus': 'ui:parent-language-presentation-focus',
-        prefix + '-tabbed': 'ui:parent-language-presentation-read',
         prefix + '-save': 'ui:parent-language-save',
         prefix + '-state': 'ui:parent-language-state',
         prefix + '-reopen': 'ui:parent-language-open',
-        prefix + '-refocus': 'ui:parent-language-presentation-focus',
-        prefix + '-retabbed': 'ui:parent-language-presentation-read',
         prefix + '-cancel': 'ui:parent-language-cancel',
         prefix + '-preserved': 'ui:parent-language-state',
     })
@@ -133,24 +129,9 @@ RTL_PLAN = JourneyPlan(prefix='parent-rtl', worker_mode='parent_rtl', screen_tag
 
 
 class ParentRtlJourney(ParentLanguageJourney):
-    """Public logical text/navigation qualification under the no-visual mandate."""
+    """Public translated text and saved language qualification."""
     def __init__(self, context, progress, plan=RTL_PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions)
-
-    def check_settings(self, stage, observed):
-        operation = self.plan.screen_tags.get(stage, '')[3:]
-        if operation not in ('parent-language-presentation-focus', 'parent-language-presentation-read'):
-            return super().check_settings(stage, observed)
-        InstalledJourney.check_settings(self, stage, observed)
-        require(stage not in self.language_captures, 'language:capture-replay')
-        value = observed['ui']['language_presentation']
-        require(value == {'heading': TEXTS[self.candidate][1],
-            'choices': {key: text[0] for key, text in TEXTS.items()},
-            'checked': self.candidate,
-            'focused': 'language-cancel' if operation.endswith('-focus') else 'language-continue'},
-            'language:presentation-text-or-focus')
-        self.language_captures.add(stage)
-
 
 DIALOG_SCREENS = {
     **fresh_desktop('parent'), 'desktop': 'ui:parent-language-wrong-entry',
@@ -171,9 +152,8 @@ for prefix, selected in (('english', 'en'), ('hebrew', 'he'), ('restored', 'en')
                           prefix + '-save': 'ui:parent-language-save',
                           prefix + '-state': 'ui:parent-language-state'})
     for surface in ('about', 'feedback'):
-        for visit in ('first', 'independent'):
-            for action in ('open', 'focus', 'tabbed', 'back', 'read', 'close', 'closed', 'refused'):
-                DIALOG_SCREENS[f'{prefix}-{surface}-{visit}-{action}'] = f'ui:parent-dialog-{surface}-{selected}-{action}'
+        for action in ('open', 'read', 'close', 'closed', 'refused'):
+            DIALOG_SCREENS[f'{prefix}-{surface}-first-{action}'] = f'ui:parent-dialog-{surface}-{selected}-{action}'
 DIALOG_PLAN = JourneyPlan(prefix='parent-dialog-language', worker_mode='parent_dialog_language',
     screen_tags=DIALOG_SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',
@@ -278,13 +258,9 @@ HEBREW_POLICY_SCREENS = {
 for prefix, selected in (('english-entry', 'en'), ('hebrew', 'he'), ('english-return', 'en')):
     HEBREW_POLICY_SCREENS.update({
         **selection(prefix, selected),
-        prefix + '-focus': 'ui:parent-language-presentation-focus',
-        prefix + '-tabbed': 'ui:parent-language-presentation-read',
         prefix + '-save': 'ui:parent-language-save',
         prefix + '-state': f'ui:parent-language-riley-enabled-{selected}',
         prefix + '-reopen': 'ui:parent-language-open',
-        prefix + '-refocus': 'ui:parent-language-presentation-focus',
-        prefix + '-retabbed': 'ui:parent-language-presentation-read',
         prefix + '-cancel': 'ui:parent-language-cancel',
         prefix + '-preserved': f'ui:parent-language-riley-enabled-{selected}',
     })

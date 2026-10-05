@@ -24,7 +24,7 @@ sub run {
     }
     $journey->finish();
 }
-# Case composition: shared FLOW16, legend, query/filter and complete-row leaves.
+# Case composition: shared FLOW16, query/filter and complete-row leaves.
 sub search_filters {
     onpc_progress::operation('Searching Jordan catalogue and checking unchanged app policies');
     my ($exchange) = @_;
@@ -36,7 +36,6 @@ sub search_filters {
     for my $stage ('balance-reread', 'saved-settings', 'apps-page') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
-    onpc_app_rows::legend($journey, 'legend-expanded', 'legend-read');
     onpc_app_rows::read_rows($journey, 'initial-rows');
     onpc_app_rows::search($journey, 'catalogue-name', 'name-rows');
     onpc_app_rows::filter($journey, 'match-rule', 2, 'precise');

@@ -355,8 +355,7 @@ def test_collection_pins_unique_dialog_and_controls(fault):
             'dialog': '/dialog', 'row': '/row', 'download': None}
 
 
-@pytest.mark.parametrize('fault', ['', 'disabled-entry', 'editor-disabled', 'picker-disabled',
-                                  'no-inhibition', 'no-recovery', 'input', 'source'])
+@pytest.mark.parametrize('fault', ['', 'disabled-entry', 'input', 'source', 'saved-value', 'extra'])
 @pytest.mark.parametrize('child', [None, 'existing'])
 def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault, child):
     from ui_observations import UiObservations
@@ -364,14 +363,6 @@ def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault
     reader.boot_guard = 'b' * 64
     retained, operations, inputs = [], [], []
     reader.trace_sink = lambda token, index, sample: retained.append((index, sample))
-    sequence = [('child', False), ('toggle', False), ('child', True), ('toggle', True)]
-    if fault == 'editor-disabled': sequence.insert(2, ('editor', False))
-    if fault == 'picker-disabled': sequence.insert(2, ('allowance', False))
-    if fault == 'no-inhibition': sequence = sequence[2:]
-    if fault == 'no-recovery': sequence.pop()
-    # Realistic multi-save output, large enough to exercise response limits.
-    samples = [{'elapsed_ms': index * 10, 'target': target, 'state': 'sensitive', 'value': value}
-               for index, (target, value) in enumerate(sequence * 4)]
 
     def call(argv, *, input, timeout, on_output):
         operation = argv[3]
@@ -387,7 +378,12 @@ def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault
                 'source': 'c' * 64, 'boot_sha256': 'b' * 64,
                 'checked': fault != 'disabled-entry'}) + '\n').encode())
             reply['trace'] = {'token': token, 'source': ('d' if fault == 'source' else 'c') * 64,
-                              'terminal': True, 'samples': samples}
+                              'prepared': True}
+        elif operation == 'parent-custom-saved-result':
+            assert len(inputs) == 1  # Result reads follow the completed batch.
+            assert argument == 'c' * 64
+            reply['trace'] = {'saved': True, 'minutes': 5 if fault == 'saved-value' else 6}
+            if fault == 'extra': reply['trace']['private'] = True
         else:
             assert operation == 'parent-custom-trace-focus'
             assert retained[0][0] == 0 and argument == 'c' * 64
@@ -408,7 +404,8 @@ def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault
             reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release, child=child)
     else:
         result = reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release, child=child)
-        assert result['samples'] == samples and len(retained) == len(samples) + 1
+        assert result['saved'] == {'saved': True, 'minutes': 6} and len(retained) == 2
+        assert operations == ['parent-custom-events', 'parent-custom-trace-focus', 'parent-custom-saved-result']
     assert len(inputs) == (0 if fault == 'disabled-entry' else 1)
 
 
@@ -446,7 +443,7 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
     assert result['stages'] == (stages[:stages.index(boundary) + 1] if fault else stages)
     assert bool(result['ok']) is (not fault)
     if not fault:
-        assert result['keys'] == ['15m', 'ret', 'c', 'ret', 'ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2
+        assert result['keys'] == ['ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2
 
 
 def test_custom_trace_renamed_stage_and_immutable_input_gate(tmp_path):
@@ -658,7 +655,7 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
         if fault in expected[:2]:
             assert not result['keys']
         if not fault:
-            assert result['keys'] == ['ret', 'c', 'ret', 'ctrl-a', '7']
+            assert result['keys'] == ['ret', 'ctrl-a', '7']
     with pytest.raises(EvidenceError, match='ordinary-custom-value'):
         ordinary_custom_save('independent', 'child', 8)
 
@@ -681,34 +678,26 @@ def test_named_custom_source_digest_includes_child_and_rejects_unbound_plan():
         replace(PLAN, child_bindings={'installed-greeter': 'existing'})
 
 
-@pytest.mark.parametrize('fault', ['', 'editor', 'allowance'])
-def test_custom_event_collector_preserves_live_editor_and_source(monkeypatch, capsys, fault):
-    from contextlib import contextmanager
+@pytest.mark.parametrize('fault', ['', 'source', 'saved-value'])
+def test_custom_save_preparation_and_independent_result(capsys, fault):
     controls = {name: SimpleNamespace(bus=':1.20', path='/' + name)
                 for name in ('toggle', 'child', 'allowance', 'editor')}
-    sequence = [('child', False), ('toggle', False), ('child', True), ('toggle', True)]
-    if fault: sequence.insert(2, (fault, False))
-    @contextmanager
-    def events(endpoints, receive):
-        assert len(endpoints) == 5
-        assert endpoints[(':1.20', '/editor', 'sensitive')] == 'editor'
-        def iteration(_blocking):
-            assert 'accessibility-trace-ready' in capsys.readouterr().out
-            for name, value in sequence:
-                receive(name, 'sensitive', value, None)
-        yield SimpleNamespace(pending=lambda: False, iteration=iteration)
     ui = SimpleNamespace(
         trace_request='a' * 32, trace_boot='b' * 64,
-        api=SimpleNamespace(StateType=SimpleNamespace(CHECKED=1, SENSITIVE=2), state_events=events),
         parent_save_snapshot=Mock(), parent_save_trace_source=Mock(return_value=('c' * 64, controls)),
-        text_recipient=Mock(), has_state=lambda node, state: True,
-        invalidate_observation=Mock(), read_custom_trace_draft=Mock())
+        text_recipient=Mock(), read_custom_trace_draft=Mock())
+    assert accessible_ui.AccessibleUI.parent_save_events(ui, True) == {
+        'token': 'a' * 32, 'source': 'c' * 64, 'prepared': True}
+    assert json.loads(capsys.readouterr().out)['source'] == 'c' * 64
+    ui.text_recipient.assert_called_once_with('parent-custom-daily-limit', focused=True, child=accessible_ui.CHILD)
+    ui.trace_request = 'c' * 64
+    if fault == 'source': ui.parent_save_trace_source.return_value = ('d' * 64, controls)
+    if fault == 'saved-value': ui.read_custom_trace_draft.side_effect = accessible_ui.UiError('ui:text-value')
     if fault:
-        with pytest.raises(accessible_ui.UiError, match='custom-trace-controls'):
-            accessible_ui.AccessibleUI.parent_save_events(ui, True)
+        with pytest.raises(accessible_ui.UiError):
+            accessible_ui.AccessibleUI.parent_saved_result(ui, True)
     else:
-        result = accessible_ui.AccessibleUI.parent_save_events(ui, True)
-        assert len(result['samples']) == 4 and result['terminal'] is True
+        assert accessible_ui.AccessibleUI.parent_saved_result(ui, True) == {'saved': True, 'minutes': 6}
         ui.parent_save_snapshot.assert_called_with(accessible_ui.CHILD, True)
         ui.parent_save_trace_source.assert_called_with(True, accessible_ui.CHILD)
 
@@ -766,22 +755,6 @@ print encode_json({ok => $ok ? 1 : 0, count => $count});
     assert (tmp_path / 'renamed.input-done.json').exists() is (not fault)
 
 
-@pytest.mark.parametrize('fault', ['', 'final-only', 'nonoverlap', 'no-recovery',
-                                  'wrong-control', 'no-checked'])
-def test_parent_save_trace_requires_event_derived_inhibition_and_recovery(fault):
-    from ui_observations import save_trace_complete
-    sequence = [('toggle', 'checked', True), ('allowance', 'sensitive', True),
-                ('child', 'sensitive', False), ('toggle', 'sensitive', False),
-                ('allowance', 'sensitive', False), ('child', 'sensitive', True),
-                ('toggle', 'sensitive', True), ('allowance', 'sensitive', True)]
-    if fault == 'final-only': sequence = sequence[:2] + sequence[-3:]
-    if fault == 'nonoverlap': sequence.insert(3, ('child', 'sensitive', True))
-    if fault == 'no-recovery': sequence.pop(-2)
-    if fault == 'wrong-control': sequence[3] = ('allowance', 'sensitive', False)
-    if fault == 'no-checked': sequence.pop(0)
-    samples = [{'elapsed_ms': index, 'target': target, 'state': state, 'value': value}
-               for index, (target, state, value) in enumerate(sequence)]
-    assert save_trace_complete(samples) is (not fault)
 
 
 def test_parent_save_trace_plan_and_controller_keep_readiness_before_one_input():
@@ -794,12 +767,6 @@ def test_parent_save_trace_plan_and_controller_keep_readiness_before_one_input()
     reader = UiObservations(transport)
     reader.boot_guard = 'b' * 64
     reader.trace_sink = lambda token, index, sample: retained.append((index, sample))
-    samples = [{'elapsed_ms': index, 'target': target, 'state': state, 'value': value}
-               for index, (target, state, value) in enumerate((
-                   ('toggle', 'checked', True), ('allowance', 'sensitive', True),
-                   ('child', 'sensitive', False), ('toggle', 'sensitive', False),
-                   ('allowance', 'sensitive', False), ('child', 'sensitive', True),
-                   ('toggle', 'sensitive', True), ('allowance', 'sensitive', True)))]
 
     def call(argv, *, input, timeout, on_output=None):
         operation = argv[3]
@@ -811,7 +778,12 @@ def test_parent_save_trace_plan_and_controller_keep_readiness_before_one_input()
                                    'checked': False}) + '\n').encode())
             reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
                      'boot_sha256': 'b' * 64, 'trace': {'token': token, 'source': 'c' * 64,
-                                                     'terminal': True, 'samples': samples}}
+                                                     'prepared': True}}
+        elif operation == 'parent-saved-result':
+            assert operations == ['parent-save-events', 'parent-toggle-enabled', 'parent-saved-result']
+            assert argv[-1] == 'save:' + 'c' * 64
+            reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+                     'boot_sha256': 'b' * 64, 'trace': {'saved': True, 'enabled': True}}
         else:
             assert operation == 'parent-toggle-enabled'
             assert retained[0][0] == 0 and argv[-1] == 'save:' + 'c' * 64
@@ -824,9 +796,9 @@ def test_parent_save_trace_plan_and_controller_keep_readiness_before_one_input()
     transport.call = call
     result = reader.observe_accessibility_input('parent-toggle-enabled', True, 'save')
     assert result['operation'] == 'parent-save-trace'
-    assert result['samples'] == samples
-    assert operations == ['parent-save-events', 'parent-toggle-enabled']
-    assert len(retained) == len(samples) + 1
+    assert result['saved'] == {'saved': True, 'enabled': True}
+    assert operations == ['parent-save-events', 'parent-toggle-enabled', 'parent-saved-result']
+    assert len(retained) == 2
 
 
 @pytest.mark.parametrize('fault', ['', 'no-ready', 'duplicate', 'foreign', 'boot',

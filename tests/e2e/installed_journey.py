@@ -390,6 +390,18 @@ class InstalledJourney:
         require(json.loads(path.read_bytes()) == {'stage': stage, 'token': token},
                 'ui:trace-input-incomplete')
 
+    def wait_trace_input(self, stage, token, guard):
+        """Wait for the owned worker's batch receipt before observing its result."""
+        deadline = time.monotonic() + 60
+        path = self.context.directory / (stage + '.input-done.json')
+        while not os.path.lexists(path):
+            guard()
+            require(time.monotonic() < deadline, 'ui:trace-input-incomplete')
+            time.sleep(0.01)
+        guard()
+        require(time.monotonic() < deadline, 'ui:trace-input-incomplete')
+        self.verify_trace_input(stage, token)
+
     def submit_reboot(self, guard):
         """Only the declared input stage may consume this attempt's reboot."""
         stage = self.plan.stages[len(self.steps)] if len(self.steps) < len(self.plan.stages) else None
@@ -527,6 +539,7 @@ class InstalledJourney:
                     def worker_input(token, source):
                         guard()
                         self.publish_trace_input(stage, token, source)
+                        self.wait_trace_input(stage, token, guard)
                     observed['ui'] = self.ui.observe_accessibility_input(
                         *plan.accessibility_inputs[stage], worker_input=worker_input,
                         child=plan.child_bindings.get(stage))

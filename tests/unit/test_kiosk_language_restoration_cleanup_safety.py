@@ -178,8 +178,7 @@ def test_registration_inputs_shared_fragment_and_worker_distribution(monkeypatch
                for tag in recipe.SCREENS.values() if tag.startswith('ui:'))
     assert set(recipe.PLAN.phases) == set(recipe.PLAN.stages)
     assert language_selection('independent', 'he', surface='kiosk', child='child') == {
-        'independent-open': 'ui:kiosk-riley-language-open', 'independent-choose': 'ui:kiosk-riley-language-choose-he',
-        'independent-candidate': 'ui:kiosk-riley-language-read'}
+        'independent-open': 'ui:kiosk-riley-language-open', 'independent-choose': 'ui:kiosk-riley-language-choose-he'}
     bundle = e2e_worker.distribution_inputs()
     assert b'kiosk_language_restoration' in bundle['tests/smoke.pm']
     assert b'sub kiosk_language_restoration' in bundle['lib/onpc_request_flow.pm']

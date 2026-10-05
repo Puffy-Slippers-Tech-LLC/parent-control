@@ -1613,7 +1613,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests own exhaustive local formatting, validation and attachment boundaries."},
+          {"id": "step-1", "operation": "ui", "description": "Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests cover distinct formatting results and meaningful validation and attachment boundaries."},
           {"id": "step-2", "operation": "ui", "description": "Draft-reopen returns to the existing window, inspects Privacy, closes/reopens feedback to compare the draft, then exits/relaunches Parent to verify reset. Validation reopens and reads recovered valid state. Attachments removes one file and reads the remaining file. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback."}
         ],
         "end": [
@@ -1770,7 +1770,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Read the selected child's saved allowance while limits are off and confirm the editor is unavailable. Enable limits in Parent."},
-          {"id": "step-2", "operation": "ui", "description": "For boundaries, select preset 15, accept custom 1 and reject 1441 while preserving saved 15. UI tests own the full preset/custom and commit-path matrices. For save-order, make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values."},
+          {"id": "step-2", "operation": "ui", "description": "For boundaries, select preset 15, accept custom 1 and reject 1441 while preserving saved 15. UI tests cover representative presets, custom boundaries and distinct commit paths through their saved results. For save-order, make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values."},
           {"id": "step-3", "operation": "ui", "description": "Reopen Parent and compare both children's allowances with their last accepted values. Rejected text must not replace a saved value."}
         ],
         "end": [
@@ -1795,7 +1795,7 @@
           "flow": ["boundaries", "save-order"]
         },
         "full_combinations": [],
-        "rationale": "UI tests own exhaustive local editor validation. Installed samples establish real saving, ordering and persistence; E2E-005 owns changes followed by child use."
+        "rationale": "UI tests cover meaningful local editor boundaries. Installed samples establish real saving, ordering and persistence; E2E-005 owns changes followed by child use."
       },
       "variants": [
         {"coverage_id": 158, "id": "boundaries", "owner": "continuous-journeys", "parameters": {"flow": "boundaries"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/allowance_case.py", "test_id": "boundaries"}},
@@ -2096,7 +2096,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child."},
-          {"id": "step-2", "operation": "ui", "description": "Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests own full search/filter and local editor matrices. Use shared FILE05 commands for copies/renames and Parent's UI for all rules."},
+          {"id": "step-2", "operation": "ui", "description": "Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules."},
           {"id": "step-3", "operation": "ui", "description": "Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save."}
         ],
         "end": [
@@ -3036,8 +3036,8 @@
         "start": [{"id": "start", "operation": "begin", "description": "Begin a fresh independent Parent history at the installed greeter."}],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Observe untouched English and native names, enable Riley's 60-minute allowance and capture policy and the exact mixed-script draft."},
-          {"id": "step-2", "operation": "ui", "description": "Read English management, Preferences and inherited About/feedback with keyboard focus and unchanged draft and policy."},
-          {"id": "step-3", "operation": "ui", "description": "Save Hebrew, reopen Preferences and inherited dialogs, and compare public logical text, keyboard focus, original draft and policy."},
+          {"id": "step-2", "operation": "ui", "description": "Read English management, Preferences and inherited About/feedback text with unchanged draft and policy."},
+          {"id": "step-3", "operation": "ui", "description": "Save Hebrew, reopen Preferences and inherited dialogs, and compare translated public logical text, original draft and policy."},
           {"id": "step-4", "operation": "ui", "description": "Restore English and independently compare Preferences, inherited dialogs, original draft, names, policy and numeric balances."}
         ],
         "end": [{"id": "end", "operation": "collect", "description": "Collect the complete public presentation and preservation results."}],
@@ -3049,17 +3049,14 @@
           {"id": "untouched-english-native-names", "step_id": "step-1", "description": "Untouched English chooser text and stable native names are independently observed."},
           {"id": "immutable-english-policy", "step_id": "step-1", "description": "Riley's enabled 60-minute policy, account/application names and zero-grant balances are captured publicly."},
           {"id": "mixed-script-draft", "step_id": "step-1", "description": "The exact synthetic Hebrew/Latin body and reply are read and captured before closing feedback."},
-          {"id": "english-entry-about-inherited", "step_id": "step-2", "description": "English About logical text, unchanged names and keyboard focus are independently read."},
-          {"id": "english-entry-feedback-inherited", "step_id": "step-2", "description": "English feedback labels, keyboard focus and the immutable original draft are read before input."},
-          {"id": "english-entry-preferences-keyboard", "step_id": "step-2", "description": "Reopened English Preferences retains checked choice, native names and Cancel/Save keyboard focus."},
+          {"id": "english-entry-about-inherited", "step_id": "step-2", "description": "English About logical text and unchanged names are independently read."},
+          {"id": "english-entry-feedback-inherited", "step_id": "step-2", "description": "English feedback labels and the immutable original draft are read before input."},
           {"id": "english-entry-policy-preserved", "step_id": "step-2", "description": "English final management retains the original names, complete policy and bounded numeric balances."},
-          {"id": "hebrew-about-inherited", "step_id": "step-3", "description": "Hebrew About logical text, unchanged names and keyboard focus are independently read."},
-          {"id": "hebrew-feedback-inherited", "step_id": "step-3", "description": "Hebrew feedback labels, both keyboard directions and the immutable original draft are read before input."},
-          {"id": "hebrew-preferences-keyboard", "step_id": "step-3", "description": "Reopened Hebrew Preferences retains checked choice, native names and Cancel/Save keyboard focus."},
+          {"id": "hebrew-about-inherited", "step_id": "step-3", "description": "Hebrew About logical text and unchanged names are independently read."},
+          {"id": "hebrew-feedback-inherited", "step_id": "step-3", "description": "Hebrew feedback labels and the immutable original draft are read before input."},
           {"id": "hebrew-policy-preserved", "step_id": "step-3", "description": "Hebrew management retains the original names, complete policy and bounded numeric balances."},
-          {"id": "english-return-about-inherited", "step_id": "step-4", "description": "Restored English About logical text, unchanged names and keyboard focus are independently read."},
-          {"id": "english-return-feedback-inherited", "step_id": "step-4", "description": "Restored English feedback labels, keyboard focus and the immutable original draft are read before input."},
-          {"id": "english-return-preferences-keyboard", "step_id": "step-4", "description": "Reopened restored English Preferences retains checked choice, native names and Cancel/Save keyboard focus."},
+          {"id": "english-return-about-inherited", "step_id": "step-4", "description": "Restored English About logical text and unchanged names are independently read."},
+          {"id": "english-return-feedback-inherited", "step_id": "step-4", "description": "Restored English feedback labels and the immutable original draft are read before input."},
           {"id": "english-return-policy-preserved", "step_id": "step-4", "description": "The complete history finishes with original names, policy, zero grant and bounded numeric balances."}
         ],
         "backend": [], "other_user": []

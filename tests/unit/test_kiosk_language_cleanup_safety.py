@@ -85,7 +85,7 @@ def test_registered_selector_snapshot_worker_and_shared_fragment(monkeypatch, tm
     assert b'sub kiosk_language' in distribution['lib/onpc_request_flow.pm']
     independent = language_selection('unrelated', 'he', surface='kiosk')
     assert independent == {'unrelated-open': 'ui:kiosk-language-open',
-        'unrelated-choose': 'ui:kiosk-language-choose-he', 'unrelated-candidate': 'ui:kiosk-language-read'}
+        'unrelated-choose': 'ui:kiosk-language-choose-he'}
     assert parent_language.selection('other', 'de') == language_selection('other', 'de', surface='parent')
 
 
@@ -240,6 +240,7 @@ def test_stale_or_uncertain_input_is_never_repeated(operation):
         'kiosk-language-choose-de': 'language-choice-de', 'kiosk-language-save': 'language-continue',
         'kiosk-language-cancel': 'language-cancel'}[operation])
     target.states.add('showing')
+    target.action.do_action.return_value = False
     with pytest.raises(public.UiError): ui.kiosk_language_operation(operation)
     assert ui.input_uncertain
     with pytest.raises(public.UiError): ui.kiosk_language_operation(operation)

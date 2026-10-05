@@ -106,8 +106,7 @@ def test_registration_installed_envelope_and_shared_fragments(monkeypatch, tmp_p
     assert b'overlay_language' in distribution['tests/smoke.pm']
     assert b'sub overlay_language' in distribution['lib/onpc_request_flow.pm']
     assert language_selection('unrelated', 'he', surface='overlay') == {
-        'unrelated-open': 'ui:overlay-language-open', 'unrelated-choose': 'ui:overlay-language-choose-he',
-        'unrelated-candidate': 'ui:overlay-language-read'}
+        'unrelated-open': 'ui:overlay-language-open', 'unrelated-choose': 'ui:overlay-language-choose-he'}
     assert overlay_entry('unrelated', 'command', form_operation='overlay-language-initial')['unrelated-form'] == 'ui:overlay-language-initial'
 
 
@@ -221,6 +220,7 @@ def test_stale_ambiguous_and_uncertain_input_is_not_replayed(operation):
         'overlay-language-choose-de': 'language-choice-de', 'overlay-language-save': 'language-continue',
         'overlay-language-cancel': 'language-cancel'}[operation])
     target.states.add('showing')
+    target.action.do_action.return_value = False
     with pytest.raises(public.UiError): ui.overlay_language_operation(operation)
     assert ui.input_uncertain
     with pytest.raises(public.UiError): ui.overlay_language_operation(operation)

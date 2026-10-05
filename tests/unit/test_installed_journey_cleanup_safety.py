@@ -164,6 +164,28 @@ def test_shared_system_prompt_coordinate_rendezvous_refuses_before_files_or_guar
     assert list(tmp_path.iterdir()) == []
 
 
+@pytest.mark.parametrize('fault', [None, 'missing', 'wrong-token', 'guard'])
+def test_custom_batch_receipt_precedes_result_and_refuses_missing_or_foreign_input(tmp_path, monkeypatch, fault):
+    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), parent_access.PLAN)
+    clock = [0.0]
+    monkeypatch.setattr(journeys.time, 'monotonic', lambda: clock[0])
+    def advance(_seconds):
+        clock[0] += 30
+        if fault != 'missing':
+            (tmp_path / 'rapid.input-done.json').write_text(json.dumps({
+                'stage': 'rapid', 'token': ('b' if fault == 'wrong-token' else 'a') * 32}))
+    monkeypatch.setattr(journeys.time, 'sleep', advance)
+    guard = Mock(side_effect=RuntimeError('lost worker') if fault == 'guard' else None)
+    if fault:
+        with pytest.raises((EvidenceError, RuntimeError)):
+            journey.wait_trace_input('rapid', 'a' * 32, guard)
+    else:
+        journey.wait_trace_input('rapid', 'a' * 32, guard)
+        assert clock[0] == 30
+    assert guard.called
+    assert clock[0] <= 60
+
+
 @pytest.mark.parametrize('operation', ['desktop', 'fresh-parent-desktop', 'standard-desktop',
                                        'fresh-standard-desktop', 'parent-selected'])
 @pytest.mark.parametrize('fault', [None, 'ui', 'boot', 'preparation'])
@@ -559,11 +581,11 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         if worker_input is None:
             return observe_ui('accessibility-input-trace')
         token = 'a' * 32
+        (directory / (state['stage'] + '.input-done.json')).write_text(json.dumps(
+            {'stage': state['stage'], 'token': token}))
         worker_input(token, 'c' * 64)
         proof = json.loads((directory / (state['stage'] + '.input.json')).read_bytes())
         assert proof['child'] == child == plan.child_bindings[state['stage']]
-        (directory / (state['stage'] + '.input-done.json')).write_text(json.dumps(
-            {'stage': state['stage'], 'token': token}))
         return {**observe_ui('parent-custom-save-trace'), 'token': token}
 
     def shell_success(worker_input):

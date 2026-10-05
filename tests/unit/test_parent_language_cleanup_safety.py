@@ -150,9 +150,9 @@ def test_dialog_public_snapshot_refusals(selected, fault):
 
 @pytest.mark.parametrize('fault', ['', 'extra', 'focus', 'language', 'draft', 'replay', 'inherited'])
 def test_dialog_decoder_and_real_recorder_step(tmp_path, fault):
-    stage = 'hebrew-feedback-first-tabbed'
+    stage = 'hebrew-feedback-first-read'
     operation = language.DIALOG_SCREENS[stage][3:]
-    value = {'surface': 'feedback', 'language': 'he', 'focused': 'feedback-send',
+    value = {'surface': 'feedback', 'language': 'he', 'focused': None,
              'labels': {key: text for key, text in public.PARENT_DIALOG_TEXT['he'].items() if key.startswith('feedback-')}}
     feedback = {'draft': 'synthetic-rtl', 'attachments': ['diagnostic-logs.zip'],
                 'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
@@ -230,21 +230,19 @@ def test_presentation_public_text_focus_and_refusal(selected, focus, fault):
     target.component.grab_focus.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['', 'focus', 'choice', 'text', 'extra', 'replay'])
+@pytest.mark.parametrize('fault', ['', 'choice', 'text', 'extra', 'replay'])
 def test_presentation_decoder_and_real_recorder_step(tmp_path, fault):
-    stage = 'hebrew-tabbed'
-    operation = 'parent-language-presentation-read'
-    value = {'heading': language.TEXTS['he'][1], 'choices': chooser_value()['choices'],
-             'checked': 'he', 'focused': 'language-continue'}
-    if fault == 'focus': value['focused'] = 'language-cancel'
+    stage = 'hebrew-choose'
+    operation = 'parent-language-choose-he'
+    value = chooser_value('he')
     if fault == 'choice': value['checked'] = 'en'
     if fault == 'text': value['heading'] = language.TEXTS['en'][1]
     if fault == 'extra': value['private'] = True
     payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
-               'language_presentation': value}
+               'language': value}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(payload, ensure_ascii=False).encode()))
     observer = UiObservations(transport)
-    if fault in ('focus', 'extra'):
+    if fault == 'extra':
         with pytest.raises(EvidenceError): observer.observe(operation)
         with pytest.raises(EvidenceError, match='previous-failure'): observer.observe(operation)
         transport.call.assert_called_once()
@@ -444,6 +442,7 @@ def test_disabled_input_and_uncertain_response_never_replay(operation):
     with pytest.raises(public.UiError): ui.parent_language_operation(operation)
     target.action.do_action.assert_not_called()
     target.states.add('sensitive'); target.states.add('showing')
+    target.action.do_action.return_value = False
     with pytest.raises(public.UiError): ui.parent_language_operation(operation)
     assert ui.input_uncertain
     with pytest.raises(public.UiError): ui.parent_language_operation(operation)
@@ -582,8 +581,8 @@ def test_rtl_worker_actual_order_and_no_keyboard_after_refusal(fault):
 
 
 @pytest.mark.parametrize('fault', ['', 'feedback-empty', 'text-body-rtl-selected',
-    'draft-seeded', 'hebrew-about-first-focus', 'hebrew-about-first-tabbed',
-    'hebrew-feedback-first-open', 'hebrew-feedback-first-back', 'restored-feedback-independent-read'])
+    'draft-seeded', 'hebrew-about-first-open', 'hebrew-about-first-read',
+    'hebrew-feedback-first-open', 'hebrew-feedback-first-read', 'restored-feedback-first-read'])
 def test_dialog_worker_actual_order_and_refusal(fault):
     worker = WORKER.replace('onpc_parent::qualify_language(', 'onpc_parent::qualify_dialog_language(')
     worker = worker.replace("sub send_key {", "sub type_string { push @main::events, ['type', $_[0]] }\nsub send_key {")
@@ -598,13 +597,10 @@ def test_dialog_worker_actual_order_and_refusal(fault):
     if not fault:
         typed = [event[1] for event in result['events'] if event[0] == 'type']
         assert typed == ['5e9', '5dc', '5d5', '5dd', ' Alex 75', 'rtl-check@example.invalid']
-        assert len([event for event in result['events'] if event == ['key', 'alt-f4']]) == 13
+        assert len([event for event in result['events'] if event == ['key', 'alt-f4']]) == 7
         navigation = [event[1] for event in result['events']
                       if event[0] == 'key' and event[1] in ('tab', 'shift-tab')]
-        assert navigation == [key for selected in ('english', 'hebrew', 'restored')
-                              for surface in ('about', 'feedback') for _visit in range(2)
-                              for key in (('shift-tab', 'tab') if selected == 'hebrew' and surface == 'feedback'
-                                          else ('tab', 'shift-tab'))]
+        assert navigation == []
     assert not any(event in (['key', 'ret'], ['key', 'spc']) for event in result['events']
                    if fault == 'feedback-empty')
 
@@ -704,14 +700,14 @@ def test_isolation_actual_worker_sequence_and_refusal(fault):
     assert [event for event in result['events'] if event[0] == 'key'] == keys
 
 
-@pytest.mark.parametrize('fault', ['', 'renamed-focus', 'renamed-tabbed', 'renamed-reopen'])
+@pytest.mark.parametrize('fault', ['', 'renamed-choose', 'renamed-state', 'renamed-reopen'])
 def test_shared_language_roundtrip_supports_independent_invocation(fault):
     worker = WORKER.replace('onpc_parent::qualify_language(sub {',
         "onpc_parent::language_presentation_roundtrip(onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {")
     worker = worker.replace('    });\n    1;', "    }), 'renamed');\n    1;")
     result = json.loads(run_perl(worker, fault).stdout)
-    stages = ['renamed-' + suffix for suffix in ('open', 'choose', 'candidate', 'focus', 'tabbed',
-        'save', 'state', 'reopen', 'refocus', 'retabbed', 'cancel', 'preserved')]
+    stages = ['renamed-' + suffix for suffix in ('open', 'choose',
+        'save', 'state', 'reopen', 'cancel', 'preserved')]
     expected = stages if not fault else stages[:stages.index(fault) + 1]
     assert [event[1] for event in result['events'] if event[0] == 'seen'] == expected
     assert [event[1] for event in result['events'] if event[0] == 'title'] == [
@@ -770,7 +766,6 @@ def test_hebrew_policy_real_worker_order_titles_and_terminal_refusal(fault):
     for index, stage in enumerate(expected[:-1]):
         if stage == 'riley-setup-ready': keys.append(['key', 'spc'])
         elif stage == 'riley-setup-focus': keys.append(['key', 'ret'])
-        elif stage.endswith(('-focus', '-refocus')): keys.append(['key', 'tab'])
     assert [event for event in result['events'] if event[0] == 'key'] == keys
 
 

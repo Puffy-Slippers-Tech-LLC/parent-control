@@ -1,4 +1,4 @@
-"""Finite independent qualification of rapid custom allowance saves."""
+"""Finite independent qualification of rapid saves and final allowance readback."""
 
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop, parent_management, allowance_selection

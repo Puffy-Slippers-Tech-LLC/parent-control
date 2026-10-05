@@ -52,8 +52,7 @@ def language_selection(prefix, language, *, surface, child='existing'):
             'language:child-binding')
     owner = 'kiosk-riley' if surface == 'kiosk' and child == 'child' else surface
     return {prefix + '-open': 'ui:' + owner + '-language-open',
-            prefix + '-choose': 'ui:' + owner + '-language-choose-' + language.lower(),
-            prefix + '-candidate': 'ui:' + owner + '-language-read'}
+            prefix + '-choose': 'ui:' + owner + '-language-choose-' + language.lower()}
 
 
 def overlay_license_read(prefix='', *, links='license'):

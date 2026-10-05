@@ -140,11 +140,11 @@ CHOOSERS = {language: {'initial': False, 'checked': 'zh-hans' if language == 'zh
     'choices': {key: item[0] for key, item in TEXT.items()}, 'heading': text[1],
     'save': text[2], 'save_label': text[2], 'save_description': text[3]} for language, text in TEXT.items()}
 CHOICE_LANGUAGES = {'initial-language': 'en', 'chinese-open': 'en', 'chinese-choose': 'zh-Hans',
-    'chinese-candidate': 'zh-Hans', **{stage: 'zh-Hans' for stage in
+    **{stage: 'zh-Hans' for stage in
         ('parent-riley-choice', 'parent-jordan-choice', 'parent-riley-return-choice', 'reopened-choice', 'parent-final-choice')},
-    'station-initial-language': 'en', 'german-open': 'en', 'german-choose': 'de', 'german-candidate': 'de',
-    'hebrew-open': 'en', 'hebrew-choose': 'he', 'hebrew-candidate': 'he',
-    'cancel-german-open': 'he', 'cancel-german-choose': 'de', 'cancel-german-candidate': 'de',
+    'station-initial-language': 'en', 'german-open': 'en', 'german-choose': 'de',
+    'hebrew-open': 'en', 'hebrew-choose': 'he',
+    'cancel-german-open': 'he', 'cancel-german-choose': 'de',
     'cancel-retained': 'he', 'jordan-choice': 'de', 'jordan-casey-choice': 'de',
     'riley-choice': 'he', 'riley-casey-choice': 'he', 'jordan-reentered-choice': 'de',
     'riley-reentered-choice': 'he', 'overlay-choice': 'he', 'relaunched-choice': 'he', 'renewed-choice': 'he'}

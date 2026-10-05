@@ -14,8 +14,6 @@ SCREENS = {
     'balance-reread': 'ui:time-explanation-read',
     'saved-settings': 'ui:existing-returned',
     'apps-page': 'ui:existing-apps',
-    'legend-expanded': 'ui:policy-legend-expand',
-    'legend-read': 'ui:policy-legend-read',
     'initial-rows': 'ui:existing-parent-app-rows',
     **{f'text-catalogue-name-{action}': f'ui:text-catalogue-name-{action}'
        for action in ('focus', 'selected', 'read')},

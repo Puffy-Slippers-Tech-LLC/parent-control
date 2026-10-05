@@ -966,12 +966,12 @@ Case 192 uses `kiosk_about.PLAN`,
 `request_composition.KioskRequestJourney` and `onpc_kiosk_about::run`; case 193 uses
 `command_help.PLAN`. Current executable status belongs in the inventory.
 
-Overlay information uses `journey_blocks.overlay_license_read(links='information')`
+Overlay information uses `journey_blocks.overlay_license_read(links='summary')`
 and `onpc_about::overlay_license` with the same finite binding. The fragment
-enters owned About, reads product/version and legal/contact information,
+enters owned About, reads product/version, license and legal-notices information,
 then closes only About and reads the returned form. The full link-control
-qualification remains shared UI scope. `overlay_license.INFORMATION_PLAN` qualifies independent
-entries; case 191 supplies its own entry, finite choices, capture/return
+qualification remains shared UI scope. Historical `overlay_license.INFORMATION_PLAN`
+qualification retains its original scope; case 191 supplies its own entry, finite choices, capture/return
 endpoints and phases through `KioskRequestJourney.request_checks`.
 
 Case 191 declares `overlay_about.PLAN` and `onpc_parent_about::run_overlay`. Fresh
@@ -987,7 +987,7 @@ return occupy separate recorder phases; no qualification lifecycle is imported.
 Bindings: surface = parent-links / child-overlay / kiosk / command-help.
 
 1. Active request cases 191–192: FLOW16(on,30) → request-entry(surface) → REQUEST03(capture); command-help case 193: V(parent) → qualified desktop. Case 190 has no E2E composition.
-2. Overlay/kiosk ABOUT01(product/version and legal/contact information), within the unfinished request or restricted station. Link-control completeness/clickability belongs to shared UI coverage; no external links are invoked here. Command INFO02(each fixed command/manual).
+2. Overlay ABOUT01(product/version, license and legal notices); kiosk also reads its offered contact information within the restricted station. Link-control completeness/clickability belongs to shared UI coverage; no external links are invoked here. Command INFO02(each fixed command/manual).
 3. UI18(About, only where opened) → REQUEST03 → UI12. No external handler is launched or closed. INFO02 leaves the parent desktop clear.
 
 Kiosk binds FLOW16 to fresh Parent entry with limits initially off, a saved

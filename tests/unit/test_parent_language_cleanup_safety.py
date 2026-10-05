@@ -146,6 +146,29 @@ def test_dialog_public_snapshot_refusals(selected, fault):
     for node in controls: node.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('surface', ['about', 'feedback'])
+@pytest.mark.parametrize('fault', ['', 'owner', 'duplicate', 'stale', 'inactive', 'missing'])
+def test_customer_close_proof_checks_owner_and_active_dialog_without_content(surface, fault):
+    dialog = Node(identity=surface + '-dialog',
+                  states=('showing', 'visible', 'sensitive', 'active'))
+    window = Node(identity='parent-window', children=[dialog])
+    ui = ui_for(window)
+    if fault == 'owner': ui.owner_pids = lambda: {999}
+    if fault == 'duplicate': window.children.append(deepcopy(dialog))
+    if fault == 'stale': dialog.states.add('defunct')
+    if fault == 'inactive': dialog.states.discard('active')
+    if fault == 'missing': window.children.clear()
+    operation = 'parent-dialog-' + surface + '-he-close-ready'
+    if fault:
+        with pytest.raises(public.UiError): ui.run(operation, '1.1')
+    else:
+        result = ui.run(operation, '1.1')
+        assert result == {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
+        assert observer.observe(operation) == result
+    dialog.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', ['', 'extra', 'language', 'draft', 'replay', 'inherited'])
 def test_dialog_decoder_and_real_recorder_step(tmp_path, fault):
     stage = 'hebrew-feedback-first-read'

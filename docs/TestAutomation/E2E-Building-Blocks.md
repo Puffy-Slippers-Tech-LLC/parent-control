@@ -651,6 +651,12 @@ scoped unit/safety/source checks passed. This capability supplies no complete-ca
 
 #### Complete Parent Hebrew history
 
+The completed evidence below describes the original history. Current case 256
+uses one necessary dialog visit per language, saves only the actual Hebrew and
+English changes, and preserves the original policy and draft. Chooser
+reopen/Cancel, keyboard traversal and link-control matrices remain UI or harness
+qualification; they are not repeated customer acceptance requirements.
+
 Task 307 completed E2E-055 `parent-hebrew`, case 256, on Ubuntu 26.04 in
 run `20261005T195414Z-0e17bba7` (subject to runner retention).
 All 15 assertions passed: Jamie's Parent English → Hebrew → English history
@@ -3664,9 +3670,9 @@ completed initial migration. Composition checks alone supply no live credit.
 | --- | --- | --- |
 | [controller_qualification.py](../../tests/e2e/controller_qualification.py), `onpc_flow00::run` | `serial_harness.record_serial_journey` owns the product-free attempt envelope; FLOW00 composes GDM02/09 and HAR05/06/07/08, then HAR10/09 reconcile evidence. | No graphical secret; real serial authentication/command/logout; exactly one logout before fresh graphical return. Preserve all harness/backend safeguards and the existing wire stages. |
 | [parent_discovery.py](../../tests/e2e/parent_discovery.py), [onpc_parent_discovery.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_discovery.pm) | GDM07, SEARCH06, PARENT02/03/04/19, FIX01 in case 3 or FIX02 in case 4 and explicit UI12 comparisons. | Every picker resolves choices by ID, highlights before Enter and verifies selection afterward. Existing child starts limits-off/zero; each child's returned values compare with its own observation. FIX01 stays after visible initial settings; FIX02 stays after launchable search but before launching Parent. |
-| [parent_access.py](../../tests/e2e/parent_access.py), [onpc_parent_access.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_access.pm) | GDM07(standard), SEARCH01 → UI21 → SEARCH03 → SEARCH04(unavailable). | Direct standard-account selection and two fresh intended-recipient checks; semantic focus then independent focus observation; first character then readback, remainder then full readback; exact query-specific web suggestion and complete stable absence; no Enter on it. |
+| [parent_access.py](../../tests/e2e/parent_access.py), [onpc_parent_access.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_access.pm) | GDM07(standard), SEARCH01 → UI21 → SEARCH03 → SEARCH04(unavailable). | Direct standard-account selection and two fresh intended-recipient checks; semantic focus then independent focus observation; one complete query then independent full readback; exact query-specific web suggestion and complete stable absence; no Enter on it. |
 | [parent_terminal.py](../../tests/e2e/parent_terminal.py), [onpc_parent_terminal.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_terminal.pm) | GDM07(standard) → PARENT01(denied) → `onpc_window::close` (UI18). | Direct command once, management denial and exclusion, fresh active-window proof before close, desktop return with management absent. The legacy variant ID remains `terminal`. |
-| [parent_about.py](../../tests/e2e/parent_about.py), [onpc_parent_about.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) | FLOW01(GDM07, direct-command PARENT01), ABOUT01/02/04/03 and explicit settings observation. | Functional GDM goes straight to the intended account and retains two fresh recipient checks. Read owned version/footer, check license link clickability without invocation or destination inspection, close only About and compare child/switch/allowance. |
+| [parent_about.py](../../tests/e2e/parent_about.py), [onpc_parent_about.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) | FLOW01(GDM07, direct-command PARENT01), one product-information read/guarded About close and explicit settings observation. | Functional GDM goes straight to the intended account and retains two fresh recipient checks. Read owned product/version/legal information, close only About and compare child/switch/allowance; link controls belong in UI tests. |
 | [command_help.py](../../tests/e2e/command_help.py), [onpc_command_help.pm](../../tests/integration/graphical_smoke/lib/onpc_command_help.pm) | GDM07(Parent) → four explicit INFO02 bindings → final desktop-clear observation. | Parent/station help and manuals use bounded command stdout with identity/content checks, followed by independent desktop checks. No terminal or arbitrary command API. |
 | [clean_install.py](../../tests/e2e/clean_install.py) | `package_journey.record_package_journey`, `journey_checks`, LIFE04/02 and shared Parent/station blocks. | The recipe declares result-check placement; the envelope stages assets and submits once. Independent completion, account preservation and nonempty Allowed rows must pass before the durable reply. |
 | [kiosk_no_child.py](../../tests/e2e/kiosk_no_child.py), [kiosk_no_approver.py](../../tests/e2e/kiosk_no_approver.py), [disabled_child.py](../../tests/e2e/disabled_child.py) | FIX03 `account_fixture.station_fixture_actions` for the two empty-account cases, `journey_blocks.parent_management` for disabled-child, `station_entry` and shared request operations. | Each empty-account attempt receives a fresh single-use fixture. No-child preparation remains at setup; no-approver preparation remains after its public baseline. Disabled-child never enables limits. |
@@ -3788,6 +3794,16 @@ reconciliation or public-UI routing also require their affected safety/harness
 qualification; do not run the whole future matrix merely for an extraction.
 ## About block contracts
 
+Current customer information journeys use one About visit and preserve the work
+they return to. Case 151 uses `parent-about-information` /
+`AccessibleUI.read_about_information` and `onpc_about::close_information` for
+product/version/legal information and unchanged Parent settings. Case 191 uses
+`overlay_license_read(links='summary')` for that information before returning to
+its captured request. Case 192 keeps the restricted station's offered information
+and lack of external actions. Link availability is UI coverage; case 190 has no
+E2E binding because its remaining installed outcome duplicates 151. The detailed
+link qualifications and historical results below retain their original scope.
+
 Overlay product/version and license clickability use `overlay_license.PLAN` /
 `OverlayLicenseJourney` through `check_e2e_overlay_license`, passed on every
 enabled VM (Ubuntu 26.04) in `20261002T040745Z-84b460dd`.
@@ -3884,7 +3900,7 @@ baseline restoration.
 
 The [recipe](../../tests/e2e/parent_about.py) and
 [worker](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) compose
-FLOW01, ABOUT01, ABOUT02 and ABOUT03. Shared launch stops at `parent-window`
+FLOW01, the product-information read and one guarded About close/return. Shared launch stops at `parent-window`
 before picker input; selection consumes its own fresh opened-list and highlighted
 replies. Setup reattachment stays outside the customer entry block.
 The About blocks live in `onpc_about`; the worker only composes them. All three
@@ -3946,8 +3962,8 @@ Historical viewer passes do not qualify the changed link-only scope.
 The link-only scope passed `check_e2e_license_viewer` in run
 `20260929T220011Z-55987e7f`: owned clickable license control, fresh repeated
 entry, wrong-entry proof refusal, owned footer/About close and unchanged Parent
-settings, with collection, owned cleanup and baseline restoration. The capability
-and case workers share `onpc_about::return_to_parent`; its finite source-stage
+settings, with collection, owned cleanup and baseline restoration. The link capability
+workers share `onpc_about::return_to_parent`; its finite source-stage
 binding accepts the ordinary link read or the qualification's repeated read.
 This qualifies Parent ABOUT02/03, not INFO01's other links or a new complete
 case 151 pass.
@@ -3994,13 +4010,13 @@ activation. Website/privacy/support/license regressions passed in
 Collection, owned cleanup and baseline restoration passed. This qualifies the
 Parent INFO01 binding only.
 
-Complete E2E-042/parent-links case 190 uses `parent_information.PLAN` and
-`onpc_parent_about::run_links`, composing fresh Parent entry, Help, owned About,
+Historical E2E-042/parent-links case 190 used `parent_information.PLAN` and
+`onpc_parent_about::run_links` for fresh Parent entry, Help, owned About,
 all five link readers and About return through the shared operations above.
-The case captures Parent settings before information input and compares the
-returned child, switch and allowance before its terminal reply. Its three
-recorder steps separate capture, information and return; common installed
-journey deadlines apply. Host worker tests cover every stage refusal and
+It captured Parent settings before information input and compared the
+returned child, switch and allowance before its terminal reply. The retained
+plan/worker now serve engineering checks only, with no registered E2E binding;
+case 151 owns the customer information/return result. Host worker tests cover every stage refusal and
 uncertain close without replay; controller tests exercise durable phase gates,
 complete ordered observations and changed/missing settings refusal. Existing
 unit/cleanup classifications remain applicable: private pytest storage,
@@ -4841,8 +4857,8 @@ Viewing cannot authorize input or change scenario acceptance.
    `onpc_journey` prefix. `worker_mode` names the fixed ready-reply branch.
    `phases` maps every stage to a declared recorder step. `advance_after` opens
    the next step before the current reply permits that step's first input.
-   The About plan opens `step-2` at its compatibility `license` link-clickability
-   stage, before reading the footer and closing only About.
+   The About plan opens `step-2` after its `about` product-information result,
+   before the guarded close and unchanged-management observation.
    For settings comparisons, `settings_checks` maps the current stage to an
    immutable `SettingsObservation` expectation or an explicit earlier stage.
    The controller retains sanitized immutable values, compares before fixture

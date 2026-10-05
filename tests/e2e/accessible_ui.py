@@ -111,7 +111,7 @@ OPERATIONS |= PARENT_LANGUAGE_OPERATIONS
 PARENT_DIALOG_BINDINGS = {
     f'parent-dialog-{surface}-{language}-{action}': (surface, language, action)
     for surface in ('about', 'feedback') for language in ('en', 'he')
-    for action in ('open', 'read', 'close', 'closed', 'refused')
+    for action in ('open', 'read', 'close', 'close-ready', 'closed', 'refused')
 }
 PARENT_DIALOG_BINDINGS['parent-dialog-feedback-en-empty'] = ('feedback', 'en', 'empty')
 OPERATIONS |= PARENT_DIALOG_BINDINGS.keys()
@@ -4564,10 +4564,9 @@ class AccessibleUI:
         self.read_label(root, 'about-version', maximum=80, expected=version, language=language)
         self.reveal_id('about-license-value', root=root)
 
-    def parent_dialog_presentation(self, surface, language):
-        """Dialog-owned translated text, independently of LANG01."""
-        require(surface in ('about', 'feedback') and language in ('en', 'he'),
-                'ui:dialog-binding')
+    def parent_dialog_scope(self, surface):
+        """Fresh Parent-owned active dialog proof for reading or keyboard input."""
+        require(surface in ('about', 'feedback'), 'ui:dialog-binding')
         observation = self.read_snapshot()
         nodes, edges, identities, _facts = observation
         application = self.snapshot_matches(PARENT_APPLICATION, nodes, identities=identities)
@@ -4579,6 +4578,13 @@ class AccessibleUI:
         scoped = self.snapshot_scope(nodes, edges, root)
         require(not any(self.has_state(node, self.api.StateType.DEFUNCT) for node in scoped),
                 'ui:dialog-stale')
+        return root, observation
+
+    def parent_dialog_presentation(self, surface, language):
+        """Dialog-owned translated text, independently of LANG01."""
+        require(language in ('en', 'he'), 'ui:dialog-binding')
+        root, observation = self.parent_dialog_scope(surface)
+        nodes, edges, _identities, _facts = observation
         labels = {}
         for identity, expected in PARENT_DIALOG_TEXT[language].items():
             if not identity.startswith(surface + '-'):
@@ -4601,7 +4607,6 @@ class AccessibleUI:
             labels[identity] = expected
         if surface == 'about':
             self.read_label(root, 'about-product', maximum=80)
-            self.clickable_link('about-license-value', root=root)
             require(self.id_target('about-license-value', root=root).get_name()
                     == 'GNU General Public License v3.0', 'ui:dialog-application-name')
         return {'surface': surface, 'language': language, 'labels': labels}
@@ -4620,6 +4625,9 @@ class AccessibleUI:
             return {'refused': True}
         if action == 'closed':
             self.window_closed(surface, 'parent')
+            return {}
+        if action == 'close-ready':
+            self.parent_dialog_scope(surface)
             return {}
         if action in ('open', 'empty'):
             if surface == 'about':

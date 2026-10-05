@@ -3036,9 +3036,9 @@
         "start": [{"id": "start", "operation": "begin", "description": "Begin a fresh independent Parent history at the installed greeter."}],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Observe untouched English and native names, enable Riley's 60-minute allowance and capture policy and the exact mixed-script draft."},
-          {"id": "step-2", "operation": "ui", "description": "Read English management, Preferences and inherited About/feedback text with unchanged draft and policy."},
-          {"id": "step-3", "operation": "ui", "description": "Save Hebrew, reopen Preferences and inherited dialogs, and compare translated public logical text, original draft and policy."},
-          {"id": "step-4", "operation": "ui", "description": "Restore English and independently compare Preferences, inherited dialogs, original draft, names, policy and numeric balances."}
+          {"id": "step-2", "operation": "ui", "description": "Read English management and inherited About/feedback text with unchanged draft and policy."},
+          {"id": "step-3", "operation": "ui", "description": "Save Hebrew, open inherited dialogs, and compare translated public logical text, original draft and policy."},
+          {"id": "step-4", "operation": "ui", "description": "Restore English and independently compare inherited dialogs, original draft, names, policy and numeric balances."}
         ],
         "end": [{"id": "end", "operation": "collect", "description": "Collect the complete public presentation and preservation results."}],
         "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Finish owned worker shutdown, baseline restoration and preservation."}]

@@ -16,7 +16,7 @@ SETUP = {
     'feedback-empty': 'ui:parent-dialog-feedback-en-empty',
     **text_fragment('body-rtl'), **text_fragment('reply-rtl'),
     'draft-captured': 'ui:parent-dialog-feedback-en-read',
-    'draft-close': 'ui:parent-dialog-feedback-en-close',
+    'draft-close': 'ui:parent-dialog-feedback-en-close-ready',
     'draft-closed': 'ui:parent-dialog-feedback-en-closed',
 }
 SCREENS = dict(SETUP)
@@ -35,7 +35,8 @@ for prefix, selected, phase in HISTORY:
     }
     for surface in ('about', 'feedback'):
         section.update({prefix + '-' + surface + '-' + action:
-                        'ui:parent-dialog-' + surface + '-' + selected + '-' + action
+                        'ui:parent-dialog-' + surface + '-' + selected + '-' +
+                        ('close-ready' if action == 'close' else action)
                         for action in ('open', 'close', 'closed')})
         ASSERTIONS[prefix + '-' + surface + '-open'] = prefix + '-' + surface + '-inherited'
     section[prefix + '-final'] = 'ui:parent-language-riley-enabled-' + selected
@@ -78,7 +79,7 @@ for prefix, selected, _phase in HISTORY:
         POLICY_LANGUAGES[prefix + '-state'] = selected
     POLICY_LANGUAGES[prefix + '-final'] = selected
     for surface in ('about', 'feedback'):
-        for action in ('open', 'close'):
+        for action in ('open',):
             check = public_language_value('dialog_presentation', {
                 'surface': surface, 'language': selected, 'labels': DIALOG_LABELS[selected][surface]})
             CHECKS[prefix + '-' + surface + '-' + action] = (
@@ -95,7 +96,6 @@ for stage, selected in POLICY_LANGUAGES.items():
         same=None if stage == 'policy-captured' else 'original-policy', max_elapsed_seconds=600,
         labels=LABELS[selected], absent_labels=LABELS['he' if selected == 'en' else 'en'])
 CHECKS['draft-captured'] = public_language_value('feedback', DRAFT, capture='original-draft')
-CHECKS['draft-close'] = public_language_value('feedback', DRAFT, same='original-draft')
 
 
 def execute(recorder, context):

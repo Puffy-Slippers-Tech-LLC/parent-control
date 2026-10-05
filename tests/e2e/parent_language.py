@@ -175,7 +175,7 @@ class ParentDialogLanguageJourney(ParentLanguageJourney):
         surface, language, action = PARENT_DIALOG_BINDINGS[operation]
         require(language == self.committed, 'dialog:inherited-language')
         ui = observed['ui']
-        if action not in ('closed', 'refused'):
+        if action not in ('closed', 'refused', 'close-ready'):
             require(ui['dialog_presentation']['language'] == self.committed
                     and ui['dialog_presentation']['surface'] == surface, 'dialog:translated-binding')
             if surface == 'feedback' and action != 'empty':

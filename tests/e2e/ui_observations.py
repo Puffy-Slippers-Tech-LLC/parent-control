@@ -1173,7 +1173,7 @@ class UiObservations:
             surface, language, action = accessible_ui.PARENT_DIALOG_BINDINGS[operation]
             if action == 'refused':
                 expected['refused'] = True
-            elif action != 'closed':
+            elif action not in ('closed', 'close-ready'):
                 value = {'surface': surface, 'language': language,
                          'labels': {key: value for key, value in accessible_ui.PARENT_DIALOG_TEXT[language].items()
                                     if key.startswith(surface + '-')}}

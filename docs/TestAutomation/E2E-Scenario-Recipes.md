@@ -1598,7 +1598,9 @@ language value or review images alone cannot pass RTL/bidi/legibility assertions
 If the required public observation is unavailable under the UI mandate, retain
 that specific gate and obtain the missing acceptance decision.
 
-### Personal-language persistence (planned task 306)
+### E2E-054
+
+Personal-language persistence (task 306).
 
 One complete case: Jamie product language `zh-Hans`, Jordan `de`, Riley
 `he`; all three desktop languages and the station remain English. Through
@@ -1623,6 +1625,17 @@ persisted choices, German/CJK/Hebrew translated visible/accessibility text and n
 repeated first-run chooser without downloads. Restore Internet through its
 shared owner and independently read public policy/app values. No other
 scenario's approval or panel rendering is needed to pass this account history.
+
+E2E-054 `account-offline`, case 255, binds this complete history in
+`tests/e2e/language_persistence.py`. Both policy captures use a 2400-second
+monotonic history bound, with two seconds of public refresh/formatter tolerance.
+The overlay retains its independent Casey approver while the station retains
+Jamie. German/Hebrew forms retain Custom `1.25`, 75 seconds and included soft apps.
+The complete history passed all 26 assertions on Ubuntu 26.04 in
+`20261005T162608Z-4a7cb85e`, with all three required language regressions,
+owned cleanup and baseline restoration. The
+[language catalogue](E2E-Building-Blocks.md#personal-language-selection)
+records the shared bindings and retained acceptance reports.
 
 ### Parent language presentation (planned task 307)
 

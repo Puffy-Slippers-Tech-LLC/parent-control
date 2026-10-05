@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **306 — [Personal languages persist across accounts and offline use](E2E-Tasks/306-language-persistence.md)**.
+Next task: **307a — [Qualify installed Hebrew presentation observations](E2E-Tasks/307a-installed-rtl-observations.md)**.
 
 Task 300's complete Chinese latest-install case 254 and both required
 current-install/native-auth regressions passed on Ubuntu 26.04, including
@@ -29,13 +29,17 @@ by the developer's Fedora scope decision; Ubuntu evidence supplies no Fedora
 acceptance.
 
 The [acceptance decomposition](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition)
-retains the independent language histories in tasks 306–310. Task 306a qualified
-Parent's own Chinese language across enabled Riley/Jordan selection and normal
-relaunch, with both required language regressions and cleanup passed on Ubuntu
-26.04. Task 306 composes the complete account/offline persistence scenario.
-Reuse the delivered language-aware Parent observations and 300g–300j bindings;
-do not infer Chinese policy readback from the English-only reader. Leave later presentation, approval,
-panel/countdown and expiry work with its queued owners.
+retains the independent language histories in tasks 306–310. Task 306's complete
+account/offline case 255 and required Parent-isolation, kiosk-restoration and
+overlay-language regressions passed on Ubuntu 26.04, including collection,
+owned cleanup and baseline restoration. The queue and language catalogue retain
+the delivered scope and reports.
+
+Task 307a now qualifies the missing permitted installed Hebrew presentation
+observations. Reuse the delivered language-aware Parent observations and
+300g–300j bindings; do not infer presentation from a saved language, host GTK
+probes or screenshots alone. Leave inherited dialogs, translated approval,
+panel/countdown and expiry work with their queued owners.
 
 ## Current scope
 

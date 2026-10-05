@@ -65,6 +65,17 @@ be completing; every retry reacquires ownership and readiness before the exact
 form readback. Missing results, cancellation and ownership changes remain
 terminal and never replay the input.
 
+Multilingual request-history bindings use `AccessibleUI.language_history_request`
+with explicit child, language, approver and request values. Station operations,
+including Jordan's Custom text input, belong to `KIOSK_SESSION_OPERATIONS`;
+overlay operations retain their child-desktop account. Qualify account routing
+through the standalone observer entry, not only direct calls on a preview reader.
+Both surfaces emit the existing form diagnostics, which `UiObservations.call`
+decodes separately from its single final reply. The
+[history regressions](../unit/test_language_persistence_cleanup_safety.py)
+cover account/environment routing, chunked output and missing, replayed or late
+records without relaxing terminal refusal.
+
 Parent, kiosk and child-overlay entry use
 `AccessibleUI.complete_language_setup` through the parent/request wrappers.
 It resolves the owned startup

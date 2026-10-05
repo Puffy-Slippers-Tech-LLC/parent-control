@@ -369,6 +369,9 @@ RESPONSE_BYTE_LIMITS.update({operation: 32768 for operation in
                            accessible_ui.KIOSK_LANGUAGE_OPERATIONS | set(accessible_ui.KIOSK_LANGUAGE_POLICIES)})
 OPERATION_LABELS.update({operation: 'Reading or changing Riley overlay language through public controls'
                          for operation in accessible_ui.OVERLAY_LANGUAGE_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Preserving the declared multilingual request through public controls'
+                         for operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS})
+RESPONSE_BYTE_LIMITS.update({operation: 32768 for operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS})
 OPERATION_LABELS['overlay-language-policy'] = 'Comparing Riley saved policy in Parent'
 RESPONSE_BYTE_LIMITS.update({operation: 32768 for operation in
                            accessible_ui.OVERLAY_LANGUAGE_OPERATIONS | {'overlay-language-policy'}})
@@ -562,6 +565,18 @@ class RequestObservation:
                 approver_selector_enabled=True, duration_enabled=True,
                 soft_choice_enabled=True, request_enabled=True, cancel_enabled=True,
                 message='', mute=None), 'ui:request')
+            return observation
+        if operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS:
+            overlay, child, _language, approver, action = accessible_ui.LANGUAGE_HISTORY_REQUESTS[operation]
+            if action in ('riley', 'jordan'):
+                child = accessible_ui.CHILD if action == 'riley' else accessible_ui.EXISTING_CHILD
+            require(action in ('form', 'approver', 'riley', 'jordan') and observation == cls(
+                surface='child-overlay' if overlay else 'kiosk', form_count=1,
+                child=accessible_ui.CHILD_IDENTITIES[child],
+                approver=accessible_ui.APPROVER_IDENTITIES[approver], duration_seconds=75,
+                custom_text='1.25', allow_soft=True, child_selector_enabled=not overlay,
+                approver_selector_enabled=True, duration_enabled=True, soft_choice_enabled=True,
+                request_enabled=True, cancel_enabled=True, message='', mute=None), 'ui:request')
             return observation
         enabled = operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS or valid is not None or invalid is not None
         require(enabled or operation in accessible_ui.KIOSK_OPERATIONS
@@ -867,6 +882,7 @@ class UiObservations:
                             or operation in accessible_ui.OVERLAY_VALID_OPERATIONS
                             or operation in accessible_ui.OVERLAY_INVALID_OPERATIONS
                             or operation in accessible_ui.OVERLAY_LANGUAGE_OPERATIONS
+                            or operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS
                             or operation in ('overlay-request-form', 'overlay-panel-reveal-ready'))
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
@@ -1024,7 +1040,8 @@ class UiObservations:
                                  accessible_ui.KIOSK_LANGUAGE_OPERATIONS |
                                  accessible_ui.OVERLAY_LANGUAGE_OPERATIONS |
                                  set(accessible_ui.KIOSK_LANGUAGE_POLICIES) | {'overlay-language-policy'} |
-                                 set(accessible_ui.KIOSK_LANGUAGE_ACCOUNTS) | {'kiosk-language-account-refusals'}):
+                                 set(accessible_ui.KIOSK_LANGUAGE_ACCOUNTS) |
+                                 set(accessible_ui.LANGUAGE_HISTORY_REQUESTS) | {'kiosk-language-account-refusals'}):
                     self.language_failed = True
                 if operation in (accessible_ui.MATE_OPERATIONS | accessible_ui.MATE_APPROVAL_OPERATIONS
                                  | accessible_ui.SHELL_PROMPT_OPERATIONS | accessible_ui.SHELL_APPROVAL_OPERATIONS
@@ -1134,6 +1151,23 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        if operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS:
+            action = accessible_ui.LANGUAGE_HISTORY_REQUESTS[operation][4]
+            if action == 'form':
+                value = result.get('language_form')
+                ids = {'kiosk-child-account-caption', 'kiosk-approver-account-caption',
+                       'kiosk-duration-label-1800', 'kiosk-request-submit', 'kiosk-request-cancel'}
+                require(type(value) is dict and set(value) == {'request', 'texts', 'labels', 'chooser_absent'}
+                    and value['chooser_absent'] is True and type(value['texts']) is dict
+                    and set(value['texts']) == ids and type(value['labels']) is dict
+                    and set(value['labels']) == {'kiosk-request-submit', 'kiosk-request-cancel'}
+                    and all(type(text) is str and 0 < len(text) <= 512 for text in
+                            (*value['texts'].values(), *value['labels'].values())), 'ui:language-form')
+                RequestObservation.from_request(value['request'], operation=operation)
+                expected['language_form'] = value
+            elif action in ('approver', 'riley', 'jordan'):
+                RequestObservation.from_request(result.get('request'), operation=operation)
+                expected['request'] = result['request']
         if operation == 'kiosk-language-account-refusals':
             require(result == {**expected, 'refused': True}, 'ui:language-refusal')
             expected['refused'] = True

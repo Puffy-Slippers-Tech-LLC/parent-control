@@ -39,6 +39,7 @@ APIS = {
     'kiosk_approved_flow': {'approved_request', 'obtain_time', 'chinese_approval'},
     'chinese_current_install': {'current_actions'},
     'chinese_journey': {'chinese_journey'},
+    'language_composition': {'language_journey', 'public_language_value', 'language_policy', 'offline_language_actions'},
     'approval_flow': {'rejected_request'},
     'request_composition': {'KioskRequestJourney'},
     'package_install': {'check_install_result', 'observe_current_install', 'submit_install'},
@@ -74,7 +75,7 @@ APIS = {
 def composition_errors(source, case_modules, apis=APIS):
     """Review all definitions, including renamed callbacks and hidden helpers."""
     tree = ast.parse(source)
-    allowed = {'dict', 'tuple', 'super'}
+    allowed = {'dict', 'tuple', 'zip', 'super'}
     errors = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):

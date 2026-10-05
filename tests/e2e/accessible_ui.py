@@ -275,6 +275,7 @@ TEXT_VALUES = {
        for key, value in KIOSK_INVALID_VALUES.items()},
     'kiosk-fraction': ('kiosk-custom-duration', '1.25'),
     'chinese-kiosk-fraction': ('kiosk-custom-duration', '1.25'),
+    'jordan-kiosk-fraction': ('kiosk-custom-duration', '1.25'),
     'overlay-fraction': ('kiosk-custom-duration', '1.25'),
     'body-first': ('feedback-editor-input', 'Synthetic feedback first'),
     'body-smoke': ('feedback-editor-input', 'Synthetic feedback first\U0001f600'),
@@ -669,6 +670,26 @@ for operation, (binding, child) in tuple(KIOSK_LANGUAGE_BINDINGS.items()):
 KIOSK_LANGUAGE_OPERATIONS = frozenset(KIOSK_LANGUAGE_BINDINGS)
 KIOSK_LANGUAGE_POLICIES = {'kiosk-language-policy': EXISTING_CHILD,
                           'kiosk-riley-language-policy': CHILD}
+# Finite REQUEST03/04 bindings for multilingual request preservation. These
+# compose the same public form/account mechanics with caller-owned values.
+LANGUAGE_HISTORY_REQUESTS = {
+    **{f'language-history-{name}-{language}-{approver}':
+       (False, child, language, parent, 'form')
+       for name, child, language in (('jordan', EXISTING_CHILD, 'en'),
+           ('jordan', EXISTING_CHILD, 'de'), ('riley', CHILD, 'en'), ('riley', CHILD, 'he'))
+       for approver, parent in (('jamie', PARENT), ('casey', OTHER_PARENT))},
+    'language-history-overlay-he-casey': (True, CHILD, 'he', OTHER_PARENT, 'form'),
+    **{f'language-history-{name}-{action}': (False, child, 'en', PARENT, action)
+       for name, child in (('jordan', EXISTING_CHILD), ('riley', CHILD))
+       for action in ('custom-open', 'soft')},
+    **{f'language-history-{name}-{approver}-select': (False, child, language, parent, 'approver')
+       for name, child, language in (('jordan', EXISTING_CHILD, 'de'), ('riley', CHILD, 'he'))
+       for approver, parent in (('jamie', PARENT), ('casey', OTHER_PARENT))},
+    'language-history-jordan-restored': (False, CHILD, 'he', PARENT, 'jordan'),
+    'language-history-riley-restored': (False, EXISTING_CHILD, 'de', PARENT, 'riley'),
+}
+OPERATIONS |= frozenset(LANGUAGE_HISTORY_REQUESTS)
+CHILD_DESKTOP_OPERATIONS |= {'language-history-overlay-he-casey'}
 # Finite REQUEST04 bindings: field, destination, owning child, input/result language.
 KIOSK_LANGUAGE_ACCOUNTS = {
     'kiosk-language-jordan-jamie': ('approver', PARENT, EXISTING_CHILD, 'en', 'en'),
@@ -794,7 +815,7 @@ KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS | KIOSK_CHO
                             | {'kiosk-choice-refusals'})
 KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(KIOSK_INVALID_OPERATIONS) | frozenset(
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
-    if binding.startswith(('kiosk-', 'chinese-kiosk-')))
+    if binding.startswith(('kiosk-', 'chinese-kiosk-', 'jordan-kiosk-')))
 STATION_BRANCH_OPERATIONS = frozenset({'station-entry-branch', 'station-default-entry', 'station-initial-entry'})
 INITIAL_KIOSK_OPERATIONS = frozenset('kiosk-initial-' + suffix for suffix in (
     'notice', 'notice-close', 'notice-return', 'language', 'language-cancel', 'form'))
@@ -806,6 +827,9 @@ OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
 KIOSK_SESSION_OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
 KIOSK_SESSION_OPERATIONS |= (KIOSK_LANGUAGE_OPERATIONS - {'kiosk-language-wrong-entry'}
                              | {'kiosk-language-account-refusals'})
+KIOSK_SESSION_OPERATIONS |= frozenset(
+    operation for operation, (overlay, *_binding) in LANGUAGE_HISTORY_REQUESTS.items()
+    if not overlay)
 KIOSK_RESTRICTION_OPERATIONS = frozenset({
     'kiosk-restriction-ready', 'kiosk-restriction-read',
     'kiosk-restriction-prepared-ready', 'kiosk-restriction-prepared-read',
@@ -2463,13 +2487,15 @@ class AccessibleUI:
                         'save_description': target('language-continue').get_description()}
             return self.wait(read, surface + '-language-chooser', prompt_in_predicate=True)
 
-    def kiosk_language_form(self, language, *, overlay=False, child=EXISTING_CHILD):
+    def kiosk_language_form(self, language, *, overlay=False, child=EXISTING_CHILD,
+                            duration_seconds=1800, custom_text=None):
         """Owned LANG01 text and REQUEST03 projection, without startup input."""
         require(child in (CHILD, EXISTING_CHILD), 'ui:language-child-binding')
         surface = 'overlay' if overlay else 'kiosk'
         with self.language_scope(surface):
             self.language_save_completed(surface)
             request = self.kiosk_request_form(enabled=True, language=language, overlay=overlay,
+                duration_seconds=duration_seconds, custom_text=custom_text,
                 expected_selection=None if overlay else ('child', CHILD_IDENTITIES[child]))
             def read():
                 observation = self.read_snapshot()
@@ -2493,6 +2519,39 @@ class AccessibleUI:
                         labels[identity] = visible[0]
                 return {'request': request, 'texts': texts, 'labels': labels, 'chooser_absent': True}
             return self.wait(read, 'kiosk-language-form', prompt_in_predicate=True)
+
+    def language_history_request(self, operation):
+        require(operation in LANGUAGE_HISTORY_REQUESTS, 'ui:language-history-binding')
+        overlay, child, language, approver, action = LANGUAGE_HISTORY_REQUESTS[operation]
+        try:
+            with self.language_scope('overlay' if overlay else 'kiosk'):
+                self.application_ids = (CHILD_APPLICATION if overlay else KIOSK_APPLICATION,)
+                self.language_save_completed('overlay' if overlay else 'kiosk')
+                if action == 'custom-open':
+                    self._invoke_target(self.kiosk_valid_target('kiosk-duration-custom', child=child))
+                    self.invalidate_observation()
+                    self.wait(lambda: self.kiosk_valid_target('kiosk-custom-duration',
+                        awaiting_custom=True, child=child), 'kiosk-custom-open')
+                    return {}
+                if action == 'soft':
+                    self.kiosk_valid_target('kiosk-soft-apps-toggle', child=child)
+                    self.set_toggle('kiosk-soft-apps-toggle', True,
+                                    root=self.id_target('kiosk-request-form'))
+                    return {}
+                if action in ('approver', 'riley', 'jordan'):
+                    target = approver if action == 'approver' else CHILD if action == 'riley' else EXISTING_CHILD
+                    field = 'approver' if action == 'approver' else 'child'
+                    after = language if field == 'approver' else 'he' if target == CHILD else 'de'
+                    request = self.select_kiosk_account(field, target,
+                        expected=(PARENT, OTHER_PARENT) if field == 'approver' else (CHILD, EXISTING_CHILD),
+                        child=child, language=language, result_language=after,
+                        duration_seconds=75, custom_text='1.25')
+                    return {'request': request}
+                return {'language_form': self.kiosk_language_form(language, overlay=overlay,
+                    child=child, duration_seconds=75, custom_text='1.25')}
+        except BaseException:
+            self.input_uncertain = True
+            raise
 
     def kiosk_language_policy(self, *, child=EXISTING_CHILD):
         """Public English Parent policy; balances are independently observed."""
@@ -4039,7 +4098,7 @@ class AccessibleUI:
             return None
         require(operation in TEXT_OPERATIONS, 'ui:text-operation')
         binding, action = TEXT_OPERATIONS[operation]
-        if binding == 'chinese-kiosk-fraction':
+        if binding in ('chinese-kiosk-fraction', 'jordan-kiosk-fraction'):
             child = EXISTING_CHILD
         identity, _ = TEXT_VALUES[binding]
         if action == 'anchor':
@@ -9907,6 +9966,8 @@ class AccessibleUI:
             self.parent()
         elif operation in PARENT_LANGUAGE_OPERATIONS:
             result.update(self.parent_language_operation(operation))
+        elif operation in LANGUAGE_HISTORY_REQUESTS:
+            result.update(self.language_history_request(operation))
         elif operation in KIOSK_LANGUAGE_OPERATIONS:
             result.update(self.kiosk_language_operation(operation))
         elif operation in OVERLAY_LANGUAGE_OPERATIONS:

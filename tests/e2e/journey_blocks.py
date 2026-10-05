@@ -253,7 +253,7 @@ def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
             and route in ('command', 'panel', 'panel-reopen'), 'journey:overlay-binding')
     require(form_operation in ('overlay-request-form', 'overlay-valid-excluded-read',
                                'overlay-valid-fraction-soft-read', 'overlay-language-initial',
-                               'overlay-language-form-de'),
+                               'overlay-language-form-de', 'language-history-overlay-he-casey'),
             'journey:overlay-form-binding')
     return {
         **({prefix + '-reveal': 'ui:overlay-panel-reveal-ready'} if route == 'panel-reopen' else {}),

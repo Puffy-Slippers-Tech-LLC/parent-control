@@ -2749,6 +2749,270 @@
       ]
     },
     {
+      "id": "E2E-054",
+      "title": "Personal languages persist across accounts and offline use",
+      "category": "customer-journey",
+      "owners": [
+        "personal-language"
+      ],
+      "requirements": [
+        "ONPC-CORE-REQUEST-009",
+        "ONPC-CORE-TIME-008"
+      ],
+      "requirement_gap": null,
+      "contract_refs": [
+        "docs/Specification.md",
+        "docs/SystemDesign/Localization.md",
+        "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-054"
+      ],
+      "components": [
+        "parent",
+        "child",
+        "kiosk",
+        "broker"
+      ],
+      "environment": [
+        "ubuntu26.04"
+      ],
+      "preconditions": [
+        "existing-guarded-vm-lease",
+        "accepted-product-free-baseline",
+        "digest-verified-assets",
+        "isolated-cleanup-safety-prerequisites",
+        "installed-digest-verified-product",
+        "fixture-credentials-via-secret-api",
+        "declared-public-route-and-recipe-data"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "id": "setup",
+            "operation": "provision",
+            "description": "Restore the current installed snapshot and provision the declared fixture credentials."
+          }
+        ],
+        "start": [
+          {
+            "id": "start",
+            "operation": "begin",
+            "description": "Begin a fresh independent account history at the installed greeter."
+          }
+        ],
+        "steps": [
+          {
+            "id": "step-1",
+            "operation": "ui",
+            "description": "Observe untouched English/native names and configure independent Riley/Jordan 60-minute zero-grant policies through Parent."
+          },
+          {
+            "id": "step-2",
+            "operation": "ui",
+            "description": "Confirm Internet isolation, save Jamie Chinese, reread Riley/Jordan/Riley and normally relaunch Parent."
+          },
+          {
+            "id": "step-3",
+            "operation": "ui",
+            "description": "Save Jordan German and Riley Hebrew with 75-second soft-included requests, cancel German, switch children/approvers and freshly re-enter kiosk."
+          },
+          {
+            "id": "step-4",
+            "operation": "ui",
+            "description": "Read Riley shared Hebrew on overlay command entry, normal relaunch and a renewed desktop session with independent approver choice."
+          },
+          {
+            "id": "step-5",
+            "operation": "ui",
+            "description": "Reread Chinese Parent and each unchanged child policy offline, independently restore Internet and reread both policies."
+          }
+        ],
+        "end": [
+          {
+            "id": "end",
+            "operation": "collect",
+            "description": "Collect public comparisons, continuity and outcomes."
+          }
+        ],
+        "cleanup": [
+          {
+            "id": "cleanup",
+            "operation": "outer-reset",
+            "description": "Finish owned worker shutdown, Internet recovery, baseline restoration and preservation."
+          }
+        ]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {
+            "id": "initial-english-native-names",
+            "step_id": "step-1",
+            "description": "initial english native names is independently observed through public results."
+          },
+          {
+            "id": "riley-policy-captured",
+            "step_id": "step-1",
+            "description": "riley policy captured is independently observed through public results."
+          },
+          {
+            "id": "jordan-policy-captured",
+            "step_id": "step-1",
+            "description": "jordan policy captured is independently observed through public results."
+          },
+          {
+            "id": "confirmed-offline",
+            "step_id": "step-2",
+            "description": "confirmed offline is independently observed through public results."
+          },
+          {
+            "id": "chinese-riley",
+            "step_id": "step-2",
+            "description": "chinese riley is independently observed through public results."
+          },
+          {
+            "id": "chinese-jordan",
+            "step_id": "step-2",
+            "description": "chinese jordan is independently observed through public results."
+          },
+          {
+            "id": "chinese-riley-return",
+            "step_id": "step-2",
+            "description": "chinese riley return is independently observed through public results."
+          },
+          {
+            "id": "parent-relaunch-choice",
+            "step_id": "step-2",
+            "description": "parent relaunch choice is independently observed through public results."
+          },
+          {
+            "id": "jordan-request-captured",
+            "step_id": "step-3",
+            "description": "jordan request captured is independently observed through public results."
+          },
+          {
+            "id": "german-form",
+            "step_id": "step-3",
+            "description": "german form is independently observed through public results."
+          },
+          {
+            "id": "riley-request-captured",
+            "step_id": "step-3",
+            "description": "riley request captured is independently observed through public results."
+          },
+          {
+            "id": "hebrew-form",
+            "step_id": "step-3",
+            "description": "hebrew form is independently observed through public results."
+          },
+          {
+            "id": "cancel-preserved-hebrew",
+            "step_id": "step-3",
+            "description": "cancel preserved hebrew is independently observed through public results."
+          },
+          {
+            "id": "jordan-approver-independent",
+            "step_id": "step-3",
+            "description": "jordan approver independent is independently observed through public results."
+          },
+          {
+            "id": "riley-approver-independent",
+            "step_id": "step-3",
+            "description": "riley approver independent is independently observed through public results."
+          },
+          {
+            "id": "german-reentry",
+            "step_id": "step-3",
+            "description": "german reentry is independently observed through public results."
+          },
+          {
+            "id": "hebrew-reentry",
+            "step_id": "step-3",
+            "description": "hebrew reentry is independently observed through public results."
+          },
+          {
+            "id": "overlay-kiosk-sharing",
+            "step_id": "step-4",
+            "description": "overlay kiosk sharing is independently observed through public results."
+          },
+          {
+            "id": "overlay-relaunch",
+            "step_id": "step-4",
+            "description": "overlay relaunch is independently observed through public results."
+          },
+          {
+            "id": "renewed-session-language",
+            "step_id": "step-4",
+            "description": "renewed session language is independently observed through public results."
+          },
+          {
+            "id": "jordan-offline-policy",
+            "step_id": "step-5",
+            "description": "jordan offline policy is independently observed through public results."
+          },
+          {
+            "id": "riley-offline-policy",
+            "step_id": "step-5",
+            "description": "riley offline policy is independently observed through public results."
+          },
+          {
+            "id": "parent-child-independent",
+            "step_id": "step-5",
+            "description": "parent child independent is independently observed through public results."
+          },
+          {
+            "id": "confirmed-online-recovery",
+            "step_id": "step-5",
+            "description": "confirmed online recovery is independently observed through public results."
+          },
+          {
+            "id": "riley-final-policy",
+            "step_id": "step-5",
+            "description": "riley final policy is independently observed through public results."
+          },
+          {
+            "id": "jordan-final-policy",
+            "step_id": "step-5",
+            "description": "jordan final policy is independently observed through public results."
+          }
+        ],
+        "backend": [],
+        "other_user": []
+      },
+      "expected_evidence": [
+        "action-trace",
+        "cleanup",
+        "continuity",
+        "input-provenance",
+        "outcomes",
+        "screen"
+      ],
+      "duration_seconds": 2400,
+      "matrix": {
+        "dimensions": {
+          "history": [
+            "account-offline"
+          ]
+        },
+        "full_combinations": [],
+        "rationale": "One indivisible three-account offline persistence history; presentation, approval and panel work remain separate."
+      },
+      "variants": [
+        {
+          "coverage_id": 255,
+          "id": "account-offline",
+          "owner": "personal-language",
+          "parameters": {
+            "history": "account-offline"
+          },
+          "status": "ready",
+          "pending_reason": null,
+          "executable": {
+            "path": "tests/e2e/language_persistence.py",
+            "test_id": "account-offline"
+          }
+        }
+      ]
+    },
+    {
       "id": "E2E-053",
       "title": "Chinese latest-install kiosk lifecycle",
       "category": "customer-journey",

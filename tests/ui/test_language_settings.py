@@ -399,6 +399,47 @@ def test_kiosk_shared_selector_restores_per_child_language_and_approver_independ
         assert [value for value in updates if value[0] == uid][-1][4] == 1000
 
 
+def test_language_history_nondefault_requests_restore_through_real_gtk(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from accessible_ui import CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
+    from language_persistence import CHECKS
+    from tests.support.gui_blocks import run_block
+
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'kiosk', scenario='installed-language')
+    reader = ui.reader
+    reader.fixture_uids = {EXISTING_CHILD: 1001, CHILD: 1002, PARENT: 1000, OTHER_PARENT: 1010}
+    wait(lambda: ui.showing('language-dialog'), 'untouched Jordan setup')
+    reader.kiosk_language_operation('kiosk-language-save')
+    for child, name, language, binding, owner, stage in (
+            (EXISTING_CHILD, 'jordan', 'de', 'jordan-kiosk-fraction', 'kiosk', 'jordan-german'),
+            (CHILD, 'riley', 'he', 'kiosk-fraction', 'kiosk-riley', 'riley-hebrew')):
+        if child == CHILD:
+            reader.run('kiosk-language-riley-initial', '')
+        reader.language_history_request('language-history-' + name + '-custom-open')
+        run_block(reader, 'replace', binding)
+        reader.language_history_request('language-history-' + name + '-soft')
+        reader.kiosk_language_operation(owner + '-language-open')
+        reader.kiosk_language_operation(owner + '-language-choose-' + language)
+        reader.kiosk_language_operation(owner + '-language-save')
+        value = reader.language_history_request('language-history-' + name + '-' + language + '-jamie')
+        assert value['language_form'] == CHECKS[stage].keywords['expected']
+    for name, language, stage in (('jordan', 'de', 'jordan-casey'), ('riley', 'he', 'riley-casey')):
+        reader.language_history_request('language-history-' + name + '-restored')
+        reader.language_history_request('language-history-' + name + '-casey-select')
+        value = reader.language_history_request('language-history-' + name + '-' + language + '-casey')
+        assert value['language_form'] == CHECKS[stage].keywords['expected']
+        reader.language_history_request('language-history-' + name + '-jamie-select')
+    # The maintained host fixture starts Riley with saved English; unlike the
+    # clean installed journey, selecting Riley requires no first-run Save.
+    assert committed(path) == ['en', 'de', 'he']
+    records = read_events(path)
+    assert not [event for event in records if event.get('method') in ('RequestAccess', 'RequestOwnAccess')]
+    updates = [event['values'] for event in records if event.get('method') == 'UpdateRequestPreferences']
+    for uid in (1001, 1002):
+        assert [value for value in updates if value[0] == uid][-1][1:5] == ['custom', 1.25, True, 1000]
+
+
 def assert_surface_language(ui, wait, surface, language):
     identity = 'parent-screen-limit-toggle' if surface == 'parent' else 'kiosk-request-submit'
     expected = LANGUAGES[language][5 if surface == 'parent' else 6]

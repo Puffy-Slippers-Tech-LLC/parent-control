@@ -329,6 +329,8 @@ from regression_ui import Bucket
 # Perl children; no live account, VM, socket, display or shared mutable cache.
 # Selected-child restoration owns private tree/decoder/recorder fixtures and
 # bounded waited Perl children only; compatible in unit and cleanup inventories.
+# Offline language composition uses private isolation/probe doubles and retained
+# recorder fixtures with waited Perl children; no host network or VM mutations.
 # Continuous package-lifecycle checks own private pytest records, process-local
 # native package/account/UI/clock doubles and bounded waited Perl workers.
 # Permission-denial checks never execute a host fixture; ordered reboot checks
@@ -362,6 +364,7 @@ package_lifecycle_cleanup_safety
 package_purge_cleanup_safety
 system_removal
 parent_language_cleanup_safety
+language_persistence_cleanup_safety
 kiosk_language_cleanup_safety
 kiosk_language_restoration_cleanup_safety
 overlay_language_cleanup_safety

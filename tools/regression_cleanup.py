@@ -112,6 +112,8 @@ from regression_resources import HOST_WORKERS
 # process-local account/session doubles and waited Perl children on the host.
 # Selected-child restoration uses the same private tree/decoder/recorder doubles
 # and bounded waited Perl children, without a new live or cleanup owner.
+# Offline language composition uses private probe/isolation doubles and recorder
+# fixtures; its live recovery reuses the existing lease's Internet journal.
 # package_lifecycle host checks use those same private records, native-package,
 # account/UI/clock doubles and bounded waited Perl workers. No package operation,
 # VM, bus, display, shared cache or new owned process is used. Its cleanup and
@@ -131,6 +133,7 @@ REVIEWED = frozenset('''
 package_lifecycle
 package_purge
 parent_language
+language_persistence
 kiosk_language
 kiosk_language_restoration
 overlay_language

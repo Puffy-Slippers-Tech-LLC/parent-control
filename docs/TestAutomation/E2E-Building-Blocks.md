@@ -509,6 +509,37 @@ restoration, finalization and host/source preservation. Host validation passed
 unchanged. This qualifies only the stated enabled binding, not complete account/
 offline scenarios, Hebrew Parent policy readback or presentation/dialog matrices.
 
+Task 306 completed E2E-054 `account-offline`, case 255, on Ubuntu 26.04 in
+[the retained case report](../../output/test-runs/host/reports/20261005T162608Z-4a7cb85e/report.md).
+All 26 assertions passed: Jamie/Chinese Parent, Jordan/German station and
+Riley/Hebrew station/overlay retain independent choices through offline account
+and approver changes, Cancel, normal relaunches, fresh kiosk entry and a renewed
+child desktop session. Both children's Custom `1.25`, 75-second requests and
+included soft apps persist; each immutable policy/name/app capture is compared
+under the declared elapsed bound before and after independent Internet recovery.
+
+`language_persistence.PLAN` and `onpc_language_persistence::run` own the finite
+history. Shared `language_composition.PublicLanguageJourney` composes language
+readbacks, request comparisons and `InternetIsolation`; offline entry/recovery
+use the public enabled Parent policy bindings. `AccessibleUI.language_history_request`
+supplies guarded public form actions. Station history operations and Jordan's
+text binding use the kiosk session; overlay operations use Riley's child desktop.
+The shared observer preserves diagnostic lines separately from terminal replies.
+
+Required regressions passed with retained exports:
+[Parent language isolation](../../output/test-runs/host/exports/onpc-artifact-export-vjhvornv/report.md)
+(`20261005T155822Z-88a6b7fe`),
+[kiosk language restoration](../../output/test-runs/host/exports/onpc-artifact-export-excxscp1/report.md)
+(`20261005T160451Z-31e5762b`) and
+[overlay language](../../output/test-runs/host/exports/onpc-artifact-export-m_ujmu9c/report.md)
+(`20261005T161240Z-fe4f9c67`). All four acceptance slices passed collection,
+worker shutdown, owned cleanup, baseline restoration, finalization and
+preservation. The retained case run replaces an earlier passing run whose report
+expired under retention. Host validation passed 1,555 unit checks, source and
+the real GTK nondefault-request history check. This completes only the stated
+account/offline history; Hebrew presentation, inherited dialogs, translated
+approval, panel/countdown and expiry acceptance remain with their queued owners.
+
 The remaining personal-language bindings follow the
 [acceptance decomposition](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition).
 This planning allocation qualifies no new route:

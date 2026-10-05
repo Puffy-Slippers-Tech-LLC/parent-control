@@ -506,7 +506,6 @@ class PublicAtspi:
                     raise
                 items = []
             records = {}
-            indices = {}
             embedded_application = None
             if len(items) > LIMIT:
                 raise ValueError('public-atspi:tree-bound')
@@ -514,7 +513,6 @@ class PublicAtspi:
                 if len(item) != 10:
                     # The legacy signature lacks child counts. Read live.
                     records = {}
-                    indices = {}
                     break
                 ref, app, parent, index, count, interfaces, name, role, description, states = item
                 ref, app, parent = map(self.reference, (ref, app, parent))
@@ -532,16 +530,10 @@ class PublicAtspi:
                 if ref in records:
                     raise ValueError('public-atspi:cache-owner:duplicate')
                 records[ref] = (count, name, role, states)
-                indices.setdefault(parent, {}).setdefault(index, []).append(ref)
-            for ref, (count, _name, _role, _states) in records.items():
-                # GetItems can retain a hidden object at the same index as an
-                # as-yet-unrealized replacement. Even contiguous, unique slots
-                # matching ChildCount therefore do not prove the current edges.
-                # Enumerate non-leaves live. Bulk zero counts can establish
-                # leaves only without contradictory cached child records;
-                # GTK's application root count is always read live as well.
-                if ref[1] != ROOT and count == 0 and not indices.get(ref):
-                    self._children[ref] = ()
+            # GetItems can retain old child counts while newly exposed popup
+            # controls have no cache records yet. Even a cached zero cannot
+            # establish a leaf. Enumerate every permitted node's edges through
+            # the live, counted public queries in prepare_nodes()/children().
             self._records[node.bus] = records
         return self._records[node.bus].get((node.bus, node.path))
 

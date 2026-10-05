@@ -189,7 +189,10 @@ notifier is optional in `postrm`, when dependencies may already be absent; see
 [Debian maintainer-script dependency rules](https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html).
 
 Fedora's final RPM erase records the product-owned runtime reboot request for
-ordinary removal and explicit purge. The packaged purge command repeats the
+ordinary removal and explicit purge. Ordinary removal prints the reminder as
+the final nonempty product `%postun` line; DNF's own output may follow it under
+the [Fedora output contract](../Fedora-Packaging.md#fedora-lifecycle).
+The packaged purge command repeats the
 same reminder after DNF finishes and the purge postconditions pass, so native
 transaction progress does not bury it. A later standalone saved-data cleanup
 does not recreate the request after reboot.

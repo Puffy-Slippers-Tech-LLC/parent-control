@@ -4019,6 +4019,14 @@ product-free entry and FIX04 transfer. The shared leaves are in
   bounded to 1 MiB with a 660-second command deadline; raw diagnostics remain
   private and shared evidence contains only the matched public lines.
 
+Fedora's current-package bindings use the
+[native output contract](../Fedora-Packaging.md#fedora-lifecycle): the exact
+verified package's completed `%posttrans` or `%postun` scriptlet must end with
+the literal reboot notice, ignoring trailing empty scriptlet lines. DNF framing
+and its later transaction messages may follow. Exit status and independent
+installed-version/absence checks remain required. Packaged purge reads its own
+completion and reminder after DNF returns.
+
 The live slice proved greeter refusal, independent valid administrator entry,
 unregistered-command/wrong-artifact/wrong-VM/wrong-attempt/replay refusals,
 successful command completion and the final reboot notice. Capture

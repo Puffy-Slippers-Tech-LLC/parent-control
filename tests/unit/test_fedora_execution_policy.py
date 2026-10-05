@@ -24,7 +24,7 @@ def policy_machine(tmp_path, monkeypatch):
     monkeypatch.setattr(module, 'OWNER', os.getuid())
     policy = module.Policy(tmp_path)
     settings = dict(installed=True, active=False, enabled=False, reason='Dependency', unchanged=True,
-                    service_error=False)
+                    service_error=False, system_repo_locked=False)
     commands, manifest = [], []
     group = grp.getgrgid(os.getgid()).gr_name
 
@@ -73,7 +73,11 @@ def policy_machine(tmp_path, monkeypatch):
                                    '\nUnitFileState=' + ('enabled' if settings['enabled'] else
                                                          'disabled' if settings['installed'] else '') + '\n')
         if arguments[0] == 'dnf5':
-            assert '--installed' in arguments and '--cacheonly' in arguments and '--disable-repo=*' in arguments
+            if settings['system_repo_locked'] and '--setopt=skip_system_repo_lock=true' not in arguments:
+                raise subprocess.TimeoutExpired(arguments, 30)
+            assert arguments == ['dnf5', '--quiet', '--cacheonly', '--disable-repo=*',
+                                 '--setopt=skip_system_repo_lock=true', 'repoquery', '--installed',
+                                 '--queryformat', '%{name}|%{reason}', 'fapolicyd']
             return SimpleNamespace(returncode=0, stdout='fapolicyd|' + settings['reason'])
         if arguments[0] == 'rpm':
             assert arguments[-1] == 'fapolicyd'
@@ -123,6 +127,23 @@ def test_new_dependency_remove_purge_reinstall_uses_committed_reason_without_res
     assert policy.record()['basis'] == 'dependency' and not policy.record()['permissive']
     assert any(command[0] == 'dnf5' for command in machine.commands)
     assert policy.eligible()
+
+
+@pytest.mark.parametrize('custom_policy', [False, True])
+def test_pretrans_queries_retained_dependency_under_outer_transaction_lock(
+        policy_machine, custom_policy):
+    machine = policy_machine
+    machine.settings['system_repo_locked'] = True
+    if custom_policy:
+        machine.write('/etc/fapolicyd/rules.d/10-administrator.rules', 'administrator policy\n')
+    machine.policy.capture()
+    assert machine.policy.record()['basis'] == ('preserve' if custom_policy else 'dependency')
+    assert machine.policy.eligible() is not custom_policy
+    unlocked = [command for command in machine.commands
+                if '--setopt=skip_system_repo_lock=true' in command]
+    assert unlocked == [['dnf5', '--quiet', '--cacheonly', '--disable-repo=*',
+                         '--setopt=skip_system_repo_lock=true', 'repoquery', '--installed',
+                         '--queryformat', '%{name}|%{reason}', 'fapolicyd']]
 
 
 @pytest.mark.parametrize('reason', ['Dependency', 'Weak Dependency', 'User', 'Group', 'External User', 'None', ''])

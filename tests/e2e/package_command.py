@@ -33,6 +33,28 @@ PURGE_COMPLETE = 'oh-no-parent-control: saved-state purge outcome=accepted'
 BINDINGS = (BINDING, OLD_INSTALL, UPGRADE, *LIFECYCLE)
 
 
+def rpm_scriptlet_output(lines, package, binding):
+    """Read the exact product callback, excluding DNF's framing and footer."""
+    scriptlet = '%postun' if binding == REMOVE else '%posttrans'
+    identity = package['name'] + '-' + package['version'] + '.' + package['architecture']
+    label = scriptlet + ' scriptlet: ' + identity
+    started, finished = '>>> Running ' + label, '>>> Finished ' + label
+    require(lines.count(started) == lines.count(finished) == 1, 'package:scriptlet-output')
+    end = lines.index(finished)
+    require(lines.index(started) < end and lines[end + 1:end + 2] == ['>>> Scriptlet output:'],
+            'package:scriptlet-output')
+    output = []
+    for line in lines[end + 2:]:
+        if not line.startswith('>>> ') or line.startswith((
+                '>>> Running ', '>>> Finished ', '>>> Scriptlet output:')):
+            break
+        output.append(line[4:])
+    while output and not output[-1].strip():
+        output.pop()
+    require(output, 'package:scriptlet-output')
+    return output
+
+
 def guest_phase(binding, packages):
     """Finite public dpkg entry; no private product state or reboot guard."""
     import hashlib
@@ -334,6 +356,8 @@ class PackageCommand:
         text = raw.decode('utf-8', errors='strict')
         text = re.sub(r'\x1b\[[0-9;]*m', '', text)
         lines = text.splitlines()
+        if 'package.rpm' in self.verified.asset_files and self.binding != PURGE:
+            lines = rpm_scriptlet_output(lines, self.package_identities()['current'], self.binding)
         removing = self.binding in (REMOVE, PURGE)
         if removing:
             require((lines[-1] == REMOVAL_NOTICE if self.binding == REMOVE else

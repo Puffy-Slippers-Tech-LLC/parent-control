@@ -978,6 +978,47 @@ def test_allowance_failure_diagnostic_preserves_original_failure(monkeypatch):
     assert accessible_ui.allowance_failure_diagnostic()['screensaver_active'] is None
 
 
+@pytest.mark.parametrize('fault', ['', 'clipped', 'missing', 'query'])
+def test_allowance_failure_diagnostic_excludes_text_and_preserves_query_failure(monkeypatch, fault):
+    monkeypatch.setattr(accessible_ui.subprocess, 'run',
+                        Mock(return_value=SimpleNamespace(stdout='(false,)')))
+    choice = Node('private label', identity='parent-daily-limit-custom',
+                  states=('visible', 'sensitive') if fault == 'clipped'
+                  else ('visible', 'showing', 'sensitive'))
+    ui = ui_for(Node(identity='parent-window', children=[] if fault == 'missing' else [choice]))
+    if fault == 'query': ui.read_snapshot = Mock(side_effect=RuntimeError('private query text'))
+    result = accessible_ui.allowance_failure_diagnostic(ui)
+    if fault == 'query':
+        assert result['controls'] is None
+    else:
+        assert result['controls']['parent-daily-limit-selector'] is None
+        assert result['controls']['parent-custom-daily-limit'] is None
+        assert result['controls']['parent-daily-limit-custom'] == (None if fault == 'missing'
+            else {'visible': True, 'showing': fault != 'clipped', 'sensitive': True})
+        assert result['present'] == {'parent-daily-limit-selector': 0,
+            'parent-custom-daily-limit': 0,
+            'parent-daily-limit-custom': 0 if fault == 'missing' else 1}
+    assert 'private' not in json.dumps(result)
+
+
+def test_allowance_failure_diagnostic_reports_only_known_callback_frames(monkeypatch):
+    journal = ('  File "/usr/lib/oh-no-parent-control/parent/oh_no_parent_control_parent/main.py", '
+               'line 170, in do_measure\n'
+               'TypeError: private details\n'
+               '  File "/private/other.py", line 20, in secret\n')
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', Mock(side_effect=[
+        SimpleNamespace(stdout='(false,)'), SimpleNamespace(stdout=journal)]))
+    selector = Node(identity='parent-daily-limit-selector',
+                    states=('visible', 'showing', 'sensitive', 'expanded'))
+    ui = ui_for(Node(identity='parent-window', children=[selector]))
+    ui.api.StateType.EXPANDED = 'expanded'
+    result = accessible_ui.allowance_failure_diagnostic(ui)
+    assert result['expanded'] is True
+    assert result['callback_frames'] == [{'line': 170, 'function': 'do_measure'}]
+    assert result['exception_types'] == ['TypeError']
+    assert 'private' not in json.dumps(result)
+
+
 @pytest.mark.parametrize('disabled', [False, True])
 def test_allowance_refuses_wrong_child_and_disabled_before_input(disabled):
     ui, *_ = parent_save_ui(enabled=not disabled)

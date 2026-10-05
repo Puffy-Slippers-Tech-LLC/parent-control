@@ -131,7 +131,12 @@ was an inactive, disabled, unchanged stock dependency. The latter classification
 uses DNF5's committed installed-package reason (`Dependency` or `Weak Dependency`),
 RPM file digests/ownership/modes, the shipped known-libs sample inventory and
 `fagenrules --check`; unknown status, administrator changes and user-installed
-packages preserve their existing policy. No DNF database or stock rule is edited.
+packages preserve their existing policy. The fixed installed-package reason
+query disables remote repositories and uses cache-only mode with
+[`skip_system_repo_lock=true`](https://dnf5.readthedocs.io/en/latest/dnf5.conf.5.html#main-options)
+because its enclosing DNF transaction already holds the system-repository write
+lock. This read-only query reads the prior committed state; native transaction
+locks and every stock-policy check still apply. No DNF database or stock rule is edited.
 The private root-owned receipt is retained through interrupted cleanup and
 removed after successful removal, so purge retains no product provenance.
 Reinstall recognizes a retained stock dependency through native package metadata.
@@ -186,6 +191,15 @@ reminder after DNF and successful purge verification. A later standalone
 saved-data cleanup preserves an outstanding request without recreating one
 after reboot. Fedora needs no Ubuntu update-notifier dependency.
 Reminders never reboot or log users out.
+
+DNF5 wraps RPM scriptlet output with `>>> ` and can print its own warnings or
+transaction summary afterward, even with `--quiet`. Installation requires the
+exact completion message and the reboot notice as the final nonempty line of
+the product's `%posttrans` output. Ordinary removal uses the same boundary in
+`%postun`. Native DNF output may follow either notice. The packaged purge command
+prints its final reminder after DNF returns and its own verification succeeds.
+The [E2E package reader](../tests/e2e/package_command.py) binds scriptlet output
+to the verified package identity and retains independent exit/version checks.
 
 Fedora's package trust filter permits `.js` but excludes `.mjs` under `/usr/share`,
 while fapolicyd classifies the child ES modules as JavaScript and its language

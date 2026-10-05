@@ -170,6 +170,9 @@ requested a reboot, the helper then prints
 output: bold red on a capable terminal, and plain text when stderr is not a
 terminal or `TERM` is dumb. The packaged dpkg hook defers that output until
 configuration and triggers finish so later APT/dpkg lines cannot follow it.
+For Fedora, this is the final nonempty product-scriptlet line; DNF's framing
+and transaction messages may follow it, as described in the
+[Fedora output contract](../Fedora-Packaging.md#fedora-lifecycle).
 
 Every broker entry uses the shared
 [product reboot detector](../../common/oh_no_parent_control_ui/reboot.py) before

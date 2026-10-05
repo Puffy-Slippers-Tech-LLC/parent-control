@@ -30,10 +30,11 @@ input, retry, client reset or the outer operation's return. State guards still
 query the live control, and partial trees never seed reusable observations.
 Both routes use [public_atspi.py](public_atspi.py) on the public accessibility
 D-Bus. Each traversal requests fresh bulk structural facts with `Cache.GetItems`;
-unsupported or legacy caches use live queries. Non-leaf children always use
-counted live enumeration: GTK can retain a hidden cache object at the same index
-as an unrealized replacement, even with apparently complete slots. Only
-uncontradicted bulk zero counts establish leaves; application roots stay live.
+unsupported or legacy caches use live queries. Children always use counted live
+enumeration: GTK can retain a hidden cache object at the same index as an
+unrealized replacement, or report zero children before a popup's controls enter
+the cache. Neither apparently complete slots nor cached zero counts establish
+the current edges.
 Fresh identity and child queries for up to 32 already discovered nodes are
 pipelined through Gio's public asynchronous D-Bus API, with at most 64 calls
 outstanding. A private main context drains the replies without dispatching
@@ -474,8 +475,12 @@ Workstation 44 targets; they do not extend recorded Ubuntu acceptance to Fedora.
 The current-package installation boundary selects DEB/APT or RPM/DNF from
 verified guest metadata, uses the platform administrator group and public
 package queries, and requires the real completion and final reboot notice.
-RPM uses DNF's documented quiet mode and independently verifies the installed
-epoch/version/release and architecture. Live Fedora qualification remains a
+RPM uses DNF's documented quiet mode, reads the exact verified package's
+`%posttrans` output, and independently verifies the installed epoch/version/release
+and architecture. The notice must be the final nonempty product-scriptlet line;
+DNF's `>>> ` framing and later transaction messages follow the
+[Fedora output contract](../../docs/Fedora-Packaging.md#fedora-lifecycle).
+Live Fedora qualification remains a
 separate acceptance step. The genuine historical v1.2 upgrade bundle and the
 legacy sudo-rs terminal qualification retain their Ubuntu-only scope.
 
@@ -485,7 +490,8 @@ platforms. [PackageLifecycleJourney](package_lifecycle.py) freezes those five
 operations, requires adjacent submitted/result receipts and exact native package
 identity before each transaction, and independently checks identity, personal
 accounts/settings and boot/session continuity afterward. Removal and installation
-retain their literal final reboot-notice assertions. Purge invokes the installed
+retain their literal final reboot-notice assertions, using the product `%postun`
+or `%posttrans` output on Fedora. Purge invokes the installed
 `/usr/bin/oh-no-parent-control-purge --yes` action and requires its real accepted
 outcome, removal notice and package absence. Uncertain input is retained and never
 replayed. Five declared customer reboot transitions require every predecessor's

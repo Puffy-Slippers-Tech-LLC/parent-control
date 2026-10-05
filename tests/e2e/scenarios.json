@@ -95,7 +95,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "installation-notice", "step_id": "step-1", "description": "Installation displays *** REBOOT REQUIRED: reboot before using the kiosk session. *** as its last printed output. The notice must be readable; color does not determine acceptance."},
+          {"id": "installation-notice", "step_id": "step-1", "description": "Installation displays *** REBOOT REQUIRED: reboot before using the kiosk session. *** as its last printed output; on Fedora it is the final nonempty product-scriptlet line and DNF's own messages may follow. The notice must be readable; color does not determine acceptance."},
           {"id": "visible-result", "step_id": "step-3", "description": "Installation completes with a readable notice. After restart, Parent shows initial limits off, zero daily allowance and no app blocks; the request station opens and exits normally."}
         ],
         "backend": [],
@@ -1524,8 +1524,8 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "installation-notice", "step_id": "step-1", "description": "Installation displays *** REBOOT REQUIRED: reboot before using the kiosk session. *** as its last printed output. The notice must be readable; color does not determine acceptance."},
-          {"id": "removal-notice", "step_id": "step-3", "description": "Removal displays *** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. *** as its last printed output, leaving the user able to choose when to restart."},
+          {"id": "installation-notice", "step_id": "step-1", "description": "Installation displays *** REBOOT REQUIRED: reboot before using the kiosk session. *** as its last printed output; on Fedora it is the final nonempty product-scriptlet line and DNF's own messages may follow. The notice must be readable; color does not determine acceptance."},
+          {"id": "removal-notice", "step_id": "step-3", "description": "Removal displays *** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. *** as its last printed output; on Fedora it is the final nonempty product-scriptlet line and DNF's own messages may follow. The user can choose when to restart."},
           {"id": "visible-result", "step_id": "step-4", "description": "Removal restores ordinary child access. Reinstall retains choices without recreating a grant; restrictions can be reapplied. Reinstall after purge shows fresh product defaults."}
         ],
         "backend": [],

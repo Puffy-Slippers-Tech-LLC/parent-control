@@ -245,7 +245,11 @@ class Policy:
             elif installed.returncode == 0 and installed.stdout == 'fapolicyd' and service['LoadState'] == 'loaded':
                 # Read existing committed DNF metadata in pretrans. New reasons
                 # are committed only after RPM posttrans has finished.
+                # The outer DNF transaction already owns the system repository
+                # write lock. This fixed read-only query must not wait for its
+                # caller; keep native transaction locking and stock validation.
                 reason = self.run(['dnf5', '--quiet', '--cacheonly', '--disable-repo=*',
+                                   '--setopt=skip_system_repo_lock=true',
                                    'repoquery', '--installed', '--queryformat', '%{name}|%{reason}',
                                    'fapolicyd'])
                 classification = 'reason-query-failed' if reason.returncode else 'reason-not-dependency'

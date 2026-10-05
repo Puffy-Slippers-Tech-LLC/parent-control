@@ -639,14 +639,16 @@ def test_incomplete_bulk_edges_fall_back_to_counted_live_children(fault):
                for call in rpc.call_args_list)
 
 
-def test_matching_bulk_slots_cannot_hide_a_lazy_replacement_child():
+@pytest.mark.parametrize('cached_child', [False, True])
+def test_matching_bulk_slots_cannot_hide_a_lazy_replacement_child(cached_child):
     api, items, rpc, _app, button = fixture_bus()
     old = (button.bus, '/old-child')
     new = (button.bus, '/replacement')
-    items[1][4] = 1
+    items[1][4] = int(cached_child)
     # GTK can retain the now-hidden child at index zero while the replacement
     # has no cache record yet. Its cached states need not expose that hiding.
-    items.append([old, items[0][0], items[1][0], 0, 0, [], 'Old', 2, '', [0, 0]])
+    if cached_child:
+        items.append([old, items[0][0], items[1][0], 0, 0, [], 'Old', 2, '', [0, 0]])
     original = rpc.side_effect
     def call(*args):
         if args[1] == '/button':

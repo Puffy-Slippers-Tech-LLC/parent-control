@@ -175,11 +175,15 @@ def test_guest_source_is_complete_and_uses_shared_reader():
 def test_fedora_completion_also_requires_independent_exact_installed_identity(monkeypatch, fault):
     item = boundary(monkeypatch)
     item.verified.asset_files = {'package.rpm': DIGEST}
-    item.receipt = ((command.COMPLETE + '\n' + command.NOTICE + '\n').encode(), 0)
+    item.receipt = (('>>> Running %posttrans scriptlet: oh-no-parent-control-0:1.3-1.fc44.x86_64\n'
+        '>>> Finished %posttrans scriptlet: oh-no-parent-control-0:1.3-1.fc44.x86_64\n'
+        '>>> Scriptlet output:\n>>> ' + command.COMPLETE + '\n>>> ' + command.NOTICE + '\n>>> \n'
+        'Warning: skipped OpenPGP checks for 1 package from repository: @commandline\n').encode(), 0)
     item.binding = command.BINDING
     item.read_identity = Mock(return_value={'version': 'wrong' if fault == 'version' else '0:1.3-1.fc44'},
         side_effect=EvidenceError('package:command-failed') if fault == 'query' else None)
-    item.package_identities = Mock(return_value={'current': {'version': '0:1.3-1.fc44'}})
+    item.package_identities = Mock(return_value={'current': {'name': 'oh-no-parent-control',
+        'version': '0:1.3-1.fc44', 'architecture': 'x86_64'}})
     if fault:
         with pytest.raises(EvidenceError):
             item.read_result()

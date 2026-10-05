@@ -10608,7 +10608,7 @@ def observation_environment(account, operation):
     return session_environment(account)
 
 
-def allowance_failure_diagnostic():
+def allowance_failure_diagnostic(ui=None):
     """Distinguish desktop idle blanking from a missing preset, without UI text."""
     active = None
     try:
@@ -10620,7 +10620,46 @@ def allowance_failure_diagnostic():
         active = {'(true,)': True, '(false,)': False}.get(result.stdout.strip())
     except (OSError, subprocess.SubprocessError):
         pass
-    return {'event': 'allowance-failure-diagnostic', 'screensaver_active': active}
+    diagnostic = {'event': 'allowance-failure-diagnostic', 'screensaver_active': active}
+    if ui is not None:
+        try:
+            observation = ui.read_snapshot()
+            controls = {}
+            present = {}
+            for identity in ('parent-daily-limit-selector', 'parent-daily-limit-custom',
+                             'parent-custom-daily-limit'):
+                present[identity] = sum(value == identity for value in observation[2].values())
+                node = ui.snapshot_owned_target(identity, showing=False, observation=observation)
+                controls[identity] = None if node is None else {
+                    key: ui.has_state(node, getattr(ui.api.StateType, key.upper()))
+                    for key in ('visible', 'showing', 'sensitive')}
+            diagnostic['controls'] = controls
+            diagnostic['present'] = present
+            selector = ui.snapshot_owned_target('parent-daily-limit-selector',
+                showing=False, observation=observation)
+            diagnostic['expanded'] = (None if selector is None else
+                ui.has_state(selector, ui.api.StateType.EXPANDED))
+        except Exception:
+            # Evidence availability must not change the original refusal.
+            diagnostic['controls'] = None
+        try:
+            # Read only bounded session diagnostics. Publish known callback
+            # frame locations and exception types, never journal messages.
+            result = subprocess.run([
+                '/usr/bin/journalctl', '--user', '--boot', '--since=-5min',
+                '--lines=200', '--output=cat', '--no-pager'],
+                stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True, timeout=10)
+            diagnostic['callback_frames'] = [
+                {'line': int(line), 'function': function}
+                for line, function in re.findall(
+                    r'File "[^"\n]*/oh_no_parent_control_parent/main\.py", line ([0-9]+), in (prepare|do_measure)\b',
+                    result.stdout)]
+            diagnostic['exception_types'] = re.findall(
+                r'^(TypeError|ValueError|RuntimeError|AttributeError|RecursionError):',
+                result.stdout, re.MULTILINE)
+        except (OSError, subprocess.SubprocessError):
+            diagnostic['callback_frames'] = None
+    return diagnostic
 
 
 def main():
@@ -10698,8 +10737,8 @@ def main():
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)
     except UiError:
-        if sys.argv[1] in ALLOWANCE_OPERATIONS:
-            print(json.dumps(allowance_failure_diagnostic(), sort_keys=True),
+        if sys.argv[1] in ALLOWANCE_OPERATIONS or sys.argv[1] in CUSTOM_ALLOWANCE_OPERATIONS:
+            print(json.dumps(allowance_failure_diagnostic(ui), sort_keys=True),
                   file=sys.stderr, flush=True)
         if sys.argv[1] in STANDARD_OPERATIONS:
             try:

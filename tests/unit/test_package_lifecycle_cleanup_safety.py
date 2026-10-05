@@ -100,6 +100,65 @@ def test_finite_command_refuses_wrong_phase_and_independent_failure(monkeypatch,
         assert item.transport.call.call_count == 1
 
 
+@pytest.mark.parametrize('binding', [command.BINDING, command.REMOVE,
+                                     command.REINSTALL, command.FRESH_INSTALL])
+@pytest.mark.parametrize('fault', ['', 'missing-completion', 'missing-notice', 'trailing-product',
+    'wrong-package', 'wrong-version', 'wrong-scriptlet', 'unfinished', 'duplicate',
+    'unframed', 'foreign-output', 'status', 'installed-version'])
+def test_fedora_reads_exact_product_scriptlet_before_dnf_footer(monkeypatch, binding, fault):
+    item = boundary(monkeypatch)
+    item.verified.asset_files = {'package.rpm': DIGEST}
+    package = {'name': 'oh-no-parent-control', 'version': '0:1.3-0.1.dev.fc44',
+               'architecture': 'x86_64', 'sha256': DIGEST}
+    item.package_identities = Mock(return_value={'current': package})
+    removing = binding == command.REMOVE
+    item.read_identity = Mock(return_value=identity('wrong' if fault == 'installed-version'
+        else None if removing else package['version']))
+    scriptlet = '%postun' if removing else '%posttrans'
+    label = scriptlet + ' scriptlet: oh-no-parent-control-0:1.3-0.1.dev.fc44.x86_64'
+    if fault == 'wrong-package': label = label.replace('oh-no-parent-control-', 'another-package-')
+    if fault == 'wrong-version': label = label.replace('1.3-', '1.2-')
+    if fault == 'wrong-scriptlet': label = label.replace(scriptlet, '%pretrans')
+    notice = command.REMOVAL_NOTICE if removing else command.NOTICE
+    output = ([] if removing else [command.COMPLETE]) + [notice]
+    if fault == 'missing-completion' and not removing: output.remove(command.COMPLETE)
+    if fault == 'missing-notice': output.remove(notice)
+    if fault == 'trailing-product': output.append('later product diagnostic')
+    lines = ['Transaction Summary:', ' Installing: 1 package',
+             '>>> Running ' + label, '>>> Finished ' + label, '>>> Scriptlet output:',
+             *('>>> ' + line for line in output), '>>> ',
+             'Warning: skipped OpenPGP checks for 1 package from repository: @commandline']
+    if fault == 'unfinished': lines.remove('>>> Finished ' + label)
+    if fault == 'duplicate': lines += lines[2:]
+    if fault == 'unframed': lines = output
+    if fault == 'foreign-output':
+        # Another package's valid-looking messages cannot complete our callback.
+        lines = lines[:5] + ['>>> unrelated product output', '>>> Running %posttrans scriptlet: other-1.x86_64',
+            '>>> Finished %posttrans scriptlet: other-1.x86_64', '>>> Scriptlet output:',
+            *('>>> ' + line for line in output), '>>> ']
+    item.binding = binding
+    item.receipt = (('\n'.join(lines) + '\n').encode(), 1 if fault == 'status' else 0)
+    failing = fault and not (fault == 'missing-completion' and removing)
+    if failing:
+        with pytest.raises(EvidenceError): item.read_result()
+    else:
+        result = item.read_result()
+        assert result['notice'] == notice
+        assert result['completion'] == (None if removing else command.COMPLETE)
+        item.read_identity.assert_called_once()
+
+
+def test_fedora_purge_reads_packaged_command_final_notice(monkeypatch):
+    item = boundary(monkeypatch)
+    item.verified.asset_files = {'package.rpm': DIGEST}
+    item.binding = command.PURGE
+    item.read_identity = Mock(return_value=identity(None))
+    item.receipt = (('DNF transaction progress\n' + command.PURGE_COMPLETE + '\n' +
+                     command.REMOVAL_NOTICE + '\n').encode(), 0)
+    assert item.read_result()['completion'] == command.PURGE_COMPLETE
+    item.read_identity.assert_called_once()
+
+
 @pytest.mark.parametrize('binding', lifecycle.HISTORY)
 @pytest.mark.parametrize('fault', ['', 'personal-account', 'files', 'boot', 'session', 'unstable', 'version'])
 def test_receipt_requires_personal_preservation_and_same_activation_boundary(monkeypatch, binding, fault):

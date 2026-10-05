@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import os
+from pathlib import Path
 import subprocess
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -39,6 +40,42 @@ def test_profile_independently_reads_locale_native_messages_and_glyphs_without_w
     assert all(call.args[0] == assets.LOCALE_COMMAND or os_id == 'fedora' and
                call.args[0] in [assets.RPM_LIST_COMMAND, *map(assets.rpm_file_command, assets.FEDORA_PACKAGES)]
                for call in g.command.call_args_list)
+
+
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+@pytest.mark.parametrize('change', ['atime', 'content', 'st_mtime_sec', 'st_mtime_nsec',
+                                  'st_ctime_sec', 'st_ctime_nsec', 'st_ino', 'st_uid',
+                                  'parent-ctime', 'parent-inode'])
+def test_guestfs_read_access_times_do_not_mask_real_changes(change, os_id):
+    g, files, metadata = guest(os_id)
+    target = assets.LOCALE_PATH
+    metadata[target].update(st_dev=1, st_ino=42, st_size=len(files[target]),
+                            st_mtime_sec=1, st_mtime_nsec=2, st_ctime_sec=3, st_ctime_nsec=4)
+    metadata['/usr/lib/locale'].update(st_ino=41, st_ctime_nsec=5)
+    original = g.read_file.side_effect
+    def read(path):
+        value = original(path)
+        # Model libguestfs' full metadata: a read may update access timestamps
+        # of the file and traversed directories without changing their identity.
+        for name in (path, *map(str, Path(path).parents)):
+            metadata[name]['st_atime_sec'] = metadata[name].get('st_atime_sec', 0) + 1
+            metadata[name]['st_atime_nsec'] = 6
+        if path == target:
+            if change == 'content':
+                return value.replace(b'Chinese', b'Changed')
+            if change.startswith('parent-'):
+                key = 'st_ctime_nsec' if change == 'parent-ctime' else 'st_ino'
+                metadata['/usr/lib/locale'][key] += 1
+            elif change != 'atime':
+                metadata[target][change] += 1
+        return value
+    g.read_file.side_effect = read
+    if change == 'atime':
+        assert assets.verify(g)['runtime_locale'] == 'UTF-8'
+    else:
+        with pytest.raises(ValueError, match='chinese-(changed|package-bytes)'):
+            assets.verify(g)
+    g.write.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['', 'changed', 'added', 'link', 'directory-link', 'fifo',

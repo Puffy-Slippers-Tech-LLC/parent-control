@@ -82,7 +82,7 @@ class PackageLifecycleJourney(InstalledJourney):
         # Product-owned request-station removal is expected. Every other public
         # account identity, language and group set is preserved independently.
         accounts = {uid: value for uid, value in before['preserved']['accounts'].items()
-                    if value['identity'][0] != 'onpc-kiosk'}
+                    if value['identity'][0] != 'oh-no-parent-control'}
         preserved = {**current['preserved'], 'accounts': {
             uid: current['preserved']['accounts'].get(uid) for uid in accounts}}
         require(preserved == {**before['preserved'], 'accounts': accounts},

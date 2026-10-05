@@ -296,7 +296,9 @@ rmdir /var/lib/oh-no-parent-control 2>/dev/null || true
 
 #DEBHELPER#
 
-if [ "$1" = remove ]; then
+# RPM's explicit purge is also the final erase, so its PAM/login transaction
+# needs renewal. A later standalone purge must not recreate a reboot request.
+if [ "$1" = remove ] || [ "${onpc_rpm_final_erase:-0}" = 1 ]; then
 @reboot_remove@
 fi
 

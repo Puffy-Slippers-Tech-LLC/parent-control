@@ -22,6 +22,13 @@ def script_source(phase, distribution='ubuntu'):
     return render(ROOT, distribution, phase)
 
 
+def rpm_script_source(path):
+    # Model RPM's literal-percent decoding for the isolated command machines.
+    # test_rpm_packaging checks every generated callback with RPM's actual
+    # macro engine, including runtime %{NAME}/%{name} query formats.
+    return path.read_text().replace('%%', '%')
+
+
 class Machine:
     def __init__(self, root, distribution='ubuntu'):
         self.root = root
@@ -120,7 +127,7 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
         if scriptlet == 'preun':
             self.prepare_script(script_source('postinst', 'fedora'),
                                 'usr/share/oh-no-parent-control/lifecycle/postinst')
-        return self.run_source((scripts / ('rpm-' + scriptlet)).read_text(),
+        return self.run_source(rpm_script_source(scripts / ('rpm-' + scriptlet)),
                                str(installed_count), **env)
 
     def prepare_script(self, source, path='script'):

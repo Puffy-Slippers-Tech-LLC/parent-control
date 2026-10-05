@@ -34,6 +34,8 @@ class ExecutionPolicyTests(unittest.TestCase):
                 self.assertFalse(originally_permissive_policy())
                 self.assertEqual(read.call_count, 1)
         for fault in ({**valid, 'active': True}, {**valid, 'enabled': True},
+                      {**valid, 'active': True, 'permissive': False},
+                      {**valid, 'enabled': True, 'permissive': False},
                       {**valid, 'basis': 'preserve'}, {**valid, 'purpose': 'other'},
                       {**valid, 'permissive': 1}, {**valid, 'extra': 'value'}, []):
             with self.subTest(fault=fault), mock.patch(
@@ -60,7 +62,7 @@ class ExecutionPolicyTests(unittest.TestCase):
                 originally_permissive_policy()
 
     def test_original_policy_mode_reader_refuses_insecure_files_and_ancestors(self):
-        for fault in ('ancestor', 'owner', 'symlink', 'hardlink', 'mode', 'size', 'growth'):
+        for fault in ('ancestor', 'owner', 'symlink', 'fifo', 'hardlink', 'mode', 'size', 'growth'):
             with self.subTest(fault=fault):
                 ancestor = mock.Mock(lstat=mock.Mock(return_value=SimpleNamespace(
                     st_mode=stat.S_IFDIR | (0o777 if fault == 'ancestor' else 0o755), st_uid=0)))
@@ -68,7 +70,8 @@ class ExecutionPolicyTests(unittest.TestCase):
                 stream = mock.MagicMock()
                 stream.__enter__.return_value = stream
                 stream.read.return_value = b'x' * (4097 if fault == 'growth' else 2)
-                info = SimpleNamespace(st_mode=(stat.S_IFLNK if fault == 'symlink' else stat.S_IFREG) |
+                kind = {'symlink': stat.S_IFLNK, 'fifo': stat.S_IFIFO}.get(fault, stat.S_IFREG)
+                info = SimpleNamespace(st_mode=kind |
                                        (0o644 if fault == 'mode' else 0o600),
                                        st_uid=1000 if fault == 'owner' else 0,
                                        st_nlink=2 if fault == 'hardlink' else 1,
@@ -82,6 +85,7 @@ class ExecutionPolicyTests(unittest.TestCase):
                         opened.assert_not_called()
                     else:
                         self.assertTrue(opened.call_args.args[1] & os.O_NOFOLLOW)
+                        self.assertTrue(opened.call_args.args[1] & os.O_NONBLOCK)
 
     @staticmethod
     def _decision(rules, uid, permission, path, ftype="application/x-executable"):

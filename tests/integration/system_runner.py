@@ -108,6 +108,23 @@ OUTCOME_NAMES = ('product', 'infrastructure', 'collection', 'cleanup')
 HOST_EXECUTABLES = ('ssh', 'qemu-img', 'ssh-keygen', 'virt-customize',
                     'dpkg-deb', 'dpkg-query')
 
+# These validators deliberately raise ValueError with fixed, nonsecret reasons.
+# Preserve their actionable prerequisite failures without publishing arbitrary
+# ValueError text from parsers, subprocess adapters or guest-controlled input.
+PREREQUISITE_FAILURES = frozenset(
+    'guest-tools:' + reason for reason in (
+        'unsupported-os', 'unsupported-package-version', 'ambiguous-package-status',
+        'missing-or-mismatched-package', 'package-not-configured')) | frozenset(
+    'baseline:chinese-' + reason + '; run tools/prepare-baseline' for reason in (
+        'changed', 'locale-command', 'read-command', 'command-bound', 'locale-runtime',
+        'parent', 'missing-file', 'file', 'release', 'selinux', 'package-status', 'missing-package',
+        'font-table', 'font-format', 'font-faces', 'font-face', 'font-tables', 'font-cmap',
+        'font-groups', 'font-group-order', 'font-coverage', 'unsupported-platform',
+        'package-version', 'package-identity', 'package-bytes', 'locale',
+        'catalogue-identity', 'translation-fallback', 'unowned-collision',
+        'response-bound', 'response', 'receipt', 'receipt-platform', 'receipt-catalogue', 'receipt-files')) | {
+    'guest-tools:missing-or-mismatched-package; run tools/prepare-baseline on the host'}
+
 
 def error_category(error):
     """Return only the runner's fixed public failure categories."""
@@ -115,6 +132,8 @@ def error_category(error):
         return str(error)
     if isinstance(error, baseline.guest_contract.PreparationError):
         return error.category
+    if type(error) is ValueError and str(error) in PREREQUISITE_FAILURES:
+        return str(error)
     return 'unexpected-failure-or-interruption'
 
 

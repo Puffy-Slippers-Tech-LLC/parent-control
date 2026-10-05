@@ -103,12 +103,17 @@ set -- remove
 # RPM has no abort-remove callback. Restore derived state on preun failure.
 trap 'status=$?; if [ "$status" -ne 0 ]; then /bin/sh /usr/share/oh-no-parent-control/lifecycle/postinst abort-remove || true; fi; exit "$status"' 0
 '''),
-        'postun': ('postrm', 'if [ "$1" -ne 0 ]; then exit 0; fi\n' + embedded_purge_phase(root)),
+        'postun': ('postrm', 'if [ "$1" -ne 0 ]; then exit 0; fi\nonpc_rpm_final_erase=1\n' + embedded_purge_phase(root)),
     }
     for name, (phase, prefix) in prefixes.items():
-        (output / f'rpm-{name}').write_text('#!/bin/sh\nset -e\n' + prefix + scripts[phase])
-    (output / 'rpm-pretrans').write_text('#!/bin/sh\nset -e\n' +
-                                      embedded_fedora_policy(root, 'capture') + '\n')
+        # RPM expands macros even in scriptlets supplied through -f. These
+        # files are literal shell/Python, including runtime RPM/DNF query
+        # formats such as %{NAME}; none of their percent signs are spec macros.
+        # Installed standalone lifecycle scripts above do not pass through RPM.
+        source = '#!/bin/sh\nset -e\n' + prefix + scripts[phase]
+        (output / f'rpm-{name}').write_text(source.replace('%', '%%'))
+    source = '#!/bin/sh\nset -e\n' + embedded_fedora_policy(root, 'capture') + '\n'
+    (output / 'rpm-pretrans').write_text(source.replace('%', '%%'))
 
 
 def main():

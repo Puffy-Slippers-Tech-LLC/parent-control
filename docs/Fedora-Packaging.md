@@ -22,6 +22,9 @@ activation and removal. The [Ubuntu](../packaging/ubuntu.inc) and
 [Fedora](../packaging/fedora.inc) adapters supply OS-specific commands and paths.
 The [renderer](../packaging/render_lifecycle.py) embeds standalone shell in both
 formats: pre-install and post-removal do not need an installed Python helper.
+RPM scriptlet inputs escape literal percent signs before RPM's build-time macro
+expansion, preserving runtime package queries in embedded policy and purge
+helpers. Installed standalone lifecycle scripts retain their direct syntax.
 Debian's small wrappers are expanded after `dh_installdeb`, preserving its
 original debhelper boundary.
 
@@ -177,9 +180,11 @@ These differences require live upgrade/removal/purge testing.
 
 Configuration restores ordinary SELinux labels for generated integrations and
 keeps SELinux enforcing. A package marker under `/run` records installation or
-removal's reboot requirement until reboot. Purging saved data preserves an
-outstanding request and does not recreate one after reboot. Fedora needs no
-Ubuntu update-notifier dependency.
+removal's reboot requirement until reboot. The explicit Fedora purge is a final
+RPM erase too: its callback records the request, and the command repeats the
+reminder after DNF and successful purge verification. A later standalone
+saved-data cleanup preserves an outstanding request without recreating one
+after reboot. Fedora needs no Ubuntu update-notifier dependency.
 Reminders never reboot or log users out.
 
 Fedora's package trust filter permits `.js` but excludes `.mjs` under `/usr/share`,

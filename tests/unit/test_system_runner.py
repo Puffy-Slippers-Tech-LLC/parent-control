@@ -553,6 +553,28 @@ def test_preparation_failure_category_preserves_reason_without_private_details()
     assert runner.error_category(RuntimeError('private guest details')) == 'unexpected-failure-or-interruption'
 
 
+@pytest.mark.parametrize('message', [
+    'guest-tools:missing-or-mismatched-package; run tools/prepare-baseline on the host',
+    'baseline:chinese-locale-runtime; run tools/prepare-baseline',
+    'baseline:chinese-missing-file; run tools/prepare-baseline',
+    'baseline:chinese-package-bytes; run tools/prepare-baseline',
+    'baseline:chinese-read-command; run tools/prepare-baseline',
+    'baseline:chinese-command-bound; run tools/prepare-baseline',
+    'baseline:chinese-release; run tools/prepare-baseline',
+    'baseline:chinese-selinux; run tools/prepare-baseline',
+    'baseline:chinese-package-status; run tools/prepare-baseline',
+    'baseline:chinese-missing-package; run tools/prepare-baseline',
+    'baseline:chinese-receipt-platform; run tools/prepare-baseline',
+])
+def test_baseline_prerequisite_failure_keeps_only_exact_public_reason(message):
+    assert runner.error_category(ValueError(message)) == message
+    for text in (message + ':private details', message + '\nprivate details',
+                 'baseline:chinese-private-details; run tools/prepare-baseline',
+                 'guest-tools:private-details'):
+        assert runner.error_category(ValueError(text)) == 'unexpected-failure-or-interruption'
+    assert runner.error_category(RuntimeError(message)) == 'unexpected-failure-or-interruption'
+
+
 @pytest.mark.parametrize(('failure', 'category'), [
     (FileNotFoundError('private input path'), 'assets:source-missing'),
     (PermissionError('private input path'), 'assets:source-inaccessible'),

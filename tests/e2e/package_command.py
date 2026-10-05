@@ -173,7 +173,7 @@ def guest_submit(binding, expected, packages=None):
         session_control.sessions(), account.pw_uid) == source, 'source-changed')
     if session_control.package_format() == 'rpm':
         session_control.require(binding in (BINDING, *LIFECYCLE), 'historical-release-ubuntu-only')
-        argv = (('/usr/bin/dnf', '--quiet', 'remove', '-y', 'oh-no-parent-control')
+        argv = (('/usr/bin/dnf', '--quiet', 'remove', '--no-autoremove', '-y', 'oh-no-parent-control')
                 if binding == REMOVE else
                 ('/usr/bin/dnf', '--quiet', 'install', '-y', str(session_control.package_path())))
     else:

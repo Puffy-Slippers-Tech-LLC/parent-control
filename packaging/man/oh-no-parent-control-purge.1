@@ -28,6 +28,8 @@ Purge preserves unrelated accounts/files, dependencies, system journals and
 personal desktop settings in ordinary users' homes. The package-created kiosk
 account/home is removed only after its ownership and inactive session are
 verified. Purge does not reboot, force logout or restart the desktop.
+Fedora records the reboot requirement inside the final RPM erase and repeats
+the removal reminder after this command verifies successful purge.
 .SH OPTIONS
 .TP
 .B --yes

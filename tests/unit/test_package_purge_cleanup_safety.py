@@ -60,7 +60,7 @@ def test_owned_source_and_state_guards_refuse_substitutions(purge_module, fault)
 
 @pytest.mark.parametrize('fault', [None, 'erase', 'still-installed', 'pam', 'cleanup', 'interruption'])
 def test_fedora_public_purge_runs_cleanup_only_in_native_callback_and_preserves_retry_data(
-    purge_module, tmp_path, monkeypatch, fault,
+    purge_module, tmp_path, monkeypatch, capsys, fault,
 ):
     machine = Machine(tmp_path, 'fedora')
     machine.baseline(active=True, enabled=True, rules='original policy\n')
@@ -113,6 +113,8 @@ def test_fedora_public_purge_runs_cleanup_only_in_native_callback_and_preserves_
                 native_callback = False
             if fault != 'cleanup':
                 assert result.returncode == 0, result.stderr
+                assert (tmp_path / 'run/oh-no-parent-control-reboot-required').read_text() == 'reboot\n'
+                assert 'REBOOT REQUIRED: reboot to finish removing' in result.stderr
             # RPM postun failure can still accompany a successful DNF exit;
             # the public action must independently prove the postconditions.
             return SimpleNamespace(returncode=0)
@@ -129,10 +131,37 @@ def test_fedora_public_purge_runs_cleanup_only_in_native_callback_and_preserves_
         purge_module.purge(yes=True)
         assert not (tmp_path / 'var/lib/oh-no-parent-control').exists()
         assert not (tmp_path / 'var/log/oh-no-parent-control').exists()
+    output = capsys.readouterr()
+    assert ('REBOOT REQUIRED: reboot to finish removing' in output.err) is (fault is None)
     assert events[0] == 'source'
     if 'erase' in events:
         assert events.index('source') < events.index('erase')
         assert 'release' in events
+
+
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+@pytest.mark.parametrize('pending_reboot', [False, True])
+def test_standalone_saved_data_purge_preserves_but_does_not_recreate_reboot_request(
+    tmp_path, distribution, pending_reboot,
+):
+    machine = Machine(tmp_path, distribution)
+    marker_path = ('run/oh-no-parent-control-reboot-required' if distribution == 'fedora'
+                   else 'run/reboot-required')
+    marker = tmp_path / marker_path
+    if pending_reboot:
+        machine.write(marker_path, 'existing reboot request\n')
+    machine.write('var/lib/oh-no-parent-control/preferences/1004.json', 'saved preference')
+    machine.write('var/log/oh-no-parent-control/broker/day.log', 'saved log')
+
+    result = machine.run('postrm', 'purge')
+
+    assert result.returncode == 0, result.stderr
+    assert not (tmp_path / 'var/lib/oh-no-parent-control').exists()
+    assert not (tmp_path / 'var/log/oh-no-parent-control').exists()
+    assert marker.exists() is pending_reboot
+    if pending_reboot:
+        assert marker.read_text() == 'existing reboot request\n'
+    assert 'REBOOT REQUIRED' not in result.stderr
 
 
 @pytest.mark.parametrize('package_format', ['ubuntu', 'fedora'])

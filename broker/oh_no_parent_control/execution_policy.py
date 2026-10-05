@@ -34,7 +34,9 @@ def _read_policy_mode_file(path: Path, *, mode: int, limit=4096) -> bytes | None
             info = ancestor.lstat()
             if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
                 raise ExecutionPolicyError('original execution policy has unsafe ancestry')
-        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        # Inspect the opened object before reading it. A substituted FIFO must
+        # fail the regular-file check without waiting for a writer at open().
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
     except FileNotFoundError:
         return None
     except OSError as error:
@@ -71,10 +73,11 @@ def originally_permissive_policy() -> bool:
             record['basis'] not in ('absent', 'dependency', 'preserve') or
             any(type(record[key]) is not bool for key in ('active', 'enabled', 'permissive'))):
         raise ExecutionPolicyError('original execution policy mode is invalid')
+    if ((record['basis'] != 'preserve' and (record['active'] or record['enabled']))
+            or (record['permissive'] and record['basis'] == 'preserve')):
+        raise ExecutionPolicyError('original execution policy mode conflicts with enforced policy')
     if not record['permissive']:
         return False
-    if record['basis'] == 'preserve' or record['active'] or record['enabled']:
-        raise ExecutionPolicyError('original execution policy mode conflicts with enforced policy')
     release = platform.freedesktop_os_release()
     if (release.get('ID'), release.get('VERSION_ID'), release.get('VARIANT_ID')) != (
             'fedora', '44', 'workstation'):

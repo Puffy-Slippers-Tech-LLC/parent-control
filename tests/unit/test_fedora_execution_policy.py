@@ -203,6 +203,31 @@ def test_service_query_failure_never_authorizes_original_allow(policy_machine, i
     assert not machine.policy.eligible()
 
 
+@pytest.mark.parametrize('status,output,expected', [
+    (1, 'private command error', 'reason-query-failed'),
+    (0, 'private unexpected reason', 'reason-not-dependency'),
+    (0, 'fapolicyd|Dependency', 'stock-dependency'),
+])
+def test_capture_explains_native_reason_refusal_without_disclosing_output(
+        policy_machine, monkeypatch, capsys, status, output, expected):
+    machine = policy_machine
+    native_run = machine.policy.run
+
+    def run(arguments):
+        if arguments[0] == 'dnf5':
+            return SimpleNamespace(returncode=status, stdout=output)
+        return native_run(arguments)
+
+    monkeypatch.setattr(machine.policy, 'run', run)
+    machine.policy.capture()
+    diagnostic = capsys.readouterr()
+    assert diagnostic.out == ''
+    basis = 'dependency' if expected == 'stock-dependency' else 'preserve'
+    assert diagnostic.err == (
+        f'oh-no-parent-control: original-policy classification={expected} basis={basis}\n')
+    assert machine.policy.record()['basis'] == basis
+
+
 @pytest.mark.parametrize('fault', ['symlink', 'hardlink', 'writable', 'foreign-purpose', 'extra-field', 'oversized'])
 def test_pretrans_refuses_unowned_or_substituted_provenance(policy_machine, fault):
     machine = policy_machine
@@ -246,7 +271,7 @@ def test_embedded_pretrans_and_erased_payload_cleanup_share_standalone_source(tm
     source = (ROOT / 'packaging/fedora_execution_policy.py').read_text()
     for name in ('rpm-pretrans', 'rpm-pre', 'rpm-postun'):
         script = tmp_path / name
-        assert source in script.read_text()
+        assert source.replace('%', '%%') in script.read_text()
         result = subprocess.run(['/bin/sh', '-n', str(script)], capture_output=True, timeout=10)
         assert result.returncode == 0, result.stderr
     assert '%pretrans -f rpm-lifecycle/rpm-pretrans' in (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text()

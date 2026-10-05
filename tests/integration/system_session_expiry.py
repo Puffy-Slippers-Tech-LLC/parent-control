@@ -22,6 +22,45 @@ LIMITS = 'com.endlessm.ParentalControls.SessionLimits'
 SERVICES = ('gdm-password', 'gdm-autologin', 'login', 'sshd')
 
 
+class PamScopeObserver:
+    """Read native session/scope state without exec after pam_selinux opens it."""
+
+    def __init__(self):
+        from gi.repository import Gio, GLib
+        self.Gio, self.GLib = Gio, GLib
+        self.bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+
+    def call(self, destination, path, interface, method, signature, values, result):
+        return self.bus.call_sync(destination, path, interface, method,
+            self.GLib.Variant(signature, values), self.GLib.VariantType.new(result),
+            self.Gio.DBusCallFlags.NONE, 10000, None).unpack()[0]
+
+    def property(self, destination, path, interface, name):
+        return self.call(destination, path, 'org.freedesktop.DBus.Properties',
+                         'Get', '(ss)', (interface, name), '(v)')
+
+    def scope(self, session):
+        guest.require(re.fullmatch(r'[a-zA-Z0-9_-]+', session), 'expiry:pam-session-identity')
+        path = self.call('org.freedesktop.login1', '/org/freedesktop/login1',
+                         'org.freedesktop.login1.Manager', 'GetSession', '(s)', (session,), '(o)')
+        scope = self.property('org.freedesktop.login1', path,
+                              'org.freedesktop.login1.Session', 'Scope')
+        guest.require(isinstance(scope, str) and
+                      re.fullmatch(r'session-[a-zA-Z0-9_-]+\.scope', scope),
+                      'expiry:scope-witness-identity')
+        path = self.call('org.freedesktop.systemd1', '/org/freedesktop/systemd1',
+                         'org.freedesktop.systemd1.Manager', 'GetUnit', '(s)', (scope,), '(o)')
+        runtime = self.property('org.freedesktop.systemd1', path,
+                                'org.freedesktop.systemd1.Scope', 'RuntimeMaxUSec')
+        guest.require(type(runtime) is int and 0 <= runtime < 2 ** 64,
+                      'expiry:scope-runtime-response')
+        return scope, path, 'infinity' if runtime == 2 ** 64 - 1 else str(runtime) + 'us'
+
+    def active(self, path):
+        return self.property('org.freedesktop.systemd1', path,
+                             'org.freedesktop.systemd1.Unit', 'ActiveState') == 'active'
+
+
 def identities():
     guest.guard()
     guest.enable_diagnostics()
@@ -49,6 +88,10 @@ def pam_probe(service):
     guest.require(service in SERVICES, 'expiry:pam-service')
     accounts = identities()
     uid = accounts['child']
+    # PAM may set the next exec security context for the child's session.
+    # Initialize the public D-Bus observer before that boundary and make no
+    # subprocess calls while the session is open.
+    observer = PamScopeObserver()
     pam = ctypes.CDLL('libpam.so.0')
 
     class Conversation(ctypes.Structure):
@@ -84,15 +127,12 @@ def pam_probe(service):
         opened = True
         session_id = pam.pam_getenv(handle, b'XDG_SESSION_ID')
         guest.require(session_id is not None, 'expiry:pam-session-identity')
-        scope = guest.run(['loginctl', 'show-session', session_id.decode(),
-                           '--property=Scope', '--value'])
-        runtime = guest.run(['systemctl', 'show', scope,
-                             '--property=RuntimeMaxUSec', '--value'])
+        scope, scope_path, runtime = observer.scope(session_id.decode())
         print(json.dumps({'stage': 'scope-created', 'runtime_max': runtime, 'scope': scope}), flush=True)
         if service.startswith('gdm-'):
             guest.require(runtime == 'infinity', 'expiry:finite-gdm-scope')
             time.sleep(3)
-            guest.require(guest.run(['systemctl', 'is-active', scope]) == 'active',
+            guest.require(observer.active(scope_path),
                           'expiry:scope-ended-at-old-deadline')
             print(json.dumps({'stage': 'past-deadline', 'scope_active': True}), flush=True)
         else:
@@ -115,13 +155,19 @@ def verify_pam_scope(service, record):
     try:
         marker = guest.guard()
         unit = 'onpc-expiry-' + marker['run'] + '-' + service
+        # --pipe passes its output descriptors to PID 1. Fedora's enforcing
+        # SELinux policy refuses the runner's regular temporary-file descriptors
+        # before the service starts (fedora-selinux/selinux-policy#3287). Reuse
+        # the bounded terminal transport so only PTY descriptors cross that
+        # boundary; retain the same installed PAM worker and independent results.
+        terminal = guest.package_path().suffix == '.rpm'
         raw = guest.commands.run([
             'systemd-run', '--quiet', '--wait', '--pipe', '--collect',
             '--unit=' + unit, '--property=Type=exec', '--property=RuntimeMaxSec=45',
             '--setenv=ONPC_EXPECTED_RUN=' + marker['run'],
             '--setenv=PYTHONDONTWRITEBYTECODE=1',
             '/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_session_expiry.py'),
-            '--pam', service], timeout=60, check=False, merge_stderr=False)
+            '--pam', service], timeout=60, check=False, merge_stderr=False, terminal=terminal)
         status = guest.commands.last_returncode
         observations = [json.loads(line) for line in raw.decode().splitlines()
                         if line.startswith('{')]

@@ -120,6 +120,9 @@ from regression_resources import HOST_WORKERS
 # Shared comparison/capture checks and renamed entry/edit probes keep the same
 # private pytest records and synchronously waited Perl children; extraction adds
 # no live operation, resource owner or cleanup lifetime in either inventory.
+# Its hour-budget boundary checks use only process-local worker/clock doubles
+# and the existing private evidence files. No real hour wait, VM, socket or new
+# resource owner is added; e2e_worker and package_lifecycle stay compatible.
 # Package purge guards use private pytest machine trees and process-local
 # package/PAM/ownership doubles; the one shared-cleanup shell is relocated,
 # bounded and waited. No host package, identity, service or shared path changes.

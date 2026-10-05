@@ -188,6 +188,12 @@ a later purge does not clear or recreate the request after reboot. The reboot
 notifier is optional in `postrm`, when dependencies may already be absent; see
 [Debian maintainer-script dependency rules](https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html).
 
+Fedora's final RPM erase records the product-owned runtime reboot request for
+ordinary removal and explicit purge. The packaged purge command repeats the
+same reminder after DNF finishes and the purge postconditions pass, so native
+transaction progress does not bury it. A later standalone saved-data cleanup
+does not recreate the request after reboot.
+
 ## Generated integration ownership
 
 The generated GDM hook is removed only when it matches the package's ownership copy; an existing

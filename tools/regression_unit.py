@@ -338,6 +338,12 @@ from regression_ui import Bucket
 # Extracted lifecycle checks and renamed worker scopes retain that classification:
 # immutable capture/replay and recorder-durability tests use the same private
 # trees/doubles; scoped Perl input probes are bounded and synchronously reaped.
+# Hour-budget worker admission/expiry checks retain private evidence files and
+# process-local clocks/worker doubles, without real waits or additional owners;
+# e2e_worker_cleanup_safety remains compatible in unit and cleanup inventories.
+# Distribution admission boundaries create at most 257 tiny private pytest
+# files and use an injected small byte ceiling. e2e_needle_inputs adds no shared
+# cache, process, socket or live VM; its existing compatible classification holds.
 # Shared removal parity and actual RPM erase callbacks use the existing private
 # pytest machine trees, relocated system paths and bounded, waited shell children.
 # Their service/account/PAM commands remain doubles, including abort-remove's
@@ -519,6 +525,9 @@ write_e2e write_e2e_cleanup_safety
 # RPM post-transaction parity checks execute rendered shell in the existing
 # private package machine with account/service doubles and bounded, waited
 # children. No installed product or shared resources; rpm_packaging stays unit.
+# Scriptlet macro coverage adds bounded, waited `rpm --eval` children. They
+# expand private text with explicit macros; no package database or transaction
+# is opened. Relocated cleanup machines only decode literal percent escapes.
 # Fedora readiness regressions reuse those command doubles and existing staged
 # Fedora/Ubuntu payload fixtures. Unit parsing and activation comparisons add
 # only private files; no real systemd, SELinux policy, VM or extra build fixture.

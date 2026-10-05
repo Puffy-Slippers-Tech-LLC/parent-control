@@ -99,27 +99,38 @@ def require(value, code):
         raise ValueError('baseline:chinese-' + code + '; run tools/prepare-baseline')
 
 
+def file_identity(g, path):
+    # guestfs lstatns includes access times, unlike LocalFiles.lstatns. Reads
+    # on bootstrap's writable mount may legitimately update atime. Preserve
+    # the same inode/ownership/content-change identity on both readers, using
+    # each API's nanosecond timestamp spelling.
+    stable = {'st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink', 'st_size',
+              'st_mtime_ns', 'st_ctime_ns', 'st_mtime_sec', 'st_mtime_nsec',
+              'st_ctime_sec', 'st_ctime_nsec'}
+    return {key: value for key, value in g.lstatns(path).items() if key in stable}
+
+
 def read(g, path, limit=LIMIT):
     """Fixed root-owned, bounded regular inputs; reject unsafe ancestors/replacement."""
     parents = {}
     for parent in reversed(Path(path).parents):
         name = str(parent)
         require(g.exists(name) and not g.is_symlink(name), 'parent')
-        info = g.lstatns(name)
+        info = file_identity(g, name)
         require(g.realpath(name) == name and stat.S_ISDIR(info['st_mode'])
                 and info['st_uid'] == info['st_gid'] == 0
                 and not info['st_mode'] & 0o022, 'parent')
         parents[name] = info
     require(g.exists(path) and not g.is_symlink(path), 'missing-file')
-    before = g.lstatns(path)
+    before = file_identity(g, path)
     require(g.realpath(path) == path and stat.S_ISREG(before['st_mode'])
             and before['st_uid'] == before['st_gid'] == 0
             and before['st_nlink'] == 1 and not before['st_mode'] & 0o022
             and 0 < g.filesize(path) <= limit, 'file')
     data = g.read_file(path)
     require(type(data) is bytes and 0 < len(data) <= limit
-            and g.lstatns(path) == before
-            and all(g.lstatns(name) == info and g.realpath(name) == name
+            and file_identity(g, path) == before
+            and all(file_identity(g, name) == info and g.realpath(name) == name
                     for name, info in parents.items()), 'changed')
     return data
 

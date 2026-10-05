@@ -44,6 +44,23 @@ def journey(monkeypatch):
     return current
 
 
+def test_continuous_case_keeps_its_complete_hour_budget(monkeypatch):
+    import e2e_worker
+    record = Mock()
+    monkeypatch.setattr(lifecycle, 'record_installed_journey', record)
+    recorder, context = Mock(), Mock()
+
+    case.execute(recorder, context)
+
+    record.assert_called_once()
+    assert record.call_args.args == (recorder, context, case.PLAN)
+    assert record.call_args.kwargs['timeout'] == 3600
+    journey_type = record.call_args.kwargs['journey_type']
+    assert journey_type.func is lifecycle.PackageLifecycleJourney
+    assert journey_type.keywords == {'operations': case.OPERATIONS, 'checks': case.CHECKS}
+    assert record.call_args.kwargs['timeout'] <= e2e_worker.MAX_TIMEOUT_SECONDS
+
+
 @pytest.mark.parametrize('binding', command.LIFECYCLE)
 @pytest.mark.parametrize('fault', ['', 'phase', 'version', 'status', 'notice', 'trailing', 'transport'])
 def test_finite_command_refuses_wrong_phase_and_independent_failure(monkeypatch, binding, fault):
@@ -111,6 +128,28 @@ def test_receipt_requires_personal_preservation_and_same_activation_boundary(mon
         assert observed['package']['independent_readback'] and binding in current.results
 
 
+@pytest.mark.parametrize('binding', [command.REMOVE, command.PURGE])
+@pytest.mark.parametrize('removed_account', ['oh-no-parent-control', 'onpc-kiosk'])
+def test_removal_exempts_only_the_package_owned_account(monkeypatch, binding, removed_account):
+    current = journey(monkeypatch)
+    before, after = identity('1.3'), identity(None)
+    before['preserved']['accounts']['1006'] = {
+        'identity': [removed_account, 1006], 'groups': [1006], 'language': ''}
+    current.commands[binding] = Mock(
+        read_result=Mock(return_value={'operation': binding, 'outcome': 'passed'}),
+        read_identity=Mock(side_effect=[after, deepcopy(after)]),
+        package_identities=Mock(return_value={'current': {'version': '1.3'}}))
+    current.entries[binding] = before
+    stage = next(result for _, operation, result in case.OPERATIONS if operation == binding)
+    if removed_account == 'oh-no-parent-control':
+        current.check_settings(stage, {})
+        assert binding in current.results
+    else:
+        with pytest.raises(EvidenceError, match='personal-state-changed'):
+            current.check_settings(stage, {})
+        assert binding not in current.results
+
+
 @pytest.mark.parametrize('fault', ['daily', 'enabled', 'rows', 'grant', 'choices'])
 def test_retained_and_fresh_assertions_use_independent_customer_expectations(monkeypatch, fault):
     current = journey(monkeypatch)
@@ -129,6 +168,30 @@ def test_retained_and_fresh_assertions_use_independent_customer_expectations(mon
     else:
         observed, stage = {'ui': {'language_policy': policy}}, 'retained-policy'
     with pytest.raises(EvidenceError): current.check_settings(stage, observed)
+
+
+@pytest.mark.parametrize('fault', ['', 'retained-five', 'reapplied-four'])
+def test_continuous_history_retains_four_minutes_before_reapplying_five(monkeypatch, fault):
+    current = journey(monkeypatch)
+    policy = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['4 minutes']},
+              'rows': [[case.MATCH_APP, 'permanent', 'precise']],
+              'balances': {'daily': 240, 'one_time': 0, 'total': 240}}
+    current.check_settings('initial-policy', {'ui': {'language_policy': deepcopy(policy)}})
+    if fault == 'retained-five':
+        policy['settings']['allowance'] = ['5 minutes']
+        with pytest.raises(EvidenceError):
+            current.check_settings('retained-policy', {'ui': {'language_policy': policy}})
+        return
+    current.check_settings('retained-policy', {'ui': {'language_policy': deepcopy(policy)}})
+    policy['settings']['allowance'] = ['4 minutes' if fault == 'reapplied-four' else '5 minutes']
+    if fault:
+        with pytest.raises(EvidenceError):
+            current.check_settings('reapply-policy', {'ui': {'language_policy': policy}})
+    else:
+        current.check_settings('reapply-policy', {'ui': {'language_policy': policy}})
+    stages = list(case.PLAN.screen_tags)
+    assert (stages.index('initial-allowance-saved') < stages.index('retained-policy')
+            < stages.index('reapply-allowance-saved') < stages.index('reapply-policy'))
 
 
 @pytest.mark.parametrize('fault', ['', 'remove-result', 'retained-policy', 'blocked-after-reinstall',
@@ -161,6 +224,8 @@ def test_actual_continuous_worker_consumes_all_unique_stages_and_stops_on_failur
     if not fault:
         assert result['events'].count(['secret']) == 1 + len(case.PLAN.challenges) + 1
         assert [event for event in result['events'] if event[0] != 'title'][-1] == ['power', 'off']
+        assert [event[1] for event in result['events']
+                if event[0] == 'text' and event[1] in ('4', '5')] == ['4', '5']
     assert not any(event[0] in ('pointer', 'click') for event in result['events'])
 
 
@@ -472,8 +537,10 @@ def test_guest_lifecycle_fixed_action_consumes_exclusive_marker_after_phase_guar
     if binding == command.PURGE:
         expected = ('/usr/bin/oh-no-parent-control-purge', '--yes')
     elif package_format == 'rpm':
-        expected = ('/usr/bin/dnf', '--quiet', 'remove' if binding == command.REMOVE else 'install', '-y',
-                    'oh-no-parent-control' if binding == command.REMOVE else '/var/lib/onpc-e2e-assets/package.rpm')
+        expected = ('/usr/bin/dnf', '--quiet', 'remove', '--no-autoremove', '-y',
+                    'oh-no-parent-control') if binding == command.REMOVE else (
+                    '/usr/bin/dnf', '--quiet', 'install', '-y',
+                    '/var/lib/onpc-e2e-assets/package.rpm')
     elif binding == command.REMOVE:
         expected = ('/usr/bin/apt-get', '-o', 'DPkg::Lock::Timeout=120', 'remove', '-y', 'oh-no-parent-control')
     else:

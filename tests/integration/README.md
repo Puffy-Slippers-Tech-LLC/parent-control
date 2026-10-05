@@ -400,17 +400,23 @@ composition; real transport qualification awaits a newly prepared baseline.
 
 `test_remote_accounts_are_excluded` provisions real RFC2307 LDAP users through
 `system_remote_accounts.py` only after the guest guard and restored-app readiness
-checks. It refuses existing directory configuration and UID/name
-collisions, verifies prepared OpenLDAP/SSSD packages, configures the dormant
-OpenLDAP package through `dpkg-reconfigure --frontend=noninteractive`, uses LDAP's public
-`cn=config` interface with root peer credentials, and enables NSS enumeration.
+checks. It refuses fixture configuration and UID/name collisions and verifies
+prepared OpenLDAP/SSSD packages. Ubuntu configures the dormant OpenLDAP package
+through `dpkg-reconfigure --frontend=noninteractive` and adds SSSD to the existing
+passwd/group NSS sources. Fedora creates isolated slapd configuration and
+database directories under `/var/lib/ldap`, preserves the RPM defaults and
+SELinux enforcement, and enables SSSD through a clone of the active authselect
+profile with its existing PAM stack and features. Both routes use LDAP's public
+`cn=config` interface with root peer credentials and enable NSS enumeration.
 The LDAP server runs on guest loopback; credentials and remote login are not
 needed for this identity/authorization test. No local passwd records or private
 AccountsService files are created for these identities. Public `CacheUser` and
 property reads establish nonlocal, interactive, unlocked standard/admin roles
-before exclusion assertions. The retained baseline restores dormant services
-and removes fixture configuration and accounts after the attempt. No host tool installation is
-required. This test integration activates on the next invocation (`none`);
+before exclusion assertions. The Fedora fixture restores the exact original
+authselect selection after the test; the retained baseline restores dormant
+services and removes fixture configuration and accounts after the attempt.
+No host tool installation is required. This test integration activates on the
+next invocation (`none`);
 the broker's local-administrator enforcement is `process-restart`, with no
 saved-data migration. Package versions and predicate/denial observations are
 retained in JUnit; APT catalog/command diagnostics follow the existing collector.

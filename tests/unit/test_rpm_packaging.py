@@ -12,7 +12,7 @@ import tarfile
 import pytest
 
 from tests.support.paths import ROOT
-from tests.support.package_scripts import Machine, machine, package_machine
+from tests.support.package_scripts import Machine, machine, package_machine, rpm_script_source
 from tests.support.shell import relocate_system_paths
 from tools import build_rpm, package_inputs, rpm_builder
 
@@ -250,6 +250,26 @@ def test_rpm_scriptlets_are_standalone_and_upgrade_removal_is_inert(tmp_path):
         assert result.stdout == result.stderr == ''
 
 
+def test_rpm_native_macro_expansion_preserves_runtime_package_queries(tmp_path):
+    renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
+    renderer['rpm_scripts'](ROOT, tmp_path)
+    for path in sorted(tmp_path.glob('rpm-*')):
+        result = subprocess.run([
+            'rpm', '--define', 'name oh-no-parent-control',
+            '--define', 'NAME oh-no-parent-control', '--eval', path.read_text(),
+        ], capture_output=True, text=True, timeout=10)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.rstrip('\n') == rpm_script_source(path).rstrip('\n'), path.name
+        if path.name in ('rpm-pretrans', 'rpm-pre', 'rpm-postun'):
+            assert "'--queryformat', '%{NAME}', 'fapolicyd'" in result.stdout
+            assert "'--queryformat', '%{name}|%{reason}'" in result.stdout
+        if path.name == 'rpm-postun':
+            assert "'--queryformat', '%{NAME}\\n'" in result.stdout
+    # The installed helper is executed directly and must not keep RPM escapes.
+    assert "'--queryformat', '%{NAME}'" in (tmp_path / 'preinst').read_text()
+    assert "'--queryformat', '%%{NAME}'" not in (tmp_path / 'postrm').read_text()
+
+
 @pytest.mark.parametrize('state', ['active', 'activating', 'failed', 'inactive'])
 def test_fedora_removal_clears_readiness_after_detaching_display_manager(machine, state):
     machine.baseline(active=True, enabled=True, rules='administrator policy\n')
@@ -463,7 +483,7 @@ def test_fedora_rpm_scriptlet_owns_configuration_and_preserves_failures(
     renderer['rpm_scripts'](ROOT, scripts)
     # Execute the actual RPM transaction callback with the existing isolated
     # service/account machine, without a Make installation or repair step.
-    source = (scripts / 'rpm-posttrans').read_text()
+    source = rpm_script_source(scripts / 'rpm-posttrans')
     (root / 'postinst').write_text(relocate_system_paths(source, root))
     spec = (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text()
     assert '%posttrans -f rpm-lifecycle/rpm-posttrans' in spec

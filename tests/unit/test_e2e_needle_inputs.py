@@ -45,6 +45,31 @@ def test_needle_bytes_are_frozen_and_part_of_distribution_digest(tmp_path, distr
     assert not (tmp_path / 'distribution').exists()
 
 
+@pytest.mark.parametrize('count', [256, 257])
+def test_distribution_count_is_bounded_after_shared_module_growth(distribution, count):
+    dist, _ = distribution
+    for index in range(count - 4):
+        (dist / ('helper-' + str(index) + '.pm')).write_text('1;')
+    if count > 256:
+        with pytest.raises(RuntimeError, match='e2e:distribution-size'):
+            worker.distribution_inputs()
+    else:
+        assert len(worker.distribution_inputs()) == count
+
+
+def test_larger_distribution_inventory_preserves_total_byte_ceiling(distribution, monkeypatch):
+    dist, _ = distribution
+    total = sum(len(value) for value in worker.distribution_inputs().values())
+    assert worker.MAX_DISTRIBUTION_BYTES == 128 * 1024 * 1024
+    monkeypatch.setattr(worker, 'MAX_DISTRIBUTION_BYTES', total)
+    assert sum(len(value) for value in worker.distribution_inputs().values()) == total
+
+    (dist / 'extra.pm').write_bytes(b'x')
+
+    with pytest.raises(RuntimeError, match='e2e:distribution-size'):
+        worker.distribution_inputs()
+
+
 @pytest.mark.parametrize('fault', ['missing-png', 'missing-json', 'symlink', 'unknown',
     'bad-json', 'tag', 'property', 'exclude', 'threshold', 'offscreen', 'bool', 'empty', 'png', 'dimensions'])
 def test_invalid_or_unsafe_needle_refuses_before_staging(distribution, fault):

@@ -260,6 +260,13 @@ def purge(*, yes=False):
     # There is deliberately no destructive work after the native lock releases.
     verify_purged_data()
     print('oh-no-parent-control: saved-state purge outcome=accepted')
+    # DNF prints transaction progress after postun's reminder. Repeat it only
+    # after successful verification, without creating/removing runtime state.
+    sys.stdout.flush()
+    notice = '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***'
+    if sys.stderr.isatty() and os.environ.get('TERM', '') not in ('', 'dumb'):
+        notice = '\033[1;31m' + notice + '\033[0m'
+    print(notice, file=sys.stderr)
 
 
 def main():

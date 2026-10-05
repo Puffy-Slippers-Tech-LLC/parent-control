@@ -1419,8 +1419,10 @@ does not replace its feasibility geometry with the graphical runner's stable mat
 The outer controller supplies its initial source map for diagnostics. The worker
 validates current distribution bytes, rejects unsafe source entries and writes
 those bytes into a fresh private distribution directory. Input guards use that
-staged copy's digest map, independently of later checkout edits. Its fixed
-generalhw variables and command expose no
+staged copy's digest map, independently of later checkout edits. The inventory
+is bounded to 256 files, 1 MiB per file and 128 MiB in total; growth
+in shared journey modules does not widen the former aggregate byte ceiling.
+Its fixed generalhw variables and command expose no
 caller-selected backend, schedule, checkpoint, guest command or password input.
 `Adapter` must validate the prepared lease before callbacks or worker creation,
 and revalidates its identity on every poll, including worker completion. The
@@ -1447,8 +1449,11 @@ that request. Disabling the console ends observation; it does not change VM stat
 `check_graphical_smoke.run_backend` now selects 1800 seconds for VT6 authentication:
 1200 for the ten full rechecks plus the existing 600-second smoke allowance,
 including synchronous `Lease.stop` and backend exit. Other selections retain
-600/960 seconds. `run_distribution` accepts only finite positive numeric budgets
-at most 1800; no callback renews the deadline. After `serve_once` returns, it
+600/960 seconds. Case 139 selects 3600 seconds for its complete five-reboot
+install/remove/reinstall/purge history. `run_distribution` accepts only finite
+positive numeric budgets at most its named `MAX_TIMEOUT_SECONDS` (3600); other
+callers retain their explicit budgets, and no callback renews the deadline.
+After `serve_once` returns, it
 checks expiration before another observer dispatch. Owned off-state restoration completes
 even if it crosses the deadline; expiration still fails and closes both resources.
 All lifecycle, module, lease and final preservation checks remain required.
@@ -1456,7 +1461,8 @@ All lifecycle, module, lease and final preservation checks remain required.
 `test_delayed_shutdown_callback_keeps_finite_deadline_and_requires_off_observation`
 in [worker cleanup regressions](../unit/test_e2e_worker_cleanup_safety.py) covers
 the old-budget refusal, delayed success with actual off observation, exhausted
-new-budget refusal and both closes. Invalid budgets refuse before resources.
+new-budget refusal and both closes, including success and expiration at the
+hour-long lifecycle budget. Invalid budgets refuse before resources.
 Reuse `test_timeout_refuses_and_cleans_up`, `Adapter`, `Lease.stop` and
 [public shutdown regressions](../unit/test_e2e_shutdown.py); the existing
 `test_vt6_worker_uses_existing_finite_extended_budget` in

@@ -252,6 +252,7 @@ def test_timeout_refuses_and_cleans_up(attempt, monkeypatch):
 
 @pytest.mark.parametrize('timeout,stop_seconds,passes', [
     (960, 180, False), (1800, 180, True), (1800, 1000, False),
+    (3600, 2600, True), (3600, 3000, False),
 ])
 def test_delayed_shutdown_callback_keeps_finite_deadline_and_requires_off_observation(
         attempt, monkeypatch, timeout, stop_seconds, passes):
@@ -297,7 +298,7 @@ def test_delayed_shutdown_callback_keeps_finite_deadline_and_requires_off_observ
     assert report(attempt)['worker_stopped'] and report(attempt)['callback_closed']
 
 
-@pytest.mark.parametrize('timeout', [True, 0, -1, 1801, float('inf'), float('nan')])
+@pytest.mark.parametrize('timeout', [True, 0, -1, 3600.01, 3601, float('inf'), float('nan')])
 def test_invalid_worker_budget_refuses_before_lease_or_resources(attempt, timeout):
     with pytest.raises(RuntimeError, match='e2e:timeout'):
         attempt.run(timeout=timeout)

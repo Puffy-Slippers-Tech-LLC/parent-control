@@ -32,6 +32,15 @@ DISTRIBUTION = ROOT / 'tests/integration/graphical_smoke'
 # missing/failed/softfailed module results. Upstream's module-derived exit
 # option can overwrite an earlier backend error with passing module results.
 COMMAND = ('/usr/bin/isotovideo',)
+# Complete package removal/reinstall histories retain five observed reboots in
+# one attempt. Their trusted caller may select an hour without renewing it at
+# callbacks; shorter scenarios keep their existing explicit budgets.
+MAX_TIMEOUT_SECONDS = 3600
+# Shared journey growth reached the original 128-file inventory. Admit a
+# bounded larger inventory while preserving its previous 128 MiB byte ceiling
+# and the existing 1 MiB individual-file limit.
+MAX_DISTRIBUTION_FILES = 256
+MAX_DISTRIBUTION_BYTES = 128 * 1024 * 1024
 
 
 def validate_needles(files):
@@ -131,6 +140,7 @@ def distribution_inputs():
     """
     require(DISTRIBUTION.resolve() == DISTRIBUTION, 'e2e:distribution-path')
     result = {}
+    total_bytes = 0
     for path in sorted(DISTRIBUTION.rglob('*')):
         metadata = path.lstat()
         require(not stat.S_ISLNK(metadata.st_mode), 'e2e:distribution-symlink')
@@ -149,7 +159,9 @@ def distribution_inputs():
             data = stream.read(1024 * 1024 + 1)
         require(len(data) <= 1024 * 1024, 'e2e:distribution-size')
         result[path.relative_to(DISTRIBUTION).as_posix()] = data
-        require(len(result) <= 128, 'e2e:distribution-size')
+        total_bytes += len(data)
+        require(len(result) <= MAX_DISTRIBUTION_FILES
+                and total_bytes <= MAX_DISTRIBUTION_BYTES, 'e2e:distribution-size')
     require('main.pm' in result and 'tests/smoke.pm' in result, 'e2e:distribution-incomplete')
     validate_needles(result)
     return result
@@ -202,7 +214,7 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
     on_failure is a trusted controller hook for durable scenario checkpoints;
     a broken hook cannot prevent either resource's cleanup or replace the error.
     """
-    require(type(timeout) in (int, float) and 0 < timeout <= 1800, 'e2e:timeout')
+    require(type(timeout) in (int, float) and 0 < timeout <= MAX_TIMEOUT_SECONDS, 'e2e:timeout')
     require(type(serial) is bool and (not serial or credentials is not None), 'e2e:serial-credentials')
     require(isinstance(lease.state['run'], str)
             and re.fullmatch(r'[0-9a-f]{32}', lease.state['run']), 'e2e:run')

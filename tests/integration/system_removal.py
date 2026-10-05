@@ -240,6 +240,31 @@ def configure_restrictions(accounts):
     observe_launch(accounts['other'], True)
 
 
+def original_policy_diagnostics(record, stage):
+    """Retain native classification inputs through the existing command logs."""
+    guest.guard()
+    if guest.package_path().suffix != '.rpm':
+        return
+    guest.require(stage in ('removed', 'reinstalled', 'purged', 'purge-reinstalled'),
+                  'removal:diagnostic-stage')
+    probes = (
+        ('service', ['systemctl', 'show', 'fapolicyd.service', '--property=LoadState',
+                     '--property=ActiveState', '--property=UnitFileState']),
+        ('reason', ['dnf5', '--quiet', '--cacheonly', '--disable-repo=*', 'repoquery',
+                    '--installed', '--queryformat', '%{name}|%{reason}', 'fapolicyd']),
+        ('rpm-verify', ['rpm', '-V', 'fapolicyd']),
+        ('compiled', ['/usr/sbin/fagenrules', '--check']),
+        ('inventory', ['find', '/etc/fapolicyd', '-maxdepth', '3', '-printf',
+                       '%y %m %u %g %p\\n']),
+        ('provenance', ['cat', '/var/lib/oh-no-parent-control/fedora-execution-policy.json']),
+    )
+    for name, arguments in probes:
+        guest.commands.run(['env', 'LC_ALL=C', *arguments], check=False, timeout=30,
+                           merge_stderr=True)
+        record(f'onpc.removal.policy.{stage}.{name}.status',
+               str(guest.commands.last_returncode))
+
+
 def remove(record):
     guest.guard()
     guest.enable_diagnostics()
@@ -337,7 +362,9 @@ def removed_rebooted(record):
            'GDM-desktop-active; password-login-accepted; native-execution-allowed; integrations-absent')
     state['removed_boot'] = boot()
     save_state(state)
+    original_policy_diagnostics(record, 'removed')
     guest.install_package()
+    original_policy_diagnostics(record, 'reinstalled')
     guest.require(guest.reboot_requested(), 'removal:reinstall-reboot-not-requested')
 
 
@@ -392,7 +419,9 @@ def purged_rebooted(record):
     password_login_health(state['accounts']['child'])
     state['purge_reinstall_boot'] = boot()
     save_state(state)
+    original_policy_diagnostics(record, 'purged')
     guest.install_package()
+    original_policy_diagnostics(record, 'purge-reinstalled')
     guest.require(guest.reboot_requested(), 'purge:reinstall-reboot-not-requested')
     record('onpc.purge.boot-health', 'desktop-and-password-login-healthy; native-execution-allowed')
 

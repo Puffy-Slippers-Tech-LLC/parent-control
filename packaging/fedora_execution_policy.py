@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import sys
 import tempfile
 
 OWNER = 0
@@ -235,23 +236,32 @@ class Policy:
         active = not inactive
         enabled = not (disabled or missing)
         basis = 'preserve'
+        classification = 'service-or-package-preserved'
         if not active and not enabled:
             config = self.path('/etc/fapolicyd')
             if installed.returncode == 1 and missing and not config.exists() and not config.is_symlink():
                 basis = 'absent'
+                classification = 'absent'
             elif installed.returncode == 0 and installed.stdout == 'fapolicyd' and service['LoadState'] == 'loaded':
                 # Read existing committed DNF metadata in pretrans. New reasons
                 # are committed only after RPM posttrans has finished.
                 reason = self.run(['dnf5', '--quiet', '--cacheonly', '--disable-repo=*',
                                    'repoquery', '--installed', '--queryformat', '%{name}|%{reason}',
                                    'fapolicyd'])
+                classification = 'reason-query-failed' if reason.returncode else 'reason-not-dependency'
                 if (reason.returncode == 0 and reason.stdout.strip() in
                         ('fapolicyd|Dependency', 'fapolicyd|Weak Dependency')):
                     try:
+                        classification = 'stock-changed'
                         if self.stock():
                             basis = 'dependency'
+                            classification = 'stock-dependency'
                     except (OSError, ValueError, KeyError):
-                        pass  # Unproven/custom policy is preserved, never adopted.
+                        classification = 'stock-unproven'
+        # Native transaction output must explain conservative preservation on
+        # reinstall without exposing command output, paths or account details.
+        print(f'oh-no-parent-control: original-policy classification={classification} basis={basis}',
+              file=sys.stderr)
         self.save(dict(purpose=PURPOSE, basis=basis, active=active, enabled=enabled, permissive=False))
 
     def eligible(self):

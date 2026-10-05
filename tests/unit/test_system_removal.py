@@ -288,3 +288,29 @@ def test_original_authselect_uses_recorded_profile_and_features(removed_machine)
     record.write_text(json.dumps({'profile': 'wrong', 'features': []}))
     with pytest.raises(removal.guest.GuestError, match='authselect-record-invalid'):
         removal.original_authselect()
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_policy_diagnostics_use_bounded_native_reads_and_keep_probe_failures(monkeypatch, package_format):
+    monkeypatch.setattr(removal.guest, 'guard', Mock())
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.' + package_format))
+    commands = Mock(last_returncode=1)
+    monkeypatch.setattr(removal.guest, 'commands', commands)
+    record = Mock()
+    removal.original_policy_diagnostics(record, 'removed')
+    if package_format == 'deb':
+        commands.run.assert_not_called()
+        record.assert_not_called()
+    else:
+        assert commands.run.call_count == record.call_count == 6
+        assert all(call.kwargs == {'check': False, 'timeout': 30, 'merge_stderr': True}
+                   for call in commands.run.call_args_list)
+        assert all(call.args[1] == '1' for call in record.call_args_list)
+        commands.run.reset_mock()
+        with pytest.raises(removal.guest.GuestError, match='diagnostic-stage'):
+            removal.original_policy_diagnostics(record, 'unknown')
+        commands.run.assert_not_called()
+        monkeypatch.setattr(removal.guest, 'guard', Mock(side_effect=removal.guest.GuestError('identity')))
+        with pytest.raises(removal.guest.GuestError, match='identity'):
+            removal.original_policy_diagnostics(record, 'removed')
+        commands.run.assert_not_called()

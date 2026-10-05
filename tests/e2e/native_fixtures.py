@@ -76,17 +76,11 @@ class NativeFixtures:
                        'Verifying four baseline native launchers for [Child user]'):
             value = self.command('read')
             if self.profile == 'chinese':
-                from chinese_language_assets import PACKAGES, LOCALE, GLYPHS, CATALOGUES, validate_receipt
+                from chinese_language_assets import validate_receipt
                 require(set(value) == {'profile', 'os_id', 'release', 'locale', 'provider',
                                       'packages', 'translations', 'cjk_glyphs', 'files',
                                       'unchanged_state', 'runtime_locale'}
-                        and value['profile'] == 'chinese' and value['os_id'] == 'ubuntu'
-                        and value['release'] == '26.04' and value['locale'] == LOCALE
-                        and value['provider'] == 'mate-polkit'
-                        and set(value['packages']) == {item.split('=')[0] for item in PACKAGES}
-                        and value['translations'] == {key: len(messages) for key, messages in CATALOGUES.items()}
-                        and value['cjk_glyphs'] == len(set(GLYPHS))
-                        and value['unchanged_state'] is True and value['runtime_locale'] == 'UTF-8',
+                        and value['unchanged_state'] is True,
                         'native:chinese-receipt')
                 validate_receipt({key: item for key, item in value.items()
                                   if key != 'unchanged_state'})

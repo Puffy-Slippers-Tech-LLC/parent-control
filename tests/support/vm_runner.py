@@ -16,7 +16,7 @@ UUID = 'f95890e1-88e7-4779-8ae3-53fdcc34330a'
 RUN = 'a' * 32
 
 
-def bootstrap_guest():
+def bootstrap_guest(os_id='ubuntu'):
     """Offline guest file behavior shared by bootstrap and controller tests."""
     from guest_test_dependencies import VERSIONS
     files = {
@@ -30,9 +30,12 @@ def bootstrap_guest():
     }
     directories = {'/root'}
     modes = {}
-    from tests.support.chinese_assets import populate
+    from tests.support.chinese_assets import populate, populate_fedora, guest as language_guest
     language_metadata = {}
-    populate(files, language_metadata)
+    if os_id == 'fedora':
+        populate_fedora(files, language_metadata)
+    else:
+        populate(files, language_metadata)
     directories.update(path for path, info in language_metadata.items()
                        if stat.S_ISDIR(info['st_mode']))
     g = Mock()
@@ -53,7 +56,12 @@ def bootstrap_guest():
         'st_uid': 0, 'st_gid': 0, 'st_nlink': 1,
     })
     g.filesize.side_effect = lambda path: len(files[path])
-    g.command.return_value = 'UTF-8\n'
+    if os_id == 'fedora':
+        language, _, _ = language_guest('fedora')
+        g.command.side_effect = lambda argv: ('' if argv[0] == '/usr/sbin/setfiles' else
+                                              language.command.side_effect(argv))
+    else:
+        g.command.return_value = 'UTF-8\n'
     return g, files
 
 

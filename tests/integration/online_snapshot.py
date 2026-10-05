@@ -321,10 +321,9 @@ def saved_transport(lease, directory, record, hostname):
     current = transport.call(['date', '+%s']).strip()
     system.require(current.isdigit() and read_started - 2 <= int(current) <= int(time.time()) + 2,
                    'online-snapshot:clock-not-corrected')
-    if lease.capture.state['guest'].get('os_id', 'ubuntu') == 'ubuntu':
-        from chinese_language_assets import verify_transport
-        with system.operation('Verifying the restored Chinese baseline language assets'):
-            verify_transport(transport)
+    from chinese_language_assets import verify_transport
+    with system.operation('Verifying the restored Chinese baseline language assets'):
+        verify_transport(transport)
     return transport
 
 

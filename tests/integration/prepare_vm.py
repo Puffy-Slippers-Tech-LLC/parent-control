@@ -754,6 +754,8 @@ def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
             raise PreparationError('guest-tools:configuration-collision',
                                    'LDAP/SSSD must be unconfigured before preparation')
     if os_id == 'fedora':
+        from chinese_language_assets import LocalFiles, preflight
+        preflight(LocalFiles(root), os_id)
         try:
             guest_tools.verify_installed(os_id, runner=runner, root=root)
         except ValueError as error:

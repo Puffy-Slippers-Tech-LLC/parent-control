@@ -407,8 +407,6 @@ def inspect_guest(guestfs, disk, script_digest):
         guest_contract.validate_marker(marker, os_id=os_id)
         if os_id == 'ubuntu':
             guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
-            from chinese_language_assets import verify as verify_chinese
-            verify_chinese(g)
         else:
             guest_contract.selinux_policy(g.read_file('/etc/selinux/config').decode('utf-8'))
             applications = g.inspect_list_applications2(roots[0])
@@ -416,6 +414,8 @@ def inspect_guest(guestfs, disk, script_digest):
                 (row['app2_name'], row['app2_version']) for row in applications)
             require(not any(row['app2_name'].startswith('oh-no-parent-control')
                             for row in applications), 'guest:residue:package')
+        from chinese_language_assets import verify as verify_chinese
+        verify_chinese(g, os_id)
         require(not any(g.exists(path) or g.is_symlink(path)
                         for path in guest_contract.guest_tools.dormant_paths(os_id)),
                 'guest:directory-fixture-not-clean')

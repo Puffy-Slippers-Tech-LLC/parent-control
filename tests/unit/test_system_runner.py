@@ -162,7 +162,7 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
         staged_format = ('rpm' if package_format == 'deb' else 'deb') if failure == 'wrong-package' else package_format
         (tmp_path / ('input/package.' + staged_format)).write_bytes(b'package')
     (tmp_path / 'input/selected-inputs.json').write_bytes(b'inputs')
-    g, files = bootstrap_guest()
+    g, files = bootstrap_guest('fedora' if package_format == 'rpm' else 'ubuntu')
     if package_format == 'rpm':
         from guest_test_dependencies import FEDORA_VERSIONS
         g.inspect_get_distro.return_value = 'fedora'
@@ -225,9 +225,13 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
         assert g.inspect_os.call_count == guestfs.GuestFS.call_count
         g.sync.assert_called_once()
         if package_format == 'rpm':
-            g.command.assert_called_once_with(['/usr/sbin/setfiles', '-m',
+            import chinese_language_assets as language
+            assert [call.args[0] for call in g.command.call_args_list] == [
+                language.RPM_LIST_COMMAND,
+                *map(language.rpm_file_command, language.FEDORA_PACKAGES),
+                language.LOCALE_COMMAND, ['/usr/sbin/setfiles', '-m',
                 '/etc/selinux/targeted/contexts/files/file_contexts',
-                '/etc/onpc-system-test.json', '/root/.ssh'])
+                '/etc/onpc-system-test.json', '/root/.ssh']]
     assert [call.args[0][0] for call in commands.run.call_args_list] == ['ssh-keygen']
 
 

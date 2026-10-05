@@ -2515,8 +2515,19 @@ The profile also requires Ubuntu's `language-pack-gnome-zh-hans-base` and
 `Activities` translation before any renewed Chinese desktop observation.
 The general Chinese language packs alone do not supply GNOME translations.
 Baseline source identity includes this module. Offline bootstrap and restored
-online app snapshots use the same read-only oracle. Fedora's existing preparation
-branch is preserved; no Chinese Fedora binding is claimed.
+online app snapshots use the same read-only oracle. The in-progress Fedora
+Workstation 44 RPM profile spans the same preparation, bootstrap,
+snapshot-readiness and FIX06 routes. Its finite package owners are
+`glibc-langpack-zh`, `mate-polkit`, `pam`, `gnome-shell` and
+`google-noto-sans-cjk-fonts`; RPM SHA-256 manifests bind locale/catalogue/font
+bytes. The canonical release/Workstation identity, targeted enforcing SELinux,
+runtime UTF-8 locale, required Chinese translations and static Noto CJK glyphs
+must all pass. Fedora assets, renewed desktop/first presentation and native
+prompt bindings remain unqualified. The developer removed Fedora-specific
+Chinese qualification from task 300's acceptance scope on 2026-10-04; its
+complete-case target is Ubuntu 26.04. Retained Fedora preparation work supplies
+no installed acceptance and does not block task 300. No complete case is
+registered or passed by this implementation or planning repair.
 Task 300a passed host checks and auto baseline/app-snapshot preparation. Chinese
 FIX06 qualified wrong-entry refusal, two independent valid reads and unchanged
 account/locale/product state on every enabled VM (Ubuntu 26.04) in

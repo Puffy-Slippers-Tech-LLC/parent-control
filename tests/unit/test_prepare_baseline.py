@@ -1084,6 +1084,19 @@ def test_fedora_offline_acceptance_checks_release_tools_roles_and_product_residu
     g.inspect_get_major_version.return_value = 44
     g.inspect_get_minor_version.return_value = 0
     files['/etc/os-release'] = b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n'
+    from tests.support.chinese_assets import guest as language_guest, populate_fedora
+    metadata = {}
+    populate_fedora(files, metadata)
+    for domain in ('Linux-PAM', 'gnome-shell'):
+        files.pop(f'/usr/share/locale-langpack/zh_CN/LC_MESSAGES/{domain}.mo')
+    original_stat = g.lstatns.side_effect
+    g.lstatns.side_effect = lambda path: metadata[path] if path in metadata else original_stat(path)
+    original_exists = g.exists.side_effect
+    removed = {f'/usr/share/locale-langpack/zh_CN/LC_MESSAGES/{domain}.mo'
+               for domain in ('Linux-PAM', 'gnome-shell')}
+    g.exists.side_effect = lambda path: path not in removed and (path in metadata or original_exists(path))
+    language, _, _ = language_guest('fedora')
+    g.command.side_effect = language.command.side_effect
     files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
     files['/etc/group'] = b'wheel:x:10:onpc-parent-jamie,onpc-parent-casey\n'
     marker = guest.marker_document(guest.GuestIdentity(guest.HOSTNAME, 'a' * 32, '44', 'kvm', 'fedora'),

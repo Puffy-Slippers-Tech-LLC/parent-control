@@ -1487,6 +1487,9 @@ retain every original assertion under the
 No numeric coverage ID, executable binding or acceptance is registered yet.
 Task 300k qualified the revised fresh-install first presentation in
 `20261004T185057Z-2010e28f`, with both required lifecycle regressions passed.
+That evidence is Ubuntu-only. The selected complete-case target is Ubuntu
+26.04. The developer removed Fedora-specific Chinese qualification from this
+case's acceptance scope on 2026-10-04; queue repair establishes no acceptance.
 Register one
 complete Chinese case after its prerequisites pass; keep all three reported
 symptoms in this continuous history, without a German/Hebrew lifecycle matrix.

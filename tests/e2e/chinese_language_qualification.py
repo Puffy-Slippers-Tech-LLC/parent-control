@@ -1,4 +1,4 @@
-"""300a: read-only FIX06 on the product-free, fresh administrator envelope."""
+"""Read-only Chinese FIX06 on the product-free, fresh administrator envelope."""
 from dataclasses import replace
 from native_fixtures import fixture_actions
 from product_free_entry import PLAN as ENTRY_PLAN, ProductFreeEntryJourney

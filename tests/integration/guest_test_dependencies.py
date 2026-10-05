@@ -7,7 +7,7 @@ incomplete baseline instead of repairing it.
 
 import re
 import subprocess
-from chinese_language_assets import PACKAGES as CHINESE_PACKAGES
+from chinese_language_assets import PACKAGES as CHINESE_PACKAGES, FEDORA_PACKAGES as FEDORA_CHINESE_PACKAGES
 
 REMOTE_PACKAGES = (
     'slapd=2.6.10+dfsg-1ubuntu5', 'ldap-utils=2.6.10+dfsg-1ubuntu5',
@@ -26,7 +26,8 @@ DORMANT_PATHS = ('/etc/ldap/slapd.d', '/etc/ldap/slapd.conf', '/etc/sssd/sssd.co
 FEDORA_REMOTE_VERSIONS = {'openldap-servers': '2.6.10', 'openldap-clients': '2.6.10',
                           'sssd-ldap': '2.12.0', 'sssd-client': '2.12.0'}
 FEDORA_VERSIONS = {'openssh-server': '10.2p1', 'python3-pytest': '8.4.2',
-                   'python3-gobject': '0', 'gtk4': '0', **FEDORA_REMOTE_VERSIONS}
+                   'python3-gobject': '0', 'gtk4': '0', **FEDORA_REMOTE_VERSIONS,
+                   **dict.fromkeys(FEDORA_CHINESE_PACKAGES, '0')}
 # Fedora's RPM generates its own default slapd.d. The fixture uses separate
 # configuration/database paths and leaves those package defaults untouched.
 FEDORA_DORMANT_PATHS = ('/etc/sssd/sssd.conf',
@@ -88,7 +89,10 @@ def verify_installed(os_id, *, runner, root):
     rows = [line.split('\t') for line in result.stdout.splitlines()]
     if any(len(row) != 2 for row in rows):
         raise ValueError('guest-tools:ambiguous-package-status')
-    return verify_fedora_packages(rows)
+    found = verify_fedora_packages(rows)
+    from chinese_language_assets import LocalFiles, verify
+    verify(LocalFiles(root), os_id)
+    return found
 
 
 def ubuntu_archive_sources(contents):

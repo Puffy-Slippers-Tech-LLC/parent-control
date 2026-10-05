@@ -1,4 +1,4 @@
-"""Finite Ubuntu Chinese readiness profile; package management owns all writes.
+"""Finite Ubuntu/Fedora Chinese readiness profiles; package management owns writes.
 
 Used unchanged by baseline inspection, attempt bootstrap and FIX06. No locale
 generation, installation, account configuration or product mutation here.
@@ -34,6 +34,14 @@ CATALOGUE_PACKAGES = {
     'Linux-PAM': ('language-pack-zh-hans-base', 'language-pack-zh-hans'),
     'gnome-shell': ('language-pack-gnome-zh-hans-base', 'language-pack-gnome-zh-hans'),
 }
+FEDORA_PACKAGES = ('glibc-langpack-zh', 'mate-polkit', 'pam', 'gnome-shell',
+                   'google-noto-sans-cjk-fonts')
+FEDORA_FONT_PATH = '/usr/share/fonts/google-noto-sans-cjk-fonts/NotoSansCJK-Regular.ttc'
+FEDORA_CATALOGUE_PACKAGES = {
+    'mate-polkit': ('mate-polkit',), 'Linux-PAM': ('pam',), 'gnome-shell': ('gnome-shell',),
+}
+RPM_LIST_COMMAND = ['/usr/bin/rpm', '-qa', '--queryformat', '%{NAME}\t%{VERSION}-%{RELEASE}\n']
+RPM_FILE_FORMAT = '%{NAME}\t%{VERSION}-%{RELEASE}\t%{FILEDIGESTALGO}\n[%{FILENAMES}\t%{FILEDIGESTS}\n]'
 GLYPHS = '中文密码授权取消身份验证'
 LIMIT = 32 * 1024 * 1024
 LOCALE_COMMAND = ['/usr/bin/env', 'LC_ALL=zh_CN.UTF-8', '/usr/bin/locale', 'charmap']
@@ -77,11 +85,13 @@ class LocalFiles:
         return data
 
     def command(self, argv):
-        require(self.root == Path('/') and argv == LOCALE_COMMAND, 'locale-command')
+        require(self.root == Path('/') and (argv in (LOCALE_COMMAND, RPM_LIST_COMMAND)
+                or argv in [rpm_file_command(name) for name in FEDORA_PACKAGES]), 'read-command')
         result = subprocess.run(argv, check=True, timeout=10, capture_output=True,
                                 env={'PATH': '/usr/bin:/bin'})
         require(result.stderr == b'', 'locale-runtime')
-        return result.stdout.decode('ascii')
+        require(len(result.stdout) <= 2 * 1024 * 1024, 'command-bound')
+        return result.stdout.decode('utf-8')
 
 
 def require(value, code):
@@ -163,15 +173,81 @@ def font_coverage(data):
     return len(coverage)
 
 
-def verify(g, os_id='ubuntu'):
-    require(os_id == 'ubuntu', 'unsupported-platform')
+def platform(g, os_id=None):
+    """Pin the canonical release file, including Fedora's Workstation variant."""
+    fields = {}
+    for line in read(g, '/usr/lib/os-release', 64 * 1024).decode().splitlines():
+        if '=' not in line or line.startswith('#'):
+            continue
+        key, value = line.split('=', 1)
+        require(key not in fields, 'release')
+        fields[key] = value.strip('"\'')
+    found = fields.get('ID')
+    require((found, fields.get('VERSION_ID')) == ('ubuntu', '26.04') or
+            (found, fields.get('VERSION_ID'), fields.get('VARIANT_ID')) ==
+            ('fedora', '44', 'workstation'), 'unsupported-platform')
+    require(os_id is None or os_id == found, 'unsupported-platform')
+    if found == 'fedora':
+        config = read(g, '/etc/selinux/config', 64 * 1024).decode()
+        require(re.findall(r'^SELINUX=(\S+)\s*$', config, re.M) == ['enforcing']
+                and re.findall(r'^SELINUXTYPE=(\S+)\s*$', config, re.M) == ['targeted'], 'selinux')
+        # Offline guestfs has no mounted securityfs. Live reads also require
+        # enforcement now, without invoking a write or changing SELinux mode.
+        if g.exists('/sys/fs/selinux/enforce'):
+            require(g.read_file('/sys/fs/selinux/enforce').strip() == b'1', 'selinux')
+    return found
+
+
+def rpm_file_command(name):
+    require(name in FEDORA_PACKAGES, 'package-identity')
+    return ['/usr/bin/rpm', '-q', '--queryformat', RPM_FILE_FORMAT, name]
+
+
+def rpm_inventory(g):
+    raw = g.command(RPM_LIST_COMMAND)
+    require(type(raw) is str and 0 < len(raw.encode()) <= 2 * 1024 * 1024, 'package-status')
+    packages = {}
+    for line in raw.splitlines():
+        row = line.split('\t')
+        require(len(row) == 2, 'package-status')
+        name, version = row
+        if name not in FEDORA_PACKAGES:
+            continue
+        require(name not in packages and re.fullmatch(r'[A-Za-z0-9.+:~\-]+', version), 'package-status')
+        packages[name] = version
+    records = {}
+    for name, version in packages.items():
+        raw = g.command(rpm_file_command(name))
+        require(type(raw) is str and 0 < len(raw.encode()) <= 2 * 1024 * 1024, 'package-identity')
+        lines = raw.splitlines()
+        require(lines[0].split('\t') == [name, version, '8'], 'package-identity')
+        files = {}
+        for line in lines[1:]:
+            row = line.split('\t')
+            require(len(row) == 2 and row[0].startswith('/') and row[0] not in files, 'package-identity')
+            files[row[0]] = row[1]
+        records[name] = files
+    return packages, records
+
+
+def verify(g, os_id=None):
+    os_id = platform(g, os_id)
     from guest_test_dependencies import verify_packages
-    packages = verify_packages(read(g, '/var/lib/dpkg/status').decode(), PACKAGES)
+    if os_id == 'fedora':
+        packages, records = rpm_inventory(g)
+        require(set(packages) == set(FEDORA_PACKAGES), 'missing-package')
+    else:
+        packages = verify_packages(read(g, '/var/lib/dpkg/status').decode(), PACKAGES)
     require(all(re.fullmatch(r'[A-Za-z0-9.+:~\-]+', value) for value in packages.values()),
             'package-version')
     files = {}
     def packaged(path, owners, limit=LIMIT):
         data = read(g, path, limit)
+        if os_id == 'fedora':
+            digests = [records[owner][path] for owner in owners if path in records[owner]]
+            require(len(digests) == 1 and re.fullmatch('[0-9a-f]{64}', digests[0]), 'package-identity')
+            require(hashlib.sha256(data).hexdigest() == digests[0], 'package-bytes')
+            return data
         digests = []
         for owner in owners:
             manifest = f'/var/lib/dpkg/info/{owner}.md5sums'
@@ -184,7 +260,7 @@ def verify(g, os_id='ubuntu'):
             digests.extend(matches)
         require(hashlib.md5(data, usedforsecurity=False).hexdigest() in digests, 'package-bytes')
         return data
-    locale_data = packaged(LOCALE_PATH, ('locales-all',))
+    locale_data = packaged(LOCALE_PATH, ('glibc-langpack-zh',) if os_id == 'fedora' else ('locales-all',))
     require(b'UTF-8\x00' in locale_data and b'Chinese' in locale_data, 'locale')
     # Execute only the distribution's read-only locale query, inside the guest
     # root for guestfs. Package names/IDENTIFICATION alone cannot prove a usable
@@ -200,34 +276,43 @@ def verify(g, os_id='ubuntu'):
                       for directory in ('locale', 'locale-langpack')]
         present = [path for path in candidates if g.exists(path) or g.is_symlink(path)]
         require(len(present) == 1, 'catalogue-identity')
-        data = packaged(present[0], CATALOGUE_PACKAGES[domain], 2 * 1024 * 1024)
+        owners = FEDORA_CATALOGUE_PACKAGES if os_id == 'fedora' else CATALOGUE_PACKAGES
+        if os_id == 'fedora':
+            require(present[0] == candidates[0], 'catalogue-identity')
+        data = packaged(present[0], owners[domain], 2 * 1024 * 1024)
         catalog = gettext.GNUTranslations(io.BytesIO(data))
         values = [catalog.gettext(message) for message in messages]
         require(all(value != message and any('\u4e00' <= char <= '\u9fff' for char in value)
                     for message, value in zip(messages, values)), 'translation-fallback')
         files[present[0]] = hashlib.sha256(data).hexdigest()
         translations[domain] = len(messages)
-    font = packaged(FONT_PATH, ('fonts-noto-cjk',))
+    font_path = FEDORA_FONT_PATH if os_id == 'fedora' else FONT_PATH
+    font = packaged(font_path, ('google-noto-sans-cjk-fonts',) if os_id == 'fedora' else ('fonts-noto-cjk',))
     glyphs = font_coverage(font)
-    files[FONT_PATH] = hashlib.sha256(font).hexdigest()
-    return {'profile': 'chinese', 'os_id': 'ubuntu', 'release': '26.04',
+    files[font_path] = hashlib.sha256(font).hexdigest()
+    return {'profile': 'chinese', 'os_id': os_id, 'release': '44' if os_id == 'fedora' else '26.04',
             'locale': LOCALE, 'provider': 'mate-polkit', 'packages': packages,
             'translations': translations, 'cjk_glyphs': glyphs, 'files': files,
             'runtime_locale': 'UTF-8'}
 
 
-def preflight(g):
+def preflight(g, os_id='ubuntu'):
     """Only the distribution's recorded files may be adopted by preparation.
 
     Package managers own atomic placement and partial configured-package retry;
     this profile never overwrites a colliding unregistered input itself.
     """
-    paths = [LOCALE_PATH, FONT_PATH]
+    require(os_id in ('ubuntu', 'fedora'), 'unsupported-platform')
+    paths = [LOCALE_PATH, FEDORA_FONT_PATH if os_id == 'fedora' else FONT_PATH]
     paths += [f'/usr/share/{directory}/zh_CN/LC_MESSAGES/{domain}.mo'
               for directory in ('locale', 'locale-langpack') for domain in CATALOGUES]
     owned = set()
-    for name in ('locales-all', 'fonts-noto-cjk',
-                 *(owner for owners in CATALOGUE_PACKAGES.values() for owner in owners)):
+    if os_id == 'fedora':
+        platform(g, os_id)
+        _, records = rpm_inventory(g)
+        owned.update(path for files in records.values() for path in files)
+    for name in (() if os_id == 'fedora' else ('locales-all', 'fonts-noto-cjk',
+                 *(owner for owners in CATALOGUE_PACKAGES.values() for owner in owners))):
         listing = f'/var/lib/dpkg/info/{name}.list'
         if g.exists(listing) or g.is_symlink(listing):
             owned.update(read(g, listing, 2 * 1024 * 1024).decode().splitlines())
@@ -266,23 +351,26 @@ def verify_transport(transport):
 
 
 def validate_receipt(value):
+    require(type(value) is dict and (value.get('os_id'), value.get('release'))
+            in (('ubuntu', '26.04'), ('fedora', '44')), 'receipt-platform')
+    fedora = value['os_id'] == 'fedora'
     require(type(value) is dict and set(value) == {
         'profile', 'os_id', 'release', 'locale', 'provider', 'packages',
         'translations', 'cjk_glyphs', 'files', 'runtime_locale'} and value['profile'] == 'chinese'
-        and value['os_id'] == 'ubuntu' and value['release'] == '26.04'
         and value['locale'] == LOCALE and value['provider'] == 'mate-polkit'
         and value['runtime_locale'] == 'UTF-8'
         and type(value['packages']) is dict
-        and set(value['packages']) == {item.split('=')[0] for item in PACKAGES}
+        and set(value['packages']) == (set(FEDORA_PACKAGES) if fedora else
+                                      {item.split('=')[0] for item in PACKAGES})
         and all(type(version) is str and re.fullmatch(r'[A-Za-z0-9.+:~\-]+', version)
                 for version in value['packages'].values())
         and value['translations'] == {domain: len(messages) for domain, messages in CATALOGUES.items()}
         and value['cjk_glyphs'] == len(set(GLYPHS)) and type(value['files']) is dict,
         'receipt')
-    expected = {LOCALE_PATH, FONT_PATH}
+    expected = {LOCALE_PATH, FEDORA_FONT_PATH if fedora else FONT_PATH}
     for domain in CATALOGUES:
         candidates = {f'/usr/share/{directory}/zh_CN/LC_MESSAGES/{domain}.mo'
-                      for directory in ('locale', 'locale-langpack')}
+                      for directory in (('locale',) if fedora else ('locale', 'locale-langpack'))}
         selected = set(value['files']) & candidates
         require(len(selected) == 1, 'receipt-catalogue')
         expected.update(selected)

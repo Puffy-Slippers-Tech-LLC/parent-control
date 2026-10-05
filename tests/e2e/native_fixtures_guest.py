@@ -178,10 +178,8 @@ def execute(action, expected, profile='native'):
                 result[path] = (before, hashlib.sha256(data).hexdigest())
             return result
         before = state()
-        # Ubuntu's /etc/os-release is normally a symlink. Pin the canonical
-        # distribution file without relaxing the profile's no-link reader.
-        release = read(g, '/usr/lib/os-release', 64 * 1024).decode()
-        require('\nID=ubuntu\n' in '\n' + release and 'VERSION_ID="26.04"' in release)
+        # The shared oracle pins the canonical release and platform-specific
+        # package/file identity; /etc/os-release remains a compatibility link.
         result = verify(g)
         require(state() == before)
         result.update(unchanged_state=True)

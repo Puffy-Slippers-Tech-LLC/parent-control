@@ -24,7 +24,10 @@ Next task: **300 — [Chinese latest-install kiosk lifecycle](E2E-Tasks/300-loca
 Task 300k's current-install, single-reboot Chinese first-presentation qualification
 and required customer-reboot and Chinese kiosk lifecycle regressions passed on
 Ubuntu 26.04. Its delivered scope and evidence are recorded in the queue and
-catalogue. Task 300 begins in a fresh session under the normal one-task process.
+catalogue. Task 300 remains unchecked, with acceptance scoped to Ubuntu 26.04.
+The developer removed the Fedora-specific language prerequisites on 2026-10-04;
+their unqualified bindings no longer block this case. Complete-case registration
+and acceptance remain pending. This queue repair records no VM attempt or acceptance.
 
 Task 300 was too broad: it combined independent customer histories and several
 unqualified surface/result bindings. The

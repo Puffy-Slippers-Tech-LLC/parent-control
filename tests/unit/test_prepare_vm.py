@@ -691,7 +691,12 @@ def test_fedora_marker_is_distinct_and_cannot_pass_as_ubuntu():
 
 
 @pytest.mark.parametrize('failure', [None, 'install', 'verify', 'duplicate'])
-def test_fedora_dependencies_install_retry_verify_and_never_use_apt(tmp_path, failure):
+def test_fedora_dependencies_install_retry_verify_and_never_use_apt(tmp_path, monkeypatch, failure):
+    import chinese_language_assets
+    # Package transaction scope; actual RPM/file/locale guards have independent
+    # tests in test_chinese_language_assets_cleanup_safety, including retry.
+    monkeypatch.setattr(chinese_language_assets, 'preflight', lambda g, os_id: None)
+    monkeypatch.setattr(chinese_language_assets, 'verify', lambda g, os_id: {'profile': 'chinese'})
     installed = {}
     commands = []
     class FedoraRunner:
@@ -738,6 +743,7 @@ def test_fedora_dependencies_install_retry_verify_and_never_use_apt(tmp_path, fa
 ])
 def test_fedora_package_inventory_refuses_old_missing_or_prerelease_tools(versions, accepted):
     versions = {'python3-gobject': '3.50.0', 'gtk4': '4.18.0',
+                **dict.fromkeys(prepare.guest_tools.FEDORA_CHINESE_PACKAGES, '1'),
                 **prepare.guest_tools.FEDORA_REMOTE_VERSIONS, **versions}
     if accepted:
         assert prepare.guest_tools.verify_fedora_packages(versions.items()) == versions

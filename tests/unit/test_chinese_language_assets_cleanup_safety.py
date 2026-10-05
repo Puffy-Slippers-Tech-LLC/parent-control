@@ -21,10 +21,11 @@ from private_artifacts import EvidenceError
 from tests.support.chinese_assets import guest, catalogue
 
 
-def test_profile_independently_reads_locale_native_messages_and_glyphs_without_writes():
-    g, files, metadata = guest()
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+def test_profile_independently_reads_locale_native_messages_and_glyphs_without_writes(os_id):
+    g, files, metadata = guest(os_id)
     before = copy.deepcopy((files, metadata))
-    assets.preflight(g)
+    assets.preflight(g, os_id)
     first = assets.verify(g)
     assert assets.verify(g) == first
     assert first['cjk_glyphs'] == len(set(assets.GLYPHS))
@@ -33,7 +34,11 @@ def test_profile_independently_reads_locale_native_messages_and_glyphs_without_w
     assert (files, metadata) == before
     assert {call[0] for call in g.method_calls} <= {
         'exists', 'is_symlink', 'lstatns', 'realpath', 'filesize', 'read_file', 'command'}
-    assert all(call.args[0] == assets.LOCALE_COMMAND for call in g.command.call_args_list)
+    assets.validate_receipt(first)
+    assert first['os_id'] == os_id
+    assert all(call.args[0] == assets.LOCALE_COMMAND or os_id == 'fedora' and
+               call.args[0] in [assets.RPM_LIST_COMMAND, *map(assets.rpm_file_command, assets.FEDORA_PACKAGES)]
+               for call in g.command.call_args_list)
 
 
 @pytest.mark.parametrize('fault', ['', 'changed', 'added', 'link', 'directory-link', 'fifo',
@@ -165,6 +170,7 @@ def test_package_profile_changes_source_identity_and_keeps_fedora_branch():
     assert 'tests/integration/chinese_language_assets.py' in prepare_vm.SCRIPT_FILES
     assert set(item.split('=')[0] for item in assets.PACKAGES) <= set(tools.VERSIONS)
     assert 'locales-all' not in tools.FEDORA_VERSIONS
+    assert set(assets.FEDORA_PACKAGES) <= set(tools.FEDORA_VERSIONS)
     g, _, _ = guest()
     with pytest.raises(ValueError, match='unsupported-platform'): assets.verify(g, 'fedora')
 
@@ -186,8 +192,9 @@ def test_actual_selector_uses_existing_guarded_product_free_envelope(monkeypatch
     assert journey.plan.stage_actions == {'wrong-entry': 'native-refuse', 'desktop': 'native-verify'}
 
 
-def test_profile_controller_uses_guard_recheck_and_two_independent_reads():
-    g, _, _ = guest()
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+def test_profile_controller_uses_guard_recheck_and_two_independent_reads(os_id):
+    g, _, _ = guest(os_id)
     receipt = {**assets.verify(g), 'unchanged_state': True, 'runtime_locale': 'UTF-8'}
     transport = SimpleNamespace(config={'run': 'owned'}, guard=Mock(), call=Mock(
         return_value=(json.dumps(receipt, sort_keys=True) + '\n').encode()))
@@ -212,12 +219,10 @@ def test_wrong_entry_refuses_before_asset_read_or_runtime_locale(monkeypatch):
 @pytest.mark.parametrize('locale_file', ['regular', 'compatibility', 'foreign', 'dangling',
                                         'canonical-link'])
 @pytest.mark.parametrize('mutation', [None, 'account', 'locale', 'link'])
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
 def test_actual_guest_read_uses_regular_distribution_identity_and_preserves_state(
-        monkeypatch, locale_file, mutation):
-    g, files, metadata = guest()
-    files['/usr/lib/os-release'] = b'ID=ubuntu\nVERSION_ID="26.04"\n'
-    metadata['/usr/lib/os-release'] = {
-        'st_mode': 0o100644, 'st_uid': 0, 'st_gid': 0, 'st_nlink': 1}
+        monkeypatch, locale_file, mutation, os_id):
+    g, files, metadata = guest(os_id)
     # The normal Ubuntu compatibility link must never be opened as a regular
     # file or adopted by weakening the shared reader's link refusal.
     alias, canonical = '/etc/default/locale', '/etc/locale.conf'
@@ -296,34 +301,148 @@ def test_uncertain_profile_read_cannot_replay_or_release_reply(tmp_path, monkeyp
     with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
 
 
-def test_owned_distribution_update_preserves_unrelated_assets_and_changes_receipt():
-    g, files, metadata = guest()
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+def test_owned_distribution_update_preserves_unrelated_assets_and_changes_receipt(os_id):
+    g, files, metadata = guest(os_id)
     files['/unrelated'] = b'preserve'
     first = assets.verify(g)
     native = '/usr/share/locale/zh_CN/LC_MESSAGES/mate-polkit.mo'
     files[native] = catalogue({message: '新版中文 ' + message for message in assets.CATALOGUES['mate-polkit']})
-    files['/var/lib/dpkg/info/mate-polkit-common.md5sums'] = (
-        hashlib.md5(files[native], usedforsecurity=False).hexdigest() + '  ' + native.lstrip('/') + '\n').encode()
-    files['/var/lib/dpkg/status'] = files['/var/lib/dpkg/status'].replace(b'Version: 1', b'Version: 2')
-    assets.preflight(g)
+    if os_id == 'fedora':
+        g.rpm_records['mate-polkit'][native] = hashlib.sha256(files[native]).hexdigest()
+        g.rpm_versions = dict.fromkeys(assets.FEDORA_PACKAGES, '2-1.fc44')
+    else:
+        files['/var/lib/dpkg/info/mate-polkit-common.md5sums'] = (
+            hashlib.md5(files[native], usedforsecurity=False).hexdigest() + '  ' + native.lstrip('/') + '\n').encode()
+        files['/var/lib/dpkg/status'] = files['/var/lib/dpkg/status'].replace(b'Version: 1', b'Version: 2')
+    assets.preflight(g, os_id)
     updated = assets.verify(g)
     assert updated['files'][native] != first['files'][native]
-    assert set(updated['packages'].values()) == {'2'}
+    assert set(updated['packages'].values()) == {'2-1.fc44' if os_id == 'fedora' else '2'}
     assert files['/unrelated'] == b'preserve' and assets.verify(g) == updated
 
 
-def test_shared_ram_snapshot_readiness_uses_read_only_program_and_refuses_bad_receipt():
-    g, _, _ = guest()
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+def test_shared_ram_snapshot_readiness_uses_read_only_program_and_refuses_bad_receipt(os_id):
+    g, _, _ = guest(os_id)
     receipt = assets.verify(g)
     transport = Mock(call=Mock(return_value=(json.dumps(receipt, sort_keys=True) + '\n').encode()))
     assert assets.verify_transport(transport) == receipt
     call = transport.call.call_args
     assert call.args[0] == ['/usr/bin/python3', '-I', '-'] and call.kwargs['timeout'] == 90
     compile(call.kwargs['input'], '<shared-readiness>', 'exec')
-    for change in ({'provider': 'foreign'}, {'files': {}}, {'packages': {}}, {'locale': 'en_US.UTF-8'}):
+    for change in ({'provider': 'foreign'}, {'files': {}}, {'packages': {}}, {'locale': 'en_US.UTF-8'},
+                   {'release': '43'}, {'os_id': 'ubuntu' if os_id == 'fedora' else 'fedora'},
+                   {'os_id': 'ubuntu', 'release': '26.04'} if os_id == 'fedora' else
+                   {'os_id': 'fedora', 'release': '44'}):
         changed = {**receipt, **change}
         transport.call.return_value = (json.dumps(changed, sort_keys=True) + '\n').encode()
         with pytest.raises(ValueError): assets.verify_transport(transport)
+
+
+@pytest.mark.parametrize('fault', ['missing', 'stale-bytes', 'wrong-owner', 'duplicate-package',
+    'duplicate-file', 'digest-algorithm', 'shell-fallback', 'unowned', 'link', 'writable',
+    'locale-runtime', 'selinux-config', 'selinux-runtime', 'release', 'variant', 'replacement'])
+def test_fedora_profile_refuses_missing_unsafe_or_foreign_assets_without_writes(fault):
+    g, files, metadata = guest('fedora')
+    target = assets.LOCALE_PATH
+    shell = '/usr/share/locale/zh_CN/LC_MESSAGES/gnome-shell.mo'
+    original_command = g.command.side_effect
+    if fault == 'missing': g.rpm_versions.pop('glibc-langpack-zh')
+    if fault == 'stale-bytes': files[target] += b'changed'
+    if fault == 'wrong-owner':
+        g.rpm_records['pam'][shell] = g.rpm_records['gnome-shell'].pop(shell)
+    if fault == 'shell-fallback':
+        files[shell] = catalogue({'Activities': 'Activities'})
+        g.rpm_records['gnome-shell'][shell] = hashlib.sha256(files[shell]).hexdigest()
+    if fault == 'unowned': g.rpm_records['glibc-langpack-zh'].pop(target)
+    if fault == 'link': g.is_symlink.side_effect = lambda path: path == target
+    if fault == 'writable': metadata['/usr/lib/locale']['st_mode'] |= 0o002
+    if fault == 'selinux-config': files['/etc/selinux/config'] = b'SELINUX=permissive\nSELINUXTYPE=targeted\n'
+    if fault == 'selinux-runtime': files['/sys/fs/selinux/enforce'] = b'0\n'
+    if fault == 'release': files['/usr/lib/os-release'] = files['/usr/lib/os-release'].replace(b'44', b'43')
+    if fault == 'variant': files['/usr/lib/os-release'] = files['/usr/lib/os-release'].replace(b'workstation', b'server')
+    def command(argv):
+        value = original_command(argv)
+        if fault == 'duplicate-package' and argv == assets.RPM_LIST_COMMAND:
+            value += value.splitlines()[0] + '\n'
+        if argv == assets.rpm_file_command('glibc-langpack-zh'):
+            if fault == 'duplicate-file': value += value.splitlines()[1] + '\n'
+            if fault == 'digest-algorithm': value = value.replace('\t8\n', '\t1\n')
+        if fault == 'locale-runtime' and argv == assets.LOCALE_COMMAND: return 'ASCII\n'
+        return value
+    g.command.side_effect = command
+    if fault == 'replacement':
+        def read(path):
+            if path == target: metadata[target]['st_ino'] = metadata[target].get('st_ino', 1) + 1
+            return files[path]
+        g.read_file.side_effect = read
+    before = copy.deepcopy(files)
+    with pytest.raises(ValueError):
+        if fault == 'unowned': assets.preflight(g, 'fedora')
+        else: assets.verify(g, 'fedora')
+    assert files == before
+    g.write.assert_not_called()
+
+
+def test_fedora_partial_preparation_retries_then_reuses_and_preserves_collisions(tmp_path, monkeypatch):
+    import prepare_vm
+    g, files, metadata = guest('fedora')
+    complete_versions, complete_records = dict(g.rpm_versions), copy.deepcopy(g.rpm_records)
+    # An interrupted RPM transaction left one correctly owned package. All other
+    # asset files are absent, so they can be installed, never silently adopted.
+    g.rpm_versions = {'glibc-langpack-zh': complete_versions['glibc-langpack-zh']}
+    g.rpm_records.clear()
+    g.rpm_records['glibc-langpack-zh'] = complete_records['glibc-langpack-zh']
+    for owner, entries in complete_records.items():
+        if owner != 'glibc-langpack-zh':
+            for path in entries:
+                files.pop(path)
+                metadata.pop(path)
+    files['/unrelated'] = b'preserve'
+    monkeypatch.setattr(assets, 'LocalFiles', lambda root: g)
+    ssh = Mock()
+    monkeypatch.setattr(prepare_vm, 'prepare_ssh', ssh)
+    calls, installed = [], False
+    def run(command, **kwargs):
+        nonlocal installed
+        calls.append(command)
+        if command[0] == 'rpm':
+            versions = prepare_vm.guest_tools.FEDORA_VERSIONS if installed else {'glibc-langpack-zh': '1'}
+            return subprocess.CompletedProcess(command, 0, ''.join(
+                f'{name}\t{version}\n' for name, version in versions.items()))
+        if command[0] == 'dnf5':
+            if not installed:
+                installed = True
+                raise subprocess.CalledProcessError(1, command)
+            from tests.support.chinese_assets import populate_fedora
+            populate_fedora(files, metadata)
+            g.rpm_versions = complete_versions
+            g.rpm_records.update(complete_records)
+        return subprocess.CompletedProcess(command, 3 if command[:2] == ['systemctl', 'is-active'] else 0,
+                                           'inactive' if command[:2] == ['systemctl', 'is-active'] else '')
+    runner = SimpleNamespace(run=run)
+    with pytest.raises(subprocess.CalledProcessError):
+        prepare_vm.prepare_test_dependencies(runner=runner, root=tmp_path, os_id='fedora')
+    ssh.assert_not_called()
+    # The first transaction did not configure the remaining packages.
+    installed = False
+    def retry(command, **kwargs):
+        nonlocal installed
+        if command[0] == 'dnf5': installed = True
+        return run(command, **kwargs)
+    runner.run = retry
+    prepare_vm.prepare_test_dependencies(runner=runner, root=tmp_path, os_id='fedora')
+    calls.clear()
+    before = copy.deepcopy(files)
+    prepare_vm.prepare_test_dependencies(runner=runner, root=tmp_path, os_id='fedora')
+    assert files == before and files['/unrelated'] == b'preserve'
+    assert not any(command[0] == 'dnf5' for command in calls)
+    g.rpm_records['glibc-langpack-zh'].pop(assets.LOCALE_PATH)
+    calls.clear()
+    with pytest.raises(ValueError, match='unowned-collision'):
+        prepare_vm.prepare_test_dependencies(runner=runner, root=tmp_path, os_id='fedora')
+    assert not calls and files == before
 
 
 def test_partial_package_preparation_retries_once_then_reuses_without_network(tmp_path, monkeypatch):
@@ -375,25 +494,36 @@ def test_partial_package_preparation_retries_once_then_reuses_without_network(tm
     assert files == before and not any(command[0] in ('env', 'apt-get') for command in calls)
 
 
-def test_online_readiness_failure_blocks_snapshot_return_before_product_actions(monkeypatch):
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+def test_online_readiness_failure_blocks_snapshot_return_before_product_actions(monkeypatch, os_id):
     import online_snapshot
     transport = SimpleNamespace(call=Mock(side_effect=[b'', b'1000\n']))
     monkeypatch.setattr(online_snapshot, 'connect_saved_transport', lambda *args: transport)
     monkeypatch.setattr(online_snapshot.time, 'time', lambda: 1000)
     failure = Mock(side_effect=ValueError('baseline:chinese-locale; run tools/prepare-baseline'))
     monkeypatch.setattr(assets, 'verify_transport', failure)
-    lease = SimpleNamespace(capture=SimpleNamespace(state={'guest': {'ubuntu_version': '26.04'}}))
+    lease = SimpleNamespace(capture=SimpleNamespace(state={'guest': {'os_id': os_id}}))
     with pytest.raises(ValueError, match='chinese-locale'):
         online_snapshot.saved_transport(lease, None, None, 'fixture')
     failure.assert_called_once_with(transport)
     assert transport.call.call_count == 2
 
 
-def test_missing_language_stops_real_bootstrap_before_any_guest_write(tmp_path, monkeypatch):
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+def test_missing_language_stops_real_bootstrap_before_any_guest_write(tmp_path, monkeypatch, os_id):
     from contextlib import contextmanager
     import system_runner
     from tests.support.vm_runner import bootstrap_guest
-    g, files = bootstrap_guest()
+    g, files = bootstrap_guest(os_id)
+    if os_id == 'fedora':
+        import guest_test_dependencies
+        g.inspect_get_distro.return_value = 'fedora'
+        g.inspect_get_major_version.return_value = 44
+        g.inspect_get_minor_version.return_value = 0
+        files['/etc/os-release'] = files['/usr/lib/os-release']
+        g.inspect_list_applications2.return_value = [
+            {'app2_name': name, 'app2_version': version}
+            for name, version in guest_test_dependencies.FEDORA_VERSIONS.items()]
     files.pop(assets.LOCALE_PATH)
     @contextmanager
     def mounted(*args, **kwargs):

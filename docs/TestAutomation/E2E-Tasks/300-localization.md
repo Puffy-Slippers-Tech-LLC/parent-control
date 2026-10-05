@@ -76,11 +76,17 @@ qualifications; no multilingual, RTL, offline, draft, countdown or translated
 approval assertion is dropped.
 
 Tasks 300j and 300k retain their completed scoped qualifications. This Chinese
-case is the next task and starts in a fresh session. Current briefs/recipes supersede the old
+case starts in a fresh session on Ubuntu 26.04. Current briefs/recipes supersede the old
 saved task-300 handoff's combined-case and Chinese-upgrade wording; preserve
 launcher checkpoints and historical evidence.
 
 ## Implementation entry
+
+The required live target is `onpc-Ubuntu26.04`, selected through
+`tools/run-tests --vm onpc-Ubuntu26.04`. Fedora-specific Chinese qualification
+was removed from this task's acceptance scope by the developer on 2026-10-04.
+Existing Ubuntu qualification supplies no Fedora acceptance. No complete-case
+registration or VM attempt occurred during this repair.
 
 One planned case; no numeric coverage ID or executable is registered.
 After composition preflight, allocate exactly one stable numeric coverage ID,

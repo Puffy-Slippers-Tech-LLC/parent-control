@@ -1234,6 +1234,8 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False):
             baseline.guest_contract.guest_tools.verify_fedora_packages(
                 (row['app2_name'], row['app2_version'])
                 for row in g.inspect_list_applications2(root))
+            from chinese_language_assets import verify as verify_chinese
+            verify_chinese(g, os_id)
             log('bootstrap:fedora-tools-ready')
         marker = {'purpose': 'onpc-system-test', 'run': lease.state['run'],
                   'domain_uuid': lease.source.uuid,

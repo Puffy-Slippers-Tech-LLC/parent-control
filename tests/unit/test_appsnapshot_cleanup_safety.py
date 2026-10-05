@@ -130,6 +130,10 @@ def launch(tmp_path, monkeypatch):
 
 def test_assume_yes_without_vm_uses_enabled_selection(launch, monkeypatch, capsys):
     control, cleanup, allocation = launch
+    configured = vm_selection.vm_config.execution()[1][0]
+    # This single-dispatch test must stay inside its mocked controller even
+    # when the development registry enables several VMs. Queue scope is below.
+    monkeypatch.setattr(vm_selection.vm_config, 'execution', lambda name=None: (1, (configured,)))
     chooser = Mock(side_effect=AssertionError('VM prompt attempted'))
     monkeypatch.setattr(vm_selection, 'choose_vm', chooser)
     control.run.return_value = 0
@@ -197,7 +201,8 @@ def test_manual_decline_or_cancel_never_starts_work(launch, monkeypatch, capsys,
 def test_manual_missing_vm_confirms_enabled_selection(launch, monkeypatch, capsys):
     control, cleanup, allocation = launch
     control.run.return_value = 0
-    configured, = vm_selection.vm_config.execution()[1]
+    configured = vm_selection.vm_config.execution()[1][0]
+    monkeypatch.setattr(vm_selection.vm_config, 'execution', lambda name=None: (1, (configured,)))
     answers = iter(['invalid', ' Y '])
     def confirm(prompt):
         assert prompt == 'Proceed (y/n)? '

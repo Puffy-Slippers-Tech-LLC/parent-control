@@ -478,6 +478,30 @@ RPM uses DNF's documented quiet mode and independently verifies the installed
 epoch/version/release and architecture. Live Fedora qualification remains a
 separate acceptance step. The genuine historical v1.2 upgrade bundle and the
 legacy sudo-rs terminal qualification retain their Ubuntu-only scope.
+
+[Case 139](removal_journey.py) declares one current-package install → ordinary
+remove → reinstall → installed purge action → fresh install history on both
+platforms. [PackageLifecycleJourney](package_lifecycle.py) freezes those five
+operations, requires adjacent submitted/result receipts and exact native package
+identity before each transaction, and independently checks identity, personal
+accounts/settings and boot/session continuity afterward. Removal and installation
+retain their literal final reboot-notice assertions. Purge invokes the installed
+`/usr/bin/oh-no-parent-control-purge --yes` action and requires its real accepted
+outcome, removal notice and package absence. Uncertain input is retained and never
+replayed. Five declared customer reboot transitions require every predecessor's
+changed boot to have been independently observed.
+
+The case saves four minutes and a Hard Blocked rule, checks blocked execution
+and shared request choices through the child UI, then obtains the qualified
+75-second grant immediately before Parent's positive-grant read and removal.
+After removal/reboot it authenticates both personal accounts and uses the
+formerly blocked app. Reinstall reads retained policy/choices and zero grant
+before editing, then saves five minutes and observes Allowed → Hard Blocked
+before checking denial again. Reinstall after purge requires fresh public policy
+and shared request defaults while allowing documented personal selector retention.
+Runnable inventory registration establishes implementation availability; live
+qualification on each supported platform is still required and is not inherited
+from historical Ubuntu receipts.
 Online preparation installs the app, reboots, verifies the new boot and captures
 disk plus memory. A fresh matching online snapshot is restored without building
 or booting, leaving a running isolated guest under the shared VM-maintenance

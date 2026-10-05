@@ -21,6 +21,34 @@ REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***
 from tests.support.package_scripts import package_machine
 
 
+@pytest.mark.parametrize('package_machine', ['fedora'], indirect=True)
+def test_native_policy_directory_permissions_and_restore_order_survive_retry(package_machine):
+    root, state, run = package_machine
+    for relative in ('etc/fapolicyd/rules.d', 'etc/fapolicyd/trust.d'):
+        directory = root / relative
+        directory.mkdir(parents=True, exist_ok=True)
+        directory.chmod(0o750)
+    (state / 'uninstall-enforcement.json').write_text('{}')
+    helper = root / 'usr/libexec/oh-no-parent-control-uninstall'
+    helper.write_text('''#!/bin/sh
+test "$1" = --restore || exit 96
+test -f "$AUDIT_ROOT/etc/fapolicyd/rules.d/02-oh-no-parent-control-original-allow.rules" || exit 97
+test -f "$AUDIT_ROOT/var/lib/oh-no-parent-control/migration-in-progress" || exit 98
+printf '%s\\n' 'restored original-policy snapshot' >> "$AUDIT_ROOT/commands"
+''')
+    helper.chmod(0o755)
+    result = run(ORIGINAL_POLICY_ELIGIBLE='yes', ORIGINAL_POLICY_COMMIT_STATUS='7')
+    assert result.returncode == 7
+    assert 'restored original-policy snapshot' not in (root / 'commands').read_text()
+    result = run(ORIGINAL_POLICY_ELIGIBLE='yes')
+    assert result.returncode == 0, result.stderr
+    commands = (root / 'commands').read_text().splitlines()
+    assert commands.index('oh-no-parent-control-fedora-execution-policy commit') < commands.index(
+        'restored original-policy snapshot')
+    for relative in ('etc/fapolicyd/rules.d', 'etc/fapolicyd/trust.d'):
+        assert (root / relative).stat().st_mode & 0o777 == 0o750
+
+
 @pytest.mark.parametrize("boot_order_changed", [False, True])
 def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_changed):
     root, state, run = package_machine

@@ -5,6 +5,7 @@ Their differing command models stay explicit; they share path relocation.
 """
 
 import os
+import re
 import runpy
 from pathlib import Path
 import subprocess
@@ -123,12 +124,31 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
                                str(installed_count), **env)
 
     def prepare_script(self, source, path='script'):
+        # The embedded provenance program is covered with its real filesystem
+        # and RPM/DNF adapters in test_fedora_execution_policy. This maintainer
+        # machine supplies the same explicit command double as service/account
+        # commands; it must never execute a host-root Python scriptlet.
+        source = re.sub(
+            r"/usr/bin/python3 -B - (capture|flags|restore-stock|cleanup) <<'ONPC_FEDORA_EXECUTION_POLICY'\n.*?\nONPC_FEDORA_EXECUTION_POLICY",
+            r'fedora_execution_policy \1', source, flags=re.DOTALL)
+        source = re.sub(
+            r"/usr/bin/python3 -B - <<'ONPC_NATIVE_PURGE_INTENT'\n.*?\nONPC_NATIVE_PURGE_INTENT",
+            'native_purge_phase', source, flags=re.DOTALL)
         # Redirect every absolute system prefix, including executable paths.
         source = relocate_system_paths(source, self.root)
         for command in ("deb-systemd-invoke", "invoke-rc.d", "pam-auth-update"):
             source = source.replace(command, command.replace("-", "_").replace(".", "_"))
         mocks = r'''
 record() { printf '%s\n' "$*" >> "$AUDIT_ROOT/commands"; }
+native_purge_phase() { printf '%s\n' "${RPM_REMOVAL_PHASE:-remove}"; }
+fedora_execution_policy() {
+    case "$1" in
+        restore-stock) printf '%s\n' "${ORIGINAL_STOCK_POLICY:-no}" ;;
+        cleanup) rm -f "$AUDIT_ROOT/var/lib/oh-no-parent-control/fedora-execution-policy.json" ;;
+        capture|flags) : ;;
+        *) return 99 ;;
+    esac
+}
 systemctl() {
     record systemctl "$@"
     case "$1" in
@@ -270,6 +290,12 @@ case "$name" in
         if [ "$*" = complete-child-trust-backend ]; then exit "${TRUST_COMPLETE_STATUS:-0}"; fi
         if [ "$*" = wait-child-trust ]; then exit "${TRUST_READY_STATUS:-0}"; fi
         printf '%s\n' "$IMPACTS" ;;
+    oh-no-parent-control-fedora-execution-policy)
+        case "$1" in
+            eligible) printf '%s\n' "${ORIGINAL_POLICY_ELIGIBLE:-no}" ;;
+            commit) exit "${ORIGINAL_POLICY_COMMIT_STATUS:-0}" ;;
+            *) exit 99 ;;
+        esac ;;
     fagenrules) exit "${RULE_COMPILE_STATUS:-0}" ;;
     fapolicyd-cli)
         if [ "$*" = '--update' ]; then exit "${TRUST_UPDATE_STATUS:-0}"; fi
@@ -336,7 +362,7 @@ esac
         (bin_dir / name).symlink_to(stub)
     for name in ("rm", "touch", "grep", "cut", "cat", "cmp"):
         (bin_dir / name).symlink_to(Path("/usr/bin") / name)
-    for name in ("migrate-state", "provision", "package-activation", "fedora-pam"):
+    for name in ("migrate-state", "provision", "package-activation", "fedora-pam", "fedora-execution-policy"):
         target = tmp_path / f"usr/libexec/oh-no-parent-control-{name}"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.symlink_to(stub)

@@ -35,6 +35,8 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     assert not (payload / 'usr/share/pam-configs').exists()
     assert (payload / 'usr/lib64/security/pam_oh_no_parent_control.so').is_file()
     assert (payload / 'usr/libexec/oh-no-parent-control-fedora-pam').is_file()
+    assert (payload / 'usr/libexec/oh-no-parent-control-fedora-execution-policy').read_bytes() == (
+        ROOT / 'packaging/fedora_execution_policy.py').read_bytes()
     assert (payload / 'usr/bin/oh-no-parent-control-purge').read_bytes() == (ROOT / 'packaging/purge.py').read_bytes()
     assert (payload / 'usr/share/oh-no-parent-control/lifecycle/postrm').read_text() == (
         runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))['render'](ROOT, 'fedora', 'postrm').replace('#DEBHELPER#', ''))
@@ -284,6 +286,37 @@ def test_fedora_readiness_cleanup_failure_preserves_policy_baseline_for_retry(ma
     assert not (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install').exists()
 
 
+def test_fedora_original_stock_rules_restore_inactive_disabled_service_and_clear_provenance(machine):
+    machine.baseline(rules='stock pre-install policy\n')
+    stock = machine.write('etc/fapolicyd/rules.d/90-deny-execute.rules', 'stock policy\n')
+    original = machine.integration('fapolicyd-original-policy',
+                                   'etc/fapolicyd/rules.d/02-oh-no-parent-control-original-allow.rules')
+    receipt = machine.write('var/lib/oh-no-parent-control/fedora-execution-policy.json', 'owned provenance\n')
+    result = machine.run('postrm', 'remove', distribution='fedora',
+                         SERVICE_ACTIVE='1', SERVICE_ENABLED='1', ORIGINAL_STOCK_POLICY='yes')
+    assert result.returncode == 0, result.stderr
+    assert 'systemctl stop fapolicyd.service' in machine.commands
+    assert 'systemctl disable fapolicyd.service' in machine.commands
+    assert stock.read_text() == 'stock policy\n'
+    assert not original.exists() and not receipt.exists()
+    assert (machine.root / 'etc/fapolicyd/compiled.rules').read_text() == 'stock pre-install policy\n'
+
+
+@pytest.mark.parametrize('changed', ['content', 'symlink'])
+def test_fedora_modified_original_allow_refuses_removal_before_erasure(machine, changed):
+    path = machine.integration('fapolicyd-original-policy',
+                               'etc/fapolicyd/rules.d/02-oh-no-parent-control-original-allow.rules')
+    if changed == 'content':
+        path.write_text('administrator policy\n')
+    else:
+        path.unlink()
+        path.symlink_to(machine.write('administrator-policy', 'administrator policy\n'))
+    result = machine.run('prerm', 'remove', distribution='fedora')
+    assert result.returncode != 0
+    assert path.read_text() == 'administrator policy\n'
+    assert 'uninstall --remove' not in machine.commands
+
+
 @pytest.fixture
 def fedora_removal_machine(tmp_path):
     return Machine(tmp_path, 'fedora')
@@ -343,6 +376,7 @@ def test_rpm_postun_erased_payload_cleanup_retains_retry_records(
                         'etc/fapolicyd/trust.d/oh-no-parent-control.trust')
     prefs = machine.write('var/lib/oh-no-parent-control/preferences/1004.json', '{}')
     log = machine.write('var/log/oh-no-parent-control/broker/day.log', 'retained log')
+    provenance = machine.write('var/lib/oh-no-parent-control/fedora-execution-policy.json', 'owned receipt')
     # RPM has erased all product helpers before postun. Its callback is embedded
     # standalone shell and must finish without reconstructing the payload.
     for relative in ('usr/libexec/oh-no-parent-control-uninstall',
@@ -356,12 +390,14 @@ def test_rpm_postun_erased_payload_cleanup_retains_retry_records(
     assert result.returncode == {'trust': 7, 'readiness': 9, 'kiosk': 1}[failure]
     marker = machine.root / 'var/lib/oh-no-parent-control/package-created-kiosk-uid'
     assert marker.exists()
+    assert provenance.exists(), 'failed post-erase must retain original-policy provenance'
     assert prefs.read_text() == '{}' and log.read_text() == 'retained log'
     if failure != 'kiosk':
         assert (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install/complete').exists()
     result = machine.run_rpm('postun', 0, SERVICE_ACTIVE='1', READINESS_STATE='active')
     assert result.returncode == 0, result.stderr
     assert not marker.exists()
+    assert not provenance.exists()
     assert not (machine.root / 'home/oh-no-parent-control').exists()
     assert not (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install').exists()
     assert prefs.exists() and log.exists()

@@ -58,6 +58,7 @@ ifeq ($(PACKAGE_DISTRIBUTION),fedora)
 ACTIVATION_MANIFEST_PATHS += $(DATADIR)/oh-no-parent-control/pam/managed-stack
 ACTIVATION_MANIFEST_PATHS += $(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-execution-policy-ready.service
 ACTIVATION_MANIFEST_PATHS += $(DATADIR)/oh-no-parent-control/00-oh-no-parent-control-canary.rules
+ACTIVATION_MANIFEST_PATHS += $(LIBEXECDIR)/oh-no-parent-control-fedora-execution-policy
 endif
 CHILD_DIR := child
 EXTENSION_SOURCES := accessibility.js branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
@@ -131,6 +132,7 @@ PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	data/applications/com.puffyslippers.OhNoParentControl.desktop data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
 PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.py \
 	packaging/render_lifecycle.py packaging/stage_distribution.py packaging/fedora_pam.py packaging/purge.py \
+	packaging/fedora_execution_policy.py \
 	packaging/ubuntu.inc packaging/fedora.inc \
 	$(addprefix packaging/lifecycle/,preinst.in postinst.in prerm.in postrm.in) \
 	rpm/oh-no-parent-control.spec.in rpm/Containerfile
@@ -476,6 +478,7 @@ ifeq ($(PACKAGE_DISTRIBUTION),ubuntu)
 endif
 ifeq ($(PACKAGE_DISTRIBUTION),fedora)
 	install -m 0755 packaging/fedora_pam.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-fedora-pam"
+	install -m 0755 packaging/fedora_execution_policy.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-fedora-execution-policy"
 endif
 	install -m 0755 tools/oh-no-parent-control-login-check "$(DESTDIR)$(LIBEXECDIR)/"
 	install -m 0755 tools/execution_policy_ready.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready"

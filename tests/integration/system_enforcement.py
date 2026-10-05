@@ -34,6 +34,7 @@ FAPOLICYD = Path('/usr/sbin/fapolicyd')
 IDENTITY = b'ONPC_TEST_LAUNCH_IDENTITY_VERIFIED\n'
 READY = b'ONPC_TEST_APPLICATION_READY\n'
 DENIED = b'ONPC_TEST_EXEC_DENIED\n'
+FUTURE_TRUST = Path('/etc/fapolicyd/trust.d/onpc-system-future.trust')
 CATALOG_PREFIX = 'com.puffyslippers.ONPCTest.Catalog.'
 CATALOG_COMMAND = 'onpc-test-catalog-relative'
 CATALOG_PARENT_COMMAND = 'onpc-test-catalog-parent-only'
@@ -202,6 +203,38 @@ def provision_future():
     target.chmod(0o755)
     guest.require(guest.sha(target) == guest.sha(PATTERN_TARGET),
                   'enforcement:fixture-copy-digest')
+
+
+def trust_future():
+    """Model a newly trusted app version without reconciling product rules.
+
+    This is an explicit engineering mutation after the existing wildcard deny
+    has been witnessed, not a prerequisite workaround for an unusable fixture.
+    The fixed future file and trust entry belong to the outer VM attempt.
+    """
+    guest.guard()
+    target, _, _ = native_paths('pattern-future')
+    guest.require(target.is_file() and not target.is_symlink() and
+                  guest.sha(target) == guest.sha(PATTERN_TARGET),
+                  'enforcement:future-fixture-digest')
+    for parent in FUTURE_TRUST.parents:
+        info = parent.lstat()
+        guest.require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and
+                      not info.st_mode & 0o022, 'enforcement:unsafe-trust-parent')
+    guest.require(not FUTURE_TRUST.exists() and not FUTURE_TRUST.is_symlink(),
+                  'enforcement:future-trust-collision')
+    guest.run(['fapolicyd-cli', '--file', 'add', str(target), '--trust-file', FUTURE_TRUST.name])
+    if guest.package_path().suffix == '.rpm':
+        guest.run(['restorecon', str(FUTURE_TRUST)])
+    guest.run(['fapolicyd-cli', '--update'])
+    expected = [str(target), str(target.stat().st_size), guest.sha(target)]
+    deadline = time.monotonic() + 30
+    while True:
+        rows = [row.split() for row in guest.run(['fapolicyd-cli', '--dump-db']).splitlines()]
+        if any(len(row) == 4 and row[1:] == expected for row in rows):
+            return
+        guest.require(time.monotonic() < deadline, 'enforcement:future-not-trusted')
+        time.sleep(0.25)
 
 
 def remove_retention_launcher(identity):
@@ -646,6 +679,13 @@ def native_policy_transition(accounts, record, variant='command'):
                     observe_launch(other, True, variant=launch_variant)
                     record(f'{prefix}.{stage}.{launch_variant}.other', 'allowed')
                 if stage == 'hard':
+                    # Trusted files can encounter a distribution allow before
+                    # late wildcard guards. Prove the same future version stays
+                    # denied after native trust admission, with no policy rescan.
+                    trust_future()
+                    observe_launch(child, False, variant='pattern-future')
+                    observe_launch(other, True, variant='pattern-future')
+                    record(f'{prefix}.future.trusted-child-denied', 'passed')
                     rules_after = record_rules('hard-future', child, True, record, variant=variant)
                     guest.require(rules_after == rules_before, 'enforcement:future-rules-changed')
                     record(f'{prefix}.future.unchanged-rules', 'passed')

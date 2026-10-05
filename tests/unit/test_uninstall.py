@@ -93,6 +93,30 @@ class Preferences:
 
 
 class UninstallTests(unittest.TestCase):
+    def test_aborted_remove_restores_validated_early_wildcard_mode(self):
+        from oh_no_parent_control import uninstall, execution_policy
+        for action in ('remove', 'restore'):
+            with (self.subTest(action=action),
+                    mock.patch('sys.argv', ['uninstall', '--' + action]),
+                    mock.patch.object(uninstall.os, 'geteuid', return_value=0),
+                    mock.patch.object(uninstall, 'configure_console'),
+                    mock.patch.object(uninstall, 'managed_uids', return_value=()),
+                    mock.patch.object(uninstall, 'UninstallCleaner') as cleaner,
+                    mock.patch('gi.repository.Gio.bus_get_sync'),
+                    mock.patch('oh_no_parent_control.adapters.AccountsService'),
+                    mock.patch('oh_no_parent_control.extension_manager.ExtensionManager'),
+                    mock.patch('oh_no_parent_control.preferences.PreferenceStore'),
+                    mock.patch.object(execution_policy, 'originally_permissive_policy', return_value=True) as mode,
+                    mock.patch.object(execution_policy, 'FapolicydPolicy') as policy):
+                self.assertEqual(uninstall.main(), 0)
+                policy.assert_called_once_with(early_pattern_guards=action == 'restore')
+                if action == 'restore':
+                    mode.assert_called_once_with()
+                    cleaner.return_value.restore.assert_called_once_with()
+                else:
+                    mode.assert_not_called()
+                    cleaner.return_value.remove.assert_called_once_with(())
+
     def test_personal_only_accounts_are_not_enforcement_cleanup_targets(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

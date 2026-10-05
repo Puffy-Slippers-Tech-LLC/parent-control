@@ -723,7 +723,7 @@ def test_pattern_scenario_future_after_activation_and_isolation(
                 {1001: tuple(entry['patterns'])} if entry else {})
             for path in files:
                 path.write_text(rendered)
-            if fault == 'restore-failed' and len(launches) == 58:
+            if fault == 'restore-failed' and len(launches) == 60:
                 raise enforcement.guest.GuestError('restore-failed')
         if method == 'GetPreferences' and args == (1002,) and activated and fault == 'other-preferences':
             return ['changed']
@@ -756,6 +756,8 @@ def test_pattern_scenario_future_after_activation_and_isolation(
     monkeypatch.setattr(enforcement, 'call', call)
     monkeypatch.setattr(enforcement, 'record_rules', rules)
     monkeypatch.setattr(enforcement, 'observe_launch', launch)
+    trusted_future = Mock()
+    monkeypatch.setattr(enforcement, 'trust_future', trusted_future)
     if fault == 'creation-failed':
         monkeypatch.setattr(enforcement, 'provision_future',
                             Mock(side_effect=enforcement.guest.GuestError('creation-failed')))
@@ -764,7 +766,9 @@ def test_pattern_scenario_future_after_activation_and_isolation(
             enforcement.native_policy_transition(pattern_tree.accounts, lambda *item: records.append(item), 'pattern')
     else:
         enforcement.native_policy_transition(pattern_tree.accounts, lambda *item: records.append(item), 'pattern')
-        assert len(launches) == 58
+        assert len(launches) == 60
+        trusted_future.assert_called_once_with()
+        assert ('onpc.native.pattern.future.trusted-child-denied', 'passed') in records
         assert ('onpc.native.pattern.future.unchanged-rules', 'passed') in records
         for enabled in (False, True):
             assert (enabled, True, 1001, 'pattern-future', False) in launches
@@ -774,6 +778,44 @@ def test_pattern_scenario_future_after_activation_and_isolation(
     assert records[-1] == ('onpc.native.pattern.policy-restoration',
                            'failed' if fault in ('other-preferences', 'restore-failed') else 'passed')
     assert state['current'] == original
+
+
+@pytest.mark.parametrize('fault', [None, 'file', 'symlink', 'unsafe-parent', 'wrong-digest'])
+def test_future_trust_is_fixed_owned_and_independently_observed(monkeypatch, tmp_path, fault):
+    target = tmp_path / 'Versioned-2.AppImage'
+    target.write_bytes(b'future fixture')
+    trust = tmp_path / 'trust.d/future.trust'
+    trust.parent.mkdir()
+    monkeypatch.setattr(enforcement, 'FUTURE_TRUST', trust)
+    monkeypatch.setattr(enforcement, 'native_paths', lambda variant: (target, None, None))
+    monkeypatch.setattr(enforcement.guest, 'guard', Mock())
+    monkeypatch.setattr(enforcement.guest, 'sha', lambda path: 'a' * 64)
+    monkeypatch.setattr(enforcement.guest, 'package_path', lambda: Path('package.rpm'))
+    native_lstat = type(trust).lstat
+    monkeypatch.setattr(type(trust), 'lstat', lambda path: (
+        SimpleNamespace(st_mode=0o40777 if fault == 'unsafe-parent' else 0o40755, st_uid=0)
+        if path in trust.parents else native_lstat(path)))
+    if fault == 'file':
+        trust.write_text('foreign')
+    elif fault == 'symlink':
+        trust.symlink_to(tmp_path / 'missing')
+    run = Mock(return_value=f'filedb {target} {target.stat().st_size} ' +
+               ('b' if fault == 'wrong-digest' else 'a') * 64)
+    monkeypatch.setattr(enforcement.guest, 'run', run)
+    clock = iter((0, 31))
+    monkeypatch.setattr(enforcement.time, 'monotonic', lambda: next(clock))
+    if fault:
+        with pytest.raises(enforcement.guest.GuestError, match=(
+                'future-not-trusted' if fault == 'wrong-digest' else
+                'unsafe-trust-parent' if fault == 'unsafe-parent' else 'future-trust-collision')):
+            enforcement.trust_future()
+        if fault != 'wrong-digest':
+            run.assert_not_called()
+    else:
+        enforcement.trust_future()
+        assert [item.args[0] for item in run.call_args_list] == [
+            ['fapolicyd-cli', '--file', 'add', str(target), '--trust-file', trust.name],
+            ['restorecon', str(trust)], ['fapolicyd-cli', '--update'], ['fapolicyd-cli', '--dump-db']]
 
 
 @pytest.mark.parametrize('fault', ['allow-missing', 'allow-after-deny', 'deny-missing', 'wrong-uid',

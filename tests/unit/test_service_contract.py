@@ -17,6 +17,23 @@ from common.oh_no_parent_control_ui.reboot import product_reboot_required
 from tests.support.paths import ROOT
 
 
+@pytest.mark.parametrize('permissive', [False, True])
+def test_production_policy_uses_only_validated_original_permissive_mode(permissive):
+    from oh_no_parent_control import service as runtime
+    with (mock.patch.object(runtime, 'originally_permissive_policy', return_value=permissive) as mode,
+          mock.patch.object(runtime, 'FapolicydPolicy') as policy,
+          mock.patch.object(runtime, 'AccountsService'),
+          mock.patch.object(runtime, 'CallerCredentials'),
+          mock.patch.object(runtime, 'PolkitAuthorizer'),
+          mock.patch.object(runtime, 'PreferenceStore'),
+          mock.patch.object(runtime, 'ExtensionManager'),
+          mock.patch.object(runtime, 'TimerUsage'),
+          mock.patch.object(runtime, 'RunningAppTerminator')):
+        runtime.production_dependencies(mock.Mock())
+    mode.assert_called_once_with()
+    policy.assert_called_once_with(tolerate_rule_errors=True, early_pattern_guards=permissive)
+
+
 @pytest.mark.parametrize('markers, expected', (
     ({}, False),
     ({'reboot-required': ''}, False),

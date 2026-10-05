@@ -4527,7 +4527,9 @@ Viewing cannot authorize input or change scenario acceptance.
 4. Have the callback call `record_installed_journey(recorder, context, PLAN)`
    and register it in `E2E_CASES`. Reuse `invocations` for repeated operations,
    `challenges` for separately bound authentication, `assertions_after` for
-   intermediate results and `reboot_transition` for the qualified single reboot;
+   intermediate results and `reboot_transition` for a customer reboot. Finite
+   `additional_reboot_transitions` supports at most four more; each refuses input
+   until every preceding reboot has an independent changed-boot observation.
    their scopes are maintained under [shared capabilities](#refactoring-the-established-cases).
    Product-free install recipes use `record_package_journey` with declared
    public-result checks. Fixed account-fixture stage actions are supported.

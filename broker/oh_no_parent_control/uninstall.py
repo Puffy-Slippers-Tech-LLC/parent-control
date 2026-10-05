@@ -356,13 +356,14 @@ def main() -> int:
     from gi.repository import Gio
 
     from .adapters import AccountsService
-    from .execution_policy import FapolicydPolicy
+    from .execution_policy import FapolicydPolicy, originally_permissive_policy
     from .extension_manager import ExtensionManager
     from .preferences import PreferenceStore
 
     connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
     preferences = PreferenceStore()
-    execution_policy = FapolicydPolicy()
+    execution_policy = FapolicydPolicy(
+        early_pattern_guards=originally_permissive_policy() if args.restore else False)
     accounts = AccountsService(
         connection,
         execution_policy if args.restore else None,

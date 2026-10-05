@@ -1496,7 +1496,7 @@
       "category": "customer-journey",
       "owners": ["package-removal"],
       "requirements": ["ONPC-CORE-RECOVERY-002", "ONPC-CORE-RECOVERY-003", "ONPC-CORE-LIFECYCLE-003", "ONPC-CORE-LIFECYCLE-004", "ONPC-CORE-LIFECYCLE-005", "ONPC-CORE-LIFECYCLE-006", "ONPC-CORE-INSTALL-002", "ONPC-CORE-INSTALL-003", "ONPC-CORE-INSTALL-004"],
-      "requirement_gap": "The lifecycle route maps supported installation, request-station provisioning and fresh defaults. Unsupported-platform rejection, reserved-account conflicts and every fresh-default observation need separate qualification; this mapping does not extend the existing continuous variant.",
+      "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/SystemDesign/Package-Removal.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": ["ubuntu26.04", "fedora44"],
@@ -1538,10 +1538,10 @@
           "lifecycle": ["continuous"]
         },
         "full_combinations": [],
-        "rationale": "One continuous lifecycle owns retention and purge defaults. Color, package files and ownership remain separate engineering checks."
+        "rationale": "One continuous lifecycle owns supported installation, request-station provisioning, retention and public purge defaults. Color, package files and ownership remain separate engineering checks. Unsupported-platform rejection, reserved-account conflicts and every fresh-default observation need separate qualification; this mapping does not extend the continuous variant. Runnable registration does not establish live platform acceptance."
       },
       "variants": [
-        {"coverage_id": 139, "id": "continuous", "owner": "package-removal", "parameters": {"lifecycle": "continuous"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 139, "id": "continuous", "owner": "package-removal", "parameters": {"lifecycle": "continuous"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/removal_journey.py", "test_id": "continuous"}}
       ]
     },
     {

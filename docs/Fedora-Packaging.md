@@ -123,6 +123,27 @@ PAM edits or disables `without-nullok` to accommodate the passwordless kiosk.
 Modified ownership/profile records and reserved-profile collisions fail visibly.
 Removal restores the original profile/features before module deletion.
 
+RPM `%pretrans` records whether fapolicyd was absent before dependency setup or
+was an inactive, disabled, unchanged stock dependency. The latter classification
+uses DNF5's committed installed-package reason (`Dependency` or `Weak Dependency`),
+RPM file digests/ownership/modes, the shipped known-libs sample inventory and
+`fagenrules --check`; unknown status, administrator changes and user-installed
+packages preserve their existing policy. No DNF database or stock rule is edited.
+The private root-owned receipt is retained through interrupted cleanup and
+removed after successful removal, so purge retains no product provenance.
+Reinstall recognizes a retained stock dependency through native package metadata.
+
+For that proven originally unenforced policy only, configuration installs the
+owned `02-oh-no-parent-control-original-allow.rules` after the root canary and
+the broker's selected-application rules. This prevents installing a new dependency
+from unexpectedly blocking unrelated applications or uncontrolled users. Stock
+directory permissions remain unchanged. Existing active, enabled or customized
+policies receive no such layer. The private ownership witness and committed
+receipt gate broker mode; replaced records or changed integrations block retry.
+Removal deletes the layer and restores the original service activation even
+when the unchanged distribution rules remain. New administrator rules keep the
+existing policy service active. No permanent residue is needed after purge.
+
 RPM `%pre` maps instance counts to install/upgrade and stops/excludes the broker
 before unpack. `%posttrans` runs migration and configuration after dependencies.
 A failure preserves migration/activation records. Unlike dpkg, RPM may still
@@ -138,11 +159,15 @@ callbacks return immediately. A failed `%preun` attempts shared abort-remove
 restoration and returns failure. `%postun` performs the remaining owned account,
 integration and baseline cleanup after payload erasure and systemd reload.
 Native RPM erase retains preferences/logs. The package also ships the explicit
-`sudo oh-no-parent-control-purge [--yes]` action. It loads trusted standalone
-shared cleanup before DNF5 erases its payload, uses the supported
+`sudo oh-no-parent-control-purge [--yes]` action. It validates trusted cleanup
+before DNF5 erases its payload, uses the supported
 [`--no-autoremove` option](https://dnf5.readthedocs.io/en/latest/commands/remove.8.html),
-verifies exact package absence and restored active PAM, then completes shared
-guarded cleanup before deleting product state/logs. No checkout is needed.
+and binds a root-owned volatile purge intent to its exact live process identity.
+The standalone RPM callback verifies that owner in its process ancestry and
+restored active PAM, then performs shared guarded purge inside the native
+transaction. Stale or unrelated intent cannot turn ordinary erase into purge.
+The CLI verifies exact package absence and saved-data absence afterward, with
+no destructive cleanup outside the transaction. No checkout is needed.
 Post-erase failures retain ownership records for resolution; RPM cannot restore
 erased payload automatically. Reinstall the package normally from its RPM or
 repository, resolve the conflict and repeat the packaged command to retry; the
@@ -151,8 +176,10 @@ same reinstall restores the command after ordinary removal. See the
 These differences require live upgrade/removal/purge testing.
 
 Configuration restores ordinary SELinux labels for generated integrations and
-keeps SELinux enforcing. A package marker under `/run` repeats the kiosk reboot
-reminder until reboot. Fedora needs no Ubuntu update-notifier dependency.
+keeps SELinux enforcing. A package marker under `/run` records installation or
+removal's reboot requirement until reboot. Purging saved data preserves an
+outstanding request and does not recreate one after reboot. Fedora needs no
+Ubuntu update-notifier dependency.
 Reminders never reboot or log users out.
 
 Fedora's package trust filter permits `.js` but excludes `.mjs` under `/usr/share`,
@@ -204,9 +231,14 @@ Fedora's
 loads a [trusted-file execute allow](https://github.com/linux-application-whitelisting/fapolicyd/blob/v2.0.1/rules.d/42-trusted-elf.rules)
 before `89-oh-no-parent-control.rules`. The broker now also writes concrete
 UID-scoped path/hash denials to `01-oh-no-parent-control-deny.rules`, ahead of
-those distribution allows. Wildcard allowances remain late to preserve
-distribution language/library restrictions. This ordering is shared with Ubuntu;
-it changes neither distribution rule files nor trust filters. Installed
+those distribution allows. In the proven originally unenforced Fedora mode,
+the broker also places its complete wildcard groups before the original-policy
+allow layer. For pre-existing enforced policies, wildcard groups remain late
+to preserve distribution language/library restrictions; a trusted future file
+matching a wildcard can still pass an earlier administrator/distribution allow.
+That existing-policy limitation requires separate qualification and is not
+claimed closed by clean-baseline parity. Neither mode edits distribution rule
+files or trust filters. Installed
 enforcement qualification remains required before Fedora acceptance.
 
 Use `tools/prepare-appsnapshot --vm NAME --y` for a configured, pinned Fedora

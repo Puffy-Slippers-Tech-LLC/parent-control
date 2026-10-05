@@ -9,16 +9,19 @@ Explicitly remove Oh No! Parent Control and delete its saved product state and
 logs. Root privileges are required. Ordinary APT or DNF removal retains these
 preferences and logs; this action deletes them.
 .PP
-Ubuntu uses APT purge. Fedora uses DNF remove without dependency autoremove,
-then verifies package absence and restored PAM and completes the same guarded
-cleanup before deleting saved data. Cleanup source is read from trusted
-package-owned files before the transaction erases this command and its source.
+Ubuntu uses APT purge. Fedora uses DNF remove without dependency autoremove.
+Its RPM callback verifies a root-owned intent tied to this exact live command
+and restored PAM, then performs the same guarded cleanup inside the native
+transaction. Stale or unrelated intent cannot enable purge. Package absence
+and saved-data absence are verified before this command reports success.
+Trusted cleanup files are validated before the transaction erases this command.
 .PP
 Ownership changes, active kiosk sessions, mounted directories and modified
 administrator integrations cause refusal. Resolve the reported conflict and
 repeat the command. A failed or interrupted Fedora post-erase cleanup cannot
 restore erased payload. Reinstall the package normally from your RPM or package
-repository, resolve the conflict and run this command again. After ordinary
+repository, resolve the conflict, reboot and run this command again. Reboot
+also clears incomplete volatile intent from an uncatchable interruption. After ordinary
 Fedora removal, reinstall likewise restores the packaged purge action.
 .PP
 Purge preserves unrelated accounts/files, dependencies, system journals and

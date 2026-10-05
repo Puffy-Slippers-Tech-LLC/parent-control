@@ -390,11 +390,30 @@ def test_removal_requests_reboot_without_losing_or_duplicating_requests(machine,
     assert "reboot" not in machine.commands
 
 
-@ubuntu_only
 def test_later_purge_does_not_request_another_reboot(machine):
     result = machine.run("postrm", "purge")
     assert result.returncode == 0, result.stderr
     assert not (machine.root / "run/reboot-required").exists()
+    assert not (machine.root / "run/oh-no-parent-control-reboot-required").exists()
+
+
+def test_remove_records_reboot_until_boot_and_purge_preserves_request(machine):
+    marker = machine.root / ('run/oh-no-parent-control-reboot-required'
+                              if machine.distribution == 'fedora' else 'run/reboot-required')
+    other = machine.write('run/reboot-required.pkgs', 'linux-base\n')
+    for _ in range(2):
+        result = machine.run('postrm', 'remove')
+        assert result.returncode == 0, result.stderr
+        assert marker.is_file()
+    if machine.distribution == 'fedora':
+        assert marker.read_text() == 'reboot\n'
+        assert other.read_text() == 'linux-base\n'
+    else:
+        assert other.read_text().splitlines() == ['linux-base', 'oh-no-parent-control']
+    result = machine.run('postrm', 'purge')
+    assert result.returncode == 0, result.stderr
+    assert marker.is_file()
+    assert 'reboot' not in machine.commands
 
 
 def test_owned_integrations_removed_but_later_admin_hook_survives_purge(machine):

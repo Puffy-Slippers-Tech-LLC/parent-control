@@ -134,7 +134,9 @@ restore_execution_policy() {
     for rule in /etc/fapolicyd/rules.d/*.rules; do
         if [ -f "$rule" ]; then remaining_rules=1; break; fi
     done
-    if [ "$remaining_rules" -eq 1 ]; then
+    original_stock_policy=no
+@execution_policy_restore_classification@
+    if [ "$remaining_rules" -eq 1 ] && [ "$original_stock_policy" != yes ]; then
         # Preserve rules belonging to other software/admins and their service.
         /usr/sbin/fagenrules
         if [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
@@ -210,6 +212,7 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
         /var/lib/oh-no-parent-control/installed-gdm-presession
     remove_integration /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
         /var/lib/oh-no-parent-control/installed-fapolicyd-fallback
+@execution_policy_remove_rule@
 @readiness_remove_rule@
     if [ -L /etc/fapolicyd ] || [ -L /etc/fapolicyd/trust.d ]; then
         echo 'oh-no-parent-control: refusing substituted child trust directory' >&2
@@ -263,6 +266,9 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
         /var/lib/oh-no-parent-control/first-install-in-progress
     remove_tree /var/lib/oh-no-parent-control/fapolicyd-before-install.pending
 @distribution_cleanup@
+    # Keep pretransaction provenance until every owned integration/account has
+    # been cleaned, so interrupted post-erase cleanup can safely retry.
+@execution_policy_cleanup@
 fi
 
 if [ "$1" = purge ]; then
@@ -282,6 +288,7 @@ if [ "$1" = abort-install ] && [ -z "${2:-}" ] &&
         /var/lib/oh-no-parent-control/migration-in-progress \
         /var/lib/oh-no-parent-control/package-activation-pending \
         /var/lib/oh-no-parent-control/previous-package-activation.json
+@execution_policy_cleanup@
 fi
 
 rmdir /etc/oh-no-parent-control 2>/dev/null || true

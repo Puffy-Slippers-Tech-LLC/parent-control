@@ -688,6 +688,15 @@ Implementation status: All cases pending.
 
 Bindings: lifecycle = continuous.
 
+Case 139 is implemented in
+[removal_journey.py](../../tests/e2e/removal_journey.py), sharing the finite
+[package lifecycle](../../tests/e2e/package_lifecycle.py) and installed journey
+envelope. Its runnable registration does not establish live acceptance on either
+platform. The qualified 75-second approval occurs after the child block/form
+observations and immediately before the positive-grant read and removal; expiry
+cannot substitute for clearing a positive grant. Retained/default assertions and
+the four-minute → five-minute reapplication binding below remain independent.
+
 1. V(parent,fresh) → LIFE04(install) → FILE06(notice) → LIFE02.
 2. FLOW16 → FLOW03 → both forms FLOW04/REQUEST03/REQUEST12 → FLOW06 → C → FLOW08.
 3. P → LIFE04(remove) → FILE06(notice) → LIFE02 → C(fresh) → FLOW08(formerly blocked,usable).

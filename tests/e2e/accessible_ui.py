@@ -275,7 +275,7 @@ TEXT_VALUES = {
     'reply-clear': ('feedback-reply-email', ''),
     'reply-malformed': ('feedback-reply-email', 'invalid-reply'),
     **{'daily-' + str(value): ('parent-custom-daily-limit', str(value))
-       for value in (0, 1, 2, 3, 6, 7, 15, 1439)},
+       for value in (0, 1, 2, 3, 4, 5, 6, 7, 15, 1439)},
 }
 TEXT_VALUES.update({'daily-invalid-' + key: ('parent-custom-daily-limit', value)
                     for key, value in INVALID.items()})
@@ -411,7 +411,7 @@ def duration_projection(text, *, language='en'):
 
 CUSTOM_ALLOWANCE_OPERATIONS = {
     'custom-' + str(value) + '-' + action: (value, action)
-    for value in (0, 1, 2, 3, 6, 7, 15, 1439)
+    for value in (0, 1, 2, 3, 4, 5, 6, 7, 15, 1439)
     for action in ('open', 'saved', 'reopen')
 }
 CUSTOM_ALLOWANCE_OPERATIONS.update({
@@ -5443,7 +5443,7 @@ class AccessibleUI:
         presets. ``reopen-current`` keeps the existing custom selection, as
         autosave intentionally preserves the ongoing editor and its focus.
         """
-        require(type(minutes) is int and minutes in (0, 1, 2, 3, 6, 7, 15, 1439)
+        require(type(minutes) is int and minutes in (0, 1, 2, 3, 4, 5, 6, 7, 15, 1439)
                 and action in ('open', 'saved', 'reopen', 'reopen-current'),
                 'ui:allowance-binding')
         self.allowance_entry(child)

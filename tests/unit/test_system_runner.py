@@ -692,8 +692,8 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update
     write_junit_results(tmp_path, selection)
     ledger = runner.RunLedger()
     result = runner.installed_run(vm, lease, tmp_path, selection, ledger)
-    # All functional phases consume this one package installation. Reboots
-    # required by the assertions do not introduce a fresh install or restore.
+    # The controller starts one continuous installation history. Later package
+    # changes belong to the guarded lifecycle phases, without a snapshot reset.
     install_command = runner.guest_command(RUN, 'upgrade' if update else 'install')
     assert sum(call.args[0] == install_command for call in vm.call.call_args_list) == 1
     lease.prepare.assert_not_called()
@@ -702,8 +702,8 @@ def test_all_pytest_phases_reconcile_exact_unskipped_identities(tmp_path, update
         ('authorization', 'test_method_role_matrix[ListManagedUsers-child1]'),
         ('authorization', 'test_real_selected_parent_authentication[child1]'),
     )
-    assert vm.reboot.call_count == 4 + update
-    assert vm.call.call_count == 12 + update
+    assert vm.reboot.call_count == 6 + update
+    assert vm.call.call_count == 14 + update
     assert vm.call.call_args_list[2 + update].args[0] == runner.guest_command(RUN, 'collect', 'installed')
     if update:
         calls = vm.method_calls

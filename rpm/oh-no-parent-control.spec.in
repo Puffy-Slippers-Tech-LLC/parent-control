@@ -46,6 +46,10 @@ Requires:       shadow-utils
 Requires:       systemd
 Requires:       util-linux
 Requires:       webkitgtk6.0
+Requires(pretrans): dnf5
+Requires(pretrans): python3
+Requires(pretrans): rpm
+Requires(pretrans): systemd
 Requires(pre):  authselect
 Requires(pre):  coreutils
 Requires(pre):  glibc-common
@@ -60,6 +64,8 @@ Requires(postun): coreutils
 Requires(postun): fapolicyd
 Requires(postun): findutils
 Requires(postun): glibc-common
+Requires(postun): python3
+Requires(postun): rpm
 Requires(postun): shadow-utils
 Requires(postun): systemd
 Requires(postun): util-linux
@@ -98,6 +104,7 @@ install -m 0644 rpm-lifecycle/postinst "%{buildroot}%{_datadir}/oh-no-parent-con
 %{__python3} -B packaging/check_package.py
 for script in rpm-lifecycle/rpm-*; do /bin/sh -n "$script"; done
 
+%pretrans -f rpm-lifecycle/rpm-pretrans
 %pre -f rpm-lifecycle/rpm-pre
 %posttrans -f rpm-lifecycle/rpm-posttrans
 %preun -f rpm-lifecycle/rpm-preun

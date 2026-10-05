@@ -75,6 +75,7 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
         if systemctl is-enabled --quiet fapolicyd.service; then
             touch "$baseline_pending/enabled"
         fi
+@execution_policy_flags@
         touch "$baseline_pending/complete"
         mv "$baseline_pending" "$baseline"
     fi

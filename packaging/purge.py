@@ -12,6 +12,8 @@ import sys
 
 PRODUCT = 'oh-no-parent-control'
 CLEANUP = Path('/usr/share/oh-no-parent-control/lifecycle/postrm')
+INTENT = Path('/run/oh-no-parent-control-purge-intent.json')
+INTENT_PURPOSE = 'onpc-native-rpm-purge-v1'
 
 
 def distribution(release):
@@ -74,8 +76,129 @@ def verify_purged_data():
             raise ValueError('purge:saved-data-remains')
 
 
+def process_identity(pid):
+    """Use the public proc ABI; command names never establish ownership."""
+    info = os.stat(f'/proc/{pid}')
+    with open(f'/proc/{pid}/stat', encoding='ascii') as stream:
+        value = stream.read(8193)
+    fields = value.rpartition(') ')[2].split()
+    if len(value) > 8192 or len(fields) < 20 or info.st_uid != 0:
+        raise ValueError('purge:unsafe-intent-process')
+    return int(fields[1]), int(fields[19])
+
+
+def current_boot():
+    with open('/proc/sys/kernel/random/boot_id', encoding='ascii') as stream:
+        return stream.read(128).strip()
+
+
+def read_intent():
+    secure(INTENT, directory=False, missing=True)
+    try:
+        descriptor = os.open(INTENT, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return None
+    with os.fdopen(descriptor, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > 1024):
+            raise ValueError('purge:unsafe-intent')
+        raw = stream.read(1025)
+    if len(raw) > 1024:
+        raise ValueError('purge:unsafe-intent')
+    value = json.loads(raw)
+    if (not isinstance(value, dict) or set(value) != {
+            'purpose', 'owner_pid', 'owner_start', 'boot_id'} or
+            value['purpose'] != INTENT_PURPOSE or
+            type(value['owner_pid']) is not int or value['owner_pid'] <= 1 or
+            type(value['owner_start']) is not int or value['owner_start'] <= 0 or
+            not isinstance(value['boot_id'], str) or len(value['boot_id']) != 36):
+        raise ValueError('purge:invalid-intent')
+    return value, (info.st_dev, info.st_ino)
+
+
+def remove_intent(identity):
+    """Remove only the exact file created or consumed by this operation."""
+    try:
+        info = INTENT.lstat()
+    except FileNotFoundError:
+        return
+    if (info.st_dev, info.st_ino) != identity or not stat.S_ISREG(info.st_mode):
+        raise ValueError('purge:intent-replaced')
+    INTENT.unlink()
+
+
+def begin_intent():
+    existing = read_intent()
+    if existing:
+        value, identity = existing
+        live = False
+        if value['boot_id'] == current_boot():
+            try:
+                live = process_identity(value['owner_pid'])[1] == value['owner_start']
+            except FileNotFoundError:
+                pass
+        if live:
+            raise ValueError('purge:already-running')
+        remove_intent(identity)
+    value = {'purpose': INTENT_PURPOSE, 'owner_pid': os.getpid(),
+             'owner_start': process_identity(os.getpid())[1], 'boot_id': current_boot()}
+    descriptor = os.open(INTENT, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    info = os.fstat(descriptor)
+    try:
+        with os.fdopen(descriptor, 'wb') as stream:
+            stream.write(json.dumps(value).encode('ascii'))
+            stream.flush()
+            os.fsync(stream.fileno())
+    except BaseException:
+        remove_intent((info.st_dev, info.st_ino))
+        raise
+    return info.st_dev, info.st_ino
+
+
+def rpm_removal_phase():
+    """Select purge only inside the native transaction descended from its CLI.
+
+    Stale, canceled and unrelated intents retain ordinary removal behavior.
+    This verifier is embedded in RPM postun and needs no erased payload.
+    """
+    if os.geteuid() != 0:
+        return 'remove'
+    try:
+        intent = read_intent()
+        if intent is None:
+            return 'remove'
+        value, identity = intent
+        if value['boot_id'] != current_boot():
+            return 'remove'
+        pid = os.getpid()
+        matched = False
+        for _ in range(32):
+            parent, start = process_identity(pid)
+            if pid == value['owner_pid'] and start == value['owner_start']:
+                matched = True
+                break
+            if parent <= 1 or parent == pid:
+                return 'remove'
+            pid = parent
+    except (OSError, ValueError, json.JSONDecodeError):
+        # A foreign/malformed marker can never upgrade an unrelated erase to
+        # purge. Matching transaction PAM failures fail below.
+        return 'remove'
+    if not matched:
+        return 'remove'
+    # PAM restoration is still checked before deleting saved data, while RPM
+    # holds the transaction boundary against reinstall. Failure keeps intent
+    # and saved restoration records until the CLI's owned finally cleanup.
+    verify_fedora_pam()
+    remove_intent(identity)
+    return 'purge'
+
+
 def verify_fedora_pam():
-    subprocess.run(['authselect', 'check'], check=True)
+    # The embedded RPM verifier's stdout is a finite shell action token.
+    # Native status prose must not become part of that token.
+    subprocess.run(['authselect', 'check'], check=True, stdout=subprocess.PIPE)
     current = subprocess.run(['authselect', 'current', '--raw'], check=True,
                              text=True, stdout=subprocess.PIPE).stdout.split()
     if not current or current[0] == 'custom/' + PRODUCT:
@@ -104,7 +227,7 @@ def purge(*, yes=False):
     target = distribution(platform.freedesktop_os_release())
     # Read trusted package-owned bytes before the transaction erases this
     # executable and its source. No erased product import/helper is needed.
-    source = cleanup_source()
+    cleanup_source()
     for path in (Path('/var/lib/oh-no-parent-control'), Path('/var/log/oh-no-parent-control')):
         secure(path, missing=True)
     if target == 'ubuntu':
@@ -122,17 +245,19 @@ def purge(*, yes=False):
         return
     if not rpm_installed():
         raise ValueError('purge:package-not-installed')
-    subprocess.run(['dnf', 'remove', '--no-autoremove', *(['-y'] if yes else []), PRODUCT], check=True)
+    intent = begin_intent()
+    try:
+        subprocess.run(['dnf', 'remove', '--no-autoremove', *(['-y'] if yes else []), PRODUCT], check=True)
+    finally:
+        remove_intent(intent)
     if rpm_installed():
         raise ValueError('purge:package-still-installed')
     for path in (Path('/var/lib/oh-no-parent-control'), Path('/var/log/oh-no-parent-control')):
         secure(path, missing=True)
     verify_fedora_pam()
-    # The standalone shared postrm retries all remaining owned integrations,
-    # accounts and execution-policy restoration before deleting saved data.
-    # Exact roots, symlink/mount refusals and retained retry records remain
-    # shared with Debian purge; this adds no independent deletion algorithm.
-    subprocess.run(['/bin/sh', '-s', '--', 'purge'], input=source, text=True, check=True)
+    # Native RPM postun consumed this action's live process-bound intent and
+    # performed shared guarded purge while the transaction excluded reinstall.
+    # There is deliberately no destructive work after the native lock releases.
     verify_purged_data()
     print('oh-no-parent-control: saved-state purge outcome=accepted')
 

@@ -118,13 +118,31 @@ a later rescan while unrelated existing executables remain usable.
 Concrete path/hash denials are also emitted in
 `01-oh-no-parent-control-deny.rules`, before distribution trusted-file allows.
 The existing `89-oh-no-parent-control.rules` retains wildcard guards and their
-exceptions after the distribution's language/library restrictions. The early
-file contains no allow rules. Both files are written, compiled, notified and
+exceptions after the distribution's language/library restrictions. For an
+existing enforced administrator/distribution policy, the early file contains
+no allow rules. Both files are written, compiled, notified and
 rolled back together under the policy lock; removal clears both before reload.
 This generic ordering fixes trusted native targets such as Fedora Firefox
 without modifying distribution rules or broadening execution trust. It does
-not change the existing wildcard guard's position relative to distribution
-allows; a trusted future wildcard match still needs separate qualification.
+not change the existing enforced policy's wildcard position relative to
+distribution allows; a trusted future wildcard match can still bypass that
+late guard on such a computer.
+
+On Fedora only, a package transaction can prove that fapolicyd was absent or
+an inactive, unmodified stock dependency before installation. Its committed,
+root-owned provenance receipt and matching owned original-permissive fallback
+allow the broker to also emit complete wildcard groups in the early file,
+before that fallback and distribution trusted allows. This preserves the
+machine's originally unrestricted nonmatching applications while denying
+matching future versions, including trusted files. Concrete blocks and nested
+guards still precede enclosing-directory exceptions. Invalid receipt ownership,
+schema or fallback identity refuses broker construction; missing, uncommitted
+or preserved-policy receipts retain the ordinary deny-only early layer.
+This uses the same supported rules on fapolicyd 1.3.6 and 2.0; it does not
+invent a negated path/set operator. The mode is package-owned lifecycle state,
+not a user preference. New administrator restrictions must precede the product's
+early wildcard exceptions and fallback, or replace the original-permissive mode
+through the guarded lifecycle.
 
 The open denial prevents an interpreter from reading a blocked program and
 executing a different object. In particular, the supported AppImageLauncher

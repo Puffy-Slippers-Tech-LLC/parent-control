@@ -84,6 +84,12 @@ prepare_package_notice() { :; }
     systemctl start oh-no-parent-control-execution-policy-ready.service
 
 # @readiness_preflight@
+    if { [ -e /etc/fapolicyd/rules.d/02-oh-no-parent-control-original-allow.rules ] ||
+         [ -L /etc/fapolicyd/rules.d/02-oh-no-parent-control-original-allow.rules ]; } &&
+       [ ! -f "$state/installed-fapolicyd-original-policy" ]; then
+        echo 'oh-no-parent-control: original execution-policy path already exists; preserving it' >&2
+        exit 1
+    fi
     if { [ -e /etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules ] ||
          [ -L /etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules ]; } &&
        [ ! -f "$state/installed-fapolicyd-canary" ]; then
@@ -95,6 +101,23 @@ prepare_package_notice() { :; }
     install_integration /usr/share/oh-no-parent-control/00-oh-no-parent-control-canary.rules \
         /etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules \
         /var/lib/oh-no-parent-control/installed-fapolicyd-canary 0644
+
+# @execution_policy_install@
+    original_policy_eligible=$(/usr/libexec/oh-no-parent-control-fedora-execution-policy eligible)
+    if [ "$original_policy_eligible" = yes ]; then
+        install_integration /usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules \
+            /etc/fapolicyd/rules.d/02-oh-no-parent-control-original-allow.rules \
+            /var/lib/oh-no-parent-control/installed-fapolicyd-original-policy 0644
+        /usr/libexec/oh-no-parent-control-fedora-execution-policy commit
+    fi
+
+# @execution_policy_check_remove@
+    check_integration /etc/fapolicyd/rules.d/02-oh-no-parent-control-original-allow.rules \
+        /var/lib/oh-no-parent-control/installed-fapolicyd-original-policy
+
+# @execution_policy_remove_rule@
+    remove_integration /etc/fapolicyd/rules.d/02-oh-no-parent-control-original-allow.rules \
+        /var/lib/oh-no-parent-control/installed-fapolicyd-original-policy
 
 # @readiness_check_remove@
     check_integration /etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules \
@@ -126,7 +149,7 @@ prepare_package_notice() { :; }
 # Distribution has no Debian package-service/notice hook.
 
 # @reboot_remove@
-    rm -f /run/oh-no-parent-control-reboot-required
+    printf '%s\n' reboot > /run/oh-no-parent-control-reboot-required
     echo '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***' >&2
 
 # @distribution_cleanup@

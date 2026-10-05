@@ -29,7 +29,34 @@ def fragments(root: Path, distribution: str) -> dict[str, str]:
         if name in values:
             raise ValueError(f'duplicate distro fragment: {name}')
         values[name] = value.rstrip('\n')
+    for name, action in (('execution_policy_flags', 'flags'),
+                         ('execution_policy_restore_classification', 'restore-stock'),
+                         ('execution_policy_cleanup', 'cleanup')):
+        if distribution == 'fedora':
+            script = embedded_fedora_policy(root, action)
+            if action == 'restore-stock':
+                script = 'original_stock_policy=$(\n' + script + '\n)'
+            values[name] = script
+        else:
+            values[name] = ''
+    if distribution == 'ubuntu':
+        for name in ('execution_policy_install', 'execution_policy_check_remove',
+                     'execution_policy_remove_rule'):
+            values[name] = ''
     return values
+
+
+def embedded_fedora_policy(root: Path, action: str) -> str:
+    """Scriptlets must survive an absent or already erased product payload."""
+    source = (root / 'packaging/fedora_execution_policy.py').read_text()
+    return f"/usr/bin/python3 -B - {action} <<'ONPC_FEDORA_EXECUTION_POLICY'\n{source}\nONPC_FEDORA_EXECUTION_POLICY"
+
+
+def embedded_purge_phase(root: Path) -> str:
+    source = (root / 'packaging/purge.py').read_text().split("if __name__ == '__main__':", 1)[0]
+    return ("onpc_remove_phase=$(\n/usr/bin/python3 -B - <<'ONPC_NATIVE_PURGE_INTENT'\n" +
+            source + "\ntry:\n    print(rpm_removal_phase())\nexcept (OSError, ValueError, subprocess.CalledProcessError) as error:\n    print(f'purge: {error}', file=sys.stderr)\n    sys.exit(1)\nONPC_NATIVE_PURGE_INTENT\n)\n" +
+            'case "$onpc_remove_phase" in remove|purge) set -- "$onpc_remove_phase" ;; *) exit 1 ;; esac\n')
 
 
 def render(root: Path, distribution: str, phase: str) -> str:
@@ -76,10 +103,12 @@ set -- remove
 # RPM has no abort-remove callback. Restore derived state on preun failure.
 trap 'status=$?; if [ "$status" -ne 0 ]; then /bin/sh /usr/share/oh-no-parent-control/lifecycle/postinst abort-remove || true; fi; exit "$status"' 0
 '''),
-        'postun': ('postrm', 'if [ "$1" -ne 0 ]; then exit 0; fi\nset -- remove\n'),
+        'postun': ('postrm', 'if [ "$1" -ne 0 ]; then exit 0; fi\n' + embedded_purge_phase(root)),
     }
     for name, (phase, prefix) in prefixes.items():
         (output / f'rpm-{name}').write_text('#!/bin/sh\nset -e\n' + prefix + scripts[phase])
+    (output / 'rpm-pretrans').write_text('#!/bin/sh\nset -e\n' +
+                                      embedded_fedora_policy(root, 'capture') + '\n')
 
 
 def main():

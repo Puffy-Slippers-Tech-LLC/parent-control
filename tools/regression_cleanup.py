@@ -112,11 +112,17 @@ from regression_resources import HOST_WORKERS
 # process-local account/session doubles and waited Perl children on the host.
 # Selected-child restoration uses the same private tree/decoder/recorder doubles
 # and bounded waited Perl children, without a new live or cleanup owner.
+# package_lifecycle host checks use those same private records, native-package,
+# account/UI/clock doubles and bounded waited Perl workers. No package operation,
+# VM, bus, display, shared cache or new owned process is used. Its cleanup and
+# unit classification is compatible; live composition inherits the existing
+# continuous envelope's lease, worker and collection cleanup ownership.
 # Package purge guards use private pytest machine trees and process-local
 # package/PAM/ownership doubles; the one shared-cleanup shell is relocated,
 # bounded and waited. No host package, identity, service or shared path changes.
 # Compatible in both unit and cleanup inventories.
 REVIEWED = frozenset('''
+package_lifecycle
 package_purge
 parent_language
 kiosk_language

@@ -32,7 +32,7 @@ from .app_termination import RunningAppTerminator
 from .catalog import list_apps
 from .core import Broker, BrokerError, Busy, InvalidRequest
 from .extension_manager import ExtensionManager
-from .execution_policy import FapolicydPolicy
+from .execution_policy import FapolicydPolicy, originally_permissive_policy
 from .logs import DailyLogWriter, configure_broker_logging
 from .preferences import PreferenceStore
 
@@ -198,7 +198,8 @@ def production_dependencies(connection) -> ServiceDependencies:
     credentials = CallerCredentials(connection)
     preferences = PreferenceStore()
     accounts = AccountsService(
-        connection, FapolicydPolicy(tolerate_rule_errors=True), preferences,
+        connection, FapolicydPolicy(tolerate_rule_errors=True,
+                                   early_pattern_guards=originally_permissive_policy()), preferences,
     )
     return ServiceDependencies(
         credentials=credentials,

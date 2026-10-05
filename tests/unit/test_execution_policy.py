@@ -1,5 +1,7 @@
 import hashlib
+import json
 import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,11 +10,79 @@ from unittest import mock
 
 from oh_no_parent_control.catalog import suggested_patterns
 from oh_no_parent_control.execution_policy import (
-    ExecutionPolicyError, FapolicydPolicy,
+    ExecutionPolicyError, FapolicydPolicy, originally_permissive_policy,
+    _read_policy_mode_file,
 )
 
 
 class ExecutionPolicyTests(unittest.TestCase):
+    def test_early_wildcard_mode_requires_committed_provenance_and_owned_fallback(self):
+        valid = {'purpose': 'onpc-fedora-original-execution-policy-v1', 'basis': 'absent',
+                 'active': False, 'enabled': False, 'permissive': True}
+        for basis in ('absent', 'dependency'):
+            with self.subTest(basis=basis), mock.patch(
+                    'oh_no_parent_control.execution_policy.platform.freedesktop_os_release',
+                    return_value={'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'}), mock.patch(
+                    'oh_no_parent_control.execution_policy._read_policy_mode_file',
+                    side_effect=[json.dumps({**valid, 'basis': basis}).encode(), b'policy', b'policy', b'policy']):
+                self.assertTrue(originally_permissive_policy())
+        for record in (None, {**valid, 'permissive': False},
+                       {**valid, 'basis': 'preserve', 'permissive': False, 'active': True}):
+            with self.subTest(record=record), mock.patch(
+                    'oh_no_parent_control.execution_policy._read_policy_mode_file',
+                    return_value=None if record is None else json.dumps(record).encode()) as read:
+                self.assertFalse(originally_permissive_policy())
+                self.assertEqual(read.call_count, 1)
+        for fault in ({**valid, 'active': True}, {**valid, 'enabled': True},
+                      {**valid, 'basis': 'preserve'}, {**valid, 'purpose': 'other'},
+                      {**valid, 'permissive': 1}, {**valid, 'extra': 'value'}, []):
+            with self.subTest(fault=fault), mock.patch(
+                    'oh_no_parent_control.execution_policy._read_policy_mode_file',
+                    return_value=json.dumps(fault).encode()):
+                with self.assertRaises(ExecutionPolicyError):
+                    originally_permissive_policy()
+        for fallback, witness, payload in ((None, b'policy', b'policy'),
+                                          (b'changed', b'policy', b'policy'),
+                                          (b'policy', None, b'policy'),
+                                          (b'policy', b'policy', b'changed')):
+            with self.subTest(fallback=fallback, witness=witness, payload=payload), mock.patch(
+                    'oh_no_parent_control.execution_policy.platform.freedesktop_os_release',
+                    return_value={'ID': 'fedora', 'VERSION_ID': '44', 'VARIANT_ID': 'workstation'}), mock.patch(
+                    'oh_no_parent_control.execution_policy._read_policy_mode_file',
+                    side_effect=[json.dumps(valid).encode(), fallback, witness, payload]):
+                with self.assertRaisesRegex(ExecutionPolicyError, 'not owned'):
+                    originally_permissive_policy()
+        with (mock.patch('oh_no_parent_control.execution_policy._read_policy_mode_file',
+                         return_value=json.dumps(valid).encode()),
+              mock.patch('oh_no_parent_control.execution_policy.platform.freedesktop_os_release',
+                         return_value={'ID': 'ubuntu'})):
+            with self.assertRaisesRegex(ExecutionPolicyError, 'another distribution'):
+                originally_permissive_policy()
+
+    def test_original_policy_mode_reader_refuses_insecure_files_and_ancestors(self):
+        for fault in ('ancestor', 'owner', 'symlink', 'hardlink', 'mode', 'size', 'growth'):
+            with self.subTest(fault=fault):
+                ancestor = mock.Mock(lstat=mock.Mock(return_value=SimpleNamespace(
+                    st_mode=stat.S_IFDIR | (0o777 if fault == 'ancestor' else 0o755), st_uid=0)))
+                path = mock.Mock(parents=[ancestor])
+                stream = mock.MagicMock()
+                stream.__enter__.return_value = stream
+                stream.read.return_value = b'x' * (4097 if fault == 'growth' else 2)
+                info = SimpleNamespace(st_mode=(stat.S_IFLNK if fault == 'symlink' else stat.S_IFREG) |
+                                       (0o644 if fault == 'mode' else 0o600),
+                                       st_uid=1000 if fault == 'owner' else 0,
+                                       st_nlink=2 if fault == 'hardlink' else 1,
+                                       st_size=4097 if fault == 'size' else 2)
+                with (mock.patch('oh_no_parent_control.execution_policy.os.open', return_value=91) as opened,
+                      mock.patch('oh_no_parent_control.execution_policy.os.fdopen', return_value=stream),
+                      mock.patch('oh_no_parent_control.execution_policy.os.fstat', return_value=info)):
+                    with self.assertRaises(ExecutionPolicyError):
+                        _read_policy_mode_file(path, mode=0o600)
+                    if fault == 'ancestor':
+                        opened.assert_not_called()
+                    else:
+                        self.assertTrue(opened.call_args.args[1] & os.O_NOFOLLOW)
+
     @staticmethod
     def _decision(rules, uid, permission, path, ftype="application/x-executable"):
         """Evaluate the emitted subset using fapolicyd's first-match semantics.
@@ -480,6 +550,78 @@ class ExecutionPolicyTests(unittest.TestCase):
                 with mock.patch.object(policy, '_reload') as reload:
                     policy.reconcile({1004: ('/usr/bin/firefox',)})
                     reload.assert_not_called()
+
+    def test_originally_unrestricted_wildcard_blocks_future_trusted_matches_early(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            other = directory / 'Other.AppImage'
+            library = directory / 'other.so'
+            document = directory / 'notes.txt'
+            for path in (other, library):
+                path.write_bytes(b'\x7fELF same bytes')
+            other.chmod(0o755)
+            document.write_text('ordinary notes')
+            filters = {1001: (str(directory / 'Game-1.AppImage'),)}
+            patterns = {1001: (str(directory / 'Game-*.AppImage'),)}
+            early, late = FapolicydPolicy._render_layers(filters, patterns, early_pattern_guards=True)
+            future = directory / 'Game-2.AppImage'
+            future.write_bytes(other.read_bytes())
+            future.chmod(0o755)
+            # Distribution trusted allows and the original-permissive02 fallback
+            # come after01. Neither may decide before the complete guard group.
+            middle = f'allow perm=any uid=1001 : dir={directory}/\n'
+            combined = early + middle + late
+            for permission in ('execute', 'open'):
+                self.assertEqual(self._decision(combined, 1001, permission, future), 'deny')
+                self.assertEqual(self._decision(combined, 1001, permission, other), 'allow')
+                self.assertEqual(self._decision(combined, 1000, permission, future), 'allow')
+            self.assertEqual(self._decision(combined, 1001, 'open', library), 'allow')
+            self.assertEqual(self._decision(combined, 1001, 'open', document, 'text/plain'), 'allow')
+            # Existing enforced policy retains deny-only01 and late exceptions.
+            preserved, late = FapolicydPolicy._render_layers(filters, patterns)
+            self.assertNotIn('allow ', preserved)
+            administrator = f'deny perm=open uid=1001 : path={library}\n'
+            self.assertEqual(self._decision(preserved + administrator + late, 1001, 'open', library), 'deny')
+
+    def test_early_wildcard_nested_order_and_failed_group_isolation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            child = parent / 'nested'
+            child.mkdir()
+            unsafe = parent / 'Other Client.AppImage'
+            unsafe.write_bytes(b'\x7fELF other')
+            unsafe.chmod(0o755)
+            patterns = {1001: (f'{parent}/Game-*.AppImage', f'{child}/Lunar-*.AppImage')}
+            issues = []
+            early, late = FapolicydPolicy._render_layers({}, patterns, issues=issues, early_pattern_guards=True)
+            self.assertEqual(issues, [(1001, 'pattern', patterns[1001][0])])
+            self.assertNotIn(f'dir={parent}/\n', early)
+            self.assertNotIn(f'allow perm=execute uid=1001 : dir={child}/', early)
+            self.assertEqual(self._decision(early, 1001, 'open', child / 'Lunar-new.AppImage'), 'deny')
+            unsafe.rename(parent / 'Other.AppImage')
+            early, late = FapolicydPolicy._render_layers({}, patterns, early_pattern_guards=True)
+            self.assertLess(early.index(f'deny_syslog perm=open uid=1001 : dir={child}/'),
+                            early.index(f'allow perm=open uid=1001 : dir={child}/'))
+
+    def test_early_wildcard_validation_approval_and_reload_rollback_share_mode(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            policy = FapolicydPolicy(directory / 'policy.rules', early_pattern_guards=True)
+            patterns = {1001: (str(directory / 'Game-*.AppImage'),)}
+            with mock.patch.object(policy, '_reload'):
+                policy.validate({}, patterns)
+                self.assertFalse(policy._early_rules_path.exists())
+                policy.reconcile({}, patterns)
+            previous = policy._read_layers()
+            future = directory / 'Game-new.AppImage'
+            self.assertEqual(self._decision(previous[0].decode(), 1001, 'open', future), 'deny')
+            with mock.patch.object(policy, '_reload', side_effect=[ExecutionPolicyError('notify'), None]):
+                with self.assertRaises(ExecutionPolicyError):
+                    policy.reconcile({1001: ()})
+            self.assertEqual(policy._read_layers(), previous)
+            with mock.patch.object(policy, '_reload'):
+                policy.reconcile({1001: ()})
+            self.assertNotIn('deny_syslog', policy._early_rules_path.read_text())
 
     def test_early_layer_changes_invalidate_notification_cache_and_remove_cleans_both(self):
         with tempfile.TemporaryDirectory() as temporary:

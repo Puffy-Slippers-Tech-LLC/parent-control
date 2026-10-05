@@ -329,6 +329,12 @@ from regression_ui import Bucket
 # Perl children; no live account, VM, socket, display or shared mutable cache.
 # Selected-child restoration owns private tree/decoder/recorder fixtures and
 # bounded waited Perl children only; compatible in unit and cleanup inventories.
+# Continuous package-lifecycle checks own private pytest records, process-local
+# native package/account/UI/clock doubles and bounded waited Perl workers.
+# Permission-denial checks never execute a host fixture; ordered reboot checks
+# use VM doubles only. package_lifecycle_cleanup_safety is compatible in unit
+# and cleanup scheduling, with no real package database, VM, bus, display,
+# shared cache, ownership mutation or extra process lifetime.
 # Shared removal parity and actual RPM erase callbacks use the existing private
 # pytest machine trees, relocated system paths and bounded, waited shell children.
 # Their service/account/PAM commands remain doubles, including abort-remove's
@@ -343,6 +349,7 @@ from regression_ui import Bucket
 # and waited. No live package, account, service, bus, display or shared path is
 # changed. package_purge_cleanup_safety is compatible in unit and cleanup scopes.
 REVIEWED = frozenset("""
+package_lifecycle_cleanup_safety
 package_purge_cleanup_safety
 system_removal
 parent_language_cleanup_safety
@@ -386,7 +393,7 @@ e2e_terminal e2e_terminal_provider e2e_toggle e2e_vt6_authentication e2e_vt6_com
 e2e_vt6_diagnostic e2e_vt6_pixels e2e_vt6_prompt e2e_vt6_recipient e2e_vt6_shell e2e_watch
 e2e_watch_cleanup_safety e2e_worker_cleanup_safety error_reporting execution_policy
 execution_policy_ready execution_probe_cleanup_safety extension_manager feedback_collection
-feedback_transport fedora_pam fix_tests fix_tests_cleanup_safety fixture_cleanup_safety fixture_gui_adapter floating_islands
+feedback_transport fedora_pam fedora_execution_policy fix_tests fix_tests_cleanup_safety fixture_cleanup_safety fixture_gui_adapter floating_islands
 graphical_attachment_cleanup_safety graphical_backend graphical_expiry graphical_host_policy
 graphical_lease graphical_serial_cleanup_safety graphical_smoke graphical_smoke_cleanup_safety
 graphical_transport_cleanup_safety graphical_worker graphical_worker_cleanup_safety guest_inputs

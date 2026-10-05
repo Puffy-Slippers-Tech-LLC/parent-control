@@ -15,6 +15,7 @@ if [ "$1" = remove ]; then
         /var/lib/oh-no-parent-control/installed-gdm-presession
     check_integration /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
         /var/lib/oh-no-parent-control/installed-fapolicyd-fallback
+@execution_policy_check_remove@
 @readiness_check_remove@
     if [ -L /etc/fapolicyd ] || [ -L /etc/fapolicyd/trust.d ] ||
        [ -L /var/lib/oh-no-parent-control/installed-child-extension-trust ]; then

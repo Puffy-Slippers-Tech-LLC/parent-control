@@ -18,17 +18,24 @@ The package ships `oh-no-parent-control-purge` on both distributions. Run
 `sudo oh-no-parent-control-purge` to remove the package and explicitly delete
 its saved preferences and logs; `--yes` accepts native package-manager
 confirmation for unattended execution without bypassing any guard. Ubuntu
-uses APT purge. Fedora uses DNF5 remove with dependency autoremove disabled,
-verifies exact RPM absence and restored active PAM, then executes the shared
-standalone `postrm purge` source captured from trusted package-owned files
-before erasure. No source checkout, RPM force/skip-script flag or independent
-directory-deletion implementation is involved.
+uses APT purge. Fedora uses DNF5 remove with dependency autoremove disabled.
+The packaged action creates a finite root-owned intent tied to its live process,
+kernel start time and boot. RPM's embedded post-erase callback selects shared
+`postrm purge` only when that exact process is its ancestor and active PAM has
+been restored. Cleanup therefore runs within the native RPM transaction, before
+a concurrent reinstall can create new product state. Stale, canceled, malformed
+or unrelated intents preserve ordinary removal. The action then verifies exact
+RPM absence and both saved directories absent before reporting success; it
+performs no destructive cleanup after the transaction. No source checkout,
+RPM force/skip-script flag or independent deletion implementation is involved.
 
 The shared cleanup must finish owned integration, account and execution-policy
 restoration before deleting state/logs. Refusals retain the records needed for
 resolution. An interrupted or failed Fedora post-erase operation cannot restore
 erased payload or the command. Reinstall the package from the RPM/repository,
-resolve the conflict and repeat the packaged purge action. After ordinary
+resolve the conflict, reboot and repeat the packaged purge action. Reboot also
+clears an incomplete volatile intent left by an uncatchable interruption.
+After ordinary
 Fedora removal, the same normal reinstall restores the purge command. Ordinary
 RPM erase continues retaining preferences/logs.
 

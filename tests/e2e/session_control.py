@@ -24,6 +24,7 @@ BINDINGS = {role + '-' + action: (role, action)
             for role in ('parent', 'standard')
             for action in ('switch-user', 'logout', 'lock', 'return-greeter')}
 BINDINGS.update({'child-switch-user': ('child', 'switch-user'),
+                 'child-logout': ('child', 'logout'),
                  'parent-command-context': ('parent', 'command-context'),
                  'parent-command-refused': ('parent', 'command-refused'),
                  'parent-continuous-activity': ('parent', 'continuous-activity')})

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import fnmatch
+import json
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import os
+import platform
 import stat
 import subprocess
 import tempfile
@@ -25,6 +27,69 @@ class ExecutionPolicyError(RuntimeError):
     """The execution policy could not be generated or activated safely."""
 
 
+def _read_policy_mode_file(path: Path, *, mode: int, limit=4096) -> bytes | None:
+    """Read a bounded root-owned mode record without accepting substitutions."""
+    try:
+        for ancestor in reversed(path.parents):
+            info = ancestor.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+                raise ExecutionPolicyError('original execution policy has unsafe ancestry')
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise ExecutionPolicyError('could not read original execution policy mode') from error
+    with os.fdopen(descriptor, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                or stat.S_IMODE(info.st_mode) != mode or info.st_size > limit):
+            raise ExecutionPolicyError('original execution policy mode was substituted')
+        value = stream.read(limit + 1)
+        if len(value) > limit:
+            raise ExecutionPolicyError('original execution policy mode exceeds limit')
+        return value
+
+
+def originally_permissive_policy() -> bool:
+    """Select early wildcard groups only from the committed Fedora receipt.
+
+    No receipt preserves the usual deny-only early layer, including Ubuntu.
+    The transaction must have proved an absent or inactive stock dependency
+    policy and installed its exact owned fallback before committing this mode.
+    """
+    raw = _read_policy_mode_file(
+        Path('/var/lib/oh-no-parent-control/fedora-execution-policy.json'), mode=0o600)
+    if raw is None:
+        return False
+    try:
+        record = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ExecutionPolicyError('original execution policy mode is invalid') from error
+    if (not isinstance(record, dict) or set(record) != {
+            'purpose', 'basis', 'active', 'enabled', 'permissive'} or
+            record['purpose'] != 'onpc-fedora-original-execution-policy-v1' or
+            record['basis'] not in ('absent', 'dependency', 'preserve') or
+            any(type(record[key]) is not bool for key in ('active', 'enabled', 'permissive'))):
+        raise ExecutionPolicyError('original execution policy mode is invalid')
+    if not record['permissive']:
+        return False
+    if record['basis'] == 'preserve' or record['active'] or record['enabled']:
+        raise ExecutionPolicyError('original execution policy mode conflicts with enforced policy')
+    release = platform.freedesktop_os_release()
+    if (release.get('ID'), release.get('VERSION_ID'), release.get('VARIANT_ID')) != (
+            'fedora', '44', 'workstation'):
+        raise ExecutionPolicyError('original execution policy mode belongs to another distribution')
+    fallback = _read_policy_mode_file(
+        Path('/etc/fapolicyd/rules.d/02-oh-no-parent-control-original-allow.rules'), mode=0o644)
+    witness = _read_policy_mode_file(
+        Path('/var/lib/oh-no-parent-control/installed-fapolicyd-original-policy'), mode=0o600)
+    payload = _read_policy_mode_file(
+        Path('/usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules'), mode=0o644)
+    if fallback is None or fallback != witness or fallback != payload:
+        raise ExecutionPolicyError('original execution policy fallback is not owned')
+    return True
+
+
 class FapolicydPolicy:
     """Maintain the product-owned fapolicyd deny rules.
 
@@ -42,12 +107,14 @@ class FapolicydPolicy:
             ),
             reload_command=("/usr/sbin/fapolicyd-cli", "--reload-rules"),
             compile_command=("/usr/sbin/fagenrules",), *,
-            tolerate_rule_errors=False):
+            tolerate_rule_errors=False, early_pattern_guards=False):
         self._rules_path = rules_path
         # Exact child denials must precede distribution-wide trusted-file
-        # allowances. Keep wildcard exceptions late: moving their allow rules
-        # forward could bypass the distribution's language/library denials.
+        # allowances. Full wildcard groups can move early only for a proven
+        # originally unrestricted policy; otherwise their exceptions remain
+        # behind administrator/distribution language and library denials.
         self._early_rules_path = rules_path.with_name('01-oh-no-parent-control-deny.rules')
+        self._early_pattern_guards = early_pattern_guards
         self._reload_command = tuple(reload_command)
         self._compile_command = tuple(compile_command)
         self._lock = threading.Lock()
@@ -67,7 +134,9 @@ class FapolicydPolicy:
     def validate(self, filters, patterns):
         # Use the eventual write's isolation policy without publishing warnings
         # for a candidate that was never committed.
-        self.render(filters, patterns, issues=[] if self._tolerate_rule_errors else None)
+        self._render_layers(filters, patterns,
+                            issues=[] if self._tolerate_rule_errors else None,
+                            early_pattern_guards=self._early_pattern_guards)
 
     @staticmethod
     def _digest(path: str) -> str:
@@ -179,7 +248,7 @@ class FapolicydPolicy:
         return cls._render_layers(filters, patterns, issues=issues)[1]
 
     @classmethod
-    def _render_layers(cls, filters, patterns=None, *, issues=None):
+    def _render_layers(cls, filters, patterns=None, *, issues=None, early_pattern_guards=False):
         lines = [
             "# Generated by Oh No! Parent Control. Do not edit.",
         ]
@@ -221,7 +290,10 @@ class FapolicydPolicy:
             for directory in sorted(grouped, key=lambda path: (-path.count("/"), path)):
                 group = tuple(grouped[directory])
                 try:
-                    lines.extend(cls._pattern_rules(uid, group, targets))
+                    rules = cls._pattern_rules(uid, group, targets)
+                    lines.extend(rules)
+                    if early_pattern_guards:
+                        early.extend(rules)
                 except (ExecutionPolicyError, OSError):
                     if issues is None:
                         raise
@@ -257,7 +329,8 @@ class FapolicydPolicy:
         with self._lock:
             issues = [] if self._tolerate_rule_errors else None
             contents = tuple(value.encode('utf-8') for value in
-                             self._render_layers(filters, patterns, issues=issues))
+                             self._render_layers(filters, patterns, issues=issues,
+                                                 early_pattern_guards=self._early_pattern_guards))
             previous = self._read_layers()
 
             if previous == contents and self._last_notified_contents == contents:

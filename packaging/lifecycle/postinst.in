@@ -54,9 +54,6 @@ if [ "$1" = configure ]; then
         echo 'oh-no-parent-control: reserved kiosk home already exists; preserving it' >&2
         exit 1
     fi
-    if [ -f /var/lib/oh-no-parent-control/uninstall-enforcement.json ]; then
-        /usr/libexec/oh-no-parent-control-uninstall --restore
-    fi
     # Reconfiguration can enter without preinst. Exclude D-Bus activation as
     # well as explicit starts until migration and execution trust are ready.
     if [ -L /var/lib/oh-no-parent-control ] ||
@@ -128,20 +125,38 @@ if [ "$1" = configure ]; then
         install -o root -g root -m "$integration_mode" "$integration_source" "$integration_target"
         install -o root -g root -m 0600 "$integration_source" "$integration_record"
     }
-    install -d -o root -g root -m 0755 @gdm_presession_dir@ /etc/fapolicyd/rules.d
+    install -d -o root -g root -m 0755 @gdm_presession_dir@
+    if [ -L /etc/fapolicyd ] || [ -L /etc/fapolicyd/rules.d ]; then
+        echo 'oh-no-parent-control: refusing substituted execution-policy directory' >&2
+        exit 1
+    fi
+    # Retain the native package's directory owner/group/mode. Reconfiguration
+    # must not turn Fedora's stock 0750:fapolicyd directories into root:0755.
+    if [ ! -d /etc/fapolicyd/rules.d ]; then
+        install -d -o root -g root -m 0755 /etc/fapolicyd/rules.d
+    fi
     install_integration /usr/share/oh-no-parent-control/gdm-presession \
         @gdm_presession_dir@/Default \
         /var/lib/oh-no-parent-control/installed-gdm-presession 0755
     install_integration /usr/share/oh-no-parent-control/99-oh-no-parent-control-allow.rules \
         /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
         /var/lib/oh-no-parent-control/installed-fapolicyd-fallback 0644
+@execution_policy_install@
+    # A failed RPM post-erase may already have removed an owned integration.
+    # Re-establish the validated original-policy layer before rollback loads
+    # its execution adapter. Migration exclusion still prevents broker entry.
+    if [ -f /var/lib/oh-no-parent-control/uninstall-enforcement.json ]; then
+        /usr/libexec/oh-no-parent-control-uninstall --restore
+    fi
 
 @readiness_install@
     if [ -L /etc/fapolicyd ] || [ -L /etc/fapolicyd/trust.d ]; then
         echo 'oh-no-parent-control: refusing substituted child trust directory' >&2
         exit 1
     fi
-    install -d -o root -g root -m 0755 /etc/fapolicyd/trust.d
+    if [ ! -d /etc/fapolicyd/trust.d ]; then
+        install -d -o root -g root -m 0755 /etc/fapolicyd/trust.d
+    fi
     install_integration /usr/share/oh-no-parent-control/child-extension.trust \
         /etc/fapolicyd/trust.d/oh-no-parent-control.trust \
         /var/lib/oh-no-parent-control/installed-child-extension-trust 0644

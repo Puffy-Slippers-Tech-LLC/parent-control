@@ -32,11 +32,14 @@ def test_customer_families_stay_customer_journeys(document):
     assert {'E2E-028', 'E2E-029'}.isdisjoint(actual)
 
 
-def test_shared_scenarios_declare_both_platforms_without_changing_readiness(document):
+def test_shared_scenarios_declare_both_platforms_with_explicit_implemented_lifecycle(document):
     plan = inventory.resolve_selection(document)
     assert all(case['environment'] == ['ubuntu26.04', 'fedora44'] for case in plan['cases'])
     assert inventory.resolve_selection(document, coverage_id=2)['cases'][0]['status'] == 'ready'
-    assert inventory.resolve_selection(document, 'E2E-027')['pending_cases']
+    lifecycle = inventory.resolve_selection(document, 'E2E-027', require_runnable=True)
+    assert lifecycle['pending_cases'] == []
+    assert lifecycle['cases'][0]['executable'] == {'path': 'tests/e2e/removal_journey.py', 'test_id': 'continuous'}
+    assert inventory.resolve_selection(document, 'E2E-026')['pending_cases']
 
 
 @pytest.mark.parametrize('environment', [[], ['fedora43'], ['ubuntu26.04', 'ubuntu26.04'], 44])

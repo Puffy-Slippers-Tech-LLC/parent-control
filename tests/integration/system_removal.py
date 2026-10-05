@@ -193,6 +193,7 @@ def verify_removed(state, *, purged=False):
                  '/etc/fapolicyd/trust.d/oh-no-parent-control.trust',
                  '/etc/fapolicyd/rules.d/00-oh-no-parent-control-canary.rules',
                  '/etc/fapolicyd/rules.d/01-oh-no-parent-control-deny.rules',
+                 '/etc/fapolicyd/rules.d/02-oh-no-parent-control-original-allow.rules',
                  '/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules',
                  '/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules',
                  '/var/lib/oh-no-parent-control/package-created-kiosk-uid',
@@ -201,6 +202,8 @@ def verify_removed(state, *, purged=False):
                  '/var/lib/oh-no-parent-control/fapolicyd-before-install',
                  '/var/lib/oh-no-parent-control/child-trust-backend',
                  '/var/lib/oh-no-parent-control/fedora-authselect.json',
+                 '/var/lib/oh-no-parent-control/fedora-execution-policy.json',
+                 '/var/lib/oh-no-parent-control/installed-fapolicyd-original-policy',
                  '/etc/authselect/custom/oh-no-parent-control',
                  '/run/systemd/system/oh-no-parent-control-broker.service'):
         path = Path(name)
@@ -285,8 +288,7 @@ def remove(record):
     output = guest.commands.run(removal_command(), timeout=1800, merge_stderr=True)
     verify_removed(state)
     guest.require(REMOVAL_NOTICE.encode() in output, 'removal:reboot-notice-missing')
-    if not fedora:
-        guest.require(guest.reboot_requested(), 'removal:reboot-not-requested')
+    guest.require(guest.reboot_requested(), 'removal:reboot-not-requested')
     guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                f'/org/freedesktop/Accounts/User{child}', 'org.freedesktop.Accounts.User',
                'SetAutomaticLogin', 'b', 'true'])
@@ -373,6 +375,9 @@ def reinstalled_rebooted(record):
                                 timeout=1800, merge_stderr=True)
     verify_removed(state, purged=True)
     guest.require(REMOVAL_NOTICE.encode() in output, 'purge:reboot-notice-missing')
+    guest.require(b'oh-no-parent-control: saved-state purge outcome=accepted' in output,
+                  'purge:completion-not-confirmed')
+    guest.require(guest.reboot_requested(), 'purge:reboot-not-requested')
     record('onpc.purge.erased', 'restrictions-cleared; payload-and-saved-data-removed')
 
 

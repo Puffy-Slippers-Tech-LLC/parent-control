@@ -62,10 +62,11 @@ ACTIVATION_MANIFEST_PATHS += $(LIBEXECDIR)/oh-no-parent-control-fedora-execution
 endif
 CHILD_DIR := child
 EXTENSION_SOURCES := accessibility.js branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
-EXTENSION_SOURCES += gettext.mjs languages.mjs localization.js
+EXTENSION_SOURCES += gettext.mjs languages.mjs localization.js applicationUi.js gnomeApplicationUiAdapter.js
 # Explicit production modules prevent preview/test helpers from entering the package.
 COMMON_SOURCES := __init__.py about.py accessibility.py gtk_automation.py app_policy.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py languages.py languages.json localization.py
 COMMON_SOURCES += message.py messages.py translation_widgets.py reboot.py
+COMMON_SOURCES += application_ui.py application_ui_client.py
 KIOSK_SOURCES := __init__.py agent_locale.py chrome.py floating_islands.py language_dialog.py lava.py lightning.py main.py model.py request_content.py selection_store.py snowflakes.py thunder.py
 PARENT_SOURCES := __init__.py client.py main.py language_dialog.py
 BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py execution_probe.py extension_manager.py grant_diagnostics.py logs.py preferences.py probe_channel.py probe_generation.py service.py uninstall.py
@@ -105,7 +106,7 @@ PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	$(addprefix tools/,bump_version.py render_polkit_policy.py package_notice oh-no-parent-control-login-check execution_policy_ready.py execution_policy_probe execution_probe_gate.c execution_probe_witness.c execution_probe_protocol.h session_limit_check.py pam_oh_no_parent_control.c provision.py) \
 	$(addprefix broker/,oh-no-parent-control-broker oh-no-parent-control-migrate-state oh-no-parent-control-uninstall oh-no-parent-control-query-usage) \
 	$(addprefix broker/oh_no_parent_control/,$(BROKER_SOURCES)) \
-	common/__init__.py $(addprefix common/oh_no_parent_control_ui/,$(COMMON_SOURCES) feedback.css rich_editor/quill.js rich_editor/quill.snow.css rich_editor/quill.js.LICENSE.txt rich_editor/LICENSE) \
+	common/__init__.py $(addprefix common/oh_no_parent_control_ui/,$(COMMON_SOURCES) feedback.css rich_editor/application_ui.js rich_editor/quill.js rich_editor/quill.snow.css rich_editor/quill.js.LICENSE.txt rich_editor/LICENSE) \
 	kiosk/oh-no-parent-control $(addprefix kiosk/oh_no_parent_control_kiosk/,$(KIOSK_SOURCES) style.css kiosk-background-still.png kiosk-background-scenery-clear.png fonts/Monocraft.ttf fonts/OFL.txt) \
 	parent/oh-no-parent-control-parent $(addprefix parent/oh_no_parent_control_parent/,$(PARENT_SOURCES) style.css) \
 	$(addprefix child/,metadata.json stylesheet.css extension.js request-options.json $(EXTENSION_SOURCES) $(EXTENSION_SCHEMA)) \
@@ -501,7 +502,7 @@ endif
 	install -m 0644 $(addprefix common/oh_no_parent_control_ui/,$(COMMON_SOURCES)) "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
 	install -m 0644 common/oh_no_parent_control_ui/feedback.css "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/rich_editor"
-	install -m 0644 common/oh_no_parent_control_ui/rich_editor/quill.js common/oh_no_parent_control_ui/rich_editor/quill.snow.css common/oh_no_parent_control_ui/rich_editor/quill.js.LICENSE.txt common/oh_no_parent_control_ui/rich_editor/LICENSE "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/rich_editor/"
+	install -m 0644 common/oh_no_parent_control_ui/rich_editor/application_ui.js common/oh_no_parent_control_ui/rich_editor/quill.js common/oh_no_parent_control_ui/rich_editor/quill.snow.css common/oh_no_parent_control_ui/rich_editor/quill.js.LICENSE.txt common/oh_no_parent_control_ui/rich_editor/LICENSE "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/rich_editor/"
 	install -m 0644 $(addprefix kiosk/oh_no_parent_control_kiosk/,$(KIOSK_SOURCES)) kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png kiosk/oh_no_parent_control_kiosk/kiosk-background-scenery-clear.png child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts"
 	install -m 0644 kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts/"

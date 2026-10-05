@@ -12,6 +12,7 @@ gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, GLib, Gtk
 
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
+from common.oh_no_parent_control_ui.application_ui import bind_ui
 from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
 from common.oh_no_parent_control_ui.languages import (
     SUPPORTED_LANGUAGES, language_direction, language_matches, selected_language,
@@ -88,6 +89,9 @@ class LanguageDialog(Gtk.Window):
         self._scroller = scroller
         describe_control(scroller, m.LANGUAGE, m.CHOOSE_YOUR_LANGUAGE,
                          automation_id="language-list")
+        bind_ui(scroller, get_value=lambda: self._selected,
+                set_value=self._ui_select_language,
+                choices=lambda: [identity for _row, identity, _name in self._language_rows])
         content.append(scroller)
         self._error = localized(Gtk.Label, wrap=True, visible=False, css_classes=["error"])
         set_automation_id(self._error, "language-error")
@@ -145,6 +149,15 @@ class LanguageDialog(Gtk.Window):
             has_matches = has_matches or matches
         self._scroller.set_focusable(has_matches)
         self._scroller.get_vadjustment().set_value(0)
+
+    def _ui_select_language(self, value):
+        for row, identity, _name in self._language_rows:
+            if value == identity:
+                if not row.get_visible() or not row.is_sensitive():
+                    raise ValueError("language choice is unavailable")
+                row.set_active(True)
+                return
+        raise ValueError("unknown language code")
 
     def _search_keys(self, _controller, keyval, _keycode, state):
         if keyval == Gdk.KEY_Escape and self._search.is_sensitive() and self._search.get_text():

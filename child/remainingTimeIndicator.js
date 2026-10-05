@@ -255,6 +255,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         // guard until a fresh activation press reaches the request button.
         if (this._contextMenuInputGuard || this._contextMenu?.isOpen)
             return;
+        this._requestAccess();
+    }
+
+    _requestAccess() {
+        if (this._destroyed || this._requestButton.checked)
+            return;
+        this._contextMenu?.close();
         this._tooltip.hide();
         this.setRequestActive(true);
         this._onRequest?.(this);
@@ -372,6 +379,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     }
 
     _openContextMenu() {
+        this._contextMenuInputGuard = true;
         this._tooltip.hide();
         if (this._contextMenu) {
             this._contextMenu.open();
@@ -404,18 +412,23 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             'child-countdown-animation-toggle',
             this._text('COUNTDOWN_ANIMATION'),
             this._text('COUNTDOWN_ANIMATION_DESCRIPTION'));
-        this._countdownAnimationItem.connect('toggled', (_item, enabled) => {
-            if (!this._settings?.set_boolean(COUNTDOWN_ANIMATION_KEY, enabled)) {
-                logWarning('child.animation-save-failed');
-                this._onError?.(new Error('Could not save countdown animation preference'));
-                this._syncCountdownAnimationSetting();
-                return;
-            }
-            logInfo('child.animation', {enabled});
-        });
+        this._countdownAnimationItem.connect('toggled', (_item, enabled) =>
+            this._setCountdownAnimationEnabled(enabled));
         this._contextMenu.addMenuItem(this._countdownAnimationItem);
         this.refreshLanguage();
         this._contextMenu.open();
+    }
+
+    _setCountdownAnimationEnabled(enabled) {
+        if (this._destroyed || !this._settings?.set_boolean(COUNTDOWN_ANIMATION_KEY, enabled)) {
+            logWarning('child.animation-save-failed');
+            this._onError?.(new Error('Could not save countdown animation preference'));
+            this._syncCountdownAnimationSetting();
+            return false;
+        }
+        this._syncCountdownAnimationSetting();
+        logInfo('child.animation', {enabled});
+        return true;
     }
 
     _destroyContextMenu() {

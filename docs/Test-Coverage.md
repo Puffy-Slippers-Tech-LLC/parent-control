@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">23921</span>/<span style="color: gray">0</span>/23921 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">23973</span>/<span style="color: gray">0</span>/23973 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">163</span>/<span style="color: gray">0</span>/163 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">275</span>/<span style="color: gray">0</span>/275 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,7 +15,7 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">145</span>/<span style="color: gray">0</span>/145 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">35</span>/<span style="color: gray">210</span>/245 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">24789</span>/<span style="color: gray">210</span>/24999** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">24841</span>/<span style="color: gray">210</span>/25051** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -758,9 +758,9 @@ Variant: history: parent hebrew
 **Steps:**
 
 - Observe untouched English and native names, enable Riley's 60-minute allowance and capture policy and the exact mixed-script draft.
-- Read English management, Preferences and inherited About/feedback text with unchanged draft and policy.
-- Save Hebrew, reopen Preferences and inherited dialogs, and compare translated public logical text, original draft and policy.
-- Restore English and independently compare Preferences, inherited dialogs, original draft, names, policy and numeric balances.
+- Read English management and inherited About/feedback text with unchanged draft and policy.
+- Save Hebrew, open inherited dialogs, and compare translated public logical text, original draft and policy.
+- Restore English and independently compare inherited dialogs, original draft, names, policy and numeric balances.
 
 <div style="color: gray">
 

@@ -19,6 +19,7 @@ concurrent developer edits.
 | --- | --- | --- |
 | [Approval tools](../Approval-Tools.md) | Authorized command routes, setup and unattended execution | Permission for work outside the requested scope |
 | [UI automation mandate](../Mandates/UI-Automation-Mandate.MD) | GUI versus supporting-command selection, public IDs, external-provider exception and input/result guards | Qualification of an adapter merely because its technique is permitted |
+| [Application UI API](Application-UI-API.md) | Stable UI operations, canonical values, adapter boundaries and control inventory | UI/E2E migration or installed desktop qualification |
 | [VM mandate](../Mandates/VM-Mandate.MD) | Target selection, leases, observation and baseline preparation lifetime | A passing product result or permission to use the development host as an installed target |
 | [Test storage mandate](../Mandates/Test-Storage-Mandate.md) | Shared allocation, retention and cleanup boundaries | Permission to delete unowned artifacts |
 | [Test maintenance](../../tests/README.md) | Suite selection/scheduling, parallelism review, failure handling and runner operation | Customer acceptance from a host test |

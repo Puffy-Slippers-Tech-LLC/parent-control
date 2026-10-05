@@ -19,6 +19,7 @@ from gi.repository import Gtk, Pango
 
 from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
+from common.oh_no_parent_control_ui.application_ui import bind_ui
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon, parse_listed_user
 from .chrome import (
     LOCK, POINTER, SHIELD, ArmoredButton,
@@ -78,6 +79,7 @@ class GatewayDropDown(Gtk.Box):
         self._on_selected = on_selected
         self._selected = Gtk.INVALID_LIST_POSITION
         self._items = ()
+        self._item_identities = ()
         self._choice_buttons = []
         self._scroll_offset = 0
 
@@ -101,6 +103,8 @@ class GatewayDropDown(Gtk.Box):
         trigger_content.append(self._trigger_arrow)
         self._trigger.set_child(trigger_content)
         self._trigger.connect("clicked", self._toggle_choices)
+        bind_ui(self._trigger, get_value=self._ui_value, set_value=self._ui_select,
+                choices=lambda: [str(identity) for identity in self._item_identities])
         self.append(self._trigger)
 
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
@@ -131,6 +135,17 @@ class GatewayDropDown(Gtk.Box):
         button.set_child(Gtk.Image.new_from_icon_name(icon_name))
         button.connect("clicked", self._nudge_scroll, delta)
         return button
+
+    def _ui_value(self):
+        return (str(self._item_identities[self._selected])
+                if self._selected < len(self._item_identities) else "")
+
+    def _ui_select(self, value):
+        for index, identity in enumerate(self._item_identities):
+            if value == str(identity):
+                self._choice_buttons[index].emit("clicked")
+                return
+        raise ValueError("unknown account UID")
 
     def set_items(self, items, *, identities):
         self._items = tuple(items)
@@ -373,6 +388,11 @@ class RequestContent(MetalBoard):
         self._choices.append(self._duration_box)
         self._request_form.append(self._choices)
         self._build_duration_choices()
+        bind_ui(self._duration_box, get_value=self._ui_duration_value,
+                set_value=self._ui_select_duration,
+                choices=lambda: ["custom" if seconds is None else str(seconds)
+                                 for _label, seconds in DURATIONS],
+                aliases=("kiosk-duration",))
 
         self._custom_row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
         set_automation_id(self._custom_row, "kiosk-custom-duration-row")
@@ -646,6 +666,8 @@ class RequestContent(MetalBoard):
             else:
                 button.set_group(group)
             button.connect("clicked", self._duration_clicked)
+            bind_ui(button, set_value=lambda value, button=button: self._ui_set_duration_button(
+                button, value))
             self._duration_box.append(button)
             self._duration_buttons.append(button)
             if seconds == DEFAULT_DURATION_SECONDS:
@@ -855,6 +877,32 @@ class RequestContent(MetalBoard):
             self._custom_entry.grab_focus()
             self._custom_entry.select_region(0, -1)
         self._emit_values_changed()
+
+    def _ui_duration_value(self):
+        for button in self._duration_buttons:
+            if button.get_active():
+                return "custom" if button.duration_seconds is None else str(button.duration_seconds)
+        return ""
+
+    def _ui_select_duration(self, value):
+        for button in self._duration_buttons:
+            identity = "custom" if button.duration_seconds is None else str(button.duration_seconds)
+            if value == identity:
+                if not button.is_sensitive():
+                    raise ValueError("request duration is unavailable")
+                if not button.get_active():
+                    button.emit("clicked")
+                return
+        raise ValueError("unknown request duration")
+
+    @staticmethod
+    def _ui_set_duration_button(button, value):
+        if type(value) is not bool:
+            raise ValueError("duration choice requires a boolean")
+        if value != button.get_active():
+            if not value:
+                raise ValueError("select another duration instead of clearing the active choice")
+            button.emit("clicked")
 
     def selected(self):
         account_index = self._accounts.get_selected()

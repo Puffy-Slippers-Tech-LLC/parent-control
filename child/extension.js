@@ -7,6 +7,8 @@ import {ChildErrorHandler} from './errorHandler.js';
 import {logInfo, logWarning} from './logger.js';
 import {canOpenRequest, requestCompletionState} from './indicatorLogic.mjs';
 import {TranslationContext} from './localization.js';
+import {ChildApplicationUi} from './applicationUi.js';
+import {GnomeApplicationUiAdapter} from './gnomeApplicationUiAdapter.js';
 
 const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
 const SETTINGS_SCHEMA = 'com.puffyslippers.oh-no-parent-control.child';
@@ -36,6 +38,14 @@ export default class OhNoParentControlExtension extends Extension {
         this._openingRequest = false;
         this._translations = new TranslationContext(this.path);
         this._indicator = this._createIndicator();
+        this._applicationUiAdapter = new GnomeApplicationUiAdapter(this._indicator);
+        try {
+            this._applicationUi = new ChildApplicationUi(this._applicationUiAdapter);
+        } catch (_error) {
+            this._applicationUiAdapter.close();
+            // A UI transport failure must not disable screen-time enforcement.
+            this._errors.report(new Error('Child Application UI could not start'));
+        }
         this._refreshLanguage();
     }
 
@@ -58,6 +68,10 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     disable() {
+        this._applicationUi?.close();
+        this._applicationUi = null;
+        this._applicationUiAdapter?.close();
+        this._applicationUiAdapter = null;
         if (this._translations) this._translations.closed = true;
         this._translations = null;
         this._errors?.close();

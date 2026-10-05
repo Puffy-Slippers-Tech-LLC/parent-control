@@ -19,6 +19,7 @@ gi.require_version("WebKit", "6.0")
 from gi.repository import Gtk, WebKit
 
 from common.oh_no_parent_control_ui.accessibility import describe_control
+from common.oh_no_parent_control_ui.application_ui import UIError, bind_ui
 
 
 LOG = get_logger("rich-text-editor")
@@ -37,6 +38,8 @@ class RichTextEditor(Gtk.Box):
         self._html = ""
         self._delta = '{"ops":[{"insert":"\\n"}]}'
         self._ready = False
+        self._editor_generation = 0
+        self._editor_revision = -1
 
         manager = WebKit.UserContentManager()
         if not manager.register_script_message_handler("feedbackEditor"):
@@ -64,6 +67,15 @@ class RichTextEditor(Gtk.Box):
             m.EDITOR_DESCRIPTION,
             automation_id="feedback-webview",
         )
+        editor_ids = tuple(key for key in self._labels(context_for(self).translations)
+                           if key.startswith("feedback-"))
+        if attachment_requested is None:
+            editor_ids = tuple(key for key in editor_ids
+                               if key != "feedback-format-attachment")
+        bind_ui(self._view, aliases=(*editor_ids, "feedback-editor-selection", "feedback-webview"),
+                dispatcher=self._ui_dispatch,
+                operations=("getElementById", "getValue", "setValue", "getText",
+                            "setText", "activate", "getChoices"))
         self.append(self._view)
         self._view.load_html(self._document(), None)
         register_retranslation(self, self._retranslate)
@@ -158,11 +170,16 @@ class RichTextEditor(Gtk.Box):
         except (TypeError, ValueError):
             LOG.warning("rich-text-editor.001")
             return
+        self._apply_editor_message(payload)
+
+    def _apply_editor_message(self, payload):
         if not isinstance(payload, dict):
             LOG.warning("rich-text-editor.002")
             return
         kind = payload.get("type")
         if kind == "ready":
+            self._editor_generation += 1
+            self._editor_revision = -1
             self._ready = True
             self._retranslate(context_for(self).translations)
             encoded_delta = json.dumps(self._delta)
@@ -179,6 +196,10 @@ class RichTextEditor(Gtk.Box):
         if kind != "change":
             LOG.warning("rich-text-editor.004")
             return
+        revision = payload.get("revision")
+        if revision is not None:
+            if type(revision) is not int or revision <= self._editor_revision:
+                return
         text = payload.get("text")
         rich_html = payload.get("html")
         delta = payload.get("delta")
@@ -197,6 +218,38 @@ class RichTextEditor(Gtk.Box):
         self._plain_text = text
         self._html = rich_html
         self._delta = delta
+        if revision is not None:
+            self._editor_revision = revision
+
+    def _ui_dispatch(self, operation, arguments, complete):
+        """Run a finite editor operation; callers never supply JavaScript."""
+        if not self._ready:
+            complete(None, UIError("Unavailable"))
+            return
+        request = json.dumps({**arguments, "operation": operation}, ensure_ascii=True)
+        generation = self._editor_generation
+
+        def finished(view, result, *_args):
+            try:
+                value = view.evaluate_javascript_finish(result)
+                if not self._ready or generation != self._editor_generation:
+                    raise ValueError("Editor document changed")
+                response = json.loads(value.to_string())
+                if "error" in response:
+                    raise ValueError(response["error"])
+                # Commit the same change message before acknowledging input,
+                # even if WebKit's script-message delivery is still queued.
+                self._apply_editor_message(response["draft"])
+            except Exception:
+                # Never return editor contents or JavaScript exceptions as logs.
+                complete(None, UIError("Failed"))
+                return
+            complete(response["result"])
+
+        self._view.evaluate_javascript(
+            "JSON.stringify(window.feedbackEditor.ui(" + request + "));",
+            -1, None, None, None, finished, None,
+        )
 
     def _decide_policy(self, _view, decision, decision_type):
         if decision_type in (WebKit.PolicyDecisionType.NAVIGATION_ACTION,
@@ -212,12 +265,14 @@ class RichTextEditor(Gtk.Box):
 
     def _web_process_terminated(self, _view, reason):
         self._ready = False
+        self._editor_generation += 1
         LOG.warning("rich-text-editor.009", reason=reason.value_nick)
         self._view.reload()
 
     def _document(self):
         quill_js = (ASSET_DIR / "quill.js").read_text(encoding="utf-8")
         quill_css = (ASSET_DIR / "quill.snow.css").read_text(encoding="utf-8")
+        ui_js = (ASSET_DIR / "application_ui.js").read_text(encoding="utf-8")
         context = context_for(self)
         labels = self._labels(context.translations)
         labels.update(direction=context.direction, language=context.language)
@@ -414,11 +469,12 @@ function exposeBlockSemantics() {{
   }}
   semanticNodes = new Set(current.keys());
 }}
+let draftRevision = 0;
 function publish() {{
   exposeBlockSemantics();
   const text = quill.getText().replace(/\\n$/, '');
   bridge.postMessage(JSON.stringify({{
-    type: 'change', text,
+    type: 'change', text, revision: ++draftRevision,
     html: quill.getSemanticHTML(),
     delta: JSON.stringify(quill.getContents()),
   }}));
@@ -446,5 +502,6 @@ window.feedbackEditor = {{
   restore(delta) {{ quill.setContents(delta); publish(); }},
 }};
 window.feedbackEditor.labels({initial_labels});
+{ui_js}
 bridge.postMessage(JSON.stringify({{ type: 'ready' }}));
 </script></body></html>"""

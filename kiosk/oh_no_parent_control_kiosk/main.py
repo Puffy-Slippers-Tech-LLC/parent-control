@@ -30,6 +30,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk
 
 from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
+from common.oh_no_parent_control_ui.application_ui import ApplicationUI, bind_ui
 from common.oh_no_parent_control_ui.duration import format_duration
 from common.oh_no_parent_control_ui.errors import (
     ErrorHandler, install_exception_hooks, show_startup_error,
@@ -1032,6 +1033,7 @@ class RequestWindow(Adw.ApplicationWindow):
             help_popover, self._show_preferences,
         ))
         menu_actions.append(preferences_item)
+        menu_items = {"preferences": preferences_item}
         if self._child_overlay:
             help_item = self._hud_menu_item(m.HELP_2, HELP, identity="help")
             describe_control(
@@ -1043,6 +1045,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 lambda *_args: self._activate_help_menu(help_popover, open_help),
             )
             menu_actions.append(help_item)
+            menu_items["help"] = help_item
         about_item = self._hud_menu_item(m.ABOUT_2, ABOUT, identity="about")
         describe_control(
             about_item, m.ABOUT,
@@ -1053,6 +1056,7 @@ class RequestWindow(Adw.ApplicationWindow):
             lambda *_args: self._activate_help_menu(help_popover, self._show_about),
         )
         menu_actions.append(about_item)
+        menu_items["about"] = about_item
         if self._preview:
             from .preview_screen import show_screen_dialog
             screen_item = self._hud_menu_item("Change Screens", MENU, identity="change-screens")
@@ -1061,6 +1065,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 help_popover, lambda: show_screen_dialog(self),
             ))
             menu_actions.append(screen_item)
+            menu_items["change-screens"] = screen_item
         menu_board.append(menu_actions)
         self._muted = False
         self._mute_icon = PixelIcon(SPEAKER, display_size=28, label="")
@@ -1095,6 +1100,14 @@ class RequestWindow(Adw.ApplicationWindow):
             m.OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S,
             automation_id="kiosk-menu-button",
         )
+        def choose_menu(value):
+            if not isinstance(value, str) or value not in menu_items:
+                raise ValueError("unknown request menu command")
+            item = menu_items[value]
+            if not item.get_visible() or not item.is_sensitive():
+                raise ValueError("request menu command is unavailable")
+            item.emit("clicked")
+        bind_ui(menu_button, set_value=choose_menu, choices=lambda: list(menu_items))
         menu_button.set_child(menu_icon)
         menu_button.add_css_class("oh-no-parent-control-hud-button")
         menu_button.add_css_class("oh-no-parent-control-menu-button")
@@ -1994,6 +2007,19 @@ class Application(Adw.Application):
         self._preview_monitor = None
         self._preview_reload_source_id = None
         self._preview_changed_paths = set()
+        self._application_ui = ApplicationUI(self)
+
+    def do_dbus_register(self, connection, object_path):
+        if not Adw.Application.do_dbus_register(self, connection, object_path):
+            return False
+        self._application_ui.register(connection, object_path)
+        return True
+
+    def do_dbus_unregister(self, connection, object_path):
+        try:
+            self._application_ui.unregister(connection)
+        finally:
+            Adw.Application.do_dbus_unregister(self, connection, object_path)
 
     @staticmethod
     def _asset_path(name):

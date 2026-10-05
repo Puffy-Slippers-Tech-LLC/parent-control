@@ -50,6 +50,39 @@ loaded and the selected child's saved screen-time toggle is enabled. The
 broker's kiosk method has a broader contract; see
 [grant transactions](Broker.md#authorization-and-grant-transactions).
 
+## Application UI API
+
+Parent, kiosk/child request windows, their shared dialogs and the child panel
+expose the versioned session-bus `ApplicationUI1` protocol. The
+[API reference and control inventory](../TestAutomation/Application-UI-API.md) owns methods,
+canonical values, endpoints and dynamic identity families. Python consumers can
+use `UIClient.getElementById`, value/text properties or `ui.setText(id, text)`.
+Other languages use the same JSON-valued D-Bus methods.
+
+Transport and clients are desktop-neutral. A GTK adapter resolves native
+Buildable identities and effective control state; the child panel uses a thin
+GNOME adapter for its session and panel availability. A future desktop adapter
+can implement the same public contract without changing consumer IDs/operations.
+The shared GTK request form continues to serve both overlay and kiosk.
+
+Inputs use existing UI widgets/signals and shared user handlers, including
+normal validation, automatic saving, dialog responses and editor draft updates.
+Selectors expose canonical language-independent values independently of their
+translated captions and popup lifetime. No AT-SPI tree, geometry, display scale,
+keyboard focus or desktop-specific pointer stream is involved. Application page
+visibility, effective sensitivity, modal ownership, target uniqueness and broker
+authorization still apply. External authentication and file choosers retain
+their separate provider boundaries.
+
+Registration follows application/extension lifetime. Same-user credentials,
+bounded arguments and operations, owner-pinned clients and single-use mutations
+prevent stale processes or uncertain calls from becoming silent input retries.
+Input completion does not establish a completed backend save. The existing
+accessibility routes below remain available; this new implementation does not
+claim UI/E2E migration or installed qualification. GTK changes load in a new
+frontend process; the child payload follows `session-renewal`. No migration is
+needed.
+
 ## Public automation identities
 
 The custom daily allowance entry publishes validation rejection in its public
@@ -206,8 +239,10 @@ The preview and standalone guest readers share `public_automation_id`, which
 normalizes this provider contract to the same control IDs used by consumers.
 It reads only public AT-SPI metadata; missing IDs and duplicate matches still
 refuse input. A provider that truly exposes only the outer WebView remains
-blocked. Automation must not substitute DOM structure, labels, roles,
-JavaScript evaluation or geometry. The ID-reader correction itself is test-only
+blocked on that AT-SPI route. AT-SPI consumers must not substitute DOM structure,
+labels, roles, arbitrary JavaScript evaluation or geometry. The separately defined
+[Application UI API](#application-ui-api) uses a finite packaged editor adapter.
+The ID-reader correction itself is test-only
 and requires no product installation, package activation or saved-data migration.
 
 ## Personal language selection

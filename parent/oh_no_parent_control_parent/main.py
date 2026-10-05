@@ -35,7 +35,8 @@ from common.oh_no_parent_control_ui.accessibility import (
     describe_control,
     set_automation_id,
 )
-from common.oh_no_parent_control_ui.duration import format_duration
+from common.oh_no_parent_control_ui.duration import format_duration, parse_duration_minutes
+from common.oh_no_parent_control_ui.application_ui import ApplicationUI, bind_ui
 from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui.feedback import FeedbackDialog
 from common.oh_no_parent_control_ui.errors import (
@@ -138,14 +139,8 @@ def _daily_limit_selection(minutes):
 
 def _daily_limit_keyboard_selection(text):
     """Resolve explicit minute/hour input to an offered preset, never round."""
-    match = re.fullmatch(r"([0-9]+)(?:\.([0-9]+))?([mh])", text.lower())
-    if match is None:
-        return None
-    whole, fraction, unit = match.groups()
-    scale = 10 ** len(fraction or "")
-    numerator = (int(whole) * scale + int(fraction or "0")) * (60 if unit == "h" else 1)
-    minutes, remainder = divmod(numerator, scale)
-    if remainder or minutes not in DAILY_LIMIT_PRESETS:
+    minutes = parse_duration_minutes(text)
+    if minutes not in DAILY_LIMIT_PRESETS:
         return None
     return DAILY_LIMIT_PRESETS.index(minutes)
 
@@ -224,6 +219,7 @@ class ParentAccountSelector(Gtk.MenuButton):
         )
         self._on_selected = on_selected
         self._users = ()
+        self._choice_buttons = {}
         self._selected = Gtk.INVALID_LIST_POSITION
         self._choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         choices_scroll = Gtk.ScrolledWindow(
@@ -236,6 +232,17 @@ class ParentAccountSelector(Gtk.MenuButton):
         self.set_popover(popover)
         self.set_create_popup_func(self._prepare_popover)
         self._show_selection()
+
+        bind_ui(self, get_value=self._ui_value, set_value=self._ui_select,
+                choices=lambda: [str(uid) for uid, _label, _icon in self._users])
+
+    def _ui_value(self):
+        return str(self._users[self._selected][0]) if self._selected < len(self._users) else ""
+
+    def _ui_select(self, value):
+        if not isinstance(value, str) or value not in self._choice_buttons:
+            raise ValueError("unknown child account UID")
+        self._choice_buttons[value].emit("clicked")
 
     def _prepare_popover(self, _button):
         # Ellipsized account labels have a tiny minimum width. Size the menu
@@ -269,6 +276,7 @@ class ParentAccountSelector(Gtk.MenuButton):
         if len({uid for uid, _label, _icon in users}) != len(users):
             raise ValueError("child selector requires unique account UIDs")
         self._users = users
+        self._choice_buttons = {}
         while child := self._choices.get_first_child():
             self._choices.remove(child)
         focus_actions = Gio.SimpleActionGroup()
@@ -298,6 +306,7 @@ class ParentAccountSelector(Gtk.MenuButton):
             focus_actions.add_action(focus_action)
             choice.connect("clicked", self._choose, index)
             self._choices.append(choice)
+            self._choice_buttons[str(uid)] = choice
         # GtkMenuButton exposes inserted actions through its public AT-SPI
         # Action interface. UID-scoped focus actions let automation focus an
         # identified choice without deriving keyboard input from list order.
@@ -468,6 +477,7 @@ class ParentWindow(Adw.ApplicationWindow):
             popover.popdown()
             callback()
 
+        menu_items = {}
         for identity, label, callback in (
             ("preferences", m.PREFERENCES, self._show_preferences),
             ("help", m.HELP, open_help),
@@ -479,6 +489,7 @@ class ParentWindow(Adw.ApplicationWindow):
                              automation_id=f"parent-menu-{identity}")
             item.connect("clicked", activate_menu_item, callback)
             menu.append(item)
+            menu_items[identity] = item
         # Explicit circular dots keep the heavier ellipsis consistent across
         # icon themes and display scales.
         dots = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3,
@@ -497,6 +508,15 @@ class ParentWindow(Adw.ApplicationWindow):
             m.OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION,
             automation_id="parent-menu-button",
         )
+        def choose_menu(value):
+            if not isinstance(value, str) or value not in menu_items:
+                raise ValueError("unknown Parent menu command")
+            item = menu_items[value]
+            if not item.get_visible() or not item.is_sensitive():
+                raise ValueError("Parent menu command is unavailable")
+            item.emit("clicked")
+        bind_ui(self._menu_button, set_value=choose_menu,
+                choices=lambda: list(menu_items))
         # Keep native window actions and the desktop's decoration layout, with
         # the application menu immediately before the window controls.
         header_actions = Gtk.Box(spacing=4, valign=Gtk.Align.CENTER)
@@ -622,6 +642,8 @@ class ParentWindow(Adw.ApplicationWindow):
 
         pages = Adw.ViewStack(vexpand=True)
         self._pages = pages
+        set_automation_id(pages, "parent-pages")
+        page_buttons = {}
         switcher = Gtk.Box(
             homogeneous=True, hexpand=True,
             css_classes=["main-view-switcher"],
@@ -653,6 +675,13 @@ class ParentWindow(Adw.ApplicationWindow):
                 ),
             )
             switcher.append(button)
+            page_buttons[page_name] = button
+        def select_page(value):
+            if not isinstance(value, str) or value not in page_buttons:
+                raise ValueError("unknown Parent page")
+            page_buttons[value].set_active(True)
+        bind_ui(pages, get_value=pages.get_visible_child_name,
+                set_value=select_page, choices=lambda: list(page_buttons))
         content.append(Adw.Clamp(
             child=switcher,
             maximum_size=CONTENT_MAX_WIDTH,
@@ -727,6 +756,11 @@ class ParentWindow(Adw.ApplicationWindow):
         allowance_popover = self._daily_limit_popover()
         self._daily_limit.set_popover(allowance_popover)
         self._daily_limit.set_create_popup_func(allowance_popover.prepare)
+        bind_ui(self._daily_limit, get_value=self._ui_daily_limit_value,
+                set_value=self._ui_select_daily_limit,
+                set_text=self._ui_select_daily_limit,
+                choices=lambda: [f"{minutes}m" for minutes in DAILY_LIMIT_PRESETS] + ["custom"],
+                aliases=("parent-daily-limit",))
         for widget in (self._daily_limit, allowance_popover):
             keys = Gtk.EventControllerKey.new()
             keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -756,6 +790,9 @@ class ParentWindow(Adw.ApplicationWindow):
             m.ENTER_A_WHOLE_NUMBER_OF_MINUTES_FROM_ZERO_THROUGH_1439,
             automation_id="parent-custom-daily-limit",
         )
+        bind_ui(self._custom_daily_limit_entry,
+                set_text=self._ui_set_custom_daily_limit_text,
+                set_value=self._ui_set_custom_daily_limit_text)
         self._custom_daily_limit_entry.connect(
             "activate", self._custom_daily_limit_changed,
         )
@@ -779,6 +816,12 @@ class ParentWindow(Adw.ApplicationWindow):
             m.EXPAND_OR_COLLAPSE_THE_DAILY_AND_ONE_TIME_REMAINING_TIME_CALCULA,
             automation_id="parent-time-status",
         )
+        def set_time_expanded(value):
+            if type(value) is not bool:
+                raise ValueError("remaining-time expansion requires a boolean")
+            self._time_status.set_expanded(value)
+        bind_ui(self._time_status, get_value=self._time_status.get_expanded,
+                set_value=set_time_expanded)
         self._time_status.add_prefix(self._setting_icon("hourglass-symbolic"))
         self._time_status_value = localized(Gtk.Label, 
             label=m.LOADING, valign=Gtk.Align.CENTER,
@@ -1000,6 +1043,7 @@ class ParentWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.VERTICAL, spacing=2,
             css_classes=["app-policy-filter-menu"],
         )
+        filter_buttons = {}
         for item in items:
             choice = localized(Gtk.CheckButton, 
                 active=item["id"] in selected,
@@ -1022,6 +1066,16 @@ class ParentWindow(Adw.ApplicationWindow):
                 trigger, items,
             )
             menu.append(choice)
+            filter_buttons[item["id"]] = choice
+        def set_filter(value):
+            if (not isinstance(value, list) or any(not isinstance(item, str) for item in value)
+                    or len(set(value)) != len(value) or not set(value) <= set(filter_buttons)):
+                raise ValueError("filter requires a list of distinct category IDs")
+            for identity, button in filter_buttons.items():
+                button.set_active(identity in value)
+        bind_ui(trigger, get_value=lambda: [item["id"] for item in items
+                                           if item["id"] in selected],
+                set_value=set_filter, choices=lambda: list(filter_buttons))
         filter_scroll = Gtk.ScrolledWindow(
             child=menu, propagate_natural_height=True,
             hscrollbar_policy=Gtk.PolicyType.NEVER,
@@ -1355,6 +1409,7 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         set_automation_id(row, f"parent-app-{automation_key}")
         row.app = app
+        bind_ui(row, get_value=lambda: row.app["id"])
         row.search_text = f'{app["name"]} {app["description"]} {app["id"]}'.casefold()
         if app["icon"]:
             try:
@@ -1380,6 +1435,8 @@ class ParentWindow(Adw.ApplicationWindow):
             automation_id=f"parent-app-{automation_key}-match-rule",
         )
         row.match_rule_button.connect("clicked", self._edit_match_rule, row)
+        bind_ui(row.match_rule_button,
+                get_value=lambda: row.match_rule or self._default_match_rule(row))
         match_rule_cell = Gtk.Box(
             width_request=92, halign=Gtk.Align.CENTER,
             valign=Gtk.Align.CENTER, css_classes=["match-rule-cell"],
@@ -1413,6 +1470,18 @@ class ParentWindow(Adw.ApplicationWindow):
             row.policy_buttons[state["id"]] = button
             selector.append(button)
         row.policy_selector = selector
+        set_automation_id(selector, f"parent-app-{automation_key}-access")
+        def set_access(value):
+            if not isinstance(value, str) or value not in row.policy_buttons:
+                raise ValueError("unknown app access rule")
+            button = row.policy_buttons[value]
+            if not button.is_sensitive():
+                raise ValueError("app access rule is unavailable")
+            button.set_active(True)
+        bind_ui(selector, get_value=lambda: next((identity for identity, button
+                                                in row.policy_buttons.items()
+                                                if button.get_active()), ""),
+                set_value=set_access, choices=lambda: list(row.policy_buttons))
         self._access_column_size.add_widget(selector)
         row.add_suffix(selector)
         row.match_rule = None
@@ -2049,6 +2118,29 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         self._save_parent_control(self._enabled.get_active())
 
+    def _ui_daily_limit_value(self):
+        if self._daily_limit_selected == CUSTOM_DAILY_LIMIT_INDEX:
+            return "custom"
+        return f"{DAILY_LIMIT_PRESETS[self._daily_limit_selected]}m"
+
+    def _ui_select_daily_limit(self, value):
+        if not isinstance(value, str) or not 1 <= len(value) <= 16:
+            raise ValueError("unknown daily allowance choice")
+        index = (CUSTOM_DAILY_LIMIT_INDEX if value == "custom"
+                 else _daily_limit_keyboard_selection(value))
+        if index is None:
+            raise ValueError("unknown daily allowance choice")
+        for choice, _marker, choice_index in self._daily_limit_choices:
+            if choice_index == index:
+                choice.emit("clicked")
+                return
+
+    def _ui_set_custom_daily_limit_text(self, text):
+        if not isinstance(text, str) or "\x00" in text:
+            raise ValueError("custom daily allowance requires text")
+        minutes = parse_duration_minutes(text)
+        self._custom_daily_limit_entry.set_text(str(minutes) if minutes is not None else text)
+
     def _clear_daily_limit_keyboard(self, *_args):
         self._daily_limit_keyboard_text = ""
         self._daily_limit_keyboard_index = None
@@ -2520,6 +2612,7 @@ class Application(Adw.Application):
         self._preview_reload_source_id = None
         self._preview_changed_paths = set()
         self._accessibility_registration_id = 0
+        self._application_ui = ApplicationUI(self)
 
     def do_dbus_register(self, connection, object_path):
         if not Adw.Application.do_dbus_register(self, connection, object_path):
@@ -2529,10 +2622,12 @@ class Application(Adw.Application):
             object_path, info.interfaces[0], self._accessibility_method_call,
             None, None,
         )
+        self._application_ui.register(connection, object_path)
         return True
 
     def do_dbus_unregister(self, connection, object_path):
         try:
+            self._application_ui.unregister(connection)
             if self._accessibility_registration_id:
                 connection.unregister_object(self._accessibility_registration_id)
                 self._accessibility_registration_id = 0

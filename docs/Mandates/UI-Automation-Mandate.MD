@@ -64,6 +64,32 @@ input guards below. These guards belong in shared automation and are not reasons
 to add focus/rendering acceptance to every customer case. Harness safety
 qualifications remain separate from product journeys.
 
+## Application UI API
+
+Repository-owned product controls now expose the
+[Application UI API](../TestAutomation/Application-UI-API.md). This is an authorized UI input
+route: stable-ID setters and actions operate the actual controls through their
+normal handlers, with current ownership, effective sensitivity, logical
+visibility, modal and validation guards. Canonical values are independent of
+language/locale. Transport and consumers remain distro/desktop-neutral;
+toolkit and GNOME panel details belong in their adapters. Future desktop ports
+implement the same adapter contract and public IDs rather than adding desktop
+branches to API consumers or customer cases.
+
+Prefer these operations for product journeys once their consuming adapter is
+qualified. Direct selector values do not require popup, accessibility, focus,
+scrolling or native-input qualification. The fixed editor API is permitted;
+arbitrary caller-supplied JavaScript, private backend edits and credential
+delivery through this service are not. A setter's success acknowledges input;
+independently observe the required public outcome, and never replay uncertain
+mutations automatically. Existing external-provider and authentication guards
+continue to apply outside the product API.
+
+The native allowance/AT-SPI rules below describe the retained implementations.
+They do not prohibit the new Application UI API. No existing UI/E2E tests were
+changed or executed as part of this API delivery, and implementation alone does
+not qualify a new consumer or close an acceptance task.
+
 ## Route selection
 
 - **Choose the route by the feature under test:** Real GUI operations are for

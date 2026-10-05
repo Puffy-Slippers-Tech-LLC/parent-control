@@ -734,6 +734,9 @@ through Parent's public read-only native-surface metadata. The bridge's unique
 bus owner must match the AT-SPI window PID; owner, window, selector bounds and
 native transform are checked again around stream binding. Typing
 and Enter preserve native focus and are not interrupted by popup observations.
+The pointer approaches the center from a distinct interior position derived
+from the same validated bounds, so Mutter delivers fresh Wayland motion before
+the one click even when the cursor already occupies the center.
 Final readback requires the requested public value and save completion;
 Custom requires its usable editor. No popup, expanded-state, highlight,
 cancellation or choice-row route remains available to opt into.
@@ -786,6 +789,29 @@ bounds omit GTK's native surface offset, so the click landed above and left of
 the selector. PARENT06 now adds the fresh public native transform rather than
 assuming a shadow size. The representative host sequence and guarded ownership
 tests pass; installed requalification remains pending.
+Run `20261005T221436Z-ffcbb9d7` then passed the exact initial `15m` selection,
+Jordan's Custom selection and rapid-save persistence. It failed at Riley's
+Custom result: zero remained displayed and the absent editor raised immediately.
+Custom readback now treats an absent editor as pending within the existing
+deadline, while preserving every guard on a present editor. A host stress run
+also reproduced a batch absent from allowance callbacks after 29 saved presets.
+GTK popup teardown is asynchronous across the app and native-input connections;
+Mutter can focus a popup while GTK still reports its Parent toplevel active.
+The public geometry provider now synchronizes window-system requests before
+revalidating the same window, ordering completed popup teardown before binding
+the next stream. Synchronization alone did not resolve repeated-selection
+failures. A subsequent passive host trace proved that the failed click and keys
+reached the Parent window at coordinates whose GTK hit test identified the
+allowance, while the selector's existing gesture received nothing.
+[Mutter suppresses same-position Wayland motion](https://github.com/GNOME/mutter/blob/50.5/src/wayland/meta-wayland-pointer.c#L426),
+and [GTK routes button events through cached pointer focus](https://github.com/GNOME/gtk/blob/4.22.5/gtk/gtkmain.c#L1406).
+The adapter now approaches the center from a distinct interior point in the same
+window stream before its single click. This corrects the missing motion;
+the exact origin of the stale GTK target remains an inference. Host run
+`20261005T224722Z-a1d943d6` passed 60 consecutive preset selections with latest-save
+readback, Custom-to-preset, and custom autosave/rejection recovery. Temporary
+diagnostic probes and the stress multiplier were removed. Installed
+qualification remains pending.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |

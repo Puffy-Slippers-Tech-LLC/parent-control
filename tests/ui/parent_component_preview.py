@@ -157,60 +157,6 @@ from parent.oh_no_parent_control_parent import main as parent_main
 from common.oh_no_parent_control_ui.diagnostic_bundle import build_bundle
 
 
-# Temporary, bounded engineering observation of synthetic allowance delivery.
-# It neither dispatches input nor changes the callbacks' arguments or results.
-from functools import wraps
-from gi.repository import Gtk
-
-_allowance_trace_count = 0
-_allowance_trace_sink = ScriptedParentBroker()._record
-
-
-def _trace_allowance(function):
-    @wraps(function)
-    def observed(self, *args, **kwargs):
-        def retain(phase, result=None):
-            global _allowance_trace_count
-            if _allowance_trace_count >= 256:
-                return
-            _allowance_trace_count += 1
-            fields = {'sequence': _allowance_trace_count, 'phase': phase,
-                      'method': function.__name__}
-            text = getattr(self, '_daily_limit_keyboard_text', '')
-            fields['buffer'] = (text if isinstance(text, str) and len(text) <= 16
-                                and all(char in '0123456789.mh' for char in text)
-                                else 'other')
-            for field, attribute in (('pending', '_daily_limit_keyboard_index'),
-                                     ('committed', '_daily_limit_selected')):
-                value = getattr(self, attribute, None)
-                fields[field] = value if value is None or type(value) is int and 0 <= value <= 128 else 'other'
-            if function.__name__ == '_daily_limit_key_pressed':
-                key = args[1]
-                fields['key'] = ('Enter' if key in (0xff0d, 0xff8d) else
-                                 chr(key) if key in map(ord, '0123456789.mhc') else 'other')
-                if phase == 'return':
-                    fields['handled'] = result if type(result) is bool else None
-            elif function.__name__ == '_clear_daily_limit_keyboard':
-                fields['origin'] = ('focus-leave' if args and isinstance(args[0], Gtk.EventControllerFocus)
-                                    else 'popover-closed' if args and isinstance(args[0], Gtk.Popover)
-                                    else 'direct')
-            elif function.__name__ == '_daily_limit_changed':
-                fields['selected'] = args[1]
-            _allowance_trace_sink('allowance-delivery', **fields)
-            print('ALLOWANCE-TRACE ' + json.dumps(fields, sort_keys=True), flush=True)
-
-        retain('call')
-        result = function(self, *args, **kwargs)
-        retain('return', result)
-        return result
-    return observed
-
-
-for _method in ('_daily_limit_key_pressed', '_clear_daily_limit_keyboard', '_daily_limit_changed'):
-    setattr(parent_main.ParentWindow, _method,
-            _trace_allowance(getattr(parent_main.ParentWindow, _method)))
-parent_main.DailyLimitPopover.prepare = _trace_allowance(parent_main.DailyLimitPopover.prepare)
-
 def feedback_logs():
     if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-collecting":
         release = Path(os.environ["ONPC_FEEDBACK_COLLECTION_RELEASE"])

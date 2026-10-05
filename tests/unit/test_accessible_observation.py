@@ -91,6 +91,110 @@ def test_allowance_selected_reads_saved_value_without_popup_state(preset_ui):
     ui.parent_save_snapshot.assert_called_once_with(accessible_ui.CHILD, True)
 
 
+def custom_result_editor(window, selector):
+    editor = Node(role='entry', identity='parent-custom-daily-limit',
+                  states=('showing', 'visible', 'sensitive', 'editable'))
+    editor.parent = window
+    window.children.append(editor)
+    selector.children[0].name = 'Custom value'
+    return editor
+
+
+def test_allowance_custom_selected_waits_for_public_editor_without_replay(preset_ui, monkeypatch):
+    ui, window, selector, choice = preset_ui
+    window.states.add('active')
+    ui.timeout = .4
+    ui.parent_save_snapshot = Mock()
+    ui.select_allowance = Mock()
+    now = [0.0]
+    sleeps = []
+    editors = []
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+
+    def settle(delay):
+        assert not editors
+        assert ui._read_nodes.call_count > 0
+        sleeps.append(delay)
+        now[0] += delay
+        editors.append(custom_result_editor(window, selector))
+
+    monkeypatch.setattr(accessible_ui.time, 'sleep', settle)
+    with ui.observation():
+        assert ui.allowance_keyboard(accessible_ui.CHILD, 'custom', 'selected') == {
+            'value': 'custom', 'phase': 'selected'}
+    assert sleeps == [.2]
+    assert 'focused' not in editors[0].states
+    ui.parent_save_snapshot.assert_called_once_with(accessible_ui.CHILD, True)
+    ui.select_allowance.assert_not_called()
+    for node in (window, selector, choice, editors[0]):
+        node.action.do_action.assert_not_called()
+        node.component.grab_focus.assert_not_called()
+
+
+def test_allowance_custom_selected_missing_editor_times_out_without_replay(preset_ui, monkeypatch):
+    ui, window, selector, choice = preset_ui
+    window.states.add('active')
+    selector.children[0].name = 'Custom value'
+    ui.timeout = .4
+    ui.parent_save_snapshot = Mock()
+    ui.select_allowance = Mock()
+    now = [0.0]
+    sleeps = []
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+
+    def pending(delay):
+        sleeps.append(delay)
+        now[0] += delay
+
+    monkeypatch.setattr(accessible_ui.time, 'sleep', pending)
+    with pytest.raises(UiError, match='^ui:timeout:allowance-selected-value$'):
+        ui.allowance_keyboard(accessible_ui.CHILD, 'custom', 'selected')
+    assert sleeps == [.2, .2]
+    ui.parent_save_snapshot.assert_not_called()
+    ui.select_allowance.assert_not_called()
+    for node in (window, selector, choice):
+        node.action.do_action.assert_not_called()
+        node.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize('fault,code', [
+    ('child', 'wrong-child'), ('owner', 'wrong-owner'),
+    ('duplicate', 'ambiguous-automation-id'), ('disabled', 'text-disabled'),
+    ('hidden', 'text-disabled'), ('readonly', 'text-editor'),
+    ('inactive', 'text-entry'),
+])
+def test_allowance_custom_selected_preserves_present_editor_guards(preset_ui, monkeypatch, fault, code):
+    ui, window, selector, choice = preset_ui
+    window.states.add('active')
+    editor = custom_result_editor(window, selector)
+    ui.parent_save_snapshot = Mock()
+    ui.select_allowance = Mock()
+    sleep = Mock()
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    if fault == 'child':
+        window.children[0].children[0].identity = 'parent-child-selected-1002'
+    elif fault == 'owner':
+        ui.root().get_process_id = lambda: 101
+    elif fault == 'duplicate':
+        custom_result_editor(window, selector)
+    elif fault == 'disabled':
+        editor.states.remove('sensitive')
+    elif fault == 'hidden':
+        editor.states.remove('visible')
+    elif fault == 'readonly':
+        editor.states.remove('editable')
+    else:
+        window.states.remove('active')
+    with pytest.raises(UiError, match='^ui:' + code + '$'):
+        ui.allowance_keyboard(accessible_ui.CHILD, 'custom', 'selected')
+    sleep.assert_not_called()
+    ui.parent_save_snapshot.assert_not_called()
+    ui.select_allowance.assert_not_called()
+    for node in (window, selector, choice, editor):
+        node.action.do_action.assert_not_called()
+        node.component.grab_focus.assert_not_called()
+
+
 def test_allowance_ready_clicks_closed_selector_without_synthetic_focus(preset_ui):
     ui, window, selector, choice = preset_ui
     window.states.add('active')
@@ -163,7 +267,8 @@ def native_allowance_transport(preset_ui, monkeypatch):
     ('remote-start', 'RemoteDesktop.Session', 'Start', (), False),
     ('stream-start', 'ScreenCast.Stream', 'Start', (), False),
     ('record-window', 'ScreenCast.Session', 'RecordWindow', ({},), False),
-    ('motion', 'RemoteDesktop.Session', 'NotifyPointerMotionAbsolute', ('/stream', 140.0, 220.0), True),
+    ('approach-motion', 'RemoteDesktop.Session', 'NotifyPointerMotionAbsolute', ('/stream', 120.0, 220.0), True),
+    ('center-motion', 'RemoteDesktop.Session', 'NotifyPointerMotionAbsolute', ('/stream', 140.0, 220.0), True),
     ('button', 'RemoteDesktop.Session', 'NotifyPointerButton', (272, True), True),
     ('shift-press', 'RemoteDesktop.Session', 'NotifyKeyboardKeysym', (0xffe1, True), True),
     ('shift-release', 'RemoteDesktop.Session', 'NotifyKeyboardKeysym', (0xffe1, False), True),
@@ -196,7 +301,7 @@ def test_allowance_native_click_delivery_and_failure_lifetime(
         ui.select_allowance(accessible_ui.CHILD, 15)
         warm_keyboard = events.index(('NotifyKeyboardKeysym', (0xffe1, False)))
         bind_window = events.index(('RecordWindow', ({},)))
-        motion = events.index(('NotifyPointerMotionAbsolute', ('/stream', 140.0, 220.0)))
+        motion = events.index(('NotifyPointerMotionAbsolute', ('/stream', 120.0, 220.0)))
         assert warm_keyboard < bind_window < motion
         assert [args for name, args in events[:motion] if name == 'NotifyKeyboardKeysym'] == [
             (0xffe1, True), (0xffe1, False)]
@@ -204,6 +309,8 @@ def test_allowance_native_click_delivery_and_failure_lifetime(
         assert ('org.gnome.Mutter.ScreenCast.Stream', 'Start', ()) in transport.calls
         assert events[bind_window + 1] == ('Start', ())
         assert events[motion:] == [
+            ('NotifyPointerMotionAbsolute', ('/stream', 120.0, 220.0)),
+            ('dispatch', .1),
             ('NotifyPointerMotionAbsolute', ('/stream', 140.0, 220.0)),
             ('dispatch', .1), ('NotifyPointerButton', (272, True)),
             ('dispatch', .15), ('NotifyPointerButton', (272, False)),
@@ -301,17 +408,17 @@ def test_allowance_native_cleanup_preserves_primary_uncertain_input_error(native
     transport.connection.close_sync.assert_called_once_with(None)
 
 
-@pytest.mark.parametrize('transform,point', [
-    ((12.5, 8.0), (152.5, 228.0)),
-    ((-7.0, -9.5), (133.0, 210.5)),
+@pytest.mark.parametrize('transform,points', [
+    ((12.5, 8.0), ((132.5, 228.0), (152.5, 228.0))),
+    ((-7.0, -9.5), ((113.0, 210.5), (133.0, 210.5))),
 ])
 def test_allowance_native_surface_translation_is_owned_and_applied_once(
-        native_allowance_transport, transform, point):
+        native_allowance_transport, transform, points):
     ui, _window, selector, transport = native_allowance_transport
     transport.native_transform = transform
     ui.select_allowance(accessible_ui.CHILD, 15)
     assert [args for method, args in transport.events
-            if method == 'NotifyPointerMotionAbsolute'] == [('/stream', *point)]
+            if method == 'NotifyPointerMotionAbsolute'] == [('/stream', *point) for point in points]
     bridge = [call for call in transport.destinations if call[3] == 'GetNativeSurfaceTransform']
     assert bridge
     assert all(call == (
@@ -329,6 +436,42 @@ def test_allowance_native_surface_translation_is_owned_and_applied_once(
     assert not ui.input_uncertain
     selector.action.do_action.assert_not_called()
     transport.connection.close_sync.assert_called_once_with(None)
+
+
+@pytest.mark.parametrize('width,height,points', [
+    (4, 2, ((101.0, 201.0), (102.0, 201.0))),
+    (7, 3, ((101.5, 201.0), (103.0, 201.0))),
+])
+def test_allowance_native_motion_keeps_small_controls_inside_public_bounds(
+        native_allowance_transport, width, height, points):
+    ui, _window, selector, transport = native_allowance_transport
+    selector.component.get_extents = Mock(return_value=SimpleNamespace(
+        x=100, y=200, width=width, height=height))
+    transport.native_transform = (12.5, 8.0)
+    ui.select_allowance(accessible_ui.CHILD, 15)
+    motions = [args for method, args in transport.events
+               if method == 'NotifyPointerMotionAbsolute']
+    assert motions == [('/stream', x + 12.5, y + 8.0) for x, y in points]
+    assert motions[1][1] - motions[0][1] >= 1
+    assert all(100 < x < 100 + width and 200 < y < 200 + height for x, y in points)
+    assert [args for method, args in transport.events if method == 'NotifyPointerButton'] == [
+        (272, True), (272, False)]
+    assert [args for method, args in transport.events if method == 'NotifyKeyboardKeysym'] == [
+        (key, pressed) for key in (0xffe1, ord('1'), ord('5'), ord('m'), 0xff0d)
+        for pressed in (True, False)]
+
+
+@pytest.mark.parametrize('width,height', [(1, 1), (1, 40), (2, 40), (3, 40), (80, 1)])
+def test_allowance_native_motion_refuses_tiny_bounds_before_any_input(
+        native_allowance_transport, width, height):
+    ui, _window, selector, transport = native_allowance_transport
+    selector.component.get_extents = Mock(return_value=SimpleNamespace(
+        x=100, y=200, width=width, height=height))
+    with pytest.raises(UiError, match='^ui:allowance-click-motion-bounds$'):
+        ui.select_allowance(accessible_ui.CHILD, 15)
+    assert transport.events == []
+    assert not ui.input_uncertain
+    transport.connection.close_sync.assert_not_called()
 
 
 @pytest.mark.parametrize('fault,code', [
@@ -367,6 +510,7 @@ def test_allowance_native_surface_refuses_unowned_bridge_before_any_input(
 @pytest.mark.parametrize('transform', [
     (float('nan'), 0.0), (0.0, float('inf')), (False, 0.0),
     (0.0,), (0.0, 0.0, 0.0), (-200.0, 0.0), (0.0, 40000.0),
+    (-130.0, 0.0),  # Center is valid, but the approach would leave the native surface.
 ])
 def test_allowance_native_surface_refuses_invalid_transform_before_any_input(
         native_allowance_transport, transform):

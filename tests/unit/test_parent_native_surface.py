@@ -28,6 +28,8 @@ def provider(monkeypatch):
         identity="parent-window", get_mapped=Mock(return_value=True),
         get_visible=Mock(return_value=True), is_active=Mock(return_value=True),
         surface=object(), transform=Mock(return_value=(-12.5, -8.0)),
+        get_display=Mock(return_value=SimpleNamespace(sync=Mock())),
+        present=Mock(), grab_focus=Mock(),
     )
     application = bind_methods(SimpleNamespace(
         get_windows=Mock(return_value=[window]), _accessibility_registration_id=0,
@@ -58,6 +60,68 @@ def test_transform_is_fresh_raw_public_pair_including_negative_offsets(provider)
         assert reply.get_type_string() == "(dd)"
         assert reply.unpack() == expected
     assert window.transform.call_count == 3
+
+
+def test_transform_synchronizes_then_reobserves_without_product_input(provider):
+    application, window, *_ = provider
+    display = window.get_display.return_value
+
+    def synchronized():
+        window.transform.assert_not_called()
+        assert application.get_windows.call_count == 1
+        window.transform.return_value = (3.25, 4.5)
+
+    display.sync.side_effect = synchronized
+    invocation = invoke(application)
+    invocation.return_dbus_error.assert_not_called()
+    assert invocation.return_value.call_args.args[0].unpack() == (3.25, 4.5)
+    assert application.get_windows.call_count == 2
+    display.sync.assert_called_once_with()
+    window.transform.assert_called_once_with()
+    window.present.assert_not_called()
+    window.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize("fault", [
+    "missing", "duplicate", "replaced", "identity", "unmapped", "hidden",
+    "inactive", "no-surface", "sync-error",
+])
+def test_transform_refuses_surface_changed_during_synchronization(provider, fault):
+    application, window, *_ = provider
+    display = window.get_display.return_value
+    replacement = SimpleNamespace(**vars(window))
+    assert replacement == window and replacement is not window
+
+    def synchronized():
+        window.transform.assert_not_called()
+        if fault == "missing":
+            application.get_windows.return_value = []
+        elif fault == "duplicate":
+            application.get_windows.return_value = [window, replacement]
+        elif fault == "replaced":
+            application.get_windows.return_value = [replacement]
+        elif fault == "identity":
+            window.identity = "feedback-dialog"
+        elif fault in ("unmapped", "hidden", "inactive"):
+            getattr(window, {"unmapped": "get_mapped", "hidden": "get_visible",
+                             "inactive": "is_active"}[fault]).return_value = False
+        elif fault == "no-surface":
+            window.surface = None
+        else:
+            raise GLib.Error("PRIVATE_SYNC_DIAGNOSTIC")
+
+    display.sync.side_effect = synchronized
+    invocation = invoke(application)
+    invocation.return_value.assert_not_called()
+    invocation.return_dbus_error.assert_called_once_with(
+        main.ACCESSIBILITY_INTERFACE + ".SurfaceUnavailable",
+        "Native surface transform is unavailable",
+    )
+    display.sync.assert_called_once_with()
+    window.transform.assert_not_called()
+    replacement.transform.assert_not_called()
+    window.present.assert_not_called()
+    window.grab_focus.assert_not_called()
 
 
 @pytest.mark.parametrize("fault", [

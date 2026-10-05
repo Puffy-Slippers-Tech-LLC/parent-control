@@ -142,6 +142,11 @@ object path `/com/puffyslippers/OhNoParentControl/Parent`.
 `GetNativeSurfaceTransform("parent-window")` returns the fresh pair of doubles
 from GTK's public `Gtk.Native.get_surface_transform()` for exactly one mapped,
 visible, active Parent window. Missing, ambiguous or unavailable surfaces refuse.
+Before returning coordinates, the provider uses `Gdk.Display.sync()` and
+revalidates the same window. This finishes queued window-system requests,
+including prior popup teardown, before a separate native-input connection binds
+the compositor's focused window. GTK's active toplevel alone does not prove that
+a dismissed popup has released compositor focus.
 The interface registers and unregisters with the application; it exposes no
 policy data or input operation and needs no new service or saved-data migration.
 

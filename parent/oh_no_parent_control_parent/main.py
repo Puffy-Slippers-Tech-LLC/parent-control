@@ -2644,6 +2644,14 @@ class Application(Adw.Application):
         if len(windows) != 1:
             raise ValueError("Native surface is missing or ambiguous")
         window = windows[0]
+        # Popup dismissal queues window-system requests. Finish those requests
+        # before another connection binds Mutter's focused window; GTK's active
+        # toplevel state alone also holds while a popup owns native focus.
+        window.get_display().sync()
+        current = [candidate for candidate in self.get_windows()
+                   if Gtk.Buildable.get_buildable_id(candidate) == surface_id]
+        if len(current) != 1 or current[0] is not window:
+            raise ValueError("Native surface changed during synchronization")
         if (not window.get_mapped() or not window.get_visible()
                 or not window.is_active() or Gtk.Native.get_surface(window) is None):
             raise ValueError("Native surface is unavailable")

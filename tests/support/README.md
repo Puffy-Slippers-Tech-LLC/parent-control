@@ -91,6 +91,16 @@ the current GTK native offset omitted by AT-SPI WINDOW bounds. The shared
 adapter checks the unique bus owner's PID against the identified Parent, then
 rechecks owner, target bounds and transform around stream binding. It adds the
 offset once; no fixed shadow size, desktop origin or display scaling is inferred.
+Before the single click, two distinct positions inside those validated bounds
+end at the selector's center. Mutter suppresses same-position Wayland motion;
+real movement refreshes GTK's cached pointer target after popup dismissal.
+Both surface positions are validated before input, and bounds too small for
+distinct interior positions refuse. This adds no click, popup observation or
+focus operation.
+The provider synchronizes GTK's queued window-system requests before its fresh
+window proof, ordering prior popup teardown before cross-connection stream
+binding. Custom result observation waits for its editor to appear, then keeps
+the existing ownership and usability guards; it never repeats input.
 The adapter retains the same owned session cleanup, private preview display
 and VM lifetimes. Unit probes use existing private doubles and waited Perl;
 UI tests use the existing private display. No new process, storage or cleanup

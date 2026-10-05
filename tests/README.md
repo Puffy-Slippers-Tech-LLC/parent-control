@@ -1643,9 +1643,11 @@ at the next rules refresh. No broader command or privilege grant is needed.
 The bare-Mutter fixture disables its opening-window scale effect through
 `MUTTER_DEBUG_DISABLE_ANIMATIONS`, the upstream default plugin's test switch.
 Automation nevertheless reacquires controls by public ID and verifies semantic
-readiness after transitions. Allowance coverage selects the declared choice
-through its public action and independently verifies the saved value; it does
-not depend on animation timing, pointer coordinates or menu placement.
+readiness after transitions. Allowance coverage uses the shared
+[native click/type/Enter sequence](../docs/Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception)
+and independently verifies the saved value. Its opening click uses the narrowly
+guarded ID-resolved bounds; popup rendering and menu placement are not acceptance
+conditions.
 Preview process logs are retained in private `/var/tmp/onpc-ui-preview-<run>/`
 directories, printed by the fixture, so later pytest categories cannot rotate
 away the first failure's diagnostics. These directories are disk-backed on the

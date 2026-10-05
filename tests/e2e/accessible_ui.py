@@ -5648,6 +5648,18 @@ class AccessibleUI:
                 if value >= 60 and value % 60 == 0 else str(value) + 'm')
         from gi.repository import Gio, GLib
         point = self.allowance_click_target(child)
+        x, y, width, height = point['bounds']
+        # Two different interior positions force fresh native pointer motion
+        # even when the prior selection ended at this control's center. Mutter
+        # suppresses unchanged surface coordinates; GTK picks button targets
+        # using its cached pointer position. Keep the existing integer center
+        # and at least one surface unit between positions so native coordinate
+        # quantization cannot collapse the motion on a tiny control.
+        widget_points = ((x + (point['x'] - x) / 2, point['y']),
+                         (point['x'], point['y']))
+        require(widget_points[1][0] - widget_points[0][0] >= 1 and all(
+            x < px < x + width and y < py < y + height
+            for px, py in widget_points), 'ui:allowance-click-motion-bounds')
         remote = 'org.gnome.Mutter.RemoteDesktop'
         cast = 'org.gnome.Mutter.ScreenCast'
         connection = Gio.DBusConnection.new_for_address_sync(
@@ -5692,8 +5704,12 @@ class AccessibleUI:
                 'ui:allowance-surface-transform')
             # GTK subtracts this transform from native events before widget
             # picking. Add it once for the inverse widget-to-surface mapping.
-            require(all(0 <= target[axis] + offset <= 32768
-                        for axis, offset in zip(('x', 'y'), transform)),
+            native_points = tuple(tuple(coordinate + offset
+                                        for coordinate, offset in zip(position, transform))
+                                  for position in widget_points)
+            require(native_points[0] != native_points[1] and all(
+                math.isfinite(coordinate) and 0 <= coordinate <= 32768
+                for position in native_points for coordinate in position),
                     'ui:allowance-surface-transform')
             current_owner, = call(bus, '/org/freedesktop/DBus', bus, 'GetNameOwner',
                                   '(s)', (PARENT_APPLICATION,))
@@ -5738,12 +5754,13 @@ class AccessibleUI:
             call(cast, stream, cast + '.Stream', 'Start')
             recheck_surface(surface)
             self.input_uncertain = True
-            call(remote, session, remote + '.Session', 'NotifyPointerMotionAbsolute',
-                 '(sdd)', (stream, float(point['x'] + surface[1][0]),
-                          float(point['y'] + surface[1][1])))
-            # D-Bus acknowledgement queues input; let the seat dispatch motion
-            # before button press and release, and release before device removal.
-            time.sleep(.1)
+            for px, py in widget_points:
+                call(remote, session, remote + '.Session', 'NotifyPointerMotionAbsolute',
+                     '(sdd)', (stream, float(px + surface[1][0]),
+                              float(py + surface[1][1])))
+                # D-Bus acknowledgement queues input; let the seat dispatch
+                # each distinct motion before the next motion or button press.
+                time.sleep(.1)
             call(remote, session, remote + '.Session', 'NotifyPointerButton', '(ib)', (272, True))
             time.sleep(.15)
             call(remote, session, remote + '.Session', 'NotifyPointerButton', '(ib)', (272, False))
@@ -5785,6 +5802,14 @@ class AccessibleUI:
             def selected():
                 self.allowance_entry(child)
                 if value == 'custom':
+                    # Native input acknowledgement can precede the editor's
+                    # public appearance. Wait for this final result just as
+                    # preset readback waits for its requested label; preserve
+                    # every recipient guard once the editor exists.
+                    if self.snapshot_owned_target(
+                            'parent-custom-daily-limit', showing=False,
+                            check_prompt=True) is None:
+                        return False
                     self.text_recipient('parent-custom-daily-limit', child=child)
                     expected = 'Custom value'
                 else:

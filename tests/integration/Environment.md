@@ -123,9 +123,12 @@ also require the recorded disk identities; explicit preparation can accept a
 changed disk chain after manual maintenance on that same VM. Each name has an
 exclusive controller lease, so different VMs may prepare in parallel. A shared
 compatibility lease excludes older controllers that still own the state root
-exclusively. Finish tests and stop maintenance on the same VM before preparation. Configuration
-and loader sources are included in the preparation digest, so changing them
-requires matching guest preparation before a new baseline can be accepted.
+exclusively. Finish tests and stop maintenance on the same VM before preparation.
+Guest identity and snapshot isolation configuration, and loader sources, are included
+in the preparation digest. Changing them requires matching guest preparation
+before a new baseline can be accepted. Queue `concurrency`, per-VM `enabled`
+flags and selector IDs are excluded: changing scheduling does not invalidate
+prepared baselines or derived app snapshots.
 This is development tooling: activation is the next invocation (installed UUID
 pinning is refreshed by host preparation); no product activation or data migration.
 

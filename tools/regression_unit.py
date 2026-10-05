@@ -27,6 +27,8 @@ bounded joined threads, process-local command doubles and the existing owned
 session children. No live VM, setup, privilege or shared output is touched.
 vm_config, prepare_baseline_tool, appsnapshot_cleanup_safety and regression_session
 retain compatible unit scheduling; app-snapshot cleanup coverage stays compatible too.
+Preparation-digest scheduling regressions add only private copied source/config
+files to vm_config. No live VM or helper refresh runs; compatible overlap remains valid.
 
 Update-required dialog and reboot tests use process-local GTK/Gio doubles only;
 parent startup tests queue fake threads and idle callbacks. Package-marker cases

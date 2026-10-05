@@ -264,6 +264,36 @@ def test_id_changes_do_not_invalidate_guest_preparation_or_baseline_proof(tmp_pa
     assert guest.preparation_digest(tmp_path) != before
 
 
+@pytest.mark.parametrize('setting', ['concurrency', 'enabled'])
+def test_scheduling_changes_do_not_invalidate_prepared_baseline(tmp_path, setting):
+    for relative in guest.SCRIPT_FILES:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes((ROOT / relative).read_bytes())
+    path = tmp_path / 'config/test-vm.json'
+    document = json.loads(path.read_text())
+    before = guest.preparation_digest(tmp_path)
+    if setting == 'concurrency':
+        document['concurrency'] = document.get('concurrency', 1) + 1
+    else:
+        for entry in document['vms']:
+            entry['enabled'] = 'false' if entry.get('enabled') == 'true' else 'true'
+    path.write_text(json.dumps(document))
+    assert guest.preparation_digest(tmp_path) == before
+    # Omitted scheduling defaults must produce the same preparation identity.
+    if setting == 'concurrency':
+        document.pop('concurrency')
+    else:
+        for entry in document['vms']:
+            entry.pop('enabled', None)
+    path.write_text(json.dumps(document))
+    assert guest.preparation_digest(tmp_path) == before
+    # Guest identity and snapshot isolation settings remain protected.
+    document['vms'][0]['disk_anchor'] += '.replacement'
+    path.write_text(json.dumps(document))
+    assert guest.preparation_digest(tmp_path) != before
+
+
 def test_libvirt_selects_configured_name_and_still_rejects_replacement(monkeypatch, tmp_path):
     configured = vm_config.load('custom-test-vm', write_config(tmp_path))
     monkeypatch.setattr(host, 'DOMAIN', configured.name)

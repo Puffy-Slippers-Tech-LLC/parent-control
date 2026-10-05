@@ -76,7 +76,8 @@ dispatch and reuse without replacing inputs.
 `journey_blocks.allowance_selection`, `onpc_allowance_selection::select` and
 `gui_blocks.select_allowance` share one Parent allowance block.
 `AccessibleUI.select_allowance` sends one native click, typed value and Enter
-in the same window-bound Mutter session. `allowance_keyboard` independently
+in the same window-bound Mutter session. It initializes both native input
+devices before binding the window and starting the stream. `allowance_keyboard` independently
 reads the final saved value or available Custom editor. Existing preset/custom
 helpers delegate to that input block. No popup/highlight/cancellation or
 direct-choice variant is available; see the
@@ -89,6 +90,14 @@ The adapter retains the same owned session cleanup, private preview display
 and VM lifetimes. Unit probes use existing private doubles and waited Perl;
 UI tests use the existing private display. No new process, storage or cleanup
 owner is introduced; existing unit/UI parallelism classifications apply.
+
+Ordinary Parent launch prepares the bound GNOME desktop through the public
+`org.gnome.Shell.OverviewActive` property. If the overview is open, the shared
+launcher requests closure once and independently waits for the closed result
+before invoking Parent. This releases GNOME's startup input grab; GTK's active
+window state alone cannot establish compositor focus while Overview is open.
+Launch preparation retains session/prompt guards and refuses uncertain input
+without replay. It introduces no new resource owner or baseline setting.
 
 `AccessibleUI.read_language` reuses LANG01 ownership/choice reads and bounded
 public language values. Qualification values and immutable policy

@@ -17,8 +17,7 @@ sub run {
     $journey->consume_observation('parent-selected', $selected);
     for my $stage ('allowance-disabled', 'parent-toggle-enabled', 'parent-save-enabled',
                    'allowance-wrong-child', 'allowance-0-select', 'allowance-0-read',
-                   'allowance-0-reopen', 'allowance-15-select', 'allowance-15-read',
-                   'allowance-15-reopen') {
+                   'allowance-15-select', 'allowance-15-read') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
     $journey->finish();

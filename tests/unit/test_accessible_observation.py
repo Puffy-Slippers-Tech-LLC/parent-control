@@ -119,38 +119,83 @@ def test_allowance_click_refuses_invalid_public_bounds(preset_ui, bounds):
         ui.allowance_click_target()
 
 
-@pytest.mark.parametrize('failure', [None, 'Start', 'NotifyPointerButton', 'NotifyKeyboardKeysym', 'Stop'])
-def test_allowance_native_click_delivery_and_failure_lifetime(preset_ui, monkeypatch, failure):
+@pytest.fixture
+def native_allowance_transport(preset_ui, monkeypatch):
     from gi.repository import Gio, GLib
     ui, window, selector, _ = preset_ui
     window.states.add('active')
     selector.component.get_extents = Mock(return_value=SimpleNamespace(
         x=100, y=200, width=80, height=40))
-    events = []
+    transport = SimpleNamespace(events=[], calls=[], fail=None, on_call=None,
+                                error_message='PRIVATE_PROVIDER_VALUE',
+                                error_domain=Gio.io_error_quark(),
+                                error_code=Gio.IOErrorEnum.FAILED)
     def invoke(_service, _path, _interface, method, arguments, *_rest):
         args = arguments.unpack() if arguments is not None else ()
-        events.append((method, args))
-        if method == failure:
-            raise GLib.Error.new_literal(Gio.io_error_quark(), 'PRIVATE_PROVIDER_VALUE',
-                                        Gio.IOErrorEnum.FAILED)
+        transport.events.append((method, args))
+        transport.calls.append((_interface, method, args))
+        if transport.on_call:
+            transport.on_call(_interface, method, args)
+        if transport.fail and transport.fail(_interface, method, args):
+            raise GLib.Error.new_literal(transport.error_domain, transport.error_message,
+                                        transport.error_code)
         values = {'CreateSession': ('/session',), 'Get': ('session-id',),
                   'RecordWindow': ('/stream',)}.get(method, ())
         return SimpleNamespace(unpack=lambda: values)
     connection = SimpleNamespace(call_sync=invoke, close_sync=Mock())
+    transport.connection = connection
     monkeypatch.setattr(Gio.DBusConnection, 'new_for_address_sync', Mock(return_value=connection))
     monkeypatch.setenv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/fixture-bus')
-    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: events.append(('dispatch', delay)))
+    monkeypatch.setattr(accessible_ui.time, 'sleep',
+                        lambda delay: transport.events.append(('dispatch', delay)))
+    return ui, window, selector, transport
+
+
+@pytest.mark.parametrize('failure,interface,method,arguments,uncertain', [
+    (None, None, None, None, False),
+    ('remote-start', 'RemoteDesktop.Session', 'Start', (), False),
+    ('stream-start', 'ScreenCast.Stream', 'Start', (), False),
+    ('record-window', 'ScreenCast.Session', 'RecordWindow', ({},), False),
+    ('motion', 'RemoteDesktop.Session', 'NotifyPointerMotionAbsolute', ('/stream', 140.0, 220.0), True),
+    ('button', 'RemoteDesktop.Session', 'NotifyPointerButton', (272, True), True),
+    ('shift-press', 'RemoteDesktop.Session', 'NotifyKeyboardKeysym', (0xffe1, True), True),
+    ('shift-release', 'RemoteDesktop.Session', 'NotifyKeyboardKeysym', (0xffe1, False), True),
+    ('product-key', 'RemoteDesktop.Session', 'NotifyKeyboardKeysym', (ord('1'), True), True),
+    ('stop', 'RemoteDesktop.Session', 'Stop', (), True),
+])
+def test_allowance_native_click_delivery_and_failure_lifetime(
+        native_allowance_transport, failure, interface, method, arguments, uncertain):
+    ui, _window, selector, transport = native_allowance_transport
+    events = transport.events
+    transport.fail = lambda actual_interface, actual_method, args: (
+        actual_interface == 'org.gnome.Mutter.' + interface
+        and actual_method == method and args == arguments) if failure else False
     if failure:
-        with pytest.raises(UiError, match='allowance-click-transport:' + failure) as raised:
+        with pytest.raises(UiError, match='allowance-click-transport:' + method) as raised:
             ui.select_allowance(accessible_ui.CHILD, 15)
         assert 'PRIVATE_' not in str(raised.value)
-        assert ui.input_uncertain == (failure != 'Start')
+        assert ui.input_uncertain == uncertain
         if ui.input_uncertain:
+            delivered = list(events)
             with pytest.raises(UiError, match='input-uncertain'):
                 ui.select_allowance(accessible_ui.CHILD, 15)
+            assert events == delivered
+        if failure in ('remote-start', 'stream-start', 'record-window', 'shift-press', 'shift-release'):
+            assert not any(name in ('NotifyPointerMotionAbsolute', 'NotifyPointerButton')
+                           for name, _ in events)
+            assert all(args[0] == 0xffe1 for name, args in events
+                       if name == 'NotifyKeyboardKeysym')
     else:
         ui.select_allowance(accessible_ui.CHILD, 15)
+        warm_keyboard = events.index(('NotifyKeyboardKeysym', (0xffe1, False)))
+        bind_window = events.index(('RecordWindow', ({},)))
         motion = events.index(('NotifyPointerMotionAbsolute', ('/stream', 140.0, 220.0)))
+        assert warm_keyboard < bind_window < motion
+        assert [args for name, args in events[:motion] if name == 'NotifyKeyboardKeysym'] == [
+            (0xffe1, True), (0xffe1, False)]
+        assert ('org.gnome.Mutter.RemoteDesktop.Session', 'Start', ()) in transport.calls
+        assert ('org.gnome.Mutter.ScreenCast.Stream', 'Start', ()) in transport.calls
+        assert events[bind_window + 1] == ('Start', ())
         assert events[motion:] == [
             ('NotifyPointerMotionAbsolute', ('/stream', 140.0, 220.0)),
             ('dispatch', .1), ('NotifyPointerButton', (272, True)),
@@ -161,8 +206,82 @@ def test_allowance_native_click_delivery_and_failure_lifetime(preset_ui, monkeyp
                             ('NotifyKeyboardKeysym', (key, False)), ('dispatch', .05))],
             ('Stop', ())]
         assert not ui.input_uncertain
-    assert sum(method == 'Stop' for method, _ in events) == (failure != 'Start')
-    connection.close_sync.assert_called_once_with(None)
+    assert sum(name == 'Stop' for name, _ in events) == (failure != 'remote-start')
+    transport.connection.close_sync.assert_called_once_with(None)
+    selector.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('boundary,fault,code', [
+    ('warm-up', 'owner', 'wrong-owner'),
+    ('warm-up', 'child', 'wrong-child'),
+    ('stream-start', 'inactive', 'allowance-window'),
+    ('stream-start', 'bounds', 'allowance-click-moved'),
+])
+def test_allowance_native_click_rechecks_identity_and_bounds_before_delivery(
+        native_allowance_transport, boundary, fault, code):
+    ui, window, selector, transport = native_allowance_transport
+    def change_target(interface, method, args):
+        if ((boundary == 'warm-up' and method == 'NotifyKeyboardKeysym'
+             and args == (0xffe1, False)) or
+                (boundary == 'stream-start' and interface == 'org.gnome.Mutter.ScreenCast.Stream'
+                 and method == 'Start')):
+            if fault == 'owner':
+                ui.root().get_process_id = lambda: 101
+            elif fault == 'child':
+                window.children[0].children[0].identity = 'parent-child-selected-1002'
+            elif fault == 'inactive':
+                window.states.remove('active')
+            else:
+                selector.component.get_extents.return_value.x += 1
+    transport.on_call = change_target
+    with ui.observation():
+        with pytest.raises(UiError, match=code):
+            ui.select_allowance(accessible_ui.CHILD, 15)
+    assert not ui.input_uncertain
+    assert not any(name in ('NotifyPointerMotionAbsolute', 'NotifyPointerButton')
+                   for name, _ in transport.events)
+    assert [args for name, args in transport.events if name == 'NotifyKeyboardKeysym'] == [
+        (0xffe1, True), (0xffe1, False)]
+    assert sum(name == 'RecordWindow' for name, _ in transport.events) == (boundary == 'stream-start')
+    assert transport.events[-1] == ('Stop', ())
+    transport.connection.close_sync.assert_called_once_with(None)
+
+
+@pytest.mark.parametrize('message,reason', [
+    ('GDBus.Error:org.freedesktop.DBus.Error.Failed: Window not found', 'window-not-found'),
+    ('Failed to record window: Main logical monitor not found', 'window-monitor'),
+    ('Permission denied', 'permission-denied'),
+    ('PRIVATE_PROVIDER_VALUE', 'other'),
+    ('PRIVATE_PROVIDER_VALUE', 'unknown-method'),
+])
+def test_allowance_native_window_error_uses_finite_diagnostic(
+        native_allowance_transport, message, reason):
+    ui, _window, _selector, transport = native_allowance_transport
+    transport.fail = lambda _interface, method, _args: method == 'RecordWindow'
+    transport.error_message = message
+    if reason == 'unknown-method':
+        from gi.repository import Gio
+        transport.error_domain = Gio.dbus_error_quark()
+        transport.error_code = Gio.DBusError.UNKNOWN_METHOD
+    with pytest.raises(UiError) as raised:
+        ui.select_allowance(accessible_ui.CHILD, 15)
+    assert str(raised.value) == 'ui:allowance-click-transport:RecordWindow:' + reason
+    assert not ui.input_uncertain
+    assert transport.events[-1] == ('Stop', ())
+    transport.connection.close_sync.assert_called_once_with(None)
+
+
+def test_allowance_native_cleanup_preserves_primary_uncertain_input_error(native_allowance_transport):
+    ui, _window, _selector, transport = native_allowance_transport
+    transport.fail = lambda _interface, method, args: (
+        method == 'Stop' or method == 'NotifyKeyboardKeysym' and args == (ord('1'), True))
+    with pytest.raises(UiError) as raised:
+        ui.select_allowance(accessible_ui.CHILD, 15)
+    assert str(raised.value) == 'ui:allowance-click-transport:NotifyKeyboardKeysym:other'
+    assert raised.value.__notes__ == ['ui:allowance-click-transport:Stop:other']
+    assert ui.input_uncertain
+    assert transport.events[-1] == ('Stop', ())
+    transport.connection.close_sync.assert_called_once_with(None)
 
 
 @pytest.fixture

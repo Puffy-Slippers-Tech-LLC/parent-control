@@ -404,7 +404,7 @@ CHILD_DESKTOP_OPERATIONS |= frozenset(operation for operation, (binding, _) in T
 ALLOWANCE_OPERATIONS = frozenset({
     'allowance-wrong-child', 'allowance-disabled',
 }) | frozenset(f'allowance-{value}-{action}' for value in PRESETS
-              for action in ('select', 'read', 'reopen'))
+              for action in ('select', 'read'))
 OPERATIONS |= ALLOWANCE_OPERATIONS
 ALLOWANCE_KEYBOARD_OPERATIONS = {
     f'allowance-keyboard-{value}-{phase}': (value, phase)
@@ -5634,26 +5634,44 @@ class AccessibleUI:
             except GLib.Error as error:
                 # Fixed method names locate transport failures without copying
                 # arbitrary provider error text into public evidence.
-                raise UiError('ui:allowance-click-transport:' + method) from error
+                detail = 'other'
+                for message, reason in (
+                        ('Window not found', 'window-not-found'),
+                        ('Failed to record window: Main logical monitor not found', 'window-monitor'),
+                        ('Permission denied', 'permission-denied')):
+                    if error.message == message or error.message.endswith(': ' + message):
+                        detail = reason
+                if error.matches(Gio.dbus_error_quark(), Gio.DBusError.UNKNOWN_METHOD):
+                    detail = 'unknown-method'
+                raise UiError('ui:allowance-click-transport:' + method + ':' + detail) from error
         try:
             session, = call(remote, '/org/gnome/Mutter/RemoteDesktop', remote, 'CreateSession')
             session_id, = call(remote, session, 'org.freedesktop.DBus.Properties',
                                'Get', '(ss)', (remote + '.Session', 'SessionId'))
             capture, = call(cast, '/org/gnome/Mutter/ScreenCast', cast, 'CreateSession',
                            '(a{sv})', ({'remote-desktop-session-id': GLib.Variant('s', session_id)},))
-            # RecordWindow with no window-id binds the currently focused window.
-            # Parent identity/active-state proofs bracket this binding.
-            stream, = call(cast, capture, cast + '.Session', 'RecordWindow', '(a{sv})', ({},))
-            self.invalidate_observation()
-            require(self.allowance_click_target(child) == point, 'ui:allowance-click-moved')
             call(remote, session, remote + '.Session', 'Start')
             started = True
-            # Match the existing hermetic Mutter backend's device warm-up;
-            # zero motion cannot activate a control and the click is never retried.
+            # Mutter creates pointer and keyboard devices lazily. Initialize
+            # both before binding the focused window; the first product key
+            # must not double as keyboard-device initialization.
+            # These neutral events prepare the seat, never select a value.
             for _ in range(6):
                 call(remote, session, remote + '.Session', 'NotifyPointerMotionRelative',
                      '(dd)', (0.0, 0.0))
                 time.sleep(.05)
+            self.input_uncertain = True
+            for pressed in (True, False):
+                call(remote, session, remote + '.Session', 'NotifyKeyboardKeysym',
+                     '(ub)', (0xffe1, pressed))
+                time.sleep(.05)
+            self.input_uncertain = False
+            self.invalidate_observation()
+            require(self.allowance_click_target(child) == point, 'ui:allowance-click-moved')
+            # RecordWindow with no window-id binds the currently focused window.
+            # A stream added to a running session needs its own public Start.
+            stream, = call(cast, capture, cast + '.Session', 'RecordWindow', '(a{sv})', ({},))
+            call(cast, stream, cast + '.Stream', 'Start')
             self.invalidate_observation()
             require(self.allowance_click_target(child) == point, 'ui:allowance-click-moved')
             self.input_uncertain = True
@@ -5665,6 +5683,8 @@ class AccessibleUI:
             call(remote, session, remote + '.Session', 'NotifyPointerButton', '(ib)', (272, True))
             time.sleep(.15)
             call(remote, session, remote + '.Session', 'NotifyPointerButton', '(ib)', (272, False))
+            # These calls acknowledge queued input, not application dispatch.
+            # Use ordinary human input pacing without querying popup state.
             time.sleep(.1)
             for keysym in (*map(ord, text), 0xff0d):
                 call(remote, session, remote + '.Session', 'NotifyKeyboardKeysym',
@@ -5782,14 +5802,13 @@ class AccessibleUI:
 
         Direct preview callers and registered operations share the same read
         boundary. Input and retries invalidate it; independent calls discard it.
-        The legacy ``reopen`` operation is a value read, without reopening a menu.
         """
         with self.observation():
             return self._allowance_preset(child, minutes, action=action)
 
     def _allowance_preset(self, child, minutes, *, action):
         require(child in CHILD_IDENTITIES and type(minutes) is int
-                and minutes in PRESETS and action in ('select', 'read', 'reopen'),
+                and minutes in PRESETS and action in ('select', 'read'),
                 'ui:allowance-binding')
         # Refuse the wrong child and disabled controls before any input.
         root = self.parent()
@@ -6703,6 +6722,37 @@ class AccessibleUI:
         require(not any(self.showing(node) and public_automation_id(node) in forbidden
                         for node in nodes), 'ui:help-product-window')
 
+    def prepare_launch_desktop(self):
+        """Leave Shell's overview once and independently observe its closure.
+
+        A command-launched window can be active in GTK while the overview still
+        owns compositor input. This is desktop preparation, before product input.
+        """
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        command = [
+            '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.Shell',
+            '--object-path', '/org/gnome/Shell',
+            '--method', 'org.freedesktop.DBus.Properties.',
+        ]
+        def overview_active():
+            result = subprocess.run([
+                *command[:-1], command[-1] + 'Get', 'org.gnome.Shell', 'OverviewActive',
+            ], stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True, timeout=3)
+            active = {'(<true>,)': True, '(<false>,)': False}.get(result.stdout.strip())
+            require(type(active) is bool, 'ui:launch-overview-state')
+            return active
+        if not overview_active():
+            return
+        require_active_launch_session()
+        self.invalidate_observation()
+        self.handle_system_prompt()
+        self.input_uncertain = True
+        subprocess.run([
+            *command[:-1], command[-1] + 'Set', 'org.gnome.Shell', 'OverviewActive', '<false>',
+        ], stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True, timeout=3)
+        self.wait(lambda: overview_active() is False, 'launch-overview-closed')
+        self.input_uncertain = False
+
     def launch_parent_command(self, *, standard=False):
         """PARENT01: submit one fixed public executable as the desktop user.
 
@@ -6713,6 +6763,10 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         require_active_launch_session()
         self.desktop_result(EXISTING_CHILD if standard else PARENT, 'success')
+        self.handle_system_prompt()
+        self.prepare_launch_desktop()
+        require_active_launch_session()
+        self.invalidate_observation()
         self.handle_system_prompt()
         self.input_uncertain = True
         subprocess.run([
@@ -10858,7 +10912,7 @@ def observation_environment(account, operation):
 
 
 def allowance_failure_diagnostic(ui=None):
-    """Distinguish desktop idle blanking from a missing preset, without UI text."""
+    """Distinguish desktop input grabs from a missing preset, without UI text."""
     active = None
     try:
         result = subprocess.run(
@@ -10870,13 +10924,24 @@ def allowance_failure_diagnostic(ui=None):
     except (OSError, subprocess.SubprocessError):
         pass
     diagnostic = {'event': 'allowance-failure-diagnostic', 'screensaver_active': active}
+    diagnostic['overview_active'] = None
+    try:
+        result = subprocess.run(
+            ['/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.Shell',
+             '--object-path', '/org/gnome/Shell',
+             '--method', 'org.freedesktop.DBus.Properties.Get',
+             'org.gnome.Shell', 'OverviewActive'],
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True, timeout=10)
+        diagnostic['overview_active'] = {'(<true>,)': True, '(<false>,)': False}.get(
+            result.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
     if ui is not None:
         try:
             observation = ui.read_snapshot()
             controls = {}
             present = {}
-            for identity in ('parent-daily-limit-selector', 'parent-daily-limit-custom',
-                             'parent-custom-daily-limit', 'parent-daily-limit-choices'):
+            for identity in ('parent-daily-limit-selector', 'parent-custom-daily-limit'):
                 present[identity] = sum(value == identity for value in observation[2].values())
                 node = ui.snapshot_owned_target(identity, showing=False, observation=observation)
                 controls[identity] = None if node is None else {
@@ -10886,43 +10951,13 @@ def allowance_failure_diagnostic(ui=None):
             diagnostic['present'] = present
             selector = ui.snapshot_owned_target('parent-daily-limit-selector',
                 showing=False, observation=observation)
-            diagnostic['expanded'] = (None if selector is None else
-                ui.has_state(selector, ui.api.StateType.EXPANDED))
             if selector is not None:
                 selector_nodes = list(ui.nodes(selector, strict=True))
-                diagnostic['selector_nodes'] = len(selector_nodes)
-                diagnostic['selector_focused'] = ui.has_state(selector, ui.api.StateType.FOCUSED)
-                diagnostic['focused_recipients'] = sum(
-                    ui.has_state(node, ui.api.StateType.FOCUSED) for node in selector_nodes)
-                # Publish only recognized offered values, never arbitrary UI text.
-                description = selector.get_description()
-                diagnostic['highlight'] = next((value for value, label in
-                    (*PRESET_LABELS.items(), ('custom', 'Custom value'))
-                    if description == 'Daily allowance: ' + label), None)
                 offered_labels = {label: value for value, label in
                     (*PRESET_LABELS.items(), ('custom', 'Custom value'))}
                 diagnostic['displayed_values'] = [offered_labels[name]
                     for node in selector_nodes if node.get_role_name() == 'label'
                     and (name := node.get_name()) in offered_labels]
-                diagnostic['selector_choices'] = sum(
-                    public_automation_id(node) == 'parent-daily-limit-choices'
-                    for node in selector_nodes)
-                related = []
-                for node in selector_nodes:
-                    for relation in node.get_relation_set():
-                        if relation.get_relation_type() != ui.api.RelationType.CONTROLLER_FOR:
-                            continue
-                        require(relation.get_n_targets() <= 8, 'ui:diagnostic-bound')
-                        for index in range(relation.get_n_targets()):
-                            target = relation.get_target(index)
-                            descendants = list(ui.nodes(target, strict=True))
-                            related.append({
-                                'visible': ui.has_state(target, ui.api.StateType.VISIBLE),
-                                'showing': ui.has_state(target, ui.api.StateType.SHOWING),
-                                'nodes': len(descendants),
-                                'custom': sum(public_automation_id(child) == 'parent-daily-limit-custom'
-                                              for child in descendants)})
-                diagnostic['controlled_popups'] = related
         except Exception:
             # Evidence availability must not change the original refusal.
             diagnostic['controls'] = None

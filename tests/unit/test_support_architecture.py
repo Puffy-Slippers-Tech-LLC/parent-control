@@ -24,10 +24,17 @@ CASE_MODULES = case_module_names(CASE_PATHS)
 def test_allowance_ui_and_e2e_have_no_popup_choice_routes():
     """The shared click/type/Enter block is the only selection route."""
     violations = []
-    for directory in ('tests/ui', 'tests/e2e'):
+    for directory in ('tests/ui', 'tests/e2e', 'tests/support'):
         for path in (ROOT / directory).rglob('*.py'):
             tree = ast.parse(path.read_text(), filename=str(path))
             for node in ast.walk(tree):
+                # Include formatted strings and diagnostic observers, not only
+                # direct activations: none may depend on an allowance popup.
+                if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                        and (re.fullmatch(r'parent-daily-limit-(?:choices|custom|[0-9]+)',
+                                         node.value)
+                             or node.value == 'parent-daily-limit-')):
+                    violations.append((path.relative_to(ROOT).as_posix(), node.lineno))
                 if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
                     continue
                 if node.func.attr not in ('activate', 'activate_id', 'focus', 'focus_id',
@@ -36,11 +43,13 @@ def test_allowance_ui_and_e2e_have_no_popup_choice_routes():
                 if not node.args or not isinstance(node.args[0], ast.Constant):
                     continue
                 value = node.args[0].value
-                if isinstance(value, str) and (
-                        re.fullmatch(r'parent-daily-limit-(?:choices|custom|[0-9]+)', value)
-                        or value == 'parent-daily-limit-selector'
+                if (value == 'parent-daily-limit-selector'
                         and node.func.attr in ('activate', 'activate_id', 'focus', 'focus_id')):
                     violations.append((path.relative_to(ROOT).as_posix(), node.lineno))
+    for path in (ROOT / 'tests/integration/graphical_smoke/lib').glob('*.pm'):
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            if re.search(r'parent-daily-limit-(?:choices|custom|[0-9]+)', line):
+                violations.append((path.relative_to(ROOT).as_posix(), number))
     assert violations == [], 'Use the shared allowance selection block: ' + repr(violations)
 
 

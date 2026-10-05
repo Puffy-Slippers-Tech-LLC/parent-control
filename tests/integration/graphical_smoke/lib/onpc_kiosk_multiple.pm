@@ -25,14 +25,8 @@ sub run {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
     onpc_gdm::enter_station($journey, '');
-    if ($complete) {
-        for my $stage ('child-open', 'child-closed', 'approver-open', 'approver-closed') {
-            $journey->consume_observation($stage, $journey->seen($stage));
-        }
-    }
     for my $stage ('first-child', 'first-parent', 'first-first-cancel',
-                   'other-parent', 'first-other-cancel', 'other-child',
-                   'other-other-cancel', 'other-first-parent', 'other-first-cancel',
+                   'other-parent', 'other-child', 'other-other-cancel',
                    ($complete ? ('preserved') : ()), 'cancel', 'returned') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }

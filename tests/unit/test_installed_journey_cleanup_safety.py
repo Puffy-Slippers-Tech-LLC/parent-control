@@ -512,10 +512,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         if operation in accessible_ui.FILTER_OPERATIONS:
             kind, mask, action = accessible_ui.FILTER_OPERATIONS[operation]
             options = accessible_ui.FILTER_OPTIONS[kind]
-            result['filter'] = ({'opened' if action == 'open' else 'closed': kind}
-                if action in ('open', 'closed') else
-                {'filter': kind, 'selected': [option for index, option in enumerate(options)
-                                            if mask & (1 << index)]} if action == 'read' else
+            result['filter'] = ({'ready': kind} if action == 'open' else
                 {'state': bool(mask & (1 << options.index(action))), 'activated': True})
         if operation in accessible_ui.PARENT_SAVE_OPERATIONS:
             result['save'] = accessible_ui.PARENT_SAVE_OPERATIONS[operation]

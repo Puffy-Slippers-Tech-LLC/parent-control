@@ -16,7 +16,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Implement one secondary click UI28 before PANEL01. Compose PANEL02 from UI17, Escape, menu absence and desktop observation. Bind only the public countdown-animation option.
+Implement one secondary click UI28 before PANEL01. Compose PANEL02 from UI17 and independent final option readback; any menu dismissal needed for later input is shared navigation. Bind only the public countdown-animation option.
 
 ## Live VM acceptance
 

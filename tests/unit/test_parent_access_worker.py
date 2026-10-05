@@ -102,10 +102,10 @@ def test_customer_path_uses_fixed_recipient_and_normal_app_search():
     assert not any(event[0] in ('assert', 'check') for event in result['events'])
     assert not any(event[0] in ('pointer', 'click') for event in result['events'])
     assert result['events'].count(['secret']) == 1
-    query = result["events"].index(["text", "O"])
+    query = result["events"].index(["text", "Oh No! Parent Control"])
     assert ''.join(event[1] for event in result['events'] if event[0] == 'text') == 'Oh No! Parent Control'
-    assert result['events'][query:query + 3] == [
-        ['text', 'O'], ['stage', 'search-started'], ['text', 'h No! Parent Control']]
+    assert result['events'][query:query + 2] == [
+        ['text', 'Oh No! Parent Control'], ['stage', 'search-entered']]
     assert ["key", "ret"] not in result["events"][query:]
     assert result["events"][-1] == ["power", "off"]
 
@@ -122,7 +122,7 @@ def test_unqualified_standard_recipient_refuses_secret_and_launcher_input(fault,
 
 
 @pytest.mark.parametrize("review", ["0", "1"])
-@pytest.mark.parametrize("stage", ["desktop", "system-prompt", "app-grid", "search-focused", "search-started", "search-entered", "unavailable"])
+@pytest.mark.parametrize("stage", ["desktop", "system-prompt", "app-grid", "search-focused", "search-entered", "unavailable"])
 def test_failed_functional_checkpoint_stops_without_replay_or_review_bypass(review, stage):
     result = json.loads(run_perl(PROBE, review, stage).stdout)
     assert not result["ok"]
@@ -132,19 +132,16 @@ def test_failed_functional_checkpoint_stops_without_replay_or_review_bypass(revi
         return
     assert result["events"][-1] == ["stage", stage]
     assert ["power", "off"] not in result["events"]
-    if stage == 'search-started':
-        assert [event for event in result['events'] if event[0] == 'text'] == [['text', 'O']]
-    elif stage not in ("search-entered", "unavailable"):
+    if stage not in ("search-entered", "unavailable"):
         assert not any(event[0] == "text" for event in result["events"])
 
 
-@pytest.mark.parametrize('fault', ['text-input-1', 'text-input-20'])
+@pytest.mark.parametrize('fault', ['text-input-21'])
 def test_uncertain_search_input_stops_before_readback_and_never_replays(fault):
     result = json.loads(run_perl(PROBE, '0', fault).stdout)
     assert not result['ok']
     inputs = [event for event in result['events'] if event[0] in ('click', 'text')]
-    expected = [['text', 'O']]
-    if fault == 'text-input-20': expected.append(['text', 'h No! Parent Control'])
+    expected = [['text', 'Oh No! Parent Control']]
     assert inputs == expected
     assert result['events'][-1] == expected[-1]
 
@@ -191,7 +188,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     inputs = [event for event in result['events'] if event[0] != 'stage']
     assert inputs == ([] if fault else {
         'open': [['key', 'super-a']], 'focus': [],
-        'query': [['text', 'O'], ['text', 'h No! Parent Control']],
+        'query': [['text', 'Oh No! Parent Control']],
     }[block])
 
 

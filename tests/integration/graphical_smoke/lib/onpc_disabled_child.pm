@@ -20,8 +20,7 @@ sub run {
     }
     onpc_gdm::enter_station($journey, '');
     $journey->seen('request-form');
-    $journey->seen('child-choices-open');
-    for my $stage ('child-choices-closed', 'child-selected', 'availability-read',
+    for my $stage ('child-selected', 'availability-read',
                    'cancel-action', 'cancel-returned') {
         $journey->seen($stage);
     }

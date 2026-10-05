@@ -118,7 +118,7 @@ def test_dialog_mode_refuses_before_vm(extra):
 
 
 @pytest.mark.parametrize('selected', ['en', 'he'])
-@pytest.mark.parametrize('fault', ['', 'owner', 'duplicate', 'stale', 'logical', 'name', 'focus', 'missing'])
+@pytest.mark.parametrize('fault', ['', 'owner', 'duplicate', 'stale', 'logical', 'name', 'missing'])
 def test_dialog_public_snapshot_refusals(selected, fault):
     controls = []
     for identity, expected in public.PARENT_DIALOG_TEXT[selected].items():
@@ -128,7 +128,6 @@ def test_dialog_public_snapshot_refusals(selected, fault):
                                get_text=lambda _a, _b, expected=expected: expected)
         node.get_text_iface = lambda text=text: text
         controls.append(node)
-    controls[0].states.add('focused')
     dialog = Node(identity='feedback-dialog', states=('showing', 'visible', 'sensitive', 'active'), children=controls)
     window = Node(identity='parent-window', children=[dialog])
     ui = ui_for(window)
@@ -137,34 +136,32 @@ def test_dialog_public_snapshot_refusals(selected, fault):
     if fault == 'stale': controls[0].states.add('defunct')
     if fault == 'logical': controls[0].get_text_iface().get_text = lambda _a, _b: 'changed'
     if fault == 'name': controls[0].name = 'changed'
-    if fault == 'focus': controls[0].states.discard('focused')
     if fault == 'missing': window.children.clear()
     if fault:
-        with pytest.raises(public.UiError): ui.parent_dialog_presentation('feedback', selected, focused='feedback-close')
+        with pytest.raises(public.UiError): ui.parent_dialog_presentation('feedback', selected)
     else:
-        assert ui.parent_dialog_presentation('feedback', selected, focused='feedback-close') == {
-            'surface': 'feedback', 'language': selected, 'focused': 'feedback-close',
+        assert ui.parent_dialog_presentation('feedback', selected) == {
+            'surface': 'feedback', 'language': selected,
             'labels': {key: value for key, value in public.PARENT_DIALOG_TEXT[selected].items() if key.startswith('feedback-')}}
     for node in controls: node.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['', 'extra', 'focus', 'language', 'draft', 'replay', 'inherited'])
+@pytest.mark.parametrize('fault', ['', 'extra', 'language', 'draft', 'replay', 'inherited'])
 def test_dialog_decoder_and_real_recorder_step(tmp_path, fault):
     stage = 'hebrew-feedback-first-read'
     operation = language.DIALOG_SCREENS[stage][3:]
-    value = {'surface': 'feedback', 'language': 'he', 'focused': None,
+    value = {'surface': 'feedback', 'language': 'he',
              'labels': {key: text for key, text in public.PARENT_DIALOG_TEXT['he'].items() if key.startswith('feedback-')}}
     feedback = {'draft': 'synthetic-rtl', 'attachments': ['diagnostic-logs.zip'],
                 'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
     if fault == 'extra': value['private'] = True
-    if fault == 'focus': value['focused'] = 'feedback-close'
     if fault == 'language': value['language'] = 'en'
     if fault == 'draft': feedback['draft'] = 'synthetic-first'
     payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
                'dialog_presentation': value, 'feedback': feedback}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(payload, ensure_ascii=False).encode()))
     observer = UiObservations(transport)
-    if fault in ('extra', 'focus', 'language', 'draft'):
+    if fault in ('extra', 'language', 'draft'):
         with pytest.raises(EvidenceError): observer.observe(operation)
         with pytest.raises(EvidenceError, match='previous-failure'): observer.observe(operation)
         transport.call.assert_called_once()
@@ -183,51 +180,6 @@ def test_dialog_decoder_and_real_recorder_step(tmp_path, fault):
     else:
         journey.step(Mock())
         assert (tmp_path / (stage + '.reply.json')).exists()
-
-
-@pytest.mark.parametrize('selected', ['en', 'he'])
-@pytest.mark.parametrize('focus', [True, False])
-@pytest.mark.parametrize('fault', ['', 'wrong-owner', 'duplicate', 'missing', 'stale', 'disabled',
-                                  'text', 'count', 'focus', 'focus-refused'])
-def test_presentation_public_text_focus_and_refusal(selected, focus, fault):
-    ui, window, dialog, controls = chooser_tree(selected=selected)
-    title = controls[4]
-    logical = language.TEXTS[selected][1]
-    text = SimpleNamespace(get_character_count=Mock(return_value=len(logical)),
-                           get_text=Mock(return_value=logical))
-    title.get_text_iface = lambda: text
-    target = controls[6 if focus else 5]
-    dialog.action.get_action_name = lambda _: 'focus.language-cancel'
-    def focused_action(_index):
-        target.states.add('focused')
-        return True
-    dialog.action.do_action.side_effect = focused_action
-    if not focus: target.states.add('focused')
-    if fault == 'wrong-owner': ui.owner_pids = lambda: {999}
-    if fault == 'duplicate': dialog.children.append(Node(identity=target.identity))
-    if fault == 'missing': dialog.children.remove(title)
-    if fault == 'stale': title.states.add('defunct')
-    if fault == 'disabled': target.states.discard('sensitive')
-    if fault == 'text': text.get_text.return_value = 'x' * len(logical)
-    if fault == 'count': text.get_character_count.return_value = True
-    if fault == 'focus':
-        target.states.discard('focused')
-        dialog.action.do_action.side_effect = lambda _index: True
-    if fault == 'focus-refused': dialog.action.do_action.side_effect = lambda _index: False
-    failed = bool(fault) and not (fault == 'focus-refused' and not focus)
-    if failed:
-        with pytest.raises(public.UiError): ui.language_presentation('parent', focus=focus)
-    else:
-        assert ui.language_presentation('parent', focus=focus) == {
-            'heading': logical, 'choices': chooser_value(selected)['choices'],
-            'checked': selected, 'focused': target.identity}
-        assert not ui.input_uncertain
-    for node in controls: node.action.do_action.assert_not_called()
-    if focus and fault in ('', 'text', 'count', 'focus', 'focus-refused'):
-        dialog.action.do_action.assert_called_once()
-    elif not focus:
-        dialog.action.do_action.assert_not_called()
-    target.component.grab_focus.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['', 'choice', 'text', 'extra', 'replay'])
@@ -603,33 +555,6 @@ def test_dialog_worker_actual_order_and_refusal(fault):
         assert navigation == []
     assert not any(event in (['key', 'ret'], ['key', 'spc']) for event in result['events']
                    if fault == 'feedback-empty')
-
-
-@pytest.mark.parametrize('direction', ['ltr', 'rtl'])
-@pytest.mark.parametrize('fault', ['', 'focus', 'tabbed', 'back'])
-def test_dialog_host_navigation_actual_worker_order_and_refusal(monkeypatch, direction, fault):
-    from tests.support.gui_blocks import run_block
-    from tests.support import keyboard
-    events = []
-    operations = {'navigation-' + action: 'ui:parent-dialog-feedback-he-' + action
-                  for action in ('focus', 'tabbed', 'back')}
-    def observe(operation, _version):
-        events.append(('observe', operation))
-        if fault and operation.endswith('-' + fault): raise public.UiError('host:refusal')
-        return {'operation': operation}
-    ui = SimpleNamespace(run=observe, api=SimpleNamespace(StateType=SimpleNamespace(FOCUSED='focused')))
-    monkeypatch.setattr(keyboard, 'key_combo', lambda _ui, identity, keys, **kwargs:
-                        events.append(('key', identity, keys)))
-    if fault:
-        with pytest.raises(public.UiError, match='host:refusal'):
-            run_block(ui, 'dialog-navigation', 'navigation', direction, operations=operations)
-        assert events[-1] == ('observe', 'parent-dialog-feedback-he-' + fault)
-    else:
-        run_block(ui, 'dialog-navigation', 'navigation', direction, operations=operations)
-    keys = [event for event in events if event[0] == 'key']
-    expected = [('key', 'feedback-close', '<Shift>Tab' if direction == 'rtl' else 'Tab'),
-                ('key', 'feedback-send', 'Tab' if direction == 'rtl' else '<Shift>Tab')]
-    assert keys == expected[:0 if fault == 'focus' else 1 if fault == 'tabbed' else 2]
 
 
 @pytest.mark.parametrize('binding', ['body-rtl', 'reply-rtl'])

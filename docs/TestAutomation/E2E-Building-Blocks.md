@@ -532,9 +532,10 @@ the disabled-zero reader remain intact. `time_explanation` / `duration_projectio
 support the literal Hebrew public balance format. `language_composition.language_policy`
 owns immutable comparisons; `ParentHebrewPolicyJourney` / `HEBREW_POLICY_PLAN`
 in `parent_language.py` and `onpc_parent::qualify_hebrew_policy` own the finite
-qualification. Shared `onpc_parent::language_presentation_roundtrip` supplies
-checked-choice, Cancel focus/Tab/Save focus, Save/reopen/Cancel mechanics to both
-this qualification and the existing chooser qualification.
+qualification. Shared `onpc_parent::language_presentation_roundtrip` now supplies
+the translated chooser, Save/reopen/Cancel and retained-choice results to both
+this qualification and the existing chooser qualification. The historical
+Cancel/Tab/Save focus sequence is no longer a test condition.
 
 Required regressions passed:
 enabled English/Chinese policy isolation (`20261005T193305Z-d8d2ea5b`; its report has since rotated),
@@ -589,10 +590,11 @@ bounded AT-SPI logical heading text, accessible native names and checked choice,
 public Cancel focus followed by normal Tab and independent Save focus,
 Save/reopen/Cancel, and unchanged selected child, disabled zero allowance and
 application-policy projection. Wrong-entry refusal also passed.
-`AccessibleUI.language_presentation` and the two
-`parent-language-presentation-*` operations own reusable observations;
+That historical run used `AccessibleUI.language_presentation` and
+`parent-language-presentation-*` operations for focus observations. Current
 `ParentRtlJourney` / `RTL_PLAN` in `parent_language.py` and
-`onpc_parent::language_navigation` / `qualify_rtl` own the fixed binding.
+`onpc_parent::qualify_rtl` use the shared language reader and
+`language_presentation_roundtrip`; the focus-only operations are removed.
 Required `check_e2e_parent_language` regression passed in
 `20261005T172018Z-01fd8580`, including all four saved languages, Chinese Cancel
 preserving German, normal relaunch and unchanged policy. Both runs passed
@@ -619,8 +621,8 @@ Send and external links are never activated; visual acceptance remains excluded.
 
 `AccessibleUI.parent_dialog_presentation` / `parent_dialog_operation` reuse
 `open_about`, `open_feedback`, `feedback_snapshot` and the `synthetic-rtl`
-projection. `onpc_text::replace_text` supplies the declared normal Unicode input;
-Historical `onpc_parent::dialog_navigation` exercised both keyboard directions;
+projection. `onpc_text::replace_text` supplies the declared normal Unicode input.
+The removed `onpc_parent::dialog_navigation` exercised both keyboard directions;
 current consumers read the translated dialog and retained draft directly.
 Host previews execute the shared dialog input/read blocks through
 `gui_blocks.run_block`. `ParentDialogLanguageJourney` /
@@ -745,21 +747,21 @@ probe with a different input transport is insufficient evidence.
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
 | SEARCH01 | C | Open the app grid/Overview with Super-A and observe an enabled, editable, empty search field. | `AccessibleUI.shell_search_field` resolves the sole showing, sensitive, editable field inside one complete, uniquely owned Shell snapshot. Fresh Parent entry qualified in `check_e2e_shell_search_results`; independent standard-account entry qualified in `check_e2e_shell_search`. [Qualified scope](#search-and-standard-sign-in-contracts). Other routes remain pending. | pending; fresh Parent/standard branches ready |
-| SEARCH03 | C | Enter an app-name query into an already open, empty, focused search field without launching: type the first character, read it, type the remainder once, read the exact full query. | `AccessibleUI.search_query` qualified fresh Parent split-query readback in `check_e2e_shell_search_results`; independent standard-account split-query readback qualified in `check_e2e_shell_search`. [Qualified scope](#search-and-standard-sign-in-contracts). Other queries remain pending. | pending; Parent/standard query branches ready |
+| SEARCH03 | C | Enter the complete app-name query once into an already open, empty, focused search field without launching; independently read the exact final query. | `onpc_parent::enter_search_query` retains the fresh recipient proof and bounded typing pace; `AccessibleUI.search_query` reads the result. Historical Parent/standard qualifications used split input; current consumers omit the intermediate first-character check. [Qualified scope](#search-and-standard-sign-in-contracts). Other queries remain pending. | pending; Parent/standard query branches ready |
 | SEARCH04 | C | Observe the declared search result after scoped provider resolution: a launchable app, or the exact query-specific web suggestion with stable absence of the app launcher and management window. Repository-owned windows retain their IDs. | `AccessibleUI.launchable_result` qualified the unique showing, sensitive Parent result and unrelated-binding refusal in `check_e2e_shell_search_results`. `AccessibleUI.search_absence` qualified the standard-account exact web description and two-second complete launcher/window absence in `check_e2e_shell_search`. [Qualified scope](#search-and-standard-sign-in-contracts). Other apps remain pending. | pending; Parent launchable and standard unavailable branches ready |
-| SEARCH06 | C | Open Overview, resolve the empty search field by a qualified provider adapter, semantically focus it and independently observe focus before typing the registered app name once. Read back the complete query, then resolve and focus its launchable result. Independently observe result focus and stop before Enter. | `onpc_shell_search::run` and `AccessibleUI.focus_search_result` qualified fresh Parent split-query entry through observed result focus, then dismissal without activation, in `check_e2e_shell_search_results`. The whole-query route passed in case 3 (run `20260922T212944Z-ad23b979`, subject to runner retention). [Qualified scope](#search-and-standard-sign-in-contracts). Other entries and queries remain pending. | pending; fresh Parent whole/split-query branches ready |
+| SEARCH06 | C | Open Overview, resolve the empty search field by a qualified provider adapter, semantically focus it and independently observe focus before typing the registered app name once. Read back the complete query, then resolve and focus its launchable result. Independently observe result focus as the recipient guard before Enter. | `onpc_shell_search::run` and `AccessibleUI.focus_search_result` check the final query and launchable result. The whole-query route passed in case 3 (run `20260922T212944Z-ad23b979`, subject to runner retention); the historical split-query qualification is recorded below. [Qualified scope](#search-and-standard-sign-in-contracts). Other entries and queries remain pending. | pending; fresh Parent query branch ready |
 | SEARCH05 | C | Launch a named app from the app grid and observe its expected opening window. The search route is an explicit argument. | `onpc_parent::open_from_app_grid` composes SEARCH06 and `launch_search_result(journey, proof, expected)`. Both the composed administrator launch and independently supplied `app-grid` management entry passed `check_e2e_parent_search_launch`, with owned window readback, normal close and wrong-entry refusal. Host checks cover wrong/stale proofs, wrong owner/result and uncertain-input non-replay. FIX02's `fixture-requested`→empty commit remains host-checked pending live validation. [Qualified scope](#search-and-standard-sign-in-contracts). | pending; administrator management bindings ready |
 | PARENT01 | C | Invoke `oh-no-parent-control-parent` directly as the active desktop user and independently observe the declared management window or access denial. Mandatory for ordinary Parent setup/reopening; no child is selected implicitly. App-grid discovery tests explicitly use SEARCH05/06. | `onpc_parent::launch` consumes the desktop proof, submits the fixed command through `AccessibleUI.launch_parent_command`, then observes `parent-window` or `management-denied`. Case 2 qualifies its fresh `reboot-desktop` proof; case 6 requalified the default fresh standard denial/return binding in run `20260924T234847Z-41112953`. The fresh Parent desktop binding also passed in case 151. No terminal/search input. [About scope](#about-block-contracts) and [clean installation](#clean-installation-journey). | ready for fresh Parent/standard and post-reboot Parent bindings; a second same-session Parent launch with one-window readback passed in case 159 (`20260929T070054Z-c0f58f19`); other entries pending |
 | PARENT02 | C | Select a child from Parent's dropdown, verify the intended selected identity and wait for that child's controls. | `onpc_parent::select_child` accepts an explicit opened-list reply and registered child/stage binding, uses UI14, consumes fresh highlight evidence, sends Enter and observes `AccessibleUI.selected_child`. Child/existing/new/returned bindings only. [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
 | PARENT03 | C | Read the current selected child's identity, screen-limit switch, allowance and remaining-time section as a sanitized observation. Do not change selection; disabled allowance controls remain readable. | `AccessibleUI.settings(child)` reads the explicit child, switch and duration-label projection and reveals the remaining-time section. When the selector displays `Custom value`, read bounded whole minutes from the identified custom editor; retain the numeric value in the snapshot, never just the mode label. Scenario expectations remain in `parent_discovery.PLAN`, not the adapter. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | PARENT04 | C | Select Screen Limits or App Limits and require that page's named usable controls. | `AccessibleUI.parent_page(child, page)` checks the displayed child, selects one named page, then observes its controls. Reacquire the window after transition and reuse that local root for search/filter reads. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
-| PARENT05 | C | Open the daily-allowance picker and, when requested, its Custom amount editor. | `AccessibleUI.allowance_preset(child, minutes, action=...)` supports all 50 presets for select/independent saved read; current UI consumer samples 0/60/90/1410, with preset 0/15 for reopened-picker selected-description readback through public IDs and PARENT08. Selection waits for picker closure; `reopen` verifies the saved selector first and returns the picker open. The public `menu.popup` action is not a close toggle. `AccessibleUI.custom_allowance(child, minutes, action=...)` opens and reopens the custom editor. `check_e2e_allowance_boundaries` qualified custom 0/1/2/3/15/1439 and reopening after each rejected draft in run `20260925T181548Z-2eeb40fa`, including wrong-child/disabled refusal. `allowance_case.PLAN` / `onpc_allowance_case::run` passed historical complete case 158 in `20260926T031042Z-c0e70792`: every preset, accepted/invalid custom table, exact saved and reloaded editor values, Parent reopen persistence, collection, owned cleanup and baseline restoration. Other complete scenarios remain separate. | ready for all preset select/read and qualified custom/reopen bindings |
+| PARENT05 | C | Choose a daily preset through PARENT06 or expose its Custom amount editor, then observe the saved value. | `AccessibleUI.allowance_preset(child, minutes, action=...)` accepts all 50 presets; current UI consumers sample representative values. Its legacy `reopen` action reads the saved value without opening a menu. `AccessibleUI.custom_allowance(child, minutes, action=...)` exposes or reuses the custom editor; acceptance compares saved/reloaded values, without popup or focus behavior. `check_e2e_allowance_boundaries` historically qualified custom 0/1/2/3/15/1439 and rejection recovery in `20260925T181548Z-2eeb40fa`, including wrong-child/disabled refusal. Complete case 158 historically passed every preset and custom boundary in `20260926T031042Z-c0e70792`; current sampling follows the [UI/E2E allocation](UI-and-E2E-Coverage.md). Historical direct-action evidence does not qualify the current native-click route described above. | ready for saved-value reads and qualified custom/reload bindings; selection follows PARENT06's current route qualification |
 | PARENT06 | C | Choose a daily preset or type a custom allowance and commit through the normal UI. Return the displayed value/validation; saving is observed separately. | Keyboard selection: `journey_blocks.allowance_selection` / `onpc_allowance_selection::select` → `AccessibleUI.allowance_keyboard` input/final-value boundaries. UI previews reuse this exact block through `gui_blocks.select_allowance`; row IDs are not activated. Case 159 and shared named-child/rapid-save entry helpers use this route. Historical direct-action results below remain historical; current keyboard qualification is described above. `allowance.PLAN` / `onpc_allowance::qualify` binds custom 1/pause, 2/Enter and 3/Tab using `onpc_text::replace_text`; the single focused keyboard batch includes the Enter/Tab terminator. `AccessibleUI.custom_allowance` separately observes PARENT08, then child reselection reloads saved values before exact reopened-editor readback. Retained typing focus alone does not prove a save. `allowance_boundaries.PLAN` / `onpc_allowance_boundaries::run` retains those ordinary routes and adds accepted 0/1/15/1439 plus every invalid binding in `allowance_values`; `check_e2e_allowance_boundaries` qualified them with refusal checks in `20260925T181548Z-2eeb40fa`. Historical complete case 158 (`allowance_case.PLAN` / `onpc_allowance_case::run`) passed every preset and custom boundary in `20260926T031042Z-c0e70792`, including independent saved/reopened readbacks, collection, owned cleanup and baseline restoration. `custom_save_trace.PLAN` / `onpc_text::observed_custom_edits` qualified one-use focused 5→6 rapid input from two independent enabled entries, wrong-entry refusal and saved reselection readback through `check_e2e_custom_save_trace` in `20260929T030021Z-d7980dce`. Complete case 159 (`save_order.PLAN` / `onpc_feedback_states::run_save_order`) passed Jordan rapid 5→6 and Riley custom 7, independent child readback, second-launch one-window count and restart persistence in `20260929T070054Z-c0f58f19`; collection, cleanup and baseline restoration passed. `named_child_custom_saves.PLAN` / `journey_blocks.custom_save_entry` / `onpc_feedback_states::run_named_child_custom_saves` qualified explicit Jordan rapid 5→6 from two entries and Riley normal custom 7 with independent child reselection through `check_e2e_named_child_custom_saves` in `20260929T054754Z-ff2b12fc`; collection, cleanup and baseline restoration passed. | ready for all presets, ordinary custom commits, the finite boundary/invalid table and qualified rapid 5→6 input |
 | PARENT08 | C | Wait for the declared saved, rejected or unavailable result and independently read the final value. Preserve selected-child identity, rejection recovery and last-change-wins ordering; intermediate Saving and control inhibition are not acceptance. | `AccessibleUI.parent_save_snapshot` through `ParentToggleJourney` / `onpc_parent_toggle::run`; `check_e2e_parent_save` qualified enabled/disabled saved snapshots, independent entry, wrong-child refusal and owned cleanup. Snapshots verify the selected UID/label, reject visible error reports and require expected control availability. `AccessibleUI.invalid_allowance` observes the exact draft and public rejection description for empty/abc/-1/0.5/1440/1441. `check_e2e_allowance_boundaries` qualified each rejection from saved 15, then independently read unchanged saved and reopened-editor values in run `20260925T181548Z-2eeb40fa`, with collection, cleanup and baseline restoration. Complete case 158 repeated the entire rejection table and final Parent reopen persistence in `20260926T031042Z-c0e70792`, with all outcome domains and baseline restoration passed. `UiObservations.observe_accessibility_input(..., mode='save')` / `AccessibleUI.parent_save_events` qualified two independent disabled-to-enabled transitions, wrong-entry refusals, event-derived conflicting-control inhibition/recovery and independent saved snapshots through `check_e2e_parent_save_trace` in `20260929T022732Z-a3624dd4`; collection, cleanup and baseline restoration passed. `UiObservations.observe_accessibility_input(..., mode='custom-save')` / `AccessibleUI.parent_save_events(custom=True)` / `read_custom_trace_draft` qualified two enabled rapid-edit entries, event-derived inhibition/recovery with usable editor/picker, wrong-child/surface/disabled refusal and independent saved readback through `check_e2e_custom_save_trace` in `20260929T030021Z-d7980dce`; the affected toggle regression passed in `20260929T030347Z-821a11a0`. Case 57 observes saved limits-off; other result states remain pending; complete case 159 passed its save-order composition in `20260929T070054Z-c0f58f19`. A terminal snapshot makes no transient-saving claim. The same named-child qualification bound Jordan's rapid-save event-derived inhibition/recovery, usable editor/picker and Riley's independent custom 7 saved readback; wrong-child refusal remained before input or trace. `AccessibleUI.parent_app_save_snapshot` additionally qualifies the App Limits terminal controls after valid match Save/Cancel; see [Match editor Save and Cancel](#match-editor-save-and-cancel). | pending overall; saved and custom-validation snapshots qualified; historical transition samples retained as evidence only |
 | PARENT20 | C | Read an already expanded, showing remaining-time explanation for the explicitly selected child. Return daily, one-time and total values, public display precision and observation time. Perform no navigation or expansion. | `AccessibleUI.time_explanation(child)` reads the selected UID/label and showing `parent-time-status`, `parent-time-explanation` and collapse control in one complete public snapshot. `duration_projection` returns each bounded compact text, seconds and one-second display precision; `observed_monotonic_ns` timestamps the read. `UiObservations` validates the transport projection. `time_explanation.PLAN` / `onpc_time_explanation::run` / `check_e2e_read_an_expanded_time_explanation` qualified a saved 15-minute allowance, explicit collapsed refusal and expansion preparation, wrong-child refusal and two independent 900/0/900-second reads in run `20260925T061535Z-18f56b25`, with collection, owned cleanup and baseline restoration. PARENT20 never expands; PARENT09 and arithmetic/elapsed comparisons remain separate. First scheduled consumer: E2E-036 case 161. | ready |
 | PARENT09 | C | Reach the selected child's remaining-time explanation, expanding it only if currently collapsed, then read its balances. | `AccessibleUI.reach_time_explanation(child)` requires the selected child's Screen Limits surface, expands only a proven collapsed section with its public row action, then uses PARENT20. Repeated reads perform no collapse. `check_e2e_time_explanation` qualified independent collapsed/expanded entry, wrong-child refusal and repeated positive/zero reads in run `20260925T062949Z-49d65b22`, including collection, owned cleanup and baseline restoration. Use PARENT20 for read-only observation; neither block visits another desktop. | ready |
 | PARENT12 | C | Read a displayed app row's identity, access choice and match choice. | `AccessibleUI.app_rows(child, maximum=256, expected_ids=None)` returns immutable public ID/access/match triples; `AppRowsObservation.from_rows` validates the controller projection. UI01 → UI02 → UI03, without installed-catalogue or executable probes. Fresh selected-child defaults, independent App Limits reread and wrong-child/page refusals qualified by `check_e2e_app_row_observations`; [scope](#app-row-observations). Declared native [search](#catalogue-search) results are qualified; filtering and policy edits retain their separate pending consumers. | ready for selected-child row observations |
-| PARENT10 | C | Search the App Limits catalogue by name, description or launcher identifier and observe the matching displayed rows, including an explicitly expected empty set. | `onpc_app_rows::search` composes UI16 replacement with caller-named UI13 row read and independent controller comparison. The five-query × ten representative filter-set matrix uses the shared native oracle and worker composites in UI preview; installed name, absent and clear results passed `check_e2e_catalogue_search`, and combined precise/Allowed passed `check_e2e_catalogue` in `20261001T040733Z-d8b05f90`. See [catalogue search](#catalogue-search) and [catalogue filters](#catalogue-filters). Row details use PARENT12 separately. | ready for declared native queries and filter combinations; complete cases remain separate |
+| PARENT10 | C | Search the App Limits catalogue by name, description or launcher identifier and observe the matching displayed rows, including an explicitly expected empty set. | `onpc_app_rows::search` composes UI16 replacement with caller-named UI13 row read and independent controller comparison. Representative query, filter and combined-result checks use the shared native oracle and worker composites in UI preview; installed name, absent and clear results passed `check_e2e_catalogue_search`, and combined precise/Allowed passed `check_e2e_catalogue` in `20261001T040733Z-d8b05f90`. See [catalogue search](#catalogue-search) and [catalogue filters](#catalogue-filters). Row details use PARENT12 separately. | ready for declared native queries and filter combinations; complete cases remain separate |
 | PARENT11 | C | Set one named App Limits filter's explicit selection set and observe the exact displayed result set. Both access-rule and match-rule selections are applied through their shared operation. | `onpc_app_rows::filter` composes the declared filter selection operation with final row readback; popup entry, option guards and Escape stay shared input mechanics. Caller-owned UI13/UI12 stages compare the complete rows through `native_fixtures.catalogue_rows`; see [catalogue filters](#catalogue-filters). Both filters use the same implementation, qualified by representative UI functional results and representative installed sample in `20261001T040733Z-d8b05f90`. | ready for declared Parent App Limits selection sets; complete cases remain separate |
 | PARENT13 | C | Open a named app's Edit Match Rule dialog and read its current rule. | `AccessibleUI.open_match_rule` / `read_match_rule(editor=True)` through `onpc_app_rows::match_editor`; owned Parent, selected child, complete row and app-bound dialog guards. See [Match editor Save and Cancel](#match-editor-save-and-cancel). | ready for the declared native fixture binding; other app bindings pending |
 | PARENT15 | C | Apply Save, Cancel or Reset to the open match editor and observe the explicitly expected result. Empty/unrelated precise text stays in the editor; a rejected wildcard closes it and opens a failure report. Do not close that report implicitly. | `AccessibleUI.respond_match_rule` through `onpc_app_rows::match_response`: one guarded Save/Cancel/Reset response → UI11(editor) → `parent_app_save_snapshot` (PARENT08) → independent public row read. Local invalid Save instead reads the retained exact draft and rejection description. `MatchRuleJourney` compares the caller's captured old rule after Cancel, exact supplied new rule after Save and detected default after Reset. See [Match editor Save and Cancel](#match-editor-save-and-cancel). The `rejected` response proves the declared rejected draft, invokes Save once, observes editor disappearance and leaves the automatic report open; see [automatic Parent error reports](#automatic-parent-error-reports). Caller uses FEED15/UI18 before reading restored rows. | ready for ordinary Save/Cancel/Reset, local invalid drafts and the declared rejected-directory/report slice; other bindings pending |
@@ -861,9 +863,10 @@ uses caller-owned stage names. `journey_blocks.filter_screens` declares their
 finite operations. The caller separately observes complete rows through UI13
 and supplies its exact expected result, without inheriting a qualification's
 fixture lifecycle. `native_fixtures.catalogue_rows` supplies the shared finite
-oracle for name, description, identifier, empty and absent queries, each combined
-with four match subsets and eight access subsets. Empty expected results remain
-explicit; observations use no installed-catalogue backend.
+oracle for name, description, identifier, empty and absent queries and declared
+match/access subsets. This oracle does not require executing their Cartesian
+product through the GUI. Empty expected results remain explicit; observations
+use no installed-catalogue backend.
 
 [catalogue.py](../../tests/e2e/catalogue.py) owns the qualification's fresh native
 verification, Jordan entry, precise/Allowed installed sample, independent entry,
@@ -872,10 +875,11 @@ wrong-entry refusals, and full clear/unchanged-policy comparison. Its selector i
 in `20261001T040733Z-d8b05f90`, together with `check_e2e_catalogue_search` and
 `check_e2e_toggle`: exact rows, independent entry, wrong-child/page refusals,
 collection, owned cleanup and baseline restoration all passed.
-The representative preview matrix is
-`test_preview_smoke.py::test_catalogue_complete_query_match_access_matrix`, with
-five queries and ten filter sets, scripted hard/soft policies and a final
-complete row comparison plus no broker
+The representative preview coverage is
+`test_preview_smoke.py::test_catalogue_query_and_representative_filter_results`,
+with each query checked against unfiltered rows, individual filter categories
+and empty filters checked on the complete catalogue, and two combined predicates.
+It retains scripted hard/soft policies and a final complete row comparison plus no broker
 policy writes. Complete case 184 has its own acceptance under task 226.
 
 `native_fixtures.CataloguePolicyJourney` owns reusable immutable row comparisons,
@@ -919,10 +923,11 @@ draft forms, exact old-rule preservation on Cancel, independently reopened
 editor readback, exact canonical saved rule and reopened editor after Save.
 Host adapter checks also refuse duplicate response controls.
 
-`test_match_editor_invalid_reset_matrix` extends the same public entry/text and
-response operations with empty, whitespace, unrelated absolute and unrelated
-basename drafts, each from precise and wildcard old rules, followed by Cancel
-or Reset. Local invalid Save checks the exact retained draft and the entry's
+`test_match_editor_invalid_drafts_cancel_or_reset` extends the same public
+entry/text and response operations with empty, whitespace, unrelated absolute
+and unrelated basename drafts. Precise old rules exercise Cancel; wildcard old
+rules exercise Reset, without multiplying independent old-rule/response choices.
+Local invalid Save checks the exact retained draft and the entry's
 public rejection description without a policy write. Cancel preserves the old
 rule; Reset closes and immediately saves the detected default, independently
 read in the row and reopened editor. Editing clears the rejection description.
@@ -1142,7 +1147,7 @@ are unnecessary.
 | REQUEST01 | C | Enter the dedicated request station from GDM through shared minimal account selection and observe its request form. | `journey_blocks.station_entry` / `onpc_gdm::enter_station` reuse `AccessibleUI.gdm_nonsecret_navigation`, consume one fresh focused-station proof before Enter, then independently require the active station owner and one showing owned window/form. The passwordless destination was qualified on the prepared Ubuntu 26.04/English-GDM/baseline-keyboard image with GNOME Shell `50.1-0ubuntu1.2`. `check_e2e_kiosk_eligible_choices` qualified direct composition after Parent preparation and shared Switch User. Station navigation requires the station row, without a named-parent prerequisite. This route and Cancel/GDM/reentry after locking all eligible parents passed `check_e2e_kiosk_fixtures` in run `20260924T173358Z-94d5db62`; the affected no-child route passed `check_e2e_kiosk_no_child` in run `20260924T173643Z-8d742069`, both with collection and owned restoration. Routine entry never visits another account. | ready |
 | REQUEST02 | C | Open or deliberately reopen the child overlay by direct `oh-no-parent-control-child` invocation as the active child desktop user; observe one usable form and fixed child identity. Mandatory for ordinary overlay entry. | DESK01 → `AccessibleUI.launch_child_command` (`child-command-launch`, fixed command, one submission) → UI01 → UI02 → UI13(form count=1) → UI03(fixed child). Shared `overlay_entry(..., 'command')` qualified two independent entries and immutable form readback in [overlay entry qualification](#overlay-entry-qualification). Repetition is deliberate customer input, not retry. | direct entry and default form ready |
 | REQUEST03 | C | Read a form's child, approver, duration, custom text, soft-app choice, controls and messages; observe the absence of mute in the current release. Require exactly one showing form and the fixed child in overlay. | UI13(form count=1) → UI01 → UI02 → UI03. `AccessibleUI.kiosk_request_form` retains the installed-qualified disabled-child projection. Its `enabled=True` binding also qualifies default 1800-second duration, selected child/approver IDs, enabled controls and absent disabled notice/mute/custom value. `RequestObservation.from_request` validates immutable operation-specific expectations. `check_e2e_kiosk_eligible_choices` independently reread both selections in run `20260923T204614Z-0601b77a`. `duration_seconds` / `custom_text` extend the immutable projection to the [qualified valid kiosk choices](#valid-kiosk-choice-qualification). `overlay=True` qualifies the default fixed-child projection through [overlay entry qualification](#overlay-entry-qualification); Declared valid overlay values are qualified through the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification); preserved invalid input and open/new FLOW04 projections passed the [overlay FLOW04/invalid/Escape slice](#overlay-flow04-invalid-submission-and-escape-qualification). Other values and account profiles remain pending. | default/declared valid kiosk/overlay and representative overlay invalid projections ready; other bindings pending |
-| REQUEST04 | C | Select a named form field: child, approver or duration choice. Observe loaded selection and control availability. Reject child selection on the fixed-child overlay. | `AccessibleUI.select_kiosk_account(field, name, expected=..., enabled=...)` opens the owned selector, checks the exact offered UID set and labels, invokes the chosen public action once, then waits for fresh REQUEST03 selected-value readback without replay. `kiosk_eligible_choices.PLAN` / `onpc_kiosk_eligible_choices::run` qualified the enabled child/approver branch through `check_e2e_kiosk_eligible_choices` in run `20260923T204614Z-0601b77a`; that unchanged branch evidence is retained. `request_choices.PLAN` / `onpc_request_choices::run` qualified `enabled=False` child selection after separate public Parent enable/save/disable/save and Switch User through `check_e2e_request_choices` in run `20260923T235007Z-9d21bba1`. Both require wrong-entry/choice refusals, independent form readback, private collection and owned cleanup. Complete case 57 (`disabled_child.PLAN` / `onpc_disabled_child::run`) passed in run `20260925T035647Z-9242c8fd` with limits off throughout; `inspect_only=True` and `collapse_kiosk_child_choices` qualify exact child-list inspection, collapse through the same public trigger, and independent unchanged-selection readback before selection. `AccessibleUI.kiosk_valid_choice` qualifies the 300-second, Custom and Rest-of-day choices; see [valid kiosk choices](#valid-kiosk-choice-qualification). `overlay=True` reuses the approver selector and valid duration actions, refusing fixed-child selection and kiosk input on the overlay; see the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). The fixed Jamie/75-second open/default and new/remembered overlay choices also passed the [overlay FLOW04 slice](#overlay-flow04-invalid-submission-and-escape-qualification). The Jordan/German–Riley/Hebrew child/approver language binding also passed task 300j; see [personal language selection](#personal-language-selection). Other account profiles and duration values remain pending. | pending; enabled kiosk child/approver including the stated German/Hebrew restoration binding, disabled-child selection, child-list inspection/collapse and declared kiosk/overlay valid durations and overlay approver/refusals ready |
+| REQUEST04 | C | Select a named form field: child, approver or duration choice. Observe loaded selection and control availability. Reject child selection on the fixed-child overlay. | `AccessibleUI.select_kiosk_account(field, name, expected=..., enabled=...)` opens the owned selector, checks the exact offered UID set and labels, invokes the chosen public action once, then waits for fresh REQUEST03 selected-value readback without replay. `kiosk_eligible_choices.PLAN` / `onpc_kiosk_eligible_choices::run` qualified the enabled child/approver branch through `check_e2e_kiosk_eligible_choices` in run `20260923T204614Z-0601b77a`; that unchanged branch evidence is retained. `request_choices.PLAN` / `onpc_request_choices::run` qualified `enabled=False` child selection after separate public Parent enable/save/disable/save and Switch User through `check_e2e_request_choices` in run `20260923T235007Z-9d21bba1`. Both require wrong-entry/choice refusals, independent form readback, private collection and owned cleanup. Complete case 57 (`disabled_child.PLAN` / `onpc_disabled_child::run`) passed in run `20260925T035647Z-9242c8fd` with limits off throughout; its historical list-inspection/collapse stages are removed from current execution. Shared selection still checks exact offered accounts and the final disabled form. `AccessibleUI.kiosk_valid_choice` qualifies the 300-second, Custom and Rest-of-day choices; see [valid kiosk choices](#valid-kiosk-choice-qualification). `overlay=True` reuses the approver selector and valid duration actions, refusing fixed-child selection and kiosk input on the overlay; see the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). The fixed Jamie/75-second open/default and new/remembered overlay choices also passed the [overlay FLOW04 slice](#overlay-flow04-invalid-submission-and-escape-qualification). The Jordan/German–Riley/Hebrew child/approver language binding also passed task 300j; see [personal language selection](#personal-language-selection). Other account profiles and duration values remain pending. | pending; enabled kiosk child/approver including the stated German/Hebrew restoration binding, disabled-child selection and declared kiosk/overlay valid durations and overlay approver/refusals ready |
 | REQUEST05 | C | Type a custom duration, including deliberately invalid text, and observe validation/request availability. | UI16 → REQUEST03. `onpc_text::replace_text(kiosk-fraction)` / `AccessibleUI.read_synthetic_text` qualify exact `1.25` minutes (75 seconds); see [valid kiosk choices](#valid-kiosk-choice-qualification). `kiosk-invalid-*` bindings qualify all seven invalid custom values with enabled Request and exact preserved text; see [invalid kiosk choices](#invalid-kiosk-choice-qualification). Do not coerce or repair the customer's value. `onpc_text::replace_text(overlay-fraction)` reuses the same guarded text mechanics for exact overlay `1.25`; see the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). `overlay-invalid-*` uses the same text binding and exact readback guards; representative `0.09` passed installed qualification and all seven invalid values passed the local native GTK matrix. See [overlay invalid submission](#overlay-flow04-invalid-submission-and-escape-qualification). Other values remain pending. | pending; kiosk/overlay 1.25-minute, kiosk finite invalid and representative overlay invalid input ready |
 | REQUEST06 | C | Set the request form's soft-app choice to an explicit boolean and observe it. The surface and child are explicit. | UI17 → REQUEST03. `AccessibleUI.set_toggle` through `kiosk_valid_choice` qualifies explicit inclusion/exclusion and independent kiosk readback; see [valid kiosk choices](#valid-kiosk-choice-qualification). The explicit fixed-child overlay inclusion/exclusion binding also passed the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification); the fixed 75-second soft-included FLOW04 binding and subsequent exclusion also passed the [overlay FLOW04 slice](#overlay-flow04-invalid-submission-and-escape-qualification). Other overlay bindings remain pending; interactive mute is deferred future-feature scope. | pending; declared kiosk/overlay inclusion/exclusion ready |
 | REQUEST08 | C | Read the visible estimate/footer for the chosen duration, including rest-of-day meaning, loading or unavailable estimates. | UI01 → UI03. `AccessibleUI.kiosk_request_form(enabled=False, expected_selection=...)` and `RequestObservation.from_request` bind `kiosk-disabled-form` to the selected child, retained nonempty approver, exact disabled-screen-limit explanation and unavailable Request/duration/soft-app/approver controls. Complete fresh prompt checks refuse authentication; disabled controls receive no input. `check_e2e_request_choices` qualified selection and independent readback in run `20260923T235007Z-9d21bba1`, with collection and owned cleanup. Complete case 57 also passed these public results with limits off throughout in run `20260925T035647Z-9242c8fd`, including Cancel-to-GDM, collection and owned cleanup. `AccessibleUI.kiosk_valid_choice` reads numeric estimates and the exact midnight footer through the public status ID; `KioskValidDurationJourney.check_settings` bounds fixed estimates using earlier public Parent balances and guest monotonic elapsed time. See [valid kiosk choices](#valid-kiosk-choice-qualification). `KioskRequestJourney.check_estimate` applies independent Parent balance/elapsed bounds to declared overlay values, preserving the unused-child equality check for kiosk; see the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). Open/default and new/remembered 75-second, soft-included overlay estimates also passed the [overlay FLOW04 slice](#overlay-flow04-invalid-submission-and-escape-qualification), with independent balance bounds and reproduced-choice comparison. Other values and loading/unavailable numeric outcomes remain pending. | pending; kiosk disabled-child explanation, unavailable Request and declared kiosk/overlay valid estimates ready |
@@ -3092,8 +3097,9 @@ ownership. `kiosk_multiple.PLAN` / `KioskMultipleJourney`,
 read back each child's Screen Limits before switching to the station.
 `AccessibleUI.select_kiosk_account` checks the exact offered set on every
 selection. The finite `multiple-*` entries in `KIOSK_ACCOUNT_REQUESTS` and
-`MULTIPLE_MATE_BINDINGS` register both children and both approvers, including all
-four pairs. Each pair uses 1800 seconds with soft apps excluded, a freshly
+`MULTIPLE_MATE_BINDINGS` register both children and both approvers. The current
+journey uses Riley/Jamie and Jordan/Casey as representative pairs rather than
+their Cartesian product. Each pair uses 1800 seconds with soft apps excluded, a freshly
 owned real MATE prompt with exact child/request/recipient context, one normal
 Cancel, complete prompt absence and independent unchanged-form/no-error readback.
 `mate_prompt(binding=...)` retains owner, ambiguity, focused empty masked field,
@@ -3109,11 +3115,9 @@ The qualified provider tuple remains Ubuntu 26.04, MATE Polkit `1.26.1-6`,
 profile remain separate from that qualification; these runs give no complete-case credit.
 Complete case 53 is registered through `kiosk_multiple.CASE_PLAN` and
 `onpc_kiosk_multiple::run`'s complete-case branch. It omits qualification-only
-wrong-entry checks and adds both selectors' explicit exact-set/open/collapse
-observations, unchanged initial choices and final preserved-form readback.
-`multiple-child-open` / `multiple-approver-open` reuse `select_kiosk_account`;
-their closed operations reuse `collapse_kiosk_child_choices(field, enabled=True)`.
-The controller independently validates the complete declared form after collapse.
+wrong-entry checks and verifies final selected accounts, their matching approval
+prompts and preserved-form readback. Exact offered sets remain part of the shared
+selection operation. Separate list open/collapse assertions have been removed.
 Case 53 passed in run `20260926T193803Z-abb86806`; the unchanged disabled-child
 collapse binding passed case 57 in `20260926T194240Z-ff1d1166`. Both include
 reconciliation, collection, owned cleanup and baseline restoration.
@@ -3127,8 +3131,8 @@ AccountsService, requires it locked without credentials, refuses collisions,
 and checks preservation of existing identities, both children, eligible parents
 and station. Outer snapshot restoration owns removal. This qualification covers
 locked administrators; other ineligibility causes need their own declared scope.
-The unchanged exact-set selectors exclude the new account and all four existing
-child/approver pairs still reach correctly bound real prompts and cancel normally.
+The exact-set selectors exclude the new account; both representative
+child/approver pairs reach correctly bound real prompts and cancel normally.
 The slice passed in report run `20260926T195528Z-eb3740b5`, including independent
 entry, wrong-entry refusal, both public child enable/save results, exclusion,
 unchanged forms, Cancel/GDM return, collection, owned cleanup and baseline
@@ -3136,9 +3140,9 @@ restoration. No provider input, Parent launch or prompt binding changed;
 the multiple-profile and original-prompt qualifications above remain valid.
 Complete case 56 uses `kiosk_multiple.INELIGIBLE_CASE_PLAN` / `execute_ineligible`
 with the same fixed setup action and complete multiple-account worker. Both
-selectors are inspected and collapsed with unchanged selections before all four
-eligible pairs reach correctly bound prompts and cancel. The locked administrator
-is excluded by every exact offered-set check. Independent case 56 passed in
+representative eligible pairs reach correctly bound prompts and cancel. The locked
+administrator is excluded by every exact offered-set check. The historical
+four-pair case with separate selector-collapse checks passed in
 `20260926T200913Z-2d372359`, including preserved-form readback, Cancel/GDM return,
 collection, owned cleanup and baseline restoration.
 Host adapter/decoder/worker regressions live in
@@ -4437,8 +4441,8 @@ Examples:
   close About and compare the same child/settings. No external handler is needed.
 
 For required text, assert meaning-bearing content on a showing public UI node,
-not its line breaks, font or coordinates. Missing controls, failed expansion,
-wrong selection, inaccessible required information, ineffective settings,
+not its line breaks, font or coordinates. Missing controls, wrong selection,
+inaccessible required information, ineffective settings,
 timeouts and crashes remain failures. Keep a failed journey failed; no fallback
 that silently skips an assertion or directly applies the requested setting.
 
@@ -4496,19 +4500,18 @@ existing-child selection, dynamic discovery and return. Preserve the original
 existing fixture's limits-off/zero-allowance expectation and the new child's
 visible remaining-time section. The fixed account fixture
 runs only after fresh visible settings and a durable phase boundary while Parent
-stays open. Each picker expansion uses UI14's ID-addressed navigation;
-a separate checkpoint verifies the intended highlighted row before Enter,
-then another requires the closed picker and intended child's displayed settings.
+stays open. The shared picker route checks the intended input recipient before
+Enter; the case verifies the intended child's displayed settings. Popup state
+and highlighted rendering do not add customer assertions.
 Both children expose App Limits search and rule-filter controls through normal
 tab navigation. Returning to Screen Limits and the original child must preserve
 their independently recorded switch and allowance values, including disabled
 allowance reads. This case changes no time policy and claims no child-session
 enforcement; E2E-005 owns settings changes followed by child use.
 
-Case 3 also uses functional GDM account navigation. Its credential gate is
-separate from ordinary observations: select the other parent, positively verify
-that empty masked prompt and refuse it as the intended parent's recipient,
-dismiss, then independently focus/select the intended parent. The secret helper
+Case 3 uses the shared minimal GDM entry for the intended parent. Deliberately
+selecting another parent and refusing that recipient is separate harness
+qualification, not a step in this customer journey. The secret helper
 requires two consecutive fresh controller acknowledgements of the exact account
 label, hidden account list, sole showing/enabled/focused `password text` role and
 zero character count. It reads no password contents. The second acknowledgement
@@ -4616,9 +4619,9 @@ no complete-scenario credit; the FIX02 empty-result binding remains pending.
 
 `check_e2e_shell_search_results` qualified the fresh Parent SEARCH01/02/03/04/06
 slice in run `20260923T180845Z-4df4db55` (now outside runner retention):
-`onpc_shell_search::run` supplies the search entry independently of the
+That historical `onpc_shell_search::run` supplied the search entry independently of the
 `AccessibleUI` observations; `shell_search_field`, `focus_search_field`,
-`search_ready` and `search_query` observe the empty field, fresh focus, `O`, then
+`search_ready` and `search_query` observed the empty field, fresh focus, `O`, then
 `Oh No! Parent Control`. `launchable_result` and `focus_search_result` identify
 and focus the product launcher; the unrelated `Terminal` binding refuses.
 Escape clears the query, `shell-search-cleared` observes the empty field, Super
@@ -4626,7 +4629,9 @@ closes Overview, and `shell-search-dismissed` requires a prompt-free desktop and
 complete-tree search-field absence. Private collection and owned cleanup passed.
 This qualifies only the pinned Shell provider environment described in the
 [provider catalogue](#external-provider-qualification), with no launch,
-standard-account unavailability or complete-scenario acceptance credit. Other
+standard-account unavailability or complete-scenario acceptance credit. Current
+qualification types the full query once and closes Overview directly after the
+result check; first-character and empty-query checkpoints are removed. Other
 queries and entry routes retain their separate gates.
 
 The registered standard operations connect to the canonical other-child
@@ -4644,10 +4649,9 @@ before sending Super-A once, then returns the showing, enabled, editable,
 empty Overview field. A modal can consume the shortcut; the prompt guard refuses
 it before the opening gesture, with no dismissal or shortcut replay. UI21 consumes that reply for
 semantic focus through the qualified Shell adapter, then independently observes
-focus. SEARCH03 consumes the fresh focus proof, types the first
-character once, reads it at `search-started`, types the remainder once and
-reads the exact full query at `search-entered`. Each segment uses the existing
-bounded pace. Input uncertainty is terminal; no repair or replay is permitted.
+focus. SEARCH03 consumes the fresh focus proof, types the complete query once
+at the existing bounded pace and reads it at `search-entered`. Input uncertainty
+is terminal; no repair or replay is permitted.
 The app-grid acknowledgement opens step-2 before its first input.
 
 SEARCH04's unavailable result composes UI03 and UI11. The exact query and

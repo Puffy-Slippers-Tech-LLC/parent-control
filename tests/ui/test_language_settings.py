@@ -24,17 +24,11 @@ LANGUAGES = {
 EXPANDED_LANGUAGES = {
     'ar': ('العربية', 'اختر لغتك', 'حفظ', 'احفظ تفضيل اللغة لديك.',
            'حد وقت استخدام الشاشة', 'طلب'),
-    'fa': ('فارسی', 'زبان خود را انتخاب کنید', 'ذخیره', 'ترجیح زبان خود را ذخیره کنید.',
-           'محدودیت زمان استفاده از صفحه', 'درخواست'),
     'he': ('עברית', 'בחירת השפה שלך', 'שמירה', 'שמירת העדפת השפה שלך.',
            'מגבלת זמן מסך', 'בקשה'),
     'pt': ('Português', 'Escolha a sua língua', 'Guardar', 'Guardar a sua preferência de língua.',
            'Limite de tempo de ecrã', 'SOLICITAR'),
     'zh-Hant': ('中文（繁體）', '選擇語言', '儲存', '儲存語言偏好設定。', '限制螢幕時間', '提交請求'),
-    'bn': ('বাংলা', 'আপনার ভাষা বেছে নিন', 'সংরক্ষণ', 'আপনার ভাষার পছন্দ সংরক্ষণ করুন।',
-           'স্ক্রিন সময়ের সীমা', 'অনুরোধ'),
-    'hi': ('हिन्दी', 'अपनी भाषा चुनें', 'सहेजें', 'अपनी भाषा की प्राथमिकता सहेजें।',
-           'स्क्रीन समय सीमा', 'अनुरोध'),
     'ug': ('ئۇيغۇرچە', 'تىلىڭىزنى تاللاڭ', 'ساقلاش', 'تىل مايىللىقىڭىزنى ساقلاڭ.',
            'ئېكران ۋاقىت چەكلىمىسى', 'تەلەپ'),
     'ur': ('اردو', 'اپنی زبان منتخب کریں', 'محفوظ کریں', 'اپنی زبان کی ترجیح محفوظ کریں۔',
@@ -578,8 +572,9 @@ def test_language_search_filters_choices_and_preserves_cancel(
     assert_no_policy_or_request_writes(path)
 
 
-@pytest.mark.parametrize('surface', SURFACES)
-@pytest.mark.parametrize('language', LANGUAGES)
+@pytest.mark.parametrize('surface,language', (
+    ('parent', 'en'), ('kiosk', 'de'), ('overlay', 'zh-Hans'),
+))
 def test_first_run_defaults_and_save_waits_for_commit(
         launch_ui, automation, wait_for_accessible_state, tmp_path, surface, language):
     ui, wait = automation, wait_for_accessible_state
@@ -707,8 +702,10 @@ def test_parent_development_preview_translates_visible_labels(
     assert set(headings) <= set(public_label_names(ui, 'parent-screen-limits-page'))
 
 
-@pytest.mark.parametrize('surface', SURFACES)
-@pytest.mark.parametrize('language', EXPANDED_LANGUAGES)
+@pytest.mark.parametrize('surface,language', (
+    ('parent', 'he'), ('kiosk', 'ta'), ('overlay', 'zh-Hant'),
+    ('parent', 'pt'), ('kiosk', 'fur'),
+))
 def test_expanded_catalogue_choices_save_with_translated_text(
         launch_ui, automation, wait_for_accessible_state, tmp_path,
         surface, language):
@@ -789,8 +786,9 @@ def test_kiosk_child_switch_restores_saved_language_and_reprompts_after_cancel(
     assert_no_policy_or_request_writes(path)
 
 
-@pytest.mark.parametrize('surface', SURFACES)
-@pytest.mark.parametrize('language', LANGUAGES)
+@pytest.mark.parametrize('surface,language', (
+    ('parent', 'de'), ('kiosk', 'zh-Hans'), ('overlay', 'en'),
+))
 def test_saved_language_bypasses_setup_and_cancel_discards_candidate(
         launch_ui, automation, wait_for_accessible_state, tmp_path, surface, language):
     ui, wait = automation, wait_for_accessible_state
@@ -884,8 +882,9 @@ def test_failed_startup_read_is_reported_and_preferences_retries(
     assert_no_policy_or_request_writes(path, expected_results=0 if surface == 'parent' else 1)
 
 
-@pytest.mark.parametrize('surface', ('kiosk', 'overlay'))
-@pytest.mark.parametrize('language', LANGUAGES)
+@pytest.mark.parametrize('surface,language', (
+    ('kiosk', 'de'), ('overlay', 'zh-Hans'),
+))
 def test_request_error_result_uses_current_language(
         launch_ui, automation, wait_for_accessible_state, tmp_path, surface, language):
     ui, wait = automation, wait_for_accessible_state

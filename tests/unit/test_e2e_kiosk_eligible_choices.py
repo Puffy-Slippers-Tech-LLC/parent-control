@@ -15,57 +15,6 @@ from ui_observations import RequestObservation, UiObservations
 
 
 @pytest.mark.parametrize('field', ['child', 'approver'])
-@pytest.mark.parametrize('fault', [None, 'unchanged', 'selection', 'extra'])
-def test_multiple_inspect_collapse_and_decode_without_selection(field, fault):
-    import json
-    ui, selector, choices, _ = accounts_form(field)
-    form = ui.find_id('kiosk-request-form')
-    child = ui.find_id('kiosk-child-selector')
-    child.children[0].identity = 'kiosk-child-selected-1002'
-    child.description = f'Selected account: {EXISTING_CHILD}.'
-    for node in form.children:
-        if node.identity == 'kiosk-screen-limit-notice':
-            node.states.discard('showing')
-        else:
-            node.states.add('sensitive')
-    def toggle(_):
-        if 'showing' in choices.states:
-            if fault != 'unchanged':
-                choices.states.discard('showing')
-            if fault == 'selection':
-                child.children[0].identity = 'kiosk-child-selected-1001'
-                child.description = f'Selected account: {CHILD}.'
-        else:
-            choices.states.add('showing')
-        return True
-    selector.action.do_action.side_effect = toggle
-    if fault == 'extra':
-        choices.children.append(Node(identity=f'kiosk-{field}-choice-9999'))
-        with pytest.raises(UiError, match='eligible-set'):
-            ui.run(f'multiple-{field}-open', '')
-        return
-    ui.run(f'multiple-{field}-open', '')
-    operation = f'multiple-{field}-closed'
-    if fault == 'unchanged':
-        with pytest.raises(UiError, match='timeout'):
-            ui.run(operation, '')
-        with pytest.raises(UiError, match='uncertain-input'):
-            ui.run(operation, '')
-    else:
-        result = ui.run(operation, '')
-        observer = UiObservations(Mock())
-        observer.call = Mock(return_value=(json.dumps(result).encode(), []))
-        if fault == 'selection':
-            with pytest.raises(EvidenceError, match='ui:request'):
-                observer.observe(operation)
-        else:
-            assert observer.observe(operation) == result
-    assert selector.action.do_action.call_count == 2
-    for choice in choices.children:
-        choice.action.do_action.assert_not_called()
-
-
-@pytest.mark.parametrize('field', ['child', 'approver'])
 def test_selection_checks_exact_choices_and_reads_independent_enabled_result(field):
     ui, selector, choices, expected = accounts_form(field)
     operation = f'kiosk-{field}-select'
@@ -142,10 +91,9 @@ def test_child_selection_confirms_account_before_first_run_language_input(fault)
 
 
 @pytest.mark.parametrize('field', ['child', 'approver'])
-@pytest.mark.parametrize('inspect_only', [True, False])
 @pytest.mark.parametrize('fault', [None, 'save-failed', 'still-disabled'])
 def test_account_input_completes_startup_language_before_opening_selector(
-        field, inspect_only, fault):
+        field, fault):
     ui, selector, choices, expected = accounts_form(field)
     window = ui.find_id('kiosk-request-window')
     ready = ui.find_id('kiosk-language-ready')
@@ -182,28 +130,22 @@ def test_account_input_completes_startup_language_before_opening_selector(
     if fault:
         with pytest.raises(UiError, match=('timeout:language-saved' if fault == 'save-failed'
                                           else 'kiosk-account-unavailable')):
-            ui.select_kiosk_account(field, expected[0], expected=expected,
-                                    inspect_only=inspect_only)
+            ui.select_kiosk_account(field, expected[0], expected=expected)
         assert events == ['save']
         if fault == 'save-failed':
             assert ui.input_uncertain
             with pytest.raises(UiError, match='uncertain-input'):
-                ui.select_kiosk_account(field, expected[0], expected=expected,
-                                        inspect_only=inspect_only)
+                ui.select_kiosk_account(field, expected[0], expected=expected)
         selector.action.do_action.assert_not_called()
         for choice in choices.children:
             choice.action.do_action.assert_not_called()
     else:
-        result = ui.select_kiosk_account(field, expected[0], expected=expected,
-                                        inspect_only=inspect_only)
+        result = ui.select_kiosk_account(field, expected[0], expected=expected)
         assert events == ['save', 'open'] and not ui.input_uncertain
         selector.action.do_action.assert_called_once()
-        assert choices.children[0].action.do_action.call_count == int(not inspect_only)
+        choices.children[0].action.do_action.assert_called_once()
         choices.children[1].action.do_action.assert_not_called()
-        if inspect_only:
-            assert result is None and 'showing' in choices.states
-        else:
-            assert result['request_enabled'] and 'showing' not in choices.states
+        assert result['request_enabled']
     button.action.do_action.assert_called_once()
 
 

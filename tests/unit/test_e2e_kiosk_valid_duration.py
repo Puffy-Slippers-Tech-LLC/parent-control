@@ -1155,7 +1155,7 @@ def test_mate_approval_checks_complete_catalogue_request_before_secret_proofs(fa
     field.get_description.assert_not_called()
 
 
-@pytest.mark.parametrize('refusal', [None, 'other-saved', 'first-first-cancel', 'other-first-cancel'])
+@pytest.mark.parametrize('refusal', [None, 'other-saved', 'first-first-cancel', 'other-other-cancel'])
 @pytest.mark.parametrize('complete', [False, True, 'ineligible'])
 def test_multiple_worker_matches_plan_and_stops_before_later_input(monkeypatch, refusal, complete):
     from kiosk_multiple import PLAN, CASE_PLAN, INELIGIBLE_CASE_PLAN
@@ -1184,8 +1184,7 @@ def test_multiple_mode_refuses_conflicts_before_vm_access(conflict):
                    **{conflict: True})
 
 
-@pytest.mark.parametrize('refusal', ['child-open', 'child-closed', 'approver-open',
-                                   'approver-closed', 'preserved'])
+@pytest.mark.parametrize('refusal', ['first-child', 'first-parent', 'other-child', 'preserved'])
 def test_multiple_case_stops_at_selector_and_preservation_boundaries(monkeypatch, refusal):
     test_multiple_worker_matches_plan_and_stops_before_later_input(monkeypatch, refusal, True)
 

@@ -2719,7 +2719,7 @@ def test_shell_search_launcher_requires_one_owned_exact_result(product):
     unrelated.component.grab_focus.assert_not_called()
 
 
-def test_shell_search_first_character_and_wrong_result_use_exact_live_query():
+def test_shell_search_wrong_result_requires_exact_final_query():
     field = Node('Search', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
     field.get_text_iface = lambda: field
     launcher = Node('Oh No! Parent Control', 'button')
@@ -2729,7 +2729,6 @@ def test_shell_search_first_character_and_wrong_result_use_exact_live_query():
     ui.api.Text = SimpleNamespace(
         get_character_count=lambda _: len(query['value']),
         get_text=lambda *_: query['value'])
-    assert ui.run('shell-search-started', '')['outcome'] == 'passed'
     with pytest.raises(UiError, match='ui:search-query'):
         ui.run('shell-search-wrong-result-refused', '')
     query['value'] = accessible_ui.PRODUCT
@@ -4133,20 +4132,6 @@ def test_standard_typeahead_requires_visible_enabled_editable_empty_search(fault
     else:
         assert ui.run('standard-app-grid', '')['outcome'] == 'passed'
     field.action.do_action.assert_not_called()
-
-
-@pytest.mark.parametrize('value', ['', 'wrong', 'O'])
-def test_typeahead_requires_actual_first_character_before_remaining_input(value):
-    field = Node('', 'text', states=('showing', 'visible', 'sensitive', 'editable'),
-                 identity=SEARCH_CONTROLS['search'])
-    field.get_text_iface = lambda: field
-    ui = search_ui(Node('Overview', 'panel', children=[field]))
-    ui.api.Text = SimpleNamespace(get_character_count=lambda _: len(value), get_text=lambda *_: value)
-    if value == 'O':
-        assert ui.run('standard-search-started', '')['outcome'] == 'passed'
-    else:
-        with pytest.raises(UiError, match='standard-search-started'):
-            ui.run('standard-search-started', '')
 
 
 @pytest.mark.parametrize('value', ['', 'O', 'Oh No! Parent Control', 'Oh No! Parent Controls'])

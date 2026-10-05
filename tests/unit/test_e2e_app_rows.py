@@ -710,6 +710,45 @@ def test_complete_rows_are_immutable_and_include_off_viewport_controls_without_i
     assert ui.app_rows(accessible_ui.CHILD) == ((ROW, 'conditional', 'precise'),)
 
 
+@pytest.mark.parametrize('boundary', ['control', 'finished'])
+def test_debounced_row_visibility_discards_whole_projection_before_retry(boundary):
+    ui, _, _, row, buttons, match = app_ui()
+    original = ui.snapshot_owned_target
+    transient = True
+    finished = False
+    def lookup(identity, **kwargs):
+        nonlocal transient, finished
+        node = original(identity, **kwargs)
+        if transient and identity == ROW + ('-access-allowed' if boundary == 'control'
+                                            else '-match-precise'):
+            transient = False
+            if boundary == 'control':
+                row.states.discard('visible')
+                buttons[0].states.discard('visible')
+            else:
+                finished = True
+        return node
+    def name():
+        if finished:
+            row.states.discard('visible')
+        return 'Fixture application'
+    ui.snapshot_owned_target = lookup
+    row.get_name = name
+    with pytest.raises(accessible_ui.UiError, match='^ui:incomplete-tree$'):
+        ui.app_rows(accessible_ui.CHILD, include_names=boundary == 'finished')
+    # A fresh read observes the settled filter result without repeating input.
+    assert ui.app_rows(accessible_ui.CHILD, expected_ids=()) == ()
+    for node in (row, *buttons, match):
+        node.action.do_action.assert_not_called()
+
+
+def test_hidden_policy_control_in_stable_visible_row_is_not_a_retryable_filter_change():
+    ui, _, _, _, buttons, _ = app_ui()
+    buttons[0].states.discard('visible')
+    with pytest.raises(accessible_ui.UiError, match='^ui:app-row-target$'):
+        ui.app_rows(accessible_ui.CHILD)
+
+
 @pytest.mark.parametrize('name', ['Fixture application', '', 'x' * 513])
 def test_language_names_share_complete_owned_policy_projection(name):
     ui, page, rows, row, buttons, match = app_ui()
@@ -1306,7 +1345,7 @@ print encode_json(\@events);
                                             if boundary else expected + ['power'])
 
 
-def test_filter_leaves_use_owned_options_explicit_state_and_independent_selection():
+def test_filter_leaves_use_owned_options_and_final_state():
     ui, page, *_ = app_ui()
     root = ui.find_id('parent-window')
     root.states.add('active')
@@ -1325,22 +1364,16 @@ def test_filter_leaves_use_owned_options_explicit_state_and_independent_selectio
             target.states.add('checked')
     ui._invoke_target = Mock(side_effect=toggle)
     ui.activate_id = Mock(side_effect=lambda *_, **__: root.children.append(choices))
-    assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'open') == {'opened': 'match-rule'}
+    assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'open') == {'ready': 'match-rule'}
     ui.activate_id.assert_called_once_with('parent-filter-match-rule', action_name='menu.popup')
     assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'pattern') == {
         'state': False, 'activated': True}
     assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'precise') == {
         'state': True, 'activated': False}
-    assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'read') == {
-        'filter': 'match-rule', 'selected': ['precise']}
     ui._invoke_target.assert_called_once_with(options[0])
     with pytest.raises(accessible_ui.UiError, match='wrong-child'):
         ui.catalogue_filter(accessible_ui.EXISTING_CHILD, 'match-rule', 2, 'pattern')
-    options[1].states.remove('checked')
-    with pytest.raises(accessible_ui.UiError, match='filter-selection'):
-        ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'read')
     root.children.remove(choices)
-    assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'closed') == {'closed': 'match-rule'}
     with pytest.raises(accessible_ui.UiError):
         ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'pattern')
     ui._invoke_target.assert_called_once()
@@ -1351,7 +1384,7 @@ def test_filter_composite_is_independently_reusable_and_refusal_stops_escape():
     from tests.support.perl import run_perl
     assert filter_screens('match-rule', 2, 'renamed') == {
         f'renamed-{action}': f'ui:filter-match-rule-2-{action}'
-        for action in ('open', 'pattern', 'precise', 'read', 'closed')}
+        for action in ('open', 'pattern', 'precise')}
     with pytest.raises(EvidenceError):
         filter_screens('match-rule', 4, 'renamed')
     program = r'''
@@ -1366,8 +1399,7 @@ my $journey = onpc_journey->new(prefix=>'independent', review=>0, exchange=>sub 
 eval {onpc_app_rows::filter($journey, 'match-rule', 2, 'renamed');};
 print encode_json(\@events);
 '''
-    expected = ['renamed-open', 'renamed-pattern', 'renamed-precise', 'renamed-read',
-                'key:esc', 'renamed-closed']
+    expected = ['renamed-open', 'renamed-pattern', 'renamed-precise', 'key:esc']
     for boundary in (None, *[stage for stage in expected if not stage.startswith('key:')]):
         stop = "die 'refused' if $_[0] eq '" + boundary + "';" if boundary else ''
         result = run_perl(program.replace('FAIL', stop))
@@ -1379,10 +1411,8 @@ print encode_json(\@events);
 def test_filter_transport_checks_every_option_set_and_explicit_state(operation):
     kind, mask, action = accessible_ui.FILTER_OPERATIONS[operation]
     options = accessible_ui.FILTER_OPTIONS[kind]
-    value = ({'opened' if action == 'open' else 'closed': kind}
-        if action in ('open', 'closed') else {'filter': kind, 'selected': [
-            option for index, option in enumerate(options) if mask & (1 << index)]}
-        if action == 'read' else {'state': bool(mask & (1 << options.index(action))), 'activated': False})
+    value = ({'ready': kind} if action == 'open'
+             else {'state': bool(mask & (1 << options.index(action))), 'activated': False})
     result = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed', 'filter': value}
     observer, *_ = collection_transport((json.dumps(result) + '\n').encode(), False)
     assert observer.observe(operation) == result
@@ -1639,7 +1669,7 @@ def test_legend_persistent_missing_content_times_out_without_replay(monkeypatch)
     toggle.action.do_action.assert_called_once()
     with pytest.raises(accessible_ui.UiError, match='ui:legend-content-missing'):
         ui.read_policy_legend(accessible_ui.EXISTING_CHILD)
-    with pytest.raises(accessible_ui.UiError, match='ui:legend-content-missing'):
+    with pytest.raises(accessible_ui.UiError, match='ui:timeout:legend-expanded'):
         ui.expand_policy_legend(accessible_ui.EXISTING_CHILD)
     toggle.action.do_action.assert_called_once()
 
@@ -1677,6 +1707,7 @@ def test_legend_read_requires_every_full_explanation(fault):
     ui, root, page, toggle, content = legend_ui(expanded=True)
     if fault == 'closed':
         toggle.states.discard('pressed')
+        page.children.remove(content)
     elif fault == 'missing':
         content.children.pop()
     elif fault == 'truncated':

@@ -26,9 +26,9 @@ def test_plan_binds_fresh_parent_entry_and_all_search_observations(tmp_path, mon
     assert isinstance(journey, ShellSearchResultsJourney)
     assert context.installed_snapshot == 'onpc-v9.7'
     assert PLAN.worker_mode == 'shell_search_results'
-    assert list(PLAN.screen_tags)[-9:] == [
-        'system-prompt', 'app-grid', 'search-focused', 'search-started',
-        'search-entered', 'wrong-result-refused', 'result', 'search-cleared',
+    assert list(PLAN.screen_tags)[-7:] == [
+        'system-prompt', 'app-grid', 'search-focused',
+        'search-entered', 'wrong-result-refused', 'result',
         'dismissed']
     assert PLAN.screen_tags['system-prompt'] == 'ui:fresh-parent-desktop'
     assert PLAN.screen_tags['dismissed'] == 'ui:shell-search-dismissed'
@@ -83,9 +83,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     assert result['events'] == [
         ['reattach'], ['sign-in', 'parent', 'success'],
         ['open-search', 'overview'], ['focus-search', 'overview'],
-        ['consume', 'search-focused'], ['type', 'O'], ['seen', 'search-started'],
-        ['type', 'h No! Parent Control'], ['seen', 'search-entered'],
+        ['consume', 'search-focused'], ['type', 'Oh No! Parent Control'], ['seen', 'search-entered'],
         ['seen', 'wrong-result-refused'], ['seen', 'result'],
-        ['key', 'esc'], ['seen', 'search-cleared'],
         ['key', 'super'], ['seen', 'dismissed'], ['finish'],
     ]

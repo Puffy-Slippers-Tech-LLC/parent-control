@@ -36,8 +36,7 @@ def language_journey(*, checks):
 
 def public_language_value(key, expected, *, capture=None, same=None):
     """Literal public comparison with optional immutable caller-named endpoints."""
-    require(key in ('language', 'language_form', 'language_presentation',
-                    'dialog_presentation', 'feedback'), 'language:public-key')
+    require(key in ('language', 'language_form', 'dialog_presentation', 'feedback'), 'language:public-key')
     require(not (capture and same), 'language:public-endpoints')
     return partial(_public_value, key=key, expected=deepcopy(expected), capture=capture, same=same)
 

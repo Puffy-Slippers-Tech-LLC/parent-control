@@ -155,6 +155,7 @@ Large durations test selection and displayed arithmetic without waiting to expir
 | Short time | Natural daily tests use 2–4 minutes and verify positive D before entry. Grant-only uses 2 minutes; replacement uses 3. Active reboot/update uses 15–20 minutes. These are preparation choices, not bypasses of observed balances. |
 | E2E-038 daily dominant | Start with daily 4 minutes and a real 0.1-minute addition including soft apps. Enter, open S, switch away, and wait until displayed G is 60–90 seconds while D remains at least 120 seconds. Return before grant expiry. No later screen/app save occurs before the tested action. FLOW18 checks the inequalities; wrong timing fails preparation. |
 | Station restriction routes | Super/Overview, Super-A/app grid, ordinary terminal shortcut; inspect available controls for Parent/settings launch. If no search field appears, no query is typed. About/report restrictions have their own cases. |
+| Kiosk multiple/ineligible accounts (53/56) | Read exact eligible child/approver sets. Request and Cancel Riley/Jamie, then Jordan/Sam (the second fixture administrator is Casey). Final selection and actual selected-parent prompts cover both identities with two pairs; do not cross every child with every parent. |
 | App transitions (13–16) | Allowed→Soft, Soft→Hard, Hard→Soft, Soft→Allowed, Allowed→Hard, Hard→Allowed: all six directed changes. Open work under Allowed before Allowed→Soft/Hard. Before Soft→Hard obtain real soft approval and reopen the matching activity; in limits-off cases temporarily enable, approve/open, then disable (preserving the activity). Verify the declared limit state again before the tested save. Hard→Soft stays blocked without a new exception; Soft→Allowed and Hard→Allowed permit launches. Unchanged-block restoration is owned by 169. |
 | Match/control/route matrix | Preserve all four precise/pattern × on/off cases and all 48 route × rule × on/off cases. Alias, special-path, update and file-pattern data run only in their owning cases. |
 
@@ -271,7 +272,7 @@ Bindings: time = daily-only / grant-only / combined; session = new / retained.
 
 1. P0 → FLOW03(allowed and hard targets) → FLOW02(profile allowance, final off). Retained: C(fresh) → FLOW08(allowed) → APP04 → P(retained).
 2. UI17(on) → PARENT08 → PARENT09 → C(variant entry, expected access) → access-check. Grant profiles: G → FLOW06(short grant) → P(retained) → PARENT09.
-3. For each enabled allowance edit in the transition table: P → PARENT06 → PARENT08 → PARENT09 → C → access-check → leave-child → P.
+3. For each enabled allowance edit in the transition table: P → PARENT06 → PARENT08 → PARENT09 → C → TIME01 or GDM06(expected access) → leave-child → P. Compare the saved allowance, actual balances and preserved grant deadline after every edit; sample app launches at the enable/disable transitions rather than after each allowance-only save.
 4. Repeat(off,on): UI17 → PARENT08 → PARENT09 → C → access-check → leave-child. Read saved settings in Parent at finish.
 
 ### E2E-006
@@ -496,8 +497,8 @@ including collection, owned cleanup and baseline restoration;
 case 53 also passed in `20260926T193803Z-abb86806` and case 56 in
 `20260926T200913Z-2d372359`, with the same terminal outcomes.
 `disabled_child.PLAN` / `onpc_disabled_child::run`
-keeps limits off, inspects and collapses the exact child choices through the
-same public selector trigger, selects the disabled child, independently reads
+keeps limits off, checks the exact eligible child choices,
+selects the disabled child, independently reads
 the unavailable form without authentication, and observes Cancel returning to GDM.
 UI17's Parent Screen time limit binding
 and PARENT08's saved/control snapshots have installed slice qualification,
@@ -527,16 +528,20 @@ The multiple profile is qualified through `kiosk_multiple.PLAN` /
 `20260926T191541Z-dc28d61d`; the shared original prompt binding regression passed
 in `20260926T192244Z-e74f7983`. Reuse the guarded canonical account profile,
 public enable/save for both children, `select_kiosk_account`'s exact-set checks
-and the four `MULTIPLE_MATE_BINDINGS` Cancel operations. The fixed slice uses
+and representative `MULTIPLE_MATE_BINDINGS` Cancel operations. The fixed slice uses
 30 minutes with soft apps excluded for every pair and independently checks
 preserved selections after each prompt. Complete case 53 uses
 `kiosk_multiple.CASE_PLAN` / `onpc_kiosk_multiple::run`'s complete-case branch,
-adding explicit selector open/exact-set/collapse observations and independent
-unchanged-choice readback before selecting the four pairs. A final preserved-form
+historically adding explicit selector open/exact-set/collapse observations and
+unchanged-choice readback before selecting four pairs. A final preserved-form
 read precedes Cancel and GDM return. It passed in `20260926T193803Z-abb86806`,
 including reconciliation, collection, owned cleanup and baseline restoration.
 The shared collapse helper's disabled-child case 57 regression passed in
 `20260926T194240Z-ff1d1166` with the same terminal outcomes.
+Current acceptance uses the two pairs in the finite-data table and the final
+selected accounts, loaded settings and matching real approval prompts. Historical
+open/collapse and all-four-pair samples above remain evidence of the earlier run;
+they add no current acceptance requirement.
 
 The ineligible-parent profile uses `kiosk_multiple.INELIGIBLE_PLAN` with
 `IneligibleApproverFixture` to add one fixed locked administrator before Parent
@@ -545,7 +550,7 @@ checks and all four real prompt/Cancel pairs passed the fixed qualification
 `check_e2e_eligible_kiosk_fixtures` in run `20260926T195528Z-eb3740b5`, with
 collection, owned cleanup and baseline restoration. Complete case 56 uses
 `kiosk_multiple.INELIGIBLE_CASE_PLAN` / `execute_ineligible` with the fixed setup
-action and complete multiple-account worker: explicit exact-set selector inspection
+action and complete multiple-account worker, historically with explicit selector inspection
 and collapse, all four eligible pairs' real prompt cancellations, preserved form
 and Cancel/GDM return. It passed independently in `20260926T200913Z-2d372359`,
 including collection, owned cleanup and baseline restoration.
@@ -565,7 +570,7 @@ including capture reconciliation, collection, owned cleanup and baseline
 restoration. Wrong-entry refusal is qualification-only.
 
 1. Account profile is the declared setup. Enable available targets with FLOW16 except disabled-child and no-parent. No-parent keeps default limits off: first enter the request station and observe a listed parent, detect all eligible parents through the OS account service, temporarily lock that detected set regardless of names/count, Cancel to GDM and reopen the station. The observed parent must belong to the detected set. Preserve children/station and restore accounts through outer cleanup. No inaccessible administrator setup or hidden enabled-policy fixture is needed. Other profiles use G → REQUEST01.
-2. Open each enabled selector: UI04 → UI13(exact eligible set) → UI04(the same selector trigger to collapse the inline list); independently observe the closed list and unchanged selection, then REQUEST04(each declared choice). These are in-form lists, not popovers; Escape closes the request form. Disabled/empty uses UI02/03 without input.
+2. Read each enabled selector's exact eligible set, then REQUEST04 for representative child/approver pairs covering both identities. Independently read the selected accounts and loaded child settings; the matching real approval prompt verifies the selected approver's effect. List opening/closing is shared navigation, with no collapse or unchanged-selection acceptance. Escape closes the request form. Disabled/empty uses UI02/03 without input.
 3. REQUEST03 → REQUEST08. Available: REQUEST09 → AUTH01 → AUTH02(cancel) → REQUEST11. Unavailable: UI02(disabled) → UI11(prompt). No-parent specifically requires the missing-eligible-parent explanation and empty parent list; it makes no isolated screen-time enforcement claim with its also-disabled child.
 
 ### E2E-018
@@ -1147,10 +1152,12 @@ surface = child-overlay / kiosk. Each route has both surfaces, in that order.
 1. FLOW16(Jordan,on,30) → AppSet(A,H,S for the declared route) → C(fresh) →
    FLOW08(A usable,H/S denied). Leave A with APP03 → APP04. All later child
    returns retain this desktop; S supports a separate new-window launch.
-2. Run four rows, each as request-entry(surface) → FLOW20(entry=open) →
+2. Run three rows, each as request-entry(surface) → FLOW20(entry=open) →
    APP02/APP04(existing activities) → FLOW08(S via declared route). Requests
-   add 0.5 minutes: **Jamie/include → Sam/exclude → Sam/include → Jamie/exclude**.
-   Included opens S and records a new activity; excluded requires its closure.
+   add 0.5 minutes: **Jamie/exclude → Sam/include → Jamie/exclude**.
+   Each real prompt must identify the selected approver. Initial exclusion keeps
+   S unavailable; inclusion opens S and records a new activity; replacement
+   exclusion requires that activity's closure.
    After each row A remains usable and a new H launch remains denied. If the
    blocked grid entry is hidden, observe that and use the recipe's explicit
    command denial witness; an included grid entry must become launchable.
@@ -1158,8 +1165,9 @@ surface = child-overlay / kiosk. Each route has both surfaces, in that order.
    must not rewrite the parent's access selections. Finish after the last
    excluded result; no natural wait for the long combined grant.
 
-This completes route × request-surface coverage and both approvers × both
-soft-app choices inside each case. Baseline rule permutations remain in 62–109;
+This completes route × request-surface coverage, using both approvers and the
+three distinct permission results inside each case. Approver identity does not
+multiply the soft-choice sequence. Baseline rule permutations remain in 62–109;
 this family owns alternating **temporary** permission, existing-window effects
 and fresh launches on that route. Do not reproduce every allowance boundary or
 game-display mode here.
@@ -1335,7 +1343,7 @@ saved rows and, when stated, using the app as the child.
 
 | Case | Exact block/data expansion |
 | --- | --- |
-| 184 search-filters | PARENT10 exact-name query → PARENT11 precise plus Allowed → UI13/UI12 exact expected intersection of the real declared catalogue; clear query/restore filters and compare PARENT12 initial policies. Compose `onpc_app_rows::search` / `filter` / `read_rows` with caller-owned stages and `journey_blocks.filter_screens`; use `native_fixtures.catalogue_rows` for the exact expected set. The native profile is Jordan-bound (`existing` text/filter child bindings and `existing-parent-app-rows`); unprefixed rows target Riley. A fresh case plan owns its lifecycle, rather than inheriting `CatalogueJourney`. The representative UI matrix lives in `test_preview_smoke.py::test_catalogue_complete_query_match_access_matrix`: five queries (name, description, identifier, empty, no match) × ten filter sets covering all/none, each rule independently and representative intersections. |
+| 184 search-filters | PARENT10 exact-name query → PARENT11 precise plus Allowed → UI13/UI12 exact expected intersection of the real declared catalogue; clear query/restore filters and compare PARENT12 initial policies. Compose `onpc_app_rows::search` / `filter` / `read_rows` with caller-owned stages and `journey_blocks.filter_screens`; use `native_fixtures.catalogue_rows` for the exact expected set. The native profile is Jordan-bound (`existing` text/filter child bindings and `existing-parent-app-rows`); unprefixed rows target Riley. A fresh case plan owns its lifecycle, rather than inheriting `CatalogueJourney`. UI's `test_preview_smoke.py::test_catalogue_query_and_representative_filter_results` checks each query source, individual categories, empty sets and representative query/filter intersections, without multiplying independent choices. |
 | 185 match-editor | PARENT13 → UI16 → PARENT15 saves a same-directory wildcard. Save a wildcard for a different directory and observe the real broker's failed-save report, close it and reread confirmed choices. Tasks 078/078a own the UI matrix for precise target/basename, empty/unrelated input, Cancel and Reset, including exact explanations and unchanged values. Real saved-rule and enforcement observations remain E2E. |
 | 186 match-reopen | Save custom same-directory wildcard; change access to Allowed; LIFE01 → PARENT02 → PARENT12 verifies remembered custom wildcard. Save precise on an app with a suggested pattern; reselect the child and reopen Parent, reading the documented suggested pattern each time. Reselect precise before a subsequent save. Repeat restoration after a customer-rejected pattern save, closing its report before reading. This records the current limitation, not desired new behavior. |
 | 187 shared-launchers | Two visible launchers for one supported app: PARENT16(first,Hard) → PARENT16(second,Allowed); C → FLOW08(each supported launch,denied). P → allow first → C → FLOW08(each,usable). Reverse which launcher holds the block and repeat. No claim of independent rules overriding the shared target. |

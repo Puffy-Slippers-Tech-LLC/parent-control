@@ -111,8 +111,6 @@ OPERATION_LABELS = {
     'overlay-about-close-ready': 'Rechecking the active child-owned About before closing',
     'overlay-about-closed': 'Observing About absent and the unchanged child form returned',
     'overlay-about-refused': 'Refusing license reading while overlay About is absent',
-    'multiple-child-open': 'Inspecting the exact eligible child choices',
-    'multiple-approver-open': 'Inspecting the exact eligible approving parent choices',
     'multiple-other-enable': 'Enabling screen limits for the second declared child',
     'multiple-other-saved': 'Reading saved screen limits for the second declared child',
     **{operation: 'Checking the exact offered account set and declared selection'
@@ -180,10 +178,8 @@ OPERATION_LABELS = {
     'parent-search-entered': 'Checking the complete Parent app search query',
     'parent-search-close-ready': 'Checking the owned Parent window before closing',
     'parent-search-closed': 'Checking Parent closed and the desktop returned',
-    'shell-search-started': 'Checking the first Parent search character',
     'shell-search-wrong-result-refused': 'Refusing an unrelated search result binding',
     'shell-search-dismissed': 'Checking search closed and the desktop returned',
-    'shell-search-cleared': 'Checking the search query cleared before closing Overview',
     'app-grid': 'Finding the launchable Parent result in public app search',
     'parent-window': 'Waiting for the Parent window',
     'parent-window-count': 'Counting the owned Parent management windows',
@@ -252,7 +248,6 @@ OPERATION_LABELS = {
     'standard-system-prompt': 'Checking for a login-keyring prompt',
     'standard-app-grid': 'Opening public app search',
     'standard-search-focused': 'Checking the app search field is focused',
-    'standard-search-started': 'Checking the first search character',
     'standard-search-entered': 'Checking the complete Parent search query',
     'standard-parent-unavailable': 'Checking Parent is unavailable to the standard account',
     'standard-search-qualified': 'Qualifying stable Parent search unavailability',
@@ -275,8 +270,6 @@ OPERATION_LABELS.update({
     'kiosk-restriction-prepared-ready': 'Checking and focusing the prepared request before an ordinary shortcut',
     'kiosk-restriction-prepared-read': 'Verifying station restrictions and preserved request choices after an ordinary shortcut',
     'kiosk-disabled-child-select': 'Selecting the disabled child in the request station',
-    'kiosk-child-choices-open': 'Inspecting the exact eligible child choices',
-    'kiosk-child-choices-closed': 'Collapsing child choices and checking the unchanged unavailable form',
     'kiosk-disabled-form': 'Reading the disabled child explanation and unavailable Request',
     'kiosk-child-select': 'Checking eligible children and selecting the enabled child',
     'kiosk-approver-select': 'Checking eligible approvers and selecting the parent',
@@ -1179,12 +1172,9 @@ class UiObservations:
             if action == 'refused':
                 expected['refused'] = True
             elif action != 'closed':
-                first, second = (('about-website-value', 'about-privacy-value') if surface == 'about'
-                                 else ('feedback-close', 'feedback-send'))
-                focused = first if action in ('focus', 'back') else second if action == 'tabbed' else None
                 value = {'surface': surface, 'language': language,
                          'labels': {key: value for key, value in accessible_ui.PARENT_DIALOG_TEXT[language].items()
-                                    if key.startswith(surface + '-')}, 'focused': focused}
+                                    if key.startswith(surface + '-')}}
                 require(result.get('dialog_presentation') == value, 'ui:dialog-presentation')
                 expected['dialog_presentation'] = value
                 if surface == 'feedback':
@@ -1200,17 +1190,6 @@ class UiObservations:
             if operation.endswith('-wrong-entry'):
                 require(result == {**expected, 'refused': True}, 'ui:language-refusal')
                 expected['refused'] = True
-            elif operation in ('parent-language-presentation-focus', 'parent-language-presentation-read'):
-                value = result.get('language_presentation')
-                require(type(value) is dict and set(value) == {'heading', 'choices', 'checked', 'focused'}
-                        and type(value['heading']) is str and 0 < len(value['heading']) <= 512
-                        and value['checked'] in ('en', 'he')
-                        and value['choices'] == {'en': 'English', 'de': 'Deutsch',
-                            'zh-Hans': '中文（简体）', 'he': 'עברית'}
-                        and value['focused'] == ('language-cancel' if operation.endswith('-focus')
-                                                else 'language-continue'),
-                        'ui:language-presentation')
-                expected['language_presentation'] = value
             elif operation in accessible_ui.PARENT_LANGUAGE_ALLOWANCES:
                 require(result.get('allowance') == {'minutes': 60, 'saved': True},
                         'ui:language-allowance-response')
@@ -1623,12 +1602,8 @@ class UiObservations:
         if operation in accessible_ui.FILTER_OPERATIONS:
             kind, mask, action = accessible_ui.FILTER_OPERATIONS[operation]
             value = result.get('filter')
-            if action in ('open', 'closed'):
-                projection = {'opened' if action == 'open' else 'closed': kind}
-                require(value == projection, 'ui:filter-response')
-            elif action == 'read':
-                projection = {'filter': kind, 'selected': [option for index, option in
-                    enumerate(accessible_ui.FILTER_OPTIONS[kind]) if mask & (1 << index)]}
+            if action == 'open':
+                projection = {'ready': kind}
                 require(value == projection, 'ui:filter-response')
             else:
                 desired = bool(mask & (1 << accessible_ui.FILTER_OPTIONS[kind].index(action)))

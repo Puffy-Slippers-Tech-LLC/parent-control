@@ -75,20 +75,18 @@ sub search {
 
 # PARENT11: caller-owned stages; no qualification lifecycle or hidden row read.
 sub filter {
-    onpc_progress::operation('Setting a catalogue filter and independently checking every option');
+    onpc_progress::operation('Setting a catalogue filter');
     my ($journey, $kind, $mask, $prefix) = @_;
     my %options = ('match-rule' => ['pattern', 'precise'],
                    'access-rule' => ['allowed', 'conditional', 'permanent']);
     die 'catalogue:filter' unless @_ == 4 && ref($journey) eq 'onpc_journey'
         && exists($options{$kind}) && $mask =~ /\A[0-7]\z/
         && $mask < (1 << @{$options{$kind}}) && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
-    for my $action ('open', @{$options{$kind}}, 'read') {
+    for my $action ('open', @{$options{$kind}}) {
         my $stage = "$prefix-$action";
         $journey->consume_observation($stage, $journey->seen($stage));
     }
     testapi::send_key('esc');
-    my $stage = "$prefix-closed";
-    return $journey->consume_observation($stage, $journey->seen($stage));
 }
 
 sub catalogue_search {

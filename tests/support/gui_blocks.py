@@ -33,7 +33,6 @@ my $journey = onpc_journey->new(prefix => 'host-gui', review => 0, exchange => s
     return {observed => $_[0]};
 });
 if ($block eq 'replace') { onpc_text::replace_text($journey, @arguments); }
-elsif ($block eq 'dialog-navigation') { onpc_parent::dialog_navigation($journey, @arguments); }
 elsif ($block eq 'allowance') {
     $arguments[1] = decode_json($arguments[1]);
     onpc_allowance_selection::select($journey, @arguments);
@@ -94,14 +93,14 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
     memory. It reads shared modules without opening a display or socket. Real input still
     reacquires its public recipient; no precomputed observation is evidence.
     """
-    from tests.e2e.accessible_ui import TEXT_OPERATIONS, TEXT_VALUES, FILTER_OPERATIONS, ALLOWANCE_KEYBOARD_OPERATIONS, PARENT_DIALOG_BINDINGS
+    from tests.e2e.accessible_ui import TEXT_OPERATIONS, TEXT_VALUES, FILTER_OPERATIONS, ALLOWANCE_KEYBOARD_OPERATIONS
 
     events = json.loads(run_perl(_TRACE, block, *arguments).stdout)
     if not isinstance(events, list) or not 0 < len(events) <= 4096:
         raise ValueError('Invalid GUI block')
     observations = {}
     identity = 'feedback-editor-input'
-    filter_read = False
+    filter_input = False
     for event, group in groupby(events):
         if event[0] == 'key' and event[1] in ('right', 'left', 'shift-right'):
             # Same ordered keys and subsequent exact selection proof as the VM;
@@ -112,17 +111,11 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
             if event[0] == 'observe':
                 stage = event[1]
                 operation = operations[stage].removeprefix('ui:') if operations is not None else stage
-                filter_read = (operation in FILTER_OPERATIONS
-                               and FILTER_OPERATIONS[operation][2] == 'read')
+                filter_input = operation in FILTER_OPERATIONS
                 if operation in TEXT_OPERATIONS:
                     binding, action = TEXT_OPERATIONS[operation]
                     identity = ('feedback-editor-input' if action == 'anchor'
                                 else TEXT_VALUES[binding][0])
-                elif operation in PARENT_DIALOG_BINDINGS:
-                    surface, _language, action = PARENT_DIALOG_BINDINGS[operation]
-                    first, second = (('about-website-value', 'about-privacy-value') if surface == 'about'
-                                     else ('feedback-close', 'feedback-send'))
-                    identity = second if action == 'tabbed' else first
                 elif operation in ALLOWANCE_KEYBOARD_OPERATIONS:
                     identity = 'parent-daily-limit-selector'
                 elif operation.endswith('-link-target'):
@@ -137,26 +130,15 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
                     identity = 'feedback-dialog'
                 bound_child = child_bindings.get(stage) if child_bindings is not None else child
                 binding = {'child': bound_child} if bound_child else {}
-                if operation in FILTER_OPERATIONS and FILTER_OPERATIONS[operation][2] == 'closed':
-                    # The popup can retire during the closure operation's
-                    # initial child/page proof. Retry that complete read under
-                    # the existing deadline, never the preceding Escape input.
-                    observations[stage] = ui.wait(
-                        lambda: ui.run(operation, '', **binding),
-                        'host-filter-closed', prompt_in_predicate=True)
-                else:
-                    observations[stage] = ui.run(operation, '', **binding)
+                observations[stage] = ui.run(operation, '', **binding)
             elif event[0] == 'key':
-                # Filter composites immediately poll exact popup absence after
-                # Escape. Dogtail's default one-second post-key sleep adds three
-                # minutes to the five query matrices without proving closure.
-                # Keep delivery pacing; the existing closed observation remains
-                # the gate before any subsequent input.
-                pacing = {'post_delay': 0.05} if filter_read and event[1] == 'esc' else {}
+                # Dismiss the menu as navigation; the caller checks actual rows.
+                # Each later input still reacquires its guarded public recipient.
+                pacing = {'post_delay': 0.05} if filter_input and event[1] == 'esc' else {}
                 keyboard.key_combo(ui, identity, _KEYS[event[1]],
                     state=ui.api.StateType.ACTIVE if event[1] in ('esc', 'alt-f4') else ui.api.StateType.FOCUSED,
                     **pacing)
-                filter_read = False
+                filter_input = False
             elif event[0] == 'text':
                 keyboard.type_text(ui, identity, event[1], interval=event[2] / 1000)
             else:

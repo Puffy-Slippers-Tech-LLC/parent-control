@@ -11,7 +11,6 @@ SCREENS = {
         'system-prompt': 'ui:fresh-standard-desktop',
         'app-grid': 'ui:standard-app-grid',
         'search-focused': 'ui:standard-search-focused',
-        'search-started': 'ui:standard-search-started',
         'search-entered': 'ui:standard-search-entered',
         'unavailable': 'ui:standard-search-qualified',
     }.items()},

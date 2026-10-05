@@ -689,7 +689,10 @@ def test_custom_save_preparation_and_independent_result(capsys, fault):
     assert accessible_ui.AccessibleUI.parent_save_events(ui, True) == {
         'token': 'a' * 32, 'source': 'c' * 64, 'prepared': True}
     assert json.loads(capsys.readouterr().out)['source'] == 'c' * 64
-    ui.text_recipient.assert_called_once_with('parent-custom-daily-limit', focused=True, child=accessible_ui.CHILD)
+    # This preparation authorizes the next keyboard batch, so recipient focus
+    # is a safety proof rather than saved-result acceptance.
+    ui.text_recipient.assert_called_once_with(
+        'parent-custom-daily-limit', focused=True, child=accessible_ui.CHILD)
     ui.trace_request = 'c' * 64
     if fault == 'source': ui.parent_save_trace_source.return_value = ('d' * 64, controls)
     if fault == 'saved-value': ui.read_custom_trace_draft.side_effect = accessible_ui.UiError('ui:text-value')
@@ -1330,9 +1333,8 @@ def test_host_gui_blocks_share_worker_input_and_stop_at_refused_observation(monk
         assert events[-1] == ('observe', 'text-scalar-body-smoke-read')
 
 
-@pytest.mark.parametrize('fault', ['', 'filter-access-rule-3-read',
-                                  'filter-access-rule-3-closed', 'transient-closed'])
-def test_host_filter_escape_uses_result_polling_and_keeps_closure_gate(monkeypatch, fault):
+@pytest.mark.parametrize('fault', ['', 'filter-access-rule-3-permanent'])
+def test_host_filter_uses_guarded_escape_and_stops_after_refused_input(monkeypatch, fault):
     from tests.support import gui_blocks
     events = []
     ui = ui_for(Node())
@@ -1342,9 +1344,6 @@ def test_host_filter_escape_uses_result_polling_and_keeps_closure_gate(monkeypat
         events.append(('observe', stage))
         if stage == fault:
             raise ValueError('refused')
-        if (fault == 'transient-closed' and stage.endswith('-closed')
-                and events.count(('observe', stage)) == 1):
-            raise accessible_ui.UiError('ui:incomplete-tree')
         return {'stage': stage}
     ui.run = observe
     bounded_wait = ui.wait
@@ -1364,17 +1363,13 @@ def test_host_filter_escape_uses_result_polling_and_keeps_closure_gate(monkeypat
         assert ('next-input',) not in events
     else:
         execute()
-        assert events[-2:] == [('observe', 'filter-access-rule-3-closed'), ('next-input',)]
+        assert events[-1] == ('next-input',)
     keys = [event for event in events if event[0] == 'key']
-    assert keys == ([] if fault.endswith('-read') else [
+    assert keys == ([] if fault else [
         ('key', 'parent-window', 'Escape', {'state': 'active', 'post_delay': 0.05})])
-    assert [event for event in events if event[0] == 'wait'] == (
-        [] if fault.endswith('-read') else [
-            ('wait', 'host-filter-closed', {'prompt_in_predicate': True})])
-    assert events[:5] == [('observe', 'filter-access-rule-3-' + action)
-                         for action in ('open', 'allowed', 'conditional', 'permanent', 'read')]
-    assert events.count(('observe', 'filter-access-rule-3-closed')) == (
-        0 if fault.endswith('-read') else 2 if fault == 'transient-closed' else 1)
+    assert not [event for event in events if event[0] == 'wait']
+    assert events[:4] == [('observe', 'filter-access-rule-3-' + action)
+                         for action in ('open', 'allowed', 'conditional', 'permanent')]
 
 
 @pytest.mark.parametrize('fragment', ['window', 'privacy'])

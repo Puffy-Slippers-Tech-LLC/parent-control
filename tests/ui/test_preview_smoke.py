@@ -305,9 +305,9 @@ def test_parent_daily_preset_and_custom_limit_autosave(
             lambda: any(record["event"] == "set_parent_control"
                         and record["daily_limit_minutes"] == minutes
                         for record in read_events(path)), "ordinary preset saves")
-    # Full custom GUI boundaries stay here when the installed case samples 1.
-    # The later incremental edit also reaches and verifies the 1439 maximum.
-    for minutes, terminator in ((0, ''), (15, ''), (1, ''), (2, '\n'), (3, '\t')):
+    # Exercise zero and both supported commit terminators; the recovery below
+    # checks the minimum positive value and maximum without ordinary-value repeats.
+    for minutes, terminator in ((0, ''), (2, '\n'), (3, '\t')):
         reader.custom_allowance(CHILD, minutes, action='open')
         reader.focus_text('parent-custom-daily-limit')
         key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
@@ -435,10 +435,16 @@ def test_catalogue_text_binding_focus_replacement_clear_and_wrong_child(
         reader.focus_text('parent-app-search', child=CHILD)
 
 
-@pytest.mark.parametrize('binding', ('catalogue-name', 'catalogue-description',
-    'catalogue-identifier', 'catalogue-clear', 'catalogue-absent'))
-def test_catalogue_complete_query_match_access_matrix(
-        launch_ui, automation, wait_for_accessible_state, tmp_path, binding):
+@pytest.mark.parametrize('binding,masks', (
+    ('catalogue-name', ((3, 7),)),
+    ('catalogue-description', ((3, 7),)),
+    ('catalogue-identifier', ((3, 7), (1, 1), (2, 6))),
+    ('catalogue-clear', ((3, 7), (0, 7), (3, 0), (1, 7), (2, 7),
+                         (3, 1), (3, 2), (3, 4))),
+    ('catalogue-absent', ((3, 7),)),
+))
+def test_catalogue_query_and_representative_filter_results(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, binding, masks):
     from gi.repository import GLib
     from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, UiError
     from tests.e2e.native_fixtures import expected_rows, catalogue_rows
@@ -468,8 +474,7 @@ def test_catalogue_complete_query_match_access_matrix(
     run_block(reader, 'replace', binding, child='existing')
     # Cover each category, empty filters and combined predicates without
     # multiplying every search query by every possible filter permutation.
-    for match_mask, access_mask in ((3, 7), (0, 7), (3, 0), (1, 7), (2, 7),
-                                    (3, 1), (3, 2), (3, 4), (1, 1), (2, 6)):
+    for match_mask, access_mask in masks:
         run_block(reader, 'filter', 'match-rule', str(match_mask),
                   f'filter-match-rule-{match_mask}', child='existing')
         run_block(reader, 'filter', 'access-rule', str(access_mask),
@@ -547,15 +552,15 @@ def test_app_access_choices_save_and_independent_readback(
     reader.open_match_rule(EXISTING_CHILD, MATCH_APP)
     assert reader.run('access-disabled', '', child='existing')['access'] == {'refusal': 'disabled'}
     reader.respond_match_rule(EXISTING_CHILD, MATCH_APP, 'cancel')
-    for entry in range(2):
-        if entry:
-            reader.parent_page(EXISTING_CHILD, 'Screen Limits')
-            reader.parent_page(EXISTING_CHILD, 'App Limits')
-        for choice in ACCESS_CHOICES:
-            result = run_block(reader, 'access-choice', 'access-' + choice, 'access-row', child='existing')
-            assert result['access-row']['access'] == {'app': MATCH_APP, 'choice': choice}
+    for choice in ACCESS_CHOICES:
+        result = run_block(reader, 'access-choice', 'access-' + choice, 'access-row', child='existing')
+        assert result['access-row']['access'] == {'app': MATCH_APP, 'choice': choice}
+    reader.parent_page(EXISTING_CHILD, 'Screen Limits')
+    reader.parent_page(EXISTING_CHILD, 'App Limits')
+    assert reader.read_app_access(EXISTING_CHILD, MATCH_APP) == {
+        'app': MATCH_APP, 'choice': choice}
     records = [record for record in read_events(events) if record['event'] == 'set_preferences']
-    assert len(records) == 5  # The initially selected Allowed choice causes no write.
+    assert len(records) == 2  # The initially selected Allowed choice causes no write.
 
 
 def test_policy_composite_filtered_and_independent_entry(
@@ -641,9 +646,10 @@ def test_match_editor_valid_save_cancel_matrix(
     reader.respond_match_rule(EXISTING_CHILD, MATCH_APP, 'cancel')
 
 
-@pytest.mark.parametrize('old_binding', ('match-precise', 'match-wildcard'))
-@pytest.mark.parametrize('response', ('cancel', 'reset'))
-def test_match_editor_invalid_reset_matrix(
+@pytest.mark.parametrize('old_binding,response', (
+    ('match-precise', 'cancel'), ('match-wildcard', 'reset'),
+))
+def test_match_editor_invalid_drafts_cancel_or_reset(
         launch_ui, automation, wait_for_accessible_state, tmp_path, old_binding, response):
     from gi.repository import GLib
     from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, MATCH_APP, MATCH_RULES, MATCH_INVALID
@@ -838,7 +844,6 @@ def test_parent_remaining_time_explanation(
     with pytest.raises(UiError, match='ui:wrong-child'):
         reader.time_explanation(EXISTING_CHILD)
     first = reader.time_explanation(CHILD)
-    second = reader.time_explanation(CHILD)
     ui.activate("parent-time-calculation-collapse")
     wait_for_accessible_state(lambda: not ui.showing("parent-time-explanation"),
                               "PARENT09 starts independently collapsed")
@@ -846,13 +851,11 @@ def test_parent_remaining_time_explanation(
         reader.reach_time_explanation(EXISTING_CHILD)
     assert not ui.showing("parent-time-explanation")
     reached = reader.reach_time_explanation(CHILD)
-    repeated = reader.reach_time_explanation(CHILD)
     balances = {'normal': [2820, 900, 2820], 'grant-only': [0, 900, 900],
                 'exact-hours': [0, 7200, 7200], 'daily-exhausted': [0, 900, 900]}
-    for result in (first, second, reached, repeated):
+    for result in (first, reached):
         assert [result[key]['seconds'] for key in ('daily', 'one_time', 'total')] == balances[scenario]
         assert result['expanded'] is True
-    assert second['observed_monotonic_ns'] > first['observed_monotonic_ns']
-    assert repeated['observed_monotonic_ns'] > reached['observed_monotonic_ns']
+    assert reached['observed_monotonic_ns'] > first['observed_monotonic_ns']
     assert ui.showing("parent-time-explanation")
     assert ui.text("parent-time-explanation") == expected

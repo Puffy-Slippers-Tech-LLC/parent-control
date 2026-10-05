@@ -218,29 +218,13 @@ def test_child_indicator_opens_one_shared_overlay_and_can_reopen(render_artifact
 
 
 def test_child_panel_refreshes_language_after_overlay_save(render_artifacts):
+    # Sample ordinary, RTL and complex-script changes through the complete
+    # overlay-to-panel refresh. Catalogue parity covers every other language.
     # Independently reviewed literal meanings; do not predict from runtime MO.
     oracles = {
-        'ar': dict(request='طلب', panel='طلب الوقت، %(time)s',
-            countdown='رسوم متحركة للعد التنازلي لمدة دقيقة واحدة',
-            description='اقرأ الوقت المتبقي أو افتح نموذج طلب المزيد من الوقت. افتح القائمة السياقية لإعدادات رسوم العد التنازلي.'),
-        'fa': dict(request='درخواست', panel='درخواست زمان، %(time)s',
-            countdown='پویانمایی شمارش معکوس یک دقیقه‌ای',
-            description='زمان باقی‌مانده را بخوانید یا فرم درخواست زمان بیشتر را باز کنید. برای تنظیمات پویانمایی شمارش معکوس، منوی زمینه را باز کنید.'),
         'he': dict(request='בקשה', panel='בקשת זמן, %(time)s',
             countdown='הנפשת ספירה לאחור של דקה אחת',
             description='קריאת הזמן שנותר או פתיחת טופס בקשה לזמן נוסף. פתיחת תפריט ההקשר להגדרות הנפשת הספירה לאחור.'),
-        'ug': dict(request='تەلەپ', panel='ۋاقىت تەلەپ قىلىش، %(time)s',
-            countdown='بىر مىنۇتلۇق تەتۈر ساناش جانلاندۇرۇمى',
-            description='قالغان ۋاقىتنى ئوقۇڭ ياكى تېخىمۇ كۆپ ۋاقىت تەلەپ قىلىش جەدۋىلىنى ئېچىڭ. تەتۈر ساناش جانلاندۇرۇم تەڭشەكلىرى ئۈچۈن مەزمۇن تىزىملىكىنى ئېچىڭ.'),
-        'ur': dict(request='درخواست', panel='وقت کی درخواست، %(time)s',
-            countdown='ایک منٹ کی الٹی گنتی کی حرکت',
-            description='باقی وقت پڑھیں یا مزید وقت کی درخواست کا فارم کھولیں۔ الٹی گنتی کی حرکت کی ترتیبات کے لیے سیاقی مینو کھولیں۔'),
-        'bn': dict(request='অনুরোধ', panel='সময়ের অনুরোধ, %(time)s',
-            countdown='এক মিনিটের উল্টো গণনার অ্যানিমেশন',
-            description='অবশিষ্ট সময় পড়ুন অথবা আরও সময়ের অনুরোধের ফর্ম খুলুন। উল্টো গণনার অ্যানিমেশনের সেটিংসের জন্য প্রসঙ্গ মেনু খুলুন।'),
-        'hi': dict(request='अनुरोध', panel='समय का अनुरोध, %(time)s',
-            countdown='एक मिनट की उलटी गिनती का एनीमेशन',
-            description='शेष समय पढ़ें या अधिक समय का अनुरोध करने का फ़ॉर्म खोलें। उलटी गिनती के एनीमेशन की सेटिंग के लिए संदर्भ मेनू खोलें।'),
         'ta': dict(request='கோரிக்கை', panel='நேரத்தைக் கோரவும், %(time)s',
             countdown='ஒரு நிமிட பின்னோக்கு எண்ணிக்கை அசைவூட்டம்',
             description='மீதமுள்ள நேரத்தைப் படிக்கவும் அல்லது கூடுதல் நேரத்தைக் கோரும் படிவத்தைத் திறக்கவும். பின்னோக்கு எண்ணிக்கை அசைவூட்ட அமைப்புகளுக்குச் சூழல் பட்டியைத் திறக்கவும்.'),

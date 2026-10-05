@@ -105,7 +105,7 @@ def native_activity_entry(prefix, *, route='command', child='child'):
 
 
 def filter_screens(kind, mask, prefix):
-    """PARENT11 finite option/closure stages with caller-owned invocation IDs."""
+    """PARENT11 finite input stages; callers check the resulting catalogue."""
     import re
     from accessible_ui import FILTER_OPTIONS
     require(kind in FILTER_OPTIONS and type(mask) is int
@@ -113,7 +113,7 @@ def filter_screens(kind, mask, prefix):
             and type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'journey:filter-binding')
     return {f'{prefix}-{action}': f'ui:filter-{kind}-{mask}-{action}'
-            for action in ('open', *FILTER_OPTIONS[kind], 'read', 'closed')}
+            for action in ('open', *FILTER_OPTIONS[kind])}
 
 
 def custom_child_selection(prefix, child, *, route='action'):

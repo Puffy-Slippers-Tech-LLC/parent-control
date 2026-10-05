@@ -238,7 +238,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open."},
           {"id": "step-2", "operation": "ui", "description": "Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit."},
-          {"id": "step-3", "operation": "ui", "description": "While limits stay on, change the allowance and read both balances. Daily-only and combined visit 4, 5, 0 and 5 minutes; grant-only visits 0, 4 and 0. After every save check actual child access, blocked launches and any preserved grant deadline. Zero daily time denies daily-only access while an active grant still permits use."},
+          {"id": "step-3", "operation": "ui", "description": "While limits stay on, change the allowance and read both balances. Daily-only and combined visit 4, 5, 0 and 5 minutes; grant-only visits 0, 4 and 0. After every save check actual child access, the saved allowance and any preserved grant deadline. App launches are sampled at enable/disable transitions. Zero daily time denies daily-only access while an active grant still permits use."},
           {"id": "step-4", "operation": "ui", "description": "Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits."}
         ],
         "end": [
@@ -904,7 +904,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off, observes a listed parent, then discovers and locks all eligible parents through the OS fixture, preserving children and the station. Cancel to GDM and reopen the station; no administrator or hidden enabled-policy setup is needed. Other profiles enter the station normally."},
-          {"id": "step-2", "operation": "ui", "description": "Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise."},
+          {"id": "step-2", "operation": "ui", "description": "Compare offered eligible child and parent choices. Select representative pairs covering both children and both eligible parents, and read the final selected accounts and loaded child settings; read the empty/ineligible/disabled explanation otherwise."},
           {"id": "step-3", "operation": "ui", "description": "For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control."}
         ],
         "end": [
@@ -917,7 +917,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Only eligible accounts are offered. Missing parents/children and disabled limits prevent submission with an explanation."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Only eligible accounts are offered; selected child settings and the real selected-parent approval prompt match each representative pair. Missing parents/children and disabled limits prevent submission with an explanation."}
         ],
         "backend": [],
         "other_user": []
@@ -2563,7 +2563,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open."},
-          {"id": "step-2", "operation": "ui", "description": "On the declared request surface approve four 0.5-minute additions in order: Jamie includes soft apps, Sam excludes them, Sam includes them, Jamie excludes them. After every approval return to the retained child desktop, check the earlier allowed work, required soft-app closure or opening, and fresh hard/soft launches through the declared route."},
+          {"id": "step-2", "operation": "ui", "description": "On the declared request surface approve three 0.5-minute additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again."},
           {"id": "step-3", "operation": "ui", "description": "Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state."}
         ],
         "end": [
@@ -2606,7 +2606,7 @@
             "surface"
           ]
         ],
-        "rationale": "Eight supported routes by both request forms: 16 independent cases. Both parents and both soft choices run as four ordered rows inside each. Baseline rule permutations remain in E2E-019."
+        "rationale": "Eight supported routes by both request forms: 16 independent cases. Three ordered approvals cover initial exclusion, inclusion and replacement exclusion, using both selected parents without a parent-by-soft-choice product. Baseline rule permutations remain in E2E-019."
       },
       "variants": [
         {"coverage_id": 231, "id": "native-grid-child-overlay", "owner": "application-access", "parameters": {"route": "native-grid", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},

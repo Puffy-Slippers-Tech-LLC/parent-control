@@ -12,31 +12,17 @@ from installed_journey import InstalledJourney
 from private_artifacts import EvidenceError
 from tests.support.e2e_kiosk import WORKER, disabled_accounts_form
 from tests.support.perl import run_perl
-from ui_observations import RequestObservation, UiObservations
+from ui_observations import RequestObservation
 
 
-def test_inspect_collapse_and_selection_do_not_activate_disabled_controls():
+def test_selection_reads_disabled_result_without_activating_unavailable_controls():
     ui, selector, choices, _ = disabled_accounts_form()
-    def toggle(_):
-        if 'showing' in choices.states:
-            choices.states.discard('showing')
-        else:
-            choices.states.add('showing')
-        return True
-    selector.action.do_action.side_effect = toggle
-    ui.run('kiosk-child-choices-open', '')
-    for node in choices.children:
-        node.action.do_action.assert_not_called()
-    closed = ui.run('kiosk-child-choices-closed', '')
-    before = RequestObservation.from_request(
-        closed['request'], operation='kiosk-child-choices-closed')
-    assert before.child == 'existing-fixture-child'
-    assert not before.approver_selector_enabled and not before.request_enabled
     ui.run('kiosk-disabled-child-select', '')
     after = ui.run('kiosk-disabled-form', '')
-    assert RequestObservation.from_request(
-        after['request'], operation='kiosk-disabled-form').child == 'fixture-child'
-    assert selector.action.do_action.call_count == 3
+    observed = RequestObservation.from_request(after['request'], operation='kiosk-disabled-form')
+    assert observed.child == 'fixture-child'
+    assert not observed.approver_selector_enabled and not observed.request_enabled
+    assert selector.action.do_action.call_count == 1
     for identity in ('kiosk-approver-selector', 'kiosk-request-submit'):
         ui.find_id(identity).action.do_action.assert_not_called()
 
@@ -53,65 +39,19 @@ def test_inspection_refuses_unsafe_list(fault):
     elif fault == 'extra-choice':
         choices.children[1].identity = 'kiosk-child-choice-9999'
     with pytest.raises(UiError):
-        ui.run('kiosk-child-choices-open', '')
+        ui.run('kiosk-disabled-child-select', '')
     for node in choices.children:
         node.action.do_action.assert_not_called()
-
-
-def test_collapse_must_close_list_before_reading_unchanged_form():
-    ui, _, choices, _ = disabled_accounts_form()
-    choices.states.add('showing')
-    with pytest.raises(UiError, match='timeout:kiosk-choices-closed'):
-        ui.run('kiosk-child-choices-closed', '')
-    with pytest.raises(UiError, match='uncertain-input'):
-        ui.run('kiosk-child-choices-closed', '')
-
-
-def test_collapse_refuses_already_closed_list_without_reopening():
-    ui, selector, _, _ = disabled_accounts_form()
-    with pytest.raises(UiError, match='kiosk-choices-not-open'):
-        ui.run('kiosk-child-choices-closed', '')
-    selector.action.do_action.assert_not_called()
-
-
-def test_inspection_refuses_already_open_list_without_collapsing():
-    ui, selector, choices, _ = disabled_accounts_form()
-    choices.states.add('showing')
-    with pytest.raises(UiError, match='kiosk-choices-already-open'):
-        ui.run('kiosk-child-choices-open', '')
-    selector.action.do_action.assert_not_called()
 
 
 def test_failed_open_readback_cannot_toggle_again():
     ui, selector, _, _ = disabled_accounts_form()
     selector.action.do_action.side_effect = lambda _: True
     with pytest.raises(UiError, match='timeout:kiosk-offered-accounts'):
-        ui.run('kiosk-child-choices-open', '')
+        ui.run('kiosk-disabled-child-select', '')
     with pytest.raises(UiError, match='uncertain-input'):
-        ui.run('kiosk-child-choices-open', '')
+        ui.run('kiosk-disabled-child-select', '')
     selector.action.do_action.assert_called_once()
-
-
-def test_collapse_refuses_new_prompt_without_input():
-    ui, selector, choices, _ = disabled_accounts_form()
-    choices.states.add('showing')
-    ui.system_prompt_kind = Mock(return_value='polkit')
-    with pytest.raises(UiError, match='system-prompt-refused'):
-        ui.run('kiosk-child-choices-closed', '')
-    selector.action.do_action.assert_not_called()
-
-
-def test_controller_refuses_selection_changed_during_list_inspection():
-    ui, *_ = disabled_accounts_form()
-    result = ui.run('kiosk-request-form', '')
-    result['operation'] = 'kiosk-child-choices-closed'
-    observer = UiObservations(Mock())
-    observer.call = Mock(return_value=(json.dumps(result).encode(), []))
-    assert observer.observe(result['operation']) == result
-    result['request']['child'] = 'fixture-child'
-    observer.call.return_value = (json.dumps(result).encode(), [])
-    with pytest.raises(EvidenceError, match='ui:request'):
-        observer.observe(result['operation'])
 
 
 @pytest.mark.parametrize('settings', [

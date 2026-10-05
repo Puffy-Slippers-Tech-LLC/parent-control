@@ -40,12 +40,11 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 Parent inherited About/feedback observations use
 `AccessibleUI.parent_dialog_presentation` with explicit surface/language and
-public Text/name/focus comparisons. The `synthetic-rtl` body/reply profile remains
+public Text/name comparisons. The `synthetic-rtl` body/reply profile remains
 bounded synthetic input, read exactly before new input after reopening.
-`onpc_text::replace_text` owns its normal Unicode-key input;
-`onpc_parent::dialog_navigation` owns forward/backward Tab, reused by host
-`gui_blocks.run_block`. Its explicit `ltr`/`rtl` binding preserves the same
-Close/Send focus proof across GTK's mirrored Hebrew feedback action box.
+`onpc_text::replace_text` owns its normal Unicode-key input, including fresh
+keyboard-recipient proof. Dialog checks read translated content and retained
+draft values without a focus-traversal acceptance sequence.
 Closing the dialog permits ordinary Parent Preferences
 and reopening of the retained draft, without private translation/draft access.
 These operations add no storage, process, bus or cleanup owner. Existing private
@@ -78,7 +77,7 @@ dispatch and reuse without replacing inputs.
 `gui_blocks.select_allowance` share one Parent allowance block.
 `AccessibleUI.select_allowance` sends one native click, typed value and Enter
 in the same window-bound Mutter session. `allowance_keyboard` independently
-reads the final saved value or focused Custom editor. Existing preset/custom
+reads the final saved value or available Custom editor. Existing preset/custom
 helpers delegate to that input block. No popup/highlight/cancellation or
 direct-choice variant is available; see the
 [mandatory sequence](../../docs/Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception).
@@ -91,10 +90,8 @@ and VM lifetimes. Unit probes use existing private doubles and waited Perl;
 UI tests use the existing private display. No new process, storage or cleanup
 owner is introduced; existing unit/UI parallelism classifications apply.
 
-`AccessibleUI.language_presentation` reuses LANG01 ownership/choice reads,
-bounded public Text/name comparison and the dialog's ID-addressed focus action.
-`onpc_parent::language_navigation` sends one Tab only after the Cancel focus proof
-and independently requires Save focus. Qualification values and immutable policy
+`AccessibleUI.read_language` reuses LANG01 ownership/choice reads and bounded
+public language values. Qualification values and immutable policy
 comparisons stay in `ParentRtlJourney`; other surfaces still need live qualification.
 These operations add no process, storage, bus or cleanup owner. Unit/cleanup
 probes keep private node/recorder fixtures and waited Perl children; GTK coverage
@@ -170,7 +167,7 @@ Its synthetic-tree/decoder regression covers startup Save, failed Save, changed
 language, wrong child, incomplete offered accounts and translated result refusal.
 It adds no resource owner; existing unit and cleanup classifications apply.
 After choosing an account, it first confirms the chosen public UID and selector
-description, with the offered list closed, in a fresh owned snapshot. A newly
+description in a fresh owned snapshot. A newly
 selected child's language dialog may disable the form; this read does not require
 enabled controls. Only that proof permits the shared language helper's separate
 Continue input. Discard the successful selection snapshot before observing

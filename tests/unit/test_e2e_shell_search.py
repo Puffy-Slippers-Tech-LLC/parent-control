@@ -47,7 +47,7 @@ def test_standard_selector_binds_snapshot_and_refuses_conflicting_or_missing_pre
 
 
 @pytest.mark.parametrize('fault', ['', 'uncertain', 'focus', 'query', 'absence'])
-def test_worker_refuses_wrong_entry_then_reads_split_query_without_activation(fault):
+def test_worker_refuses_wrong_entry_then_reads_whole_query_without_activation(fault):
     result = json.loads(run_perl(r'''
 use strict;
 use warnings;
@@ -73,7 +73,7 @@ my $ok = eval {
         my ($stage) = @_;
         push @events, ['seen', $stage];
         die 'lost focus' if $fault eq 'focus' && $stage eq 'entry-search-focused';
-        die 'wrong query' if $fault eq 'query' && $stage eq 'entry-search-started';
+        die 'wrong query' if $fault eq 'query' && $stage eq 'entry-search-entered';
         die 'incomplete absence' if $fault eq 'absence' && $stage eq 'entry-unavailable';
         return {};
     });
@@ -88,8 +88,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events, titles =>
     assert events[:2] == [['seen', 'desktop'], ['seen', 'entry-desktop']]
     assert [event for event in events if event[0] == 'key'] == [['key', 'super-a']]
     queries = [event[1] for event in events if event[0] == 'query']
-    assert queries == ([] if fault == 'focus' else ['O'] if fault in ('uncertain', 'query')
-                       else ['O', 'h No! Parent Control'])
+    assert queries == ([] if fault == 'focus' else ['Oh No! Parent Control'])
     if fault:
         assert ['finish'] not in events
     else:

@@ -42,7 +42,7 @@ def collect_counts(root):
             ('component', 'Private D-Bus component', [],
              'Checks broker behavior through a private D-Bus without changing the host system.'),
             ('ui', 'UI', ['--timeout', '1800s'],
-             'Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions.'),
+             'Checks GTK and GNOME Shell functional results and accessibility in isolated sessions.'),
             ('fixture-runtime', 'Fixture runtime', [],
              'Checks that test fixtures prepare, validate and clean up their controlled environments.')):
         print(f'Collecting {category}...', file=sys.stderr, flush=True)

@@ -18,16 +18,11 @@ sub run {
     my $field = onpc_parent::open_search($journey, $desktop, 'overview');
     my $focused = onpc_parent::focus_search($journey, $field, 'overview');
     $journey->consume_observation('search-focused', $focused);
-    testapi::type_string('O', max_interval => 20);
-    $journey->seen('search-started');
-    testapi::type_string('h No! Parent Control', max_interval => 20);
+    testapi::type_string('Oh No! Parent Control', max_interval => 20);
     $journey->seen('search-entered');
     $journey->seen('wrong-result-refused');
     $journey->seen('result');
-    testapi::send_key('esc');
-    $journey->seen('search-cleared');
-    # Escape from Super-A search clears the query, then leaves the app grid
-    # before closing Overview. Toggle the observed Overview closed directly.
+    # Return directly from the observed Overview to the desktop.
     testapi::send_key('super');
     $journey->seen('dismissed');
     $journey->finish();

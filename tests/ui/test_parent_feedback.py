@@ -13,9 +13,9 @@ from tests.support.feedback import (
 pytestmark = pytest.mark.ui
 
 
-@pytest.mark.parametrize('language', ['de', 'ja', 'zh-Hans', 'zh-Hant', 'pt',
-                                    'ar', 'fa', 'he', 'ug', 'ur', 'bn', 'hi', 'ta',
-                                    'th', 'ka', 'te', 'ml', 'pa'])
+# Draft preservation uses representative script changes; catalogue tests cover
+# every translated message without repeating the whole editor journey.
+@pytest.mark.parametrize('language', ['de', 'zh-Hans', 'he', 'ta'])
 def test_language_switch_preserves_feedback_draft_reply_and_undo(
         launch_ui, automation, wait_for_accessible_state, language):
     from tests.support.keyboard import type_text, key_combo
@@ -34,11 +34,7 @@ def test_language_switch_preserves_feedback_draft_reply_and_undo(
     feedback_editor(ui, wait)
     assert ui.content(editor).strip() == 'A retained draft'
     assert ui.content('feedback-reply-email') == 'review@example.com'
-    expected = {'de': 'Fett', 'ja': '太字', 'zh-Hans': '粗体', 'zh-Hant': '粗體',
-                'pt': 'Negrito', 'ar': 'عريض', 'fa': 'پررنگ', 'he': 'מודגש',
-                'bn': 'গাঢ়', 'hi': 'गाढ़ा', 'ug': 'توم', 'ur': 'جلی', 'ta': 'தடித்த',
-                'th': 'ตัวหนา', 'ka': 'გამუქებული', 'te': 'మందమైన అక్షరాలు',
-                'ml': 'കട്ടിയക്ഷരം', 'pa': 'ਗੂੜ੍ਹਾ'}
+    expected = {'de': 'Fett', 'zh-Hans': '粗体', 'he': 'מודגש', 'ta': 'தடித்த'}
     wait(lambda: ui.text('feedback-format-bold') == expected[language], 'toolbar relabels')
     review_frame('feedback-' + language)
     ui.focus(editor)
@@ -46,25 +42,11 @@ def test_language_switch_preserves_feedback_draft_reply_and_undo(
     wait(lambda: ui.content(editor).strip() == 'A retained draft!', 'draft remains editable')
     key_combo(ui, editor, '<Control>z', state=ui.api.StateType.FOCUSED)
     wait(lambda: ui.content(editor).strip() == 'A retained draft', 'undo survives switch')
-    files = {'de': 'Dateien hinzufügen', 'ja': 'ファイルを追加', 'zh-Hans': '添加文件',
-             'zh-Hant': '添加檔案', 'pt': 'Adicionar ficheiros',
-             'ar': 'إضافة ملفات', 'fa': 'افزودن پرونده‌ها', 'he': 'הוספת קבצים',
-             'bn': 'ফাইল যোগ করুন', 'hi': 'फ़ाइलें जोड़ें',
-             'ug': 'ھۆججەت قوشۇش', 'ur': 'فائلیں شامل کریں', 'ta': 'கோப்புகளைச் சேர்க்கவும்',
-             'th': 'เพิ่มไฟล์', 'ka': 'ფაილების დამატება', 'te': 'ఫైళ్లను చేర్చండి',
-             'ml': 'ഫയലുകൾ ചേർക്കുക', 'pa': 'ਫਾਈਲਾਂ ਜੋੜੋ'}
+    files = {'de': 'Dateien hinzufügen', 'zh-Hans': '添加文件',
+             'he': 'הוספת קבצים', 'ta': 'கோப்புகளைச் சேர்க்கவும்'}
     assert ui.text('feedback-add-files') == files[language]
-    headings = {'de': 'Die App gemeinsam verbessern', 'ja': 'アプリの改善にご協力ください',
-                'zh-Hans': '帮助我们改进应用', 'zh-Hant': '幫助我們改進應用程式',
-                'pt': 'Ajude a melhorar a aplicação', 'ar': 'ساعدنا على تحسين الأمور',
-                'fa': 'به ما کمک کنید بهتر شویم', 'he': 'עזרו לנו להשתפר',
-                'bn': 'উন্নতি করতে আমাদের সহায়তা করুন', 'hi': 'बेहतर बनाने में हमारी मदद करें',
-                'ug': 'ياخشىلاشقا ياردەم بېرىڭ', 'ur': 'چیزوں کو بہتر بنانے میں ہماری مدد کریں',
-                'ta': 'மேம்படுத்த எங்களுக்கு உதவுங்கள்',
-                'th': 'ช่วยเราปรับปรุงให้ดีขึ้น', 'ka': 'დაგვეხმარეთ გაუმჯობესებაში',
-                'te': 'మెరుగుపరచడానికి మాకు సహాయపడండి',
-                'ml': 'കാര്യങ്ങൾ മെച്ചപ്പെടുത്താൻ ഞങ്ങളെ സഹായിക്കുക',
-                'pa': 'ਚੀਜ਼ਾਂ ਬਿਹਤਰ ਬਣਾਉਣ ਵਿੱਚ ਸਾਡੀ ਮਦਦ ਕਰੋ'}
+    headings = {'de': 'Die App gemeinsam verbessern', 'zh-Hans': '帮助我们改进应用',
+                'he': 'עזרו לנו להשתפר', 'ta': 'மேம்படுத்த எங்களுக்கு உதவுங்கள்'}
     assert headings[language] in public_label_names(ui, 'feedback-content')
 
 

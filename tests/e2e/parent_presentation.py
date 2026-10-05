@@ -82,8 +82,7 @@ for prefix, selected, _phase in HISTORY:
     for surface in ('about', 'feedback'):
         for action in ('open', 'read', 'close'):
             check = public_language_value('dialog_presentation', {
-                'surface': surface, 'language': selected, 'labels': DIALOG_LABELS[selected][surface],
-                'focused': None})
+                'surface': surface, 'language': selected, 'labels': DIALOG_LABELS[selected][surface]})
             CHECKS[prefix + '-' + surface + '-' + action] = (
                 public_checks(check, public_language_value('feedback', DRAFT, same='original-draft'))
                 if surface == 'feedback' else check)

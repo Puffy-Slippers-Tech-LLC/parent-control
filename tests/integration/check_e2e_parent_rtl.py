@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify installed Parent Hebrew logical text and public keyboard navigation."""
+"""Qualify installed Parent Hebrew text and saved language functionality."""
 import sys
 from check_graphical_smoke import main as smoke
 from tools.test_storage import named_input

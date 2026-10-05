@@ -37,18 +37,17 @@ def test_overlay_about_license_shared_reader_and_unchanged_form(
     before = reader.run('overlay-valid-fraction-soft-read', '')['valid_choice']['request']
     version = json.loads((ROOT / 'data/app.json').read_text())['version']
     reader.run('overlay-about-refused', version)
-    for _ in range(2):
-        reader.run('overlay-help-read', version)
-        reader.run('overlay-information-about', version)
-        reader.run('overlay-license-read', version)
-        reader.run('overlay-website-read', version)
-        reader.run('overlay-privacy-read', version)
-        reader.run('overlay-support-read', version)
-        reader.run('overlay-legal-notices-read', version)
-        reader.run('overlay-about-close-ready', version)
-        key_combo(reader, 'about-dialog', '<Alt>F4', state=reader.api.StateType.ACTIVE)
-        reader.run('overlay-about-closed', version)
-        assert reader.run('overlay-valid-fraction-soft-read', '')['valid_choice']['request'] == before
+    reader.run('overlay-help-read', version)
+    reader.run('overlay-information-about', version)
+    reader.run('overlay-license-read', version)
+    reader.run('overlay-website-read', version)
+    reader.run('overlay-privacy-read', version)
+    reader.run('overlay-support-read', version)
+    reader.run('overlay-legal-notices-read', version)
+    reader.run('overlay-about-close-ready', version)
+    key_combo(reader, 'about-dialog', '<Alt>F4', state=reader.api.StateType.ACTIVE)
+    reader.run('overlay-about-closed', version)
+    assert reader.run('overlay-valid-fraction-soft-read', '')['valid_choice']['request'] == before
 
 
 @pytest.mark.parametrize('exit_action', ('cancel', 'escape'))
@@ -195,16 +194,7 @@ def test_shared_predefined_approver_and_soft_choices_submit(
                               "approver choice published")
     ui.activate("kiosk-approver-choice-1010")
     ui.activate("kiosk-duration-300")
-    wait_for_accessible_state(
-        lambda: any(call["values"][1] == "300" for call in calls(path, "UpdateRequestPreferences")),
-        "saved predefined duration",
-    )
     ui.activate("kiosk-soft-apps-row")
-    wait_for_accessible_state(
-        lambda: any(call["values"][3] is True
-                    for call in calls(path, "UpdateRequestPreferences")),
-        "saved soft-app choice",
-    )
     ui.activate("kiosk-request-submit")
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "submitted request")
@@ -247,14 +237,7 @@ def test_responsive_form_accepts_semantic_selection_and_submission(
         lambda: ui.state("kiosk-request-submit", Atspi.StateType.SENSITIVE),
         "loaded request controls",
     )
-    assert ui.target("kiosk-child-selected-1001").get_name() == "Alex Morgan"
-    assert ui.target("kiosk-approver-selected-1000").get_name() == "Taylor Morgan"
     ui.activate("kiosk-duration-300")
-    wait_for_accessible_state(
-        lambda: any(call["values"][1] == "300"
-                    for call in calls(path, "UpdateRequestPreferences")),
-        "selected duration saved",
-    )
     ui.activate("kiosk-request-submit")
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "submitted request")

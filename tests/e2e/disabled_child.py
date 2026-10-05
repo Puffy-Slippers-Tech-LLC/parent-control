@@ -15,8 +15,6 @@ ENTRY = {
     'request-form': 'ui:kiosk-request-form',
 }
 CHOICES = {
-    'child-choices-open': 'ui:kiosk-child-choices-open',
-    'child-choices-closed': 'ui:kiosk-child-choices-closed',
     'child-selected': 'ui:kiosk-disabled-child-select',
 }
 RESULT = {

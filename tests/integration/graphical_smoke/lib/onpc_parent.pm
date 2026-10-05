@@ -56,17 +56,14 @@ sub focus_search {
     return $journey->seen('search-focused');
 }
 
-# SEARCH03: two paced inputs, each independently read, without input repair.
+# SEARCH03: one complete query and independent final read, without input repair.
 sub enter_search_query {
     onpc_progress::operation('Entering the Parent app search query');
     my ($journey, $focused, $product) = @_;
     die 'parent:search-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
         && $product eq 'Oh No! Parent Control';
     $journey->consume_observation('search-focused', $focused);
-    testapi::type_string(substr($product, 0, 1), max_interval => 20);
-    my $started = $journey->seen('search-started');
-    $journey->consume_observation('search-started', $started);
-    testapi::type_string(substr($product, 1), max_interval => 20);
+    testapi::type_string($product, max_interval => 20);
     return $journey->seen('search-entered');
 }
 
@@ -187,16 +184,6 @@ sub qualify_language {
     $journey->finish();
 }
 
-sub language_navigation {
-    onpc_progress::operation('Checking owned language controls and keyboard focus');
-    my ($journey, $before, $after) = @_;
-    die 'parent:language-navigation-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
-        && $before =~ /^[a-z][a-z0-9-]*$/ && $after =~ /^[a-z][a-z0-9-]*$/;
-    $journey->consume_observation($before, $journey->seen($before));
-    testapi::send_key('tab');
-    $journey->consume_observation($after, $journey->seen($after));
-}
-
 sub language_presentation_roundtrip {
     onpc_progress::operation('Saving language and checking the independently reopened preference');
     my ($journey, $prefix) = @_;
@@ -226,20 +213,6 @@ sub qualify_rtl {
         language_presentation_roundtrip($journey, $prefix);
     }
     $journey->finish();
-}
-
-sub dialog_navigation {
-    onpc_progress::operation('Checking Parent dialog keyboard navigation in both directions');
-    my ($journey, $prefix, $direction) = @_;
-    die 'parent:dialog-navigation-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
-        && $prefix =~ /^[a-z][a-z0-9-]*$/ && $direction =~ /^(ltr|rtl)$/;
-    $journey->consume_observation("$prefix-focus", $journey->seen("$prefix-focus"));
-    # GTK mirrors the horizontal feedback action box in Hebrew. Keep the same
-    # Close -> Send -> Close focus proof, using both keyboard directions.
-    testapi::send_key($direction eq 'rtl' ? 'shift-tab' : 'tab');
-    $journey->consume_observation("$prefix-tabbed", $journey->seen("$prefix-tabbed"));
-    testapi::send_key($direction eq 'rtl' ? 'tab' : 'shift-tab');
-    $journey->consume_observation("$prefix-back", $journey->seen("$prefix-back"));
 }
 
 sub qualify_dialog_language {

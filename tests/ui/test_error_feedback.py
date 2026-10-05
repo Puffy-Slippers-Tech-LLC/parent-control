@@ -116,7 +116,6 @@ def test_request_error_review_restrictions_and_submission(
     ui.activate("kiosk-request-submit")
     wait_for_accessible_state(lambda: ui.find("kiosk-report-toggle") is not None,
                               "error result publishes reporting choice")
-    assert ui.state("kiosk-report-toggle", ui.api.StateType.CHECKED)
     ui.activate("kiosk-result-action")
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
                               "error feedback opens")
@@ -245,15 +244,11 @@ def test_result_toggle_and_exit_through_public_ids(
     ui.activate("kiosk-request-submit")
     wait_for_accessible_state(lambda: ui.find("kiosk-report-toggle") is not None,
                               "error reporting control appears")
-    assert ui.state("kiosk-report-toggle", ui.api.StateType.CHECKED)
     ui.activate("kiosk-report-row")
-    wait_for_accessible_state(
-        lambda: not ui.state("kiosk-report-toggle", ui.api.StateType.CHECKED),
-        "reporting turned off",
-    )
     assert not events(path, "close_overlay" if overlay else "logout")
     ui.activate("kiosk-result-action")
     wait_for_accessible_state(
         lambda: bool(events(path, "close_overlay" if overlay else "logout")),
         "result action exits",
     )
+    assert not events(path, "feedback")

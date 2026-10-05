@@ -23,9 +23,9 @@ def open_parent(launch_ui, ui, wait, *, environment=None):
          "Parent controls load")
 
 
-@pytest.mark.parametrize('language', ['de', 'ru', 'zh-Hans', 'zh-Hant', 'pt',
-                                    'ar', 'fa', 'he', 'ug', 'ur', 'bn', 'hi', 'ta',
-                                    'th', 'ka', 'te', 'ml', 'pa'])
+# Catalogue integrity is exhaustive in test_localization; these UI samples
+# exercise retained work across Latin, CJK, RTL and complex-script changes.
+@pytest.mark.parametrize('language', ['de', 'zh-Hans', 'he', 'ta'])
 @pytest.mark.parametrize('dpi_scale', [1.25])
 def test_language_switch_preserves_parent_selection_numeric_draft_and_filters(
         launch_ui, automation, wait_for_accessible_state, request_display_scale,
@@ -58,24 +58,23 @@ def test_language_switch_preserves_parent_selection_numeric_draft_and_filters(
     wait(lambda: ui.find('parent-app-search') is not None
          and ui.state('parent-app-search', ui.api.StateType.SENSITIVE), 'catalogue ready')
     ui.focus('parent-app-search')
-    type_text(ui, 'parent-app-search', 'firefox')
+    type_text(ui, 'parent-app-search', 'minecraft')
+    wait(lambda: len(ui.reader.app_rows(EXISTING_CHILD)) == 2, 'search returns matching apps')
+    expected_rows = tuple(row for row in ui.reader.app_rows(EXISTING_CHILD)
+                          if row[2] == 'pattern')
+    assert len(expected_rows) == 1
     review_frame('parent-apps-' + language)
     ui.activate('parent-filter-match-rule')
     choice = 'parent-filter-match-rule-precise'
     wait(lambda: ui.showing(choice), 'filter opens')
-    before = ui.state(choice, ui.api.StateType.CHECKED)
     ui.activate(choice, action_name='check.toggle')
-    wait(lambda: ui.state(choice, ui.api.StateType.CHECKED) != before, 'filter changes')
     press_key(ui, choice, 'Escape', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.reader.app_rows(EXISTING_CHILD) == expected_rows, 'filter changes matching apps')
     # A second switch checks existing translated bindings without recreating data.
     switch_language(ui, wait, 'parent', 'ja')
     assert ui.showing('parent-child-selected-1002')
-    assert ui.content('parent-app-search') == 'firefox'
-    ui.activate('parent-filter-match-rule')
-    wait(lambda: ui.showing(choice), 'filter reopens')
-    assert ui.state(choice, ui.api.StateType.CHECKED) != before
-    ui.focus(choice)
-    press_key(ui, choice, 'Escape', state=ui.api.StateType.FOCUSED)
+    assert ui.content('parent-app-search') == 'minecraft'
+    assert ui.reader.app_rows(EXISTING_CHILD) == expected_rows
     review_frame('parent-apps-' + language + '-to-ja')
 
 

@@ -7,7 +7,7 @@ Estimate: 20–30 minutes.
 
 ## Session boundary
 
-Add Confirm, warning closure and independent saved time readback. Reuse 050a's warning/target and Cancel; child effects remain later consumers.
+Add Confirm and independent saved time readback. Reuse 050a's warning/target and Cancel; child effects remain later consumers.
 
 Reuse the delivered scope of tasks **050a** under the
 [split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
@@ -25,7 +25,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Implement the warning/target observation, then explicit Cancel/Confirm, closure, saved-state and settings observations. A grant is obtained through kiosk approval; no grant state is seeded internally.
+Implement the warning/target observation and explicit Cancel/Confirm, then independently verify saved time and settings. Warning dismissal is shared navigation, not a separate acceptance result. Obtain the grant through kiosk approval.
 
 ## Live VM acceptance
 

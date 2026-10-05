@@ -23,11 +23,8 @@ SCREENS = {
     'first-parent': 'ui:multiple-first-parent',
     'first-first-cancel': 'ui:multiple-first-first-cancel',
     'other-parent': 'ui:multiple-other-parent',
-    'first-other-cancel': 'ui:multiple-first-other-cancel',
     'other-child': 'ui:multiple-other-child',
     'other-other-cancel': 'ui:multiple-other-other-cancel',
-    'other-first-parent': 'ui:multiple-other-first-parent',
-    'other-first-cancel': 'ui:multiple-other-first-cancel',
     'cancel': 'ui:kiosk-request-cancel',
     'returned': 'ui:gdm-station-returned',
 }
@@ -38,8 +35,7 @@ PLAN = JourneyPlan(
             **{stage: 'step-2' for stage in (
                 'switch-user', 'gdm-switched', *station_entry(),
                 'first-child', 'first-parent', 'first-first-cancel', 'other-parent',
-                'first-other-cancel', 'other-child', 'other-other-cancel',
-                'other-first-parent', 'other-first-cancel', 'cancel', 'returned')}},
+                'other-child', 'other-other-cancel', 'cancel', 'returned')}},
     advance_after={'other-saved': 'step-2'},
 )
 
@@ -65,10 +61,6 @@ CASE_SCREENS = {}
 for stage, tag in SCREENS.items():
     if stage in ('wrong-entry', 'mate-wrong-entry'):
         continue
-    if stage == 'first-child':
-        CASE_SCREENS.update({f'{field}-{action}': f'ui:multiple-{field}-{action}'
-                            for field in ('child', 'approver')
-                            for action in ('open', 'closed')})
     if stage == 'cancel':
         CASE_SCREENS['preserved'] = 'ui:multiple-preserved'
     CASE_SCREENS[stage] = tag
@@ -78,11 +70,9 @@ CASE_PLAN = JourneyPlan(
     phases={'ready': 'setup', 'setup-detached': 'setup',
             **{stage: 'step-1' for stage in CASE_SCREENS}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in (
-                'child-open', 'child-closed', 'approver-open', 'approver-closed',
                 'first-child', 'first-parent')},
             **{stage: 'step-3' for stage in (
-                'first-first-cancel', 'other-parent', 'first-other-cancel', 'other-child',
-                'other-other-cancel', 'other-first-parent', 'other-first-cancel',
+                'first-first-cancel', 'other-parent', 'other-child', 'other-other-cancel',
                 'preserved', 'cancel', 'returned')}},
     advance_after={'installed-greeter': 'step-1', 'station-branch': 'step-2',
                    'first-parent': 'step-3'},

@@ -25,7 +25,7 @@ reopen before new input. Host-only direction assertions cannot pass this case.
 
 ## Shared implementation
 
-Reuse 306a/307a/307b operations in the established InstalledJourney/worker path. The case owns one finite history and its independent comparisons.
+Reuse 306a/307a/307b/307c operations in the established InstalledJourney/worker path. The case owns one finite history and its independent comparisons.
 
 The [Parent dialog qualification](../E2E-Building-Blocks.md#parent-inherited-dialog-qualification)
 supplies `AccessibleUI.parent_dialog_presentation` / `parent_dialog_operation`,
@@ -35,11 +35,18 @@ Reuse `onpc_text::replace_text` with `body-rtl` / `reply-rtl` and its guarded
 worker input. `ParentDialogLanguageJourney` / `DIALOG_PLAN` in
 `tests/e2e/parent_language.py` demonstrate the qualified fixed history; the case
 must declare its own endpoints and immutable comparisons through shared APIs.
-The qualified disabled-zero policy does not supply the recipe's enabled
-60-minute Hebrew management readback. Preflight confirmed that
-`PARENT_LANGUAGE_STATES`, `parent_language_state`, `time_explanation` and
-`duration_projection` accept English/Chinese enabled bindings only. Task 307c
-must qualify the exact Hebrew binding before this case is registered or composed.
+The [enabled Parent Hebrew policy binding](../E2E-Building-Blocks.md#enabled-parent-hebrew-policy-qualification)
+supplies `parent-language-riley-enabled-he`,
+`AccessibleUI.parent_language_state(child=..., enabled=True, language='he')`,
+`time_explanation` and `duration_projection` for Riley's enabled 60-minute
+allowance. `ParentHebrewPolicyJourney` / `HEBREW_POLICY_PLAN` in
+`tests/e2e/parent_language.py` demonstrate two independent public read entries
+per language, compared with one immutable English policy/name/balance capture.
+Reuse `language_composition.language_policy` with the declared 600-second elapsed
+bound and two-second refresh/formatter tolerance, plus
+`onpc_parent::language_presentation_roundtrip` for the qualified chooser mechanics.
+The complete case owns its capture endpoints, literal language expectations,
+finite history and policy/draft comparisons; this binding supplies no complete-case credit.
 
 ## Implementation entry
 

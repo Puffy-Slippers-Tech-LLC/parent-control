@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **307c — [Qualify enabled Parent Hebrew policy observations](E2E-Tasks/307c-parent-hebrew-policy.md)**.
+Next task: **307 — [Parent Hebrew presentation and inherited dialogs](E2E-Tasks/307-parent-language-presentation.md)**.
 
 Task 300's complete Chinese latest-install case 254 and both required
 current-install/native-auth regressions passed on Ubuntu 26.04, including
@@ -48,12 +48,14 @@ Task 307 composes the complete Parent history; capability qualification supplies
 no complete-case credit. Leave translated approval, panel/countdown and expiry
 work with their queued owners.
 
-Task 307 preflight confirmed that enabled 60-minute Parent policy and public
-balance observations accept English/Chinese only. Task 307c precedes the
-complete history to implement and qualify Riley's Hebrew binding; chooser and
-dialog qualification cannot supply that result. Task 307 remains unchecked and
-unregistered until this prerequisite passes. This is a test capability gap,
-not an observed product failure; no VM attempt was made during the queue repair.
+Task 307c qualified Riley's enabled 60-minute Parent English → Hebrew → English
+management, policy/name and numeric public-balance observations on Ubuntu 26.04,
+including two independent reads per language against one immutable English
+capture. Required enabled-policy isolation, chooser and public-time regressions
+passed. Collection, worker shutdown, owned cleanup, baseline restoration,
+finalization and preservation passed; the queue and language catalogue retain
+the exact scope and reports. Task 307 remains unchecked and unregistered;
+this prerequisite supplies no complete-case credit.
 
 The developer removed visual review from this and all future tasks while
 retaining the geometry prohibition. Follow the mandate's

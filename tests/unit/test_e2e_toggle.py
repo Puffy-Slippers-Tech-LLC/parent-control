@@ -434,6 +434,8 @@ def test_allowance_installed_sample_preserves_rejection_and_real_reopen_checks()
         assert stages.index(f'boundary-{value}-saved') < stages.index(f'boundary-{value}-reopen')
     for binding in ('over',):
         prefix = 'invalid-' + binding
+        assert PLAN.screen_tags[prefix + '-baseline-ready'] == 'ui:allowance-keyboard-15-ready'
+        assert PLAN.screen_tags[prefix + '-baseline-highlight-0'] == 'ui:allowance-keyboard-15-highlighted'
         assert PLAN.screen_tags[prefix + '-baseline-confirm'] == 'ui:allowance-keyboard-15-confirmed'
         assert PLAN.screen_tags[prefix + '-baseline-read'] == 'ui:allowance-15-read'
         assert PLAN.screen_tags[prefix + '-unchanged'] == 'ui:allowance-15-read'

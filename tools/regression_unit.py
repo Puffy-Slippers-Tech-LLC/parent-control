@@ -366,6 +366,8 @@ from regression_ui import Bucket
 # No VM, shared bus/path or new resource owner; its compatible classification stays.
 # Parent inherited-dialog checks extend the same private node/decoder/recorder
 # fixtures and waited Perl children; no new resource or lifetime is introduced.
+# Enabled Hebrew policy decoding/comparison extends those private fixtures and
+# waited worker children; no shared path, VM, bus or additional resource owner.
 REVIEWED = frozenset("""
 package_lifecycle_cleanup_safety
 package_purge_cleanup_safety

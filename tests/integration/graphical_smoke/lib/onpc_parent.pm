@@ -197,6 +197,24 @@ sub language_navigation {
     $journey->consume_observation($after, $journey->seen($after));
 }
 
+sub language_presentation_roundtrip {
+    onpc_progress::operation('Checking language keyboard navigation and independent reopened choice');
+    my ($journey, $prefix) = @_;
+    die 'parent:language-roundtrip-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /^[a-z][a-z0-9-]*$/;
+    language_selection($journey, $prefix);
+    language_navigation($journey, "$prefix-focus", "$prefix-tabbed");
+    for my $suffix ('save', 'state', 'reopen') {
+        my $stage = "$prefix-$suffix";
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    language_navigation($journey, "$prefix-refocus", "$prefix-retabbed");
+    for my $suffix ('cancel', 'preserved') {
+        my $stage = "$prefix-$suffix";
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+}
+
 sub qualify_rtl {
     onpc_progress::operation('Qualifying Parent Hebrew public text and keyboard navigation');
     my ($exchange) = @_;
@@ -207,17 +225,7 @@ sub qualify_rtl {
     $journey->consume_observation('initial-language', launch($journey, $desktop, 'initial-language'));
     $journey->consume_observation($_, $journey->seen($_)) for qw(initial-save initial-state);
     for my $prefix ('english-entry', 'hebrew', 'english-return') {
-        language_selection($journey, $prefix);
-        language_navigation($journey, "$prefix-focus", "$prefix-tabbed");
-        for my $suffix ('save', 'state', 'reopen') {
-            my $stage = "$prefix-$suffix";
-            $journey->consume_observation($stage, $journey->seen($stage));
-        }
-        language_navigation($journey, "$prefix-refocus", "$prefix-retabbed");
-        for my $suffix ('cancel', 'preserved') {
-            my $stage = "$prefix-$suffix";
-            $journey->consume_observation($stage, $journey->seen($stage));
-        }
+        language_presentation_roundtrip($journey, $prefix);
     }
     $journey->finish();
 }
@@ -265,6 +273,26 @@ sub qualify_dialog_language {
                 $journey->consume_observation($_, $journey->seen($_)) for ("$prefix-closed", "$prefix-refused");
             }
         }
+    }
+    $journey->finish();
+}
+
+sub qualify_hebrew_policy {
+    onpc_progress::operation('Qualifying enabled Parent English Hebrew English policy readback');
+    my ($exchange) = @_;
+    die 'parent:hebrew-policy-arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    require onpc_journey;
+    require onpc_allowance_boundaries;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'parent-hebrew-policy', review => 0);
+    my $desktop = login_functional($journey);
+    $journey->consume_observation('initial-language', launch($journey, $desktop, 'initial-language'));
+    $journey->consume_observation('initial-save', $journey->seen('initial-save'));
+    onpc_allowance_boundaries::select_child($journey, 'riley-setup', 'keyboard');
+    for my $stage (qw(riley-enabled riley-saved riley-allowance riley-before)) {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+    for my $prefix ('english-entry', 'hebrew', 'english-return') {
+        language_presentation_roundtrip($journey, $prefix);
     }
     $journey->finish();
 }

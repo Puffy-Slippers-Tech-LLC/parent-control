@@ -261,7 +261,64 @@ ISOLATION_PLAN = JourneyPlan(prefix='parent-language-isolation', worker_mode='pa
 ENABLED_LABELS = {
     'en': {'Screen Time Limit', 'Daily Time Allowance', "Today's Remaining Time"},
     'zh-Hans': {'限制屏幕时间', '每日可用时间', '今日剩余时间'},
+    'he': {'מגבלת זמן מסך', 'מכסת זמן יומית', 'הזמן שנותר היום'},
 }
+
+
+HEBREW_POLICY_SCREENS = {
+    **fresh_desktop('parent'), 'desktop': 'ui:parent-language-wrong-entry',
+    'parent-command': 'ui:parent-command-launch',
+    'initial-language': 'ui:parent-language-initial',
+    'initial-save': 'ui:parent-language-save',
+    **custom_child_selection('riley-setup', 'child', route='keyboard'),
+    'riley-enabled': 'ui:parent-toggle-enabled', 'riley-saved': 'ui:parent-save-enabled',
+    'riley-allowance': 'ui:parent-language-riley-allowance',
+    'riley-before': 'ui:parent-language-riley-enabled-en',
+}
+for prefix, selected in (('english-entry', 'en'), ('hebrew', 'he'), ('english-return', 'en')):
+    HEBREW_POLICY_SCREENS.update({
+        **selection(prefix, selected),
+        prefix + '-focus': 'ui:parent-language-presentation-focus',
+        prefix + '-tabbed': 'ui:parent-language-presentation-read',
+        prefix + '-save': 'ui:parent-language-save',
+        prefix + '-state': f'ui:parent-language-riley-enabled-{selected}',
+        prefix + '-reopen': 'ui:parent-language-open',
+        prefix + '-refocus': 'ui:parent-language-presentation-focus',
+        prefix + '-retabbed': 'ui:parent-language-presentation-read',
+        prefix + '-cancel': 'ui:parent-language-cancel',
+        prefix + '-preserved': f'ui:parent-language-riley-enabled-{selected}',
+    })
+HEBREW_POLICY_PLAN = JourneyPlan(prefix='parent-hebrew-policy', worker_mode='parent_hebrew_policy',
+    screen_tags=HEBREW_POLICY_SCREENS, phases={'ready': 'setup', 'setup-detached': 'setup',
+        **{stage: 'step-1' for stage in HEBREW_POLICY_SCREENS}, 'installed-greeter': 'start'},
+    invocations=tuple(HEBREW_POLICY_SCREENS))
+
+
+class ParentHebrewPolicyJourney(ParentRtlJourney):
+    """Finite enabled Riley history; shared comparisons, immutable English capture."""
+    def __init__(self, context, progress, plan=HEBREW_POLICY_PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        self.public_captures = {}
+
+    def check_settings(self, stage, observed):
+        from accessible_ui import PARENT_LANGUAGE_STATES
+        from language_composition import language_policy
+        operation = self.plan.screen_tags.get(stage, '')[3:]
+        if operation not in PARENT_LANGUAGE_STATES:
+            return super().check_settings(stage, observed)
+        InstalledJourney.check_settings(self, stage, observed)
+        require(stage not in self.language_captures, 'language:capture-replay')
+        child, selected = PARENT_LANGUAGE_STATES[operation]
+        require(child == 'child' and selected == self.committed, 'language:enabled-binding')
+        expected = {'child': 'fixture-child', 'account_name': 'Riley (Child)',
+            'limit_enabled': True, 'allowance_minutes': 60, 'chooser_absent': True,
+            'management': TEXTS[selected][4]}
+        language_policy(expected, capture='english' if stage == 'riley-before' else None,
+            same=None if stage == 'riley-before' else 'english', max_elapsed_seconds=600,
+            labels=ENABLED_LABELS[selected],
+            absent_labels=set().union(*(labels for key, labels in ENABLED_LABELS.items()
+                                        if key != selected)))(self, observed)
+        self.language_captures.add(stage)
 
 
 class ParentLanguageIsolationJourney(ParentLanguageJourney):

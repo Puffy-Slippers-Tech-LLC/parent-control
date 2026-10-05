@@ -265,6 +265,7 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
     import test_storage
 
     current_package = selector.removesuffix('.py') in (
+        'check_e2e_time_explanation',
         'check_e2e_chinese_current_install', 'check_e2e_kiosk_eligible_choices',
         'check_e2e_customer_reboot',
         'check_e2e_read_parent_information_links', 'check_e2e_feedback_read',

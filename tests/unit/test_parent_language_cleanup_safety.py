@@ -12,6 +12,7 @@ import check_e2e_parent_language as selector
 import check_e2e_parent_language_isolation as isolation_selector
 import check_e2e_parent_rtl as rtl_selector
 import check_e2e_parent_dialog_language as dialog_selector
+import check_e2e_parent_hebrew_policy as hebrew_policy_selector
 import check_graphical_smoke as smoke
 import installed_journey
 import parent_language as language
@@ -325,7 +326,8 @@ def test_isolation_mode_refuses_before_vm(extra):
         smoke.main(parent_language_isolation=True, **args)
 
 
-@pytest.mark.parametrize('name', ['check_e2e_parent_language', 'check_e2e_parent_language.py'])
+@pytest.mark.parametrize('name', ['check_e2e_parent_language', 'check_e2e_parent_language.py',
+    'check_e2e_parent_hebrew_policy', 'check_e2e_parent_hebrew_policy.py'])
 @pytest.mark.parametrize('existing', [False, True])
 def test_automatic_inputs_bind_current_source_and_preserve_existing(monkeypatch, name, existing):
     import tools.test_commands as commands
@@ -701,6 +703,133 @@ def test_isolation_actual_worker_sequence_and_refusal(fault):
     assert [event for event in result['events'] if event[0] == 'key'] == keys
 
 
+@pytest.mark.parametrize('fault', ['', 'renamed-focus', 'renamed-tabbed', 'renamed-reopen'])
+def test_shared_language_roundtrip_supports_independent_invocation(fault):
+    worker = WORKER.replace('onpc_parent::qualify_language(sub {',
+        "onpc_parent::language_presentation_roundtrip(onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {")
+    worker = worker.replace('    });\n    1;', "    }), 'renamed');\n    1;")
+    result = json.loads(run_perl(worker, fault).stdout)
+    stages = ['renamed-' + suffix for suffix in ('open', 'choose', 'candidate', 'focus', 'tabbed',
+        'save', 'state', 'reopen', 'refocus', 'retabbed', 'cancel', 'preserved')]
+    expected = stages if not fault else stages[:stages.index(fault) + 1]
+    assert [event[1] for event in result['events'] if event[0] == 'seen'] == expected
+    assert [event[1] for event in result['events'] if event[0] == 'title'] == [
+        'independent-' + stage for stage in expected]
+    assert bool(result['ok']) == (not fault), result['error']
+
+
+def test_hebrew_policy_selector_and_complete_composition(monkeypatch, tmp_path):
+    from parent_setup_qualification import ParentHebrewPolicyQualification
+    import e2e_worker
+    import tools.test_commands as commands
+    launch = Mock(return_value=0)
+    monkeypatch.setattr(hebrew_policy_selector, 'smoke', launch)
+    assert hebrew_policy_selector.main() == 0
+    launch.assert_called_once_with(assets=hebrew_policy_selector.ASSETS,
+        provision_credentials=True, parent_hebrew_policy=True)
+    context = SimpleNamespace(directory=tmp_path)
+    journey = ParentHebrewPolicyQualification.journey(context, Mock())
+    assert journey.plan is language.HEBREW_POLICY_PLAN
+    assert context.installed_snapshot.startswith('onpc-v')
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
+    monkeypatch.setattr(commands, 'allocate_artifact_output',
+                        Mock(return_value=str(hebrew_policy_selector.ASSETS)))
+    for name in ('check_e2e_parent_hebrew_policy', 'check_e2e_parent_hebrew_policy.py'):
+        assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name])[-1] == str(hebrew_policy_selector.ASSETS)
+    assert set(journey.plan.phases) == set(journey.plan.stages)
+    assert all(tag[3:] in public.OPERATIONS and tag[3:] in OPERATION_LABELS
+               for tag in journey.plan.screen_tags.values())
+    distribution = e2e_worker.distribution_inputs()
+    assert b'qualify_hebrew_policy' in distribution['lib/onpc_parent.pm']
+    assert b'parent_hebrew_policy' in distribution['tests/smoke.pm']
+
+
+@pytest.mark.parametrize('extra', [{}, {'parent_language': True}, {'parent_rtl': True},
+                                  {'fresh_desktop': 'parent'}, {'approval_flow': 'cancel'}])
+def test_hebrew_policy_mode_refuses_before_vm(extra):
+    args = {'assets': 'inputs', 'provision_credentials': True, **extra} if extra else {}
+    with pytest.raises(CommandError, match='parent-hebrew-policy-prerequisites'):
+        smoke.main(parent_hebrew_policy=True, **args)
+
+
+@pytest.mark.parametrize('fault', ['', *list(language.HEBREW_POLICY_SCREENS)[4:]])
+def test_hebrew_policy_real_worker_order_titles_and_terminal_refusal(fault):
+    worker = WORKER.replace('onpc_parent::qualify_language(', 'onpc_parent::qualify_hebrew_policy(')
+    worker = worker.replace('return {observed => $stage};',
+        'return {observed => $stage, ui_focused => JSON::PP::true};')
+    result = json.loads(run_perl(worker, fault).stdout)
+    stages = list(language.HEBREW_POLICY_SCREENS)[4:]
+    expected = stages if not fault else stages[:stages.index(fault) + 1]
+    assert [event[1] for event in result['events'] if event[0] == 'seen'] == expected
+    assert [event[1] for event in result['events'] if event[0] == 'title'] == [
+        'parent-hebrew-policy-' + stage for stage in expected]
+    assert bool(result['ok']) == (not fault), result['error']
+    assert (['finish'] in result['events']) == (not fault)
+    keys = []
+    for index, stage in enumerate(expected[:-1]):
+        if stage == 'riley-setup-ready': keys.append(['key', 'spc'])
+        elif stage == 'riley-setup-focus': keys.append(['key', 'ret'])
+        elif stage.endswith(('-focus', '-refocus')): keys.append(['key', 'tab'])
+    assert [event for event in result['events'] if event[0] == 'key'] == keys
+
+
+@pytest.mark.parametrize('fault', ['', 'uid', 'disabled', 'allowance', 'language', 'number', 'extra'])
+def test_hebrew_policy_actual_decoder_terminal_refusal(fault):
+    value = enabled_value(selected='he')
+    if fault == 'uid': value['child'] = 'existing-fixture-child'
+    if fault == 'disabled': value['limit_enabled'] = False
+    if fault == 'allowance': value['allowance_minutes'] = 30
+    if fault == 'language': value['balances']['daily']['text'] = '1h'
+    if fault == 'number': value['balances']['daily']['seconds'] = 3599
+    if fault == 'extra': value['balances']['private'] = True
+    operation = 'parent-language-riley-enabled-he'
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'language_state': value}
+    observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(payload).encode())))
+    if fault:
+        with pytest.raises(EvidenceError): observer.observe(operation)
+        with pytest.raises(EvidenceError, match='previous-failure'): observer.observe(operation)
+    else:
+        assert observer.observe(operation) == payload
+
+
+@pytest.mark.parametrize('stage,selected', [('english-entry-state', 'en'),
+    ('english-entry-preserved', 'en'), ('hebrew-state', 'he'), ('hebrew-preserved', 'he'),
+    ('english-return-state', 'en'), ('english-return-preserved', 'en')])
+@pytest.mark.parametrize('fault', ['', 'uid', 'disabled', 'allowance', 'language', 'policy',
+    'name', 'grant', 'unequal', 'elapsed', 'decrease', 'replay', 'missing-baseline'])
+def test_hebrew_policy_real_recorder_preserves_immutable_baseline_before_reply(tmp_path, stage, selected, fault):
+    journey = language.ParentHebrewPolicyJourney(SimpleNamespace(directory=tmp_path), Mock())
+    baseline = enabled_value()
+    if fault != 'missing-baseline':
+        journey.check_settings('riley-before', {'ui': {'language_state': baseline}})
+        baseline['app_names'][0][1] = 'mutated input'
+        assert journey.public_captures['english'][0]['app_names'][0][1] == 'Fixture application'
+    journey.committed = journey.candidate = selected
+    journey.steps = [{'stage': item} for item in journey.plan.stages[:journey.plan.stages.index(stage)]]
+    journey.boot = 'a' * 64
+    value = enabled_value(selected=selected, elapsed=10)
+    if fault == 'uid': value['child'] = 'existing-fixture-child'
+    if fault == 'disabled': value['limit_enabled'] = False
+    if fault == 'allowance': value['allowance_minutes'] = 30
+    if fault == 'language': value['management'] = language.TEXTS['de'][4]
+    if fault == 'policy': value['rows'][0][1] = 'permanent'
+    if fault == 'name': value['app_names'][0][1] = 'changed app'
+    if fault == 'grant': value['balances']['one_time']['seconds'] = 1
+    if fault == 'unequal': value['balances']['total']['seconds'] = 3599
+    if fault == 'elapsed': value['balances']['observed_monotonic_ns'] = 701 * 10**9
+    if fault == 'decrease':
+        value['balances']['daily']['seconds'] = value['balances']['total']['seconds'] = 3500
+    if fault == 'replay': journey.language_captures.add(stage)
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={'language_state': value}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+
+
 def enabled_value(child='child', selected='en', elapsed=0):
     account = public.NAMED_CUSTOM_CHILDREN[child]
     value = state_value(selected)
@@ -711,7 +840,8 @@ def enabled_value(child='child', selected='en', elapsed=0):
         balances={'child': public.CHILD_IDENTITIES[account], 'expanded': True,
                   'observed_monotonic_ns': (100 + elapsed) * 10**9})
     for key, seconds in (('daily', 3600), ('one_time', 0), ('total', 3600)):
-        text = ('1h' if seconds else '0m') if selected == 'en' else ('1小时' if seconds else '0分钟')
+        text = {'en': ('1h', '0m'), 'zh-Hans': ('1小时', '0分钟'),
+                'he': ('1ש׳', '0דק׳')}[selected][not seconds]
         value['balances'][key] = public.duration_projection(text, language=selected)
     return value
 
@@ -864,9 +994,17 @@ def test_public_policy_projection_reads_translated_allowance_without_changing_se
 
 
 @pytest.mark.parametrize('child', ['child', 'existing'])
-@pytest.mark.parametrize('selected_language', ['en', 'zh-Hans'])
+@pytest.mark.parametrize('selected_language', ['en', 'zh-Hans', 'he'])
 @pytest.mark.parametrize('fault', ['', 'wrong-child', 'wrong-allowance', 'disabled', 'stale'])
 def test_enabled_state_reader_requires_explicit_child_and_translated_allowance(child, selected_language, fault):
+    if selected_language == 'he' and child != 'child':
+        with pytest.raises(public.UiError, match='language-state-binding'):
+            # The unqualified Jordan/Hebrew enabled binding remains refused.
+            ui, *_ = chooser_tree()
+            ui.language_save_completed = Mock()
+            ui.parent_initial_selection = Mock(return_value='existing-fixture-child')
+            ui.parent_language_state(child=public.EXISTING_CHILD, enabled=True, language='he')
+        return
     account = public.NAMED_CUSTOM_CHILDREN[child]
     uid = 1001 if child == 'child' else 1002
     selected = Node(identity=f'parent-child-selected-{uid}', children=[Node(account, 'label')])
@@ -875,7 +1013,7 @@ def test_enabled_state_reader_requires_explicit_child_and_translated_allowance(c
     toggle = Node(language.TEXTS[selected_language][4], identity='parent-screen-limit-toggle',
                   states=('visible', 'showing', 'sensitive', 'checked'))
     if fault == 'disabled': toggle.states.remove('checked')
-    label = '1 hour' if selected_language == 'en' else '1 小时'
+    label = {'en': '1 hour', 'zh-Hans': '1 小时', 'he': '1 שעה'}[selected_language]
     if fault == 'wrong-allowance': label = '30 minutes'
     amount = Node(identity='parent-daily-limit-selector', children=[Node(label, 'label')])
     screen, apps = Node(identity='parent-page-screen-limits'), Node(identity='parent-page-app-limits')
@@ -934,7 +1072,8 @@ def test_real_recorder_step_validates_before_reply_and_freezes_policy(tmp_path, 
 
 @pytest.mark.parametrize('fault', ['', 'meaning', 'durability'])
 @pytest.mark.parametrize('journey_type', [language.ParentLanguageJourney,
-    language.ParentLanguageIsolationJourney, language.ParentRtlJourney])
+    language.ParentLanguageIsolationJourney, language.ParentRtlJourney,
+    language.ParentHebrewPolicyJourney])
 def test_real_recorder_entry_accepts_custom_plan_and_refuses_before_reply(
         session, tmp_path, monkeypatch, fault, journey_type):
     expected = session.payload['assertions'][0]

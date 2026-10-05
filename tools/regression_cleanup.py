@@ -134,6 +134,8 @@ from regression_resources import HOST_WORKERS
 # Parent Hebrew text/focus refusals use the existing private node/recorder
 # fixtures and waited Perl worker probes. No new protected operation or owner;
 # parent_language stays compatible in cleanup and unit inventories.
+# Enabled Hebrew policy uses the same private recorder/node fixtures and waited
+# worker probes; no protected operation, live owner or shared state is added.
 REVIEWED = frozenset('''
 package_lifecycle
 package_purge

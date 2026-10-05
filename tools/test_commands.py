@@ -427,6 +427,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_parent_rtl'], ['check_e2e_parent_rtl.py'],
             ['check_e2e_parent_dialog_language'], ['check_e2e_parent_dialog_language.py'],
             ['check_e2e_parent_language_isolation'], ['check_e2e_parent_language_isolation.py'],
+            ['check_e2e_parent_hebrew_policy'], ['check_e2e_parent_hebrew_policy.py'],
             ['check_e2e_kiosk_language'], ['check_e2e_kiosk_language.py'],
             ['check_e2e_kiosk_language_restoration'], ['check_e2e_kiosk_language_restoration.py'],
             ['check_e2e_overlay_language'], ['check_e2e_overlay_language.py'],
@@ -549,6 +550,7 @@ def qualification_artifact_command(root, category, args):
         ['check_e2e_policy'], ['check_e2e_policy.py'],
         ['check_e2e_policy_legend'], ['check_e2e_policy_legend.py']) else
         named_input(package_source=True) if args in (
+        ['check_e2e_time_explanation'], ['check_e2e_time_explanation.py'],
         ['check_e2e_chinese_current_install'], ['check_e2e_chinese_current_install.py'],
         ['check_e2e_customer_reboot'], ['check_e2e_customer_reboot.py'],
         ['check_e2e_shell_panel'], ['check_e2e_shell_panel.py'],
@@ -557,6 +559,7 @@ def qualification_artifact_command(root, category, args):
         ['check_e2e_parent_rtl'], ['check_e2e_parent_rtl.py'],
         ['check_e2e_parent_dialog_language'], ['check_e2e_parent_dialog_language.py'],
         ['check_e2e_parent_language_isolation'], ['check_e2e_parent_language_isolation.py'],
+        ['check_e2e_parent_hebrew_policy'], ['check_e2e_parent_hebrew_policy.py'],
         ['check_e2e_read_parent_information_links'], ['check_e2e_read_parent_information_links.py'],
         ['check_e2e_feedback_read'], ['check_e2e_feedback_read.py'],
         ['check_e2e_text'], ['check_e2e_text.py'],

@@ -1420,6 +1420,16 @@ class ParentDialogLanguageQualification(KioskEntryQualification):
         return ParentDialogLanguageJourney(context, progress)
 
 
+class ParentHebrewPolicyQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from parent_language import ParentHebrewPolicyJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ParentHebrewPolicyJourney(context, progress)
+
+
 class ParentLanguageIsolationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

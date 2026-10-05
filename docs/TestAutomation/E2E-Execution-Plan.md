@@ -79,8 +79,12 @@ for this known exclusion. This records no acceptance pass.
 
 Apply the [UI/E2E allocation](UI-and-E2E-Coverage.md) and
 [result-oriented mandate](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope):
-UI tests cover representative choices, meaningful boundaries and final functional
-results. E2E adds the distinct installed integration results. Popup, focus,
+UI tests cover individual control behavior, representative choices and meaningful
+local boundaries. E2E verifies realistic customer journeys and their meaningful
+outcomes; UI operations serve those journeys. Simplify completed and planned
+operation sequences as well as assertions, retaining the steps needed to reach
+and independently observe the outcome. An installed widget sample is not a
+separate E2E obligation. Popup, focus,
 typing and rendering minutiae are removed from both layers, including retained
 implementations; historical qualification details above do not require them in
 future work. Pending functional obligations stay in existing capability tasks.
@@ -97,7 +101,9 @@ That historical set is not the current runnable inventory. Delivered scopes and
 their evidence stay in the queue/catalogue; future shared changes follow the
 [live regression policy](E2E-Execution-Contracts.md#live-verification-contract).
 
-Preserve the customer assertions and registered bindings; supporting routes
+Preserve the customer assertions and registered bindings, except explicitly
+[reallocated UI-only coverage](UI-and-E2E-Coverage.md#duplicate-review-and-allocation);
+supporting routes
 follow the current mandate. A checked queue task records its delivered scope;
 it does not override a later `pending` block or scenario status. Future shared
 changes retain their affected regression requirements. A capability run or
@@ -227,8 +233,9 @@ Before implementation, read the
 [system](E2E-Execution-Contracts.md#system-acceptance) acceptance branch.
 They retain snapshot preparation, watch, isolated safety gates, affected
 regressions, public-result observation, collection and cleanup requirements.
-Host checks cannot complete queued live work. Historical task 192 is the sole
-host-only queue exception. Documentation reconciliation follows the
+Host checks cannot complete queued live work. Explicit UI obligations follow
+[UI acceptance](E2E-Execution-Contracts.md#ui-acceptance); historical task 192
+retains its host-only exception. Documentation reconciliation follows the
 [separate working route](README.md#working-route) and closes no queue row.
 
 ## Completion and document cleanup

@@ -145,9 +145,9 @@ Large durations test selection and displayed arithmetic without waiting to expir
 | Data | Complete finite set / expected result |
 | --- | --- |
 | Daily presets (158) | Select/read 15 minutes. UI samples 0, 60, 90 and 1410 through the shared operation; preset list and keyboard mapping completeness remain lower-layer coverage. |
-| Daily custom (158) | Accept 1; reject 1441 with saved 15, then reopen and read 15. UI tests retain 0, 1, 15, 1439 and invalid empty, abc, −1, 0.5, 1440, 1441. The API's 1440 allowance remains engineering coverage. |
-| Daily saving (159) | From Jordan's enabled zero, select 15 minutes through the shared allowance block and verify saved 15. Choose Custom and enter valid 5 followed promptly by 6; final saved value is 6. Switch to Riley, save custom 7, return and read Jordan=6/Riley=7. Launch Parent again without closing it: PARENT01 → UI13(one management window) → PARENT03/UI12(same selected child and values). Close/reopen and repeat the value read. Real save ordering stays here; popup, focus, intermediate draft, Saving and temporary control availability are automation mechanics rather than acceptance. |
-| E2E-005 profiles | daily-only: positive daily, no grant; grant-only: zero daily with real 10-minute approval before edits; combined: positive daily plus a real 10-minute addition. Enabled edits: daily-only/combined 4→5→0→5 minutes; grant-only 0→4→0. At zero, daily-only must deny access while combined retains its grant. Re-read actual D and the original grant deadline; if navigation exhausts a required margin, fail preparation rather than inject usage. |
+| Daily custom (158) | Save custom 1 after preset 15; reopen and read the final saved 1. UI tests own invalid-input rejection, including preservation of the last saved value, and the complete custom boundary set. The API's 1440 allowance remains engineering coverage. |
+| Daily saving (159) | From Jordan's enabled zero, save 15, then custom 5 followed promptly by 6; final saved value is 6. Save Riley custom 7, return and read Jordan=6/Riley=7. Close/reopen and repeat the per-child read. Real save ordering stays here; singleton window, popup, focus, intermediate draft, Saving and temporary control availability belong to shared UI qualification. |
+| E2E-005 profiles | daily-only: positive daily, no grant; grant-only: zero daily with real 10-minute approval before edits; combined: positive daily plus a real 10-minute addition. Enabled edits: daily-only/combined 4→5→0 minutes; grant-only 0→4→0. Read saved allowance and original grant deadline after each edit; visit the child at the positive and zero access boundaries. At zero, daily-only must deny access while combined retains its grant. If navigation exhausts a required margin, fail preparation rather than inject usage. |
 | Request presets (38/41) | Select 5 minutes, read its footer and actual approval prompt, then approve. UI tests own all 5, 15, 30, 60, 120, 240 choices on both surfaces. |
 | Request custom (39/42) | Reject 0.09 locally, then request and approve 1.25 minutes (75 seconds). UI tests own valid 0.1, 0.5, 1.25, 1440 and invalid empty, abc, −1, 0, 0.09, 1440.1, comma decimal 1,5, including whole-second display conversion. |
 | Rest of the day (40/43) | First approve a 1440-minute fixed grant, read its later deadline, then choose/approve Rest of the day. Read PARENT09 before and after: the replacement interval is shorter and the footer says until midnight. Calendar cases own the exact deadline check. No 24-hour wait. |
@@ -272,7 +272,7 @@ Bindings: time = daily-only / grant-only / combined; session = new / retained.
 
 1. P0 → FLOW03(allowed and hard targets) → FLOW02(profile allowance, final off). Retained: C(fresh) → FLOW08(allowed) → APP04 → P(retained).
 2. UI17(on) → PARENT08 → PARENT09 → C(variant entry, expected access) → access-check. Grant profiles: G → FLOW06(short grant) → P(retained) → PARENT09.
-3. For each enabled allowance edit in the transition table: P → PARENT06 → PARENT08 → PARENT09 → C → TIME01 or GDM06(expected access) → leave-child → P. Compare the saved allowance, actual balances and preserved grant deadline after every edit; sample app launches at the enable/disable transitions rather than after each allowance-only save.
+3. Save the positive allowance edit and then zero through PARENT06 → PARENT08 → PARENT09, comparing the saved allowance, actual balances and preserved grant deadline. Visit C at the positive and zero boundaries to require the declared access result. Leave through the declared route before returning to P; sample app launches at the enable/disable transitions.
 4. Repeat(off,on): UI17 → PARENT08 → PARENT09 → C → access-check → leave-child. Read saved settings in Parent at finish.
 
 ### E2E-006
@@ -339,29 +339,28 @@ Bindings: foreground = parent / other-child.
 
 Implementation status: All cases pending.
 
-**Countdown and visibility transitions.** Cases 27, 28, 29.
+**Plan child activity with the remaining-time countdown.** Cases 27, 28, 29.
 
 Bindings: time = daily-only / grant-only / combined.
 
-1. FLOW13(profile) → P → PARENT09 → C(fresh) → TIME01 → PANEL03.
-2. DESK05 → TIME01(absent) → DESK08(success) → TIME01 → DESK03 → TIME01(absent) → V(Riley,fresh) → TIME01(absent) → C(retained).
-3. TIME02(minute and seconds); TIME04 only if the declared interval reaches expiry.
+1. FLOW13(profile) → P → PARENT09 → C(fresh) → TIME01 → FLOW08(allowed activity) → APP04.
+2. DESK05 → DESK08(success) → TIME01 → APP04(compare retained activity). Compare the updated countdown against the earlier balance and actual elapsed time; return cannot reset the usable interval.
+3. Use the activity through TIME02(minute and final seconds) → TIME04(natural lock). Remaining-time information must predict the end of usable desktop access. Countdown visibility across unrelated surfaces and tooltip wording remain child UI coverage.
 
 ### E2E-012
 
 Implementation status: All cases pending.
 
-**Single child overlay and selected-parent approval.** Cases 30, 31, 32, 33.
+**Request more time from the panel with the selected parent.** Cases 30, 31, 32, 33.
 
 Bindings: soft-apps = excluded / included; approver = first / second.
 
-REQUEST13's repeated entry uses the shared `overlay_entry(..., 'panel-reopen')`
-binding to activate the panel control and independently reread the singleton
-fixed-child form. Any panel reveal, focus and Overview/Escape handling belongs
-inside that shared input route. The ordinary first panel entry uses `panel`;
-supporting overlay entries use `command`.
+REQUEST13 uses the shared `panel` entry to open the fixed-child request. Panel
+reveal, focus and any necessary Overview/Escape handling belong inside that
+shared input route. Repeated panel input and singleton-form qualification stay
+with child UI coverage; ordinary later entries use `command`.
 
-1. FLOW13(combined, soft included) → C → FLOW08(soft) → APP04 → REQUEST13 twice (explicit panel launch and singleton check) → REQUEST03(fixed child,one form).
+1. FLOW13(combined, soft included) → C → FLOW08(soft) → APP04 → REQUEST13 once (explicit panel entry) → REQUEST03(fixed child).
 2. REQUEST04(approver,duration) → REQUEST06(soft choice) → REQUEST08 → REQUEST09 → AUTH01(exact prompt).
 3. AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic) → TIME01 → APP02(soft effect) → FLOW08(hard/soft). After TIME03(cooldown): REQUEST02 → REQUEST09 → AUTH02(cancel) → REQUEST11(cancel) → REQUEST12(cancel).
 
@@ -582,7 +581,7 @@ Implementation status: All cases pending.
 Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / second.
 
 1. FLOW16 for both children (ample daily time). Establish distinct surface approvers through request-entry → REQUEST04 → REQUEST12. Starting child: FLOW04(custom,soft choice) → REQUEST03(capture).
-2. FLOW12(other surface) → REQUEST03 → UI12(shared fields,local approver) → UI11(mute).
+2. FLOW12(other surface) → REQUEST03 → UI12(shared fields,local approver).
 3. REQUEST12 → request-entry(other child) → FLOW04 choices → REQUEST03(capture). Return in both directions with FLOW12 and read/compare before editing.
 
 ### E2E-019
@@ -712,17 +711,17 @@ the four-minute → five-minute reapplication binding below remain independent.
 Implementation status: Case 151 retains its complete implementation and ready
 inventory binding.
 
-**Installed About and license access.** Cases 151.
+**Identify the installed product and return to management.** Cases 151.
 
 Bindings: surface = parent.
 
-1. FLOW01(child) → ABOUT01 → ABOUT02.
-2. ABOUT03(previous child/settings observation). Established phase timing is unchanged.
+1. FLOW01(child) → ABOUT01(product, installed version and license information).
+2. ABOUT03(previous child/settings observation). Close only About and compare the selected child and settings before further input.
 
-ABOUT02 checks only the license link's clickability; it neither invokes the link
-nor reads its URI/destination. ABOUT03 reads the owned footer and closes only
-About. Legacy `license`/`license-closed` stage names remain for recorder
-compatibility and no longer describe an external launch/close.
+Link clickability and the full information-control matrix belong to shared UI
+coverage. This journey identifies the installed release and license and resumes
+management. It does not establish external-handler or installed-license opening
+acceptance; those obligations retain their qualification owner.
 
 ### E2E-031
 
@@ -738,7 +737,7 @@ owned cleanup. Case 155 passed its complete export journey in
 
 Bindings: flow = draft-reopen / validation / attachments / diagnostic-export.
 
-1. P0; draft: FEED01 → UI16(body,email) → FEED04(bold) → UI16(emoji) → FEED06(single file) → FEED03; validation: FEED01 → FEED09(empty rejection) → UI16(body,email); attachments: FEED01 → FEED06(two files, then Cancel) → FEED07; export: FEED01 → FEED09(finished diagnostics and Download available) → FEED08 with chooser cancel/failure/success branches.
+1. P0; draft: FEED01 → UI16(body,email) → FEED04(bold) → UI16(emoji) → FEED06(single file) → FEED03; validation: FEED01 → FEED09(empty rejection) → UI16(body,email); attachments: FEED01 → FEED06(two files) → FEED07; export: FEED01 → FEED09(finished diagnostics and Download available) → FEED08 with chooser cancel/failure/success branches.
 2. Draft: DESK10(feedback) → FEED05 → FEED10(dialog,compare) → FEED10(app-exit,reset). Validation: FEED10(dialog) → FEED09(recovered valid state). Attachments: FEED13(remove one) → FEED07(remaining file). Never FEED11.
 
 Case 152 binds `parent_feedback_draft.PLAN`: type `body-first`, apply bold to
@@ -752,8 +751,8 @@ reply address, formatting and customer-file list after Parent exits/relaunches,
 before any new input. Fresh diagnostics remain separate from the customer draft.
 
 Case 153 rejects an empty send, then types the shared ordinary body and reply.
-Closing/reopening clears the earlier validation status through the public dialog;
-the final public read establishes recovery. The full ASCII/emoji, hidden-character,
+Closing/reopening must retain the authored body/reply and recover the usable
+draft after the refused empty submission. The full ASCII/emoji, hidden-character,
 reply and excessive-formatting matrices stay in UI tests. No backend reset or
 valid submission is permitted. Stage bindings live in
 `parent_feedback_validation.PLAN`.
@@ -832,9 +831,8 @@ Bindings: flow = boundaries / save-order.
 
 Cases 158 and 159 compose `journey_blocks.allowance_selection` and
 `onpc_allowance_selection::select`, the same block used by host UI through
-`tests.support.gui_blocks.select_allowance`. Case 158 chooses preset 15,
-restores its rejected-draft baseline and chooses Custom through this block.
-Reopening the custom editor reads its exact saved value. Case 159 starts from
+`tests.support.gui_blocks.select_allowance`. Case 158 saves preset 15 and then
+custom 1 through this block; reopening reads the final saved 1. Case 159 starts from
 Jordan's enabled saved zero, selects 15 minutes and verifies saved 15.
 Choose Custom with the same block, then perform rapid 5→6.
 Riley's custom 7 entry and the named-child/rapid-save qualifications reuse the
@@ -843,25 +841,27 @@ same block. All UI and E2E tests follow the
 popup/highlight/cancellation assertions and alternate choice-selection routes
 are excluded.
 
-1. P → PARENT03(off,zero,editor disabled) → FLOW16(allowance=0,final=on).
-2. boundaries: installed samples from the allowance table {PARENT06 → PARENT08 → PARENT03 → UI12}; save-order: PARENT06(rapid edits) → PARENT08(saved final value) → PARENT02(other), retaining real save ordering and single-instance checks.
+1. P → PARENT03(off,zero) → FLOW16(allowance=0,final=on).
+2. boundaries: save preset 15, then custom 1 through PARENT06 → PARENT08 → PARENT03 → UI12; save-order: PARENT06(rapid edits) → PARENT08(saved final value) → PARENT02(other), retaining real save ordering. Local rejection and repeated-launch singleton behavior remain shared UI coverage.
 3. LIFE01(Parent) → PARENT02(each child) → PARENT03 → UI12(last accepted values).
 
 ### E2E-036
 
-Implementation context: Case 161 composes `zero_total.PLAN` and
-`onpc_zero_total::run`, using FLOW16's fresh-zero binding and
-`AccessibleUI.revoke_disabled` for read-only idle availability/zero balances.
-It observes the saved off state and retained zero allowance; case 160 remains
-separate. Runtime status and executable bindings are owned by the inventory.
+Case 161's historical `zero_total.PLAN` / `onpc_zero_total::run` established
+local zero-balance Revoke availability, with no customer journey. It is excluded
+from E2E scheduling and has no executable inventory binding. Its current owner
+is `tests/ui/test_preview_smoke.py::test_parent_zero_balance_keeps_revoke_unavailable_with_limits_on_and_off`,
+which passed focused UI validation. The stable case ID and completed task history
+remain; no replacement E2E task is created. Case 160 retains the actual daily-only
+revocation result below.
 
 **Revoke when there is no active grant.** Cases 160, 161.
 
 Bindings: balance = daily-positive / zero-total.
 
-1. daily-positive: FLOW13(grant-only,soft included) → C → FLOW08(soft) → APP04 → P → FLOW02(positive daily,off) → UI17(on) → PARENT08 → PARENT09(G=0). zero-total: FLOW16(on,0) → PARENT09.
-2. PARENT08(idle) → UI02(Revoke). Positive: PARENT17 → PARENT18(cancel) → C → APP04 → P → PARENT17 → PARENT18(confirm). Zero: UI02(disabled), then UI17(off) → PARENT08 → UI02(disabled).
-3. Positive: PARENT09(D unchanged,G=0) → C → APP02(soft closed) → FLOW08(allowed usable,soft/hard denied). Zero: PARENT03(saved allowance retained).
+1. Case 160: FLOW13(grant-only,soft included) → C → FLOW08(soft) → APP04 → P → FLOW02(positive daily,off) → UI17(on) → PARENT08 → PARENT09(G=0).
+2. PARENT17 → PARENT18(cancel) → C → APP04 → P → PARENT17 → PARENT18(confirm).
+3. PARENT09(D unchanged,G=0) → C → APP02(soft closed) → FLOW08(allowed usable,soft/hard denied).
 
 ### E2E-037
 
@@ -871,9 +871,9 @@ Implementation status: All cases pending.
 
 Bindings: boundary = sign-out-in / reboot.
 
-1. FLOW16(each child,6 daily minutes) → C(first) → PANEL03 → PANEL01(default off) → PANEL02(on).
-2. REQUEST02 → REQUEST12(cancel) → TIME01; DESK04 → C(fresh) or LIFE02 → C(fresh); PANEL01 → UI02(on) → UI05(Escape).
-3. C(second) → PANEL01(off) → UI05(Escape); C(first) → PANEL01 → PANEL02(off) → PANEL01 → PANEL02(on) → FLOW08(allowed) → TIME04.
+1. FLOW16(each child,6 daily minutes) → C(first) → TIME01 → PANEL01(default off) → PANEL02(on).
+2. DESK04 → C(fresh) or LIFE02 → C(fresh); read the persisted on choice through PANEL01, close the menu and compare remaining time against actual elapsed time.
+3. C(second) → PANEL01(off), then return to C(first) → FLOW08(allowed) → TIME04. The saved personal choice must neither change the peer's choice nor grant time, alter app policy or prevent natural locking. Menu mechanics and repeated off/on samples remain child UI coverage.
 
 ### E2E-038
 
@@ -955,32 +955,30 @@ owned cleanup and baseline restoration. This supplies no acceptance for other fl
 
 ### E2E-042
 
-Implementation context: Parent uses shared `AccessibleUI.check_parent_help`,
-`open_about(menu_open=True)` and `check_parent_information`, with
-`onpc_about::read_help`, `open_from_help`, `check_link` and `return_to_parent`.
-`INFORMATION_PLAN` in `license_viewer_provider.py` qualifies these operations.
-Case 190 declares `parent_information.PLAN` and composes them through
-`onpc_parent_about::run_links`, with fresh Parent entry, captured child/settings,
-owned About close and the shared settings comparison. It uses the common
-installed journey deadlines and keeps capture, information and return in
-separate recorder steps, without importing the qualification's fixture lifecycle.
+Case 190's original Parent Help/About control checks are reallocated to
+`tests/ui/test_about_release.py::test_about_displays_release_notices` and shared
+UI coverage. Its stable ID remains pending and excluded from E2E scheduling,
+with no executable binding or replacement E2E task. The historical
+`parent_information.PLAN` / `onpc_parent_about::run_links` qualification remains
+engineering context. Rewriting it as About information and management return
+would duplicate [case 151](#e2e-030), which owns that installed customer result.
 Case 192 uses `kiosk_about.PLAN`,
 `request_composition.KioskRequestJourney` and `onpc_kiosk_about::run`; case 193 uses
 `command_help.PLAN`. Current executable status belongs in the inventory.
 
 Overlay information uses `journey_blocks.overlay_license_read(links='information')`
 and `onpc_about::overlay_license` with the same finite binding. The fragment
-checks Help, enters owned About from the open menu, reads website, privacy,
-support, license and legal-notices clickability, then closes only About and
-reads the returned form. `overlay_license.INFORMATION_PLAN` qualifies independent
+enters owned About, reads product/version and legal/contact information,
+then closes only About and reads the returned form. The full link-control
+qualification remains shared UI scope. `overlay_license.INFORMATION_PLAN` qualifies independent
 entries; case 191 supplies its own entry, finite choices, capture/return
 endpoints and phases through `KioskRequestJourney.request_checks`.
 
 Case 191 declares `overlay_about.PLAN` and `onpc_parent_about::run_overlay`. Fresh
 Parent entry saves a 30-minute allowance with limits on, then fresh child entry
 opens the overlay directly. FLOW04 selects Jamie, custom 1.25 minutes and soft
-apps included before capture. The information fragment checks Help and all five
-About links, closes only About and compares the captured form. Normal Cancel
+apps included before capture. The information fragment reads installed information,
+closes only About and compares the captured form. Normal Cancel
 returns to the child desktop. Setup/capture, information and unchanged-form
 return occupy separate recorder phases; no qualification lifecycle is imported.
 
@@ -988,9 +986,9 @@ return occupy separate recorder phases; no qualification lifecycle is imported.
 
 Bindings: surface = parent-links / child-overlay / kiosk / command-help.
 
-1. Parent P0 → PARENT03(capture); overlay/station FLOW16(on,30) → request-entry(surface) → REQUEST03(capture); command-help V(parent) → qualified desktop.
-2. Parent/overlay INFO01(Help clickability) → ABOUT01 → INFO01(website,privacy,support,license,legal clickability as offered). Never invoke external links or inspect their URIs/destinations. Kiosk ABOUT01 → UI03 → UI11(external actions). Command INFO02(each fixed command/manual).
-3. UI18(About, only where opened) → PARENT03 or REQUEST03 → UI12. No external handler is launched or closed. INFO02 leaves the parent desktop clear.
+1. Active request cases 191–192: FLOW16(on,30) → request-entry(surface) → REQUEST03(capture); command-help case 193: V(parent) → qualified desktop. Case 190 has no E2E composition.
+2. Overlay/kiosk ABOUT01(product/version and legal/contact information), within the unfinished request or restricted station. Link-control completeness/clickability belongs to shared UI coverage; no external links are invoked here. Command INFO02(each fixed command/manual).
+3. UI18(About, only where opened) → REQUEST03 → UI12. No external handler is launched or closed. INFO02 leaves the parent desktop clear.
 
 Kiosk binds FLOW16 to fresh Parent entry with limits initially off, a saved
 30-minute allowance and limits on. After GDM/station entry, FLOW04 selects
@@ -1438,8 +1436,8 @@ Files, archive viewers and editors add no acceptance requirement to this route.
 | Owner | Complete finite data and checks |
 | --- | --- |
 | 152 formatting/draft | `body-smoke`: ordinary text, bold first word, emoji; public range attributes and exact text. Include one file and reply address for preservation and app-exit reset. UI owns heading, all inline formats, numbered/bulleted list, quote, code, link, clear/reapply and undo/redo through the same `onpc_format` composites and public semantic readers. |
-| 153 text/email | Empty-send rejection followed by body/reply editing and dialog recovery. UI owns empty/whitespace/valid body, reply variants, 5000/5001 UTF-16 ASCII and emoji, hidden controls and excessive formatting, including invalid-send preservation. |
-| 154 attachments | Actual chooser Open with the shared two-file batch, Cancel preservation, metadata read and removal of one file. UI owns five/six files, 5 MiB/5 MiB+1 per file, no-diagnostics 8 MiB/8 MiB+1 total, atomic invalid multi-selection and names 180/181/hidden characters. Empty filename remains engineering validation. |
+| 153 text/email | Empty-send rejection followed by authored body/reply retained through normal dialog reopening, permitting the parent to continue preparing the report. UI owns empty/whitespace/valid body, reply variants, 5000/5001 UTF-16 ASCII and emoji, hidden controls and excessive formatting, including invalid-send preservation. |
+| 154 attachments | Choose the actual shared two-file batch, review accepted names/sizes and remove the unwanted file, leaving the intended attachment. UI owns chooser Cancel preservation, five/six files, 5 MiB/5 MiB+1 per file, no-diagnostics 8 MiB/8 MiB+1 total, atomic invalid multi-selection and names 180/181/hidden characters. Empty filename remains engineering validation. |
 | UI original file change | Attach the shared 26-byte text file, change its original to 34 bytes, observe the retained attachment's original size, remove/re-add and read the new size. UI performs real frontend file loading through a fixture chooser. Byte immutability beyond public metadata remains transport coverage; FILE09 stays available for explicit engineering qualification. |
 | 155 diagnostic ZIP | Observe collection, then save via FILE03. Cancel preserves draft and prepared archive. Prepare an actually unwritable destination through shared fixture commands, verify its permissions as the saving user, observe the app's save error, then choose a writable location. Bind FILE08 to the exact newly saved ZIP and inspect it through the shared read-only SSH archive helper: system-information entry, Parent/Child/Kiosk/Broker folders, empty folders where applicable, and actual bounded contents. Independently reobserve the same feedback dialog and preserved draft. Do not open original product logs or substitute a staged ZIP. |
 | 155 privacy | FEED05 reads what is sent, optional logs/files/email and retention disclosure. Review exported synthetic data for forbidden personal values. Absence in one archive is not a proof of every producer's sanitization; all privacy, date-retention and byte bounds keep their engineering tests. |
@@ -1595,20 +1593,20 @@ latest installation → Chinese pre-reboot prompt → reboot → first kiosk →
 ### Personal-language acceptance decomposition
 
 Task 300 originally combined independent customer histories and unqualified
-bindings. The developer authorized smaller tasks, while this session completes
-only 300j. Preserve the following original acceptance mapping; each scenario is
-one complete case, not a fragment of a resumed VM attempt. These task IDs are
-planning IDs, not numeric coverage IDs. Allocate one stable inventory binding
-per complete recipe during implementation; none is registered or passed here.
+bindings. The developer authorized smaller tasks. Preserve the following
+acceptance mapping; each scenario is one complete case, not a fragment of a
+resumed VM attempt. These task IDs are planning IDs, not numeric coverage IDs.
+The inventory owns current registration; E2E-053–055 have their own bindings
+and histories below, while tasks 308–310 remain planned.
 
 | Original task-300 acceptance | Complete scenario owner | Missing capability / prerequisite |
 | --- | --- | --- |
 | 1: first-run default, native names, Save/Cancel and checked translated text | 306 account/offline persistence; Chinese untouched first presentation remains 300 | Existing LANG01; 306a enabled Parent/child-selection readback |
 | 2 and 5: independent administrator/two-child choices, child/approver switches, overlay/kiosk sharing, relaunch/re-entry/session renewal and offline packaged German/CJK/Hebrew | 306 | 300j station restoration; 306a; existing Internet isolation |
-| 3: overlay-to-panel refresh, reopening/resume, countdown and natural expiry without reset/grants/policy changes | 310 | 310a plus existing retained-session, tooltip/menu, minute/final-tick and natural-expiry tasks |
+| 3: overlay-to-panel language/time refresh, reopening/resume and natural expiry without reset/grants/policy changes | 310 | 310a plus existing retained-session/countdown and natural-expiry tasks; tooltip/menu matrices are UI-owned |
 | 4: inherited About/feedback, synthetic draft/reply, unchanged names/numbers | 307 Parent; 308 overlay; 309 kiosk | 307b, 308a, 309a; real child/station report-entry gates remain 187o/187k |
 | 4: ordinary translated approval/result per request surface | 308 overlay; 300 kiosk | 308b genuine Shell approval; existing 300f Chinese MATE binding |
-| 6: installed Hebrew and restored English logical text, mixed-script content, stable IDs and matching labels under the no-visual acceptance rule | 307 Parent/dialogs; 308 overlay/dialogs; 309 kiosk/dialogs; 310 panel/tooltip/menu | 307a public observation route, then each surface's own qualification |
+| 6: representative Hebrew and restored English functional context with exact mixed-script draft and unchanged policy/time | 307 Parent; 308 overlay; 309 kiosk; 310 child time/expiry | Qualified public input/result route per surface; full inherited-dialog/label and tooltip/menu matrices are UI-owned |
 | 7: latest-package installation, Chinese pre-reboot prompt, one reboot, untouched Chinese chooser/form and two real Chinese approvals across fresh sessions | 300 | 300k revised current-install composition; historical upgrade evidence alone is insufficient |
 
 Every scenario retains unchanged account/application names, numeric values,
@@ -1646,7 +1644,7 @@ without submitting. Riley's overlay and kiosk must show the same saved Hebrew.
 Use InternetIsolation before the multilingual changes/readbacks and independently
 confirm isolation. Close/relaunch Parent and Riley's overlay, exit/re-enter kiosk,
 and renew Riley's desktop session through public qualified routes. Require
-persisted choices, German/CJK/Hebrew translated visible/accessibility text and no
+persisted choices, representative German/CJK/Hebrew customer text and no
 repeated first-run chooser without downloads. Restore Internet through its
 shared owner and independently read public policy/app values. No other
 scenario's approval or panel rendering is needed to pass this account history.
@@ -1666,11 +1664,11 @@ records the shared bindings and retained acceptance reports.
 
 One complete Parent English → Hebrew → English history for Jamie, selecting
 Riley with its recorded 60-minute allowance, zero grant and captured app rules.
-At each language, independently observe management/Preferences and inherited
-About/feedback logical text, including exact mixed Hebrew/Latin content, and
-restored English labels under the mandate's no-visual acceptance rule.
-Read stable IDs and matching translated visible/accessibility labels through the
-qualified installed observation route.
+At each language, use representative translated management/feedback context to
+continue the same work and independently compare the exact mixed Hebrew/Latin
+draft and child policy. Stable IDs and accessibility observations identify safe
+inputs; label completeness and inherited-dialog translation matrices belong to
+shared UI tests. This is a saved-work history across language changes.
 
 Use exact body `שלום Alex 75` and reply `rtl-check@example.invalid`.
 After entry, close the dialog normally, change language through Preferences and
@@ -1681,21 +1679,22 @@ host fixtures or privately restored content cannot replace this history.
 
 E2E-055 `parent-hebrew`, case 256, binds the complete finite history in
 `tests/e2e/parent_presentation.py` and `onpc_parent_presentation::run`.
-One original English policy capture precedes draft entry. Each language has
-Save/reopen/Cancel Preferences outcomes, one About and one feedback visit,
-and a final policy/name/numeric balance read.
+One original English policy capture precedes draft entry. Save Hebrew and later
+English once each; use the current-language readback before reopening feedback
+and comparing the retained draft and final policy/name/numeric balances. About
+is a supporting information visit; no chooser Cancel or duplicate read matrix
+is required by this customer history.
 Every feedback read compares the immutable original `synthetic-rtl` capture
 before any later input. Policy reads use a 600-second monotonic history bound
 and two-second refresh/formatter tolerance; the entire case deadline is 900 seconds.
 
 ### Overlay language presentation (planned task 308)
 
-One complete Riley overlay English → Hebrew → English presentation history,
+One complete Riley overlay English → Hebrew → English saved-work history,
 with Jamie selected, 75 seconds and soft apps included. Capture the native
 activity and synthetic content through the existing approval/return binding.
-Observe form, About and genuine error-report language, mixed-script logical
-text, stable IDs, visible/accessibility
-labels. Retain body `שלום Alex 75` and reply
+Use representative translated form/report context to continue the request and
+review the exact mixed-script content. Retain body `שלום Alex 75` and reply
 `rtl-check@example.invalid` across normal report closure, public language
 change and real reopening before any new input; preserve names/request values.
 
@@ -1716,9 +1715,10 @@ as task 308. Retain the draft across normal report close, language change and
 actual reopening before new input. Change approver and back while requiring
 the child's checked language and translated form remain unchanged.
 
-Require installed Hebrew and restored English logical text, exact mixed-script
-content, matching accessible labels and stable IDs. Preserve literal names,
-request numbers and station restrictions.
+Require representative installed Hebrew and restored English request/report
+context and exact mixed-script draft preservation. Preserve literal names,
+request numbers and station restrictions. Stable IDs and matching accessible
+observations remain input guards; complete label/dialog matrices stay in UI tests.
 Use 187k's real error trigger/re-entry timing; unsupported draft reopening is
 a retained gate, not permission for private errors/state. No report submission
 or external-link activation. Ordinary translated kiosk approvals remain in
@@ -1730,18 +1730,23 @@ One uninterrupted Riley child history with an initial 10-minute daily-only
 allowance, zero grant and recorded app-policy rows. Use the declared native
 activity, capturing its synthetic content. Change English → Hebrew → English
 through overlay Preferences, close/reopen it and resume the retained child
-session. Independently observe shared choice and refreshed panel, tooltip and
-animation menu using their qualified public operations.
+session. Independently observe shared choice, refreshed remaining time and the
+same retained activity using qualified public operations. Tooltip/menu content
+and each label combination are child UI obligations.
 
-Require Hebrew and restored English logical text, correct mixed
-text/numbers, matching visible/accessibility labels,
-stable IDs. Compare public time with actual elapsed
+Use representative Hebrew and restored English time/request context to continue
+the activity. Compare public time with actual elapsed
 bounds at each transition; choices cannot reset time, grant extra access or
 alter saved policy. Observe genuine minute and final-second progression through
 TIME02, then use the activity until natural TIME04 expiry. Require the lock to
 own harmless normal input and desktop access to end; manual locking cannot
 substitute. Declare exact sample windows/tolerances in the finite case plan
 before execution; missed windows fail rather than restoring or resetting time.
+
+The [complete family review](UI-and-E2E-Coverage.md#complete-scenario-family-review)
+records the customer outcome and allocation decision for every registered,
+pending, retired and future-language family. This recipe document owns its
+finite compositions; shared UI owns local control matrices.
 
 ## Coverage ownership and remaining limits
 
@@ -1754,7 +1759,7 @@ reuse it to reach a later distinct outcome.
 | Installation/defaults; account discovery; standard management exclusion | 2; 3–4 and 179–183 for real account changes through shared helpers; 5–6 |
 | Allowance values/saves; enable/edit/disable and child access | 158–159; 7–12 |
 | App-rule transitions; launch routes; catalogue/matching; updates | 13–16; 62–109; 184–189; 110–111 |
-| Active-grant revocation; no-grant; expired grant with daily time | 17–20; 160–161; 170 |
+| Active-grant revocation; daily-only no-grant; expired grant with daily time | 17–20; 160; 170; case 161 local availability is UI-owned |
 | Daily/grant exhaustion; another foreground user; countdown/options | 21–24; 25–26; 27–29 and 162–163 |
 | Approval identity/app choice; denial/cancel; input boundaries/duplicate gesture | 30–33; 34–37; 38–43 |
 | Exit destinations; station restrictions; eligibility; shared choices | 44–49; 50–52; 53–57; 58–61 |

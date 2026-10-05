@@ -46,8 +46,8 @@ sub exercise {
     my ($journey, $profile) = @_;
     $profile //= 'full';
     die 'allowance-boundaries:journey' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
-        && ($profile eq 'full' || $profile eq 'installed');
-    for my $value ($profile eq 'installed' ? (1) : (0, 1, 15, 1439)) {
+        && ($profile eq 'full' || $profile eq 'installed' || $profile eq 'persistence');
+    for my $value ($profile eq 'full' ? (0, 1, 15, 1439) : (1)) {
         my $prefix = "boundary-$value";
         onpc_allowance_selection::select($journey, "$prefix-choice", ['custom'], 'confirm');
         seen($journey, "$prefix-open");
@@ -60,7 +60,7 @@ sub exercise {
         }
         seen($journey, "$prefix-reopen");
     }
-    for my $binding ($profile eq 'installed' ? ('over') : ('empty', 'letters', 'negative', 'fraction', 'maximum', 'over')) {
+    for my $binding ($profile eq 'persistence' ? () : $profile eq 'installed' ? ('over') : ('empty', 'letters', 'negative', 'fraction', 'maximum', 'over')) {
         my $prefix = "invalid-$binding";
         onpc_allowance_selection::select($journey, "$prefix-baseline", [15], 'confirm');
         seen($journey, "$prefix-baseline-read");

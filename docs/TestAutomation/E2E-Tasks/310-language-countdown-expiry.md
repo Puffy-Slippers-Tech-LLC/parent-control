@@ -9,7 +9,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **051** — Public daily-only time profile with zero grant.
 - **052a** — Minute and final-second countdown progression.
 - **062** — Actual app use until natural enforced lock.
-- **310a** — Child panel Hebrew refresh, tooltip/menu and restored LTR observations.
+- **310a** — Child panel language propagation with preserved time and policy.
 
 Estimate: 35–55 minutes.
 Session exception: Real countdown intervals, child-session resume and natural exhaustion remain one uninterrupted case with no restored-attempt shortcuts.
@@ -19,8 +19,8 @@ Session exception: Real countdown intervals, child-session resume and natural ex
 Compose the [fixed panel recipe](../E2E-Scenario-Recipes.md#panel-language-and-expiry-planned-task-310)
 in one uninterrupted case with a publicly prepared short daily-only allowance
 and zero grant. Change Riley's product language English → Hebrew → English
-through the overlay, close/reopen it and resume the child session. Observe panel,
-tooltip/menu, shared overlay choice, Hebrew/restored English logical text and mixed-number assertions,
+through the overlay, close/reopen it and resume the child session. Observe the
+shared saved choice and refreshed countdown language/time,
 minute/final-second progression and normal natural expiry locking while using
 the declared native app. Compare policy/app limits and public time against
 elapsed bounds; language changes must not reset time or grant access. Observe

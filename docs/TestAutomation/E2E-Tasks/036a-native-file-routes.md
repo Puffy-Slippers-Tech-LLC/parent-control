@@ -29,7 +29,11 @@ Bind the file manager's offered launch action to the declared native fixture and
 
 ## Live VM acceptance
 
-On the live VM, launch the declared native fixture from the file manager and perform a normal action with a visible result. Open a distinguishable new window beside an earlier activity. Save Hard and Soft rules in Parent, then require this route's declared denied result and expected window closure. No alternative route substitutes for this action.
+On the live VM, capture the required activity through 036f's qualified Files
+launch, save Hard and Soft rules in Parent, and require the declared denied
+launch and prior-window closure for each distinct policy result. Reuse unchanged
+usable/new-window qualification from 036f; rerun it only when affected. No
+alternative launch route substitutes for the tested Files action.
 
 Qualification selector (implement and register before use):
 

@@ -26,11 +26,6 @@ EDITS = {
     'jordan-final-read': 'ui:custom-6-reopen',
     **custom_child_selection('final-back', 'child'),
     'riley-final': 'ui:custom-7-reopen',
-    'repeat-desktop': 'ui:desktop',
-    'repeat-parent-command': 'ui:parent-command-launch',
-    'repeat-parent-window': 'ui:parent-window',
-    'repeat-window-count': 'ui:parent-window-count',
-    'repeat-selected': 'ui:parent-selected',
 }
 PERSISTENCE = {
     **parent_reopen(),
@@ -54,7 +49,7 @@ PLAN = JourneyPlan(
             **{stage: 'step-2' for stage in EDITS},
             **{stage: 'step-3' for stage in PERSISTENCE}},
     advance_after={'installed-greeter': 'step-1', 'setup': 'step-2',
-                   'repeat-selected': 'step-3'},
+                   'riley-final': 'step-3'},
     child_bindings=CHILDREN,
     accessibility_inputs={'jordan-rapid': ('parent-custom-trace-focus', 6, 'custom-save')},
     keyboard_inputs={'jordan-rapid': (5, 6)},
@@ -63,7 +58,6 @@ PLAN = JourneyPlan(
         'jordan-back-selected': SettingsObservation('existing-fixture-child', True, ('6 minutes',)),
         'final-away-selected': SettingsObservation('existing-fixture-child', True, ('6 minutes',)),
         'final-back-selected': SettingsObservation('fixture-child', True, ('7 minutes',)),
-        'repeat-selected': 'final-back-selected',
         'reopen-jordan-selected': SettingsObservation('existing-fixture-child', True, ('6 minutes',)),
         'reopen-riley-selected': SettingsObservation('fixture-child', True, ('7 minutes',)),
     },

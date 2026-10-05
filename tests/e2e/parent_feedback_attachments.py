@@ -1,6 +1,5 @@
-"""Case 154: installed chooser handoff, Cancel preservation and row removal."""
-from attachment_composition import (AttachmentJourney, file_handoff,
-                                    chooser_preservation, attachment_removal)
+"""Case 154: attach declared files, review them and remove an unwanted file."""
+from attachment_composition import AttachmentJourney, file_handoff, attachment_removal
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management
 from synthetic_files import fixture_actions
@@ -11,7 +10,7 @@ ENTRY = {
 }
 MATRIX = {
     **file_handoff(),
-    **chooser_preservation(),
+    'chooser-attachments': 'ui:chooser-attachments',
 }
 REVIEW = {'attachment-details': 'ui:attachment-details', **attachment_removal()}
 SCREENS = {**ENTRY, **MATRIX, **REVIEW}
@@ -22,7 +21,7 @@ PLAN = JourneyPlan(prefix='feedback-attachments', worker_mode='feedback_attachme
                if stage != 'installed-greeter'},
             'installed-greeter': 'start',
             **{stage: 'step-2' for stage in REVIEW}},
-    advance_after={'chooser-preserved': 'step-2'},
+    advance_after={'chooser-attachments': 'step-2'},
     stage_actions={'parent-selected': 'attachment-fixtures',
                    'attachment-remaining': 'attachment-cleanup'})
 

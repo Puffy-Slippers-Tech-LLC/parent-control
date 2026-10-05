@@ -34,7 +34,7 @@ class ScriptedParentBroker:
                 for role, filename, _name, _description, _match in ASSETS}
         if self._mode == "custom-limit":
             self._preferences[1001]["daily_time_limit_minutes"] = 73
-        if self._mode in {"grant-only", "exact-hours"}:
+        if self._mode in {"grant-only", "exact-hours", "zero-total"}:
             self._preferences[1001]["daily_time_limit_minutes"] = 0
         self._status_attempts = 0
         self._events_path = os.environ.get("ONPC_PARENT_COMPONENT_EVENTS_PATH")
@@ -106,8 +106,8 @@ class ScriptedParentBroker:
             raise RuntimeError("temporarily unavailable")
         if self._mode == "status-retries" and self._status_attempts < 3:
             raise RuntimeError("temporarily unavailable")
-        daily = 0 if self._mode in {"grant-only", "daily-exhausted", "exact-hours"} else 47 * 60
-        grant = 2 * 60 * 60 if self._mode == "exact-hours" else 15 * 60
+        daily = 0 if self._mode in {"grant-only", "daily-exhausted", "exact-hours", "zero-total"} else 47 * 60
+        grant = 0 if self._mode == "zero-total" else 2 * 60 * 60 if self._mode == "exact-hours" else 15 * 60
         return {
             "daily_allowance_remaining_seconds": daily,
             "one_time_grant_remaining_seconds": grant,

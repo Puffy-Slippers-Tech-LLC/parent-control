@@ -11,9 +11,10 @@ sub overlay_license {
     $links //= 'license';
     die 'overlay-about:binding' unless (@_ == 4 || @_ == 5) && ref($journey) eq 'onpc_journey'
         && $entry =~ /\A[a-z][a-z0-9-]*\z/ && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
-    die 'overlay-about:links' unless $links eq 'license' || $links eq 'browser-links' || $links eq 'information';
+    die 'overlay-about:links' unless $links eq 'license' || $links eq 'browser-links'
+        || $links eq 'information' || $links eq 'summary';
     $journey->consume_observation($entry, $proof);
-    my @reads = $links eq 'license' ? ('license-read') : $links eq 'browser-links'
+    my @reads = $links eq 'summary' ? ('summary-read') : $links eq 'license' ? ('license-read') : $links eq 'browser-links'
         ? ('website-read', 'privacy-read')
         : ('website-read', 'privacy-read', 'support-read', 'license-read', 'legal-notices-read');
     for my $stage (($links eq 'information' ? ('help-read') : ()), 'about-open', @reads) {
@@ -52,6 +53,16 @@ sub open_license {
     die 'about:license-stage' unless (@_ == 2 && $stage eq 'about')
         || (@_ == 3 && $stage eq 'about-rechecked');
     return check_link($journey, $about, 'license', $stage);
+}
+
+# Customer information journeys read About once, then return to their work.
+# Link activation and unchanged repeated About reads belong to UI qualification.
+sub close_information {
+    onpc_progress::operation('Returning from product information to Parent');
+    my ($journey, $about) = @_;
+    die 'about:close-information-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey';
+    $journey->consume_observation('about', $about);
+    return onpc_window::close($journey, 'about', $journey->seen('about-returned'));
 }
 
 sub check_link {

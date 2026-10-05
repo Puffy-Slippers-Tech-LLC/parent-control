@@ -1,37 +1,43 @@
-# 052b — Prove countdown absence on other surfaces
+# 052b — Verify countdown availability in UI tests
 
 Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
+and [UI acceptance](../E2E-Execution-Contracts.md#ui-acceptance).
 
 Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **TIME01 lock/GDM/other-user absence**. First scheduled consumer: [E2E-011, case 27](../E2E-Scenario-Recipes.md#e2e-011).
-Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries) and only the selected consumer's recipe.
+Deliver the **UI obligation for countdown availability on desktop, locked and
+greeter states** under the [UI coverage owner](../UI-and-E2E-Coverage.md).
+This row supplies no installed E2E prerequisite or customer acceptance credit.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **052** — TIME01 child-desktop presence and limits-off absence.
-- **043a** — GDM02 retained-child lock entry; DESK08/11.
+- **052** — Owned child countdown observations.
 
 ## Implementation
 
-Bind complete, fresh absence observations to each positively identified surface.
-A disconnected observer, inaccessible tree or wrong surface cannot prove absence.
-Keep input routes outside TIME01; it only observes the caller's stated surface.
+Extend the existing isolated-Shell owner
+[test_child_shell_lifecycle.py](../../../tests/ui/test_child_shell_lifecycle.py)
+and its shared adapter with supported countdown-availability checks. Keep
+locked/greeter state branching in the existing
+[indicator logic tests](../../../tests/child/indicator_logic.test.mjs).
+Require complete public observations for UI absence; a disconnected observer,
+inaccessible tree or wrong owner cannot prove it. Do not manufacture real GDM
+sessions inside a host preview. Any unavailable public preview state remains a
+specific unimplemented UI obligation.
 
-## Live VM acceptance
+## UI acceptance
 
-In a fresh installed VM attempt, prepare ample positive daily time publicly,
-enter the child and read its countdown. Lock normally and require countdown
-absence on the identified lock surface. Unlock legitimately and observe the
-countdown again. Switch User to GDM and require absence, then enter the named
-other user and require absence on that desktop. Qualify independently reached
-entry states and wrong-surface refusal. No natural-expiry or tick claim is made.
+Verify availability in supported isolated desktop/locked/greeter states and
+restoration after the relevant state change. Preserve account ownership and
+wrong-surface refusal in shared observers. Installed cross-account policy
+isolation, legitimate retained entry and actual natural locking remain the
+customer journeys' independent functional results.
 
-Qualification selector (implement and register before use):
+Run the maintained owners after implementing the missing UI assertions:
 
 ```sh
-tools/run-tests integration check_e2e_countdown_absence
+tools/run-tests ui --timeout 600 'tests/ui/test_child_shell_lifecycle.py'
+tools/run-tests child-node 'tests/child/indicator_logic.test.mjs'
 ```

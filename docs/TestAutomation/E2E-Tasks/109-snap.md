@@ -33,7 +33,12 @@ installation is already qualified and must not be reimplemented here.
 
 ## Live VM acceptance
 
-On the VM, use the declared Snap command to launch each required fixture and observe normal input effects. Capture S, open a distinguishable second instance and prove the earlier activity remains. Through Parent, apply Hard and Soft blocks and require explicit command denial and the expected closure, with A still usable. A missing supported asset, new-instance route or public observation blocks the affected consumer.
+On the VM, capture the required activity through 109b's qualified Snap command
+route. Apply the declared Hard and Soft blocks through Parent and require
+explicit command denial and the expected prior-window closure, with A still
+usable. Reuse unchanged launch/use and separate-window evidence from 109b;
+rerun affected branches when necessary. Missing supported assets or independent
+public policy observations block the affected consumer.
 
 Qualification selector (implement and register before use):
 

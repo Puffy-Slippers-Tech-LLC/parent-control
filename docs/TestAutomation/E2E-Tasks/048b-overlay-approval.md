@@ -38,7 +38,12 @@ Keep the new immediate-exit result separate from the qualified automatic-return 
 
 ## Live VM acceptance
 
-In separate live overlay attempts, enter one declared wrong password and observe explicit rejection, Cancel and compare the usable unchanged form; separately Cancel a fresh challenge. Approve another declared request and take the offered immediate exit after reading success, returning to the same child activity. Keep valid automatic-return evidence from 048d and rerun it when changed code affects it. Refuse wrong provider/request, stale or reused proof and uncertain delivery; require sealed capture, collection and cleanup.
+Approve the declared request in a fresh overlay attempt and take the offered
+immediate exit after reading success. Independently require the same child
+activity usable on return. Reuse unchanged rejection/Cancel evidence from 048f
+and automatic-return evidence from 048d; rerun affected branches when composition
+changes them. Refuse wrong provider/request, stale or reused proof and uncertain
+delivery; require sealed capture, collection and cleanup.
 
 Qualification selector (implement and register before use):
 

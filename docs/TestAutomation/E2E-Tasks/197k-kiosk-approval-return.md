@@ -7,7 +7,9 @@ Estimate: 20–30 minutes.
 
 ## Session boundary
 
-Add new/open-form retained-child destinations. Reuse 197a's fresh-child branches; preserve all four explicit invocations in the cumulative FLOW20 contract.
+Add new/open-form retained-child destinations. Reuse 197a's fresh-child
+qualification; the cumulative FLOW20 contract supports all four entry/destination
+bindings without repeating unchanged predecessor invocations.
 
 Reuse the delivered scope of tasks **197a** under the
 [split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
@@ -30,7 +32,14 @@ Compose kiosk FLOW04 and FLOW05, then the explicitly fresh/retained child FLOW15
 
 ## Live VM acceptance
 
-In one fresh guarded VM attempt, qualify four explicit invocations: new-form/fresh-child, open-form/retained-child, new-form/retained-child and open-form/fresh-child. Prepare each entry through normal public actions; the final fresh entry follows a declared child logout. Approve once per invocation. Require success confirmation, automatic station exit, the declared child entry and countdown within prebound public/elapsed-time intervals. Supply the open-form entries independently of FLOW20; missing entry modes refuse without repair. No expiry wait or unrelated choice matrix is needed.
+Qualify the new-form/retained-child and independently supplied
+open-form/retained-child entries in fresh guarded VM attempts. Approve once per
+invocation; require success, automatic station exit, legitimate return to the
+same child activity and countdown within prebound public/elapsed-time intervals.
+Reuse unchanged fresh-child results from 197a, rerunning them only when affected.
+Missing entry modes refuse without repair. Keep entry/recipient and uncertain
+input guards in shared qualification; no additional choice combinations or
+expiry wait belong to this composition.
 
 Qualification selector (implement and register before use):
 

@@ -29,7 +29,7 @@ sub run_overlay {
     onpc_request_flow::prepare($journey, 'open', 'open', 'default',
         'fixture-child', 'fixture-parent', 75, 1, 'overlay');
     $journey->consume_observation('form-returned', onpc_about::overlay_license(
-        $journey, $journey->seen('captured-form'), 'captured-form', '', 'information'));
+        $journey, $journey->seen('captured-form'), 'captured-form', '', 'summary'));
     for my $stage ('cancel', 'returned') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
@@ -43,8 +43,7 @@ sub run {
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
     my $about = onpc_about::open_about($journey, $selected);
-    my $license = onpc_about::open_license($journey, $about);
-    onpc_about::return_to_parent($journey, $license, 'semantic-reveal');
+    onpc_about::close_information($journey, $about);
     $journey->finish();
 }
 
@@ -56,10 +55,8 @@ sub run_links {
         exchange => $exchange, prefix => 'parent-links', review => 0);
     onpc_gdm::reattach_functional();
     my $selected = onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child');
-    my $help = onpc_about::read_help($journey, $selected);
-    my $about = onpc_about::open_from_help($journey, $help);
-    my $links = onpc_about::check_link($journey, $about, 'information');
-    onpc_about::return_to_parent($journey, $links, 'semantic-reveal');
+    my $about = onpc_about::open_about($journey, $selected);
+    onpc_about::close_information($journey, $about);
     $journey->finish();
 }
 

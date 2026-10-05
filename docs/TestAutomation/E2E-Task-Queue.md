@@ -17,6 +17,22 @@ deliver safe input; it is not additional coverage or a future prerequisite.
 The [initial migration decision](E2E-Execution-Plan.md#current-scope) supplies no
 acceptance for later changes.
 
+## Reallocated UI coverage
+
+Reallocated case: **161** (zero-total Revoke availability; Parent UI owner;
+no E2E task). Task 203 retains its completed historical evidence. Local control
+availability and unchanged zero balances remain with the
+[UI coverage owner](UI-and-E2E-Coverage.md), with no new E2E consumer.
+
+Reallocated case: **190** (Parent Help/About link availability; existing About
+UI owner; no E2E task). Task 232 retains its completed historical evidence.
+Case 151 already verifies identifying the installed product and returning to
+unchanged management; keep that customer journey once.
+
+Pending UI obligations 052b and 181h retain their IDs and statuses. Their local
+placement after case 27 follows removal of widget checks from that customer
+journey, keeping the newly enabled case immediately after its capabilities.
+
 ## Excluded automation
 
 The developer removed tasks 070, 070a and 071–076 on 2026-10-01 under the
@@ -45,8 +61,10 @@ not an exemption for an unqualified route. Delivered scope is cumulative when
 a capability was split; its brief's Session boundary names the remaining work.
 Each unfinished row has one brief; completed rows retain plain titles.
 
-Preserve the structured scope prefixes `Cases N;`, `Retained regression N;`
-and `System obligation N`. Each scenario task owns one numeric case with its
+Preserve the structured scope prefixes `Cases N;`, `Retained regression N;`,
+`System obligation N` and `UI obligation;`. UI obligations retain their queue
+IDs and pending status but use the shared UI acceptance branch and supply no
+installed customer-case prerequisite. Each scenario task owns one numeric case with its
 complete recipe, independent of other scenario runs. Capabilities precede
 consumers; all newly enabled cases follow immediately in numeric case order.
 
@@ -257,19 +275,19 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 062 | [Use an app until a natural enforced lock](E2E-Tasks/062-natural-expiry.md) | 052a, 047 | TIME04 | 20–30 |
 | [ ] | 063 | [E2E-008: retained-unlock](E2E-Tasks/063-case-21.md) | 062, 043a | Cases 21 | 35–55 (exception) |
 | [ ] | 064 | [E2E-008: fresh-login](E2E-Tasks/064-case-22.md) | 062, 050 | Cases 22 | 40–60 (exception) |
-| [ ] | 052b | [Prove countdown absence on other surfaces](E2E-Tasks/052b-countdown-absence.md) | 052, 043a | TIME01 lock/GDM/other-user absence | 20–30 |
-| [ ] | 181h | [Read the countdown hover explanation](E2E-Tasks/181h-read-the-countdown-hover-explanation.md) | 052 | DESK12 showing countdown binding; UI27 and PANEL03 | 20–30 |
-| [ ] | 059 | [E2E-011: daily-only](E2E-Tasks/059-case-27.md) | 052b, 181h, 044, 062 | Cases 27 | 35–55 (exception) |
+| [ ] | 059 | [E2E-011: daily-only](E2E-Tasks/059-case-27.md) | 052a, 044, 062 | Cases 27 | 35–55 (exception) |
+| [ ] | 052b | [Verify countdown availability in UI tests](E2E-Tasks/052b-countdown-absence.md) | 052 | UI obligation; countdown availability on desktop, locked and greeter states | 20–30 |
+| [ ] | 181h | [Read the countdown explanation in UI tests](E2E-Tasks/181h-read-the-countdown-hover-explanation.md) | 052 | UI obligation; readable countdown explanation | 20–30 |
 | [ ] | 065a | [Prepare grant-only time and explicit revoke-first entry](E2E-Tasks/065a-grant-only-profile.md) | 051, 050 | FLOW13 grant-only profile and explicit revoke preparation | 20–30 |
 | [ ] | 065 | [Compose the combined grant-dominant profile](E2E-Tasks/065-time-profiles-grant.md) | 051, 050, 065a | FLOW13 grant-only/combined; retained entry and explicit revoke preparation | 20–30 |
 | [ ] | 066 | [E2E-010: parent](E2E-Tasks/066-case-25.md) | 065, 052a, 047a | Cases 25 | 35–55 (exception) |
 | [ ] | 067 | [E2E-010: other-child](E2E-Tasks/067-case-26.md) | 065, 052a, 047a | Cases 26 | 35–55 (exception) |
-| [ ] | 068 | [E2E-011: grant-only](E2E-Tasks/068-case-28.md) | 065, 052b, 181h, 062 | Cases 28 | 35–55 (exception) |
-| [ ] | 069 | [E2E-011: combined](E2E-Tasks/069-case-29.md) | 065, 052b, 181h, 062 | Cases 29 | 35–55 (exception) |
-| [ ] | 181m | [Operate the countdown context menu](E2E-Tasks/181m-operate-the-countdown-context-menu.md) | 181h | UI28 and PANEL01/02 | 20–30 |
-| [ ] | 204 | [E2E-037: sign-out-in](E2E-Tasks/204-case-162.md) | 181m, 048a, 062, 044 | Cases 162 | 20–30 |
-| [ ] | 205 | [E2E-037: reboot](E2E-Tasks/205-case-163.md) | 181m, 048a, 062, 044, 007 | Cases 163 | 20–30 |
-| [ ] | 310a | [Qualify child panel language refresh and presentation](E2E-Tasks/310a-panel-language-refresh.md) | 043c, 052, 181m, 300i, 307a | Qualify child panel language refresh and presentation; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
+| [ ] | 068 | [E2E-011: grant-only](E2E-Tasks/068-case-28.md) | 065, 052a, 062 | Cases 28 | 35–55 (exception) |
+| [ ] | 069 | [E2E-011: combined](E2E-Tasks/069-case-29.md) | 065, 052a, 062 | Cases 29 | 35–55 (exception) |
+| [ ] | 181m | [Operate the countdown context menu](E2E-Tasks/181m-operate-the-countdown-context-menu.md) | 052 | UI28 and PANEL01/02 | 20–30 |
+| [ ] | 204 | [E2E-037: sign-out-in](E2E-Tasks/204-case-162.md) | 181m, 062, 044 | Cases 162 | 20–30 |
+| [ ] | 205 | [E2E-037: reboot](E2E-Tasks/205-case-163.md) | 181m, 062, 044, 007 | Cases 163 | 20–30 |
+| [ ] | 310a | [Qualify child panel language refresh and presentation](E2E-Tasks/310a-panel-language-refresh.md) | 043c, 052, 300i, 307a | Child language propagates to the countdown without resetting time or policy; exact binding and installed acceptance pending; gates in brief | 20–30 |
 | [ ] | 310 | [Language changes preserve countdown and natural expiry](E2E-Tasks/310-language-countdown-expiry.md) | 043c, 051, 052a, 062, 310a | One planned case: Language changes preserve countdown and natural expiry; exact binding and installed acceptance pending; gates and finite scope in brief | 35–55 (exception) |
 | [ ] | 197 | [Compose overlay approval and return](E2E-Tasks/197-compose-approval-and-return-to-the-child.md) | 048b, 044, 052 | FLOW20 overlay new/open form | 20–30 |
 | [ ] | 265 | [E2E-048: daily-only-child-overlay](E2E-Tasks/265-case-223.md) | 197, 052c, 051 | Cases 223; gate in brief | 20–30 |
@@ -570,9 +588,9 @@ executables must be assigned during implementation under the
 [shared task contract](E2E-Execution-Contracts.md#task-brief-contract).
 No case is registered, runnable or accepted by this addition. Historical clean
 installation case 2 reboots before opening the apps and does not cover these
-pre-reboot prompts. Task 300 now plans Chinese fresh-install kiosk acceptance;
-its historical upgrade slices supply no fresh-install acceptance, and the
-complete revised case has not run. Tasks 302–305 retain their separate exact
+pre-reboot prompts. Task 300's completed case 254 records Chinese fresh-install
+kiosk acceptance; its historical upgrade slices alone supply no fresh-install
+acceptance. Tasks 302–305 retain their separate exact
 surface, language and result requirements.
 
 The positive cases must start from the product-free supported baseline, install

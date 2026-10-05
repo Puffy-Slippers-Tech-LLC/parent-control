@@ -1308,9 +1308,12 @@ and interrupted-retry checks for baseline reconciliation. See the
 [preparation inventory](integration/Environment.md#reusable-preparation-ownership)
 and [VM mandate](../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
 
-Full GUI-only matrices belong in preview UI tests. Installed E2E retains a small
-component check plus distinct backend, persistence and OS integration results.
-Both layers reuse shared GUI operations and public readers; see the
+Individual widget behavior and local validation belong in preview UI tests.
+Installed E2E verifies realistic customer journeys and meaningful outcomes,
+including persistence, authorization, enforcement and OS integration. UI
+operations serve those journeys; no installed copy of each component check is
+required. Simplify repeated navigation and incidental assertions in completed
+and planned cases. Both layers reuse shared GUI operations and public readers; see the
 [coverage allocation and duplicate review](../docs/TestAutomation/UI-and-E2E-Coverage.md).
 
 The [2026-09-14 customer scope](../docs/TestAutomation/E2E-Building-Blocks.md) changes

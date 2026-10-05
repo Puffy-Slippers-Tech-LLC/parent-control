@@ -147,10 +147,6 @@ sub run_save_order {
     rejection_observe($journey, 'jordan-final-read');
     onpc_allowance_boundaries::select_child($journey, 'final-back');
     rejection_observe($journey, 'riley-final');
-    onpc_parent::launch($journey, $journey->seen('repeat-desktop'),
-        'management', 'repeat-desktop');
-    rejection_observe($journey, 'repeat-window-count');
-    rejection_observe($journey, 'repeat-selected');
     onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
     onpc_allowance_boundaries::select_child($journey, 'reopen-jordan');
     rejection_observe($journey, 'jordan-after-restart');

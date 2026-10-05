@@ -56,7 +56,7 @@ OPERATIONS = frozenset({
     'desktop', 'app-grid', 'parent-window', 'parent-window-count', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
     'about', 'about-interval-read', 'about-interval-refused', 'about-rechecked', 'license',
     'license-provider-refusals', 'website-clickable', 'privacy-clickable', 'support-clickable',
-    'parent-help-clickable', 'parent-information-about', 'parent-information-clickable',
+    'parent-help-clickable', 'parent-information-about', 'parent-information-clickable', 'parent-about-information',
     'license-closed', 'about-returned', 'parent-returned',
     'discovery-ready', 'new-child-picker-opened', 'new-child-choice-highlighted',
     'new-child-selected', 'existing-child-picker-opened', 'existing-child-choice-highlighted',
@@ -168,7 +168,7 @@ CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
 OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
     'overlay-website-read', 'overlay-privacy-read', 'overlay-support-read',
     'overlay-legal-notices-read', 'overlay-help-read', 'overlay-information-about',
-    'overlay-about-close-ready', 'overlay-about-closed', 'overlay-about-refused'})
+    'overlay-about-summary', 'overlay-about-close-ready', 'overlay-about-closed', 'overlay-about-refused'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_ABOUT_OPERATIONS
 OPERATIONS |= OVERLAY_ABOUT_OPERATIONS | frozenset({'parent-overlay-about-refused'})
 OPERATIONS |= frozenset({'overlay-wrong-account-refused'})
@@ -4538,6 +4538,17 @@ class AccessibleUI:
                          'about-support-value', 'about-license-value',
                          'about-legal-notices-value'):
             self.clickable_link(identity, root=root)
+
+    def read_about_information(self, root, version):
+        """Read identifying product/legal text without testing link activation."""
+        self.read_label(root, 'about-product', maximum=80)
+        self.read_label(root, 'about-version', maximum=80, expected=version)
+        for identity, expected in (
+                ('about-license-value', 'GNU General Public License v3.0'),
+                ('about-legal-notices-value', 'Malcontent integration and bundled-font notices')):
+            node = self.id_target(identity, root=root, showing=False)
+            require(self.has_state(node, self.api.StateType.VISIBLE)
+                    and node.get_name() == expected, 'ui:about-information')
 
     def open_about(self, version, *, menu_open=False, language='en'):
         """ABOUT01: independent Parent entry; menu, About, text and license link."""
@@ -10312,6 +10323,8 @@ class AccessibleUI:
                 raise UiError('ui:overlay-about-wrong-entry-accepted')
         elif operation == 'overlay-about-open':
             self.open_overlay_about()
+        elif operation == 'overlay-about-summary':
+            self.read_about_information(self.overlay_about_scope(opened=True), version)
         elif operation == 'overlay-help-read':
             self.check_overlay_help()
         elif operation == 'overlay-information-about':
@@ -10341,6 +10354,9 @@ class AccessibleUI:
             self.window_closed('about', 'kiosk')
         elif operation == 'about':
             self.open_about(version)
+        elif operation == 'parent-about-information':
+            self.open_about(version)
+            self.read_about_information(self.about(), version)
         elif operation == 'parent-help-clickable':
             self.check_parent_help()
         elif operation == 'parent-information-about':

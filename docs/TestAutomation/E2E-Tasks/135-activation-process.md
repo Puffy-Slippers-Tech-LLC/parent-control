@@ -34,7 +34,12 @@ Bind a verified old/new package profile requiring process activation. Extend LIF
 
 ## Live VM acceptance
 
-On the VM install the real process-activation update, read its requirement, perform the normal close/reopen sequence and read settings before edits. In an independent attempt, qualify the declared real no-action update profile: read its notice and observe unchanged usable app entry without adding an activation action. Both claimed LIFE05 branches require live results. Run the affected existing package activation checks separately.
+On the VM install the real process-activation update, read its requirement,
+perform the normal affected-app close/reopen sequence and independently read
+retained settings before edits. Reuse unchanged no-action qualification from
+135a; rerun it when shared changes affect that branch. Both claimed LIFE05
+branches retain scoped live evidence. Run affected package activation checks
+separately.
 
 Qualification selector (implement and register before use):
 

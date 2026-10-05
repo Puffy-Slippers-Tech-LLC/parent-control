@@ -147,7 +147,7 @@ sub _draft {
 }
 
 sub _attachments {
-    onpc_progress::operation('Checking installed attachment handoff, Cancel and removal');
+    onpc_progress::operation('Attaching files and removing an unwanted attachment');
     my ($exchange) = @_;
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'feedback-attachments', review => 0);
     onpc_gdm::reattach_functional();
@@ -155,7 +155,7 @@ sub _attachments {
     $journey->consume_observation('parent-selected', $selected);
     $journey->consume_observation('feedback-open', $journey->seen('feedback-open'));
     onpc_feedback_read::supply_files($journey, 'chooser');
-    onpc_feedback_read::chooser_preservation($journey);
+    $journey->consume_observation('chooser-attachments', $journey->seen('chooser-attachments'));
     $journey->consume_observation('attachment-details', $journey->seen('attachment-details'));
     onpc_feedback_read::attachment_removal($journey);
     $journey->finish();

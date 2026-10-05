@@ -34,6 +34,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'parent-about-information': 'Reading installed product, version and legal information',
+    'overlay-about-summary': 'Reading overlay product, version and legal information',
     **{operation: 'Checking the owned daily allowance keyboard ' + phase
        for operation, (_value, phase) in accessible_ui.ALLOWANCE_KEYBOARD_OPERATIONS.items()},
     'parent-child-picker-ready': 'Focusing the owned Parent child selector for keyboard opening',

@@ -1,4 +1,4 @@
-"""Case 158: one preset, custom edit and rejection with real per-child persistence."""
+"""Case 158: change a daily allowance and retain it across children and restart."""
 
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management, parent_reopen, allowance_selection
@@ -8,13 +8,12 @@ from ui_observations import SettingsObservation
 
 ENTRY = {
     **fresh_desktop('parent'), **parent_management(),
-    'editor-disabled': 'ui:allowance-disabled',
     'allowance-configured': 'ui:time-explanation-setup-zero-read',
 }
 VALUES = {
     **allowance_selection('preset-15', (15,)),
     'preset-15-read': 'ui:allowance-15-read',
-    **boundary_screens(accepted=(1,), invalid=('over',)),
+    **boundary_screens(accepted=(1,), invalid=()),
 }
 PERSISTENCE = {
     **parent_reopen(),
@@ -24,9 +23,7 @@ PERSISTENCE = {
     'persist-back-open': 'ui:child-picker-opened',
     'persist-back-focus': 'ui:child-choice-highlighted',
     'persist-back-selected': 'ui:parent-selected',
-    'persist-saved': 'ui:allowance-15-read',
-    **allowance_selection('persist-choice', ('custom',)),
-    'persist-editor': 'ui:custom-15-reopen',
+    'persist-saved': 'ui:custom-1-reopen',
 }
 PLAN = JourneyPlan(
     prefix='allowance-case', worker_mode='allowance_case',
@@ -36,11 +33,11 @@ PLAN = JourneyPlan(
             **{stage: 'step-2' for stage in VALUES},
             **{stage: 'step-3' for stage in PERSISTENCE}},
     advance_after={'installed-greeter': 'step-1', 'allowance-configured': 'step-2',
-                   'invalid-over-reopen': 'step-3'},
+                   'boundary-1-reopen': 'step-3'},
     settings_checks={
         'parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',)),
         'persist-away-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
-        'persist-back-selected': SettingsObservation('fixture-child', True, ('15 minutes',)),
+        'persist-back-selected': SettingsObservation('fixture-child', True, ('1 minutes',)),
     },
 )
 

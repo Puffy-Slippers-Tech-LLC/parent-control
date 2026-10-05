@@ -18,11 +18,15 @@ required information. Keep backend probes out of customer acceptance.
 
 Apply the mandate's
 [result-oriented scope](../../docs/Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
-to both completed implementations and planned cases. Each tested action needs
-its final public value or functional effect, not a sequence of popup, focus,
-typing and dismissal assertions. Shared navigation and input-safety guards remain
-where necessary. Preserve distinct policy transitions, persistence, rejection and
-recovery; sample independent GUI choices instead of repeating their full product.
+to both completed implementations and planned cases. Start with the customer's
+goal and assert meaningful product outcomes. UI interactions are the means of
+exercising the journey; isolated widget behavior belongs in UI tests. Use only
+the actions needed to reach and independently observe the customer result,
+without repeated dialog visits, unchanged readbacks or a sequence of popup,
+focus, typing and dismissal assertions. Shared navigation and input-safety
+guards remain where necessary. Preserve distinct policy transitions,
+persistence, rejection and recovery; do not import a capability's qualification
+matrix into each customer case.
 
 The [documentation map](../../docs/TestAutomation/README.md) owns status terms;
 the [UI mandate](../../docs/Mandates/UI-Automation-Mandate.MD) owns selector policy,

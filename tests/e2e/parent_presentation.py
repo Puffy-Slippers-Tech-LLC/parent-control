@@ -28,19 +28,16 @@ ADVANCE = {'draft-closed': 'step-2', 'english-entry-final': 'step-3', 'hebrew-fi
 HISTORY = (('english-entry', 'en', 'step-2'), ('hebrew', 'he', 'step-3'),
            ('english-return', 'en', 'step-4'))
 for prefix, selected, phase in HISTORY:
-    section = {
+    section = {} if prefix == 'english-entry' else {
         **language_selection(prefix, selected, surface='parent'),
         prefix + '-save': 'ui:parent-language-save',
         prefix + '-state': 'ui:parent-language-riley-enabled-' + selected,
-        prefix + '-reopen': 'ui:parent-language-open',
-        prefix + '-cancel': 'ui:parent-language-cancel',
-        prefix + '-preserved': 'ui:parent-language-riley-enabled-' + selected,
     }
     for surface in ('about', 'feedback'):
         section.update({prefix + '-' + surface + '-' + action:
                         'ui:parent-dialog-' + surface + '-' + selected + '-' + action
-                        for action in ('open', 'read', 'close', 'closed')})
-        ASSERTIONS[prefix + '-' + surface + '-read'] = prefix + '-' + surface + '-inherited'
+                        for action in ('open', 'close', 'closed')})
+        ASSERTIONS[prefix + '-' + surface + '-open'] = prefix + '-' + surface + '-inherited'
     section[prefix + '-final'] = 'ui:parent-language-riley-enabled-' + selected
     ASSERTIONS[prefix + '-final'] = prefix + '-policy-preserved'
     SCREENS.update(section)
@@ -76,11 +73,12 @@ POLICY_LANGUAGES = {'policy-captured': 'en'}
 CHOICE_LANGUAGES = {}
 for prefix, selected, _phase in HISTORY:
     previous = 'he' if prefix == 'english-return' else 'en'
-    CHOICE_LANGUAGES.update({prefix + '-open': previous, prefix + '-choose': selected,
-                            prefix + '-reopen': selected})
-    POLICY_LANGUAGES.update({prefix + '-' + suffix: selected for suffix in ('state', 'preserved', 'final')})
+    if prefix != 'english-entry':
+        CHOICE_LANGUAGES.update({prefix + '-open': previous, prefix + '-choose': selected})
+        POLICY_LANGUAGES[prefix + '-state'] = selected
+    POLICY_LANGUAGES[prefix + '-final'] = selected
     for surface in ('about', 'feedback'):
-        for action in ('open', 'read', 'close'):
+        for action in ('open', 'close'):
             check = public_language_value('dialog_presentation', {
                 'surface': surface, 'language': selected, 'labels': DIALOG_LABELS[selected][surface]})
             CHECKS[prefix + '-' + surface + '-' + action] = (

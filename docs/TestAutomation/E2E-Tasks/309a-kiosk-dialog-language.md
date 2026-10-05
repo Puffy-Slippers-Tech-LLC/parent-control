@@ -15,10 +15,11 @@ Estimate: 20–30 minutes.
 ## Scope and acceptance
 
 Qualify the station binding for Riley/Jamie, a 75-second soft-included request,
-and English → Hebrew → English via public Preferences. Read request, restricted
-About and real feedback/report presentation through qualified public semantics:
-Hebrew/restored English logical text, exact mixed Hebrew/Latin content, translated
-visible/accessibility labels and stable IDs. Compare exact
+and English → Hebrew → English via public Preferences. Verify the selected
+child's saved language reaches the request and representative restricted
+About/report context. Full translated-label/content combinations belong to
+host UI coverage; public IDs and matching semantics remain shared automation
+guards. Compare exact
 account names, numeric request values, body `שלום Alex 75` and reply
 `rtl-check@example.invalid` across normal report close, language switch and
 real report reopen. Retain station restrictions on external actions/files.

@@ -200,6 +200,16 @@ sub language_presentation_roundtrip {
     }
 }
 
+# Customer changes language once and independently reads the resulting policy.
+sub language_save {
+    onpc_progress::operation('Changing language while preserving the saved policy');
+    my ($journey, $prefix) = @_;
+    die 'parent:language-save-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /^[a-z][a-z0-9-]*$/;
+    language_selection($journey, $prefix);
+    $journey->consume_observation("$prefix-$_", $journey->seen("$prefix-$_")) for ('save', 'state');
+}
+
 sub qualify_rtl {
     onpc_progress::operation('Qualifying Parent Hebrew public text and saved language');
     my ($exchange) = @_;
@@ -259,6 +269,17 @@ sub dialog_visit {
         && $prefix =~ /^[a-z][a-z0-9-]*$/ && $direction =~ /^(ltr|rtl)$/;
     $journey->consume_observation("$prefix-open", $journey->seen("$prefix-open"));
     $journey->consume_observation("$prefix-read", $journey->seen("$prefix-read"));
+    dialog_close($journey, $prefix);
+}
+
+# Opening the dialog already reads its public contents. A fresh close proof
+# still owns Alt-F4; no second content-only checkpoint is needed.
+sub dialog_use {
+    onpc_progress::operation('Reading the dialog and returning to Parent');
+    my ($journey, $prefix) = @_;
+    die 'parent:dialog-use-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /^[a-z][a-z0-9-]*$/;
+    $journey->consume_observation("$prefix-open", $journey->seen("$prefix-open"));
     dialog_close($journey, $prefix);
 }
 

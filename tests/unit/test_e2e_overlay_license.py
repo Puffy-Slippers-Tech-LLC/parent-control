@@ -43,6 +43,32 @@ def about_tree(monkeypatch, opened=True):
     return ui, owner, window, about, link
 
 
+@pytest.mark.parametrize('fault', ['', 'product', 'version', 'license', 'notices', 'owner', 'hidden', 'clipped'])
+def test_customer_about_summary_reads_legal_information_without_link_actions(monkeypatch, fault):
+    ui, owner, _, about, link = about_tree(monkeypatch)
+    link.name = 'GNU General Public License v3.0'
+    notices = Node('Malcontent integration and bundled-font notices',
+                   identity='about-legal-notices-value', role='link')
+    about.children.append(notices)
+    notices.parent = about
+    # A readable disclosure does not need an activation action.
+    link.get_action_iface = lambda: None
+    notices.get_action_iface = lambda: None
+    if fault == 'owner': owner.identity = a.KIOSK_APPLICATION
+    elif fault == 'hidden': notices.states.discard('visible')
+    elif fault == 'clipped': notices.states.discard('showing')
+    elif fault:
+        target = {'product': about.children[0], 'version': about.children[1],
+                  'license': link, 'notices': notices}[fault]
+        target.name = 'wrong'
+    if fault and fault != 'clipped':
+        with pytest.raises(a.UiError): ui.run('overlay-about-summary', '1.1')
+    else:
+        assert ui.run('overlay-about-summary', '1.1')['outcome'] == 'passed'
+    link.action.do_action.assert_not_called()
+    notices.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('binding', ['license', 'website', 'privacy', 'support', 'legal-notices'])
 @pytest.mark.parametrize('fault', ['', 'missing', 'disabled', 'hidden', 'no-action',
     'focus-only', 'ambiguous', 'duplicate', 'wrong-owner', 'inactive', 'defunct', 'clipped',

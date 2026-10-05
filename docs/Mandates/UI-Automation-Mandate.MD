@@ -8,13 +8,36 @@ layer's automation, including shared workers.
 
 ## Result-oriented test scope
 
+E2E tests verify product functionality through realistic customer journeys.
+Start with the customer's goal and the meaningful outcome that proves it was
+achieved. UI interactions are the means of exercising that journey, not its
+testing targets. A saved allowance governing the child's access, recovered
+unfinished work, or a retained feedback draft is a customer outcome; a widget's
+value or clickability alone does not establish the journey.
+
+Individual control behavior and local validation belong in UI tests when they
+protect a useful component function. E2E does not require a smaller copy of each
+UI test just because the component is installed. Keep public text or control
+state in E2E only when it communicates a meaningful customer result, such as
+the child's remaining time, a rejected change, or available product information.
+Appearance is outside E2E; the presentation exclusions below still apply.
+
+Simplify the UI operations as well as the assertions in completed and planned
+cases. Choose the shortest reliable public interaction sequence that achieves
+the customer goal. Reuse an open surface, avoid repeated dialog visits and
+unchanged readbacks, and remove preparatory control exercises unrelated to the
+journey. Preserve distinct intermediate customer outcomes and shared target,
+ownership and input-safety guards. A capability's qualification matrix is not
+the recipe for each consuming customer case.
+
 For existing and future UI and E2E tests, operate the control and independently
 verify its final public result. Test the product function: the saved allowance,
 filtered rows, changed language, accepted request, effective app rule or restored
 draft. A toggle's final on/off state or a selector's final value is sufficient
 when that value is the feature being tested. When the choice controls another
 function, verify that function too; a selected radio indicator alone does not
-prove that language, permissions or behavior changed.
+prove that language, permissions or behavior changed. This control-level rule
+does not make an isolated widget check an E2E customer outcome.
 
 Do not make popup opening/closing, expansion, highlight/selected rendering,
 focus movement, caret position, per-keystroke display, button response animation
@@ -28,9 +51,10 @@ return to the child/greeter or preservation of work.
 Use representative choices and meaningful boundaries. Cover each distinct
 functional outcome, rejection, recovery and interacting condition; do not expand
 independent choices into an exhaustive GUI Cartesian product. Prefer lower-layer
-checks for pure value combinations. Installed E2E adds actual persistence,
-authorization, policy enforcement, lifecycle and integration results to a small
-GUI sample. A historical detailed test does not require future repetition.
+checks for pure value combinations. Installed E2E verifies the customer's
+persistence, authorization, policy enforcement, lifecycle and integration
+outcomes through the interactions needed to reach them. A historical detailed
+test does not require future repetition.
 
 Retain intermediate observations when a later result would conceal a distinct
 functional failure, such as an unintended save, crossed child identity, premature

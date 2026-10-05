@@ -24,6 +24,8 @@ def test_about_displays_release_notices(
     ui.activate(menu, action_name="menu.popup")
     wait_for_accessible_state(lambda: ui.find(about) is not None,
                               "About menu item publishes its ID")
+    if launcher == 'parent_component_preview':
+        assert ui.reader.clickable_link('parent-menu-help')
     ui.activate(about)
     wait_for_accessible_state(lambda: ui.find("about-dialog") is not None,
                               "About dialog publishes its ID")

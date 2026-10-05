@@ -6,7 +6,7 @@ from request_flow import prepared_request
 from request_composition import KioskRequestJourney
 
 
-INFORMATION = overlay_license_read(links='information')
+INFORMATION = overlay_license_read(links='summary')
 SCREENS = {
     **fresh_desktop('parent'), **parent_management(),
     'allowance-configured': 'ui:time-explanation-setup-thirty-read',
@@ -29,7 +29,7 @@ PLAN = JourneyPlan(
             **{stage: 'step-2' for stage in INFORMATION},
             **{stage: 'step-3' for stage in ('about-close-ready', 'about-closed',
                                             'form-returned', 'cancel', 'returned')}},
-    advance_after={'captured-form': 'step-2', 'legal-notices-read': 'step-3'},
+    advance_after={'captured-form': 'step-2', 'summary-read': 'step-3'},
     invocations=tuple('fresh-' + stage for stage in fresh_desktop('child'))
                 + ('direct-launch', 'direct-form'),
     challenges={'child-login': ('child', 'fresh-child-recipient-qualified',

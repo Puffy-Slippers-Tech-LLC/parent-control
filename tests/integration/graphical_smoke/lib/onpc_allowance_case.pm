@@ -21,18 +21,15 @@ sub run {
     onpc_gdm::reattach_functional();
     $journey->consume_observation('parent-selected',
         onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child'));
-    $journey->seen('editor-disabled');
     $journey->seen('allowance-configured');
     for my $value (15) {
         onpc_allowance_selection::select($journey, "preset-$value", [$value], 'confirm');
         $journey->seen("preset-$value-read");
     }
-    onpc_allowance_boundaries::exercise($journey, 'installed');
+    onpc_allowance_boundaries::exercise($journey, 'persistence');
     onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
     onpc_allowance_boundaries::reload_child($journey, 'persist');
     $journey->seen('persist-saved');
-    onpc_allowance_selection::select($journey, 'persist-choice', ['custom'], 'confirm');
-    $journey->seen('persist-editor');
     $journey->finish();
 }
 1;

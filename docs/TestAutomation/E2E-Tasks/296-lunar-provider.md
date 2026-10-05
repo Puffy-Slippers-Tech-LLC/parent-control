@@ -36,9 +36,10 @@ Minecraft gameplay and continuous login observation in their following tasks.
 
 ## Live VM acceptance
 
-In fresh guarded attempts, qualify allowed original-AppImage launch, close to
-tray, restore, Quit and independent absence with a complete surrounding desktop.
-Qualify the same command's specific policy denial using the prepared rule path.
+In fresh guarded attempts, qualify the original-AppImage command's specific
+policy denial using the prepared rule path and complete public observations.
+Reuse unchanged allowed launch/Quit and tray/restore results from 296c/296d;
+rerun their affected branches when the shared adapter changes.
 Exercise independently supplied valid entry, wrong owner, ambiguity, incomplete
 observations and uncertain-input refusal without replay. No process/rule probe
 may supply a customer result.

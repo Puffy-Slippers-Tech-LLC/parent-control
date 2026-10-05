@@ -27,10 +27,9 @@ sub run {
     $journey->seen('draft-captured');
     onpc_parent::dialog_close($journey, 'draft');
     for my $language ('english-entry', 'hebrew', 'english-return') {
-        onpc_parent::language_presentation_roundtrip($journey, $language);
+        onpc_parent::language_save($journey, $language) unless $language eq 'english-entry';
         for my $surface ('about', 'feedback') {
-            onpc_parent::dialog_visit($journey, "$language-$surface",
-                $language eq 'hebrew' && $surface eq 'feedback' ? 'rtl' : 'ltr');
+            onpc_parent::dialog_use($journey, "$language-$surface");
         }
         $journey->seen("$language-final");
     }

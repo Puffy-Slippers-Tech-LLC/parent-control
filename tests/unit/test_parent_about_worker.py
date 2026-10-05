@@ -254,8 +254,8 @@ def test_link_check_precedes_footer_and_only_about_is_closed():
 @pytest.mark.parametrize('fault', ['', 'close-input',
     'installed-greeter', 'parent-focused', 'recipient-qualified', 'recipient-rechecked',
     'desktop', 'parent-command', 'parent-window', 'child-picker-opened',
-    'child-choice-highlighted', 'parent-selected', 'help', 'about', 'license',
-    'license-closed', 'about-returned', 'parent-returned'])
+    'child-choice-highlighted', 'parent-selected', 'about',
+    'about-returned', 'parent-returned'])
 def test_parent_information_case_uses_complete_shared_sequence_and_stops_on_refusal(fault):
     from parent_information import PLAN
     result = json.loads(run_perl(PROBE, '0', fault, 'parent-links').stdout)

@@ -60,10 +60,12 @@ def overlay_license_read(prefix='', *, links='license'):
     import re
     require(type(prefix) is str and re.fullmatch(r'(?:[a-z][a-z0-9-]*-)?', prefix),
             'journey:overlay-about-binding')
-    require(links in ('license', 'browser-links', 'information'), 'journey:overlay-about-links')
+    require(links in ('license', 'browser-links', 'information', 'summary'), 'journey:overlay-about-links')
     selected = {'license': ('license',), 'browser-links': ('website', 'privacy'),
-        'information': ('website', 'privacy', 'support', 'license', 'legal-notices')}[links]
-    reads = tuple((link + '-read', 'overlay-' + link + '-read') for link in selected)
+        'information': ('website', 'privacy', 'support', 'license', 'legal-notices'),
+        'summary': ()}[links]
+    reads = (('summary-read', 'overlay-about-summary'),) if links == 'summary' else tuple(
+        (link + '-read', 'overlay-' + link + '-read') for link in selected)
     return {prefix + stage: 'ui:' + operation for stage, operation in (
         *((('help-read', 'overlay-help-read'),) if links == 'information' else ()),
         ('about-open', 'overlay-information-about' if links == 'information' else 'overlay-about-open'),

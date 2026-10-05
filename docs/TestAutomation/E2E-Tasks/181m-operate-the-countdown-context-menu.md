@@ -12,7 +12,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#public-observations-a
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **181h** — DESK12 showing countdown binding; UI27 and PANEL03.
+- **052** — Owned child countdown observations.
 
 ## Implementation
 
@@ -20,9 +20,11 @@ Implement one secondary click UI28 before PANEL01. Compose PANEL02 from UI17 and
 
 ## Live VM acceptance
 
-On the VM, read default off, set on and independently read on; set off and verify
-off. Close/reopen only as needed for the public state read. Persistence across
-session boundaries belongs to cases 162–163.
+On the VM, set the declared countdown-animation value and independently read the
+final public option. Qualify independently supplied valid entry and wrong-owner
+refusal through shared guards. The host UI owner covers local on/off behavior;
+persistence and per-child isolation across session boundaries belong to cases
+162–163. Menu closure or repeated toggling adds no acceptance result here.
 
 Qualification selector (implement and register before use):
 

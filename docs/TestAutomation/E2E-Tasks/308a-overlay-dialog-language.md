@@ -14,12 +14,12 @@ Estimate: 20–30 minutes.
 
 ## Scope and acceptance
 
-Qualify the child-overlay binding of shared language/presentation readers for
-English → Hebrew → English, including the request form, About and real error
-report. Use Riley/Jamie, 75 seconds, soft apps included; capture numeric values
-and account names before changes. Independently require Hebrew/restored English
-logical text, exact mixed-script content, matching accessible labels and stable IDs
-through the qualified observation route. Retain the exact body
+Qualify the child-owned English → Hebrew → English history with Riley/Jamie,
+75 seconds and soft apps included. Verify the saved language reaches the request
+form and representative inherited About/report context while preserving account
+identity and request values. The full translated-label/content combinations
+belong to host UI coverage; stable IDs and matching semantics remain shared
+automation guards. Retain the exact body
 `שלום Alex 75` and reply `rtl-check@example.invalid` across normal report
 closure, public Preferences change and genuine report reopening.
 

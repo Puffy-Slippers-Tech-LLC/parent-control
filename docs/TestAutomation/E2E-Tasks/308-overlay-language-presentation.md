@@ -14,9 +14,9 @@ Session exception: The complete child history retains its genuine error-report t
 ## Scope and acceptance
 
 Compose the [fixed overlay recipe](../E2E-Scenario-Recipes.md#overlay-language-presentation-planned-task-308)
-as one complete case. Preserve all English/Hebrew/English form, About and feedback
-logical text, mixed-script content, synthetic draft/reply and unchanged request
-assertions from 308a, followed by one ordinary translated approval through 308b
+as one complete case. Preserve the English → Hebrew → English saved-language
+history, representative inherited dialog context, synthetic draft/reply and
+unchanged request results from 308a, followed by ordinary translated approval through 308b
 and independent return to the original activity. Keep the native agent's own
 language separate from the product-owned request/result language. The actual
 report trigger and same-draft reopening gates remain mandatory.

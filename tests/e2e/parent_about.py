@@ -7,8 +7,7 @@ from journey_blocks import fresh_desktop, parent_management
 
 SCREEN_TAGS = {
     **fresh_desktop('parent'),
-    **parent_management(), 'about': 'ui:about',
-    'license': 'ui:license', 'license-closed': 'ui:license-closed',
+    **parent_management(), 'about': 'ui:parent-about-information',
     'about-returned': 'ui:about-returned',
     'parent-returned': 'ui:parent-returned',
 }
@@ -22,11 +21,10 @@ PLAN = JourneyPlan(
         'desktop': 'step-1', 'parent-command': 'step-1',
         'parent-window': 'step-1', 'child-picker-opened': 'step-1',
         'child-choice-highlighted': 'step-1',
-        'parent-selected': 'step-1', 'about': 'step-1', 'license': 'step-1',
-        'license-closed': 'step-2', 'about-returned': 'step-2', 'parent-returned': 'step-2',
+        'parent-selected': 'step-1', 'about': 'step-1',
+        'about-returned': 'step-2', 'parent-returned': 'step-2',
     },
-    # Legacy license stage names now observe clickability and unchanged About.
-    advance_after={'license': 'step-2'},
+    advance_after={'about': 'step-2'},
     settings_checks={'parent-returned': 'parent-selected'},
 )
 STAGES = PLAN.stages

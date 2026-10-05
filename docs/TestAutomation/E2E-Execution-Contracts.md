@@ -21,6 +21,7 @@ prerequisites, implementation and acceptance alongside these applicable owners:
 | Reusable guest inputs | [Baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline). Add declared fixtures/dependencies to idempotent baseline preparation; attempts and app-snapshot preparation verify them. Deliberate package/account/file mutations under test remain in the journey. |
 | Host checks | [Suite selection](../../tests/README.md#all-established-regressions) and [parallelism review](../../tests/README.md#host-test-parallelism-review); use selected `tools/run-tests unit`/`ui` scopes. Direct launchers remain available for narrow diagnosis. |
 | Storage or cleanup changes | [Storage mandate](../Mandates/Test-Storage-Mandate.md) and the affected ownership/cleanup regressions. Use shared allocation and recorded identities. |
+| Local UI obligation | [UI acceptance](#ui-acceptance). Keep component checks in their host UI owner; they supply no installed qualification or customer acceptance. |
 | Live work | [Shared live verification](#live-verification-contract) plus the capability, scenario or system branch below. The [VM mandate](../Mandates/VM-Mandate.MD) owns watch, target selection and preparation flags. |
 | Failure or missing prerequisite | [Failure handling](../../tests/README.md#handling-test-failures); retain expected/actual evidence and the current blocker. Repair proven mechanical defects within the bounded supporting-work contract. |
 | Completion | [Close-out](#completion-and-document-cleanup), only after the selected task's complete acceptance and owned cleanup. |
@@ -39,12 +40,20 @@ Briefs contain task-specific deltas. Use this format for new and revised briefs:
 - Name the final product result, finite input/branch references, relevant source
   paths/symbols and selected qualification or case command. Mark nonexistent
   selectors as planned; inspect registration before running them.
+- For a scenario, state the customer's goal and the outcomes that prove it.
+  Include only UI operations needed to achieve or observe those outcomes;
+  simplify redundant navigation, unchanged reads and dialog visits. Allocate
+  individual widget behavior and local validation matrices to their UI owner.
+  A capability brief states the named journey it enables and qualifies only
+  the necessary operation/result and safety boundaries, not an extra UI matrix.
 - Apply the [result-oriented UI scope](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
   to new briefs and revised completed or pending coverage. Keep one independent
   final observation per tested result; retain intermediate checks only for a
   distinct functional outcome or necessary shared input-safety guard. Do not
   require popup, focus, caret or rendering choreography or exhaustive independent
-  GUI combinations as a capability prerequisite.
+  GUI combinations as a capability prerequisite. A final widget state alone is
+  insufficient when the customer goal concerns access, saved work or another
+  product effect.
 - Retain task-specific gates, expected public results and unresolved acceptance
   with its existing evidence pointer. Shared rules remain links to their owners.
 
@@ -188,7 +197,9 @@ generic selector language or VM controller is part of this plan.
 
 ## Live verification contract
 
-Task **192** is the sole host-only exception. All capability/scenario work,
+Task **192** is the historical host-only exception. Explicit **UI obligation**
+rows follow [UI acceptance](#ui-acceptance), without installed qualification.
+All capability/scenario work,
 including provider adapters, needs its stated acceptance on the guarded live VM;
 engineering tasks need their actual system fault/recovery qualification.
 Former separate host/VM adapter rows are combined into a bounded live slice or
@@ -285,6 +296,23 @@ For a **system obligation**, use the brief's maintained owner and listed
 observed failure, recovery, isolation and cleanup. A mapping, placeholder
 selector or host-only check cannot complete it.
 
+### UI acceptance
+
+An explicit `UI obligation;` queue row owns local control behavior removed from
+customer E2E. Implement it in the named existing `tests/ui/` component owner,
+reuse shared operations where appropriate, and pass the focused maintained
+`tools/run-tests ui --timeout <duration>` selection. Apply host resource review
+if its implementation changes resource ownership. No VM qualification or
+package installation is required for a host component check.
+
+Retain the task's finite functional assertions and mark missing component
+coverage pending until executable and passing. This supplies no installed
+scenario or provider acceptance, and must not gate unrelated customer journeys.
+If a result actually needs live session identity, enforcement or OS integration,
+keep that distinct result in its installed owner instead of calling a host
+double equivalent. After a UI obligation passes, apply ordinary document
+close-out without claiming an E2E pass or changing scenario readiness.
+
 ## Completion and document cleanup
 
 After the guard is released and cleanup succeeds:
@@ -332,7 +360,10 @@ its required report has been removed.
    matrices or assertions. Planning repairs leave Lunar case 253 pending; its
    scenario task follows the registration and acceptance sequence above. Retain system
    obligations formerly numbered 140–150 outside the UI inventory and preserve
-   all current ready case implementations and bindings. Their shared
+   current customer case implementations and bindings. The explicitly
+   [reallocated UI cases 161 and 190](UI-and-E2E-Coverage.md#duplicate-review-and-allocation)
+   retain their stable IDs and historical evidence without runnable E2E bindings.
+   Their shared
    provider routes still require qualification under the current mandate.
 
 Run the maintained host consistency check after queue, pointer, brief or inventory

@@ -72,6 +72,12 @@ historical, with current readiness in its inventory/catalogue owner.
   must not be recreated as a task or block the next-task pointer. Retained
   inventory variants stay pending with an explicit exclusion reason and no
   executable; this is not a pass or deferred implementation task.
+- **Reallocated to UI** means a stable historical case verifies only local
+  control behavior, so its executable coverage belongs to the named UI owner.
+  Retain its inventory ID as pending with no executable and an explicit E2E
+  scheduling exclusion. Preserve checked historical task evidence, but create
+  no replacement E2E task and claim no current customer-journey acceptance.
+  A host UI pass establishes only that component coverage.
 
 Current counts are derived from the source inventories and regenerated into
 [Test coverage](../Test-Coverage.md); do not maintain independent totals in

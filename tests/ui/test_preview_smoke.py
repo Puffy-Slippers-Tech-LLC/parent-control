@@ -206,6 +206,28 @@ def test_parent_time_status_reports_unavailable(
     )
 
 
+def test_parent_zero_balance_keeps_revoke_unavailable_with_limits_on_and_off(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    path = tmp_path / 'zero-balance-events.jsonl'
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario='zero-total', events_path=path)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    wait_for_accessible_state(lambda: ui.text('parent-time-remaining') == '0m',
+                              'the zero balance is loaded')
+    assert ui.state('parent-screen-limit-toggle', ui.api.StateType.CHECKED)
+    assert not ui.state('parent-revoke-button', ui.api.StateType.SENSITIVE)
+    ui.activate('parent-screen-limit-toggle')
+    wait_for_accessible_state(
+        lambda: not ui.state('parent-screen-limit-toggle', ui.api.StateType.CHECKED)
+                and ui.state('parent-screen-limit-toggle', ui.api.StateType.SENSITIVE),
+        'the disabled screen limit saves')
+    assert not ui.state('parent-revoke-button', ui.api.StateType.SENSITIVE)
+    saves = [record for record in read_events(path) if record['event'] == 'set_parent_control']
+    assert saves == [{'daily_limit_minutes': 0, 'enabled': False,
+                      'event': 'set_parent_control', 'uid': 1001}]
+    assert not any(record['event'] == 'revoke_one_time_grant' for record in read_events(path))
+
+
 @pytest.mark.parametrize("scenario", ("normal", "save-fails"))
 def test_parent_screen_time_change_saves_or_restores(
         launch_ui, automation, wait_for_accessible_state, tmp_path, scenario):

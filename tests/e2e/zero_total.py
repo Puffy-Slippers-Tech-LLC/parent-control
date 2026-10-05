@@ -1,6 +1,10 @@
-"""Case 161: zero balances keep idle Revoke disabled with limits on and off."""
+"""Historical zero-balance worker qualification retained for its safety tests.
 
-from installed_journey import JourneyPlan, record_installed_journey
+Local control acceptance belongs to test_preview_smoke's zero-balance test.
+This plan is no longer registered as a customer E2E journey.
+"""
+
+from installed_journey import JourneyPlan
 from journey_blocks import fresh_desktop, parent_management
 from ui_observations import SettingsObservation
 
@@ -28,10 +32,3 @@ PLAN = JourneyPlan(
         'retained-allowance': SettingsObservation('fixture-child', False, ('0 minutes',)),
     },
 )
-
-
-def execute(recorder, context):
-    record_installed_journey(recorder, context, PLAN, timeout=1800)
-
-
-E2E_CASES = {'zero-total': execute}

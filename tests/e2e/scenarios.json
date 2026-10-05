@@ -238,7 +238,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open."},
           {"id": "step-2", "operation": "ui", "description": "Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit."},
-          {"id": "step-3", "operation": "ui", "description": "While limits stay on, change the allowance and read both balances. Daily-only and combined visit 4, 5, 0 and 5 minutes; grant-only visits 0, 4 and 0. After every save check actual child access, the saved allowance and any preserved grant deadline. App launches are sampled at enable/disable transitions. Zero daily time denies daily-only access while an active grant still permits use."},
+          {"id": "step-3", "operation": "ui", "description": "While limits stay on, daily-only and combined save 4, 5 and 0 minutes; grant-only saves 0, 4 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions."},
           {"id": "step-4", "operation": "ui", "description": "Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits."}
         ],
         "end": [
@@ -266,7 +266,7 @@
         "full_combinations": [
           ["time", "session"]
         ],
-        "rationale": "Fully combine three time sources with fresh or retained entry. E2E-035 owns editor boundaries and save triggers; these six cases own transitions followed by actual child use."
+        "rationale": "Fully combine three time sources with fresh or retained entry. E2E-035 owns durable save ordering and persistence; shared UI owns local editor boundaries. These six cases own changes followed by actual child use."
       },
       "variants": [
         {"coverage_id": 7, "id": "daily-only-new", "owner": "parent-policy", "parameters": {"time": "daily-only", "session": "new"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -549,7 +549,7 @@
     },
     {
       "id": "E2E-011",
-      "title": "Countdown and visibility transitions",
+      "title": "Plan child activity with the remaining-time countdown",
       "category": "customer-journey",
       "owners": ["countdown"],
       "requirements": ["ONPC-COMP-CHILD-002", "ONPC-COMP-CHILD-003", "ONPC-COMP-CHILD-005"],
@@ -566,9 +566,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Establish the declared daily-only, grant-only or combined time through Parent and actual approval. Read both Parent balances, sign in as the child, and read the countdown and hover explanation."},
-          {"id": "step-2", "operation": "wait", "description": "While time is ample, lock and unlock normally, visit sign-in and an unrestricted user's desktop, then return. Check countdown absence on other surfaces and its refreshed value on the child desktop."},
-          {"id": "step-3", "operation": "ui", "description": "Use the desktop through minute changes and the final minute, reading the seconds countdown against elapsed time. If time reaches zero, observe the normal lock."}
+          {"id": "step-1", "operation": "ui", "description": "Establish daily-only, grant-only or combined time through Parent and actual approval. Read both balances, enter the child desktop and begin recognizable allowed work while reading remaining time."},
+          {"id": "step-2", "operation": "ui", "description": "Lock and unlock the retained child desktop while time remains. Resume the same work and compare the refreshed countdown with the earlier balance and actual elapsed time; returning must not restart time."},
+          {"id": "step-3", "operation": "ui", "description": "Continue the activity through minute and final-second countdown changes until natural exhaustion locks the desktop. Compare the predicted remaining interval with the actual end of desktop access."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -580,7 +580,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "The countdown corresponds to the larger displayed balance, refreshes after return and appears only on the unlocked managed child desktop with time. Hover text explains requests and options."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Remaining-time information follows the larger balance and actual elapsed use, survives retained unlock without resetting access, and predicts the natural lock. The same work resumes before expiry."}
         ],
         "backend": [],
         "other_user": []
@@ -592,7 +592,7 @@
           "time": ["daily-only", "grant-only", "combined"]
         },
         "full_combinations": [],
-        "rationale": "Three time-source profiles own readback and visibility. E2E-037 owns the preference; surface visits precede final seconds to avoid rescue approvals."
+        "rationale": "Three time-source profiles cover useful remaining-time information, retained return and natural expiry. Countdown visibility and tooltip wording remain child UI coverage; E2E-037 owns the persisted personal preference."
       },
       "variants": [
         {"coverage_id": 27, "id": "daily-only", "owner": "countdown", "parameters": {"time": "daily-only"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -602,7 +602,7 @@
     },
     {
       "id": "E2E-012",
-      "title": "Single child overlay and selected-parent approval",
+      "title": "Request more time from the panel with the selected parent",
       "category": "customer-journey",
       "owners": ["request-approval"],
       "requirements": ["ONPC-CORE-REQUEST-001", "ONPC-CORE-REQUEST-005", "ONPC-CORE-REQUEST-006", "ONPC-CORE-REQUEST-009", "ONPC-CORE-REQUEST-010", "ONPC-CORE-REQUEST-011", "ONPC-COMP-CHILD-004", "ONPC-CORE-APPS-004", "ONPC-CORE-REQUEST-007"],
@@ -619,7 +619,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception, open a soft-blocked activity, then explicitly test graphical panel launch: select the child's panel request entry repeatedly and verify one overlay form with this child fixed."},
+          {"id": "step-1", "operation": "ui", "description": "Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception and open recognizable soft activity, then open the fixed-child request once through the panel entry."},
           {"id": "step-2", "operation": "ui", "description": "Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice."},
           {"id": "step-3", "operation": "ui", "description": "Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel."}
         ],
@@ -633,7 +633,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Repeated use of the child panel request entry opens one fixed-child overlay. The selected parent approves the displayed request. Excluded soft apps close; included soft activity remains. Hard launches stay denied and later requests still require authentication."}
+          {"id": "visible-result", "step_id": "step-3", "description": "The child requests more time through the panel entry for their own account. The selected parent approves the displayed request; excluded soft apps close, included soft activity remains, and hard launches stay denied. Later requests require new authentication."}
         ],
         "backend": [],
         "other_user": []
@@ -648,7 +648,7 @@
         "full_combinations": [
           ["soft-apps", "approver"]
         ],
-        "rationale": "Fully combine two approvers with both soft-app choices. These cases explicitly test repeated graphical panel launch and singleton overlay behavior in step 1; their later ordinary reopen uses the direct child app command. Visible success does not assert backend atomicity."
+        "rationale": "Both eligible approvers and soft-app choices affect real approval/time/app outcomes. One panel entry reaches the request; the later ordinary reopen uses the direct child command. Repeated-entry singleton checks belong to child UI; visible success does not assert backend atomicity."
       },
       "variants": [
         {"coverage_id": 30, "id": "excluded-first", "owner": "request-approval", "parameters": {"soft-apps": "excluded", "approver": "first"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -959,7 +959,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice."},
-          {"id": "step-2", "operation": "ui", "description": "Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing. Check the absence of a mute control."},
+          {"id": "step-2", "operation": "ui", "description": "Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing."},
           {"id": "step-3", "operation": "ui", "description": "Set distinct choices for the other child and return to both children on both surfaces. Read before editing and compare per-child values and independent surface selectors."}
         ],
         "end": [
@@ -972,7 +972,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Request values follow each child between forms; parent selectors remain local to each surface. One child's choices do not replace the other's. Current forms expose no mute control."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Request values follow each child between forms; parent selectors remain local to each surface. One child's choices do not replace the other's."}
         ],
         "backend": [],
         "other_user": []
@@ -1371,7 +1371,7 @@
         "full_combinations": [
           ["time", "gameplay"]
         ],
-        "rationale": "Both dominant sources by both display modes are combined. The two fullscreen variants explicitly test graphical panel launch of the overlay; windowed variants use REQUEST02's direct command. E2E-014 owns input boundaries."
+        "rationale": "Both dominant sources by both display modes are combined. Fullscreen variants test panel launch; windowed variants use direct entry. Shared UI owns local request-input boundaries."
       },
       "variants": [
         {"coverage_id": 128, "id": "daily-dominant-windowed", "owner": "continuous-journeys", "parameters": {"time": "daily-dominant", "gameplay": "windowed"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -1546,7 +1546,7 @@
     },
     {
       "id": "E2E-030",
-      "title": "Installed About and license access",
+      "title": "Identify the installed product and return to management",
       "category": "customer-journey",
       "owners": ["parent-navigation"],
       "requirements": ["ONPC-CORE-ABOUT-001"],
@@ -1563,7 +1563,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Log in as Parent, invoke PARENT01 to run the installed oh-no-parent-control-parent command directly and observe its management window, select an existing child, open About, read its product/version information and check the license link is clickable without invoking it or inspecting its URI or destination."},
+          {"id": "step-1", "operation": "ui", "description": "Open the installed Parent App, select an existing child and capture its settings. Open About to identify the installed product, version and license information."},
           {"id": "step-2", "operation": "ui", "description": "Read the About copyright/footer, close only About and return to the same selected child without changing policy. No external handler is launched or validated."}
         ],
         "end": [
@@ -1576,7 +1576,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-2", "description": "Installed About information is readable, the license link is clickable and the parent can return to normal use without an external launch."}
+          {"id": "visible-result", "step_id": "step-2", "description": "The parent identifies the installed product/version/license and returns to the same selected child and unchanged settings."}
         ],
         "backend": [],
         "other_user": []
@@ -1588,7 +1588,7 @@
           "surface": ["parent"]
         },
         "full_combinations": [],
-        "rationale": "All declared interacting dimensions are fully combined. Independent validation values explicitly named in the steps are exercised sequentially in each case. This is the starting matrix; the scenario implementation must audit its full requirements before acceptance, retaining these stable IDs."
+        "rationale": "One installed Parent history identifies product/version/license information and returns to the selected child's unchanged settings. Link clickability is shared UI coverage; external opening is not proved here."
       },
       "variants": [
         {"coverage_id": 151, "id": "parent", "owner": "parent-navigation", "parameters": {"surface": "parent"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_about.py", "test_id": "parent"}}
@@ -1613,8 +1613,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests cover distinct formatting results and meaningful validation and attachment boundaries."},
-          {"id": "step-2", "operation": "ui", "description": "Draft-reopen returns to the existing window, inspects Privacy, closes/reopens feedback to compare the draft, then exits/relaunches Parent to verify reset. Validation reopens and reads recovered valid state. Attachments removes one file and reads the remaining file. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback."}
+          {"id": "step-1", "operation": "ui", "description": "Prepare a report for later review in Parent. Draft-reopen writes formatted synthetic text and a reply with one real attachment; validation refuses an empty submission and then authors body/reply; attachments chooses two real files; diagnostic-export downloads the prepared diagnostics for local inspection. Shared UI tests own the control and local input matrices."},
+          {"id": "step-2", "operation": "ui", "description": "Draft-reopen preserves authored text, reply and file across Privacy and normal dialog reopening, then discards them on app exit. Validation recovers and preserves the entered body/reply on reopening. Attachments removes the unwanted file and retains the intended one. Diagnostic-export recovers from cancellation and an unwritable destination, producing a real readable ZIP while preserving the draft. No valid feedback is submitted."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1626,7 +1626,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-2", "description": "The selected installed editor, rejection/recovery, real chooser or export behavior matches the recipe. Draft-reopen establishes preservation, app-exit reset and accessible privacy; attachments establishes Open, Cancel preservation and Remove."}
+          {"id": "visible-result", "step_id": "step-2", "description": "The parent can prepare and retain the intended report, recover after an empty submission is refused, choose which actual file remains attached, or save readable diagnostics after a failed destination. Ordinary draft reopening preserves work; app exit discards it."}
         ],
         "backend": [],
         "other_user": []
@@ -1638,7 +1638,7 @@
           "flow": ["draft-reopen", "validation", "attachments", "diagnostic-export"]
         },
         "full_combinations": [],
-        "rationale": "Four installed feedback contracts. Full GUI-only formatting, validation and attachment matrices belong to UI tests. E2E retains component samples, real chooser/export and lifecycle results; private bytes and diagnostic-origin checks remain engineering work."
+        "rationale": "Four report-preparation histories own retained authored work, correction after rejected submission, intended real attachment selection and diagnostic export/recovery. Shared UI owns formatting, local input and chooser-control matrices; private bytes and diagnostic production stay engineering-owned."
       },
       "variants": [
         {"coverage_id": 152, "id": "draft-reopen", "owner": "parent-navigation", "parameters": {"flow": "draft-reopen"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_feedback_draft.py", "test_id": "draft-reopen"}},
@@ -1667,7 +1667,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Open Parent feedback, enter authorized synthetic text and reply address, add reviewed files, inspect Privacy and select Send once with the authorized service profile."},
-          {"id": "step-2", "operation": "ui", "description": "Observe unavailable edits and duplicate Send while sending. Read acceptance and the reply-address follow-up; leave thanks until manually dismissing it. Reopen feedback and read the cleared draft and files."}
+          {"id": "step-2", "operation": "ui", "description": "Read service acceptance and the reply-address follow-up; leave thanks until manually dismissing it. Reopen feedback and read the cleared submitted draft and files. Pending-control guards and duplicate-send widgets are shared UI coverage."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1718,7 +1718,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Compose authorized synthetic feedback and files in Parent and review Privacy and submission contents."},
           {"id": "step-2", "operation": "ui", "description": "Remove Internet access using the shared distro-independent LIFE06 VM helper, preserving existing test control and public observations."},
-          {"id": "step-3", "operation": "ui", "description": "Return to feedback, select Send once and read retry progress and unavailable editing/duplicate Send."},
+          {"id": "step-3", "operation": "ui", "description": "Return to feedback, select Send once and read that the intended report is awaiting retry."},
           {"id": "step-4", "operation": "ui", "description": "Reconnect through the same shared system-network helper within the retry period."},
           {"id": "step-5", "operation": "ui", "description": "Observe automatic acceptance without another Send, dismiss thanks and reopen feedback to read the cleared draft."}
         ],
@@ -1769,9 +1769,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Read the selected child's saved allowance while limits are off and confirm the editor is unavailable. Enable limits in Parent."},
-          {"id": "step-2", "operation": "ui", "description": "For boundaries, select preset 15, accept custom 1 and reject 1441 while preserving saved 15. UI tests cover representative presets, custom boundaries and distinct commit paths through their saved results. For save-order, make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values."},
-          {"id": "step-3", "operation": "ui", "description": "Reopen Parent and compare both children's allowances with their last accepted values. Rejected text must not replace a saved value."}
+          {"id": "step-1", "operation": "ui", "description": "Read the child's saved allowance and enable limits in Parent."},
+          {"id": "step-2", "operation": "ui", "description": "For boundaries, save preset 15 followed by custom 1. For save-order, save Jordan's rapid custom 5 then 6 and Riley's separate 7. Read each child's final accepted allowance before reopening. Local invalid-input boundaries and repeated-launch window behavior belong to shared UI coverage."},
+          {"id": "step-3", "operation": "ui", "description": "Reopen Parent and compare the intended allowance with the last saved value: 1 for boundaries, Jordan 6 and Riley 7 for save-order."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1783,7 +1783,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Representative installed editing, rejection and real save ordering preserve the intended per-child allowance across selection and restart."}
+          {"id": "visible-result", "step_id": "step-3", "description": "The intended per-child daily allowances survive selection changes and app restart; rapid saves retain the last accepted edit without mixing children."}
         ],
         "backend": [],
         "other_user": []
@@ -1821,9 +1821,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "For daily-positive, approve soft-app access, open the soft app, then toggle limits off and on with a positive allowance; read zero one-time time. For zero-total, set zero daily time with no grant."},
-          {"id": "step-2", "operation": "ui", "description": "Read Revoke availability in Parent. Daily-positive opens the warning, cancels and checks unchanged activity, then confirms. Zero-total observes the unavailable action with limits on and off."},
-          {"id": "step-3", "operation": "ui", "description": "With daily time left, revisit the child: the earlier soft app closes, blocked launches fail and allowed work remains usable. Daily time stays unchanged. For zero-total, read the saved zero allowance retained with limits off."}
+          {"id": "step-1", "operation": "ui", "description": "For daily-positive, approve soft-app access, open the soft app, then toggle limits off and on with a positive allowance; read zero one-time time. The zero-total variant is excluded from E2E scheduling and owned by Parent UI."},
+          {"id": "step-2", "operation": "ui", "description": "Case 160 cancels a revocation and checks unchanged retained activity, then confirms Revoke despite having daily time and no active grant."},
+          {"id": "step-3", "operation": "ui", "description": "With daily time left, revisit the child: the earlier soft app closes, blocked launches fail and allowed work remains usable. Daily time stays unchanged."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1835,7 +1835,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Revoke works with positive daily time and no grant, preserving daily time while restoring app restrictions. Zero total makes the action unavailable."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Case 160 Revoke works with positive daily time and no grant, preserving daily time while restoring app restrictions. Case 161 zero-total availability is a local UI obligation with no E2E acceptance credit."}
         ],
         "backend": [],
         "other_user": []
@@ -1847,11 +1847,11 @@
           "balance": ["daily-positive", "zero-total"]
         },
         "full_combinations": [],
-        "rationale": "Separates no-grant revocation from the active-grant matrix."
+        "rationale": "Case 160 owns no-grant revocation restoring restrictions while daily access remains. Stable case 161 is excluded from E2E scheduling and allocated to actual Parent UI coverage; active-grant revocation stays in E2E-007."
       },
       "variants": [
         {"coverage_id": 160, "id": "daily-positive", "owner": "continuous-journeys", "parameters": {"balance": "daily-positive"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 161, "id": "zero-total", "owner": "continuous-journeys", "parameters": {"balance": "zero-total"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/zero_total.py", "test_id": "zero-total"}}
+        {"coverage_id": 161, "id": "zero-total", "owner": "continuous-journeys", "parameters": {"balance": "zero-total"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: local zero-balance Revoke availability is owned by tests/ui/test_preview_smoke.py::test_parent_zero_balance_keeps_revoke_unavailable_with_limits_on_and_off, with executable UI coverage. No standalone customer journey or new E2E task is claimed; retain this stable ID and historical completion.", "executable": null}
       ]
     },
     {
@@ -1873,9 +1873,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Give both children six daily minutes and verify enough remains for the declared boundary. On the first child's desktop read the hover explanation, open the countdown's right-click menu, read the initially off animation choice and turn it on."},
-          {"id": "step-2", "operation": "ui", "description": "Close the menu, open and cancel a normal request, and compare unchanged access. Perform the declared sign-out/sign-in or reboot, then read the remembered choice before editing."},
-          {"id": "step-3", "operation": "ui", "description": "Visit the other child's independent off choice. Return to the first child, exercise off and on, then use an allowed app to natural expiry and verify normal locking."}
+          {"id": "step-1", "operation": "ui", "description": "Give both children six daily minutes with enough time for the declared boundary. On the first child's desktop save the countdown-animation choice as on and capture remaining time."},
+          {"id": "step-2", "operation": "ui", "description": "Perform the declared sign-out/sign-in or reboot and read the persisted choice before editing. Remaining access follows actual elapsed use and the original policy."},
+          {"id": "step-3", "operation": "ui", "description": "Read the other child's independent off choice, then return and use an allowed app to natural expiry. Saving a personal display choice must neither alter another child nor prevent locking."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2121,7 +2121,7 @@
           "flow": ["search-filters", "match-editor", "match-reopen", "shared-launchers", "special-paths", "pattern-files"]
         },
         "full_combinations": [],
-        "rationale": "Six installed contracts; UI owns full query/filter and local editor matrices. E2E samples the real catalogue and retains saved rules, broker rejection, persistence and actual launches."
+        "rationale": "Six installed contracts own finding real child-specific catalogue entries, durable matching rules, public save rejection, persistence and actual launches. Shared UI owns local query/filter/editor matrices; installed runs are not mandatory widget samples."
       },
       "variants": [
         {"coverage_id": 184, "id": "search-filters", "owner": "continuous-journeys", "parameters": {"flow": "search-filters"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/search_filters.py", "test_id": "search-filters"}},
@@ -2151,9 +2151,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "For Parent links, sign in as a parent and open Parent. For either request form, first enable the selected child's limits and give 30 daily minutes through Parent, then enter that form normally. Record displayed choices before opening information. For command help, sign in as the parent and qualify the desktop."},
-          {"id": "step-2", "operation": "ui", "description": "For Parent/overlay, check Help, website, privacy, support, license and legal links are clickable without invoking them or inspecting their URIs or destinations. Read owned About information. Kiosk reads information without external actions. Command-help reads bounded guarded SSH stdout from both help commands and both manuals as the parent fixture account."},
-          {"id": "step-3", "operation": "ui", "description": "Close opened information windows and return to unchanged child/request choices. Command help must open no management or request window."}
+          {"id": "step-1", "operation": "ui", "description": "Parent-links case 190 is excluded from E2E scheduling and UI-owned. For either active request-form case, enable the child's limits and give 30 daily minutes through Parent, enter the form and record unfinished request choices. For command help, sign in as the parent and qualify the desktop."},
+          {"id": "step-2", "operation": "ui", "description": "Read the installed product/version and legal/contact information in About. Kiosk provides that information within its request-only session. Command-help reads both installed help commands and manuals through bounded guarded SSH stdout. Link completeness and clickability are shared UI checks."},
+          {"id": "step-3", "operation": "ui", "description": "Close About and return to the unchanged unfinished request, retaining station restrictions where applicable. Command help must open no management or request window. Installed Parent information and return are owned by case 151."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2177,10 +2177,10 @@
           "surface": ["parent-links", "child-overlay", "kiosk", "command-help"]
         },
         "full_combinations": [],
-        "rationale": "Extends ready Parent About with distinct links, request surfaces and installed command documentation."
+        "rationale": "Request information histories return to unchanged unfinished work within each surface; installed command help/manuals provide real usage. Case 190 is excluded and allocated to shared UI, since installed Parent information/return is already owned by case 151."
       },
       "variants": [
-        {"coverage_id": 190, "id": "parent-links", "owner": "continuous-journeys", "parameters": {"surface": "parent-links"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_information.py", "test_id": "parent-links"}},
+        {"coverage_id": 190, "id": "parent-links", "owner": "continuous-journeys", "parameters": {"surface": "parent-links"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: local Parent Help/About link availability belongs to tests/ui/test_about_release.py::test_about_displays_release_notices and shared UI coverage. Installed product information and return to unchanged management are owned by E2E-030 case 151. Retain this stable ID and historical task; no duplicate customer journey or new E2E task.", "executable": null},
         {"coverage_id": 191, "id": "child-overlay", "owner": "continuous-journeys", "parameters": {"surface": "child-overlay"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_about.py", "test_id": "child-overlay"}},
         {"coverage_id": 192, "id": "kiosk", "owner": "continuous-journeys", "parameters": {"surface": "kiosk"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_about.py", "test_id": "kiosk"}},
         {"coverage_id": 193, "id": "command-help", "owner": "continuous-journeys", "parameters": {"surface": "command-help"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/command_help.py", "test_id": "command-help"}}
@@ -2846,132 +2846,132 @@
           {
             "id": "initial-english-native-names",
             "step_id": "step-1",
-            "description": "initial english native names is independently observed through public results."
+            "description": "Before any saved choice, account languages follow the declared English desktop and the chooser identifies language choices by their native names."
           },
           {
             "id": "riley-policy-captured",
             "step_id": "step-1",
-            "description": "riley policy captured is independently observed through public results."
+            "description": "Public Parent readback records Riley's enabled 60-minute allowance, zero grant and exact app rules before language changes."
           },
           {
             "id": "jordan-policy-captured",
             "step_id": "step-1",
-            "description": "jordan policy captured is independently observed through public results."
+            "description": "Public Parent readback independently records Jordan's enabled 60-minute allowance, zero grant and exact app rules."
           },
           {
             "id": "confirmed-offline",
             "step_id": "step-2",
-            "description": "confirmed offline is independently observed through public results."
+            "description": "Internet isolation is independently confirmed before language changes; installed translations must work without downloading."
           },
           {
             "id": "chinese-riley",
             "step_id": "step-2",
-            "description": "chinese riley is independently observed through public results."
+            "description": "Jamie continues managing Riley in the saved Chinese Parent language while Riley's own language remains independent."
           },
           {
             "id": "chinese-jordan",
             "step_id": "step-2",
-            "description": "chinese jordan is independently observed through public results."
+            "description": "Selecting Jordan retains Jamie's Chinese management context and displays Jordan's own settings."
           },
           {
             "id": "chinese-riley-return",
             "step_id": "step-2",
-            "description": "chinese riley return is independently observed through public results."
+            "description": "Returning to Riley retains Jamie's Chinese language and Riley's original settings."
           },
           {
             "id": "parent-relaunch-choice",
             "step_id": "step-2",
-            "description": "parent relaunch choice is independently observed through public results."
+            "description": "Normally closing and relaunching Parent retains Jamie's saved Chinese choice without repeating first-run setup."
           },
           {
             "id": "jordan-request-captured",
             "step_id": "step-3",
-            "description": "jordan request captured is independently observed through public results."
+            "description": "Jordan's own request values are captured as Custom 1.25 minutes, 75 seconds and soft apps included before language readback."
           },
           {
             "id": "german-form",
             "step_id": "step-3",
-            "description": "german form is independently observed through public results."
+            "description": "Jordan's request form uses the saved German language with literal account names and the captured duration/soft choice unchanged."
           },
           {
             "id": "riley-request-captured",
             "step_id": "step-3",
-            "description": "riley request captured is independently observed through public results."
+            "description": "Riley's independent request values are captured as Custom 1.25 minutes, 75 seconds and soft apps included."
           },
           {
             "id": "hebrew-form",
             "step_id": "step-3",
-            "description": "hebrew form is independently observed through public results."
+            "description": "Riley's request form uses saved Hebrew with literal names and the captured request values unchanged."
           },
           {
             "id": "cancel-preserved-hebrew",
             "step_id": "step-3",
-            "description": "cancel preserved hebrew is independently observed through public results."
+            "description": "Cancelling Riley's candidate German choice preserves the previously saved Hebrew language when Preferences reopens."
           },
           {
             "id": "jordan-approver-independent",
             "step_id": "step-3",
-            "description": "jordan approver independent is independently observed through public results."
+            "description": "Changing the station approver does not replace Jordan's German language or request values."
           },
           {
             "id": "riley-approver-independent",
             "step_id": "step-3",
-            "description": "riley approver independent is independently observed through public results."
+            "description": "Changing the station approver does not replace Riley's Hebrew language or request values."
           },
           {
             "id": "german-reentry",
             "step_id": "step-3",
-            "description": "german reentry is independently observed through public results."
+            "description": "Fresh station entry for Jordan retains German and the same request values without another first-run chooser."
           },
           {
             "id": "hebrew-reentry",
             "step_id": "step-3",
-            "description": "hebrew reentry is independently observed through public results."
+            "description": "Fresh station entry for Riley retains Hebrew and the same request values without another first-run chooser."
           },
           {
             "id": "overlay-kiosk-sharing",
             "step_id": "step-4",
-            "description": "overlay kiosk sharing is independently observed through public results."
+            "description": "Riley's overlay and station share the child's saved Hebrew language while retaining their independent selected approvers."
           },
           {
             "id": "overlay-relaunch",
             "step_id": "step-4",
-            "description": "overlay relaunch is independently observed through public results."
+            "description": "Normally reopening Riley's overlay retains Hebrew, custom duration and soft choice with the overlay's own approver."
           },
           {
             "id": "renewed-session-language",
             "step_id": "step-4",
-            "description": "renewed session language is independently observed through public results."
+            "description": "After renewing Riley's desktop session, the child request form still follows saved Hebrew without resetting choices."
           },
           {
             "id": "jordan-offline-policy",
             "step_id": "step-5",
-            "description": "jordan offline policy is independently observed through public results."
+            "description": "While offline, Jordan's allowance, zero grant and app rules match the original captured policy, allowing measured elapsed use."
           },
           {
             "id": "riley-offline-policy",
             "step_id": "step-5",
-            "description": "riley offline policy is independently observed through public results."
+            "description": "While offline, Riley's allowance, zero grant and app rules match the independently captured policy, allowing measured elapsed use."
           },
           {
             "id": "parent-child-independent",
             "step_id": "step-5",
-            "description": "parent child independent is independently observed through public results."
+            "description": "Jamie's Chinese management language remains independent of Jordan German and Riley Hebrew throughout child selection and offline use."
           },
           {
             "id": "confirmed-online-recovery",
             "step_id": "step-5",
-            "description": "confirmed online recovery is independently observed through public results."
+            "description": "The shared isolation owner restores Internet access and independently confirms connectivity."
           },
           {
             "id": "riley-final-policy",
             "step_id": "step-5",
-            "description": "riley final policy is independently observed through public results."
+            "description": "Final public readback retains Riley's original allowance/app rules and zero grant after all language and session changes."
           },
           {
             "id": "jordan-final-policy",
             "step_id": "step-5",
-            "description": "jordan final policy is independently observed through public results."
+            "description": "Final public readback independently retains Jordan's original allowance/app rules and zero grant."
           }
         ],
         "backend": [],
@@ -3014,7 +3014,7 @@
     },
     {
       "id": "E2E-055",
-      "title": "Parent Hebrew presentation and inherited dialogs",
+      "title": "Change Parent language while retaining feedback and child policy",
       "category": "customer-journey",
       "owners": ["personal-language"],
       "requirements": ["ONPC-CORE-TIME-001", "ONPC-CORE-TIME-006", "ONPC-CORE-ABOUT-001", "ONPC-CORE-FEEDBACK-003"],

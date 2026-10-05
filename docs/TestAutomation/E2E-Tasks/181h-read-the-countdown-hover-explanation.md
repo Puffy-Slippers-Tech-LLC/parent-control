@@ -1,29 +1,42 @@
-# 181h — Read the countdown hover explanation
+# 181h — Read the countdown explanation in UI tests
 
 Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
+and [UI acceptance](../E2E-Execution-Contracts.md#ui-acceptance).
 
 Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **DESK12 showing countdown binding; UI27 and PANEL03**. First scheduled consumer: [E2E-011, case 27](../E2E-Scenario-Recipes.md#e2e-011).
-Read the named [block contracts](../E2E-Building-Blocks.md#desktop-and-retained-session-entry), [related block contracts](../E2E-Building-Blocks.md#public-observations-and-individual-inputs), [related block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and only the selected consumer's recipe.
+Deliver the **UI obligation for the countdown's readable explanation** under
+the [UI coverage owner](../UI-and-E2E-Coverage.md). This row supplies no installed
+E2E prerequisite or customer acceptance credit.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **052** — TIME01 child-desktop presence and limits-off absence.
+- **052** — Owned child countdown observations.
 
 ## Implementation
 
-Bind the already-showing countdown target under DESK12, implement one normal hover input UI27, then compose PANEL03 from the fresh target and tooltip text. Qualify desktop countdown only.
+Extend the existing isolated-Shell owner
+[test_child_shell_lifecycle.py](../../../tests/ui/test_child_shell_lifecycle.py)
+and shared [Shell adapter](../../../tests/ui/child_shell_interaction.py) to
+operate the identified countdown and independently read its explanation.
+The existing localization test reads panel descriptions; a real hover result
+is not yet registered. Retain lower-layer hover-state rules in
+[indicator logic tests](../../../tests/child/indicator_logic.test.mjs).
+Use the minimum supported input and public text readback, with no geometry or
+popup/focus choreography assertions.
 
-## Live VM acceptance
+## UI acceptance
 
-With publicly prepared usable child time on the VM, read countdown, hover the real control and read its explanation. Independently supplied child entry must work. Missing hover text, wrong account or stale target fails; no fullscreen route is claimed.
+On the isolated Shell surface, require the explanation's public meaning and
+current time value after supported hover on the identified control. Missing
+text, wrong owner or stale target fails. Preserve shared input guards. This UI
+result does not establish installed time accuracy, policy enforcement or expiry.
 
-Qualification selector (implement and register before use):
+Run the maintained owners after implementing the missing UI assertion:
 
 ```sh
-tools/run-tests integration check_e2e_read_the_countdown_hover_explanation
+tools/run-tests ui --timeout 600 'tests/ui/test_child_shell_lifecycle.py'
+tools/run-tests child-node 'tests/child/indicator_logic.test.mjs'
 ```

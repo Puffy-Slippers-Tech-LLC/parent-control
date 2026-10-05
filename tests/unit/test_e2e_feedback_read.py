@@ -565,7 +565,7 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
         if fault == 'jordan-preset-confirm':
             assert result['keys'] == []
             assert result['stages'][-2:] == ['jordan-preset-ready', 'jordan-preset-confirm']
-    assert PLAN.settings_checks['repeat-selected'] == 'final-back-selected'
+    assert PLAN.settings_checks['final-back-selected'].allowance == ('7 minutes',)
     assert PLAN.child_bindings['jordan-rapid'] == 'existing'
 
 

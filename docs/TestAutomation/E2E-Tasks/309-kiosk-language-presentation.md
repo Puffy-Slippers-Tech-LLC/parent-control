@@ -14,10 +14,10 @@ Session exception: The complete station history includes its real report-trigger
 
 Compose one complete case from the
 [fixed kiosk recipe](../E2E-Scenario-Recipes.md#kiosk-language-presentation-planned-task-309).
-Preserve the selected child's language across approver changes and all form,
-About and report English/Hebrew/English logical text, exact mixed-script content,
-and draft/reply assertions. Compare literal account names and
-75-second request values through every transition. Keep the real report-entry
+Preserve the selected child's saved language across approver changes and the
+English → Hebrew → English history, with representative inherited dialog context
+and retained draft/reply. Compare account identity and 75-second request values
+at the functional transitions; do not traverse every translated label. Keep the real report-entry
 gate and station restrictions intact. The ordinary translated kiosk approvals
 remain in task 300's independent continuous Chinese case.
 

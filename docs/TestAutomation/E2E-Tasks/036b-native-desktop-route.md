@@ -39,7 +39,12 @@ file-manager activation cannot replace the tested desktop route.
 
 ## Live VM acceptance
 
-On the live VM, activate the actual desktop entry, observe the real app window and perform a normal usability action. While an earlier S activity remains open, use a supported desktop gesture to launch and independently identify a second window; presenting the first window cannot pass. Apply a public Parent block and observe this route's declared blocked result. Qualify independently reached desktop entry and wrong-target refusal; terminal/file-manager activation is not desktop acceptance.
+On the live VM, capture the required activity through the qualified desktop
+entry, apply each declared public Parent block and observe this route's denied
+launch and expected prior-window closure. Reuse unchanged usable/separate-window
+evidence from 036g/036h; rerun an affected binding when necessary. Qualify
+independently supplied desktop entry and wrong-target refusal. Another launcher
+cannot establish the desktop policy result.
 
 Qualification selector (implement and register before use):
 

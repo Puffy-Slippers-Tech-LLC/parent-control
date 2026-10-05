@@ -147,7 +147,8 @@ def test_unfinished_briefs_select_their_shared_contract_and_acceptance(rows, bri
         if row['deferred']:
             continue
         kind = ('scenario' if is_case(row) else
-                'system' if row['scope'].startswith('System obligation ') else 'capability')
+                'system' if row['scope'].startswith('System obligation ') else
+                'ui' if row['scope'].startswith('UI obligation;') else 'capability')
         assert f'(../E2E-Execution-Contracts.md#{kind}-acceptance)' in entry, row['id']
 
 
@@ -200,6 +201,24 @@ def test_excluded_fedora_prerequisites_cannot_reenter_the_queue(rows):
     assert all(excluded.isdisjoint(row['requires']) for row in rows)
     assert not any(path.name.startswith(tuple(f'{task}-' for task in excluded))
                    for path in (DOCS / 'E2E-Tasks').glob('*.md'))
+
+
+def test_reallocated_ui_coverage_does_not_claim_customer_acceptance(rows, variants, briefs):
+    for number in (161, 190):
+        _, variant = variants[number]
+        assert variant['status'] == 'pending' and variant['executable'] is None
+        assert variant['pending_reason'].startswith('Excluded from E2E scheduling:')
+        assert all(row['done'] for row in rows if number in row['cases'])
+    ui_rows = [row for row in rows if row['scope'].startswith('UI obligation;')]
+    assert {row['id'] for row in ui_rows} == {'052b', '181h'}
+    ui_ids = {row['id'] for row in ui_rows}
+    for row in rows:
+        if row['id'] not in ui_ids:
+            assert ui_ids.isdisjoint(row['requires']), row['id']
+    for row in ui_rows:
+        _, brief = briefs[row['id']]
+        assert 'tools/run-tests ui --timeout' in brief
+        assert 'tools/run-tests integration' not in brief
 
 
 def test_scenario_brief_bindings_match_inventory(rows, variants, briefs):

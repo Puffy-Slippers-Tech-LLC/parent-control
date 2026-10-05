@@ -658,6 +658,7 @@ KIOSK_LANGUAGE_POLICIES = {'kiosk-language-policy': EXISTING_CHILD,
 # Finite REQUEST04 bindings: field, destination, owning child, input/result language.
 KIOSK_LANGUAGE_ACCOUNTS = {
     'kiosk-language-jordan-jamie': ('approver', PARENT, EXISTING_CHILD, 'en', 'en'),
+    'kiosk-language-jordan-jamie-chinese': ('approver', PARENT, EXISTING_CHILD, 'zh-Hans', 'zh-Hans'),
     'kiosk-language-riley-initial': ('child', CHILD, EXISTING_CHILD, 'de', 'en'),
     'kiosk-language-jordan-restored': ('child', EXISTING_CHILD, CHILD, 'he', 'de'),
     'kiosk-language-riley-restored': ('child', CHILD, EXISTING_CHILD, 'de', 'he'),
@@ -8583,7 +8584,9 @@ class AccessibleUI:
             # First station entry can leave the current child's setup open.
             # Complete it before requiring an enabled account selector, then
             # reacquire after that separate input and its confirmed result.
-            require(language == 'en', 'ui:kiosk-startup-language')
+            # The bound child's desktop language may already be non-English.
+            # Setup accepts its default; the fresh snapshot below must still
+            # prove the declared child and language before selector input.
             self.complete_request_language_setup()
             selector, form, observation = self.wait(
                 lambda: self.kiosk_account_snapshot(field, overlay=overlay, child=child,
@@ -10368,10 +10371,23 @@ def greeter_account(*, station_branch=False, station_required=False):
     # enter here directly after SSH, without the former setup boot-complete
     # wait. Observe the public greeter within its own finite boot budget.
     require(not station_required or station_branch, 'ui:station-account-binding')
-    deadline = time.monotonic() + (90 if station_branch else 300)
+    started = time.monotonic()
+    deadline = started + (90 if station_branch else 300)
+    last_scan = []
+
+    def check_deadline(remaining):
+        if remaining <= 0:
+            try:
+                runtime_failure_diagnostic(None, 'greeter-identity',
+                    max(0, int((time.monotonic() - started) * 1000)),
+                    session_states=last_scan)
+            except Exception:
+                pass  # Diagnostics cannot replace the original identity failure.
+            require(False, 'ui:timeout:greeter-identity')
+
     def call(*args):
         remaining = deadline - time.monotonic()
-        require(remaining > 0, 'ui:timeout:greeter-identity')
+        check_deadline(remaining)
         try:
             return subprocess.run(['/usr/bin/loginctl', *args], capture_output=True,
                                   text=True, check=True, timeout=min(5, remaining)).stdout
@@ -10391,6 +10407,7 @@ def greeter_account(*, station_branch=False, station_required=False):
 
     while True:
         found = []
+        scan = []
         for session in sessions():
             try:
                 raw = call('show-session', session, '-p', 'Class', '-p', 'Active',
@@ -10406,6 +10423,13 @@ def greeter_account(*, station_branch=False, station_required=False):
                 found = []
                 break
             props = dict(line.split('=', 1) for line in raw.splitlines())
+            # Only fixed OS states leave the guest; no IDs, UIDs or account names.
+            scan.append({key: props.get(key) if props.get(key) in allowed else 'other'
+                         for key, allowed in (
+                             ('Class', ('greeter', 'user', 'manager', 'background', 'user-incomplete')),
+                             ('Active', ('yes', 'no')), ('Remote', ('yes', 'no')),
+                             ('Type', ('wayland', 'x11', 'tty', 'unspecified')),
+                             ('Seat', ('seat0', '')))})
             if ((station_branch or props.get('Class') == 'greeter') and props.get('Active') == 'yes'
                     and props.get('Remote') == 'no' and props.get('Seat') == 'seat0'
                     and props.get('Type') in ('wayland', 'x11')):
@@ -10420,9 +10444,11 @@ def greeter_account(*, station_branch=False, station_required=False):
                     found.append((uid, owner))
                 else:
                     found.append(uid)
+        else:
+            last_scan = scan  # Never retain a partial inventory as complete evidence.
         require(len(found) <= 1, 'ui:greeter-identity')
         remaining = deadline - time.monotonic()
-        require(remaining > 0, 'ui:timeout:greeter-identity')
+        check_deadline(remaining)
         if found and not (station_required and found[0][1] != 'station'):
             if station_branch:
                 return pwd.getpwuid(found[0][0]), found[0][1]
@@ -10491,7 +10517,7 @@ def require_active_launch_session():
     require(len(active) == 1, 'ui:launch-session')
 
 
-def runtime_failure_diagnostic(account, pending, elapsed_ms):
+def runtime_failure_diagnostic(account, pending, elapsed_ms, *, session_states=None):
     """Failure-only service/session evidence on private command stderr.
 
     This reads public OS state, never starts a session or retries UI input.
@@ -10499,14 +10525,17 @@ def runtime_failure_diagnostic(account, pending, elapsed_ms):
     """
     document = {'event': 'ui-runtime-timeout', 'object': pending,
                 'elapsed_ms': elapsed_ms, 'sessions': [], 'units': {}}
+    if session_states is not None:
+        document['last_complete_session_scan'] = session_states
 
     def read(argv):
         return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
                               text=True, check=True, timeout=2).stdout
 
     try:
-        sessions = read(['/usr/bin/loginctl', 'show-user', str(account.pw_uid),
+        sessions = (read(['/usr/bin/loginctl', 'show-user', str(account.pw_uid),
                          '--no-pager', '-p', 'Sessions', '--value']).split()
+                    if account is not None else [])
         for session in sessions[:8]:
             if not re.fullmatch(r'[a-zA-Z0-9]+', session):
                 continue

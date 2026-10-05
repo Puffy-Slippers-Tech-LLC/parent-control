@@ -13,6 +13,8 @@ import check_e2e_chinese_kiosk_lifecycle as selector
 import check_graphical_smoke as smoke
 import chinese_kiosk_lifecycle as lifecycle
 import chinese_current_install as current
+import chinese_lifecycle as customer
+import chinese_journey as shared_chinese
 import check_e2e_chinese_current_install as current_selector
 import installed_journey
 import session_control
@@ -24,6 +26,7 @@ from tests.support.desktop_session import RUN_PROBE
 from tests.support.perl import run_perl
 from tests.support.e2e_evidence import attempt
 from tests.support.e2e_recording import session
+from tests.support.e2e_kiosk import accounts_form
 
 
 def initial(kind):
@@ -383,11 +386,15 @@ def test_initial_capture_comparisons_are_immutable_and_operation_bound(tmp_path,
         assert journey.initial_captures['ui:kiosk-initial-notice']['texts'] == lifecycle.NOTICE
 
 
-@pytest.mark.parametrize('kind', ['historical', 'current'])
+@pytest.mark.parametrize('kind', ['historical', 'current', 'customer'])
 @pytest.mark.parametrize('fault', ['', 'meaning', 'durability'])
 def test_real_recorder_constructor_and_comparison_before_durable_reply(session, tmp_path, monkeypatch, fault, kind):
-    declared = lifecycle.PLAN if kind == 'historical' else current.PLAN
-    journey_type = lifecycle.ChineseKioskJourney if kind == 'historical' else current.ChineseCurrentInstallJourney
+    declared = lifecycle.PLAN if kind == 'historical' else current.PLAN if kind == 'current' else customer.PLAN
+    journey_type = (lifecycle.ChineseKioskJourney if kind == 'historical' else
+                    current.ChineseCurrentInstallJourney if kind == 'current' else
+                    shared_chinese.chinese_journey(checks={}))
+    if kind == 'customer':
+        monkeypatch.setattr(shared_chinese, 'AssetTransfer', Mock(return_value=Mock()))
     expected = session.payload['assertions'][0]
     tags = {'entry-start': 'system:parent-command-context', 'entry-one': 'system:parent-command-context',
             'entry-two': 'system:parent-command-context', 'renamed-notice': 'ui:kiosk-initial-notice'}
@@ -395,7 +402,7 @@ def test_real_recorder_constructor_and_comparison_before_durable_reply(session, 
         'entry-start': 'start', 'entry-one': 'step-1', 'entry-two': 'step-2', 'renamed-notice': expected['step_id']},
         stage_actions={}, assertions_after={'renamed-notice': expected['assertion_id']},
         invocations=(), challenges={}, reboot_transition=(), additional_reboot_transitions=(), advance_after={})
-    context = SimpleNamespace(directory=tmp_path / 'journey', product_free=True, asset_transfer=Mock(),
+    context = SimpleNamespace(directory=tmp_path / 'journey', product_free=True, asset_transfer=Mock(), installed_snapshot=False,
         verified=SimpleNamespace(inputs={}, upgrade_inputs={'packages': {}} if kind == 'historical' else None),
         credentials=Mock(), lease=Mock(), guestfs=Mock(), commands=Mock())
     context.directory.mkdir()
@@ -410,7 +417,7 @@ def test_real_recorder_constructor_and_comparison_before_durable_reply(session, 
     monkeypatch.setattr(session_control, 'observe', Mock(return_value={'outcome': 'passed'}))
     def worker(**options):
         journey = options['guarded_observe'].__self__
-        assert isinstance(journey, journey_type)
+        assert isinstance(journey, shared_chinese.ChineseRequestInstallJourney if kind == 'customer' else journey_type)
         journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
         journey.boot = 'a' * 64
         journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': journey.boot}))
@@ -430,7 +437,8 @@ def test_real_recorder_constructor_and_comparison_before_durable_reply(session, 
             recorder.assertion(assertion['assertion_id'], artifact_ids=[ref])
         return dict(outcome='passed', shutdown_verified=True, worker_stopped=True, callback_closed=True)
     context.run_worker = worker
-    monkeypatch.setattr(journey_type, 'validate', lambda _: [])
+    monkeypatch.setattr(shared_chinese.ChineseRequestInstallJourney if kind == 'customer' else journey_type,
+                        'validate', lambda _: [])
     if fault:
         with pytest.raises((EvidenceError, OSError)):
             installed_journey.record_installed_journey(recorder, context, plan, actions={}, journey_type=journey_type)
@@ -538,3 +546,183 @@ def test_installed_account_guest_mode_requires_real_package_and_state(monkeypatc
         assert guest.execute('read-installed', guest.ROLE, guest.LOCALE, api)['product_free'] is False
         with pytest.raises(guest.LanguageError, match='product-state-present'):
             guest.execute('read', guest.ROLE, guest.LOCALE, api)
+
+
+@pytest.mark.parametrize('fault', ['', *customer.PLAN.screen_tags])
+def test_complete_chinese_worker_order_titles_and_terminal_refusal(fault):
+    source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_chinese_lifecycle;')
+    source = source.replace('onpc_desktop_session::run', 'onpc_chinese_lifecycle::run')
+    declarations = json.dumps(list(customer.PLAN.invocations))
+    challenges = json.dumps(customer.PLAN.challenges)
+    source = source.replace('}, $action);', f"}}, decode_json(q~{declarations}~), decode_json(q~{challenges}~));")
+    source = source.replace("push @events, ['stage', $_[0]];", """
+        push @events, ['stage', $_[0]];
+        die 'refusal' if $_[0] eq $action;
+        return {observed => $_[0], ui_focused => 1} if $_[0] =~ /(?:greeter|list|picker-opened)$/;
+        return {observed => $_[0], station_destination =>
+            $_[0] =~ /^(?:initial|renewed)-/ ? 'initial-request-window' : 'default-request-form'}
+            if $_[0] =~ /station-branch$/;
+        my %bindings = ('language-standard' => ['chinese-child', 'other-child'],
+            'install' => ['install-parent', 'parent'], 'return' => ['return-parent', 'parent'],
+            'setup' => ['setup-parent', 'parent'], 'first-policy' => ['first-policy-parent', 'parent'],
+            'second-policy' => ['second-policy-parent', 'parent']);
+        for my $prefix (keys %bindings) {
+            if ($_[0] =~ /^$prefix-recipient-/) {
+                return {observed => $_[0], challenge => {id => $bindings{$prefix}[0], role => $bindings{$prefix}[1],
+                    surface => 'gdm', check => $_[0] =~ /rechecked$/ ? 'rechecked' : 'qualified'}};
+            }
+        }
+    """)
+    source = source.replace('sub record_info { }', "sub record_info { push @main::events, ['title', $_[0]]; }")
+    source = source.replace('events => \\@events}', 'events => \\@events, error => "$@"}')
+    result = json.loads(run_perl(source, fault).stdout)
+    assert bool(result['ok']) == (not fault), result.get('error')
+    expected = list(customer.PLAN.screen_tags)
+    if fault: expected = expected[:expected.index(fault) + 1]
+    assert [event[1] for event in result['events'] if event[0] == 'stage'] == expected
+    assert [event[1] for event in result['events'] if event[0] == 'title' and event[1] != 'shutdown'] == [
+        customer.PLAN.prefix + '-' + stage for stage in expected]
+    if not fault:
+        assert result['events'].count(['secret']) == 9
+    elif fault.endswith(('approval-qualified', 'approval-rechecked')):
+        assert result['events'].count(['secret']) == (5 if fault.startswith('first-') else 7)
+
+
+@pytest.mark.parametrize('fault', ['', 'missing', 'zero', 'excess', 'daily', 'policy', 'mutated-original'])
+def test_declared_public_chinese_result_comparisons(fault):
+    owner = SimpleNamespace(plan=customer.PLAN, public_captures={})
+    before = {'settings': copy.deepcopy(customer.SETTINGS),
+              'rows': [[accessible_ui.MATCH_APP, 'allowed', None]],
+              'balances': {'daily': 0, 'one_time': 0, 'total': 0}}
+    customer.CHECKS['policy-before'](owner, {'ui': {'language_policy': before}})
+    estimate = {'kind': 'fixed', 'seconds': 75, 'precision_seconds': 1}
+    customer.CHECKS['first-choices'](owner, {'ui': {'valid_choice': {'estimate': estimate}}})
+    if fault == 'mutated-original':
+        before['rows'][0][1] = 'blocked'
+        estimate['seconds'] = 900
+    if fault == 'missing': owner.public_captures.pop('first-estimate')
+    after = {'settings': copy.deepcopy(customer.SETTINGS),
+             'rows': [[accessible_ui.MATCH_APP, 'allowed', None]],
+             'balances': {'daily': 0, 'one_time': 60, 'total': 60}}
+    if fault == 'zero': after['balances'] = {'daily': 0, 'one_time': 0, 'total': 0}
+    if fault == 'excess': after['balances']['one_time'] = after['balances']['total'] = 76
+    if fault == 'daily': after['balances']['daily'] = 1
+    if fault == 'policy': after['rows'][0][1] = 'blocked'
+    if fault in ('', 'mutated-original'):
+        customer.CHECKS['first-policy'](owner, {'ui': {'language_policy': after}})
+        assert owner.public_captures['first-estimate']['seconds'] == 75
+        assert owner.public_captures['policy']['rows'][0][1] == 'allowed'
+    else:
+        with pytest.raises(EvidenceError):
+            customer.CHECKS['first-policy'](owner, {'ui': {'language_policy': after}})
+
+
+@pytest.mark.parametrize('fault', ['', 'startup', 'save-failed', 'saved-wrong-language',
+                                   'english-choice', 'wrong-child', 'missing-parent', 'wrong-result'])
+def test_post_setup_chinese_approver_selection_and_decoder(fault):
+    ui, selector, choices, expected = accounts_form('approver')
+    form = ui.find_id('kiosk-request-form')
+    form.children.remove(ui.find_id('kiosk-screen-limit-notice'))
+    for node in form.children:
+        node.states.add('sensitive')
+    child = ui.find_id('kiosk-child-selector')
+    child.children[0].identity = 'kiosk-child-selected-1002'
+    child.children[0].name = accessible_ui.EXISTING_CHILD
+    child.description = '已选择的账户：Jordan (Child)。'
+    selector.description = '已选择的账户：Casey (Parent)。'
+    for choice, name in zip(choices.children, expected):
+        choice.name = '批准请求的家长：' + name
+        label = Node(name, 'label')
+        label.parent = choice
+        choice.children.append(label)
+    original = choices.children[0].action.do_action.side_effect
+
+    def selected(index):
+        original(index)
+        selector.description = ('Selected account: Jamie (Parent).' if fault == 'wrong-result'
+                                else '已选择的账户：Jamie (Parent)。')
+        return True
+
+    choices.children[0].action.do_action.side_effect = selected
+    if fault == 'english-choice': choices.children[0].name = 'Approving parent: Jamie (Parent)'
+    if fault == 'wrong-child': child.children[0].identity = 'kiosk-child-selected-1001'
+    if fault == 'missing-parent': choices.children.pop()
+    ui.complete_request_language_setup = Mock(side_effect=AssertionError('unexpected language save'))
+    save = None
+    if fault in ('startup', 'save-failed', 'saved-wrong-language'):
+        window = ui.find_id('kiosk-request-window')
+        ready = ui.find_id('kiosk-language-ready')
+        ready.identity = 'kiosk-language-loading'
+        selector.states.discard('sensitive')
+        save = Node('保存', identity='language-continue')
+        dialog = Node(identity='language-dialog', children=[save])
+        dialog.parent = window
+        dialog.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
+            get_n_targets=lambda: 1, get_target=lambda _: window)]
+        window.children.append(dialog)
+
+        def saved(_):
+            if fault != 'save-failed':
+                window.children.remove(dialog)
+                ready.identity = 'kiosk-language-ready'
+                selector.states.add('sensitive')
+            if fault == 'saved-wrong-language': child.description = 'Selected account: Jordan (Child).'
+            return True
+
+        save.action.do_action.side_effect = saved
+        ui.complete_request_language_setup = Mock(wraps=lambda: ui.complete_language_setup('kiosk'))
+    operation = customer.PLAN.screen_tags['other-first-parent'][3:]
+    if fault not in ('', 'startup'):
+        with pytest.raises(accessible_ui.UiError): ui.run(operation, '')
+        if fault in ('wrong-child', 'save-failed', 'saved-wrong-language'):
+            selector.action.do_action.assert_not_called()
+        if fault != 'wrong-result': choices.children[0].action.do_action.assert_not_called()
+        if fault not in ('wrong-child', 'saved-wrong-language'):
+            assert ui.input_uncertain
+            with pytest.raises(accessible_ui.UiError, match='uncertain-input'): ui.run(operation, '')
+    else:
+        result = ui.run(operation, '')
+        raw = json.dumps(result, ensure_ascii=False).encode()
+
+        def deliver(*args, **kwargs):
+            for offset in range(0, len(raw), 37): kwargs['on_output'](raw[offset:offset + 37])
+            kwargs['on_output'](b'\n')
+            return raw
+
+        observer = UiObservations(SimpleNamespace(call=Mock(side_effect=deliver),
+            commands=SimpleNamespace(progress=None)))
+        request = observer.observe(operation)['request']
+        assert request['child'] == 'existing-fixture-child'
+        assert request['approver'] == 'fixture-parent'
+        assert request['duration_seconds'] == 1800 and request['allow_soft'] is False
+        selector.action.do_action.assert_called_once()
+        choices.children[0].action.do_action.assert_called_once()
+    if save is None:
+        ui.complete_request_language_setup.assert_not_called()
+    else:
+        ui.complete_request_language_setup.assert_called_once()
+        save.action.do_action.assert_called_once()
+
+
+def test_complete_chinese_distribution_and_operation_bindings():
+    import e2e_worker
+    from ui_observations import OPERATION_LABELS
+    assert 'lib/onpc_chinese_lifecycle.pm' in e2e_worker.distribution_inputs()
+    for tag in customer.PLAN.screen_tags.values():
+        assert tag[3:] in OPERATION_LABELS if tag.startswith('ui:') else tag[7:] in session_control.BINDINGS
+    stages = list(customer.PLAN.screen_tags)
+    assert customer.PLAN.reboot_transitions == (('reboot-requested', 'reboot-greeter'),)
+    assert stages.index('initial-form') < stages.index('other-enabled') < stages.index('first-language')
+    assert stages.index('first-policy') < stages.index('second-language') < stages.index('second-approval-open')
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong-choice', 'wrong-label'])
+def test_checked_chinese_preference_uses_independent_literal_result(fault):
+    owner = SimpleNamespace(plan=customer.PLAN)
+    value = copy.deepcopy(customer.CHOOSER)
+    if fault == 'wrong-choice': value['checked'] = 'en'
+    if fault == 'wrong-label': value['heading'] = 'Choose your language'
+    if fault:
+        with pytest.raises(EvidenceError): customer.CHECKS['second-checked'](owner, {'ui': {'language': value}})
+    else:
+        customer.CHECKS['second-checked'](owner, {'ui': {'language': value}})

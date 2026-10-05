@@ -79,6 +79,13 @@ Before opening an account selector, request account selection checks startup
 language readiness in its owned snapshot. If setup is pending, it uses the shared
 language helper and reacquires the selector after confirmed completion; a selector
 that remains disabled still refuses input.
+The declared input language can already be Chinese from the child's desktop
+setting. Reacquisition must retain that child and language after startup Save;
+do not route an already translated form through an English-only account binding.
+`kiosk-language-jordan-jamie-chinese` supplies case 254's finite approver input.
+Its synthetic-tree/decoder regression covers startup Save, failed Save, changed
+language, wrong child, incomplete offered accounts and translated result refusal.
+It adds no resource owner; existing unit and cleanup classifications apply.
 After choosing an account, it first confirms the chosen public UID and selector
 description, with the offered list closed, in a fresh owned snapshot. A newly
 selected child's language dialog may disable the form; this read does not require

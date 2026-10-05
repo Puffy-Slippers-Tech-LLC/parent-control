@@ -2307,6 +2307,43 @@ def test_greeter_discovery_does_not_retry_failed_session_reads(monkeypatch):
     sleep.assert_not_called()
 
 
+@pytest.mark.parametrize('diagnostic_failure', [False, True])
+def test_greeter_timeout_retains_nonsecret_complete_scan_and_service_states(
+        monkeypatch, capsys, diagnostic_failure):
+    import accessible_ui
+    clock = [0.0]
+    calls = []
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: clock.__setitem__(0, clock[0] + delay))
+
+    def call(argv, **kwargs):
+        calls.append(argv)
+        if argv[0] == '/usr/bin/systemctl':
+            assert kwargs['timeout'] == 2
+            if diagnostic_failure:
+                raise OSError('private service details')
+            return SimpleNamespace(stdout='ActiveState=activating\nSubState=start-post\nResult=success')
+        assert argv[0] == '/usr/bin/loginctl'
+        if argv[1] == 'list-sessions':
+            return SimpleNamespace(stdout='c1 private account name\n')
+        return SimpleNamespace(stdout='Class=user\nActive=yes\nRemote=no\nType=wayland\n'
+                               'Seat=private-seat\nUser=12345\nName=private account name')
+
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', call)
+    with pytest.raises(UiError, match='ui:timeout:greeter-identity'):
+        greeter_account()
+    diagnostic = json.loads(capsys.readouterr().err)
+    assert diagnostic['object'] == 'greeter-identity'
+    assert diagnostic['elapsed_ms'] == 300000
+    assert diagnostic['last_complete_session_scan'] == [{
+        'Class': 'user', 'Active': 'yes', 'Remote': 'no', 'Type': 'wayland', 'Seat': 'other'}]
+    expected = {'unavailable': True} if diagnostic_failure else {
+        'ActiveState': 'activating', 'SubState': 'start-post', 'Result': 'success'}
+    assert diagnostic['units']['display-manager.service'] == expected
+    assert len([argv for argv in calls if argv[0] == '/usr/bin/systemctl']) == 3
+    assert 'private' not in json.dumps(diagnostic) and '12345' not in json.dumps(diagnostic)
+
+
 @pytest.mark.parametrize('fault', [None, 'still-listed', 'relist-failed', 'malformed',
                                    'duplicate', 'churn'])
 def test_greeter_discovery_restarts_only_after_confirmed_session_disappearance(monkeypatch, capsys, fault):

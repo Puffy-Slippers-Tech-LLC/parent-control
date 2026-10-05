@@ -128,6 +128,14 @@ sub run_chinese_current {
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     $journey->seen('wrong-entry');
+    chinese_current_entry($journey);
+    $journey->finish();
+}
+
+sub chinese_current_entry {
+    onpc_progress::operation('Installing the current package and observing both Chinese first presentations');
+    my ($journey) = @_;
+    die 'chinese-current-entry:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     onpc_parent::login_functional($journey);
     $journey->seen($_) for qw(command-context language-setting language-parent-logout);
     chinese_desktop_renewal($journey, 'install-', 'install-parent');
@@ -135,7 +143,6 @@ sub run_chinese_current {
     chinese_initial_notice($journey);
     $journey->seen($_) for qw(reboot-requested reboot-greeter);
     chinese_initial_form($journey);
-    $journey->finish();
 }
 
 1;

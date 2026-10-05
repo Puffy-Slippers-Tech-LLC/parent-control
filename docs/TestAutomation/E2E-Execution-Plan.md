@@ -19,39 +19,22 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **300 — [Chinese latest-install kiosk lifecycle](E2E-Tasks/300-localization.md)**.
+Next task: **306a — [Qualify Parent language across child selection](E2E-Tasks/306a-parent-language-isolation.md)**.
 
-Task 300k's current-install, single-reboot Chinese first-presentation qualification
-and required customer-reboot and Chinese kiosk lifecycle regressions passed on
-Ubuntu 26.04. Its delivered scope and evidence are recorded in the queue and
-catalogue. Task 300 remains unchecked, with acceptance scoped to Ubuntu 26.04.
-The developer removed the Fedora-specific language prerequisites on 2026-10-04;
-their unqualified bindings no longer block this case. Complete-case registration
-and acceptance remain pending. This queue repair records no VM attempt or acceptance.
-The queue's explicit excluded-task declaration also reconciles interrupted
-`write-e2e` checkpoints on 300l–300n back to suspended task 300 on restart.
-Preserve retained results and verify owned cleanup before new live work; the
-removed prerequisite's old handoff cannot restore Fedora acceptance requirements.
+Task 300's complete Chinese latest-install case 254 and both required
+current-install/native-auth regressions passed on Ubuntu 26.04, including
+collection, owned cleanup and baseline restoration. Delivered scope and retained
+reports are recorded in the queue and catalogue. Tasks 300l–300n remain excluded
+by the developer's Fedora scope decision; Ubuntu evidence supplies no Fedora
+acceptance.
 
-Task 300 was too broad: it combined independent customer histories and several
-unqualified surface/result bindings. The
-[acceptance decomposition](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition)
-preserves its obligations in six complete scenarios, with bounded capabilities
-before each consumer. Task 300 retains the continuous Chinese latest-install,
-pre-reboot notice, single reboot and two native approvals. Tasks 306–310 own
-account/offline persistence, Parent presentation, overlay presentation/approval,
-kiosk presentation and panel/countdown/expiry respectively. Existing queue rows
-retain their relative order; panel and report scenarios follow their actual
-pending dependencies. No scenario registration or acceptance is claimed by
-this reconciliation.
-
-Task 300k qualified the changed current-install composition for task 300.
-Use one latest verified current-source package from a product-free baseline,
-not a v1.2 upgrade. Historical 300c/300d evidence remains historical, and the
-old saved handoff's combined-case/upgrade wording is superseded by the current
-briefs and recipes. Preserve launcher checkpoints, prompts and evidence.
-Completed qualification scope and reports remain in the queue/catalogue;
-reuse their maintained callables under the current contracts.
+The [acceptance decomposition](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition)
+retains the independent language histories in tasks 306–310. Task 306a qualifies
+Parent's own Chinese language across enabled Riley/Jordan selection before
+task 306's account/offline persistence scenario. Reuse the delivered 300g/300j
+bindings and extend the declared Parent observation; do not infer Chinese policy
+readback from the English-only reader. Leave later presentation, approval,
+panel/countdown and expiry work with its queued owners.
 
 ## Current scope
 

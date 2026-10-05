@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">22099</span>/<span style="color: gray">0</span>/22099 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">23112</span>/<span style="color: gray">0</span>/23112 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">163</span>/<span style="color: gray">0</span>/163 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">396</span>/<span style="color: gray">0</span>/396 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">243</span>/<span style="color: gray">0</span>/243 | Checks installed product behavior and lifecycle integration on the test VM. |
+| Installed system | <span style="color: green">244</span>/<span style="color: gray">0</span>/244 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">4</span>/<span style="color: gray">0</span>/4 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">140</span>/<span style="color: gray">0</span>/140 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">33</span>/<span style="color: gray">209</span>/242 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">23080</span>/<span style="color: gray">209</span>/23289** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">141</span>/<span style="color: gray">0</span>/141 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">35</span>/<span style="color: gray">208</span>/243 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">24097</span>/<span style="color: gray">208</span>/24305** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">32</span>/<span style="color: gray">209</span>/241 |
+| customer-journey | <span style="color: green">34</span>/<span style="color: gray">208</span>/242 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -53,6 +53,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [55](#scenario-55) | Kiosk selection and unavailable requests (accounts: no parent) | `E2E-017/no-parent` | ready |
 | [56](#scenario-56) | Kiosk selection and unavailable requests (accounts: ineligible parent) | `E2E-017/ineligible-parent` | ready |
 | [57](#scenario-57) | Kiosk selection and unavailable requests (accounts: disabled child) | `E2E-017/disabled-child` | ready |
+| [139](#scenario-139) | Install through remove, reinstall and purge | `E2E-027/continuous` | ready |
 | [151](#scenario-151) | Installed About and license access | `E2E-030/parent` | ready |
 | [152](#scenario-152) | Feedback drafts, validation and attachment review (flow: draft reopen) | `E2E-031/draft-reopen` | ready |
 | [153](#scenario-153) | Feedback drafts, validation and attachment review (flow: validation) | `E2E-031/validation` | ready |
@@ -67,6 +68,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [192](#scenario-192) | Read Help, About and command usage on each surface (surface: kiosk) | `E2E-042/kiosk` | ready |
 | [193](#scenario-193) | Read Help, About and command usage on each surface (surface: command help) | `E2E-042/command-help` | ready |
 | [205](#scenario-205) | Review or decline an error report (surface: parent) | `E2E-045/parent` | ready |
+| [254](#scenario-254) | Chinese latest-install kiosk lifecycle | `E2E-053/latest-install` | ready |
 | <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
@@ -186,7 +188,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[136](#scenario-136)</span> | <span style="color: gray">Customer package update and activation (activation: process)</span> | <span style="color: gray">`E2E-026/process`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[137](#scenario-137)</span> | <span style="color: gray">Customer package update and activation (activation: session)</span> | <span style="color: gray">`E2E-026/session`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[138](#scenario-138)</span> | <span style="color: gray">Customer package update and activation (activation: reboot)</span> | <span style="color: gray">`E2E-026/reboot`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[139](#scenario-139)</span> | <span style="color: gray">Install through remove, reinstall and purge</span> | <span style="color: gray">`E2E-027/continuous`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Recover feedback sending after reconnecting</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[160](#scenario-160)</span> | <span style="color: gray">Revoke when there is no active grant (balance: daily positive)</span> | <span style="color: gray">`E2E-036/daily-positive`</span> | <span style="color: gray">pending</span> |
@@ -536,6 +537,21 @@ Variant: accounts: disabled child
 - Open available child and parent lists and compare eligible choices. Select each intended available account and read loaded settings; read the empty/ineligible/disabled explanation otherwise.
 - For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control.
 
+### Scenario 139
+
+**Install through remove, reinstall and purge**
+
+Case: `E2E-027/continuous` · Category: customer-journey · Status: **ready**
+
+Variant: lifecycle: continuous
+
+**Steps:**
+
+- Install the supplied release on a clean supported computer, read its completion/reboot notice and restart.
+- Save distinct Parent/request choices and app blocks, approve time and use the child desktop. Leave the request station before removal.
+- Remove with the normal package command, read the notice and restart as directed. Check personal accounts remain usable and formerly blocked app launches work.
+- Reinstall, follow activation and read retained choices and zero one-time time before editing. Reapply restrictions in Parent and verify them. Purge, follow its notice, reinstall again and read fresh parent-policy/shared-request defaults; personal selectors and the child's animation option may remain.
+
 ### Scenario 151
 
 **Installed About and license access**
@@ -726,6 +742,20 @@ Variant: surface: parent
 - Open the declared surface and encounter its customer-reproducible error: a rejected Parent match pattern or actual too-soon request. Read the public failure and initially selected Report this error option where offered.
 - Review the report, edit synthetic text and read Privacy. Parent/overlay expose file and diagnostic-save controls; station hides them and external links. Close without sending and check the original flow's destination.
 - Repeat the error and decline reporting where offered, checking direct exit. Successful requests and cancelled authentication must not offer this error-report step.
+
+### Scenario 254
+
+**Chinese latest-install kiosk lifecycle**
+
+Case: `E2E-053/latest-install` · Category: customer-journey · Status: **ready**
+
+Variant: history: latest install
+
+**Steps:**
+
+- Set Jordan's Chinese desktop language, renew the desktop, install the latest package once and independently observe completion, version, unchanged boot and the untouched Chinese restart notice.
+- Reboot once, read the untouched Chinese chooser/default/form and Cancel without saving. Enable Jordan through Parent with zero daily time, then save and independently read checked Chinese through Preferences.
+- Make two ordinary Jamie/Jordan 75-second soft-included requests across normal exit and fresh kiosk entry. Check both real Chinese native prompts, approvals, translated success, persisted checked language and public time/policy results.
 
 <div style="color: gray">
 
@@ -3123,27 +3153,6 @@ Variant: activation: reboot
 - Install this case's declared earlier release and follow its notice. Save distinct settings and request choices through Parent and both forms, approve a grant long enough for the update, and use the child desktop.
 - Install the declared update with the normal package command and follow its process, session or reboot notice for every named affected surface.
 - Read retained Parent/request values before editing, read the installed version and reduced grant balance, and enter the child desktop to verify allowed use and blocked launches.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 139
-
-**Install through remove, reinstall and purge**
-
-Case: `E2E-027/continuous` · Category: customer-journey · Status: **pending**
-
-Variant: lifecycle: continuous
-
-**Steps:**
-
-- Install the supplied release on a clean supported computer, read its completion/reboot notice and restart.
-- Save distinct Parent/request choices and app blocks, approve time and use the child desktop. Leave the request station before removal.
-- Remove with the normal package command, read the notice and restart as directed. Check personal accounts remain usable and formerly blocked app launches work.
-- Reinstall, follow activation and read retained choices and zero one-time time before editing. Reapply restrictions in Parent and verify them. Purge, follow its notice, reinstall again and read fresh parent-policy/shared-request defaults; personal selectors and the child's animation option may remain.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

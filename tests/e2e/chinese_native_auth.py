@@ -41,10 +41,10 @@ PLAN = JourneyPlan(prefix='chinese-native-auth', worker_mode='chinese_native_aut
             ('-approval-success', '-real-approval'), ('-returned', '-usable-gdm-return'))}})
 
 
-class ChineseNativeAuthJourney(InstalledJourney):
-    def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=fixture_actions(
-            profile='chinese', include_refusal=False) if actions is None else actions)
+class ChineseApprovalMixin:
+    """Chinese form, request and fresh native challenge comparisons."""
+    def __init__(self, context, progress, plan, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
         self.native_challenges = {}
         self.request_choices = None
 
@@ -76,3 +76,9 @@ class ChineseNativeAuthJourney(InstalledJourney):
             entry = stage.rsplit('-', 1)[0] + '-open'
             require(entry in self.native_challenges and value['approval'] == {
                 **self.native_challenges[entry], 'rejected_proofs': []}, 'chinese-auth:same-challenge')
+
+
+class ChineseNativeAuthJourney(ChineseApprovalMixin, InstalledJourney):
+    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=fixture_actions(
+            profile='chinese', include_refusal=False) if actions is None else actions)

@@ -1478,20 +1478,34 @@ public precision is a gate, not permission to sample another day and call it
 the same case. Detailed timezone arithmetic and malformed timestamps retain
 their fast technical coverage.
 
-### Chinese kiosk language lifecycle (planned task 300)
+### E2E-053
 
-This is **one complete planned case** owned by
-[task 300](E2E-Tasks/300-localization.md). The independent multilingual histories
+Case **254**, variant `latest-install` (`history=latest-install`), implements the
+continuous [Chinese kiosk lifecycle](#chinese-kiosk-language-lifecycle)
+below through `chinese_lifecycle.PLAN` and `onpc_chinese_lifecycle::run`.
+It starts product-free on Ubuntu 26.04. Complete acceptance passed in
+`20261005T052511Z-d5a980d9`; required current-install and native-auth regressions
+passed in `20261005T053736Z-2bf99fd4` and `20261005T054603Z-b58a3339`.
+After the untouched chooser/form observations, cancel the station normally,
+enable Jordan with zero daily time through Parent, and return before saving
+Chinese. After each real approval, independently read positive granted time
+bounded by that request's public estimate and unchanged saved allowance/app rows
+in Parent; logout normally before the next kiosk entry. Checked Chinese is read
+through public Preferences on both entries. No extra reboot is performed.
+
+### Chinese kiosk language lifecycle
+
+This is **one complete case**, delivered by task 300. The independent multilingual histories
 retain every original assertion under the
 [acceptance decomposition](#personal-language-acceptance-decomposition).
-No numeric coverage ID, executable binding or acceptance is registered yet.
+Case 254 is registered as E2E-053 and passed all 25 declared assertions,
+collection and owned cleanup on Ubuntu 26.04.
 Task 300k qualified the revised fresh-install first presentation in
 `20261004T185057Z-2010e28f`, with both required lifecycle regressions passed.
 That evidence is Ubuntu-only. The selected complete-case target is Ubuntu
 26.04. The developer removed Fedora-specific Chinese qualification from this
 case's acceptance scope on 2026-10-04; queue repair establishes no acceptance.
-Register one
-complete Chinese case after its prerequisites pass; keep all three reported
+Keep all three reported
 symptoms in this continuous history, without a German/Hebrew lifecycle matrix.
 
 Use the [current-package installation binding](E2E-Building-Blocks.md#customer-package-install-composition)
@@ -1515,13 +1529,15 @@ Initial public observations precede all generic chooser setup; Cancel exposes
 the Chinese form without a preference save. This slice passed on every enabled
 VM in `20261004T044302Z-572b0ee7`; task 300e's required package-upgrade and
 kiosk-entry regressions and close-out also passed.
-These slices supply no complete-case acceptance. Recheck their shared observations
-within task 300's continuous case. `ChineseCurrentInstallJourney` in
+These slices supply no complete-case acceptance by themselves. The continuous
+case rechecks their shared observations. `ChineseCurrentInstallJourney` in
 [chinese_current_install.py](../../tests/e2e/chinese_current_install.py) now
 qualifies the fresh-install, single-reboot sequence through the initial form.
 It reuses `ChinesePresentationMixin` and the same worker renewal/notice/form
-leaves as the historical qualification. Qualify any additional missing binding
-before registering task 300's continuous case.
+leaves as the historical qualification. After Parent setup, case 254 uses
+`kiosk-language-jordan-jamie-chinese` to bind Jordan's already Chinese form,
+the exact offered parents and Jamie's selected result. The native-auth slice
+still uses its English input binding before its explicit Chinese language save.
 
 Finite inputs: selected child Jordan; approver Jamie; child desktop locale
 `zh_CN.UTF-8`; product language `zh-Hans`; Jamie and kiosk station desktop

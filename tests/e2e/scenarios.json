@@ -2749,6 +2749,64 @@
       ]
     },
     {
+      "id": "E2E-053",
+      "title": "Chinese latest-install kiosk lifecycle",
+      "category": "customer-journey",
+      "owners": ["personal-language"],
+      "requirements": ["ONPC-CORE-INSTALL-001", "ONPC-CORE-REQUEST-009", "ONPC-CORE-TIME-008"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Localization.md", "docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-053"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": ["ubuntu26.04"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
+      "phases": {
+        "setup": [{"id": "setup", "operation": "provision", "description": "Restore the product-free baseline and provision declared credentials and one verified current-source package; Chinese reusable assets are only verified."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin one independent continuous attempt at the product-free greeter."}],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Set Jordan's Chinese desktop language, renew the desktop, install the latest package once and independently observe completion, version, unchanged boot and the untouched Chinese restart notice."},
+          {"id": "step-2", "operation": "ui", "description": "Reboot once, read the untouched Chinese chooser/default/form and Cancel without saving. Enable Jordan through Parent with zero daily time, then save and independently read checked Chinese through Preferences."},
+          {"id": "step-3", "operation": "ui", "description": "Make two ordinary Jamie/Jordan 75-second soft-included requests across normal exit and fresh kiosk entry. Check both real Chinese native prompts, approvals, translated success, persisted checked language and public time/policy results."}
+        ],
+        "end": [{"id": "end", "operation": "collect", "description": "Collect independent public results, continuity and secret-excluding evidence; preserve the first failure."}],
+        "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Finish owned worker shutdown, collection, restoration and cleanup under the shared VM lease, preserving unrelated host and source files."}]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "chinese-assets-verified", "step_id": "step-1", "description": "Chinese baseline assets independently verify without mutation."},
+          {"id": "chinese-account-confirmed", "step_id": "step-1", "description": "Jordan's declared desktop language is read back independently."},
+          {"id": "renewed-chinese-desktop", "step_id": "step-1", "description": "A renewed Jordan desktop presents Chinese."},
+          {"id": "latest-install-version-notice-same-boot", "step_id": "step-1", "description": "The latest package completes with its installed version and genuine reboot notice on the unchanged boot."},
+          {"id": "independent-install-reread", "step_id": "step-1", "description": "A separate read confirms installation and preserved state."},
+          {"id": "first-chinese-restart-notice", "step_id": "step-1", "description": "The first kiosk notice and buttons are Chinese before any language handler."},
+          {"id": "changed-boot-greeter", "step_id": "step-2", "description": "One customer reboot reaches a fresh usable greeter on a changed boot."},
+          {"id": "first-chinese-chooser-and-default", "step_id": "step-2", "description": "The untouched Jordan chooser is Chinese and Chinese is already checked."},
+          {"id": "initial-chinese-form", "step_id": "step-2", "description": "Cancel without saving exposes the original Chinese form."},
+          {"id": "ordinary-zero-policy", "step_id": "step-2", "description": "Public Parent setup enables Jordan with zero grant and daily allowance, retaining allowed application policy."},
+          {"id": "saved-checked-chinese", "step_id": "step-2", "description": "Public Preferences saves Chinese and reopening shows it checked."},
+          {"id": "first-declared-request", "step_id": "step-3", "description": "The first request retains Jamie/Jordan, 75 seconds and soft apps included."},
+          {"id": "first-native-chinese-prompt", "step_id": "step-3", "description": "The first real MATE challenge has Chinese system buttons, explanation, password label and product request context."},
+          {"id": "first-same-challenge", "step_id": "step-3", "description": "Fresh recipient guards retain the same first native challenge."},
+          {"id": "first-real-approval", "step_id": "step-3", "description": "A real first approval shows translated success."},
+          {"id": "first-usable-gdm-return", "step_id": "step-3", "description": "Normal automatic exit reaches usable GDM."},
+          {"id": "first-public-time-and-policy", "step_id": "step-3", "description": "Public Parent readback shows positive granted time bounded by the observed estimate and unchanged saved policy."},
+          {"id": "persisted-chinese-form", "step_id": "step-3", "description": "Fresh kiosk entry has Jordan's Chinese form with no first-run chooser."},
+          {"id": "persisted-checked-chinese", "step_id": "step-3", "description": "Reopened Preferences retains checked Chinese on fresh entry."},
+          {"id": "second-declared-request", "step_id": "step-3", "description": "The second request repeats the unchanged finite choices."},
+          {"id": "second-native-chinese-prompt", "step_id": "step-3", "description": "The second fresh agent/challenge independently presents all required native and product text in Chinese."},
+          {"id": "second-same-challenge", "step_id": "step-3", "description": "Fresh recipient guards retain the same second native challenge."},
+          {"id": "second-real-approval", "step_id": "step-3", "description": "A real second approval shows translated success."},
+          {"id": "second-usable-gdm-return", "step_id": "step-3", "description": "The second normal exit reaches usable GDM."},
+          {"id": "second-public-time-and-policy", "step_id": "step-3", "description": "Public Parent readback confirms the second positive time result and unchanged saved policy."}
+        ],
+        "backend": [], "other_user": []
+      },
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 3600,
+      "matrix": {"dimensions": {"history": ["latest-install"]}, "full_combinations": [], "rationale": "One indivisible Chinese customer history on the developer-selected Ubuntu target; other language histories remain separate scenarios."},
+      "variants": [{"coverage_id": 254, "id": "latest-install", "owner": "personal-language", "parameters": {"history": "latest-install"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/chinese_lifecycle.py", "test_id": "latest-install"}}]
+    },
+    {
       "id": "E2E-052",
       "title": "Lunar Client login autostart cannot bypass an ungranted soft block",
       "category": "customer-journey",

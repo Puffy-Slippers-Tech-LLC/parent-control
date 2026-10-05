@@ -128,7 +128,8 @@ def test_every_unfinished_task_has_one_matching_brief_and_prerequisites(rows, br
         else:
             assert 'Required tasks: none (Baseline).' in brief, row['id']
         if is_case(row):
-            selectors = re.findall(r"tools/run-tests e2e --id '(\d+)'", brief)
+            selectors = re.findall(
+                r"tools/run-tests(?: --vm [A-Za-z0-9_.-]+)? e2e --id '(\d+)'", brief)
             assert selectors == [str(case_number(row))], row['id']
             assert 'generate_test_coverage' in brief, row['id']
     assert linked == set((DOCS / 'E2E-Tasks').glob('*.md')), 'orphan/missing brief'

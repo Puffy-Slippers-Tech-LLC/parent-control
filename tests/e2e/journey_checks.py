@@ -85,3 +85,45 @@ def _request_choices(journey, observed, *, expected, capture, same):
     if capture:
         require(capture not in captures, 'request:capture-replay')
         captures[capture] = deepcopy(choices)
+
+
+def checked_language(expected):
+    """Compare a complete literal public chooser result supplied by the recipe."""
+    return partial(_checked_language, expected=deepcopy(expected))
+
+
+def _checked_language(journey, observed, *, expected):
+    require(observed['ui']['language'] == expected, journey.plan.prefix + ':checked-language')
+
+
+def approval_estimate(*, capture=None, same=None):
+    """Capture the public fixed request estimate, or compare its approved balance."""
+    require(bool(capture) != bool(same), 'approval:estimate-plan')
+    return partial(_approval_estimate, capture=capture, same=same)
+
+
+def _approval_estimate(journey, observed, *, capture, same):
+    captures = journey.public_captures
+    if capture:
+        value = observed['ui']['valid_choice']['estimate']
+        require(value['kind'] == 'fixed' and value['seconds'] >= 75,
+                journey.plan.prefix + ':approval-estimate')
+        require(capture not in captures, 'approval:capture-replay')
+        captures[capture] = deepcopy(value)
+    else:
+        require(same in captures, 'approval:missing-estimate')
+        balances = observed['ui']['language_policy']['balances']
+        require(balances['daily'] == 0 and balances['total'] == balances['one_time']
+                and 0 < balances['one_time'] <= captures[same]['seconds'],
+                journey.plan.prefix + ':approved-balance')
+
+
+def public_checks(*checks):
+    """Run independent declared public comparisons before the durable reply."""
+    require(bool(checks) and all(callable(check) for check in checks), 'journey:public-checks')
+    return partial(_public_checks, checks=checks)
+
+
+def _public_checks(journey, observed, *, checks):
+    for check in checks:
+        check(journey, observed)

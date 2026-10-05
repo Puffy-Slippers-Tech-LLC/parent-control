@@ -84,14 +84,16 @@ def install_entry(journey, guard):
     return {'independent_readback': True, 'renewed_session': True, 'preservation_verified': True}
 
 
-def current_actions():
+def current_actions(*, include_refusal=True):
     return {**fixture_actions(profile='chinese', include_refusal=False),
-        'refuse-command': refuse_reboot, 'language-setting': set_language,
-        'renewed-entry': install_entry, 'install-package': submit_install}
+        **({'refuse-command': refuse_reboot} if include_refusal else {}),
+        'language-setting': set_language, 'renewed-entry': install_entry,
+        'install-package': submit_install}
 
 
-class ChineseCurrentInstallJourney(ChinesePresentationMixin, ProductFreeEntryJourney):
-    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+class ChineseInstallJourney(ChinesePresentationMixin, ProductFreeEntryJourney):
+    """Shared current-install comparisons; consumers declare the entire plan."""
+    def __init__(self, context, progress, plan, *, actions=None):
         require(context.verified.upgrade_inputs is None, 'chinese-current-install:single-package-required')
         super().__init__(context, progress, plan,
                          actions=current_actions() if actions is None else actions)
@@ -104,3 +106,8 @@ class ChineseCurrentInstallJourney(ChinesePresentationMixin, ProductFreeEntryJou
             command = PackageCommand(self.transport, self.context.verified)
             refuse_input(command, BINDING, command.verified.inputs['package_sha256'],
                          command.identity, 'package:replay')
+
+
+class ChineseCurrentInstallJourney(ChineseInstallJourney):
+    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)

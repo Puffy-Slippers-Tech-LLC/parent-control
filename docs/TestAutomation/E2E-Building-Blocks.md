@@ -2495,7 +2495,7 @@ reboot-required result, Chinese authentication or complete-case credit is suppli
 
 ### Chinese language preparation and desktop-language setup
 
-Task 300's [Chinese kiosk history](E2E-Scenario-Recipes.md#chinese-kiosk-language-lifecycle-planned-task-300)
+Task 300's [Chinese kiosk history](E2E-Scenario-Recipes.md#chinese-kiosk-language-lifecycle)
 requires one declared Simplified Chinese profile. **Chinese language installation
 must be implemented in `tools/prepare-baseline`**, through its existing finite
 dependency/fixture declaration and supported distro package/locale preparation.
@@ -2526,8 +2526,8 @@ must all pass. Fedora assets, renewed desktop/first presentation and native
 prompt bindings remain unqualified. The developer removed Fedora-specific
 Chinese qualification from task 300's acceptance scope on 2026-10-04; its
 complete-case target is Ubuntu 26.04. Retained Fedora preparation work supplies
-no installed acceptance and does not block task 300. No complete case is
-registered or passed by this implementation or planning repair.
+no installed acceptance and does not block task 300. Asset preparation and
+scope decisions supply no complete-case acceptance.
 Task 300a passed host checks and auto baseline/app-snapshot preparation. Chinese
 FIX06 qualified wrong-entry refusal, two independent valid reads and unchanged
 account/locale/product state on every enabled VM (Ubuntu 26.04) in
@@ -2584,8 +2584,8 @@ Reports remain under `output/test-runs/host/reports/<run>/report.md`.
 Scoped host safety/composition checks and source validation passed. The isolated
 guest payload includes `session_control`; its real isolated-import regression
 and synthetic transport fixtures protect that dependency boundary. This qualifies
-first presentation only; task 300 still owns the complete single-reboot history
-with two genuine Chinese approvals.
+first presentation only; task 300's complete single-reboot history with two
+genuine Chinese approvals has its separate acceptance below.
 
 Pre-install renewal binds `fresh_desktop(..., product_free=True)` through
 `renewed_desktop` for Jordan and Jamie. The product-free standard list/focus
@@ -2680,8 +2680,25 @@ checks in `20261004T075211Z-82086cc0`. Task 300f is complete.
 Reuse `request_flow.chinese_request` / `onpc_request_flow::prepare_chinese` and
 `kiosk_approved_flow.chinese_approval` / `onpc_request_flow::approve_chinese` for
 the finite request and native challenge; callers own fresh entry and GDM return.
-Both prerequisites precede task 300; the complete case's inventory binding
-remains unallocated; these slices supply no complete-case acceptance.
+Case 254's `chinese_lifecycle.PLAN` / `onpc_chinese_lifecycle::run` passed its
+complete single-reboot history and all 25 assertions on Ubuntu 26.04 in
+`20261005T052511Z-d5a980d9`. `ChineseRequestInstallJourney` composes the shared
+installation/presentation and approval comparisons; recipe-declared public checks
+retain checked Chinese preferences, request estimates and independent Parent
+time/policy results after both real approvals. The post-setup approver input uses
+`kiosk-language-jordan-jamie-chinese`, binding the already Chinese form through
+startup Save and selected-account readback. The English-only selector is not a
+valid substitute for that input. Native provider scope remains the qualified
+Jamie/Jordan, 75-second, soft-included MATE binding.
+
+Required `check_e2e_chinese_current_install` and `check_e2e_chinese_native_auth`
+regressions passed in `20261005T053736Z-2bf99fd4` and
+`20261005T054603Z-b58a3339`. All three reports remain under
+`output/test-runs/host/reports/<run>/report.md`; collection, worker shutdown,
+owned cleanup, baseline restoration, finalization and preservation passed.
+The mechanical language-binding repair passed 2,752 selected host tests and
+source validation; coverage was regenerated. This completes task 300 only;
+tasks 306–310 retain the other language histories and Fedora remains unqualified.
 
 The Chinese first-presentation slice passed on every enabled VM (Ubuntu 26.04)
 in `20261004T044302Z-572b0ee7`, including all 14 declared assertions, genuine

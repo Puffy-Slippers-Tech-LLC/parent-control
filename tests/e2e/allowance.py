@@ -39,7 +39,7 @@ PLAN = JourneyPlan(
             **{stage: 'step-2' for stage in SCREENS
                if stage.startswith(('custom-', 'text-daily-'))
                and stage != 'custom-disabled'}},
-    advance_after={'allowance-15-reopen': 'step-2'},
+    advance_after={'allowance-15-read': 'step-2'},
 )
 
 

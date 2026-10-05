@@ -6,8 +6,7 @@ from journey_blocks import fresh_desktop
 PRESET_STAGES = (
     'allowance-disabled', 'parent-toggle-enabled', 'parent-save-enabled',
     'allowance-wrong-child', 'allowance-0-select', 'allowance-0-read',
-    'allowance-0-reopen', 'allowance-15-select', 'allowance-15-read',
-    'allowance-15-reopen',
+    'allowance-15-select', 'allowance-15-read',
 )
 SCREENS = {
     **fresh_desktop('parent'),
@@ -21,7 +20,7 @@ PLAN = JourneyPlan(
     phases={'ready': 'setup', 'setup-detached': 'setup',
             **{stage: 'step-1' for stage in SCREENS}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in PRESET_STAGES if stage.startswith('allowance-15-')}},
-    advance_after={'allowance-0-reopen': 'step-2'},
+    advance_after={'allowance-0-read': 'step-2'},
 )
 
 

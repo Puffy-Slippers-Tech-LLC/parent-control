@@ -26,8 +26,8 @@ sub qualify {
     $journey->consume_observation('parent-selected', $selected);
     for my $stage ('custom-disabled', 'allowance-disabled', 'parent-toggle-enabled',
                    'parent-save-enabled', 'allowance-wrong-child',
-                   'allowance-0-select', 'allowance-0-read', 'allowance-0-reopen',
-                   'allowance-15-select', 'allowance-15-read', 'allowance-15-reopen',
+                   'allowance-0-select', 'allowance-0-read',
+                   'allowance-15-select', 'allowance-15-read',
                    'custom-wrong-child') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }

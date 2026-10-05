@@ -251,14 +251,13 @@ def test_parent_representative_daily_presets_through_installed_reader(
         fixture_uids={CHILD: 1001},
         dispatch=lambda: GLib.MainContext.default().iteration(False),
     )
-    for minutes in REPRESENTATIVE_PRESETS:
+    for minutes in (15, *REPRESENTATIVE_PRESETS, 15):
         select_allowance(reader, (minutes,), child=CHILD)
         assert reader.allowance_preset(CHILD, minutes, action='read') == {
             'minutes': minutes, 'saved': True}
         wait_for_accessible_state(
-            lambda: any(record['event'] == 'set_parent_control'
-                        and record['daily_limit_minutes'] == minutes
-                        for record in read_events(path)),
+            lambda: [record['daily_limit_minutes'] for record in read_events(path)
+                     if record['event'] == 'set_parent_control'][-1:] == [minutes],
             f"preset {minutes} independently committed")
 
 

@@ -196,13 +196,18 @@ DOCUMENT_CONTRACTS['document-viewer'] = {
 
 
 @pytest.mark.parametrize('standard', [False, True])
-@pytest.mark.parametrize('fault', [None, 'session', 'desktop', 'prompt', 'submission'])
+@pytest.mark.parametrize('fault', [None, 'session', 'desktop', 'prompt', 'preparation',
+                                  'final-session', 'final-prompt', 'submission'])
 def test_direct_parent_command_requires_safe_entry_and_never_replays(monkeypatch, standard, fault):
     ui = ui_for(Node())
-    session = Mock(side_effect=UiError('session') if fault == 'session' else None)
+    session = Mock(side_effect=(UiError('session') if fault == 'session' else
+                               [None, UiError('session')] if fault == 'final-session' else None))
     monkeypatch.setattr(accessible_ui, 'require_active_launch_session', session)
     ui.desktop_result = Mock(side_effect=UiError('desktop') if fault == 'desktop' else None)
-    ui.handle_system_prompt = Mock(side_effect=UiError('prompt') if fault == 'prompt' else None)
+    ui.handle_system_prompt = Mock(side_effect=(UiError('prompt') if fault == 'prompt' else
+        [None, UiError('prompt')] if fault == 'final-prompt' else None))
+    ui.prepare_launch_desktop = Mock(
+        side_effect=UiError('preparation') if fault == 'preparation' else None)
     submit = Mock(side_effect=TimeoutError() if fault == 'submission' else None)
     monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
     if fault:
@@ -210,7 +215,7 @@ def test_direct_parent_command_requires_safe_entry_and_never_replays(monkeypatch
             ui.launch_parent_command(standard=standard)
     else:
         ui.launch_parent_command(standard=standard)
-    if fault not in ('session', 'desktop', 'prompt'):
+    if fault not in ('session', 'desktop', 'prompt', 'preparation', 'final-session', 'final-prompt'):
         submit.assert_called_once_with([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
             '--service-type=exec', '/usr/bin/oh-no-parent-control-parent',
@@ -220,6 +225,106 @@ def test_direct_parent_command_requires_safe_entry_and_never_replays(monkeypatch
         assert submit.call_count == 1
     else:
         submit.assert_not_called()
+
+
+@pytest.mark.parametrize('active', [False, True])
+def test_launch_desktop_closes_overview_once_and_waits_for_public_result(monkeypatch, active):
+    ui = ui_for(Node())
+    ui.timeout = 1
+    ui.handle_system_prompt = Mock()
+    session = Mock()
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', session)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _: None)
+    results = (['(<true>,)', '()', '(<true>,)', '(<false>,)'] if active else ['(<false>,)'])
+    def call(argv, **kwargs):
+        assert kwargs == dict(stdin=subprocess.DEVNULL, capture_output=True,
+                              text=True, check=True, timeout=3)
+        if argv[8].endswith('.Set'):
+            assert ui.input_uncertain
+        return SimpleNamespace(stdout=results.pop(0))
+    submit = Mock(side_effect=call)
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
+    ui.prepare_launch_desktop()
+    methods = [call.args[0][8] for call in submit.call_args_list]
+    assert methods == ['org.freedesktop.DBus.Properties.' + method for method in (
+        ['Get', 'Set', 'Get', 'Get'] if active else ['Get'])]
+    for call in submit.call_args_list:
+        assert call.args[0][:8] == [
+            '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.Shell',
+            '--object-path', '/org/gnome/Shell', '--method',
+        ]
+        assert call.args[0][9:] == ['org.gnome.Shell', 'OverviewActive', *(
+            ['<false>'] if call.args[0][8].endswith('.Set') else [])]
+    assert not results and not ui.input_uncertain
+    assert session.call_count == int(active)
+
+
+@pytest.mark.parametrize('fault', ['initial-read', 'initial-malformed', 'set',
+                                  'result-read', 'result-malformed', 'timeout', 'prompt'])
+def test_launch_desktop_preserves_uncertainty_after_set_and_never_replays(monkeypatch, fault):
+    ui = ui_for(Node())
+    ui.timeout = 0
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
+    ui.handle_system_prompt = Mock(side_effect=(
+        [None, UiError('prompt')] if fault == 'prompt' else None))
+    def call(argv, **kwargs):
+        method = argv[8].rsplit('.', 1)[-1]
+        if method == 'Set':
+            assert ui.input_uncertain
+            if fault == 'set':
+                raise TimeoutError()
+            return SimpleNamespace(stdout='()')
+        if not ui.input_uncertain:
+            if fault == 'initial-read':
+                raise TimeoutError()
+            return SimpleNamespace(stdout='invalid' if fault == 'initial-malformed' else '(<true>,)')
+        if fault == 'result-read':
+            raise TimeoutError()
+        return SimpleNamespace(stdout='invalid' if fault == 'result-malformed' else '(<true>,)')
+    submit = Mock(side_effect=call)
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
+    with pytest.raises((UiError, TimeoutError)):
+        ui.prepare_launch_desktop()
+    uncertain = fault not in ('initial-read', 'initial-malformed')
+    assert ui.input_uncertain is uncertain
+    assert sum(call.args[0][8].endswith('.Set') for call in submit.call_args_list) == int(uncertain)
+    if uncertain:
+        calls = submit.call_count
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.prepare_launch_desktop()
+        assert submit.call_count == calls
+
+
+@pytest.mark.parametrize('appears', ['before-set', 'after-closure'])
+def test_launch_desktop_fresh_prompt_refuses_input_after_cached_safe_read(monkeypatch, appears):
+    prompt = Node('External prompt', 'dialog', states=())
+    root = Node(children=[Node('External application', 'application', children=[prompt])])
+    ui = ui_for(root)
+    ui.prompt_enabled, ui.prompt_session = True, 'desktop'
+    ui.desktop_result = Mock()
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
+    reads = 0
+    def call(argv, **kwargs):
+        nonlocal reads
+        # Neither late prompt may authorize product launch.
+        assert argv[0] == '/usr/bin/gdbus'
+        if argv[8].endswith('.Set'):
+            return SimpleNamespace(stdout='()')
+        reads += 1
+        if (appears == 'before-set' and reads == 1
+                or appears == 'after-closure' and reads == 2):
+            prompt.states.update(('showing', 'visible', 'modal'))
+        return SimpleNamespace(stdout='(<true>,)' if reads == 1 else '(<false>,)')
+    submit = Mock(side_effect=call)
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
+    with ui.observation():
+        # Seed the actual immutable prompt snapshot used by run()/wait().
+        ui.handle_system_prompt()
+        assert ui._observation_cache
+        with pytest.raises(UiError, match='system-prompt-refused:desktop:unknown'):
+            ui.launch_parent_command()
+    sets = sum(call.args[0][8].endswith('.Set') for call in submit.call_args_list)
+    assert sets == (0 if appears == 'before-set' else 1)
 
 
 @pytest.mark.parametrize('fault', [None, 'session', 'desktop', 'prompt', 'submission'])
@@ -959,7 +1064,7 @@ def test_parent_save_observation_accepts_only_its_fixed_sanitized_result(operati
 
 
 @pytest.mark.parametrize('minutes', [0, 15, 30, 45, *range(60, 1411, 30)])
-@pytest.mark.parametrize('action', ['select', 'read', 'reopen'])
+@pytest.mark.parametrize('action', ['select', 'read'])
 def test_allowance_presets_require_independent_public_value(minutes, action):
     ui, root, _picker, _toggle, allowance = parent_save_ui()
     expected = (f'{minutes} minutes' if minutes < 60 else
@@ -1012,11 +1117,26 @@ def test_allowance_failure_diagnostic_reports_only_public_idle_boolean(monkeypat
     run = Mock(return_value=SimpleNamespace(stdout=output))
     monkeypatch.setattr(accessible_ui.subprocess, 'run', run)
     assert accessible_ui.allowance_failure_diagnostic() == {
-        'event': 'allowance-failure-diagnostic', 'screensaver_active': active}
-    assert run.call_args.args[0] == [
+        'event': 'allowance-failure-diagnostic', 'screensaver_active': active,
+        'overview_active': None}
+    assert run.call_args_list[0].args[0] == [
         '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
         '--object-path', '/org/gnome/ScreenSaver',
         '--method', 'org.gnome.ScreenSaver.GetActive']
+
+
+@pytest.mark.parametrize('output,active', [('(<true>,)\n', True), ('(<false>,)\n', False),
+                                          ('private unexpected output', None)])
+def test_allowance_failure_diagnostic_reports_only_public_overview_boolean(monkeypatch, output, active):
+    run = Mock(side_effect=[SimpleNamespace(stdout='(false,)'), SimpleNamespace(stdout=output)])
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', run)
+    result = accessible_ui.allowance_failure_diagnostic()
+    assert result['overview_active'] is active
+    assert 'private' not in json.dumps(result)
+    assert run.call_args.args[0] == [
+        '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.Shell',
+        '--object-path', '/org/gnome/Shell',
+        '--method', 'org.freedesktop.DBus.Properties.Get', 'org.gnome.Shell', 'OverviewActive']
 
 
 def test_allowance_failure_diagnostic_preserves_original_failure(monkeypatch):
@@ -1029,7 +1149,7 @@ def test_allowance_failure_diagnostic_preserves_original_failure(monkeypatch):
 def test_allowance_failure_diagnostic_excludes_text_and_preserves_query_failure(monkeypatch, fault):
     monkeypatch.setattr(accessible_ui.subprocess, 'run',
                         Mock(return_value=SimpleNamespace(stdout='(false,)')))
-    choice = Node('private label', identity='parent-daily-limit-custom',
+    choice = Node('private label', identity='parent-custom-daily-limit',
                   states=('visible', 'sensitive') if fault == 'clipped'
                   else ('visible', 'showing', 'sensitive'))
     ui = ui_for(Node(identity='parent-window', children=[] if fault == 'missing' else [choice]))
@@ -1039,14 +1159,10 @@ def test_allowance_failure_diagnostic_excludes_text_and_preserves_query_failure(
         assert result['controls'] is None
     else:
         assert result['controls']['parent-daily-limit-selector'] is None
-        assert result['controls']['parent-custom-daily-limit'] is None
-        assert result['controls']['parent-daily-limit-choices'] is None
-        assert result['controls']['parent-daily-limit-custom'] == (None if fault == 'missing'
+        assert result['controls']['parent-custom-daily-limit'] == (None if fault == 'missing'
             else {'visible': True, 'showing': fault != 'clipped', 'sensitive': True})
         assert result['present'] == {'parent-daily-limit-selector': 0,
-            'parent-custom-daily-limit': 0,
-            'parent-daily-limit-choices': 0,
-            'parent-daily-limit-custom': 0 if fault == 'missing' else 1}
+            'parent-custom-daily-limit': 0 if fault == 'missing' else 1}
     assert 'private' not in json.dumps(result)
 
 
@@ -1060,7 +1176,8 @@ def test_allowance_failure_diagnostic_reports_only_known_callback_frames(monkeyp
                'TypeError: private details\n'
                '  File "/private/other.py", line 20, in secret\n')
     monkeypatch.setattr(accessible_ui.subprocess, 'run', Mock(side_effect=[
-        SimpleNamespace(stdout='(false,)'), SimpleNamespace(stdout=journal)]))
+        SimpleNamespace(stdout='(false,)'), SimpleNamespace(stdout='(<false>,)'),
+        SimpleNamespace(stdout=journal)]))
     selector = Node(identity='parent-daily-limit-selector',
                     description=description,
                     states=('visible', 'showing', 'sensitive', 'expanded', 'focused'),
@@ -1068,10 +1185,8 @@ def test_allowance_failure_diagnostic_reports_only_known_callback_frames(monkeyp
     ui = ui_for(Node(identity='parent-window', children=[selector]))
     ui.api.StateType.EXPANDED = 'expanded'
     result = accessible_ui.allowance_failure_diagnostic(ui)
-    assert result['expanded'] is True
-    assert result['selector_focused'] is True
-    assert result['focused_recipients'] == 1
-    assert result['highlight'] == highlight
+    assert not {'expanded', 'highlight', 'selector_focused', 'focused_recipients',
+                'controlled_popups'} & result.keys()
     assert result['displayed_values'] == [900]
     assert result['callback_frames'] == [{'line': 170, 'function': 'do_measure'}]
     assert result['exception_types'] == ['TypeError']
@@ -1238,12 +1353,12 @@ def test_custom_allowance_controller_preserves_exact_action_and_value(operation)
         UiObservations(transport).observe(operation)
 
 
-def test_allowance_legacy_reopen_only_reads_final_value():
+def test_allowance_reopen_is_not_a_selection_route():
     ui, _root, _picker, _toggle, allowance = parent_save_ui()
     allowance.children = [Node('0 minutes', 'label')]
     ui.select_allowance = Mock()
-    assert ui.allowance_preset(accessible_ui.CHILD, 0, action='reopen') == {
-        'minutes': 0, 'saved': True}
+    with pytest.raises(accessible_ui.UiError, match='ui:allowance-binding'):
+        ui.allowance_preset(accessible_ui.CHILD, 0, action='reopen')
     ui.select_allowance.assert_not_called()
     allowance.action.do_action.assert_not_called()
 

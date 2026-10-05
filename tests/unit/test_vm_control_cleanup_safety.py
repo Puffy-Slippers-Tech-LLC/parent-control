@@ -477,7 +477,7 @@ def probe_snapshot(held, current):
     ET.SubElement(tree, 'description').text = json.dumps({'baseline_sha256': held.state['baseline_sha256']})
     tree.append(ET.fromstring(current['xml']))
     snapshot = Mock()
-    snapshot.getName.return_value = 'onpc-v1.1'
+    snapshot.getName.return_value = 'onpc-v9.8.7'
     snapshot.getXMLDesc.side_effect = lambda _: ET.tostring(tree, encoding='unicode')
     held.source.domain.snapshotCurrent.return_value = snapshot
     record = {'run': held.state['run'], 'private_key': 'private-key-canary'}
@@ -900,7 +900,7 @@ def test_online_resume_refusal_preserves_idle_or_running_ownership(
     monkeypatch.setattr(controller, 'check_identity', Mock())
     monkeypatch.setattr(controller, 'Commands', lambda: lease.commands)
     monkeypatch.setattr(controller.system, 'Lease', lambda *a, **kw: held)
-    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-v1.1')
+    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-v9.8.7')
     monkeypatch.setattr(test_retention, 'allocate', lambda *a, **kw: str(tmp_path))
     monkeypatch.setattr(online_snapshot, 'load', lambda *a: (
         None if fault == 'credentials' else {'run': 'e' * 32}))
@@ -941,7 +941,7 @@ def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(
         'baseline_sha256': lease.state['baseline_sha256'] if fault != 'baseline' else 'f' * 64})
     tree.append(ET.fromstring(current['xml']))
     snapshot = Mock()
-    snapshot.getName.return_value = 'onpc-v1.1'
+    snapshot.getName.return_value = 'onpc-v9.8.7'
     snapshot.getXMLDesc.return_value = ET.tostring(tree, encoding='unicode')
     lease.source.domain.listAllSnapshots.return_value = [snapshot]
     monkeypatch.setattr(online_snapshot, 'load', Mock(return_value=

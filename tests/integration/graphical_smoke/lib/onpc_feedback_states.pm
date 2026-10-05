@@ -140,8 +140,7 @@ sub run_save_order {
     $journey->consume_observation('parent-selected',
         onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing'));
     rejection_observe($journey, $_) for ('disabled-refused', 'setup');
-    onpc_allowance_selection::select($journey, 'jordan-preset', [900, 0], 'confirm');
-    onpc_allowance_selection::select($journey, 'jordan-cancel', [900], 'cancel');
+    onpc_allowance_selection::select($journey, 'jordan-preset', [15], 'confirm');
     custom_save_entry($journey, 'jordan', 'existing', 5, 6);
     ordinary_custom_save($journey, 'riley', 7);
     onpc_allowance_boundaries::select_child($journey, 'final-away');

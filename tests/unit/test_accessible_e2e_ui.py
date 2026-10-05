@@ -967,25 +967,19 @@ def test_allowance_presets_require_independent_public_value(minutes, action):
     different = '15 minutes' if minutes == 0 else '0 minutes'
     label = Node(different, 'label')
     allowance.children = [label]
-    choice = Node(identity='parent-daily-limit-' + str(minutes))
-    choice.get_description = lambda: 'Selected daily allowance: ' + expected
-    root.children.append(choice)
-    def activate(identity):
-        if identity == choice.identity:
-            label.name = expected
-    ui.activate_id = Mock(side_effect=activate)
+    def select(_child, _minutes):
+        ui.invalidate_observation()
+        label.name = expected
+    ui.select_allowance = Mock(side_effect=select)
     if action != 'select':
         label.name = expected
     assert ui.allowance_preset(accessible_ui.CHILD, minutes, action=action) == {
         'minutes': minutes, 'saved': True}
-    assert ui.activate_id.call_count == {'read': 0, 'reopen': 1, 'select': 2}[action]
+    assert ui.select_allowance.call_count == (action == 'select')
+    ui.timeout = .01
     label.name = different
-    with pytest.raises(UiError, match='ui:allowance-value'):
+    with pytest.raises(UiError, match='allowance-selected-value'):
         ui.allowance_preset(accessible_ui.CHILD, minutes, action='read')
-    label.name = expected
-    choice.get_description = lambda: 'Daily allowance: ' + expected
-    with pytest.raises(UiError, match='ui:allowance-selection'):
-        ui.allowance_preset(accessible_ui.CHILD, minutes, action='reopen')
 
 
 @pytest.mark.parametrize('minutes', [True, '60', -1, 1, 59, 1440, 1441])
@@ -998,7 +992,7 @@ def test_unoffered_presets_refuse_before_input(minutes):
 
 
 @pytest.mark.parametrize('value', [0, 15, 900, 'custom'])
-@pytest.mark.parametrize('phase', ['ready', 'opened', 'confirmed', 'cancelled'])
+@pytest.mark.parametrize('phase', ['click', 'selected'])
 def test_allowance_keyboard_controller_requires_exact_public_boundary(value, phase):
     operation = f'allowance-keyboard-{value}-{phase}'
     result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
@@ -1244,48 +1238,14 @@ def test_custom_allowance_controller_preserves_exact_action_and_value(operation)
         UiObservations(transport).observe(operation)
 
 
-def test_allowance_selection_waits_for_popup_labels_to_disappear(monkeypatch):
+def test_allowance_legacy_reopen_only_reads_final_value():
     ui, _root, _picker, _toggle, allowance = parent_save_ui()
-    label = Node('0 minutes', 'label')
-    choice = Node(identity='parent-daily-limit-0',
-                  description='Selected daily allowance: 0 minutes')
-    choices = Node(identity='parent-daily-limit-choices', children=[choice])
-    custom = Node('Custom amount', 'label')
-    allowance.children = [label]
-    def open_picker(_index):
-        allowance.children = [label, choices, custom]
-        return True
-
-    allowance.action.do_action.side_effect = open_picker
-    # Selection returns before GTK removes the popover's accessible labels.
-    ui.timeout = 1
-    settle = Mock(side_effect=lambda _seconds: setattr(allowance, 'children', [label]))
-    monkeypatch.setattr(accessible_ui.time, 'sleep', settle)
-    assert ui.allowance_preset(accessible_ui.CHILD, 0, action='select') == {
-        'minutes': 0, 'saved': True}
-    allowance.action.do_action.assert_called_once_with(0)
-    choice.action.do_action.assert_called_once_with(0)
-    settle.assert_called_once()
-
-
-def test_allowance_reopen_reads_open_picker_without_replaying_popup():
-    ui, _root, _picker, _toggle, allowance = parent_save_ui()
-    label = Node('0 minutes', 'label')
-    choice = Node(identity='parent-daily-limit-0',
-                  description='Selected daily allowance: 0 minutes')
-    choices = Node(identity='parent-daily-limit-choices', children=[choice])
-    custom = Node('Custom amount', 'label')
-    allowance.children = [label]
-    # The public menu.popup action opens; invoking it again does not close.
-    def open_picker(_index):
-        allowance.children = [label, choices, custom]
-        return True
-    allowance.action.do_action.side_effect = open_picker
+    allowance.children = [Node('0 minutes', 'label')]
+    ui.select_allowance = Mock()
     assert ui.allowance_preset(accessible_ui.CHILD, 0, action='reopen') == {
         'minutes': 0, 'saved': True}
-    allowance.action.do_action.assert_called_once_with(0)
-    choice.action.do_action.assert_not_called()
-    assert ui.showing(choice)
+    ui.select_allowance.assert_not_called()
+    allowance.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('operation', accessible_ui.ALLOWANCE_OPERATIONS)

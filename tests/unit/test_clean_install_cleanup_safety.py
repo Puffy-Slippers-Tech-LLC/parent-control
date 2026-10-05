@@ -29,7 +29,7 @@ def test_installed_snapshot_refuses_before_transfer(monkeypatch):
     transfer = Mock()
     monkeypatch.setattr(package_journey, 'AssetTransfer', transfer)
     with pytest.raises(EvidenceError, match='product-free-required'):
-        package_journey.PackageJourney(SimpleNamespace(installed_snapshot='onpc-v1.1'),
+        package_journey.PackageJourney(SimpleNamespace(installed_snapshot='onpc-v9.8.7'),
                                        Mock(), case.PLAN, checks=case.CHECKS)
     transfer.assert_not_called()
 

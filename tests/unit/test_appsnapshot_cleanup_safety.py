@@ -22,14 +22,14 @@ from tests.support.vm_runner import UUID, xml as domain_xml
 VM_ARGS = ['--vm', vm_name()]
 
 
-@pytest.mark.parametrize('version', ['1.1', '1.1+ppa1~ubuntu26.04.1',
-    '1.1-ppa1-ubuntu26.04.1', '1.1+ppa2~ubuntu26.04.1'])
+@pytest.mark.parametrize('version', ['9.8.7', '9.8.7+ppa1~ubuntu26.04.1',
+    '9.8.7-ppa1-ubuntu26.04.1', '9.8.7+ppa2~ubuntu26.04.1'])
 def test_snapshot_name_uses_app_release(version):
-    assert controller.snapshot_name(version) == 'onpc-v1.1'
+    assert controller.snapshot_name(version) == 'onpc-v9.8.7'
 
 
 def test_snapshot_name_preserves_release_components():
-    assert controller.snapshot_name('1.12.3+ppa1~ubuntu26.04.1') == 'onpc-v1.12.3'
+    assert controller.snapshot_name('9.8.7.6+ppa1~ubuntu26.04.1') == 'onpc-v9.8.7.6'
 
 
 @pytest.mark.parametrize('argv, expected', [([], 'false'), (['--mode', 'offline'], 'true'),
@@ -94,7 +94,7 @@ def test_clipboard_opt_in_refreshes_disabled_snapshot_and_reuses_enabled(mode, m
 
 
 @pytest.mark.parametrize('argv', [['--overwrite', 'yes'], ['--overwrite='],
-    ['--overwrite', 'FALSE'], ['--over', 'false'], ['--snapshot', 'onpc-1.1'],
+    ['--overwrite', 'FALSE'], ['--over', 'false'], ['--snapshot', 'onpc-9.8.7'],
     ['--mode', 'running'], ['--mod', 'online']])
 def test_invalid_options_refused_before_any_work(argv, monkeypatch):
     check = Mock(side_effect=AssertionError('authorization attempted'))
@@ -279,28 +279,28 @@ def test_online_credentials_are_private_and_bound_to_exact_snapshot(tmp_path, mo
     import online_snapshot
     monkeypatch.setattr(online_snapshot.test_storage, 'directory', lambda _: tmp_path)
     source = Mock(uuid='f95890e1-88e7-4779-8ae3-53fdcc34330a')
-    lease = Mock(source=source, installed_name='onpc-v1.1', installed_xml='<snapshot/>',
+    lease = Mock(source=source, installed_name='onpc-v9.8.7', installed_xml='<snapshot/>',
                  state={'run': 'a' * 32})
     setup = tmp_path / 'setup'
     setup.mkdir()
     (setup / 'ssh-key').write_text('private fixture key')
     (setup / 'ssh-key.pub').write_text('ssh-ed25519 AAAA fixture\n')
-    assert online_snapshot.load(source, 'onpc-v1.1', '<snapshot/>') is None
+    assert online_snapshot.load(source, 'onpc-v9.8.7', '<snapshot/>') is None
     online_snapshot.publish(lease, setup, 'ssh-ed25519 AAAA')
-    record = online_snapshot.load(source, 'onpc-v1.1', '<snapshot/>')
+    record = online_snapshot.load(source, 'onpc-v9.8.7', '<snapshot/>')
     assert record['private_key'] == 'private fixture key'
-    assert online_snapshot.load(source, 'onpc-v1.2', '<snapshot/>') is None
-    assert online_snapshot.load(source, 'onpc-v1.1', '<snapshot/> ') is None
+    assert online_snapshot.load(source, 'onpc-v9.8.8', '<snapshot/>') is None
+    assert online_snapshot.load(source, 'onpc-v9.8.7', '<snapshot/> ') is None
     path = online_snapshot.record_store(source).path / 'snapshot.json'
     assert path.stat().st_mode & 0o777 == 0o600
     path.chmod(0o644)
     with pytest.raises(ValueError):
-        online_snapshot.load(source, 'onpc-v1.1', '<snapshot/>')
+        online_snapshot.load(source, 'onpc-v9.8.7', '<snapshot/>')
     path.chmod(0o600)
     path.rename(path.with_suffix('.saved'))
     path.symlink_to(path.with_suffix('.saved'))
     with pytest.raises(OSError):
-        online_snapshot.load(source, 'onpc-v1.1', '<snapshot/>')
+        online_snapshot.load(source, 'onpc-v9.8.7', '<snapshot/>')
 
 
 @pytest.mark.parametrize('clock, delay, accepted', [
@@ -511,7 +511,7 @@ def test_resume_keeps_persistent_isolation_until_maintenance_stop(
     monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))
     monkeypatch.setattr(controller, 'check_identity', Mock())
     monkeypatch.setattr(controller.system, 'Lease', Mock(return_value=lease))
-    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-v1.1')
+    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-v9.8.7')
     monkeypatch.setattr(controller, 'mode_mismatch', lambda *a: None)
     monkeypatch.setattr(vm_control, 'save_owner', Mock())
     monkeypatch.setattr(vm_control, 'resume', Mock())
@@ -555,11 +555,11 @@ def test_probe_routes_unfinished_attempts_to_recovery_and_keeps_healthy_online_r
     monkeypatch.setattr(base, 'BASELINES', tmp_path)
     monkeypatch.setattr(base, 'identity', Mock())
     monkeypatch.setattr(base, 'baseline_lock_path', lambda _: lock)
-    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-v1.1')
+    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-v9.8.7')
     monkeypatch.setattr(controller, 'preparation_format', lambda *_: 'deb')
     source = Mock()
     source.domain.ID.return_value = 17 if running else -1
-    source.domain.snapshotListNames.return_value = ['onpc-v1.1']
+    source.domain.snapshotListNames.return_value = ['onpc-v9.8.7']
     monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))
     monkeypatch.setattr(controller, 'check_identity', Mock())
     monkeypatch.setattr(controller, 'mode_mismatch', lambda *_: None)
@@ -797,7 +797,7 @@ def test_probe_uses_exclusive_vm_lock_and_never_mutates(
     monkeypatch.setattr(base, 'canonical', Mock())
     monkeypatch.setattr(base, 'identity', Mock())
     monkeypatch.setattr(base, 'baseline_lock_path', lambda _: lock)
-    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-1.1')
+    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-9.8.7')
     monkeypatch.setattr(controller, 'preparation_format', lambda *_: 'deb')
     source = Mock()
     monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))
@@ -809,7 +809,7 @@ def test_probe_uses_exclusive_vm_lock_and_never_mutates(
                 fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
         finally:
             os.close(other)
-        return ['onpc-1.1'] if exists else ['onpc-0.9']
+        return ['onpc-9.8.7'] if exists else ['onpc-0.9']
     source.domain.snapshotListNames.side_effect = names
     domain = controller.system.isolated_xml(domain_xml(), UUID, 'a' * 32, graphics_type='vnc')
     source.domain.snapshotLookupByName.return_value.getXMLDesc.return_value = (
@@ -833,7 +833,7 @@ def test_probe_rejects_foreign_vm_before_reading_snapshots(tmp_path, monkeypatch
     monkeypatch.setattr(base, 'canonical', Mock())
     monkeypatch.setattr(base, 'identity', Mock())
     monkeypatch.setattr(base, 'baseline_lock_path', lambda _: lock)
-    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-1.1')
+    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-9.8.7')
     source = Mock()
     monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))
     monkeypatch.setattr(controller, 'check_identity', Mock(side_effect=ValueError('foreign VM')))
@@ -863,7 +863,7 @@ def test_forced_probe_selects_backend_without_snapshot_mutation(tmp_path, monkey
         monkeypatch.setattr(base, name, Mock())
     monkeypatch.setattr(base, 'BASELINES', tmp_path)
     monkeypatch.setattr(base, 'baseline_lock_path', lambda _: lock)
-    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-v1.2')
+    monkeypatch.setattr(controller, 'current_name', lambda _: 'onpc-v9.8.8')
     monkeypatch.setattr(controller, 'preparation_format', lambda *_: format)
     source = Mock()
     monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))

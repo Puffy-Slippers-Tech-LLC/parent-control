@@ -1,4 +1,5 @@
 """Private chooser, decoder and recorder doubles; waited Perl, no live owners."""
+from tools.test_storage import named_input
 from copy import deepcopy
 from dataclasses import replace
 import json
@@ -274,7 +275,7 @@ def test_selector_snapshot_assets_and_all_operation_registration(monkeypatch, tm
     launch.assert_called_once_with(assets=selector.ASSETS, provision_credentials=True, parent_language=True)
     from tools.test_storage import named_input
     assert selector.ASSETS == named_input(package_source=True)
-    assert selector.ASSETS != named_input()
+    assert selector.ASSETS == named_input()
     context = SimpleNamespace(directory=tmp_path)
     journey = ParentLanguageQualification.journey(context, Mock())
     assert journey.plan is language.PLAN and context.installed_snapshot.startswith('onpc-v')

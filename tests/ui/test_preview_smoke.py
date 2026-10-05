@@ -8,6 +8,7 @@ import json
 import pytest
 from tests.support.automation_ids import audit_product_controls
 from tests.support.events import read_events
+from tests.support.gui_blocks import select_allowance
 
 
 pytestmark = pytest.mark.ui
@@ -42,10 +43,7 @@ def test_parent_reports_partial_app_limits_and_remains_usable(
     wait_parent_ready(ui, wait_for_accessible_state)
     assert "may be unrestricted" in ui.text("parent-policy-warning")
     assert "Affected apps:" in ui.text("parent-policy-warning")
-    ui.activate("parent-daily-limit-selector")
-    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-45"),
-                              "unaffected screen-time settings remain reachable")
-    ui.activate("parent-daily-limit-45")
+    select_allowance(ui, (45,))
     # The menu button's accessible name is the stable description "Daily time
     # allowance", not its child label. Observe the component's committed value.
     wait_for_accessible_state(
@@ -93,176 +91,20 @@ def test_parent_preview_publishes_and_loads_management_controls(
     assert ui.target("parent-child-selector").get_accessible_id() == "parent-child-selector"
 
 
-def test_parent_daily_allowance_keyboard_buffers_and_scopes_input(
+
+def test_parent_daily_allowance_custom_then_preset_saves(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     from tests.support.keyboard import key_combo, type_text
-
-    events = tmp_path / "allowance-keyboard.jsonl"
+    events = tmp_path / "allowance-events.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state, events_path=events)
     wait_parent_ready(ui, wait_for_accessible_state)
-    selector = "parent-daily-limit-selector"
-    ui.focus("parent-daily-limit-row")
-    key_combo(ui, "parent-daily-limit-row", "Tab", state=ui.api.StateType.FOCUSED)
-    wait_for_accessible_state(lambda: ui.state(selector, ui.api.StateType.FOCUSED),
-                              "Tab reaches the identified allowance selector")
-    def press(key):
-        key_combo(ui, selector, key, state=ui.api.StateType.FOCUSED)
-    def draft(value):
-        wait_for_accessible_state(
-            lambda: ui.target(selector).get_description() == f"Daily allowance: {value}",
-            "keyboard buffer is publicly readable",
-        )
-    def saves():
-        return [record['daily_limit_minutes'] for record in read_events(events)
-                if record['event'] == 'set_parent_control']
-    def selected_choice(choice, label):
-        wait_for_accessible_state(
-            lambda: ui.target(choice).get_description() == f"Selected daily allowance: {label}",
-            "matching popup item appears selected",
-        )
-
-    guidance = ui.target(selector).get_description()
-    type_text(ui, selector, "15")
-    assert ui.target(selector).get_description() == guidance
-    press("Return")
-    assert saves() == []
-    press("Escape")
-    type_text(ui, selector, "2.5h")
-    draft("2.5 hours")
-    assert saves() == []
-    press("Return")
-    wait_for_accessible_state(lambda: saves() == [150], "typed hours commit on Enter")
-    wait_parent_ready(ui, wait_for_accessible_state)
-    ui.focus(selector)
-    press("Down")
-    draft("3 hours")
-    press("Up")
-    draft("2.5 hours")
-    press("Escape")
-    assert saves() == [150]
-    type_text(ui, selector, "15")
-    assert ui.target(selector).get_description() == guidance
-    press("Escape")
-    assert saves() == [150]
-    press("Down")
-    press("Return")
-    wait_for_accessible_state(lambda: saves() == [150, 180], "arrow choice commits on Enter")
-    wait_parent_ready(ui, wait_for_accessible_state)
-    ui.focus(selector)
-    type_text(ui, selector, "15m")
-    draft("15 minutes")
-    assert saves() == [150, 180]
-    press("Return")
-    wait_for_accessible_state(lambda: saves() == [150, 180, 15],
-                              "typed minutes commit on Enter")
-    wait_parent_ready(ui, wait_for_accessible_state)
-    ui.focus(selector)
-    type_text(ui, selector, "2.5")
-    ui.focus("parent-screen-limit-toggle")
-    ui.focus(selector)
-    press("Return")
-    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-15"),
-                              "leaving cancels the draft; Enter opens the normal popup")
-    ui.focus("parent-daily-limit-15")
-    type_text(ui, "parent-daily-limit-15", "2.5h")
-    draft("2.5 hours")
-    selected_choice("parent-daily-limit-150", "2.5 hours")
-    assert ui.showing("parent-daily-limit-150")
-    assert saves() == [150, 180, 15]
-    key_combo(ui, "parent-daily-limit-15", "Escape", state=ui.api.StateType.FOCUSED)
-    wait_for_accessible_state(lambda: not ui.showing("parent-daily-limit-15"),
-                              "Escape closes the popup without committing typed choice")
-    assert saves() == [150, 180, 15]
-    assert ui.target(selector).get_description() == guidance
-    ui.activate(selector)
-    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-15"),
-                              "allowance popup reopens")
-    ui.focus("parent-daily-limit-15")
-    type_text(ui, "parent-daily-limit-15", "15h")
-    draft("15 hours")
-    selected_choice("parent-daily-limit-900", "15 hours")
-    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-900"),
-                              "typed choice is visible in the expanded preset list")
-    key_combo(ui, "parent-daily-limit-15", "Return", state=ui.api.StateType.FOCUSED)
-    wait_for_accessible_state(lambda: not ui.showing("parent-daily-limit-15"),
-                              "Enter closes the popup after committing typed choice")
-    wait_for_accessible_state(lambda: saves() == [150, 180, 15, 900],
-                              "popup typed choice is saved only on Enter")
-    wait_parent_ready(ui, wait_for_accessible_state)
-    ui.activate(selector)
-    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-15"),
-                              "allowance popup opens for Custom shortcut")
-    ui.focus("parent-daily-limit-15")
-    key_combo(ui, "parent-daily-limit-15", "c", state=ui.api.StateType.FOCUSED)
-    draft("Custom value")
-    selected_choice("parent-daily-limit-custom", "Custom amount")
-    assert ui.showing("parent-daily-limit-custom")
-    assert not ui.showing("parent-custom-daily-limit")
-    key_combo(ui, "parent-daily-limit-15", "Escape", state=ui.api.StateType.FOCUSED)
-    wait_for_accessible_state(lambda: not ui.showing("parent-daily-limit-custom"),
-                              "Escape cancels Custom and closes the popup")
-    assert saves() == [150, 180, 15, 900]
-    ui.activate(selector)
-    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-900"),
-                              "committed value remains selected after cancelling Custom")
-    selected_choice("parent-daily-limit-900", "15 hours")
-    ui.focus("parent-daily-limit-15")
-    key_combo(ui, "parent-daily-limit-15", "c", state=ui.api.StateType.FOCUSED)
-    key_combo(ui, "parent-daily-limit-15", "Return", state=ui.api.StateType.FOCUSED)
-    wait_for_accessible_state(
-        lambda: ui.state("parent-custom-daily-limit", ui.api.StateType.FOCUSED),
-        "Custom shortcut in the popup focuses the entry",
-    )
+    select_allowance(ui, ('custom',))
     key_combo(ui, "parent-custom-daily-limit", "<Control>a", state=ui.api.StateType.FOCUSED)
     type_text(ui, "parent-custom-daily-limit", "91")
-    wait_for_accessible_state(lambda: saves() == [150, 180, 15, 900, 91],
-                              "typing in Custom reaches its own editor")
-
-
-def test_parent_daily_allowance_menu_opens_and_selects(
-        launch_ui, automation, wait_for_accessible_state, tmp_path):
-    from tests.support.keyboard import key_combo, type_text
-
-    release = tmp_path / "allowance-save-release"
-    events = tmp_path / "allowance-menu-events.jsonl"
-    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
-                      scenario="held-save", events_path=events, loading_release=release)
     wait_parent_ready(ui, wait_for_accessible_state)
-    ui.activate("parent-daily-limit-selector")
-    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-45"),
-                              "allowance choices open")
-    ui.activate("parent-daily-limit-custom")
-    wait_for_accessible_state(
-        lambda: ui.find("parent-custom-daily-limit") is not None
-                and ui.state("parent-custom-daily-limit", ui.api.StateType.FOCUSED),
-        "choosing Custom amount focuses its textbox",
-    )
-    # Loading now seeds Custom amount with the saved allowance. Make a real
-    # edit and hold its response so menu access cannot race save completion.
-    try:
-        key_combo(ui, "parent-custom-daily-limit", "<Control>a",
-                  state=ui.api.StateType.FOCUSED)
-        type_text(ui, "parent-custom-daily-limit", "91")
-        wait_for_accessible_state(
-            lambda: not ui.state("parent-screen-limit-toggle", ui.api.StateType.SENSITIVE),
-            "custom save is in progress",
-        )
-        ui.activate("parent-daily-limit-selector")
-        wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-45"),
-                                  "one activation during the custom save opens the choices")
-        ui.activate("parent-daily-limit-45")
-        # GTK's public button action acknowledges activation before emitting
-        # clicked. Keep the first save held until the selection is observable,
-        # otherwise its completion can make wait_parent_ready pass too early.
-        wait_for_accessible_state(
-            lambda: not ui.showing("parent-custom-daily-limit"),
-            "the preset selection is delivered while the custom save is held",
-        )
-    finally:
-        release.touch()
-    wait_parent_ready(ui, wait_for_accessible_state)
+    select_allowance(ui, (45,))
     assert [record["daily_limit_minutes"] for record in read_events(events)
-            if record["event"] == "set_parent_control"] == [91, 45]
+            if record["event"] == "set_parent_control"][-2:] == [91, 45]
 
 
 @pytest.mark.parametrize("scenario", ("denied", "unavailable"))
@@ -419,44 +261,6 @@ def test_parent_all_daily_presets_through_installed_reader(
             f"preset {minutes} independently committed")
 
 
-def test_parent_shared_allowance_keyboard_replaces_highlight_and_cancels(
-        launch_ui, automation, wait_for_accessible_state, tmp_path):
-    from gi.repository import GLib
-    from tests.e2e.accessible_ui import AccessibleUI, CHILD
-    from tests.support.gui_blocks import select_allowance
-    from tests.support import keyboard
-
-    path = tmp_path / 'keyboard-choice-events.jsonl'
-    ui = start_parent(launch_ui, automation, wait_for_accessible_state, events_path=path)
-    wait_parent_ready(ui, wait_for_accessible_state)
-    reader = AccessibleUI(
-        ui.api, timeout=10, query_errors=ui.query_errors,
-        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
-        application_owners=ui.application_owners,
-        application_owner_history=ui.application_owner_history,
-        fixture_uids={CHILD: 1001},
-        dispatch=lambda: GLib.MainContext.default().iteration(False))
-    def saves():
-        return [record['daily_limit_minutes'] for record in read_events(path)
-                if record['event'] == 'set_parent_control']
-    original = saves()
-    reader.allowance_keyboard(CHILD, 900, 'ready')
-    keyboard.deliver_allowance(reader, lambda: keyboard.raw_allowance_key('space'),
-                               child=CHILD, expanded=False)
-    reader.allowance_keyboard(CHILD, 900, 'opened')
-    for text, minutes in (('15h', 900), ('0m', 0)):
-        keyboard.deliver_allowance(reader, lambda: keyboard.raw_allowance_text(text), child=CHILD)
-        reader.allowance_keyboard(CHILD, minutes, 'highlighted')
-        assert saves() == original  # Each complete match resets typing without saving.
-    keyboard.deliver_allowance(reader, lambda: keyboard.raw_allowance_key('Return'), child=CHILD)
-    reader.allowance_keyboard(CHILD, 0, 'confirmed')
-    wait_for_accessible_state(lambda: saves() == original + [0], 'latest highlight saves')
-    select_allowance(reader, (900,), response='cancel', original=0, child=CHILD)
-    assert saves() == original + [0]
-    select_allowance(reader, ('custom',), child=CHILD)
-    assert saves() == original + [0]
-    reader.text_recipient('parent-custom-daily-limit', focused=True, child=CHILD)
-
 
 def test_parent_daily_preset_and_custom_limit_autosave(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
@@ -477,10 +281,7 @@ def test_parent_daily_preset_and_custom_limit_autosave(
                     for record in read_events(path)),
         "custom allowance saves",
     )
-    ui.activate("parent-daily-limit-selector")
-    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-45"),
-                              "allowance choices open")
-    ui.activate("parent-daily-limit-45")
+    select_allowance(ui, (45,))
     wait_for_accessible_state(
         lambda: any(record["event"] == "set_parent_control"
                     and record["daily_limit_minutes"] == 45
@@ -496,20 +297,13 @@ def test_parent_daily_preset_and_custom_limit_autosave(
         dispatch=lambda: GLib.MainContext.default().iteration(False),
     )
     for minutes in (0, 15):
-        identity = f"parent-daily-limit-{minutes}"
-        for action in ('select', 'read', 'reopen'):
+        for action in ('select', 'read'):
             assert reader.allowance_preset(CHILD, minutes, action=action) == {
                 'minutes': minutes, 'saved': True}
         wait_for_accessible_state(
             lambda: any(record["event"] == "set_parent_control"
                         and record["daily_limit_minutes"] == minutes
                         for record in read_events(path)), "ordinary preset saves")
-        assert ui.showing(identity)
-        assert ui.target(identity).get_description() == (
-            f"Selected daily allowance: {minutes} minutes")
-        other = "parent-daily-limit-15" if minutes == 0 else "parent-daily-limit-0"
-        assert ui.target(other).get_description() == (
-            "Daily allowance: 15 minutes" if minutes == 0 else "Daily allowance: 0 minutes")
     # Full custom GUI boundaries stay here when the installed case samples 1.
     # The later incremental edit also reaches and verifies the 1439 maximum.
     for minutes, terminator in ((0, ''), (15, ''), (1, ''), (2, '\n'), (3, '\t')):

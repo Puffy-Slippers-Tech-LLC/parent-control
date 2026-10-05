@@ -64,9 +64,10 @@ raw exception values. Synthetic-tree and isolated-payload regressions cover the
 distinction and private-value exclusion; these use existing in-memory/private
 child-process resources and do not change scheduling or cleanup ownership.
 
-Current-install Parent dialog regressions select
-`named_input(package_source=True)` in both their integration entry and
-`test_commands.qualification_artifact_command`. Snapshot acquisition derives
+All named qualification inputs select current package sources by default through
+`named_input()`; `package_source=True` remains an equivalent explicit spelling.
+Fixture and upgrade consumers also include their fixture source identity.
+Snapshot acquisition derives
 the version from that package; preparing the current app snapshot does not
 refresh an older immutable qualification bundle. The launcher builds missing
 source-bound inputs and preserves valid existing bundles. Host launcher checks
@@ -74,18 +75,21 @@ cover matching consumer/preparation bindings, failed preparation before VM
 dispatch and reuse without replacing inputs.
 
 `journey_blocks.allowance_selection`, `onpc_allowance_selection::select` and
-`AccessibleUI.allowance_keyboard` share the Parent allowance keyboard block.
-Host previews execute it with `gui_blocks.select_allowance` and guarded
-`keyboard.deliver_allowance`; installed cases use the normal worker keyboard.
-Every input boundary proves public window/selector ownership and unique usable
-focus within the selector scope. The opening Space requires a closed selector;
-typing and Enter/Escape require the independently observed expanded selector.
-Individual choice IDs are unnecessary
-under the [daily allowance exception](../../docs/Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception).
-Cases own preset sequences, original-value comparisons and save assertions.
-No VM/distro branches or new display, process, storage or cleanup lifetime are
-introduced: the Perl expansion is waited and existing preview/VM owners remain.
-Existing unit and UI parallelism classifications apply.
+`gui_blocks.select_allowance` share one Parent allowance block.
+`AccessibleUI.select_allowance` sends one native click, typed value and Enter
+in the same window-bound Mutter session. `allowance_keyboard` independently
+reads the final saved value or focused Custom editor. Existing preset/custom
+helpers delegate to that input block. No popup/highlight/cancellation or
+direct-choice variant is available; see the
+[mandatory sequence](../../docs/Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception).
+Cases own desired values and subsequent save/persistence assertions.
+Fresh active-window/child/selector identity and enabled-state checks remain;
+only the click uses public window-relative bounds. Input errors preserve the
+uncertain-input latch; readback never replays input.
+The adapter retains the same owned session cleanup, private preview display
+and VM lifetimes. Unit probes use existing private doubles and waited Perl;
+UI tests use the existing private display. No new process, storage or cleanup
+owner is introduced; existing unit/UI parallelism classifications apply.
 
 `AccessibleUI.language_presentation` reuses LANG01 ownership/choice reads,
 bounded public Text/name comparison and the dialog's ID-addressed focus action.

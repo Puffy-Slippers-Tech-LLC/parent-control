@@ -374,7 +374,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
         if operation == 'about-interval-read':
             result['about_interval'] = {'pid': 123, 'endpoint': [':1.2', '/about'],
-                                        'product': accessible_ui.PRODUCT, 'version': '1.1'}
+                                        'product': accessible_ui.PRODUCT, 'version': '9.8.7'}
         if operation == 'station-entry-branch':
             result['branch'] = {'destination': 'default-request-form', 'controls': []}
         if operation == 'station-default-entry':
@@ -594,7 +594,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     boundary = next(stage for stage, phase in plan.advance_after.items() if phase == 'step-2')
     state = {'stage': None, 'stored': False}
     context = SimpleNamespace(directory=directory, host_key='fixture-key', commands=Mock(),
-        installed_snapshot='onpc-v1.1',
+        installed_snapshot='onpc-v9.8.7',
         guestfs=Mock(), credentials=Mock(), verified=SimpleNamespace(inputs=inputs),
         lease=SimpleNamespace(source=SimpleNamespace(uuid='fixture-uuid'),
             view=SimpleNamespace(domain_id=7), state={'run': 'a' * 32}, guard=Mock()))
@@ -850,7 +850,7 @@ def test_stage_action_runs_after_worker_guard_and_before_durable_reply(tmp_path,
     monkeypatch.setattr(journeys, "ReadOnlyObservations", Mock(return_value=SimpleNamespace(
         read=Mock(return_value={"boot_sha256": "b" * 64}))))
     context = SimpleNamespace(directory=directory, host_key="fixture-key", commands=Mock(),
-        installed_snapshot='onpc-v1.1',
+        installed_snapshot='onpc-v9.8.7',
         verified=Mock(), lease=SimpleNamespace(source=SimpleNamespace(uuid="fixture-uuid"),
         view=SimpleNamespace(domain_id=7), state={"run": "a" * 32}, guard=Mock()))
     events = []

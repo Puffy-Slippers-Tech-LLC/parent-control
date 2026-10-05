@@ -84,8 +84,8 @@ def test_suite_preparation_ticks_without_frames_and_resets_each_milestone(monkey
     monkeypatch.setattr('tools.e2e_progress.time.monotonic_ns', clock)
     progress = Progress(cases()[:2])
     for label in ('Checking prerequisites', 'Cleaning up previous runs',
-                  'Deleting existing snapshot onpc-1.2', 'Installing app',
-                  'Taking snapshot onpc-1.2'):
+                  'Deleting existing snapshot onpc-9.8.8', 'Installing app',
+                  'Taking snapshot onpc-9.8.8'):
         progress.suite_preparation(label)
         progress.prepare(progress.cases[0]['case_id'])
         progress.preparation_output('detailed VM log')
@@ -205,15 +205,15 @@ def test_invocation_heartbeat_survives_without_display_and_expires(tmp_path, mon
         publisher.stop.set()
         publisher.thread.join(timeout=2)
         assert not publisher.thread.is_alive()
-        for label in ('Deleting existing snapshot onpc-v1.1 (overwrite=true)',
-                      'Installing app', 'Taking snapshot onpc-v1.1'):
+        for label in ('Deleting existing snapshot onpc-v9.8.7 (overwrite=true)',
+                      'Installing app', 'Taking snapshot onpc-v9.8.7'):
             progress.suite_preparation(label)
             shown = feed.progress()
             assert shown is not None
             assert progress_text({'progress': shown},
                 now_ns=shown['operation_started_ns'])[2] == (
                 'Preparing e2e suite: ' + label + ' - (0s)')
-        for label in ('Restoring snapshot "onpc-v1.1"', 'Restoring snapshot "onpc-baseline"'):
+        for label in ('Restoring snapshot "onpc-v9.8.7"', 'Restoring snapshot "onpc-baseline"'):
             with progress.snapshot_operation(label):
                 assert feed.progress()['operation'] == label
                 progress.suite_preparation('Unrelated controller stage')

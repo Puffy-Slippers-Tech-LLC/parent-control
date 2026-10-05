@@ -124,7 +124,7 @@ def ui_for(root, *, provider_contracts=None, qualify_prompts=True):
         FOCUSED='focused', SELECTED='selected', CHECKED='checked', PRESSED='pressed', EDITABLE='editable', MODAL='modal',
         ACTIVE='active', EXPANDED='expanded'),
         RelationType=SimpleNamespace(CONTROLLED_BY='controlled-by'),
-        CoordType=SimpleNamespace(SCREEN='screen'),
+        CoordType=SimpleNamespace(SCREEN='screen', WINDOW='window'),
         ScrollType=SimpleNamespace(ANYWHERE='anywhere')), timeout=0,
         provider_contracts=copy.deepcopy(provider_contracts),
         fixture_uids={'Riley (Child)': 1001, 'Jordan (Child)': 1002, 'Morgan (Child)': 1003,

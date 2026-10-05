@@ -411,7 +411,7 @@ OPERATIONS |= ALLOWANCE_OPERATIONS
 ALLOWANCE_KEYBOARD_OPERATIONS = {
     f'allowance-keyboard-{value}-{phase}': (value, phase)
     for value in (*PRESETS, 'custom')
-    for phase in ('ready', 'opened', 'highlighted', 'confirmed', 'cancelled')
+    for phase in ('click', 'selected')
 }
 OPERATIONS |= ALLOWANCE_KEYBOARD_OPERATIONS.keys()
 TIME_EXPLANATION_OPERATIONS = frozenset({
@@ -5715,8 +5715,8 @@ class AccessibleUI:
                                       showing=True) is not None, 'ui:wrong-child')
         self.id_target('parent-daily-limit-selector', root=root, sensitive=True)
 
-    def allowance_keyboard_recipient(self, child=CHILD, *, expanded=True):
-        """Exception-scoped focus proof; no row IDs, positions or geometry."""
+    def allowance_keyboard_recipient(self, child=CHILD):
+        """Keep input bound to the active Parent and selected child."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         self.allowance_entry(child)
         root = self.parent()
@@ -5725,64 +5725,127 @@ class AccessibleUI:
         require(selector.get_role_name() not in ('text', 'entry', 'password text')
                 and not self.has_state(selector, self.api.StateType.EDITABLE),
                 'ui:allowance-textbox')
-        # GTK may expose the popup as an opaque controlled surface. Its
-        # identified MenuButton still publishes expanded state and contains
-        # the keyboard recipient; do not require popup rows or their IDs.
-        require(self.has_state(selector, self.api.StateType.EXPANDED) == expanded,
-                'ui:allowance-popup')
-        focused = [node for node in self.nodes(selector, strict=True)
-                   if self.has_state(node, self.api.StateType.FOCUSED)]
-        require(len(focused) == 1 and self.showing(focused[0])
-                and self.has_state(focused[0], self.api.StateType.SENSITIVE)
-                and not self.has_state(focused[0], self.api.StateType.DEFUNCT),
-                'ui:allowance-focus')
         return selector
 
+    def allowance_click_target(self, child=CHILD):
+        """User-authorized native click, confined to the owned daily selector."""
+        require(not self.input_uncertain, 'ui:input-uncertain')
+        selector = self.allowance_keyboard_recipient(child)
+        component = selector.get_component_iface()
+        require(component is not None, 'ui:allowance-click-bounds')
+        # GTK reports (0, 0) for SCREEN on Wayland. Window-relative extents
+        # must be delivered through a window-bound compositor input stream.
+        bounds = component.get_extents(self.api.CoordType.WINDOW)
+        require(all(type(v) is int for v in (bounds.x, bounds.y, bounds.width, bounds.height))
+                and 0 <= bounds.x < bounds.x + bounds.width <= 32768
+                and 0 <= bounds.y < bounds.y + bounds.height <= 32768,
+                'ui:allowance-click-bounds')
+        return {'x': bounds.x + bounds.width // 2, 'y': bounds.y + bounds.height // 2}
+
+    def select_allowance(self, child, value):
+        """Click, type and Enter through one window-bound native input stream.
+
+        This narrow provider adapter shares the test desktop's existing Mutter
+        input/capture protocols. It consumes no pixels and assumes no desktop
+        origin. The ID-owned Parent window must remain active around binding.
+        """
+        require(value == 'custom' or type(value) is int and value in PRESETS,
+                'ui:allowance-binding')
+        text = ('c' if value == 'custom' else str(value // 60) + 'h'
+                if value >= 60 and value % 60 == 0 else str(value) + 'm')
+        from gi.repository import Gio, GLib
+        point = self.allowance_click_target(child)
+        remote = 'org.gnome.Mutter.RemoteDesktop'
+        cast = 'org.gnome.Mutter.ScreenCast'
+        connection = Gio.DBusConnection.new_for_address_sync(
+            os.environ['DBUS_SESSION_BUS_ADDRESS'],
+            Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT
+            | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
+        session = None
+        started = False
+        def call(service, path, interface, method, signature=None, values=()):
+            try:
+                return connection.call_sync(service, path, interface, method,
+                    GLib.Variant(signature, values) if signature else None, None,
+                    Gio.DBusCallFlags.NO_AUTO_START, 3000, None).unpack()
+            except GLib.Error as error:
+                # Fixed method names locate transport failures without copying
+                # arbitrary provider error text into public evidence.
+                raise UiError('ui:allowance-click-transport:' + method) from error
+        try:
+            session, = call(remote, '/org/gnome/Mutter/RemoteDesktop', remote, 'CreateSession')
+            session_id, = call(remote, session, 'org.freedesktop.DBus.Properties',
+                               'Get', '(ss)', (remote + '.Session', 'SessionId'))
+            capture, = call(cast, '/org/gnome/Mutter/ScreenCast', cast, 'CreateSession',
+                           '(a{sv})', ({'remote-desktop-session-id': GLib.Variant('s', session_id)},))
+            # RecordWindow with no window-id binds the currently focused window.
+            # Parent identity/active-state proofs bracket this binding.
+            stream, = call(cast, capture, cast + '.Session', 'RecordWindow', '(a{sv})', ({},))
+            self.invalidate_observation()
+            require(self.allowance_click_target(child) == point, 'ui:allowance-click-moved')
+            call(remote, session, remote + '.Session', 'Start')
+            started = True
+            # Match the existing hermetic Mutter backend's device warm-up;
+            # zero motion cannot activate a control and the click is never retried.
+            for _ in range(6):
+                call(remote, session, remote + '.Session', 'NotifyPointerMotionRelative',
+                     '(dd)', (0.0, 0.0))
+                time.sleep(.05)
+            self.invalidate_observation()
+            require(self.allowance_click_target(child) == point, 'ui:allowance-click-moved')
+            self.input_uncertain = True
+            call(remote, session, remote + '.Session', 'NotifyPointerMotionAbsolute',
+                 '(sdd)', (stream, float(point['x']), float(point['y'])))
+            # D-Bus acknowledgement queues input; let the seat dispatch motion
+            # before button press and release, and release before device removal.
+            time.sleep(.1)
+            call(remote, session, remote + '.Session', 'NotifyPointerButton', '(ib)', (272, True))
+            time.sleep(.15)
+            call(remote, session, remote + '.Session', 'NotifyPointerButton', '(ib)', (272, False))
+            time.sleep(.1)
+            for keysym in (*map(ord, text), 0xff0d):
+                call(remote, session, remote + '.Session', 'NotifyKeyboardKeysym',
+                     '(ub)', (keysym, True))
+                time.sleep(.05)
+                call(remote, session, remote + '.Session', 'NotifyKeyboardKeysym',
+                     '(ub)', (keysym, False))
+                time.sleep(.05)
+        finally:
+            active_error = sys.exc_info()[1]
+            try:
+                if started:
+                    try:
+                        call(remote, session, remote + '.Session', 'Stop')
+                    except UiError as error:
+                        if active_error is None:
+                            raise
+                        active_error.add_note(str(error))
+            finally:
+                connection.close_sync(None)
+        self.input_uncertain = False
+
     def allowance_keyboard(self, child, value, phase):
-        """PARENT06 public boundaries shared by UI and E2E keyboard transports."""
+        """PARENT06 click and final-value boundaries, shared by UI and E2E."""
         require((value, phase) in ALLOWANCE_KEYBOARD_OPERATIONS.values(),
                 'ui:allowance-binding')
-        self.allowance_entry(child)  # Wrong child/disabled refuses before opening.
-        selector = self.id_target('parent-daily-limit-selector', sensitive=True)
-        require(selector.get_role_name() not in ('text', 'entry', 'password text')
-                and not self.has_state(selector, self.api.StateType.EDITABLE), 'ui:allowance-textbox')
-        if phase == 'ready':
+        self.allowance_entry(child)
+        if phase == 'click':
             self.parent_save_snapshot(child, True)
-            require(not self.has_state(selector, self.api.StateType.EXPANDED),
-                    'ui:allowance-popup')
-            self.reach_time_explanation(child)
-            # Focus the closed button. The worker opens it with native Space,
-            # then independently observes the popup before typing. A direct
-            # menu.popup action can report expanded without usable key routing.
-            self.activate_id('parent-window', action_name='focus.parent-daily-limit-selector')
-            def focused():
-                current = self.id_target('parent-daily-limit-selector', sensitive=True)
-                return self.has_state(current, self.api.StateType.FOCUSED)
-            self.wait(focused, 'allowance-keyboard-focus')
-            self.allowance_keyboard_recipient(child, expanded=False)
-        elif phase == 'opened':
-            self.wait(lambda: self.has_state(
-                self.id_target('parent-daily-limit-selector', sensitive=True),
-                self.api.StateType.EXPANDED), 'allowance-keyboard-open')
-            self.allowance_keyboard_recipient(child)
-        elif phase == 'highlighted':
-            label = 'Custom value' if value == 'custom' else PRESET_LABELS[value]
-            def highlighted():
-                selector = self.allowance_keyboard_recipient(child)
-                return selector.get_description() == 'Daily allowance: ' + label
-            self.wait(highlighted, 'allowance-keyboard-highlight')
+            self.select_allowance(child, value)
         else:
-            self.wait(lambda: not self.has_state(
-                self.id_target('parent-daily-limit-selector', sensitive=True), self.api.StateType.EXPANDED),
-                'allowance-keyboard-close')
-            selector = self.id_target('parent-daily-limit-selector', sensitive=True)
-            require(not self.has_state(selector, self.api.StateType.EDITABLE)
-                    and selector.get_role_name() not in ('text', 'entry', 'password text'),
-                    'ui:allowance-textbox')
-            if phase == 'confirmed' and value == 'custom':
-                self.text_recipient('parent-custom-daily-limit', focused=True, child=child)
-            else:
-                self.allowance_preset(child, value, action='read')
+            # Do not inspect popup state or intermediate highlights. A missing
+            # or different final value fails without replaying the input.
+            def selected():
+                self.allowance_entry(child)
+                if value == 'custom':
+                    self.text_recipient('parent-custom-daily-limit', focused=True, child=child)
+                    expected = 'Custom value'
+                else:
+                    expected = PRESET_LABELS[value]
+                target = self.id_target('parent-daily-limit-selector', sensitive=True)
+                return self.read_label(target, 'allowance', maximum=80) == [expected]
+            self.wait(selected, 'allowance-selected-value')
+            self.parent_save_snapshot(child, True)
         return {'value': value, 'phase': phase}
 
     def custom_allowance(self, child, minutes, *, action):
@@ -5815,15 +5878,8 @@ class AccessibleUI:
             self.parent_save_snapshot(child, True)
             if action == 'reopen' and minutes in (0, 15):
                 self.allowance_preset(child, minutes, action='read')
-            self.activate_id('parent-daily-limit-selector')
-            choice = self.id_target('parent-daily-limit-custom', sensitive=True)
-            if action == 'reopen-current' or action == 'reopen' and minutes not in (0, 15):
-                require(choice.get_description() == 'Selected daily allowance: Custom amount',
-                        'ui:allowance-selection')
-            self.activate_id('parent-daily-limit-custom')
-            self.wait(lambda: self.absent_id('parent-daily-limit-choices',
-                                            within='parent-window'), 'allowance-picker-close')
-            self.text_recipient('parent-custom-daily-limit', child=child)
+            self.allowance_keyboard(child, 'custom', 'click')
+            self.allowance_keyboard(child, 'custom', 'selected')
         if action in ('saved', 'reopen', 'reopen-current'):
             if action == 'saved' and minutes == 1:
                 # No navigation/input before this pause. Observe the save
@@ -5862,10 +5918,11 @@ class AccessibleUI:
         return {'binding': binding, 'validation': 'rejected'}
 
     def allowance_preset(self, child, minutes, *, action):
-        """PARENT05: saved preset readback; reopen returns the picker open.
+        """PARENT05: shared selection and saved preset readback.
 
         Direct preview callers and registered operations share the same read
         boundary. Input and retries invalidate it; independent calls discard it.
+        The legacy ``reopen`` operation is a value read, without reopening a menu.
         """
         with self.observation():
             return self._allowance_preset(child, minutes, action=action)
@@ -5882,25 +5939,12 @@ class AccessibleUI:
         self.id_target('parent-daily-limit-selector', root=root, sensitive=True)
         self.parent_save_snapshot(child, True)
         if action == 'select':
-            self.activate_id('parent-daily-limit-selector')
-            self.activate_id('parent-daily-limit-' + str(minutes))
+            self.select_allowance(child, minutes)
+        self.allowance_keyboard(child, minutes, 'selected')
         self.parent_save_snapshot(child, True)
-        # Selection closes the popover asynchronously. Its labels remain
-        # selector descendants until closure, so read the saved label only
-        # after a complete negative observation of the choices.
-        self.wait(lambda: self.absent_id('parent-daily-limit-choices',
-                                        within='parent-window'),
-                  'allowance-picker-close')
         selector = self.id_target('parent-daily-limit-selector', sensitive=True)
         require(self.read_label(selector, 'allowance', maximum=32)
                 == [PRESET_LABELS[minutes]], 'ui:allowance-value')
-        if action == 'reopen':
-            self.activate_id('parent-daily-limit-selector')
-            choice = self.id_target('parent-daily-limit-' + str(minutes), sensitive=True)
-            require(choice.get_description() == 'Selected daily allowance: '
-                    + PRESET_LABELS[minutes], 'ui:allowance-selection')
-            # The public menu.popup action opens; it is not a close toggle.
-            # Leave the verified picker open for the next selection.
         return {'minutes': minutes, 'saved': True}
 
     def allowance_operation(self, operation):
@@ -10437,8 +10481,6 @@ class AccessibleUI:
         elif operation in ALLOWANCE_KEYBOARD_OPERATIONS:
             result['allowance_keyboard'] = self.allowance_keyboard(
                 child, *ALLOWANCE_KEYBOARD_OPERATIONS[operation])
-            if ALLOWANCE_KEYBOARD_OPERATIONS[operation][1] == 'highlighted':
-                result['time_explanation'] = self.time_explanation(child)
         elif operation in ALLOWANCE_OPERATIONS:
             result['allowance'] = self.allowance_operation(operation)
         elif operation in TIME_EXPLANATION_OPERATIONS:

@@ -1,4 +1,5 @@
 """Complete App Limits collections must never infer absence from partial reads."""
+from tools.test_storage import named_input
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
@@ -394,12 +395,12 @@ def test_rejected_report_selector_uses_existing_guarded_snapshot_and_fixture_rou
     from tests.support.paths import ROOT
     from tools.test_storage import named_input
     source = tmp_path / 'source'; (source / 'data').mkdir(parents=True)
-    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    (source / 'data/app.json').write_text(json.dumps({'version': '9.8.7'}))
     monkeypatch.setattr(qualification.smoke, 'ROOT', source)
     context = SimpleNamespace()
     result = qualification.RejectedParentRuleQualification.journey(context, Mock())
     assert type(result) is ParentReportJourney and result.plan is PLAN
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.8.7'
     with pytest.raises(CommandError, match='rejected-parent-rule-prerequisites'):
         smoke.main(rejected_parent_rule=True)
     execute = Mock(return_value=0); monkeypatch.setattr(smoke, 'main', execute)
@@ -649,14 +650,14 @@ def test_match_qualification_selects_snapshot_and_fixture_asset_route(tmp_path, 
     from tests.support.paths import ROOT
     from tools.test_storage import named_input
     source = tmp_path / 'source'; (source / 'data').mkdir(parents=True)
-    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    (source / 'data/app.json').write_text(json.dumps({'version': '9.8.7'}))
     monkeypatch.setattr(qualification.smoke, 'ROOT', source)
     context = SimpleNamespace()
     selected = qualification.MatchEditorQualification if editor else qualification.MatchSaveCancelQualification
     flag = 'match_editor' if editor else 'match_save_cancel'
     result = selected.journey(context, Mock())
     assert type(result) is MatchRuleJourney and result.plan is match_plan
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.8.7'
     with pytest.raises(CommandError, match='match-editor-prerequisites' if editor else 'match-save-cancel-prerequisites'):
         smoke.main(**{flag: True})
     execute = Mock(return_value=0); monkeypatch.setattr(smoke, 'main', execute)
@@ -861,12 +862,12 @@ def test_access_qualification_selects_snapshot_and_fixture_assets(tmp_path, monk
     from tests.support.paths import ROOT
     from tools.test_storage import named_input
     source = tmp_path / 'source'; (source / 'data').mkdir(parents=True)
-    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    (source / 'data/app.json').write_text(json.dumps({'version': '9.8.7'}))
     monkeypatch.setattr(qualification.smoke, 'ROOT', source)
     context = SimpleNamespace()
     result = qualification.AccessChoicesQualification.journey(context, Mock())
     assert type(result) is AccessChoiceJourney and result.plan is PLAN
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.8.7'
     with pytest.raises(CommandError, match='access-choices-prerequisites'):
         smoke.main(access_choices=True)
     execute = Mock(return_value=0); monkeypatch.setattr(smoke, 'main', execute)
@@ -1001,12 +1002,12 @@ def test_policy_qualification_selects_snapshot_and_fixture_assets(tmp_path, monk
     from tests.support.paths import ROOT
     from tools.test_storage import named_input
     source = tmp_path / 'source'; (source / 'data').mkdir(parents=True)
-    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    (source / 'data/app.json').write_text(json.dumps({'version': '9.8.7'}))
     monkeypatch.setattr(qualification.smoke, 'ROOT', source)
     context = SimpleNamespace()
     result = qualification.PolicyQualification.journey(context, Mock())
     assert type(result) is AccessChoiceJourney and result.plan is PLAN
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.8.7'
     with pytest.raises(CommandError, match='policy-prerequisites'):
         smoke.main(policy_edit=True)
     with pytest.raises(CommandError, match='policy-prerequisites'):
@@ -1197,7 +1198,7 @@ def test_slice_reuses_snapshot_and_fixed_asset_route(tmp_path):
     journey = AppRowQualification.journey(context, Mock())
     assert journey.plan is PLAN
     assert context.installed_snapshot.startswith('onpc-v')
-    assert check.ASSETS.name == 'onpc-parent-setup-input'
+    assert check.ASSETS == named_input()
 
 
 def test_worker_uses_shared_parent_entry_and_consumes_all_results():
@@ -1432,12 +1433,12 @@ def test_catalogue_qualification_selects_its_fresh_plan_and_refuses_missing_nati
     from tools.test_storage import named_input
     source = tmp_path / 'source'
     (source / 'data').mkdir(parents=True)
-    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    (source / 'data/app.json').write_text(json.dumps({'version': '9.8.7'}))
     monkeypatch.setattr(qualification.smoke, 'ROOT', source)
     context = SimpleNamespace()
     journey = qualification.CatalogueQualification.journey(context, Mock())
     assert type(journey) is CatalogueJourney and journey.plan is filter_plan
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.8.7'
     with pytest.raises(CommandError, match='catalogue-filter-prerequisites'):
         smoke.main(catalogue_filters=True)
     execute = Mock(return_value=0)
@@ -1941,12 +1942,12 @@ def test_legend_qualification_selects_fresh_snapshot_and_registered_asset_route(
     from tools.test_storage import named_input
     source = tmp_path / 'source'
     (source / 'data').mkdir(parents=True)
-    (source / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    (source / 'data/app.json').write_text(json.dumps({'version': '9.8.7'}))
     monkeypatch.setattr(qualification.smoke, 'ROOT', source)
     context = SimpleNamespace()
     journey = qualification.PolicyLegendQualification.journey(context, Mock())
     assert type(journey) is PolicyLegendJourney and journey.plan is legend_plan
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.8.7'
     with pytest.raises(CommandError, match='policy-legend-prerequisites'):
         smoke.main(policy_legend=True)
     execute = Mock(return_value=0)

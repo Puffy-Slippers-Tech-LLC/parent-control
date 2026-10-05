@@ -336,7 +336,7 @@ class LibvirtSource:
 
     @observed('Deleting all versioned app snapshots')
     def delete_app_snapshots(self, layout):
-        # Current releases use onpc-v1.2; retain recognition of onpc-1.2.
+        # Recognize release-derived names with or without the version prefix.
         # Do not match baseline names or arbitrary manually named snapshots.
         for snapshot in self.domain.listAllSnapshots(0):
             if re.fullmatch(r'onpc-v?[0-9]+(?:\.[0-9]+)*', snapshot.getName()) is None:

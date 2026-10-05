@@ -1,4 +1,5 @@
 """Product-free GDM qualification contracts."""
+from tools.test_storage import named_input
 
 from pathlib import Path
 import json
@@ -31,7 +32,7 @@ def test_product_free_gdm_uses_a_distinct_baseline_journey_binding():
         GdmProductFreeQualification, ParentJourneyQualification,
     )
 
-    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
+    assert check.ASSETS == named_input()
     assert GdmProductFreeQualification.__bases__ == (ParentJourneyQualification,)
     assert GdmProductFreeQualification.observation_only is True
     context = type('Context', (), {})()

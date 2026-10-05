@@ -1831,8 +1831,7 @@ class UiObservations:
         if operation in accessible_ui.ALLOWANCE_KEYBOARD_OPERATIONS:
             value, phase = accessible_ui.ALLOWANCE_KEYBOARD_OPERATIONS[operation]
             projection = {'value': value, 'phase': phase}
-            extra = {'time_explanation'} if phase == 'highlighted' else set()
-            require(type(result) is dict and set(result) == {*expected, 'allowance_keyboard', *extra}
+            require(type(result) is dict and set(result) == {*expected, 'allowance_keyboard'}
                     and result['allowance_keyboard'] == projection
                     and type(result['allowance_keyboard']['value']) is type(value),
                     'ui:allowance-keyboard-response')
@@ -1844,13 +1843,11 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'allowance'}
                     and result['allowance'] == projection, 'ui:allowance-response')
             expected['allowance'] = projection
-        keyboard_highlight = (operation in accessible_ui.ALLOWANCE_KEYBOARD_OPERATIONS
-                              and accessible_ui.ALLOWANCE_KEYBOARD_OPERATIONS[operation][1] == 'highlighted')
-        if operation in accessible_ui.TIME_EXPLANATION_OPERATIONS or keyboard_highlight:
+        if operation in accessible_ui.TIME_EXPLANATION_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'time_explanation'},
                     'ui:time-response')
             value = result['time_explanation']
-            if operation.endswith(('read', 'reread')) or keyboard_highlight:
+            if operation.endswith(('read', 'reread')):
                 require(type(value) is dict and set(value) == {
                     'child', 'expanded', 'daily', 'one_time', 'total', 'observed_monotonic_ns'}
                     and value['child'] == accessible_ui.CHILD_IDENTITIES[

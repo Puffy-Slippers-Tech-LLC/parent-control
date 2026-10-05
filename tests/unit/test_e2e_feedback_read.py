@@ -520,10 +520,10 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
         assert result['stages'] == (expected[:expected.index(boundary) + 1] if fault else expected)
         assert bool(result['ok']) is (not fault)
         if fault == 'wrong-child-proof':
-            assert result['keys'] == ['c', 'ret']
+            assert result['keys'] == []
         if not fault:
-            assert result['keys'] == ['c', 'ret', 'ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2 + [
-                'ret', 'c', 'ret', 'ctrl-a', '7', 'ret', 'ret']
+            assert result['keys'] == ['ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2 + [
+                'ret', 'ctrl-a', '7', 'ret', 'ret']
     assert PLAN.child_bindings['first-rapid'] == 'existing'
     assert PLAN.child_bindings['riley-text-read'] == 'child'
     assert PLAN.settings_checks['final-away-selected'].child == 'existing-fixture-child'
@@ -564,26 +564,34 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
         assert result['stages'] == (expected[:expected.index(fault) + 1] if fault else expected)
         assert bool(result['ok']) is (not fault)
         if fault == 'jordan-rapid':
-            assert result['keys'] == ['15h', '0m', 'ret', '15h', 'esc', 'c', 'ret']
+            assert result['keys'] == []
+        if fault == 'jordan-preset-confirm':
+            assert result['keys'] == []
+            assert result['stages'][-2:] == ['jordan-preset-ready', 'jordan-preset-confirm']
     assert PLAN.settings_checks['repeat-selected'] == 'final-back-selected'
     assert PLAN.child_bindings['jordan-rapid'] == 'existing'
 
 
-@pytest.mark.parametrize('daily', [0, 900])
-def test_save_order_checks_saved_balance_before_highlight_reply(tmp_path, daily):
-    from journey_checks import AllowanceJourney
+def test_save_order_uses_only_final_allowance_boundaries():
     from save_order import PLAN
-    journey = AllowanceJourney(SimpleNamespace(directory=tmp_path), Mock(), PLAN)
-    observed = {'ui': {'time_explanation': {
-        'observed_monotonic_ns': 100,
-        **{key: {'seconds': seconds, 'precision_seconds': 1}
-           for key, seconds in (('daily', daily), ('one_time', 0), ('total', daily))}}}}
-    if daily:
-        with pytest.raises(EvidenceError, match='ordinary-balances'):
-            journey.check_settings('jordan-preset-highlight-0', observed)
-    else:
-        journey.check_settings('jordan-preset-highlight-0', observed)
-        assert observed['comparison']['ordinary_balances'] is True
+    operations = [tag for tag in PLAN.screen_tags.values() if 'allowance-keyboard' in tag]
+    assert operations == [f'ui:allowance-keyboard-{value}-{phase}'
+                          for value in (15, 'custom', 'custom')
+                          for phase in ('click', 'selected')]
+    assert not PLAN.balance_checks
+
+
+@pytest.mark.parametrize('values', [(), (15, 0), (900, 0), (True,), (1440,)])
+def test_allowance_block_rejects_alternate_sequences(values):
+    from journey_blocks import allowance_selection
+    with pytest.raises(EvidenceError, match='allowance-keyboard'):
+        allowance_selection('choice', values)
+
+
+@pytest.mark.parametrize('phase', ['ready', 'opened', 'highlighted', 'confirmed', 'cancelled'])
+def test_allowance_block_has_no_intermediate_or_cancel_operations(phase):
+    from accessible_ui import ALLOWANCE_KEYBOARD_OPERATIONS
+    assert f'allowance-keyboard-15-{phase}' not in ALLOWANCE_KEYBOARD_OPERATIONS
 
 
 @pytest.mark.parametrize('count,valid', [(1, True), (0, False), (2, False),

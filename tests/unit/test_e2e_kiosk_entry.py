@@ -1,4 +1,5 @@
 """Public request-station entry and immutable form observation contracts."""
+from tools.test_storage import named_input
 
 import json
 from dataclasses import FrozenInstanceError
@@ -101,7 +102,7 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online):
 
     from tools.test_storage import named_input
     assert check.ASSETS == named_input(package_source=True)
-    assert check.ASSETS != named_input()
+    assert check.ASSETS == named_input()
     context = SimpleNamespace(directory=tmp_path)
     KioskEntryQualification.journey(context, lambda *_: None)
     version = json.loads((ROOT / 'data/app.json').read_bytes())['version']
@@ -111,7 +112,7 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online):
     qualification = KioskEntryQualification.__new__(KioskEntryQualification)
     qualification.assets = tmp_path
     qualification.commands = Mock()
-    qualification.commands.run.return_value = b'1.1+ppa1~ubuntu26.04.1\n'
+    qualification.commands.run.return_value = b'9.8.7+ppa1~ubuntu26.04.1\n'
     (tmp_path / 'package.deb').write_bytes(b'fixture')
     snap = Mock()
     snap.getXMLDesc.return_value = ('<domainsnapshot><memory snapshot="' +
@@ -123,9 +124,9 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online):
     lease.test_xml = '<domain/>'
     lease.snapshot_status.return_value = nullcontext()
     qualification.attach_installed_snapshot(lease)
-    lease.source.domain.snapshotLookupByName.assert_called_once_with('onpc-v1.1', 0)
+    lease.source.domain.snapshotLookupByName.assert_called_once_with('onpc-v9.8.7', 0)
     if online:
-        assert lease.online_pending is True and lease.installed_name == 'onpc-v1.1'
+        assert lease.online_pending is True and lease.installed_name == 'onpc-v9.8.7'
         assert lease.installed_xml == snap.getXMLDesc.return_value
         lease.source.domain.revertToSnapshot.assert_not_called()
         lease.source.connection.defineXML.assert_not_called()
@@ -730,7 +731,7 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
     (e2e / 'fixture_ui.py').write_text('FIXTURE_UI = True\n')
     data = tmp_path / 'data'
     data.mkdir()
-    (data / 'app.json').write_text('{"version": "1.1"}')
+    (data / 'app.json').write_text('{"version": "9.8.7"}')
     monkeypatch.setattr(ui_observations.system, 'ROOT', tmp_path)
     result = {'operation': 'gdm-focused', 'outcome': 'passed', 'interface': 'AT-SPI'}
     raw = json.dumps(result).encode()
@@ -763,7 +764,7 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
     ).encode()
 
     def call(argv, **kwargs):
-        assert argv == ['/usr/bin/python3', '-I', '-', 'gdm-focused', '1.1']
+        assert argv == ['/usr/bin/python3', '-I', '-', 'gdm-focused', '9.8.7']
         assert kwargs['input'] == expected
         assert kwargs['input'].endswith(source.encode())
         assert len(kwargs['input']) > 128 * 1024

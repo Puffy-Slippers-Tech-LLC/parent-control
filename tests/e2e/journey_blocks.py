@@ -29,20 +29,16 @@ def custom_allowance(prefix, minutes):
     })
 
 
-def allowance_selection(prefix, values, *, response='confirm', original=0):
-    """PARENT06 keyboard fragment; cases own values and preservation assertions."""
+def allowance_selection(prefix, values):
+    """PARENT06: one native click, typed choice, Enter and saved-value readback."""
     from accessible_ui import PRESETS
-    require(type(values) is tuple and 1 <= len(values) <= 4
-            and all(value == 'custom' or type(value) is int and value in PRESETS for value in values)
-            and response in ('confirm', 'cancel') and type(original) is int and original in PRESETS,
+    require(type(values) is tuple and len(values) == 1
+            and all(value == 'custom' or type(value) is int and value in PRESETS for value in values),
             'journey:allowance-keyboard')
-    final = values[-1] if response == 'confirm' else original
+    value = values[0]
     return prefixed_stages(prefix, {
-        'ready': f'ui:allowance-keyboard-{values[0]}-ready',
-        'opened': f'ui:allowance-keyboard-{values[0]}-opened',
-        **{f'highlight-{index}': f'ui:allowance-keyboard-{value}-highlighted'
-           for index, value in enumerate(values)},
-        response: f'ui:allowance-keyboard-{final}-' + ('confirmed' if response == 'confirm' else 'cancelled'),
+        'ready': f'ui:allowance-keyboard-{value}-click',
+        'confirm': f'ui:allowance-keyboard-{value}-selected',
     })
 
 

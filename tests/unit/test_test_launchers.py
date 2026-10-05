@@ -1,4 +1,5 @@
 """Boundary and execution tests for all approved test category routes."""
+from tools.test_storage import named_input
 from tests.support.vm_registry import vm_name
 import ast
 import json
@@ -265,6 +266,8 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
     import test_storage
 
     current_package = selector.removesuffix('.py') in (
+        'check_e2e_named_child_custom_saves', 'check_e2e_custom_save_trace',
+        'check_e2e_allowance_presets', 'check_e2e_allowance',
         'check_e2e_time_explanation',
         'check_e2e_chinese_current_install', 'check_e2e_kiosk_eligible_choices',
         'check_e2e_customer_reboot',
@@ -288,6 +291,10 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_allowance_boundaries', 'check_e2e_allowance_boundaries.py',
+                                     'check_e2e_named_child_custom_saves', 'check_e2e_named_child_custom_saves.py',
+                                     'check_e2e_custom_save_trace', 'check_e2e_custom_save_trace.py',
+                                     'check_e2e_allowance_presets', 'check_e2e_allowance_presets.py',
+                                     'check_e2e_allowance', 'check_e2e_allowance.py',
                                      'check_e2e_read_parent_information_links', 'check_e2e_read_parent_information_links.py',
                                      'check_e2e_feedback_read', 'check_e2e_feedback_read.py',
                                      'check_e2e_text', 'check_e2e_text.py',
@@ -331,6 +338,10 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
+                                     'check_e2e_named_child_custom_saves', 'check_e2e_named_child_custom_saves.py',
+                                     'check_e2e_custom_save_trace', 'check_e2e_custom_save_trace.py',
+                                     'check_e2e_allowance_presets', 'check_e2e_allowance_presets.py',
+                                     'check_e2e_allowance', 'check_e2e_allowance.py',
                                      'check_e2e_read_parent_information_links', 'check_e2e_read_parent_information_links.py',
                                      'check_e2e_feedback_read', 'check_e2e_feedback_read.py',
                                      'check_e2e_text', 'check_e2e_text.py',
@@ -342,7 +353,7 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
 def test_request_regressions_preserve_current_inputs_and_ignore_legacy_bundle(monkeypatch, selector):
     import test_storage
     current = ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-current'
-    legacy = test_storage.named_input()
+    legacy = ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-input'
     named = Mock(return_value=current)
     monkeypatch.setattr(test_storage, 'named_input', named)
     monkeypatch.setattr(commands.os.path, 'lexists', lambda path: path in (str(current), str(legacy)))
@@ -356,6 +367,8 @@ def test_request_regressions_preserve_current_inputs_and_ignore_legacy_bundle(mo
 
 
 @pytest.mark.parametrize('name', ['check_e2e_read_parent_information_links',
+                                'check_e2e_named_child_custom_saves', 'check_e2e_custom_save_trace',
+                                'check_e2e_allowance_presets', 'check_e2e_allowance',
                                 'check_e2e_feedback_read', 'check_e2e_text',
                                 'check_e2e_feedback_privacy'])
 def test_parent_dialog_regressions_bind_current_package(name):
@@ -396,7 +409,7 @@ def test_toggle_qualification_reuses_existing_inputs_without_overwriting(monkeyp
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     assert commands.qualification_artifact_command(
         ROOT, 'integration', [selector]) is None
-    validate.assert_called_once_with(str(ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-input'))
+    validate.assert_called_once_with(str(named_input()))
 
 
 def test_unrelated_integration_does_not_build_toggle_assets(monkeypatch):

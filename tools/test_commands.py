@@ -550,6 +550,10 @@ def qualification_artifact_command(root, category, args):
         ['check_e2e_policy'], ['check_e2e_policy.py'],
         ['check_e2e_policy_legend'], ['check_e2e_policy_legend.py']) else
         named_input(package_source=True) if args in (
+        ['check_e2e_named_child_custom_saves'], ['check_e2e_named_child_custom_saves.py'],
+        ['check_e2e_custom_save_trace'], ['check_e2e_custom_save_trace.py'],
+        ['check_e2e_allowance_presets'], ['check_e2e_allowance_presets.py'],
+        ['check_e2e_allowance'], ['check_e2e_allowance.py'],
         ['check_e2e_time_explanation'], ['check_e2e_time_explanation.py'],
         ['check_e2e_chinese_current_install'], ['check_e2e_chinese_current_install.py'],
         ['check_e2e_customer_reboot'], ['check_e2e_customer_reboot.py'],

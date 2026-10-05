@@ -259,6 +259,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Retention-budget diagnostic checks use tiny private tmp_path input/log trees
 # and process-local read-failure doubles. test_storage remains compatible in
 # cleanup and unit inventories; no live evidence or shared owner is touched.
+# Default source-keyed input checks preserve a synthetic old bundle in that
+# same private pytest tree. Storage retains compatible unit/cleanup scheduling;
+# no shared allocation, process, VM or additional cleanup lifetime is introduced.
 # Repair-budget additions run finite synthetic agents under the existing recorded
 # launcher owners and private tmp_path roots. They retain compatible unit/cleanup
 # scheduling, bounded waits and teardown; no real model or VM is invoked.

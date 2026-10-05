@@ -309,7 +309,7 @@ def test_fixed_selector_registration_and_snapshot_envelope(monkeypatch):
     monkeypatch.setattr(check, 'smoke', lambda **kw: calls.append(kw) or 0)
     assert check.main() == 0 and calls[0]['challenge_profile'] == 'shell-panel'
     assert calls[0]['assets'] == named_input(package_source=True)
-    assert calls[0]['assets'] != named_input()
+    assert calls[0]['assets'] == named_input()
     context = SimpleNamespace()
     journey = ShellPanelQualification.journey(context, Mock())
     assert journey.plan is PLAN and context.installed_snapshot.startswith('onpc-v')

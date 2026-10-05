@@ -129,6 +129,9 @@ private JSON snapshots and recorded cancellation owners. No paid model, live
 runner, VM, shared cache or new cleanup lifetime is introduced; overlap stays compatible.
 Named qualification preparation coverage reads wrapper ASTs and mocks allocation,
 builder execution and privilege checks; no builds, shared writes or VM access.
+Default source-keyed input checks use tiny private pytest package/bundle trees
+and read-only hashing. Storage and launcher modules retain compatible overlap;
+there is no new process, VM, shared cache or cleanup owner.
 Attachment boundary tests retain private tmp_path files (<= 5 MiB+1 each),
 bounded in-memory bytes and waited private Perl children; compatible in unit
 and cleanup scheduling, with no build, shared cache, bus, display or VM.

@@ -1,4 +1,5 @@
 """Real keyring qualification stays bound to one guarded, owned attempt."""
+from tools.test_storage import named_input
 
 import json
 from pathlib import Path
@@ -48,7 +49,7 @@ def test_fixed_selector_uses_separate_attempts_and_stops_after_failure(monkeypat
         {'assets': check.ASSETS, 'provision_credentials': True,
          'fresh_desktop': role}
         for role in ('parent', 'standard-keyring')]
-    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
+    assert check.ASSETS == named_input()
     calls.clear()
     monkeypatch.setattr(check, 'smoke', lambda **kwargs: calls.append(kwargs) or 1)
     assert check.main() == 1

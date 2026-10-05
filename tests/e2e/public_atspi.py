@@ -713,6 +713,10 @@ class BusNode:
     def get_component_iface(self):
         return self.interface('Component')
 
+    def get_extents(self, kind):
+        x, y, width, height = self.call('Component', 'GetExtents', 'u', (int(kind),))
+        return SimpleNamespace(x=x, y=y, width=width, height=height)
+
     def get_n_actions(self):
         return self.property('NActions', 'Action')
 

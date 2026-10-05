@@ -308,7 +308,7 @@ def prepared_suite(snapshots, tmp_path, monkeypatch):
     def command(args, **kwargs):
         if args[1] in ('--ctrl-tarfile', '--fsys-tarfile'):
             return subprocess.run(args, check=True, capture_output=True, timeout=10).stdout
-        return b'1.1+test~26.04\n'
+        return b'9.8.7+test~26.04\n'
     owner.commands.run.side_effect = command
     owner._input_bundle = installed_setup.inputs(system.ROOT)
     write_package(tmp_path / 'package.deb')
@@ -327,7 +327,7 @@ def current_xml(owner, directory):
     state = {'baseline_sha256': hashlib.sha256(
         system.baseline.encode(owner.lease.capture.read_state())).hexdigest()}
     root = ET.Element('domainsnapshot')
-    ET.SubElement(root, 'name').text = 'onpc-v1.1'
+    ET.SubElement(root, 'name').text = 'onpc-v9.8.7'
     ET.SubElement(root, 'memory', snapshot='no')
     ET.SubElement(root, 'description').text = app_snapshot.input_identity(
         Mock(state=state, capture=Mock(state=owner.lease.capture.read_state())),
@@ -349,7 +349,7 @@ def test_online_creation_reboots_and_captures_memory_before_shutdown(prepared_su
         assert owned is lease
         before = len(events)
         yield
-        assert any(event == ('create', 'onpc-v1.1') for event in events[before:])
+        assert any(event == ('create', 'onpc-v9.8.7') for event in events[before:])
         publish.assert_called_once()
     monkeypatch.setattr(online_snapshot, 'disconnected_network', disconnected)
     with lease:
@@ -360,7 +360,7 @@ def test_online_creation_reboots_and_captures_memory_before_shutdown(prepared_su
         publish.assert_called_once()
     lease.audit()
     assert lease.source.off
-    assert 'onpc-v1.1' in names
+    assert 'onpc-v9.8.7' in names
 
 
 def test_online_case_defers_restore_until_worker_start(prepared_suite, monkeypatch):
@@ -450,7 +450,7 @@ def test_online_restore_records_instance_without_booting(prepared_suite, monkeyp
 @pytest.mark.parametrize('stale', [False, True])
 def test_installed_suite_installs_once_and_restores_next_case_without_extra_audits(prepared_suite, stale):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
-    name = 'onpc-v1.1'
+    name = 'onpc-v9.8.7'
     if stale:
         add(name, current_xml(owner, directory))
     installed = {'preconditions': ['installed-digest-verified-product']}
@@ -485,7 +485,7 @@ def test_suite_progress_precedes_slow_operations(prepared_suite, monkeypatch):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
     progress = MagicMock()
     monkeypatch.setattr(system, 'watch_progress', progress)
-    name = 'onpc-v1.1'
+    name = 'onpc-v9.8.7'
     add(name, '<stale/>')
     originals = {}
     for method, label in (
@@ -552,7 +552,7 @@ def test_every_snapshot_mutation_reserves_footer_before_libvirt(prepared_suite, 
         watch_delete(name, snap)
         return snap
     domain.snapshotCreateXML.side_effect = watch_create
-    name = 'onpc-v1.1'
+    name = 'onpc-v9.8.7'
     watch_delete(name, add(name, current_xml(owner, directory)))
     installed = {'preconditions': ['installed-digest-verified-product']}
     clean = {'preconditions': ['accepted-product-free-baseline']}
@@ -578,7 +578,7 @@ def test_every_snapshot_mutation_reserves_footer_before_libvirt(prepared_suite, 
 
 def test_overwrite_false_existing_snapshot_is_a_logged_noop(prepared_suite, capsys):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
-    name = 'onpc-v1.1'
+    name = 'onpc-v9.8.7'
     existing = add(name, current_xml(owner, directory))
     with lease:
         assert owner.prepare_installed(directory, directory, {}, root=directory,
@@ -597,7 +597,7 @@ def test_overwrite_false_existing_snapshot_is_a_logged_noop(prepared_suite, caps
 @pytest.mark.parametrize('legacy', [False, True])
 def test_identical_rebuild_reuses_snapshot_and_legacy_metadata_migrates(prepared_suite, legacy):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
-    name = 'onpc-v1.1'
+    name = 'onpc-v9.8.7'
     root = ET.fromstring(current_xml(owner, directory))
     if legacy:
         identity = json.loads(root.findtext('description'))
@@ -631,7 +631,7 @@ def test_legacy_different_archive_cannot_guess_equivalence(prepared_suite, capsy
     identity['schema_version'] = 1
     identity.pop('package_content_sha256')
     root.find('description').text = json.dumps(identity)
-    add('onpc-v1.1', ET.tostring(root, encoding='unicode'))
+    add('onpc-v9.8.7', ET.tostring(root, encoding='unicode'))
     write_package(directory / 'package.deb', mtime=100)
     with lease:
         assert owner.prepare_installed(directory, directory, {}, root=directory,
@@ -643,13 +643,13 @@ def test_legacy_different_archive_cannot_guess_equivalence(prepared_suite, capsy
 
 def test_force_overwrite_still_replaces_matching_contents(prepared_suite):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
-    add('onpc-v1.1', current_xml(owner, directory))
+    add('onpc-v9.8.7', current_xml(owner, directory))
     with lease:
         assert owner.prepare_installed(directory, directory, {}, root=directory,
                                        overwrite=True) is True
     lease.audit()
     setup.run.assert_called_once()
-    assert ('delete', 'onpc-v1.1') in events
+    assert ('delete', 'onpc-v9.8.7') in events
 
 
 @pytest.mark.parametrize('fault', ['metadata-replaced', 'publish-failed', 'not-recorded'])
@@ -661,7 +661,7 @@ def test_legacy_fingerprint_publication_fails_closed(prepared_suite, fault):
     identity.pop('package_content_sha256')
     root.find('description').text = json.dumps(identity)
     xml = ET.tostring(root, encoding='unicode')
-    existing = add('onpc-v1.1', xml)
+    existing = add('onpc-v9.8.7', xml)
     if fault == 'metadata-replaced':
         existing.getXMLDesc.side_effect = [xml, '<changed/>']
     elif fault == 'publish-failed':
@@ -678,7 +678,7 @@ def test_legacy_fingerprint_publication_fails_closed(prepared_suite, fault):
 @pytest.mark.parametrize('change', ['legacy', 'package', 'recipe', 'baseline', 'incomplete'])
 def test_changed_installed_inputs_refresh_same_version_once(prepared_suite, change):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
-    name = 'onpc-v1.1'
+    name = 'onpc-v9.8.7'
     xml = current_xml(owner, directory)
     if change in ('legacy', 'incomplete'):
         xml = '<domainsnapshot/>'
@@ -704,7 +704,7 @@ def test_changed_installed_inputs_refresh_same_version_once(prepared_suite, chan
 @pytest.mark.parametrize('change', ['helper', 'logging', 'fixture', 'documentation', 'results'])
 def test_test_only_changes_reuse_snapshot_without_installation(prepared_suite, change):
     owner, directory, setup, (lease, names, events, add, baseline_name) = prepared_suite
-    name = 'onpc-v1.1'
+    name = 'onpc-v9.8.7'
     existing = add(name, current_xml(owner, directory))
     if change in ('helper', 'logging'):
         owner._input_bundle.files['e2e_dynamic_account.py'] += b'\n# test change\n'
@@ -727,7 +727,7 @@ def test_failed_installation_verification_cannot_publish_snapshot(prepared_suite
     with pytest.raises(RuntimeError, match='verification failed'), lease:
         owner.prepare_installed(directory, directory, {}, root=directory, overwrite=False)
     lease.audit()
-    assert 'onpc-v1.1' not in names
+    assert 'onpc-v9.8.7' not in names
     assert not [event for event in events if event[0] == 'create']
 
 
@@ -790,7 +790,7 @@ def test_interruption_never_marks_unfinished_snapshot_reusable(prepared_suite, m
             raise cleanup_errors[0] from audit_error
         raise
     assert calls == ([0] if failure == 'create' else [0, 1])
-    assert not app_snapshot.matches(names['onpc-v1.1'].getXMLDesc(0),
+    assert not app_snapshot.matches(names['onpc-v9.8.7'].getXMLDesc(0),
         app_snapshot.input_identity(lease, directory, owner._input_bundle, owner.commands))
 
 
@@ -802,11 +802,11 @@ def test_missing_current_version_is_created_and_other_versions_preserved(prepare
         assert owner.prepare_installed(directory, directory, {}, root=directory,
                                        overwrite=overwrite) is True
     lease.audit(retain_installed=True)
-    assert 'onpc-v1.1' in names
+    assert 'onpc-v9.8.7' in names
     assert names['onpc-0.9'] is unrelated and baseline_name in names
     assert 'e2e_snapshot' not in lease.state
     assert lease.state['phase'] == 'complete' and lease.fd is None
-    assert lease.source.off and lease._restored_name == 'onpc-v1.1'
+    assert lease.source.off and lease._restored_name == 'onpc-v9.8.7'
     assert lease.capture.verification_totals['calls'] == 2
     setup.run.assert_called_once_with(lease.guard, verify=False)
     assert not [event for event in events if event[0] == 'delete']
@@ -821,7 +821,7 @@ def test_failed_final_provenance_check_preserves_snapshot_and_restores_baseline(
                     validate=Mock(side_effect=ValueError('changed')))
     assert lease.fd is None
     assert 'e2e_snapshot' not in lease.state
-    assert 'onpc-v1.1' in names
+    assert 'onpc-v9.8.7' in names
     assert lease._restored_name == baseline_name
 
 
@@ -845,7 +845,7 @@ def test_suite_failure_restores_baseline_and_preserves_installed_snapshot(prepar
             raise RuntimeError('injected failure')
     lease.audit()
     assert baseline_name in names
-    assert ('onpc-v1.1' in names) == (fault != 'install')
+    assert ('onpc-v9.8.7' in names) == (fault != 'install')
     assert not [event for event in events if event[0] == 'delete']
     assert lease._restored_name == baseline_name
     assert lease.fd is None
@@ -868,7 +868,7 @@ def test_missing_installed_snapshot_stops_without_reinstall_or_restore_retry(pre
     assert lease.fd is None
 
 
-@pytest.mark.parametrize('name', ['onpc-1.1', 'onpc-baseline', '../onpc-1.1', 'other-1.1'])
+@pytest.mark.parametrize('name', ['onpc-9.8.7', 'onpc-baseline', '../onpc-9.8.7', 'other-9.8.7'])
 def test_interrupted_suite_recovery_only_deletes_journaled_version(snapshots, name):
     lease, names, events, add, baseline_name = snapshots
     lease.__enter__()
@@ -881,7 +881,7 @@ def test_interrupted_suite_recovery_only_deletes_journaled_version(snapshots, na
     recovery = system.Lease(lease.source, lease.commands, lease.inspect,
         directory=lease.directory, anchor=lease.capture.anchor, graphics_type='vnc')
     before = list(events)
-    if name == 'onpc-1.1':
+    if name == 'onpc-9.8.7':
         recovery.recover_graphical_cleanup()
         assert events[len(before):] == [('restore', baseline_name), ('delete', name)]
         assert recovery.state['phase'] == 'complete'
@@ -898,7 +898,7 @@ def test_inventory_package_lifecycle_cases_use_clean_baseline():
     from tests.support.paths import ROOT
     inventory = json.loads((ROOT / 'tests/e2e/scenarios.json').read_text())
     families = {family['id']: family for family in inventory['scenarios']}
-    clean_baseline = {'E2E-001', 'E2E-002', 'E2E-026', 'E2E-027'}
+    clean_baseline = {'E2E-001', 'E2E-002', 'E2E-026', 'E2E-027', 'E2E-053'}
     assert clean_baseline <= families.keys()
     for name in clean_baseline:
         assert not suite_lease.needs_installed(families[name])

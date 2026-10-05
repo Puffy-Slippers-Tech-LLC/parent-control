@@ -92,7 +92,7 @@ def test_reused_snapshot_refreshes_guarded_payload_before_customer_input(
     lease.view = SimpleNamespace(domain_id=7)
     lease.guard = Mock()
     context = SimpleNamespace(directory=tmp_path, verified=adapter.verified,
-        lease=lease, host_key='fixture-key', commands=Mock(), installed_snapshot='onpc-v1.1')
+        lease=lease, host_key='fixture-key', commands=Mock(), installed_snapshot='onpc-v9.8.7')
     journey = journeys.InstalledJourney(context, Mock(), parent_discovery.PLAN,
                                       actions={'create-account': Mock()})
     for stage in ('ready', 'setup-detached'):

@@ -60,7 +60,7 @@ def test_product_free_setup_never_installs_and_requires_verified_transfer(tmp_pa
             source=SimpleNamespace(uuid='fixture'), view=SimpleNamespace(domain_id=7),
             state={'run': 'a' * 32}, guard=Mock()))
     if fault == 'install': context.install_current_package = True
-    if fault == 'snapshot': context.installed_snapshot = 'onpc-v1.1'
+    if fault == 'snapshot': context.installed_snapshot = 'onpc-v9.8.7'
     if fault == 'type': context.install_current_package = 1
     if fault == 'transfer': transfer.observe.side_effect = EvidenceError('transfer:booted-assets-mismatch')
     setup = Mock(side_effect=AssertionError('must not install or provision'))
@@ -183,6 +183,7 @@ def test_worker_uses_shared_login_and_stops_on_uncertain_result(fault):
                                    'replaced', 'parent', 'changed-session'])
 def test_admin_package_read_binds_identity_and_digest_without_install(monkeypatch, fault):
     account = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture')
+    monkeypatch.setattr(control, 'package_format', lambda: 'deb')
     monkeypatch.setattr(control.os, 'geteuid', Mock(side_effect=[0, 1000]))
     monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: account)
     monkeypatch.setattr(control.grp, 'getgrnam', lambda _: SimpleNamespace(gr_gid=27))

@@ -6,7 +6,7 @@ from tools.test_storage import named_input
 
 
 def main():
-    return smoke(assets=named_input(), provision_credentials=True, allowance_presets=True)
+    return smoke(assets=named_input(package_source=True), provision_credentials=True, allowance_presets=True)
 
 
 if __name__ == '__main__':

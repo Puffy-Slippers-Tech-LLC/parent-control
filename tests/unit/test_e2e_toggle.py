@@ -1,4 +1,5 @@
 """UI17 qualification routing, preparation and worker-order contracts."""
+from tools.test_storage import named_input
 
 import json
 from pathlib import Path
@@ -16,7 +17,7 @@ def snapshot_version(tmp_path, monkeypatch):
     """Pin qualification metadata independently of release version bumps."""
     root = tmp_path / 'snapshot-source'
     (root / 'data').mkdir(parents=True)
-    (root / 'data/app.json').write_text(json.dumps({'version': '1.1'}))
+    (root / 'data/app.json').write_text(json.dumps({'version': '9.8.7'}))
     monkeypatch.setattr(parent_setup_qualification.smoke, 'ROOT', root)
 
 
@@ -24,11 +25,11 @@ def test_toggle_qualification_uses_the_fixed_installed_snapshot_and_selector(tmp
     import check_e2e_toggle as check
     import check_e2e_parent_save as save_check
 
-    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
+    assert check.ASSETS == named_input()
     assert save_check.ASSETS == check.ASSETS
     context = SimpleNamespace(directory=tmp_path)
     journey = ParentToggleQualification.journey(context, lambda *_: None)
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.8.7'
     assert journey.plan.worker_mode == 'parent_toggle'
 
 
@@ -250,7 +251,7 @@ def test_set_allowance_selector_and_guarded_preparation(monkeypatch, tmp_path, s
                    set_allowance=True, time_explanation=True)
     context = SimpleNamespace(directory=tmp_path)
     assert SetAllowanceQualification.journey(context, Mock()).plan is PLAN
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.8.7'
     assert SetAllowanceQualification.finalize is KioskEntryQualification.finalize
     assert SetAllowanceQualification.prepare_context is KioskEntryQualification.prepare_context
 
@@ -273,7 +274,7 @@ def test_fresh_thirty_selector_and_guarded_preparation(monkeypatch, tmp_path, sn
                        fresh_thirty_allowance=True, **{conflict: True})
     context = SimpleNamespace(directory=tmp_path)
     assert FreshThirtyAllowanceQualification.journey(context, Mock()).plan is PLAN
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.8.7'
     assert FreshThirtyAllowanceQualification.finalize is KioskEntryQualification.finalize
     assert FreshThirtyAllowanceQualification.prepare_context is KioskEntryQualification.prepare_context
 
@@ -297,7 +298,7 @@ def test_jordan_thirty_selector_and_guarded_preparation(monkeypatch, tmp_path, s
             smoke.main(assets=tmp_path, provision_credentials=True, **inputs)
     context = SimpleNamespace(directory=tmp_path)
     assert JordanThirtyAllowanceQualification.journey(context, Mock()).plan is JORDAN_PLAN
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.8.7'
     assert JordanThirtyAllowanceQualification.finalize is KioskEntryQualification.finalize
     assert JordanThirtyAllowanceQualification.prepare_context is KioskEntryQualification.prepare_context
 
@@ -391,7 +392,7 @@ def test_app_restart_selector_uses_owned_snapshot_and_cleanup(monkeypatch, tmp_p
                    app_restart=True, set_allowance=True)
     context = SimpleNamespace(directory=tmp_path)
     assert AppRestartQualification.journey(context, Mock()).plan is PLAN
-    assert context.installed_snapshot == 'onpc-v1.1'
+    assert context.installed_snapshot == 'onpc-v9.8.7'
     assert AppRestartQualification.finalize is KioskEntryQualification.finalize
     assert AppRestartQualification.prepare_context is KioskEntryQualification.prepare_context
 
@@ -428,15 +429,14 @@ def test_allowance_installed_sample_preserves_rejection_and_real_reopen_checks()
     assert 'system:parent-continuous-activity' not in PLAN.screen_tags.values()
     presets = [PLAN.screen_tags[stage] for stage in stages if stage.startswith('preset-')]
     assert presets == [f'ui:allowance-keyboard-15-{phase}'
-                       for phase in ('ready', 'opened', 'highlighted', 'confirmed')] + [
+                       for phase in ('click', 'selected')] + [
                            'ui:allowance-15-read']
     for value in (1,):
         assert stages.index(f'boundary-{value}-saved') < stages.index(f'boundary-{value}-reopen')
     for binding in ('over',):
         prefix = 'invalid-' + binding
-        assert PLAN.screen_tags[prefix + '-baseline-ready'] == 'ui:allowance-keyboard-15-ready'
-        assert PLAN.screen_tags[prefix + '-baseline-highlight-0'] == 'ui:allowance-keyboard-15-highlighted'
-        assert PLAN.screen_tags[prefix + '-baseline-confirm'] == 'ui:allowance-keyboard-15-confirmed'
+        assert PLAN.screen_tags[prefix + '-baseline-ready'] == 'ui:allowance-keyboard-15-click'
+        assert PLAN.screen_tags[prefix + '-baseline-confirm'] == 'ui:allowance-keyboard-15-selected'
         assert PLAN.screen_tags[prefix + '-baseline-read'] == 'ui:allowance-15-read'
         assert PLAN.screen_tags[prefix + '-unchanged'] == 'ui:allowance-15-read'
         assert PLAN.screen_tags[prefix + '-reopen'] == 'ui:custom-15-reopen'

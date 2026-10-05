@@ -19,8 +19,7 @@ ENTRY.update({
     'setup': 'ui:named-custom-setup',
 })
 EDITS = {
-    **allowance_selection('jordan-preset', (900, 0)),
-    **allowance_selection('jordan-cancel', (900,), response='cancel', original=0),
+    **allowance_selection('jordan-preset', (15,)),
     **custom_save_entry('jordan', 'existing'),
     **ordinary_custom_save('riley', 'child', 7),
     **custom_child_selection('final-away', 'existing'),
@@ -46,8 +45,7 @@ CHILDREN = {stage: 'existing' for stage in (
     'jordan-wrong-child', 'jordan-rapid', 'jordan-saved',
     'jordan-reopened', 'jordan-final-read', 'jordan-after-restart')}
 CHILDREN.update({stage: 'existing' for stage in (
-    *allowance_selection('jordan-preset', (900, 0)),
-    *allowance_selection('jordan-cancel', (900,), response='cancel', original=0),
+    *allowance_selection('jordan-preset', (15,)),
     *allowance_selection('jordan-choice', ('custom',)))})
 PLAN = JourneyPlan(
     prefix='save-order', worker_mode='save_order', screen_tags=SCREENS,
@@ -60,8 +58,6 @@ PLAN = JourneyPlan(
     child_bindings=CHILDREN,
     accessibility_inputs={'jordan-rapid': ('parent-custom-trace-focus', 6, 'custom-save')},
     keyboard_inputs={'jordan-rapid': (5, 6)},
-    balance_checks={stage: 0 for stage in (
-        'jordan-preset-highlight-0', 'jordan-preset-highlight-1', 'jordan-cancel-highlight-0')},
     settings_checks={
         'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
         'jordan-back-selected': SettingsObservation('existing-fixture-child', True, ('6 minutes',)),

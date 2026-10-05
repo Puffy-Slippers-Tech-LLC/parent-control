@@ -1,6 +1,7 @@
 """Read-boundary cost, freshness and shared-operation input safety."""
 
 from unittest.mock import Mock
+from types import SimpleNamespace
 
 import pytest
 
@@ -48,8 +49,7 @@ def lookup(ui, index):
 
 @pytest.mark.parametrize('fault,code', [
     ('child', 'wrong-child'), ('disabled', 'unusable-target'),
-    ('textbox', 'allowance-textbox'), ('focus', 'allowance-focus'),
-    ('duplicate-focus', 'allowance-focus'), ('popup', 'allowance-popup'), ('owner', 'wrong-owner'),
+    ('textbox', 'allowance-textbox'), ('inactive', 'allowance-window'), ('owner', 'wrong-owner'),
 ])
 def test_allowance_keyboard_refuses_unsafe_recipient(preset_ui, fault, code):
     ui, window, selector, choice = preset_ui
@@ -63,12 +63,8 @@ def test_allowance_keyboard_refuses_unsafe_recipient(preset_ui, fault, code):
         selector.states.remove('sensitive')
     elif fault == 'textbox':
         selector.states.add('editable')
-    elif fault == 'focus':
-        choice.states.remove('focused')
-    elif fault == 'duplicate-focus':
-        selector.states.add('focused')
-    elif fault == 'popup':
-        selector.states.remove('expanded')
+    elif fault == 'inactive':
+        window.states.remove('active')
     else:
         ui.root().get_process_id = lambda: 101
     choice.action.do_action.reset_mock()
@@ -77,69 +73,96 @@ def test_allowance_keyboard_refuses_unsafe_recipient(preset_ui, fault, code):
     choice.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('opaque', [False, True])
-def test_allowance_keyboard_observes_highlight_without_choice_id(preset_ui, opaque):
-    ui, window, selector, choice = preset_ui
+@pytest.mark.parametrize('expanded', [False, True])
+def test_allowance_keyboard_does_not_require_popup_or_focus(preset_ui, expanded):
+    ui, window, selector, _ = preset_ui
     window.states.add('active')
-    with ui.observation():
-        ui.activate_id(selector.identity)
-    choice.states.add('focused')
-    choice.identity = ''
-    selector.description = 'Daily allowance: 15 minutes'
-    if opaque:
-        selector.children = selector.children[:1]
-        selector.states.add('focused')
-    assert ui.allowance_keyboard(accessible_ui.CHILD, 15, 'highlighted') == {
-        'value': 15, 'phase': 'highlighted'}
-    choice.action.do_action.assert_not_called()
+    if expanded:
+        selector.states.add('expanded')
+    assert ui.allowance_keyboard_recipient(accessible_ui.CHILD) is selector
 
 
-def test_allowance_keyboard_delivery_never_replays_uncertain_input(preset_ui):
-    from tests.support.keyboard import deliver_allowance
-    ui, window, selector, choice = preset_ui
-    window.states.add('active')
-    with ui.observation():
-        ui.activate_id(selector.identity)
-    choice.states.add('focused')
-    send = Mock(side_effect=RuntimeError('uncertain transport'))
-    with pytest.raises(RuntimeError, match='uncertain transport'):
-        deliver_allowance(ui, send)
-    assert ui.input_uncertain
-    with pytest.raises(AssertionError, match='uncertain'):
-        deliver_allowance(ui, send)
-    send.assert_called_once_with()
+def test_allowance_selected_reads_saved_value_without_popup_state(preset_ui):
+    ui, _window, selector, _ = preset_ui
+    ui.parent_save_snapshot = Mock()
+    selector.states.add('expanded')  # This metadata is not an acceptance oracle.
+    assert ui.allowance_keyboard(accessible_ui.CHILD, 15, 'selected') == {
+        'value': 15, 'phase': 'selected'}
+    ui.parent_save_snapshot.assert_called_once_with(accessible_ui.CHILD, True)
 
 
-def test_allowance_ready_focuses_closed_selector_without_opening_it(preset_ui):
+def test_allowance_ready_clicks_closed_selector_without_synthetic_focus(preset_ui):
     ui, window, selector, choice = preset_ui
     window.states.add('active')
     ui.parent_save_snapshot = Mock()
     ui.reach_time_explanation = Mock()
-    ui.activate_id = Mock(side_effect=lambda *_args, **_kwargs: selector.states.add('focused'))
-    assert ui.allowance_keyboard(accessible_ui.CHILD, 15, 'ready') == {
-        'value': 15, 'phase': 'ready'}
-    ui.activate_id.assert_called_once_with(
-        'parent-window', action_name='focus.parent-daily-limit-selector')
+    ui.activate_id = Mock()
+    ui.select_allowance = Mock()
+    selector.component.get_extents = Mock(return_value=SimpleNamespace(x=100, y=200, width=80, height=40))
+    assert ui.allowance_keyboard(accessible_ui.CHILD, 15, 'click') == {
+        'value': 15, 'phase': 'click'}
+    ui.select_allowance.assert_called_once_with(accessible_ui.CHILD, 15)
+    ui.activate_id.assert_not_called()
     selector.action.do_action.assert_not_called()
     assert 'expanded' not in selector.states
-    selector.states.add('expanded')
-    ui.activate_id.reset_mock()
-    with pytest.raises(UiError, match='allowance-popup'):
-        ui.allowance_keyboard(accessible_ui.CHILD, 15, 'ready')
-    ui.activate_id.assert_not_called()
 
 
-def test_allowance_opened_preserves_native_popup_focus(preset_ui):
-    ui, window, selector, choice = preset_ui
+@pytest.mark.parametrize('bounds', [(-2147483648, 0, 80, 40), (0, 0, 0, 40),
+                                   (0, 0, 80, -1), (32760, 0, 80, 40),
+                                   (True, 0, 80, 40)])
+def test_allowance_click_refuses_invalid_public_bounds(preset_ui, bounds):
+    ui, window, selector, _ = preset_ui
     window.states.add('active')
-    with ui.observation():
-        ui.activate_id(selector.identity)
-    choice.states.add('focused')
-    ui.activate_id = Mock()
-    assert ui.allowance_keyboard(accessible_ui.CHILD, 15, 'opened') == {
-        'value': 15, 'phase': 'opened'}
-    ui.activate_id.assert_not_called()
-    assert 'focused' not in selector.states
+    selector.component.get_extents = Mock(return_value=SimpleNamespace(
+        **dict(zip(('x', 'y', 'width', 'height'), bounds))))
+    with pytest.raises(UiError, match='allowance-click-bounds'):
+        ui.allowance_click_target()
+
+
+@pytest.mark.parametrize('failure', [None, 'Start', 'NotifyPointerButton', 'NotifyKeyboardKeysym', 'Stop'])
+def test_allowance_native_click_delivery_and_failure_lifetime(preset_ui, monkeypatch, failure):
+    from gi.repository import Gio, GLib
+    ui, window, selector, _ = preset_ui
+    window.states.add('active')
+    selector.component.get_extents = Mock(return_value=SimpleNamespace(
+        x=100, y=200, width=80, height=40))
+    events = []
+    def invoke(_service, _path, _interface, method, arguments, *_rest):
+        args = arguments.unpack() if arguments is not None else ()
+        events.append((method, args))
+        if method == failure:
+            raise GLib.Error.new_literal(Gio.io_error_quark(), 'PRIVATE_PROVIDER_VALUE',
+                                        Gio.IOErrorEnum.FAILED)
+        values = {'CreateSession': ('/session',), 'Get': ('session-id',),
+                  'RecordWindow': ('/stream',)}.get(method, ())
+        return SimpleNamespace(unpack=lambda: values)
+    connection = SimpleNamespace(call_sync=invoke, close_sync=Mock())
+    monkeypatch.setattr(Gio.DBusConnection, 'new_for_address_sync', Mock(return_value=connection))
+    monkeypatch.setenv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/fixture-bus')
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: events.append(('dispatch', delay)))
+    if failure:
+        with pytest.raises(UiError, match='allowance-click-transport:' + failure) as raised:
+            ui.select_allowance(accessible_ui.CHILD, 15)
+        assert 'PRIVATE_' not in str(raised.value)
+        assert ui.input_uncertain == (failure != 'Start')
+        if ui.input_uncertain:
+            with pytest.raises(UiError, match='input-uncertain'):
+                ui.select_allowance(accessible_ui.CHILD, 15)
+    else:
+        ui.select_allowance(accessible_ui.CHILD, 15)
+        motion = events.index(('NotifyPointerMotionAbsolute', ('/stream', 140.0, 220.0)))
+        assert events[motion:] == [
+            ('NotifyPointerMotionAbsolute', ('/stream', 140.0, 220.0)),
+            ('dispatch', .1), ('NotifyPointerButton', (272, True)),
+            ('dispatch', .15), ('NotifyPointerButton', (272, False)),
+            ('dispatch', .1),
+            *[event for key in (ord('1'), ord('5'), ord('m'), 0xff0d)
+              for event in (('NotifyKeyboardKeysym', (key, True)), ('dispatch', .05),
+                            ('NotifyKeyboardKeysym', (key, False)), ('dispatch', .05))],
+            ('Stop', ())]
+        assert not ui.input_uncertain
+    assert sum(method == 'Stop' for method, _ in events) == (failure != 'Start')
+    connection.close_sync.assert_called_once_with(None)
 
 
 @pytest.fixture
@@ -180,29 +203,17 @@ def preset_ui():
     return ui, window, allowance, choice
 
 
-@pytest.mark.parametrize('registered', [False, True])
-@pytest.mark.parametrize('action,reads', [('read', 1), ('select', 3), ('reopen', 2)])
-def test_preset_operation_shares_reads_only_between_inputs(preset_ui, registered, action, reads):
-    ui, _window, allowance, choice = preset_ui
-    if action == 'select':
-        allowance.children[0].name = '0 minutes'
-    if registered:
-        assert ui.run('allowance-15-' + action, '')['allowance'] == {
-            'minutes': 15, 'saved': True}
-    else:
-        assert ui.allowance_preset(accessible_ui.CHILD, 15, action=action) == {
-            'minutes': 15, 'saved': True}
-    assert ui._read_nodes.call_count == reads
-    assert allowance.action.do_action.call_count == (action != 'read')
-    assert choice.action.do_action.call_count == (action == 'select')
-    assert ui._observation_cache is None
-    assert not ui._projection_cache
+def test_preset_final_read_never_activates_a_choice(preset_ui):
+    ui, _window, selector, choice = preset_ui
+    assert ui.allowance_preset(accessible_ui.CHILD, 15, action='read')['saved']
+    selector.action.do_action.assert_not_called()
+    choice.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault,code', [('duplicate', 'ambiguous-automation-id'),
                                      ('owner', 'wrong-owner'), ('child', 'wrong-child')])
 def test_independent_preset_calls_recheck_identity(preset_ui, fault, code):
-    ui, window, allowance, choice = preset_ui
+    ui, window, allowance, _choice = preset_ui
     ui.allowance_preset(accessible_ui.CHILD, 15, action='read')
     if fault == 'duplicate':
         window.children.append(Node(identity=allowance.identity))
@@ -210,84 +221,35 @@ def test_independent_preset_calls_recheck_identity(preset_ui, fault, code):
         ui.root().get_process_id = lambda: 101
     else:
         window.children[0].children[0].identity = 'parent-child-selected-1002'
+    ui.select_allowance = Mock()
     with pytest.raises(UiError, match=code):
         ui.allowance_preset(accessible_ui.CHILD, 15, action='select')
-    assert ui._read_nodes.call_count == 2
-    allowance.action.do_action.assert_not_called()
-    choice.action.do_action.assert_not_called()
-    assert ui._observation_cache is None
-
-
-@pytest.mark.parametrize('fault,code', [('duplicate', 'ambiguous-automation-id'),
-                                     ('owner', 'wrong-owner')])
-def test_preset_rechecks_identity_after_open_before_selection(preset_ui, fault, code):
-    ui, _window, allowance, choice = preset_ui
-    open_picker = allowance.action.do_action.side_effect
-    def changed(index):
-        open_picker(index)
-        if fault == 'duplicate':
-            allowance.children[-1].children.append(Node(identity=choice.identity))
-        else:
-            ui.root().get_process_id = lambda: 101
-        return True
-    allowance.action.do_action.side_effect = changed
-    with pytest.raises(UiError, match=code):
-        ui.allowance_preset(accessible_ui.CHILD, 15, action='select')
-    assert ui._read_nodes.call_count == 2
-    allowance.action.do_action.assert_called_once_with(0)
-    choice.action.do_action.assert_not_called()
+    ui.select_allowance.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['pending', 'incomplete', 'query-error'])
 def test_preset_result_retry_reacquires_without_replaying_input(preset_ui, monkeypatch, fault):
-    ui, _window, allowance, choice = preset_ui
+    ui, _window, allowance, _choice = preset_ui
     ui.timeout = .4
     ui.query_errors = (LookupError,)
     ui.dispatch = Mock(return_value=False)
     now = [0.0]
     monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
     original_attributes = allowance.get_attributes
-    def select(_index):
-        assert ui._observation_cache == []
+    def select(_child, _value):
+        ui.invalidate_observation()
+        allowance.children = [Node('0 minutes', 'label')]
         if fault != 'pending':
             allowance.get_attributes = Mock(side_effect=(LookupError() if fault == 'query-error'
                                                         else UiError('ui:incomplete-tree')))
-        return True  # The popup remains until a later event.
-    choice.action.do_action.side_effect = select
+    ui.select_allowance = Mock(side_effect=select)
     def settle(delay):
-        assert ui._observation_cache == []
         now[0] += delay
         allowance.get_attributes = original_attributes
         allowance.children = [Node('15 minutes', 'label')]
     monkeypatch.setattr(accessible_ui.time, 'sleep', settle)
     assert ui.allowance_preset(accessible_ui.CHILD, 15, action='select')['saved']
-    assert ui._read_nodes.call_count == 4
-    assert ui.dispatch.call_count == 4
-    assert now[0] == .2
-    allowance.action.do_action.assert_called_once_with(0)
-    choice.action.do_action.assert_called_once_with(0)
-
-
-@pytest.mark.parametrize('during_input', [False, True])
-def test_preset_cancellation_discards_scope_and_preserves_uncertain_input(preset_ui, during_input):
-    ui, _window, allowance, choice = preset_ui
-    cancelled = KeyboardInterrupt()
-    if during_input:
-        choice.action.do_action.side_effect = cancelled
-    else:
-        choice.get_attributes = Mock(side_effect=cancelled)
-    with pytest.raises(KeyboardInterrupt) as caught:
-        ui.allowance_preset(accessible_ui.CHILD, 15, action='select')
-    assert caught.value is cancelled
-    assert ui._observation_cache is None
-    assert not ui._projection_cache
-    assert ui.input_uncertain == during_input
-    allowance.action.do_action.assert_called_once_with(0)
-    assert choice.action.do_action.call_count == during_input
-    if during_input:
-        with pytest.raises(UiError, match='uncertain-input'):
-            ui.allowance_preset(accessible_ui.CHILD, 15, action='select')
-        choice.action.do_action.assert_called_once_with(0)
+    ui.select_allowance.assert_called_once_with(accessible_ui.CHILD, 15)
 
 
 @pytest.mark.parametrize('count', [3, 100, 1000])

@@ -1,4 +1,5 @@
 """Ordinary GDM account-navigation qualification contracts."""
+from tools.test_storage import named_input
 
 import json
 from pathlib import Path
@@ -25,7 +26,7 @@ def test_gdm_navigation_qualification_reuses_the_prepared_app_snapshot():
     import check_e2e_gdm_navigation as check
     from parent_setup_qualification import GdmNavigationQualification
 
-    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
+    assert check.ASSETS == named_input()
     context = type('Context', (), {})()
     journey = GdmNavigationQualification.journey(context, lambda *_: None)
     # The prepared snapshot follows the checkout release, including after upgrades.

@@ -242,7 +242,7 @@ def test_manual_maintenance_retirement_refuses_unproven_attempts(rig, failure):
             'baseline-mismatch': ('baseline_sha256', 'b' * 64),
             'uuid-mismatch': ('domain_uuid', 'other'),
             'wrong-phase': ('phase', 'start-requested'),
-            'extra-fields': ('e2e_snapshot', 'onpc-v1.2'),
+            'extra-fields': ('e2e_snapshot', 'onpc-v9.8.8'),
         }[failure]
         attempt[key] = value
         (rig.directory / 'system-run.json').write_bytes(host.encode(attempt))
@@ -1253,8 +1253,8 @@ def test_libvirt_deletes_only_baseline_without_reverting(rig, running):
 def test_app_snapshot_deletion_selects_all_versions_only(rig, running):
     api, domain = libvirt_fixture(rig)
     domain.state.return_value = (1 if running else 5, 0)
-    names = ['onpc-v1.1', 'onpc-v1.12.3', 'onpc-0.9', 'onpc_baseline',
-             'onpc-baseline', host.PREVIOUS_SNAPSHOT, '1 - Clean', 'onpc-v1.1-backup']
+    names = ['onpc-v9.8.7', 'onpc-v9.8.7.6', 'onpc-0.9', 'onpc_baseline',
+             'onpc-baseline', host.PREVIOUS_SNAPSHOT, '1 - Clean', 'onpc-v9.8.7-backup']
     snapshots = [Mock() for _ in names]
     for snapshot, name in zip(snapshots, names):
         snapshot.getName.return_value = name

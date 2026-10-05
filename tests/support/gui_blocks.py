@@ -73,13 +73,17 @@ _KEYS = {
 }
 
 
-def select_allowance(ui, values, *, response='confirm', original=0, child=None):
+def select_allowance(ui, values, *, child=None):
     """Run the installed allowance block on the host's private display."""
     from tests.e2e.journey_blocks import allowance_selection
-    from tests.e2e.accessible_ui import NAMED_CUSTOM_CHILDREN
+    from tests.e2e.accessible_ui import NAMED_CUSTOM_CHILDREN, CHILD, EXISTING_CHILD
+    if hasattr(ui, 'reader'):
+        ui = ui.reader
+        if ui.fixture_uids is None:
+            ui.fixture_uids = {CHILD: 1001, EXISTING_CHILD: 1002}
     child = next((alias for alias, label in NAMED_CUSTOM_CHILDREN.items() if label == child), child)
-    operations = allowance_selection('choice', values, response=response, original=original)
-    return run_block(ui, 'allowance', 'choice', json.dumps(values), response,
+    operations = allowance_selection('choice', values)
+    return run_block(ui, 'allowance', 'choice', json.dumps(values), 'confirm',
                      child=child, operations=operations)
 
 
@@ -143,10 +147,6 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
                 else:
                     observations[stage] = ui.run(operation, '', **binding)
             elif event[0] == 'key':
-                if block == 'allowance':
-                    keyboard.deliver_allowance(ui, lambda: keyboard.raw_allowance_key(_KEYS[event[1]]),
-                                               child=child, expanded=event[1] != 'spc')
-                    continue
                 # Filter composites immediately poll exact popup absence after
                 # Escape. Dogtail's default one-second post-key sleep adds three
                 # minutes to the five query matrices without proving closure.
@@ -158,10 +158,7 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
                     **pacing)
                 filter_read = False
             elif event[0] == 'text':
-                if block == 'allowance':
-                    keyboard.deliver_allowance(ui, lambda: keyboard.raw_allowance_text(event[1]), child=child)
-                else:
-                    keyboard.type_text(ui, identity, event[1], interval=event[2] / 1000)
+                keyboard.type_text(ui, identity, event[1], interval=event[2] / 1000)
             else:
                 raise ValueError('Invalid GUI block event')
     return observations

@@ -1,4 +1,5 @@
 """GDM recipient qualification contracts."""
+from tools.test_storage import named_input
 
 import json
 from pathlib import Path
@@ -87,7 +88,7 @@ def test_gdm_recipient_qualification_reuses_the_prepared_app_snapshot(tmp_path, 
     (tmp_path / 'data').mkdir()
     (tmp_path / 'data/app.json').write_text(json.dumps({'version': '9.7'}))
     monkeypatch.setattr(smoke, 'ROOT', tmp_path)
-    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
+    assert check.ASSETS == named_input()
     context = type('Context', (), {})()
     journey = GdmRecipientQualification.journey(context, lambda *_: None)
     assert context.installed_snapshot == 'onpc-v9.7'

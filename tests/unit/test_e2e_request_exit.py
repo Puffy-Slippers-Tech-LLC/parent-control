@@ -1,4 +1,5 @@
 """Public request-station Cancel and Escape qualification contracts."""
+from tools.test_storage import named_input
 
 import json
 from pathlib import Path
@@ -297,7 +298,7 @@ def test_request_exit_qualification_reuses_the_prepared_app_snapshot():
     import check_e2e_request_exit as check
     from parent_setup_qualification import RequestExitQualification
 
-    assert check.ASSETS == Path(__file__).resolve().parents[2] / 'output/test-runs/host/allocations/onpc-parent-setup-input'
+    assert check.ASSETS == named_input()
     context = type('Context', (), {})()
     RequestExitQualification.journey(context, lambda *_: None)
     # The prepared snapshot follows the app release, not the release at which

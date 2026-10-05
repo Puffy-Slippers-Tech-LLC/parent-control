@@ -3,31 +3,6 @@
 import time
 
 
-def deliver_allowance(ui, send, *, child=None, expanded=True):
-    """Daily dropdown exception: freshly owned scope and unique keyboard focus."""
-    from tests.e2e.accessible_ui import CHILD, NAMED_CUSTOM_CHILDREN
-    if ui.input_uncertain:
-        raise AssertionError('Keyboard input is uncertain')
-    ui.invalidate_observation()
-    ui.allowance_keyboard_recipient(NAMED_CUSTOM_CHILDREN.get(child, child) or CHILD,
-                                    expanded=expanded)
-    ui.input_uncertain = True
-    send()
-    ui.input_uncertain = False
-
-
-def raw_allowance_key(key):
-    from dogtail import rawinput
-    rawinput.keyCombo(key)
-
-
-def raw_allowance_text(text):
-    from dogtail import rawinput
-    for character in text:
-        rawinput.pressKey(character)
-        time.sleep(.02)
-
-
 def recipient(ui, identity, state):
     """Reacquire ``identity`` and require its declared input-recipient state."""
     node = ui.id_target(identity) if hasattr(ui, "id_target") else ui.target(identity)

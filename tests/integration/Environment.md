@@ -46,8 +46,8 @@ The required `--mode` accepts only `auto` or `manual`, with no default. Missing
 options or values print help and examples. Help and the red warnings reuse the
 same bullet lists of steps. Both modes immediately refuse a VM
 that is not off. Under the shared lease, a red warning describes the selected
-workflow and deletion of **all versioned app snapshots**, including both
-`onpc-v1.2` and legacy `onpc-1.2` names. By default, only an explicit `y` proceeds;
+workflow and deletion of **all versioned app snapshots**, including release-derived
+names with or without the `v` prefix. By default, only an explicit `y` proceeds;
 `n` or end of input exits without guest or snapshot changes. `--y` suppresses
 the y/n prompt while retaining the warning and every safety check. An omitted
 `--vm` selects all enabled VMs; multiple VMs are confirmed together before work.

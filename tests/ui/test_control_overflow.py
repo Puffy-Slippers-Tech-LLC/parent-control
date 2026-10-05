@@ -4,6 +4,8 @@ import hashlib
 
 import pytest
 from tests.support.events import read_events
+from tests.support.gui_blocks import select_allowance
+from tests.e2e.accessible_ui import EXISTING_CHILD
 from tests.support.feedback import feedback_editor
 
 
@@ -42,9 +44,7 @@ def test_language_switch_preserves_parent_selection_numeric_draft_and_filters(
         ui.activate('parent-screen-limit-toggle')
     wait(lambda: ui.state('parent-daily-limit-selector', ui.api.StateType.SENSITIVE),
          'second child preferences finish loading')
-    ui.activate('parent-daily-limit-selector')
-    wait(lambda: ui.showing('parent-daily-limit-custom'), 'custom choice opens')
-    ui.activate('parent-daily-limit-custom')
+    select_allowance(ui, ('custom',), child=EXISTING_CHILD)
     wait(lambda: ui.showing('parent-custom-daily-limit')
          and ui.state('parent-custom-daily-limit', ui.api.StateType.FOCUSED), 'draft focused')
     key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
@@ -89,20 +89,14 @@ def test_parent_allowance_choices_remain_semantically_reachable(
         launch_ui, ui, wait_for_accessible_state,
         environment={"ONPC_PARENT_COMPONENT_EVENTS_PATH": str(events)},
     )
-    ui.activate("parent-daily-limit-selector")
-    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-1410"),
-                              "last allowance choice can be revealed")
-    ui.activate("parent-daily-limit-1410")
+    select_allowance(ui, (1410,))
     wait_for_accessible_state(
         lambda: any(event["event"] == "set_parent_control"
                     and event["daily_limit_minutes"] == 1410
                     for event in read_events(events)),
         "last allowance choice saves",
     )
-    ui.activate("parent-daily-limit-selector")
-    wait_for_accessible_state(lambda: ui.showing("parent-daily-limit-custom"),
-                              "custom choice can be revealed")
-    ui.activate("parent-daily-limit-custom")
+    select_allowance(ui, ('custom',))
     wait_for_accessible_state(lambda: ui.showing("parent-custom-daily-limit"),
                               "custom editor opens")
     assert ui.state("parent-custom-daily-limit", ui.api.StateType.SENSITIVE)

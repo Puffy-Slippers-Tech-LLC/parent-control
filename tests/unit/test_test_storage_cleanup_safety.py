@@ -36,7 +36,8 @@ def test_vm_privileged_journals_are_separate(tmp_path, monkeypatch):
     assert storage.privileged_state(1000) == tmp_path / 'retention-1000-second'
 
 
-def test_current_named_input_changes_with_product_bytes_without_overwriting(tmp_path, monkeypatch):
+@pytest.mark.parametrize('options', [{}, {'package_source': True}, {'package_source': False}])
+def test_current_named_input_changes_with_product_bytes_without_overwriting(tmp_path, monkeypatch, options):
     from tools import package_inputs
     # Only private files and read-only hashing; no subprocess, allocation or cleanup.
     monkeypatch.setattr(storage, 'ROOT', tmp_path)
@@ -44,16 +45,21 @@ def test_current_named_input_changes_with_product_bytes_without_overwriting(tmp_
     monkeypatch.setattr(package_inputs, 'paths', lambda _: [Path('product.py')])
     source = tmp_path / 'product.py'
     source.write_text('first')
-    first = storage.named_input(package_source=True)
-    assert storage.named_input(package_source=True) == first
+    legacy = storage.BASE / 'host/allocations/onpc-parent-setup-input'
+    legacy.mkdir(parents=True)
+    (legacy / 'preserved').write_text('old package bundle')
+    first = storage.named_input(**options)
+    assert storage.named_input(**options) == first
+    assert first != legacy
     assert not first.exists()
     source.write_text('second')
-    assert storage.named_input(package_source=True) != first
-    assert storage.named_input().name == 'onpc-parent-setup-input'
+    assert storage.named_input(**options) != first
+    assert (legacy / 'preserved').read_text() == 'old package bundle'
+    assert storage.named_input() == storage.named_input(package_source=True)
     source.unlink()
     source.symlink_to(tmp_path / 'missing')
     with pytest.raises(ValueError, match='regular file'):
-        storage.named_input(package_source=True)
+        storage.named_input(**options)
 
 
 def test_native_named_input_tracks_fixture_bytes_and_preserves_existing_output(tmp_path, monkeypatch):

@@ -742,11 +742,32 @@ def test_debounced_row_visibility_discards_whole_projection_before_retry(boundar
         node.action.do_action.assert_not_called()
 
 
-def test_hidden_policy_control_in_stable_visible_row_is_not_a_retryable_filter_change():
+def test_child_visibility_preceding_row_visibility_reacquires_one_complete_projection():
+    ui, _, _, row, buttons, match = app_ui()
+    buttons[0].states.discard('visible')
+    original = ui.nodes
+    traversals = 0
+    def nodes(*args, **kwargs):
+        nonlocal traversals
+        traversals += 1
+        if traversals == 2:
+            row.states.discard('visible')
+        return original(*args, **kwargs)
+    ui.nodes = nodes
+    assert ui.app_rows(accessible_ui.CHILD, expected_ids=()) == ()
+    assert traversals == 2
+    for node in (row, *buttons, match):
+        node.action.do_action.assert_not_called()
+
+
+def test_hidden_policy_control_in_stable_visible_row_remains_terminal_after_one_complete_recheck():
     ui, _, _, _, buttons, _ = app_ui()
     buttons[0].states.discard('visible')
+    ui.nodes = Mock(wraps=ui.nodes)
     with pytest.raises(accessible_ui.UiError, match='^ui:app-row-target$'):
         ui.app_rows(accessible_ui.CHILD)
+    assert ui.nodes.call_count == 2
+    buttons[0].action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('name', ['Fixture application', '', 'x' * 513])
@@ -1096,8 +1117,10 @@ def test_invalid_or_incomplete_rows_refuse(fault):
         options['expected_ids'] = ()
     elif fault == 'wrong-owner':
         ui.api.get_desktop(0).identity = 'unrelated.application'
+    ui.nodes = Mock(wraps=ui.nodes)
     with pytest.raises((accessible_ui.UiError, LookupError)):
         ui.app_rows(child, **options)
+    assert ui.nodes.call_count == 1
 
 
 def test_empty_set_requires_complete_ready_page_and_explicit_expectation():

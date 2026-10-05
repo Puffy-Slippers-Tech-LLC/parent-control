@@ -1017,6 +1017,10 @@ class UiError(RuntimeError):
     pass
 
 
+class _AppRowVisibilityPending(UiError):
+    """A live owned row control became hidden before its containing row."""
+
+
 def require(value, code):
     if not value:
         raise UiError(code)
@@ -6160,6 +6164,20 @@ class AccessibleUI:
         or catalogue/backend query is used. Return immutable (ID, access, match)
         tuples only after a complete owned traversal and loaded-page check.
         """
+        deadline = time.monotonic() + 45
+        for attempt in range(2):
+            try:
+                return self._app_rows(child, maximum=maximum, expected_ids=expected_ids,
+                                      include_names=include_names, deadline=deadline)
+            except _AppRowVisibilityPending as error:
+                self.invalidate_observation()
+                if attempt:
+                    raise UiError('ui:app-row-target') from error
+                # GTK can expose a hidden child before its row's visibility
+                # changes. Reacquire the entire projection once; a stable
+                # hidden control still fails, and no input is replayed.
+
+    def _app_rows(self, child, *, maximum, expected_ids, include_names, deadline):
         require(child in CHILD_IDENTITIES and type(include_names) is bool and type(maximum) is int
                 and 0 <= maximum <= 256, 'ui:app-row-binding')
         require(expected_ids is None or (type(expected_ids) is tuple
@@ -6167,7 +6185,6 @@ class AccessibleUI:
                 and all(type(value) is str and re.fullmatch(
                     r'parent-app-[0-9a-f]{16}', value) for value in expected_ids)),
                 'ui:app-row-binding')
-        deadline = time.monotonic() + 45
         def check_deadline():
             require(time.monotonic() < deadline, 'ui:app-row-deadline')
         edges, identities, facts = {}, {}, {}
@@ -6192,6 +6209,10 @@ class AccessibleUI:
                 # retry input. Ownership and identity errors above still refuse.
                 self.invalidate_observation()
                 raise UiError('ui:incomplete-tree')
+            if (not valid and row is not None and node is not None
+                    and not self.has_state(node, self.api.StateType.DEFUNCT)
+                    and not self.has_state(node, self.api.StateType.VISIBLE)):
+                raise _AppRowVisibilityPending('ui:app-row-target')
             require(valid, 'ui:app-row-target')
             return node
         picker = target('parent-child-selector')

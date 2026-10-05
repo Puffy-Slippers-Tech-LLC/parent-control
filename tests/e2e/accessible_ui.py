@@ -89,6 +89,7 @@ PARENT_LANGUAGE_STATES = {
     for name, child in (('riley', 'child'), ('jordan', 'existing'))
     for language in ('en', 'zh-Hans')
 }
+PARENT_LANGUAGE_STATES['parent-language-riley-enabled-he'] = ('child', 'he')
 PARENT_LANGUAGE_ALLOWANCES = {
     'parent-language-riley-allowance': 'child',
     'parent-language-jordan-allowance': 'existing',
@@ -439,10 +440,12 @@ OPERATIONS |= frozenset({'parent-restart-ready', 'parent-restart-closed-refused'
 def duration_projection(text, *, language='en'):
     """Registered compact public duration, at the formatter's second precision."""
     require(type(text) is str and len(text) <= 32, 'ui:time-duration')
-    require(language in ('en', 'zh-Hans'), 'ui:time-language')
-    pattern = (r'(?:(\d{1,6})h(?: ([1-5]?\d)m)?|([0-5]?\d)m)(?: ([1-5]?\d)s)?'
-               if language == 'en' else
-               r'(?:(\d{1,6})小时(?: ([1-5]?\d)分钟)?|([0-5]?\d)分钟)(?: ([1-5]?\d)秒)?')
+    require(language in ('en', 'zh-Hans', 'he'), 'ui:time-language')
+    pattern = {
+        'en': r'(?:(\d{1,6})h(?: ([1-5]?\d)m)?|([0-5]?\d)m)(?: ([1-5]?\d)s)?',
+        'zh-Hans': r'(?:(\d{1,6})小时(?: ([1-5]?\d)分钟)?|([0-5]?\d)分钟)(?: ([1-5]?\d)秒)?',
+        'he': r'(?:(\d{1,6})ש׳(?: ([1-5]?\d)דק׳)?|([0-5]?\d)דק׳)(?: ([1-5]?\d)שנ׳)?',
+    }[language]
     match = re.fullmatch(pattern, text)
     require(match is not None, 'ui:time-duration')
     hours, minutes, only_minutes, seconds = (int(value or 0) for value in match.groups())
@@ -2740,7 +2743,8 @@ class AccessibleUI:
             account = (next(key for key, value in CHILD_IDENTITIES.items() if value == selected)
                        if child is None else child)
             require(account in (CHILD, EXISTING_CHILD) and type(enabled) is bool
-                    and (language in ('en', 'zh-Hans') if enabled else language is None),
+                    and (language in ('en', 'zh-Hans', 'he') if enabled else language is None)
+                    and (language != 'he' or account == CHILD),
                     'ui:language-state-binding')
             require(selected == CHILD_IDENTITIES[account], 'ui:wrong-child')
             self.activate_id('parent-page-screen-limits')
@@ -2749,7 +2753,7 @@ class AccessibleUI:
             labels = [node.get_name() for node in self.nodes(allowance, strict=True)
                       if node.get_role_name() == 'label' and self.showing(node)]
             require(len(labels) == 1 and type(labels[0]) is str and len(labels[0]) <= 80
-                    and (labels[0] == ('1 hour' if language == 'en' else '1 小时')
+                    and (labels[0] == {'en': '1 hour', 'zh-Hans': '1 小时', 'he': '1 שעה'}[language]
                          if enabled else re.fullmatch(r'0\D+', labels[0])),
                     'ui:language-allowance')
             management = self.parent_language_management()
@@ -5584,12 +5588,15 @@ class AccessibleUI:
         require(explanation.get_role_name() == 'label', 'ui:time-label')
         text = explanation.get_name()
         require(type(text) is str and len(text) <= 256, 'ui:time-label')
-        require(language in ('en', 'zh-Hans'), 'ui:time-language')
-        pattern = (r'Daily allowance remaining: ([^\n]+)\nOne-time grant remaining: ([^\n]+)\n'
-                   r'Remaining time: ([^\n]+) — the larger of the two amounts\.'
-                   if language == 'en' else
-                   r'每日可用时间剩余：([^\n]+)\n临时授权时间剩余：([^\n]+)\n'
-                   r'剩余可用时间：([^\n]+)，取两者中的较大值。')
+        require(language in ('en', 'zh-Hans', 'he'), 'ui:time-language')
+        pattern = {
+            'en': (r'Daily allowance remaining: ([^\n]+)\nOne-time grant remaining: ([^\n]+)\n'
+                   r'Remaining time: ([^\n]+) — the larger of the two amounts\.'),
+            'zh-Hans': (r'每日可用时间剩余：([^\n]+)\n临时授权时间剩余：([^\n]+)\n'
+                        r'剩余可用时间：([^\n]+)，取两者中的较大值。'),
+            'he': (r'יתרה מהמכסה היומית: ([^\n]+)\nיתרה מההקצאה החד־פעמית: ([^\n]+)\n'
+                   r'הזמן שנותר: ([^\n]+) — הגדול מבין שני הסכומים\.'),
+        }[language]
         match = re.fullmatch(pattern, text)
         require(match is not None, 'ui:time-label')
         return {'child': CHILD_IDENTITIES[child], 'expanded': True,

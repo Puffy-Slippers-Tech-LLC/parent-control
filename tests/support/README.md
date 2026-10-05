@@ -95,6 +95,15 @@ probes keep private node/recorder fixtures and waited Perl children; GTK coverag
 uses the existing private preview/display. Existing classifications apply.
 Follow the mandate's no-visual acceptance rule; logical text is no pixel verdict.
 
+Enabled Riley Hebrew policy observations reuse `parent_language_state`,
+language-aware `time_explanation` / `duration_projection` and the controller's
+complete enabled-state decoder. `ParentHebrewPolicyJourney` declares the fixed
+English capture and comparison endpoints through `language_composition.language_policy`.
+Chooser round trips share `onpc_parent::language_presentation_roundtrip` with
+the RTL qualification; callers retain their policy assertions. These add no
+resource or cleanup owner. Source-bound named inputs prepare both the new slice
+and its public-time regression without replacing valid inputs.
+
 Overlay About reads reuse `journey_blocks.overlay_license_read`,
 `onpc_about::overlay_license` and the shared `AccessibleUI.clickable_link` reader.
 The child-owned About scope and close proof precede normal Alt-F4; fresh absence

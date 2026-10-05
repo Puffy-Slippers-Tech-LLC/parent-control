@@ -158,6 +158,8 @@ GROUPS = (
 # owner, shared path, service or display; compatible UI classification stays.
 # Parent dialog language/draft navigation reuses those private previews and
 # events, with no external delivery or new resource/cleanup owner.
+# Enabled Hebrew allowance/balances reuse the same private Parent preview and
+# display; the finite return-to-English adds no owner or resource reservation.
 # builds its payload and Flatpak installation below its private pytest root;
 # both use the worker's private compositor, accessibility bus and runtime.
 # Keep pairing identities separate even when buckets have the same reservation.

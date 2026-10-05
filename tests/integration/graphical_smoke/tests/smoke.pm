@@ -397,6 +397,12 @@ sub run {
         onpc_parent::qualify_rtl(\&exchange);
         return;
     }
+    if ($ready->{parent_hebrew_policy}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent::qualify_hebrew_policy(\&exchange);
+        return;
+    }
     if ($ready->{parent_language_isolation}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -509,6 +509,49 @@ restoration, finalization and host/source preservation. Host validation passed
 unchanged. This qualifies only the stated enabled binding, not complete account/
 offline scenarios, Hebrew Parent policy readback or presentation/dialog matrices.
 
+#### Enabled Parent Hebrew policy qualification
+
+Task 307c qualified the fixed Riley enabled 60-minute Parent English → Hebrew →
+English history through `check_e2e_parent_hebrew_policy` on Ubuntu 26.04 in
+[run 20261005T192822Z-66af915e](../../output/test-runs/host/reports/20261005T192822Z-66af915e/report.md).
+Normal Parent controls establish one immutable English UID/account/application-name,
+complete application-policy and balance capture. Two independent public read
+entries per language prove closed chooser, translated management labels and
+accessible switch name, unchanged enabled control and saved allowance, zero
+grant, positive daily balance at most 3600 seconds and equal daily/total balances.
+Each later read is compared against that original capture within the declared
+600-second elapsed bound and two-second refresh/formatter tolerance. Hebrew
+compact duration text is decoded into numeric balances, not substituted for
+policy preservation.
+
+`parent-language-riley-enabled-he` and
+`AccessibleUI.parent_language_state(child=..., enabled=True, language='he')`
+add only the finite Riley/Hebrew enabled binding; English/Chinese bindings and
+the disabled-zero reader remain intact. `time_explanation` / `duration_projection`
+support the literal Hebrew public balance format. `language_composition.language_policy`
+owns immutable comparisons; `ParentHebrewPolicyJourney` / `HEBREW_POLICY_PLAN`
+in `parent_language.py` and `onpc_parent::qualify_hebrew_policy` own the finite
+qualification. Shared `onpc_parent::language_presentation_roundtrip` supplies
+checked-choice, Cancel focus/Tab/Save focus, Save/reopen/Cancel mechanics to both
+this qualification and the existing chooser qualification.
+
+Required regressions passed:
+[enabled English/Chinese policy isolation, 20261005T193305Z-d8d2ea5b](../../output/test-runs/host/reports/20261005T193305Z-d8d2ea5b/report.md),
+[Hebrew chooser, 20261005T192024Z-8e416119](../../output/test-runs/host/exports/onpc-artifact-export-0r5zxe3w/report.md), and
+[public time explanation, 20261005T192506Z-fb7e084e](../../output/test-runs/host/reports/20261005T192506Z-fb7e084e/report.md).
+All four runs passed collection, worker shutdown/callback closure, owned cleanup,
+baseline restoration, finalization and host/source preservation. The retained
+qualification and isolation runs replace passing runs whose reports expired;
+the chooser report and
+[detailed result](../../output/test-runs/host/exports/onpc-artifact-export-7ixcp2ex/category-001.log)
+were exported before execution retention rotated them. Required reports were
+verified retained after final host consistency validation. Scoped host
+unit/safety/source and
+[eight real GTK checks](../../output/test-runs/host/exports/onpc-artifact-export-n6308orq/report.md)
+passed, including Hebrew allowance/expanded numeric text and English/Chinese
+regressions. This capability supplies no visual, inherited-dialog, approval or
+complete-case acceptance credit.
+
 Task 306 completed E2E-054 `account-offline`, case 255, on Ubuntu 26.04 in
 `20261005T162608Z-4a7cb85e` (the report has since rotated under retention).
 All 26 assertions passed: Jamie/Chinese Parent, Jordan/German station and
@@ -563,7 +606,7 @@ geometry prohibition; this evidence supplies no pixel-rendering acceptance.
 
 Task 307b qualified Parent About/feedback through
 `check_e2e_parent_dialog_language` on Ubuntu 26.04 in
-[run 20261005T183953Z-3eaae8af](../../output/test-runs/host/reports/20261005T183953Z-3eaae8af/report.md).
+`20261005T183953Z-3eaae8af` (the report has since rotated under retention).
 The fixed English → Hebrew → English history observes two independent entries
 per dialog and language, translated public logical Text and accessible labels,
 unchanged product/license names, forward/backward Tab focus, owned closure and
@@ -584,10 +627,10 @@ This extends UI16, ABOUT01, FEED01/03 and FEED10(dialog) only for the stated
 Parent binding; it does not qualify translated Privacy or another frontend.
 
 All required regressions passed:
-[information links, 20261005T182127Z-060b67e7](../../output/test-runs/host/exports/onpc-artifact-export-o_cn_a27/report.md),
-[feedback read, 20261005T182410Z-ffae3fc4](../../output/test-runs/host/exports/onpc-artifact-export-le296ty4/report.md),
-[text replacement/clearing, 20261005T182625Z-db844a25](../../output/test-runs/host/exports/onpc-artifact-export-3em2rz8e/report.md), and
-[Privacy/draft preservation, 20261005T184729Z-e87250e4](../../output/test-runs/host/reports/20261005T184729Z-e87250e4/report.md).
+information links in `20261005T182127Z-060b67e7`, feedback read in
+`20261005T182410Z-ffae3fc4`, text replacement/clearing in
+`20261005T182625Z-db844a25`, and Privacy/draft preservation in
+`20261005T184729Z-e87250e4`. These report exports have since rotated under retention.
 All five runs passed collection, worker shutdown, owned cleanup, baseline
 restoration, finalization and host/source preservation. Host GTK history and
 scoped unit/safety/source checks passed. This capability supplies no complete-case credit.
@@ -599,17 +642,16 @@ for the remaining bindings:
 
 | Pending binding | Qualification task | Complete scenario |
 | --- | --- | --- |
-| Installed Hebrew logical text, labels and keyboard/focus observations | Parent chooser/dialogs qualified by 307a/307b; other surfaces require separate qualification | 307–310 |
+| Installed Hebrew logical text, labels and keyboard/focus observations | Parent chooser/dialogs and finite enabled policy qualified by 307a/307b/307c; other surfaces require separate qualification | 307–310 |
 | Hebrew overlay product approval/result with ordinary native Shell authentication | 308b | 308 |
 | Overlay form/About/real error report and same-draft language changes | 308a, after 187o's genuine public trigger | 308 |
 | Restricted kiosk form/About/real report and same-draft language changes | 309a, after 187k's genuine public trigger | 309 |
 | Panel/tooltip/menu language refresh after overlay changes and session resume | 310a, after existing tooltip/menu and retained-session qualifications | 310 countdown/natural expiry |
 
-Parent enabled-state readback is qualified for English and Chinese only.
-Task [307c](E2E-Tasks/307c-parent-hebrew-policy.md) owns the missing Riley/Hebrew
-60-minute policy and public-balance binding before complete Parent task 307;
-the current reader and duration parser reject Hebrew. This pending capability
-supplies no product-failure or live-acceptance evidence.
+Parent enabled-state readback is qualified for English/Chinese and the finite
+Riley/Hebrew 60-minute binding above. Complete Parent task 307 must compose its
+own policy and inherited-dialog comparisons; prerequisite qualification supplies
+no complete-case credit.
 Feedback entry/readers include the stated Parent English/Hebrew binding; shared IDs do not establish translated child/station
 routes. Follow the [no-visual presentation acceptance rule](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results);
 host GTK direction checks remain engineering coverage. Missing public text/focus or same-draft report

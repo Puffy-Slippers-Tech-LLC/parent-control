@@ -300,8 +300,9 @@ def assert_no_policy_or_request_writes(path, *, expected_results=0):
         'RequestOwnAccess', 'RequestAccess', 'UpdateRequestPreferences', 'SetRequestMuted')]
 
 
+@pytest.mark.parametrize('selected_language', ['zh-Hans', 'he'])
 def test_enabled_parent_language_reader_keeps_real_gtk_names_and_numeric_balances(
-        launch_ui, automation, wait_for_accessible_state, tmp_path):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, selected_language):
     from tests.e2e.accessible_ui import CHILD, EXISTING_CHILD
     from tests.support.keyboard import key_combo
     ui, wait = automation, wait_for_accessible_state
@@ -312,7 +313,7 @@ def test_enabled_parent_language_reader_keeps_real_gtk_names_and_numeric_balance
     reader.allowance_preset(CHILD, 60, action='select')
     original = reader.parent_language_state(child=CHILD, enabled=True, language='en')
     reader.open_language_preferences('parent')
-    reader.choose_language('parent', 'zh-Hans')
+    reader.choose_language('parent', selected_language)
     reader.save_language('parent')
     for account, uid, name in ((EXISTING_CHILD, 1002, 'jordan'), (CHILD, 1001, 'riley')):
         reader.open_child_picker(account)
@@ -320,9 +321,14 @@ def test_enabled_parent_language_reader_keeps_real_gtk_names_and_numeric_balance
         key_combo(ui, f'parent-child-choice-{uid}', 'Return', state=ui.api.StateType.FOCUSED)
         assert reader.run(f'parent-language-{name}-selected', '')['child_selection'] == {
             'child': 'fixture-child' if account == CHILD else 'existing-fixture-child'}
-    translated = reader.parent_language_state(child=CHILD, enabled=True, language='zh-Hans')
-    assert translated['management'] == '限制屏幕时间'
-    assert {'限制屏幕时间', '每日可用时间', '今日剩余时间'} <= set(translated['management_labels'])
+    translated = reader.parent_language_state(child=CHILD, enabled=True, language=selected_language)
+    expected = {'zh-Hans': ('限制屏幕时间', {'限制屏幕时间', '每日可用时间', '今日剩余时间'}),
+                'he': ('מגבלת זמן מסך', {'מגבלת זמן מסך', 'מכסת זמן יומית', 'הזמן שנותר היום'})}[selected_language]
+    assert translated['management'] == expected[0]
+    assert expected[1] <= set(translated['management_labels'])
+    if selected_language == 'he':
+        assert [translated['balances'][key]['text'] for key in ('daily', 'one_time', 'total')] == [
+            '47דק׳', '15דק׳', '47דק׳']
     for key in ('child', 'account_name', 'limit_enabled', 'allowance_minutes', 'rows', 'app_names'):
         assert translated[key] == original[key]
     assert translated['account_name'] == CHILD and translated['allowance_minutes'] == 60
@@ -330,6 +336,12 @@ def test_enabled_parent_language_reader_keeps_real_gtk_names_and_numeric_balance
     for value in (original, translated):
         assert [value['balances'][key]['seconds'] for key in ('daily', 'one_time', 'total')] == [2820, 900, 2820]
         assert value['chooser_absent'] is True
+    reader.open_language_preferences('parent')
+    reader.choose_language('parent', 'en')
+    reader.save_language('parent')
+    restored = reader.parent_language_state(child=CHILD, enabled=True, language='en')
+    for key in ('child', 'account_name', 'limit_enabled', 'allowance_minutes', 'rows', 'app_names'):
+        assert restored[key] == original[key]
     writes = [event for event in read_events(path) if event['event'] == 'set_parent_control']
     assert len(writes) == 1 and writes[0]['daily_limit_minutes'] == 60
 

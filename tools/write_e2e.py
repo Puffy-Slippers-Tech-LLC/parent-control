@@ -111,6 +111,46 @@ def select_task_state(task, state):
     return selected
 
 
+def resume_after_exclusion(root, state, previous):
+    """Restore a suspended consumer after explicit removal of its prerequisites."""
+    current, after = queue_state(root)
+    task = state['task_id']
+    if task in after or current not in state.get('suspended_tasks', {}):
+        return None
+    before = state.get('queue_before', {})
+    text = (root / QUEUE).read_text().split('## Ordered task queue', 1)[0]
+    declarations = re.findall(
+        r'^Excluded tasks: \*\*(\d{3}[a-z]*(?:, \d{3}[a-z]*)*)\*\*', text, re.M)
+    excluded = {item for declaration in declarations for item in declaration.split(', ')}
+    removed = set(before) - set(after)
+    retained = {key: done for key, done in before.items() if key in after}
+    consumer = state['suspended_tasks'][current]
+    if (not removed or task not in removed or not removed <= excluded
+            or not excluded.isdisjoint(after)
+            or any(before[key] for key in removed)
+            or retained != after or list(retained) != list(after)
+            or state.get('pending_completion') or state.get('optimization_session')
+            or state.get('completion_recovery') or state.get('closeout_recovery_run')
+            or state.get('phase') == 'complete'
+            or consumer.get('pending_completion') or consumer.get('optimization_session')
+            or consumer.get('completion_recovery') or consumer.get('closeout_recovery_run')
+            or consumer.get('task_id') != current):
+        return None
+    selected = select_task_state(current, state)
+    selected.update(phase='recover', in_flight=False, recovery_run=str(previous),
+                    summary=f'Resume task {current} after explicit prerequisite exclusion; '
+                            'acceptance and owned cleanup still require verification.',
+                    handoff=f'Resume task {current} from its current brief and scope. '
+                            f'Tasks {", ".join(sorted(removed))} were explicitly excluded '
+                            'by the developer; do not recreate or qualify them. '
+                            'Their earlier handoffs and target requirements are superseded. '
+                            f'Inspect retained results and owned cleanup in `{previous}` '
+                            'before any new live work. Preserve existing code, evidence '
+                            'and unrelated work. No task completion or acceptance is implied.')
+    selected.pop('completion_recovery', None)
+    return selected
+
+
 def defer_to_prerequisite(root, state, *, recovery_run=None):
     current, _ = queue_state(root)
     pending = dict(state.get('suspended_tasks', {}))
@@ -1117,6 +1157,11 @@ def initial_state(root, directory, *, destination=None, defer_closeout=False):
         # Progress keys name frames in one launcher, unlike cumulative task sessions.
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             saved.pop('progress_keys', None)
+        resumed = resume_after_exclusion(root, state, previous)
+        if resumed is not None:
+            used = resumed.get('task_sessions', 0)
+            return dict(resumed, total_sessions=used,
+                        task_session_limit=used + MAX_TASK_SESSIONS)
         if defer_closeout and (state.get('closeout_recovery_run') or state.get('pending_completion')
                 or (state.get('in_flight') and queue_state(root)[1].get(state['task_id']))):
             state.setdefault('closeout_recovery_run', str(previous))

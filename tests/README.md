@@ -719,6 +719,15 @@ checkpoint, preserving its evidence and requiring cleanup verification first;
 unrelated queue changes still refuse. No checkpoint deletion or manual editing
 is needed.
 
+An authorized scope exclusion is recorded as `Excluded tasks: **ID, ID**` in
+the canonical queue. On restart, an interrupted excluded prerequisite can
+return to its saved suspended consumer only when every removed row is explicitly
+excluded and unchecked, all remaining rows retain their order/status, and the
+consumer is the first unchecked task. Pending completion and optimization are
+never bypassed. The launcher preserves session/model history, staging ownership
+and retained evidence, and requires cleanup verification in recovery. Exclusion
+earns no acceptance credit; current briefs supersede excluded-task handoffs.
+
 Each session is a new `exec --ephemeral` process with history and memories
 disabled. Only the latest standalone handoff crosses sessions. Existing CLI
 authentication, sandbox and command grants apply; missing grants or unresolved

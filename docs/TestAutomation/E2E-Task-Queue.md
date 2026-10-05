@@ -24,6 +24,13 @@ executable or acceptance credit. Their native double-click dependency cannot
 be supplied without prohibited geometry; UI20 and REQUEST10 are unschedulable.
 Independent local duration validation remains with the UI coverage owner.
 
+Excluded tasks: **300l, 300m, 300n** (Fedora-specific Chinese qualification).
+The developer removed these prerequisites from scheduling on 2026-10-04.
+They are neither completed nor deferred; do not recreate their rows, briefs or
+dependencies. Task 300 resumes on Ubuntu 26.04. Preserve Fedora-specific code
+and retained preparation/failure evidence; this exclusion supplies no Fedora
+qualification or complete-case acceptance.
+
 ## Ordered task queue
 
 Requires lists **task IDs**, not block IDs; prerequisites apply transitively.

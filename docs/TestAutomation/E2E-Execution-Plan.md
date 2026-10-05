@@ -28,6 +28,10 @@ catalogue. Task 300 remains unchecked, with acceptance scoped to Ubuntu 26.04.
 The developer removed the Fedora-specific language prerequisites on 2026-10-04;
 their unqualified bindings no longer block this case. Complete-case registration
 and acceptance remain pending. This queue repair records no VM attempt or acceptance.
+The queue's explicit excluded-task declaration also reconciles interrupted
+`write-e2e` checkpoints on 300l–300n back to suspended task 300 on restart.
+Preserve retained results and verify owned cleanup before new live work; the
+removed prerequisite's old handoff cannot restore Fedora acceptance requirements.
 
 Task 300 was too broad: it combined independent customer histories and several
 unqualified surface/result bindings. The

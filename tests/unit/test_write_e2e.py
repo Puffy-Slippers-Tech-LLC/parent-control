@@ -719,6 +719,88 @@ def test_restart_still_refuses_unrelated_interrupted_queue_change(tmp_path, monk
         workflow.initial_state(tmp_path, tmp_path)
 
 
+@pytest.mark.parametrize('phase', ['implement', 'blocked'])
+def test_restart_restores_suspended_consumer_after_authorized_exclusion(tmp_path, monkeypatch, phase):
+    prepare(tmp_path)
+    previous = tmp_path / 'previous-run'
+    previous.mkdir()
+    consumer = dict(workflow.fresh_state('001'), task_sessions=9, live_attempts=2,
+                    failed_attempts=2, model_tier=1, stage_candidates=['consumer.py'],
+                    stage_baseline={'unrelated.py': 'unchanged'}, protected_staged=['unrelated.py'])
+    state = dict(workflow.fresh_state('000a'), phase=phase, in_flight=True,
+                 task_sessions=1, queue_before={'000a': False, '000b': False,
+                                                '001': False, '002': False},
+                 suspended_tasks={'001': consumer},
+                 optimization={'pending': ['earlier'], 'last_checkpoint': None})
+    (previous / 'checkpoint.json').write_text(json.dumps(state))
+    original = (previous / 'checkpoint.json').read_bytes()
+    queue = tmp_path / workflow.QUEUE
+    queue.write_text('Excluded tasks: **000a, 000b**\n' + queue.read_text())
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _directory: previous)
+    monkeypatch.setattr(workflow, 'recover_completion', lambda *args, **kwargs:
+                        pytest.fail('Exclusion cannot stage or commit acceptance.'))
+    selected = workflow.initial_state(tmp_path, tmp_path)
+    assert selected['task_id'] == '001' and selected['phase'] == 'recover'
+    assert selected['task_sessions'] == selected['total_sessions'] == 9
+    assert selected['task_session_limit'] == 14
+    assert selected['live_attempts'] == selected['failed_attempts'] == 2
+    assert workflow.session_model(selected) == ('gpt-6-astra', 'high')
+    assert selected['stage_candidates'] == ['consumer.py']
+    assert selected['stage_baseline'] == {'unrelated.py': 'unchanged'}
+    assert selected['protected_staged'] == ['unrelated.py']
+    assert selected['optimization'] == state['optimization']
+    assert not selected['in_flight'] and 'suspended_tasks' not in selected
+    assert 'explicitly excluded' in selected['handoff']
+    assert 'owned cleanup' in selected['handoff'] and str(previous) in selected['handoff']
+    assert workflow.queue_state(tmp_path)[0] == '001'
+    assert (previous / 'checkpoint.json').read_bytes() == original
+
+
+@pytest.mark.parametrize('fault', ['undeclared', 'partial-declaration', 'checked-removed',
+                                  'checked-retained', 'reordered', 'added', 'missing-consumer',
+                                  'wrong-consumer', 'pending-completion', 'optimization',
+                                  'completion-recovery', 'closeout-recovery', 'complete',
+                                  'consumer-completion', 'consumer-optimization',
+                                  'consumer-recovery', 'consumer-closeout', 'still-queued'])
+def test_exclusion_recovery_refuses_unrelated_changes_or_closeout_bypass(tmp_path, fault):
+    prepare(tmp_path)
+    state = dict(workflow.fresh_state('000a'), in_flight=True,
+                 queue_before={'000a': False, '000b': False, '001': False, '002': False},
+                 suspended_tasks={'001': workflow.fresh_state('001')})
+    queue = tmp_path / workflow.QUEUE
+    queue.write_text('Excluded tasks: **000a, 000b**\n' + queue.read_text())
+    if fault in ('undeclared', 'partial-declaration'):
+        queue.write_text(queue.read_text().replace(
+            'Excluded tasks: **000a, 000b**', '' if fault == 'undeclared' else 'Excluded tasks: **000a**'))
+    elif fault == 'checked-removed':
+        state['queue_before']['000b'] = True
+    elif fault == 'checked-retained':
+        state['queue_before']['002'] = True
+    elif fault == 'reordered':
+        state['queue_before'] = {'000a': False, '000b': False, '002': False, '001': False}
+    elif fault == 'added':
+        state['queue_before'].pop('002')
+    elif fault == 'missing-consumer':
+        state['suspended_tasks'] = {}
+    elif fault == 'wrong-consumer':
+        state['suspended_tasks']['001']['task_id'] = '002'
+    elif fault == 'complete':
+        state['phase'] = 'complete'
+    elif fault == 'still-queued':
+        queue.write_text(queue.read_text().replace('**000a, 000b**', '**000a, 000b, 002**'))
+    elif fault.startswith('consumer-'):
+        state['suspended_tasks']['001'][{
+            'consumer-completion': 'pending_completion',
+            'consumer-optimization': 'optimization_session',
+            'consumer-recovery': 'completion_recovery',
+            'consumer-closeout': 'closeout_recovery_run'}[fault]] = True
+    else:
+        state[{'pending-completion': 'pending_completion', 'optimization': 'optimization_session',
+               'completion-recovery': 'completion_recovery',
+               'closeout-recovery': 'closeout_recovery_run'}[fault]] = True
+    assert workflow.resume_after_exclusion(tmp_path, state, tmp_path / 'previous-run') is None
+
+
 def test_multiple_inserted_prerequisites_keep_consumer_across_launcher_boundaries(tmp_path, monkeypatch):
     prepare(tmp_path)
     _, before = workflow.queue_state(tmp_path)

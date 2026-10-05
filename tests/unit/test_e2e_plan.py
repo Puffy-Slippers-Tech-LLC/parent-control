@@ -190,6 +190,17 @@ def test_unsupported_native_gestures_remain_explicitly_uncovered_and_unscheduled
         assert 'UI-Automation-Mandate.MD#unsupported-native-gestures' in variant['pending_reason']
 
 
+def test_excluded_fedora_prerequisites_cannot_reenter_the_queue(rows):
+    queue = (DOCS / 'E2E-Task-Queue.md').read_text()
+    excluded = {'300l', '300m', '300n'}
+    declarations = re.findall(r'^Excluded tasks: \*\*([^*]+)\*\*', queue, re.M)
+    assert any(set(value.split(', ')) == excluded for value in declarations)
+    assert excluded.isdisjoint(row['id'] for row in rows)
+    assert all(excluded.isdisjoint(row['requires']) for row in rows)
+    assert not any(path.name.startswith(tuple(f'{task}-' for task in excluded))
+                   for path in (DOCS / 'E2E-Tasks').glob('*.md'))
+
+
 def test_scenario_brief_bindings_match_inventory(rows, variants, briefs):
     errors = []
     for row in rows:

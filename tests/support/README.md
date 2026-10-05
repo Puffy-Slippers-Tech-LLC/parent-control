@@ -293,6 +293,24 @@ every pipeline remains bounded to 64 RPCs.
 
 ## Extend without hiding the scenario
 
+Personal-language histories use
+[`language_composition.language_journey`](../e2e/language_composition.py) with
+caller-declared checks. Use `public_language_value` for complete literal chooser
+and request-form comparisons, and `language_policy` for named immutable policy
+captures and later comparisons. Recipes supply the expected labels, excluded
+labels, account values, capture endpoints and elapsed-time budget; the shared
+check preserves zero-grant and naturally decreasing daily-balance assertions.
+Keep those values in the consumer instead of copying a comparison subclass.
+
+`offline_language_actions` reuses the lease's existing Internet isolation and
+recovery owner. Bind its stages to public installed-policy observations before
+the action. An installed-snapshot history has no transferred installer, so its
+connectivity checkpoint must not require a package-command context. The
+[language-history regressions](../unit/test_language_persistence_cleanup_safety.py)
+exercise the real recorder boundary, require refusal before connectivity input
+when policy observation fails, and check independent recovery. These helpers
+add no storage, process or cleanup owner.
+
 Continuous package histories use `package_lifecycle.record_lifecycle_journey`
 with caller-declared operations, actions and comparison endpoints. Its shared
 journey composes the existing package/transfer/recorder envelope and runs public

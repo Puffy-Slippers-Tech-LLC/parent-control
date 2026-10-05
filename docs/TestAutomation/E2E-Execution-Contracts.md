@@ -333,14 +333,17 @@ Run the maintained host consistency check after queue, pointer, brief or invento
 changes, including ordinary close-out:
 
 ```sh
-tools/run-tests unit 'tests/unit/test_e2e_plan.py' 'tests/unit/test_e2e_inventory.py' 'tests/unit/test_coverage_generation.py'
+tools/run-tests unit 'tests/unit/test_e2e_plan.py' 'tests/unit/test_e2e_inventory.py' 'tests/unit/test_coverage_generation.py' 'tests/unit/test_e2e_case_composition.py'
 ```
 
 It checks the pointer, task/brief dependencies, exact scenario bindings, acceptance
 branches and recipe links, one case per scenario task,
 queued case titles and parameters, first-consumer hints, session sizing/exception
 metadata and capability-before-consumer
-order. It does not qualify UI
+order, plus declaration/worker composition for every ready binding. Lifecycle
+recorders must declare their command operations and comparison callbacks through
+shared APIs too; registration must not leave an existing composition failure for
+a later audit. It does not qualify UI
 adapters or establish a live pass.
 
 If only coverage/status close-out remains, finish it without

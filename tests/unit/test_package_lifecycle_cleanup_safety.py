@@ -15,6 +15,8 @@ from private_artifacts import EvidenceError
 from tests.support.desktop_session import RUN_PROBE, props
 from tests.support.package_command import boundary, DIGEST
 from tests.support.perl import run_perl
+from tests.support.e2e_evidence import attempt
+from tests.support.e2e_recording import session
 
 
 @pytest.fixture(autouse=True)
@@ -35,7 +37,9 @@ def journey(monkeypatch):
     monkeypatch.setattr(lifecycle, 'AssetTransfer', Mock(return_value=transfer))
     context = SimpleNamespace(installed_snapshot=None, verified=SimpleNamespace(upgrade_inputs=None),
                               lease=Mock(), guestfs=Mock())
-    current = case.RemovalJourney(context, Mock())
+    from native_fixtures import fixture_actions
+    current = lifecycle.PackageLifecycleJourney(context, Mock(), case.PLAN,
+        operations=case.OPERATIONS, checks=case.CHECKS, actions=fixture_actions(include_refusal=False))
     transfer.provision.assert_called_once_with(context.lease, context.guestfs)
     return current
 
@@ -130,8 +134,9 @@ def test_retained_and_fresh_assertions_use_independent_customer_expectations(mon
 @pytest.mark.parametrize('fault', ['', 'remove-result', 'retained-policy', 'blocked-after-reinstall',
                                   'purge-result', 'fresh-request', 'fresh-returned'])
 def test_actual_continuous_worker_consumes_all_unique_stages_and_stops_on_failure(fault):
-    source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_package_removal;')
-    source = source.replace('onpc_desktop_session::run', 'onpc_package_removal::run')
+    source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_lifecycle;')
+    source = source.replace('onpc_desktop_session::run', 'onpc_lifecycle::run_removal')
+    source = source.replace('sub record_info { }', "sub record_info { push @main::events, ['title', $_[0]]; }")
     declarations = json.dumps(list(case.PLAN.invocations))
     challenges = json.dumps({name: list(binding) for name, binding in case.PLAN.challenges.items()})
     source = source.replace('}, $action);', '}, decode_json(q{' + declarations + '}), decode_json(q{' + challenges + '}));')
@@ -151,10 +156,209 @@ def test_actual_continuous_worker_consumes_all_unique_stages_and_stops_on_failur
     expected = list(case.PLAN.screen_tags)
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
     assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
+    titles = [event[1] for event in result['events'] if event[0] == 'title' and event[1] != 'shutdown']
+    assert titles == [case.PLAN.prefix + '-' + stage for stage in stages]
     if not fault:
         assert result['events'].count(['secret']) == 1 + len(case.PLAN.challenges) + 1
-        assert result['events'][-1] == ['power', 'off']
+        assert [event for event in result['events'] if event[0] != 'title'][-1] == ['power', 'off']
     assert not any(event[0] in ('pointer', 'click') for event in result['events'])
+
+
+@pytest.mark.parametrize('fault', ['', 'missing-baseline', 'policy', 'rows', 'grant', 'choices', 'replay'])
+def test_shared_checks_accept_renamed_endpoints_and_freeze_independent_values(monkeypatch, fault):
+    from journey_checks import policy_projection, request_choices
+    current = journey(monkeypatch)
+    settings = {'child': 'independent-child', 'limit_enabled': True, 'allowance': ['9 minutes']}
+    choices = {'child': 'independent-child', 'approver': 'independent-parent',
+               'duration_seconds': 90, 'custom_text': '1.5', 'allow_soft': False}
+    current.checks = {
+        'source-policy': policy_projection(settings, row=('independent-app', 'permanent'), capture='independent-policy'),
+        'source-request': request_choices(choices, capture='independent-request'),
+        'later-policy': policy_projection(settings, row=('independent-app', 'permanent'),
+                                         same='independent-policy', grant='zero'),
+        'later-request': request_choices(choices, same='independent-request'),
+    }
+    policy = {'settings': deepcopy(settings), 'rows': [['independent-app', 'permanent', 'precise']],
+              'balances': {'daily': 540, 'one_time': 0, 'total': 540}}
+    request = {'ui': {'valid_choice': {'request': {**choices, 'surface': 'child-overlay'}}}}
+    if fault != 'missing-baseline':
+        current.check_settings('source-policy', {'ui': {'language_policy': policy}})
+        current.check_settings('source-request', request)
+        policy['settings']['allowance'] = ['changed after capture']
+        request['ui']['valid_choice']['request']['approver'] = 'changed after capture'
+    later = {'settings': deepcopy(settings), 'rows': [['independent-app', 'permanent', 'precise']],
+             'balances': {'daily': 501, 'one_time': 0, 'total': 501}}
+    request = {'ui': {'valid_choice': {'request': {**choices, 'surface': 'kiosk'}}}}
+    if fault == 'policy': later['settings']['limit_enabled'] = False
+    if fault == 'rows': later['rows'][0][1] = 'allowed'
+    if fault == 'grant': later['balances']['one_time'] = 90
+    if fault == 'choices': request['ui']['valid_choice']['request']['duration_seconds'] = 1800
+    if fault == 'replay':
+        current.check_settings('later-policy', {'ui': {'language_policy': later}})
+    if fault:
+        with pytest.raises(EvidenceError):
+            current.check_settings('later-request' if fault == 'choices' else 'later-policy',
+                request if fault == 'choices' else {'ui': {'language_policy': later}})
+    else:
+        current.check_settings('later-policy', {'ui': {'language_policy': later}})
+        current.check_settings('later-request', request)
+
+
+@pytest.mark.parametrize('fault', ['', 'renamed-child-picker-opened', 'renamed-child-choice-highlighted',
+                                  'renamed-parent-selected', 'independent-text-focus', 'independent-text-read',
+                                  'independent-saved', 'invalid-prefix', 'invalid-value'])
+def test_shared_management_and_allowance_accept_independent_prefixes_and_stop_input(fault):
+    source = RUN_PROBE[:RUN_PROBE.index('require onpc_desktop_session;')] + r'''
+require onpc_journey;
+require onpc_parent;
+require onpc_allowance_boundaries;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, ['stage', $_[0]];
+    die 'fixed refusal' if $_[0] eq $action;
+    return {observed => $_[0], ui_focused => 1};
+});
+my $ok = eval {
+    onpc_parent::named_management($journey, $action eq 'invalid-prefix' ? '../unsafe' : 'renamed', 'child');
+    onpc_allowance_boundaries::custom_value($journey, 'independent', $action eq 'invalid-value' ? 99999 : 5);
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+'''
+    result = json.loads(run_perl(source, fault).stdout)
+    expected = [['stage', 'renamed-parent-command'], ['stage', 'renamed-parent-window'],
+                ['stage', 'renamed-child-picker-opened'], ['stage', 'renamed-child-choice-highlighted'],
+                ['key', 'ret'], ['stage', 'renamed-parent-selected'], ['stage', 'independent-open'],
+                ['stage', 'independent-text-focus'], ['key', 'ctrl-a'],
+                ['stage', 'independent-text-selected'], ['text', '5'],
+                ['stage', 'independent-text-read'], ['stage', 'independent-saved']]
+    assert bool(result['ok']) == (not fault), result
+    if fault == 'invalid-prefix': expected = []
+    elif fault == 'invalid-value': expected = expected[:6]
+    elif fault: expected = expected[:expected.index(['stage', fault]) + 1]
+    assert result['events'] == expected
+
+
+def test_shared_scope_preserves_input_callback_and_independent_consumption():
+    source = RUN_PROBE[:RUN_PROBE.index('require onpc_desktop_session;')] + r'''
+require onpc_journey;
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, ['stage', $_[0]];
+    die 'scope:transport' unless @_ == 3 && !defined($_[1]) && ref($_[2]) eq 'CODE';
+    $_[2]->();
+    return {observed => $_[0]};
+});
+my $section = $journey->scope('renamed');
+my $reply = $section->seen('input', sub { push @events, ['single-input']; });
+$section->consume_observation('input', $reply);
+my $replay = eval { $section->consume_observation('input', $reply); 1; };
+print encode_json({prefix => $section->{prefix}, replay => $replay ? 1 : 0, events => \@events});
+'''
+    result = json.loads(run_perl(source, '').stdout)
+    assert result == {'prefix': 'independent-renamed', 'replay': 0,
+                      'events': [['stage', 'renamed-input'], ['single-input']]}
+
+
+@pytest.mark.parametrize('role', ['parent', 'child'])
+@pytest.mark.parametrize('fault', ['', 'role', 'prefix', 'focused', 'recipient', 'rechecked', 'desktop'])
+def test_shared_named_login_binds_role_and_fresh_challenge_before_secret(role, fault):
+    from journey_blocks import fresh_desktop, prefixed_stages
+    stages = list(prefixed_stages('independent', fresh_desktop(role)))
+    first, second = stages[2:4]
+    fail_at = {'focused': stages[1], 'recipient': first, 'rechecked': second, 'desktop': stages[-1]}.get(fault, '')
+    source = RUN_PROBE[:RUN_PROBE.index('require onpc_desktop_session;')] + r'''
+require onpc_journey;
+require onpc_gdm;
+my $replies = decode_json(q{REPLIES});
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, ['stage', $_[0]];
+    die 'fixed refusal' if $_[0] eq q{FAIL};
+    return $replies->{$_[0]};
+});
+$journey->declare_invocations(decode_json(q{STAGES}));
+$journey->declare_challenges(decode_json(q{CHALLENGES}));
+my $ok = eval { onpc_gdm::named_login($journey, q{PREFIX}, q{ROLE}); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+'''
+    replies = {stage: {'observed': stage, 'ui_focused': True} for stage in stages}
+    for stage, check in ((first, 'qualified'), (second, 'rechecked')):
+        replies[stage] = {'observed': stage, 'challenge': {
+            'id': 'independent', 'role': role, 'surface': 'gdm', 'check': check}}
+    source = (source.replace('REPLIES', json.dumps(replies)).replace('FAIL', fail_at)
+        .replace('STAGES', json.dumps(stages)).replace('CHALLENGES', json.dumps({'independent': [role, first, second]}))
+        .replace('PREFIX', '../unsafe' if fault == 'prefix' else 'independent')
+        .replace('ROLE', ('child' if role == 'parent' else 'parent') if fault == 'role' else role))
+    result = json.loads(run_perl(source, fault).stdout)
+    assert bool(result['ok']) == (not fault), result
+    observed = [event[1] for event in result['events'] if event[0] == 'stage']
+    assert observed == ([] if fault in ('prefix', 'role') else
+                        stages[:stages.index(fail_at) + 1] if fail_at else stages)
+    assert result['events'].count(['secret']) == (1 if fault in ('', 'desktop') else 0)
+
+
+@pytest.mark.parametrize('fault', ['', 'meaning', 'durability'])
+def test_lifecycle_recorder_constructs_shared_journey_and_checks_before_reply(session, tmp_path, monkeypatch, fault):
+    from installed_journey import JourneyPlan
+    from journey_checks import access_choice
+    import session_control
+    expected = session.payload['assertions'][0]
+    tags = {'entry-start': 'system:parent-command-context', 'entry-one': 'system:parent-command-context',
+            'entry-two': 'system:parent-command-context',
+            **{stage: 'system:parent-command-context' for submitted, _, result in case.OPERATIONS
+               for stage in (submitted, result)}, 'public-row': 'ui:access-row'}
+    plan = JourneyPlan(prefix='independent-lifecycle', worker_mode='package_removal', screen_tags=tags,
+        phases={'ready': 'setup', 'setup-detached': 'setup', **{stage: expected['step_id'] for stage in tags},
+                'entry-start': 'start', 'entry-one': 'step-1', 'entry-two': 'step-2'},
+        stage_actions={submitted: 'package-' + binding for submitted, binding, _ in case.OPERATIONS},
+        assertions_after={'public-row': expected['assertion_id']})
+    context = SimpleNamespace(directory=tmp_path / 'journey', installed_snapshot=None,
+        verified=SimpleNamespace(inputs={}, upgrade_inputs=None), credentials=Mock(), lease=Mock(),
+        guestfs=Mock(), commands=Mock())
+    context.directory.mkdir()
+    monkeypatch.setattr(lifecycle, 'AssetTransfer', Mock())
+    monkeypatch.setattr(session_control, 'observe', Mock(return_value={'outcome': 'passed'}))
+    monkeypatch.setattr(lifecycle.PackageLifecycleJourney, 'validate', lambda _: [])
+    recorder = session.recorder
+    recorder.begin_case('E2E-001/gdm-observation')
+    real_save = session.collector.save_report
+    def save(name, report):
+        if fault == 'durability' and report.get('event') == 'observation' and report.get('active_step') == expected['step_id']:
+            raise OSError('storage failed')
+        return real_save(name, report)
+    monkeypatch.setattr(session.collector, 'save_report', save)
+    checks = {'public-row': access_choice('independent-app', 'permanent')}
+    def worker(**options):
+        current = options['guarded_observe'].__self__
+        assert type(current) is lifecycle.PackageLifecycleJourney and current.plan is plan
+        assert current.operations == case.OPERATIONS and current.checks == checks
+        current.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
+        current.boot = 'a' * 64
+        current.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': current.boot}))
+        current.transport = Mock()
+        current.ui = SimpleNamespace(boot_proof=current.boot, observe=Mock(return_value={
+            'outcome': 'passed', 'access': {'app': 'independent-app',
+            'choice': 'allowed' if fault == 'meaning' else 'permanent'}}))
+        for stage in ('entry-start', 'entry-one', 'entry-two', 'public-row'):
+            # This isolates recorder construction and check ordering; command
+            # execution/order have their independent complete-worker tests above.
+            if stage == 'public-row':
+                current.steps = [{'stage': item} for item in plan.stages[:-1]]
+            (context.directory / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+            options['guarded_observe'](Mock())
+            assert (context.directory / (stage + '.reply.json')).exists()
+        for assertion in session.payload['assertions'][1:]:
+            ref = recorder.artifact('synthetic-' + assertion['assertion_id'],
+                {'visible': 'screen', 'backend': 'backend', 'other_user': 'other-user'}[assertion['kind']],
+                b'explicit synthetic result', reviewed=True)
+            recorder.assertion(assertion['assertion_id'], artifact_ids=[ref])
+        return dict(outcome='passed', shutdown_verified=True, worker_stopped=True, callback_closed=True)
+    context.run_worker = worker
+    if fault:
+        with pytest.raises((EvidenceError, OSError)):
+            lifecycle.record_lifecycle_journey(recorder, context, plan, operations=case.OPERATIONS, checks=checks)
+        assert not (context.directory / 'public-row.reply.json').exists()
+    else:
+        lifecycle.record_lifecycle_journey(recorder, context, plan, operations=case.OPERATIONS, checks=checks)
+    assert recorder._active is None
 
 
 @pytest.mark.parametrize('missing', range(1, 4))

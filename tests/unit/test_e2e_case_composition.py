@@ -16,7 +16,8 @@ from tests.support.paths import ROOT
 from tests.support.e2e_composition import APIS, CASE_MODULES, READY, composition_errors
 
 
-RECORDERS = ('record_installed_journey', 'record_package_journey', 'record_serial_journey')
+RECORDERS = ('record_installed_journey', 'record_package_journey', 'record_serial_journey',
+             'record_lifecycle_journey')
 # Review callable references as well as direct calls: passing an unreviewed
 # class/action to a recorder must not hide case mechanics behind an import.
 WORKER_APIS = {
@@ -31,24 +32,25 @@ WORKER_APIS = {
     'onpc_harness': {'select_console'},
     'onpc_serial': {'attempt', 'login', 'command', 'logout', 'return_graphics'},
     'onpc_gdm': {'select_prompt', 'dismiss_product_free_prompt', 'reattach_functional',
-                 'sign_in_challenge', 'enter_station', 'return_from_time_denial'},
+                 'sign_in_challenge', 'named_login', 'enter_station', 'return_from_time_denial'},
     'onpc_parent': {'login_functional', 'login_standard_functional', 'enter_desktop',
                     'sign_in', 'launch', 'select_child', 'open_for_child',
                     'open_from_app_grid', 'search_whole_query', 'launch_search_result',
-                    'open_search', 'focus_search', 'enter_search_query', 'set_allowance', 'language_selection'},
+                    'open_search', 'focus_search', 'enter_search_query', 'set_allowance', 'language_selection',
+                    'named_management'},
     'onpc_request_exit': {'enter_station', 'escape'},
     'onpc_desktop_session': {'switch_user'},
     'onpc_window': {'close'},
     'onpc_about': {'open_about', 'read_help', 'open_from_help', 'open_license',
                    'check_link', 'return_to_parent', 'overlay_license'},
     'onpc_documentation': {'read'},
-    'onpc_request_flow': {'prepare', 'reject', 'approve', 'overlay_entry', 'daily_station_entry', 'shell_cancel', 'shell_approve'},
+    'onpc_request_flow': {'prepare', 'reject', 'approve', 'obtain_time', 'overlay_entry', 'daily_station_entry', 'shell_cancel', 'shell_approve'},
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
     'onpc_customer_reboot': {'chinese_desktop_renewal', 'chinese_initial_notice', 'chinese_initial_form'},
     'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy', 'review_parent_report',
                               'close_parent_report'},
-    'onpc_allowance_boundaries': {'exercise', 'reload_child', 'select_child'},
+    'onpc_allowance_boundaries': {'exercise', 'reload_child', 'select_child', 'custom_value'},
     'onpc_text': {'replace_text', 'append_scalar', 'observed_custom_edits'},
     'onpc_format': {'apply_block', 'apply_bold', 'apply_inline', 'apply_all'},
     'onpc_feedback_states': {'rejection_observe', 'edit_states', 'length_boundary',
@@ -175,14 +177,17 @@ def test_ready_binding_phases_assertions_and_worker_are_registered(monkeypatch, 
         actual = ({name: plan.phases[stage] for stage, name in plan.assertions_after.items()}
                   if plan.assertions_after else {'visible-result': plan.phases[plan.stages[-1]]})
         assert actual == expected
+        declared_actions = set(options.get('actions', {}))
+        if recorder == 'record_lifecycle_journey':
+            declared_actions.update('package-' + binding for _, binding, _ in options['operations'])
         assert set(plan.stage_actions.values()) == (
             {'install-package'} if recorder == 'record_package_journey'
-            else set(options.get('actions', {})))
+            else declared_actions)
     dispatch = (ROOT / 'tests/integration/graphical_smoke/tests/smoke.pm').read_text()
     branches = re.findall(r'if \(\$ready->\{(\w+)\}\) \{(.*?)\n    \}', dispatch, re.S)
     branch = [body for mode, body in branches if mode == plan.worker_mode]
     assert len(branch) == 1, plan.worker_mode
-    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_none|run_links|run_overlay|search_filters|parent_error_report)\(', branch[0])
+    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_none|run_links|run_overlay|run_removal|search_filters|parent_error_report)\(', branch[0])
     assert len(workers) == 1, plan.worker_mode
     source = (ROOT / 'tests/integration/graphical_smoke/lib' / (workers[0] + '.pm')).read_text()
     # Logging is harmless; raw input, process/file I/O and provider selection
@@ -250,6 +255,7 @@ def worker_errors(source):
     # Strip ordinary literal labels/comments, not code: a stage such as
     # 'child-choices-open' must not be mistaken for Perl's file-open operator.
     code = re.sub(r''''(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|\#.*''', '', source)
+    code = re.sub(r'\bqw\s*\([^)]*\)', '', code)
     return (bool(re.search(r'\b(?:open|sysread|syswrite|system|exec|qx|readpipe)\b', code))
             or bool(re.search(r'\b(?:send_key|type_string|mouse_set|mouse_click|assert_screen|check_screen)\b', code))
             or bool(set(re.findall(r'testapi::(\w+)', code)) - {'record_info'})
@@ -257,7 +263,7 @@ def worker_errors(source):
                    for module, name in re.findall(r'\b(\w+)::(\w+)\s*\(', code))
             or bool(set(re.findall(r'->\s*(\w+)\s*\(', code)) - {
                 'new', 'seen', 'consume_observation', 'finish',
-                'declare_invocations', 'declare_challenges'})
+                'declare_invocations', 'declare_challenges', 'scope'})
             or any(owner != 'onpc_journey'
                    for owner in re.findall(r'\b(\w+)->new\s*\(', code))
             or bool(re.search(r'\bexchange\s*=>\s*sub\b', code))
@@ -277,7 +283,9 @@ def test_worker_guard_rejects_bare_and_qualified_io(source):
 
 def test_worker_guard_allows_semantic_labels_and_logging():
     assert not worker_errors("$journey->seen('child-choices-open'); # open result\n"
-                             "testapi::record_info('stage', 'read result');")
+                             "testapi::record_info('stage', 'read result');\n"
+                             "$journey->seen($_) for qw(open-cancel open-returned);")
+    assert worker_errors("my @labels = qw(open-cancel); open my $file, '<', 'input';")
 
 
 def test_entry_fragments_do_not_share_mutable_recipe_state():

@@ -239,6 +239,22 @@ every pipeline remains bounded to 64 RPCs.
 
 ## Extend without hiding the scenario
 
+Continuous package histories use `package_lifecycle.record_lifecycle_journey`
+with caller-declared operations, actions and comparison endpoints. Its shared
+journey composes the existing package/transfer/recorder envelope and runs public
+checks before publishing a reply. `journey_checks.access_choice`,
+`policy_projection` and `request_choices` bind literal expectations and immutable
+named captures; saved settings/rows are separate from naturally changing usage
+and explicitly checked grants. Missing captures, changed results and replay
+refuse. Recipes keep values, order, phase boundaries and assertion names.
+`journey_blocks.prefixed_stages` and `custom_allowance` pair with
+`onpc_journey::scope`, `onpc_parent::named_management`,
+`onpc_gdm::named_login` and `onpc_allowance_boundaries::custom_value` for repeated
+independent entries and ordinary edits. Prefixes rename checkpoints, not account
+identity; declared challenges and independent selection/readback remain required.
+These add no storage, process or cleanup owner. The existing private unit and
+cleanup classifications remain applicable.
+
 Package lifecycle declarations reuse `journey_blocks.package_installation` in
 case 2 and LIFE04 qualification; LIFE02, genuine upgrade and Chinese lifecycle
 plans inherit that same fragment. It declares fresh administrator entry,

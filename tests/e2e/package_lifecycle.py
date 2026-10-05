@@ -1,7 +1,9 @@
 """Finite current-package lifecycle actions within the existing owned envelope."""
 
+from functools import partial
+
 from asset_transfer import AssetTransfer
-from installed_journey import InstalledJourney
+from installed_journey import InstalledJourney, record_installed_journey
 from package_command import BINDING, REMOVE, PURGE, REINSTALL, FRESH_INSTALL, PackageCommand
 from private_artifacts import require
 
@@ -10,7 +12,7 @@ HISTORY = (BINDING, REMOVE, REINSTALL, PURGE, FRESH_INSTALL)
 
 
 class PackageLifecycleJourney(InstalledJourney):
-    def __init__(self, context, progress, plan, *, operations, actions=None):
+    def __init__(self, context, progress, plan, *, operations, actions=None, checks=None):
         require(not context.installed_snapshot and context.verified.upgrade_inputs is None,
                 'package-lifecycle:product-free-current-required')
         require(type(operations) is tuple and len(operations) == len(HISTORY), 'package-lifecycle:plan')
@@ -26,6 +28,11 @@ class PackageLifecycleJourney(InstalledJourney):
         self.commands = {}
         self.entries = {}
         self.results = set()
+        self.checks = dict(checks or {})
+        require(set(self.checks) <= set(plan.screen_tags)
+                and all(callable(check) for check in self.checks.values()), 'package-lifecycle:checks')
+        self.public_captures = {}
+        self.checked_stages = set()
         shared = dict(actions or {})
         for submitted, binding, _ in operations:
             name = 'package-' + binding
@@ -54,6 +61,13 @@ class PackageLifecycleJourney(InstalledJourney):
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
+        self.check_package_result(stage, observed)
+        if stage in self.checks:
+            require(stage not in self.checked_stages, 'package-lifecycle:check-replay')
+            self.checks[stage](self, observed)
+            self.checked_stages.add(stage)
+
+    def check_package_result(self, stage, observed):
         matches = [binding for _, binding, result in self.operations if result == stage]
         if not matches:
             return
@@ -78,3 +92,9 @@ class PackageLifecycleJourney(InstalledJourney):
         observed['package'] = {**result, 'installed_version': current['version'],
                               'independent_readback': True, 'personal_state_preserved': True}
         self.results.add(binding)
+
+
+def record_lifecycle_journey(recorder, context, plan, *, operations, checks, actions=None, timeout=3600):
+    """Compose lifecycle commands and caller-owned public comparisons."""
+    record_installed_journey(recorder, context, plan, timeout=timeout, actions=actions,
+                            journey_type=partial(PackageLifecycleJourney, operations=operations, checks=checks))

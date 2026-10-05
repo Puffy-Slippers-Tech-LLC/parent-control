@@ -23,6 +23,20 @@ sub sign_in_challenge {
     return $journey->invoke($desktop_stage);
 }
 
+sub named_login {
+    onpc_progress::operation('Entering the declared account through a fresh challenge');
+    my ($journey, $prefix, $role) = @_;
+    die 'gdm:named-login' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/
+        && defined($role) && ($role eq 'parent' || $role eq 'child')
+        && ref($journey->{challenges}{$prefix}) eq 'ARRAY'
+        && $journey->{challenges}{$prefix}[0] eq $role;
+    my $focused = $role eq 'parent' ? 'parent-focused' : 'child-focused';
+    my $desktop = sign_in_challenge($journey, $prefix,
+        "$prefix-installed-greeter", "$prefix-$focused", "$prefix-desktop");
+    $journey->consume_observation("$prefix-desktop", $desktop);
+}
+
 # GDM02's functional credential binding. Prompt qualification is the caller's
 # immediately following GDM03 checkpoint; account focus alone authorizes no secret.
 sub choose_account {

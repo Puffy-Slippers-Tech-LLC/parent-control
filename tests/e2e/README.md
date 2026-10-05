@@ -491,6 +491,13 @@ outcome, removal notice and package absence. Uncertain input is retained and nev
 replayed. Five declared customer reboot transitions require every predecessor's
 changed boot to have been independently observed.
 
+`record_lifecycle_journey` binds that shared journey to the existing recorder;
+case 139 supplies its finite public comparisons through
+[`journey_checks`](journey_checks.py), alongside its operation history and native
+fixture actions. No case-local journey subclass or worker input helper owns the
+comparisons or repeated entries. The [support guide](../support/README.md#extend-without-hiding-the-scenario)
+owns the reusable declaration/execution pairs and capture rules.
+
 The case saves four minutes and a Hard Blocked rule, checks blocked execution
 and shared request choices through the child UI, then obtains the qualified
 75-second grant immediately before Parent's positive-grant read and removal.

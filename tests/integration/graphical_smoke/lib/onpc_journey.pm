@@ -12,6 +12,18 @@ sub new {
     return bless \%args, $class;
 }
 
+# Reuse a leaf's local stage names under an independent caller-owned prefix.
+# This adds no lifecycle owner; the parent's exchange retains all guards.
+sub scope {
+    onpc_progress::operation('Binding an independently named operation scope');
+    my ($self, $prefix) = @_;
+    die 'journey:scope' unless @_ == 2 && ref($self) eq 'onpc_journey'
+        && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    return onpc_journey->new(exchange => sub {
+        $self->{exchange}->($prefix . '-' . $_[0], @_[1 .. $#_]);
+    }, prefix => $self->{prefix} . '-' . $prefix, review => $self->{review});
+}
+
 # Only nonsecret app observations may use review acquisition. Input, password
 # recipient, desktop and app-grid helpers always call their own strict matches.
 # Review never awards acceptance: the controller still reconciles every match.

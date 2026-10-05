@@ -117,6 +117,9 @@ from regression_resources import HOST_WORKERS
 # VM, bus, display, shared cache or new owned process is used. Its cleanup and
 # unit classification is compatible; live composition inherits the existing
 # continuous envelope's lease, worker and collection cleanup ownership.
+# Shared comparison/capture checks and renamed entry/edit probes keep the same
+# private pytest records and synchronously waited Perl children; extraction adds
+# no live operation, resource owner or cleanup lifetime in either inventory.
 # Package purge guards use private pytest machine trees and process-local
 # package/PAM/ownership doubles; the one shared-cleanup shell is relocated,
 # bounded and waited. No host package, identity, service or shared path changes.

@@ -335,6 +335,9 @@ from regression_ui import Bucket
 # use VM doubles only. package_lifecycle_cleanup_safety is compatible in unit
 # and cleanup scheduling, with no real package database, VM, bus, display,
 # shared cache, ownership mutation or extra process lifetime.
+# Extracted lifecycle checks and renamed worker scopes retain that classification:
+# immutable capture/replay and recorder-durability tests use the same private
+# trees/doubles; scoped Perl input probes are bounded and synchronously reaped.
 # Shared removal parity and actual RPM erase callbacks use the existing private
 # pytest machine trees, relocated system paths and bounded, waited shell children.
 # Their service/account/PAM commands remain doubles, including abort-remove's

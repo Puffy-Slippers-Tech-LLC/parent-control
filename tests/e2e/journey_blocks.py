@@ -7,6 +7,28 @@ phase transitions. Each call returns a fresh mapping owned by its caller.
 from private_artifacts import require
 
 
+def prefixed_stages(prefix, screens):
+    """Name an independent invocation without changing its public operations."""
+    import re
+    require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
+            'journey:stage-prefix')
+    return {prefix + '-' + stage: tag for stage, tag in screens.items()}
+
+
+def custom_allowance(prefix, minutes):
+    """Ordinary editor input and saved readback; selection belongs to the caller."""
+    from accessible_ui import CUSTOM_ALLOWANCE_OPERATIONS, TEXT_VALUES
+    require(type(minutes) is int and 'daily-' + str(minutes) in TEXT_VALUES
+            and 'custom-' + str(minutes) + '-saved' in CUSTOM_ALLOWANCE_OPERATIONS,
+            'journey:custom-allowance')
+    return prefixed_stages(prefix, {
+        'open': f'ui:custom-{minutes}-open',
+        **{f'text-{action}': f'ui:text-daily-{minutes}-{action}'
+           for action in ('focus', 'selected', 'read')},
+        'saved': f'ui:custom-{minutes}-saved',
+    })
+
+
 def language_selection(prefix, language, *, surface, child='existing'):
     """LANG01 chooser fragment; caller owns candidate and response expectations."""
     import re

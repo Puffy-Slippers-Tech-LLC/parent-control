@@ -147,6 +147,19 @@ sub language_selection {
     }
 }
 
+sub named_management {
+    onpc_progress::operation('Opening Parent and independently selecting the declared child');
+    my ($journey, $prefix, $child) = @_;
+    die 'parent:named-management' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && defined($child) && ($child eq 'child' || $child eq 'existing');
+    my $section = $journey->scope($prefix);
+    $section->seen($_) for qw(parent-command parent-window);
+    my $selected = select_child($section, $child,
+        $section->seen('child-picker-opened'), 'child-picker-opened',
+        'child-choice-highlighted', 'parent-selected');
+    $section->consume_observation('parent-selected', $selected);
+}
+
 sub qualify_language {
     onpc_progress::operation('Qualifying installed Parent personal language selection');
     my ($exchange) = @_;

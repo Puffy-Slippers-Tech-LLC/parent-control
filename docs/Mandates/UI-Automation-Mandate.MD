@@ -165,6 +165,10 @@ and independent result checks apply to both routes.
   by public IDs before input. Preserve native focus; do not inspect or move
   focus inside the popup. The opening click alone may use fresh window-relative
   bounds from that ID-resolved selector through a window-bound native stream.
+  Convert those widget bounds using Parent's read-only public
+  [native-surface metadata](../SystemDesign/Frontends.md#public-automation-identities),
+  bound to the same process and window. Revalidate ownership, bounds and the
+  transform around stream binding; missing or changed metadata refuses input.
   GTK screen origins, fixed coordinates and VM/distro branches are forbidden.
   Click, typing and Enter execute once through the shared input block;
   an uncertain input fails without replay or an alternative route.

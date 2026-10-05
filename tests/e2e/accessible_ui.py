@@ -1,7 +1,8 @@
 """Bounded public AT-SPI interaction in the installed fixture's desktop.
 
 This file also runs as a standalone program in the guarded guest. It reads only
-public UI objects; it never imports product code or reads product storage/buses.
+public UI objects and the Parent's read-only native-surface accessibility
+metadata; it never imports product code or reads product policy/storage.
 Only fixed operation names and sanitized results cross the controller boundary.
 """
 
@@ -9,6 +10,7 @@ from contextlib import contextmanager, nullcontext
 from types import MappingProxyType
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import pwd
@@ -5614,7 +5616,14 @@ class AccessibleUI:
                 and 0 <= bounds.x < bounds.x + bounds.width <= 32768
                 and 0 <= bounds.y < bounds.y + bounds.height <= 32768,
                 'ui:allowance-click-bounds')
-        return {'x': bounds.x + bounds.width // 2, 'y': bounds.y + bounds.height // 2}
+        root = self.parent()
+        pid = root.get_process_id()
+        require(type(pid) is int and pid > 0 and selector.get_process_id() == pid,
+                'ui:allowance-surface-owner')
+        return {'x': bounds.x + bounds.width // 2, 'y': bounds.y + bounds.height // 2,
+                'bounds': (bounds.x, bounds.y, bounds.width, bounds.height),
+                'window': (root.bus, root.path),
+                'selector': (selector.bus, selector.path), 'pid': pid}
 
     def select_allowance(self, child, value):
         """Click, type and Enter through one window-bound native input stream.
@@ -5622,6 +5631,8 @@ class AccessibleUI:
         This narrow provider adapter shares the test desktop's existing Mutter
         input/capture protocols. It consumes no pixels and assumes no desktop
         origin. The ID-owned Parent window must remain active around binding.
+        Its public GtkNative transform converts widget-relative AT-SPI bounds
+        to native surface coordinates, including client-side window shadows.
         """
         require(value == 'custom' or type(value) is int and value in PRESETS,
                 'ui:allowance-binding')
@@ -5655,7 +5666,42 @@ class AccessibleUI:
                 if error.matches(Gio.dbus_error_quark(), Gio.DBusError.UNKNOWN_METHOD):
                     detail = 'unknown-method'
                 raise UiError('ui:allowance-click-transport:' + method + ':' + detail) from error
+        def native_surface(target):
+            bus = 'org.freedesktop.DBus'
+            owner, = call(bus, '/org/freedesktop/DBus', bus, 'GetNameOwner',
+                          '(s)', (PARENT_APPLICATION,))
+            require(isinstance(owner, str) and re.fullmatch(r':[0-9]+\.[0-9]+', owner),
+                    'ui:allowance-surface-owner')
+            pid, = call(bus, '/org/freedesktop/DBus', bus, 'GetConnectionUnixProcessID',
+                        '(s)', (owner,))
+            require(type(pid) is int and pid == target['pid'],
+                    'ui:allowance-surface-owner')
+            transform = call(owner, '/com/puffyslippers/OhNoParentControl/Parent',
+                             'com.puffyslippers.OhNoParentControl.Accessibility1',
+                             'GetNativeSurfaceTransform', '(s)', ('parent-window',))
+            require(len(transform) == 2 and all(
+                type(value) in (int, float) and math.isfinite(value) for value in transform),
+                'ui:allowance-surface-transform')
+            # GTK subtracts this transform from native events before widget
+            # picking. Add it once for the inverse widget-to-surface mapping.
+            require(all(0 <= target[axis] + offset <= 32768
+                        for axis, offset in zip(('x', 'y'), transform)),
+                    'ui:allowance-surface-transform')
+            current_owner, = call(bus, '/org/freedesktop/DBus', bus, 'GetNameOwner',
+                                  '(s)', (PARENT_APPLICATION,))
+            require(current_owner == owner, 'ui:allowance-surface-owner')
+            return owner, tuple(transform)
+
+        def recheck_surface(expected):
+            self.invalidate_observation()
+            current = self.allowance_click_target(child)
+            require(current == point, 'ui:allowance-click-moved')
+            owner, transform = native_surface(current)
+            require(owner == expected[0], 'ui:allowance-surface-owner')
+            require(transform == expected[1], 'ui:allowance-surface-changed')
+
         try:
+            surface = native_surface(point)
             session, = call(remote, '/org/gnome/Mutter/RemoteDesktop', remote, 'CreateSession')
             session_id, = call(remote, session, 'org.freedesktop.DBus.Properties',
                                'Get', '(ss)', (remote + '.Session', 'SessionId'))
@@ -5677,17 +5723,16 @@ class AccessibleUI:
                      '(ub)', (0xffe1, pressed))
                 time.sleep(.05)
             self.input_uncertain = False
-            self.invalidate_observation()
-            require(self.allowance_click_target(child) == point, 'ui:allowance-click-moved')
+            recheck_surface(surface)
             # RecordWindow with no window-id binds the currently focused window.
             # A stream added to a running session needs its own public Start.
             stream, = call(cast, capture, cast + '.Session', 'RecordWindow', '(a{sv})', ({},))
             call(cast, stream, cast + '.Stream', 'Start')
-            self.invalidate_observation()
-            require(self.allowance_click_target(child) == point, 'ui:allowance-click-moved')
+            recheck_surface(surface)
             self.input_uncertain = True
             call(remote, session, remote + '.Session', 'NotifyPointerMotionAbsolute',
-                 '(sdd)', (stream, float(point['x']), float(point['y'])))
+                 '(sdd)', (stream, float(point['x'] + surface[1][0]),
+                          float(point['y'] + surface[1][1])))
             # D-Bus acknowledgement queues input; let the seat dispatch motion
             # before button press and release, and release before device removal.
             time.sleep(.1)

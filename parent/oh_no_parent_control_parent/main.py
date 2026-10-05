@@ -9,6 +9,7 @@ from common.oh_no_parent_control_ui.translation_widgets import (
 
 import argparse
 import hashlib
+import math
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 from common.oh_no_parent_control_ui.diagnostic_events import configure_console, log_version
 import os
@@ -48,6 +49,16 @@ from .language_dialog import LanguageDialog
 
 LOG = get_logger("parent")
 APPLICATION_ICON_NAME = "com.puffyslippers.OhNoParentControl"
+ACCESSIBILITY_INTERFACE = "com.puffyslippers.OhNoParentControl.Accessibility1"
+ACCESSIBILITY_XML = f"""<node>
+  <interface name="{ACCESSIBILITY_INTERFACE}">
+    <method name="GetNativeSurfaceTransform">
+      <arg name="surface_id" type="s" direction="in"/>
+      <arg name="x" type="d" direction="out"/>
+      <arg name="y" type="d" direction="out"/>
+    </method>
+  </interface>
+</node>"""
 STATES = (
     {
         "id": "allowed",
@@ -2508,6 +2519,62 @@ class Application(Adw.Application):
         self._preview_monitor = None
         self._preview_reload_source_id = None
         self._preview_changed_paths = set()
+        self._accessibility_registration_id = 0
+
+    def do_dbus_register(self, connection, object_path):
+        if not Adw.Application.do_dbus_register(self, connection, object_path):
+            return False
+        info = Gio.DBusNodeInfo.new_for_xml(ACCESSIBILITY_XML)
+        self._accessibility_registration_id = connection.register_object(
+            object_path, info.interfaces[0], self._accessibility_method_call,
+            None, None,
+        )
+        return True
+
+    def do_dbus_unregister(self, connection, object_path):
+        try:
+            if self._accessibility_registration_id:
+                connection.unregister_object(self._accessibility_registration_id)
+                self._accessibility_registration_id = 0
+        finally:
+            Adw.Application.do_dbus_unregister(self, connection, object_path)
+
+    def _native_surface_transform(self, surface_id):
+        # Resolve only our public native Parent surface. No selected account,
+        # policy state, control coordinates or input actions cross this API.
+        if surface_id != "parent-window":
+            raise ValueError("Unsupported native surface")
+        windows = [window for window in self.get_windows()
+                   if Gtk.Buildable.get_buildable_id(window) == surface_id]
+        if len(windows) != 1:
+            raise ValueError("Native surface is missing or ambiguous")
+        window = windows[0]
+        if (not window.get_mapped() or not window.get_visible()
+                or not window.is_active() or Gtk.Native.get_surface(window) is None):
+            raise ValueError("Native surface is unavailable")
+        # Read anew for every request; decorations can change with window state.
+        x, y = Gtk.Native.get_surface_transform(window)
+        if not math.isfinite(x) or not math.isfinite(y):
+            raise ValueError("Native surface transform is unavailable")
+        return x, y
+
+    def _accessibility_method_call(self, _connection, _sender, _object_path,
+                                   _interface_name, method_name, parameters, invocation):
+        if method_name != "GetNativeSurfaceTransform":
+            invocation.return_dbus_error(
+                "org.freedesktop.DBus.Error.UnknownMethod", "Unknown method",
+            )
+            return
+        try:
+            surface_id, = parameters.unpack()
+            transform = self._native_surface_transform(surface_id)
+        except (ValueError, TypeError, GLib.Error):
+            invocation.return_dbus_error(
+                ACCESSIBILITY_INTERFACE + ".SurfaceUnavailable",
+                "Native surface transform is unavailable",
+            )
+            return
+        invocation.return_value(GLib.Variant("(dd)", transform))
 
     @staticmethod
     def _asset_path(name):

@@ -84,6 +84,9 @@ private pytest trees; recorded harmless children are released and reaped by
 their fixture. Cross-scope reconnect tests remain safe for compatible overlap.
 Public AT-SPI and observation-cache regressions use process-local bus doubles,
 mock clocks and immutable synthetic trees; they open no real sockets or displays.
+Parent native-surface metadata tests use the same process-local GTK/Gio doubles
+and fresh synthetic windows. Registration and coordinate-conversion guards add
+no real bus, display, process or cleanup owner; compatible scheduling applies.
 Missing-cache role/state batching checks use at most 32 synthetic nodes and those
 same bus doubles; compatible classification and cleanup ownership are unchanged.
 Language chooser action guards use those same in-memory trees and mocked actions;
@@ -429,7 +432,7 @@ launcher_render licensing lightning logs mutter_input package_activation package
 package_content package_install_cleanup_safety
 package_os_gate package_payload package_removal package_transaction_notice pam_runtime_cap
 parent_about_cleanup_safety parent_about_worker parent_access_worker parent_client
-parent_discovery_worker parent_grid_pixels parent_main parent_needles
+parent_discovery_worker parent_grid_pixels parent_main parent_native_surface parent_needles
 parent_setup_cleanup_safety ppa_build preferences prepare_baseline
 prepare_baseline_cleanup_safety prepare_baseline_tool prepare_vm prepare_vm_contract
 preview_screen privileged_test_runner probe_bus_client_cleanup_safety

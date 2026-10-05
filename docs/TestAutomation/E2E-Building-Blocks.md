@@ -723,10 +723,13 @@ delegate selection to this same method; their readbacks do not reopen menus.
 Both native input devices are initialized before window binding; streams added
 to the running linked session are explicitly started before pointer delivery.
 The selector is resolved by ID with active-window, child and enabled-state
-guards. Only the opening click uses its fresh window-relative bounds. Typing
+guards. Only the opening click uses its fresh window-relative bounds, converted
+through Parent's public read-only native-surface metadata. The bridge's unique
+bus owner must match the AT-SPI window PID; owner, window, selector bounds and
+native transform are checked again around stream binding. Typing
 and Enter preserve native focus and are not interrupted by popup observations.
 Final readback requires the requested public value and save completion;
-Custom requires its focused editor. No popup, expanded-state, highlight,
+Custom requires its usable editor. No popup, expanded-state, highlight,
 cancellation or choice-row route remains available to opt into.
 Follow the [mandatory sequence](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception).
 All preset values, Custom entry, rejection baselines, named-child saves and
@@ -770,7 +773,13 @@ after command launch despite GTK reporting the Parent window active. Shared
 PARENT01 preparation now conditionally closes the overview through its public
 D-Bus property, waits for its independent closed readback, then invokes Parent.
 This is desktop preparation, outside PARENT06's single click/type/Enter batch.
-Installed requalification remains pending.
+The next stable run `20261005T215528Z-df2ccd55` passed stream binding with
+`OverviewActive=false` but still displayed 0 instead of 15. The failure
+screenshot and GTK/Mutter source review exposed a second defect: AT-SPI WINDOW
+bounds omit GTK's native surface offset, so the click landed above and left of
+the selector. PARENT06 now adds the fresh public native transform rather than
+assuming a shadow size. The representative host sequence and guarded ownership
+tests pass; installed requalification remains pending.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |

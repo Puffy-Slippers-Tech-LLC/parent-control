@@ -124,9 +124,12 @@ def native_allowance_transport(preset_ui, monkeypatch):
     from gi.repository import Gio, GLib
     ui, window, selector, _ = preset_ui
     window.states.add('active')
+    window.bus, window.path = ':1.10', '/fixture/window'
+    selector.bus, selector.path = window.bus, '/fixture/window/selector'
     selector.component.get_extents = Mock(return_value=SimpleNamespace(
         x=100, y=200, width=80, height=40))
-    transport = SimpleNamespace(events=[], calls=[], fail=None, on_call=None,
+    transport = SimpleNamespace(events=[], calls=[], destinations=[], fail=None, on_call=None,
+                                native_owner=':1.42', native_pid=100, native_transform=(0.0, 0.0),
                                 error_message='PRIVATE_PROVIDER_VALUE',
                                 error_domain=Gio.io_error_quark(),
                                 error_code=Gio.IOErrorEnum.FAILED)
@@ -134,12 +137,16 @@ def native_allowance_transport(preset_ui, monkeypatch):
         args = arguments.unpack() if arguments is not None else ()
         transport.events.append((method, args))
         transport.calls.append((_interface, method, args))
+        transport.destinations.append((_service, _path, _interface, method, args))
         if transport.on_call:
             transport.on_call(_interface, method, args)
         if transport.fail and transport.fail(_interface, method, args):
             raise GLib.Error.new_literal(transport.error_domain, transport.error_message,
                                         transport.error_code)
-        values = {'CreateSession': ('/session',), 'Get': ('session-id',),
+        values = {'GetNameOwner': (transport.native_owner,),
+                  'GetConnectionUnixProcessID': (transport.native_pid,),
+                  'GetNativeSurfaceTransform': transport.native_transform,
+                  'CreateSession': ('/session',), 'Get': ('session-id',),
                   'RecordWindow': ('/stream',)}.get(method, ())
         return SimpleNamespace(unpack=lambda: values)
     connection = SimpleNamespace(call_sync=invoke, close_sync=Mock())
@@ -216,6 +223,9 @@ def test_allowance_native_click_delivery_and_failure_lifetime(
     ('warm-up', 'child', 'wrong-child'),
     ('stream-start', 'inactive', 'allowance-window'),
     ('stream-start', 'bounds', 'allowance-click-moved'),
+    ('stream-start', 'same-center-bounds', 'allowance-click-moved'),
+    ('stream-start', 'window', 'allowance-click-moved'),
+    ('stream-start', 'selector', 'allowance-click-moved'),
 ])
 def test_allowance_native_click_rechecks_identity_and_bounds_before_delivery(
         native_allowance_transport, boundary, fault, code):
@@ -231,6 +241,13 @@ def test_allowance_native_click_rechecks_identity_and_bounds_before_delivery(
                 window.children[0].children[0].identity = 'parent-child-selected-1002'
             elif fault == 'inactive':
                 window.states.remove('active')
+            elif fault == 'window':
+                window.path += '/replacement'
+            elif fault == 'selector':
+                selector.path += '/replacement'
+            elif fault == 'same-center-bounds':
+                selector.component.get_extents.return_value.x -= 1
+                selector.component.get_extents.return_value.width += 2
             else:
                 selector.component.get_extents.return_value.x += 1
     transport.on_call = change_target
@@ -280,6 +297,113 @@ def test_allowance_native_cleanup_preserves_primary_uncertain_input_error(native
     assert str(raised.value) == 'ui:allowance-click-transport:NotifyKeyboardKeysym:other'
     assert raised.value.__notes__ == ['ui:allowance-click-transport:Stop:other']
     assert ui.input_uncertain
+    assert transport.events[-1] == ('Stop', ())
+    transport.connection.close_sync.assert_called_once_with(None)
+
+
+@pytest.mark.parametrize('transform,point', [
+    ((12.5, 8.0), (152.5, 228.0)),
+    ((-7.0, -9.5), (133.0, 210.5)),
+])
+def test_allowance_native_surface_translation_is_owned_and_applied_once(
+        native_allowance_transport, transform, point):
+    ui, _window, selector, transport = native_allowance_transport
+    transport.native_transform = transform
+    ui.select_allowance(accessible_ui.CHILD, 15)
+    assert [args for method, args in transport.events
+            if method == 'NotifyPointerMotionAbsolute'] == [('/stream', *point)]
+    bridge = [call for call in transport.destinations if call[3] == 'GetNativeSurfaceTransform']
+    assert bridge
+    assert all(call == (
+        ':1.42', '/com/puffyslippers/OhNoParentControl/Parent',
+        'com.puffyslippers.OhNoParentControl.Accessibility1',
+        'GetNativeSurfaceTransform', ('parent-window',)) for call in bridge)
+    assert all(args == (accessible_ui.PARENT_APPLICATION,)
+               for method, args in transport.events if method == 'GetNameOwner')
+    assert all(args == (':1.42',) for method, args in transport.events
+               if method == 'GetConnectionUnixProcessID')
+    first_input = next(index for index, (method, _args) in enumerate(transport.events)
+                       if method.startswith('Notify'))
+    assert any(method == 'GetNativeSurfaceTransform'
+               for method, _args in transport.events[:first_input])
+    assert not ui.input_uncertain
+    selector.action.do_action.assert_not_called()
+    transport.connection.close_sync.assert_called_once_with(None)
+
+
+@pytest.mark.parametrize('fault,code', [
+    ('missing-owner', 'allowance-click-transport:GetNameOwner:other'),
+    ('missing-bridge', 'allowance-click-transport:GetNativeSurfaceTransform:other'),
+    ('invalid-owner', 'allowance-surface-owner'),
+    ('wrong-pid', 'allowance-surface-owner'),
+    ('boolean-pid', 'allowance-surface-owner'),
+    ('stale-owner', 'allowance-surface-owner'),
+])
+def test_allowance_native_surface_refuses_unowned_bridge_before_any_input(
+        native_allowance_transport, fault, code):
+    ui, _window, _selector, transport = native_allowance_transport
+    if fault in ('missing-owner', 'missing-bridge'):
+        method = 'GetNameOwner' if fault == 'missing-owner' else 'GetNativeSurfaceTransform'
+        transport.fail = lambda _interface, actual_method, _args: actual_method == method
+    elif fault == 'invalid-owner':
+        transport.native_owner = accessible_ui.PARENT_APPLICATION
+    elif fault == 'wrong-pid':
+        transport.native_pid = 101
+    elif fault == 'boolean-pid':
+        transport.native_pid = True
+    else:
+        def replace_owner(_interface, method, _args):
+            if method == 'GetNativeSurfaceTransform':
+                transport.native_owner = ':1.43'
+        transport.on_call = replace_owner
+    with pytest.raises(UiError, match=code) as raised:
+        ui.select_allowance(accessible_ui.CHILD, 15)
+    assert 'PRIVATE_' not in str(raised.value)
+    assert not any(method.startswith('Notify') for method, _args in transport.events)
+    assert not ui.input_uncertain
+    transport.connection.close_sync.assert_called_once_with(None)
+
+
+@pytest.mark.parametrize('transform', [
+    (float('nan'), 0.0), (0.0, float('inf')), (False, 0.0),
+    (0.0,), (0.0, 0.0, 0.0), (-200.0, 0.0), (0.0, 40000.0),
+])
+def test_allowance_native_surface_refuses_invalid_transform_before_any_input(
+        native_allowance_transport, transform):
+    ui, _window, _selector, transport = native_allowance_transport
+    transport.native_transform = transform
+    with pytest.raises(UiError, match='allowance-surface-transform'):
+        ui.select_allowance(accessible_ui.CHILD, 15)
+    assert not any(method.startswith('Notify') for method, _args in transport.events)
+    assert not ui.input_uncertain
+    transport.connection.close_sync.assert_called_once_with(None)
+
+
+@pytest.mark.parametrize('boundary', ['warm-up', 'stream-start'])
+@pytest.mark.parametrize('fault,code', [
+    ('owner', 'allowance-surface-owner'), ('transform', 'allowance-surface-changed'),
+])
+def test_allowance_native_surface_rechecks_binding_before_click(
+        native_allowance_transport, boundary, fault, code):
+    ui, _window, _selector, transport = native_allowance_transport
+    def change_binding(interface, method, args):
+        if ((boundary == 'warm-up' and method == 'NotifyKeyboardKeysym'
+             and args == (0xffe1, False)) or
+                (boundary == 'stream-start' and interface == 'org.gnome.Mutter.ScreenCast.Stream'
+                 and method == 'Start')):
+            if fault == 'owner':
+                transport.native_owner = ':1.43'
+            else:
+                transport.native_transform = (1.0, 0.0)
+    transport.on_call = change_binding
+    with ui.observation():
+        with pytest.raises(UiError, match=code):
+            ui.select_allowance(accessible_ui.CHILD, 15)
+    assert not any(method in ('NotifyPointerMotionAbsolute', 'NotifyPointerButton')
+                   for method, _args in transport.events)
+    assert [args for method, args in transport.events if method == 'NotifyKeyboardKeysym'] == [
+        (0xffe1, True), (0xffe1, False)]
+    assert not ui.input_uncertain
     assert transport.events[-1] == ('Stop', ())
     transport.connection.close_sync.assert_called_once_with(None)
 

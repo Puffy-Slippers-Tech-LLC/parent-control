@@ -86,6 +86,11 @@ Cases own desired values and subsequent save/persistence assertions.
 Fresh active-window/child/selector identity and enabled-state checks remain;
 only the click uses public window-relative bounds. Input errors preserve the
 uncertain-input latch; readback never replays input.
+Parent's read-only `Accessibility1.GetNativeSurfaceTransform` bridge supplies
+the current GTK native offset omitted by AT-SPI WINDOW bounds. The shared
+adapter checks the unique bus owner's PID against the identified Parent, then
+rechecks owner, target bounds and transform around stream binding. It adds the
+offset once; no fixed shadow size, desktop origin or display scaling is inferred.
 The adapter retains the same owned session cleanup, private preview display
 and VM lifetimes. Unit probes use existing private doubles and waited Perl;
 UI tests use the existing private display. No new process, storage or cleanup

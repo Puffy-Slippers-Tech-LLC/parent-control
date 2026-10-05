@@ -103,6 +103,23 @@ control in the active native window. Consumers reacquire the ID and verify focus
 and reachability before keyboard input; failed or uncertain readback cannot
 authorize replay. WebKit controls retain their supported public Component route.
 
+Parent also publishes the read-only session-bus interface
+`com.puffyslippers.OhNoParentControl.Accessibility1` at its existing application
+object path `/com/puffyslippers/OhNoParentControl/Parent`.
+`GetNativeSurfaceTransform("parent-window")` returns the fresh pair of doubles
+from GTK's public `Gtk.Native.get_surface_transform()` for exactly one mapped,
+visible, active Parent window. Missing, ambiguous or unavailable surfaces refuse.
+The interface registers and unregisters with the application; it exposes no
+policy data or input operation and needs no new service or saved-data migration.
+
+GTK's AT-SPI WINDOW bounds omit this native offset, including window shadows.
+The allowance adapter binds the session-bus unique owner's PID to the AT-SPI
+window, rechecks that owner, window, selector bounds and transform around native
+stream binding, and adds the offset once to its widget-relative click point.
+This follows [GTK's native event conversion](https://github.com/GNOME/gtk/blob/4.22.5/gtk/gtkmain.c),
+which subtracts the transform before widget picking. It is a public coordinate
+bridge, not a replacement for ID resolution or the final saved-value check.
+
 Dialogs publish their originating window/dialog through `CONTROLS`, using the
 public [Gtk.AccessibleList](https://docs.gtk.org/gtk4/struct.AccessibleList.html)
 boxed value required by the language binding. GTK supplies the inverse AT-SPI

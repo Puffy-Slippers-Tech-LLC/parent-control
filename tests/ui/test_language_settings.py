@@ -48,7 +48,7 @@ EXPANDED_LANGUAGES = {
 
 def launch_language(launch_ui, tmp_path, surface, *, language='', session='en',
                     save_failures=0, load_failures=0, release=None, scenario='normal',
-                    child_desktop='', language_delay=0):
+                    child_desktop='', language_delay=0, unicode_input=False):
     path = tmp_path / 'language-events.jsonl'
     environment = {
         'ONPC_LANGUAGE_INITIAL': language,
@@ -63,6 +63,10 @@ def launch_language(launch_ui, tmp_path, surface, *, language='', session='en',
         'ONPC_CHILD_1001_DESKTOP_LANGUAGE': child_desktop,
         'ONPC_CHILD_LANGUAGE_DELAY_MS': str(language_delay),
     }
+    if unicode_input:
+        # Bare Mutter has no desktop input-method daemon. Reuse the Unicode
+        # fixture setting from test_parent_feedback's normal editor checks.
+        environment['GTK_IM_MODULE'] = 'gtk-im-context-simple'
     launch_ui('parent_component_preview' if surface == 'parent' else 'request_component_preview',
               complete_language_setup=False, environment_overrides=environment)
     return path
@@ -226,6 +230,61 @@ def test_parent_hebrew_public_text_and_keyboard_navigation(
         reader.open_language_preferences('parent')
         assert reader.read_parent_language()['checked'] == language
         reader.cancel_language('parent')
+    assert_no_policy_or_request_writes(path)
+
+
+def test_parent_dialog_inherited_text_keyboard_and_retained_hebrew_draft(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    import json
+    from tests.support.paths import ROOT
+    from tests.support.keyboard import key_combo
+    from tests.support.gui_blocks import run_block
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'parent', language='en', unicode_input=True)
+    wait(lambda: ui.showing('parent-language-ready'), 'saved startup ready')
+    reader = ui.reader
+    version = json.loads((ROOT / 'data/app.json').read_text())['version']
+    reader.open_feedback()
+    try:
+        run_block(reader, 'replace', 'body-rtl')
+    except Exception as error:
+        # Bounded public diagnostic projects only the declared fixture alphabet;
+        # unexpected text is represented by a closed marker, never returned.
+        node = reader.text_recipient('feedback-editor-input')
+        text = node.get_text_iface()
+        count = text.get_character_count()
+        if type(count) is int and 0 <= count <= 128:
+            actual = text.get_text(0, count)
+            alphabet = 'שלום Alex 75\n'
+            error.add_note('Synthetic input diagnostic: ' + json.dumps({
+                'count': count, 'fixture_positions': [alphabet.index(character)
+                    if character in alphabet else -1 for character in actual],
+                'has_hebrew': 'שלום' in actual, 'has_ascii': ' Alex 75' in actual,
+            }))
+        raise
+    run_block(reader, 'replace', 'reply-rtl')
+    wait(lambda: reader.feedback_snapshot('synthetic-rtl'), 'seeded exact synthetic draft')
+    ui.activate('feedback-close')
+    wait(lambda: ui.absent('feedback-dialog', within='parent-window'), 'draft closes')
+    for language in ('en', 'he', 'en'):
+        reader.open_language_preferences('parent')
+        reader.choose_language('parent', language)
+        reader.save_language('parent')
+        for surface in ('about', 'feedback'):
+            for _visit in range(2):
+                operation = f'parent-dialog-{surface}-{language}-'
+                opened = reader.parent_dialog_operation(operation + 'open', version)
+                assert opened['dialog_presentation']['language'] == language
+                direction = 'rtl' if surface == 'feedback' and language == 'he' else 'ltr'
+                run_block(reader, 'dialog-navigation', 'navigation', direction, operations={
+                    'navigation-' + action: 'ui:' + operation + action
+                    for action in ('focus', 'tabbed', 'back')})
+                reader.parent_dialog_operation(operation + 'read', version)
+                reader.parent_dialog_operation(operation + 'close', version)
+                key_combo(ui, surface + '-dialog', '<Alt>F4', state=ui.api.StateType.ACTIVE)
+                reader.parent_dialog_operation(operation + 'closed', version)
+                assert reader.parent_dialog_operation(operation + 'refused', version) == {'refused': True}
+    assert committed(path) == ['en', 'he', 'en']
     assert_no_policy_or_request_writes(path)
 
 

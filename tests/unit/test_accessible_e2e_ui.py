@@ -52,6 +52,9 @@ def test_adapter_failure_payload_reports_static_sites_without_private_values(tmp
         error.add_note('public-atspi-query:org.a11y.atspi.Accessible:GetState:PRIVATE_OBJECT')
         error.add_note('public-atspi-query:PRIVATE_INTERFACE:PRIVATE_METHOD')
         error.add_note('PRIVATE_PASSWORD')
+        error.add_note('ui:absence-read:defunct-tree')
+        error.add_note('ui:absence-read:PRIVATE_DOCUMENT')
+        error.add_note('ui:absence-read:query:PRIVATE_OBJECT')
         raise error
     AccessibleUI._run = fail_read
     AccessibleUI(SimpleNamespace()).run('native-command-launch', '')
@@ -75,6 +78,7 @@ def test_adapter_failure_payload_reports_static_sites_without_private_values(tmp
     assert all(site['module'] == 'accessible_ui' and type(site['line']) is int
                for site in value['locations'])
     assert value['queries'] == [{'interface': 'org.a11y.atspi.Accessible', 'method': 'GetState'}]
+    assert value['absence_reads'] == ['defunct-tree']
     assert refusal == ('ui:system-prompt-observation-failed' if guarded
                        else 'ui:adapter-failed:RuntimeError')
     assert 'PRIVATE_' not in result.stderr.decode()
@@ -1034,10 +1038,12 @@ def test_allowance_failure_diagnostic_excludes_text_and_preserves_query_failure(
     else:
         assert result['controls']['parent-daily-limit-selector'] is None
         assert result['controls']['parent-custom-daily-limit'] is None
+        assert result['controls']['parent-daily-limit-choices'] is None
         assert result['controls']['parent-daily-limit-custom'] == (None if fault == 'missing'
             else {'visible': True, 'showing': fault != 'clipped', 'sensitive': True})
         assert result['present'] == {'parent-daily-limit-selector': 0,
             'parent-custom-daily-limit': 0,
+            'parent-daily-limit-choices': 0,
             'parent-daily-limit-custom': 0 if fault == 'missing' else 1}
     assert 'private' not in json.dumps(result)
 

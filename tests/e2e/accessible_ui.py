@@ -106,6 +106,22 @@ PARENT_LANGUAGE_OPERATIONS = frozenset({
     *PARENT_LANGUAGE_STATES, *PARENT_LANGUAGE_ALLOWANCES, *PARENT_LANGUAGE_SELECTIONS,
 })
 OPERATIONS |= PARENT_LANGUAGE_OPERATIONS
+PARENT_DIALOG_BINDINGS = {
+    f'parent-dialog-{surface}-{language}-{action}': (surface, language, action)
+    for surface in ('about', 'feedback') for language in ('en', 'he')
+    for action in ('open', 'read', 'focus', 'tabbed', 'back', 'close', 'closed', 'refused')
+}
+PARENT_DIALOG_BINDINGS['parent-dialog-feedback-en-empty'] = ('feedback', 'en', 'empty')
+OPERATIONS |= PARENT_DIALOG_BINDINGS.keys()
+# Literal public text oracles; never load the product's translation context.
+PARENT_DIALOG_TEXT = {
+    'en': {'about-website-label': 'Website', 'about-privacy-label': 'Privacy',
+           'about-privacy-value': 'Privacy policy', 'feedback-close': 'Close',
+           'feedback-send': 'Send Feedback', 'feedback-reply-email': 'Reply email (optional)'},
+    'he': {'about-website-label': 'אתר', 'about-privacy-label': 'פרטיות',
+           'about-privacy-value': 'מדיניות פרטיות', 'feedback-close': 'סגירה',
+           'feedback-send': 'שליחת משוב', 'feedback-reply-email': 'דוא״ל לתשובה (לא חובה)'},
+}
 KIOSK_LANGUAGE_OPERATIONS = frozenset({
     'kiosk-language-initial', 'kiosk-language-open', 'kiosk-language-read',
     'kiosk-language-save', 'kiosk-language-cancel', 'kiosk-language-wrong-entry',
@@ -186,6 +202,7 @@ FEEDBACK_PROJECTIONS = {
     'parent-rule-error': ('body-rule-error', 'reply-clear'),
     'trace-prefix': ('body-first', 'reply-clear'),
     'synthetic-first': ('body-first', 'reply-first'),
+    'synthetic-rtl': ('body-rtl', 'reply-rtl'),
     'formatted': ('body-smoke', 'reply-first'),
     'formatted-file': ('body-smoke', 'reply-first'),
     'attachment-file': ('body-first', 'reply-first'),
@@ -251,6 +268,8 @@ KIOSK_INVALID_VALUES = {
     'below': '0.09', 'over': '1440.1', 'comma': '1,5',
 }
 TEXT_VALUES = {
+    'body-rtl': ('feedback-editor-input', 'שלום Alex 75'),
+    'reply-rtl': ('feedback-reply-email', 'rtl-check@example.invalid'),
     'match-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Exact*.AppImage'),
     'match-wildcard-basename': ('parent-match-rule-entry', 'Exact*.AppImage'),
     'match-wildcard-appimages': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/*.AppImage'),
@@ -3517,7 +3536,7 @@ class AccessibleUI:
                 'include_logs': value['include_logs']}
 
     def feedback_snapshot(self, projection='initial-empty', *, states=False, attachments=False,
-                          attachment_state=None):
+                          attachment_state=None, language=None):
         """FEED03: compare a declared synthetic draft, never project arbitrary text.
 
         One complete public snapshot supplies ownership, the exact attachment
@@ -3710,6 +3729,8 @@ class AccessibleUI:
             result['include_logs'] = include_logs
         if projection in ('formatted', 'formatted-file'):
             result['formats'] = self.basic_feedback_formatting()
+        if language is not None:
+            result['presentation'] = self.parent_dialog_presentation('feedback', language)
         return result
 
     def basic_feedback_formatting(self):
@@ -4249,14 +4270,14 @@ class AccessibleUI:
             require(self.api.Text.get_caret_offset(text) == len(value), 'ui:scalar-caret')
         return None
 
-    def open_feedback(self, projection='initial-empty'):
+    def open_feedback(self, projection='initial-empty', *, language=None):
         """FEED01: ordinary Parent entry, with an independently observed result."""
         require(projection in FEEDBACK_PROJECTIONS, 'ui:feedback-projection')
         self.activate_id('parent-feedback-button')
         self.id_target('feedback-editor-input', sensitive=True)
         def ready():
             try:
-                return self.feedback_snapshot(projection)
+                return self.feedback_snapshot(projection, language=language)
             except UiError as error:
                 if str(error) in ('ui:feedback-collection', 'ui:feedback-target'):
                     return None
@@ -4543,7 +4564,8 @@ class AccessibleUI:
         elif operation == 'feedback-draft-closed':
             self.window_closed('feedback', 'parent')
         elif operation == 'feedback-close-refused':
-            require(self.absent_id('feedback-dialog', within='parent-window'),
+            require(self.absent_id('feedback-dialog', within='parent-window',
+                                   incomplete_raises=True),
                     'ui:feedback-wrong-entry')
             try:
                 self.window_ready_to_close('feedback')
@@ -4573,7 +4595,7 @@ class AccessibleUI:
                          'about-legal-notices-value'):
             self.clickable_link(identity, root=root)
 
-    def open_about(self, version, *, menu_open=False):
+    def open_about(self, version, *, menu_open=False, language='en'):
         """ABOUT01: independent Parent entry; menu, About, text and license link."""
         if menu_open:
             self.clickable_link('parent-menu-help', root=self.parent())
@@ -4582,8 +4604,94 @@ class AccessibleUI:
         self.activate_id('parent-menu-about')
         root = self.about()
         self.read_label(root, 'about-product', maximum=80)
-        self.read_label(root, 'about-version', maximum=80, expected=version)
+        self.read_label(root, 'about-version', maximum=80, expected=version, language=language)
         self.reveal_id('about-license-value', root=root)
+
+    def parent_dialog_presentation(self, surface, language, *, focused=None):
+        """Dialog-owned logical text and focus, independently of LANG01."""
+        require(surface in ('about', 'feedback') and language in ('en', 'he'),
+                'ui:dialog-binding')
+        observation = self.read_snapshot()
+        nodes, edges, identities, _facts = observation
+        application = self.snapshot_matches(PARENT_APPLICATION, nodes, identities=identities)
+        root = self.snapshot_owned_target(surface + '-dialog', observation=observation,
+                                          check_prompt=True)
+        require(application is not None and root is not None
+                and root in self.snapshot_scope(nodes, edges, application)
+                and self.has_state(root, self.api.StateType.ACTIVE), 'ui:dialog-entry')
+        scoped = self.snapshot_scope(nodes, edges, root)
+        require(not any(self.has_state(node, self.api.StateType.DEFUNCT) for node in scoped),
+                'ui:dialog-stale')
+        labels = {}
+        for identity, expected in PARENT_DIALOG_TEXT[language].items():
+            if not identity.startswith(surface + '-'):
+                continue
+            target = self.snapshot_owned_target(identity, root=root, observation=observation,
+                                                showing=False)
+            require(target is not None and self.has_state(target, self.api.StateType.VISIBLE)
+                    and target.get_name() == expected, 'ui:dialog-label')
+            # The editable reply value is checked by feedback_snapshot; its
+            # accessible name is the translated field label, never its draft.
+            if identity != 'feedback-reply-email':
+                texts = []
+                for node in self.snapshot_scope(nodes, edges, target):
+                    text = node.get_text_iface()
+                    if text is not None:
+                        count = text.get_character_count()
+                        require(type(count) is int and 0 < count <= 128, 'ui:dialog-text-count')
+                        texts.append(text.get_text(0, count))
+                require(texts == [expected], 'ui:dialog-logical-text')
+            labels[identity] = expected
+        if surface == 'about':
+            self.read_label(root, 'about-product', maximum=80)
+            self.clickable_link('about-license-value', root=root)
+            require(self.id_target('about-license-value', root=root).get_name()
+                    == 'GNU General Public License v3.0', 'ui:dialog-application-name')
+        if focused is not None:
+            require(focused in (('about-website-value', 'about-privacy-value') if surface == 'about'
+                                else ('feedback-close', 'feedback-send')), 'ui:dialog-focus-binding')
+            target = self.snapshot_owned_target(focused, root=root, observation=observation)
+            require(target is not None and self.has_state(target, self.api.StateType.SENSITIVE)
+                    and self.has_state(target, self.api.StateType.FOCUSED), 'ui:dialog-focus')
+        return {'surface': surface, 'language': language, 'labels': labels, 'focused': focused}
+
+    def parent_dialog_operation(self, operation, version):
+        surface, language, action = PARENT_DIALOG_BINDINGS[operation]
+        if action == 'refused':
+            self.parent()
+            require(self.absent_id(surface + '-dialog', within='parent-window'), 'ui:dialog-wrong-entry')
+            try:
+                self.parent_dialog_presentation(surface, language)
+            except UiError as error:
+                require(str(error) == 'ui:dialog-entry', 'ui:dialog-refusal')
+            else:
+                raise UiError('ui:dialog-refusal-missing')
+            return {'refused': True}
+        if action == 'closed':
+            self.window_closed(surface, 'parent')
+            return {}
+        if action in ('open', 'empty'):
+            if surface == 'about':
+                self.open_about(version, language=language)
+            else:
+                self.open_feedback('initial-empty' if action == 'empty' else 'synthetic-rtl',
+                                   language=language)
+        first, second = (('about-website-value', 'about-privacy-value') if surface == 'about'
+                         else ('feedback-close', 'feedback-send'))
+        focused = first if action in ('focus', 'back') else second if action == 'tabbed' else None
+        if action == 'focus':
+            self.parent_dialog_presentation(surface, language)
+            self.activate_id(surface + '-dialog', action_name='focus.' + first)
+            self.wait(lambda: self.has_state(self.id_target(first), self.api.StateType.FOCUSED),
+                      'dialog-focus')
+        result = {'dialog_presentation': self.parent_dialog_presentation(surface, language,
+                                                                        focused=focused)}
+        if surface == 'feedback':
+            result['feedback'] = self.feedback_snapshot('initial-empty' if action == 'empty'
+                                                       else 'synthetic-rtl')
+        if action == 'close':
+            self.window_ready_to_close(surface)
+        return result
 
     def read_about_interval(self, version):
         """Read an already open ID-owned About window without opening/repairing it."""
@@ -5791,7 +5899,7 @@ class AccessibleUI:
             EXISTING_CHILD if operation == 'multiple-other-saved' else CHILD,
             operation != 'parent-save-disabled')
 
-    def read_label(self, root, projection, *, maximum, expected=None):
+    def read_label(self, root, projection, *, maximum, expected=None, language='en'):
         """UI03: bounded registered nonsecret projections; no arbitrary text."""
         require(projection in ('child', 'allowance', 'empty-explanation', 'empty-picker',
                                'search-query', 'web-suggestion', 'about-product',
@@ -5804,7 +5912,8 @@ class AccessibleUI:
                 import re
                 require(type(expected) is str and re.fullmatch(r'[0-9][0-9A-Za-z.+:~\-]{0,63}', expected),
                         'ui:version-binding')
-                label = 'Version ' + expected
+                require(language in ('en', 'he'), 'ui:version-language')
+                label = ('גרסה ' if language == 'he' else 'Version ') + expected
             else:
                 label = PRODUCT if projection == 'about-product' else ABOUT_FOOTER
             require(len(label) <= maximum, 'ui:text-bound')
@@ -10077,6 +10186,8 @@ class AccessibleUI:
         elif operation == 'parent-window':
             self.complete_parent_language_setup()
             self.parent()
+        elif operation in PARENT_DIALOG_BINDINGS:
+            result.update(self.parent_dialog_operation(operation, version))
         elif operation in PARENT_LANGUAGE_OPERATIONS:
             result.update(self.parent_language_operation(operation))
         elif operation in LANGUAGE_HISTORY_REQUESTS:
@@ -11030,7 +11141,7 @@ def adapter_failure_diagnostic(error):
     The isolated stdin payload has no checkout paths. Its observer frames are
     identified by their module globals; embedded helpers have fixed module names.
     """
-    locations, queries = [], []
+    locations, queries, absence_reads = [], [], []
     trace = error.__traceback__
     while trace is not None:
         frame = trace.tb_frame
@@ -11044,6 +11155,10 @@ def adapter_failure_diagnostic(error):
         if type(note) is not str:
             continue
         parts = note.split(':')
+        if (len(parts) == 3 and parts[:2] == ['ui', 'absence-read']
+                and parts[2] in ('empty-tree', 'defunct-tree', 'missing-anchor',
+                                 'stale-owner', 'query')):
+            absence_reads.append(parts[2])
         if (len(parts) >= 3 and parts[0] == 'public-atspi-query'
                 and parts[1] in (
                     'org.freedesktop.DBus', 'org.freedesktop.DBus.Properties',
@@ -11060,6 +11175,8 @@ def adapter_failure_diagnostic(error):
             queries.append({'interface': parts[1], 'method': parts[2]})
     diagnostic = {'event': 'ui-adapter-failure', 'locations': locations[-12:],
                   'queries': queries[-8:]}
+    if absence_reads:
+        diagnostic['absence_reads'] = absence_reads[-8:]
     prompts = getattr(error, 'system_prompts', None)
     if type(prompts) is list and 0 < len(prompts) <= 8 and all(
             type(item) is dict and set(item) == {

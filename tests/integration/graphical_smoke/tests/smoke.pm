@@ -385,6 +385,12 @@ sub run {
         onpc_gdm::recipient_qualification(\&exchange);
         return;
     }
+    if ($ready->{parent_dialog_language}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent::qualify_dialog_language(\&exchange);
+        return;
+    }
     if ($ready->{parent_rtl}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

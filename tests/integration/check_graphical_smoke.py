@@ -680,7 +680,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          native_app=False, app_activity=False, chinese_language_assets=False, desktop_language=False,
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
          kiosk_language_restoration=False, chinese_current_install=False, parent_language_isolation=False,
-         parent_rtl=False):
+         parent_rtl=False, parent_dialog_language=False):
+    require(type(parent_dialog_language) is bool and (not parent_dialog_language or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'parent_dialog_language')
+            and isinstance(value, bool)))), 'smoke:parent-dialog-language-prerequisites')
     require(type(parent_rtl) is bool and (not parent_rtl or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1399,6 +1404,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-parent-language-isolation-qualification'
         if parent_rtl:
             result['scope'] = 'installed-parent-rtl-qualification'
+        if parent_dialog_language:
+            result['scope'] = 'installed-parent-dialog-language-qualification'
         if kiosk_language:
             result['scope'] = 'installed-kiosk-language-qualification'
         if kiosk_language_restoration:
@@ -1589,7 +1596,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     result['source_preflight'] = preflight_source(staged, upgrade=dual_packages)
                 if (parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
-                        or parent_language or parent_language_isolation or parent_rtl or kiosk_language or kiosk_language_restoration or overlay_language or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or native_app or app_activity
+                        or parent_language or parent_language_isolation or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or native_app or app_activity
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
@@ -1772,6 +1779,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if parent_rtl:
                     from parent_setup_qualification import ParentRtlQualification
                     qualification_class = ParentRtlQualification
+                if parent_dialog_language:
+                    from parent_setup_qualification import ParentDialogLanguageQualification
+                    qualification_class = ParentDialogLanguageQualification
                 if kiosk_language:
                     from parent_setup_qualification import KioskLanguageQualification
                     qualification_class = KioskLanguageQualification

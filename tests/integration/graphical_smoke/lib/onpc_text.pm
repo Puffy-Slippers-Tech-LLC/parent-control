@@ -1,6 +1,7 @@
 package onpc_text;
 use strict;
 use warnings;
+use utf8;
 use testapi ();
 use onpc_progress ();
 use onpc_gdm ();
@@ -34,6 +35,8 @@ my %values = (
     'kiosk-invalid-below' => '0.09', 'kiosk-invalid-over' => '1440.1',
     'kiosk-invalid-comma' => '1,5',
     'body-first' => 'Synthetic feedback first',
+    'body-rtl' => 'שלום Alex 75',
+    'reply-rtl' => 'rtl-check@example.invalid',
     'body-blocks' => "Heading sample\nSubheading sample\nNumber sample\nBullet sample\nQuote sample\nCode sample\nPlain sample",
     'body-second' => 'Synthetic feedback replacement', 'body-clear' => '',
     'body-whitespace' => '   ',
@@ -93,8 +96,19 @@ sub replace_text {
         # and disable the editor before Return/Tab can reach it. os-autoinst
         # maps newline and tab to ordinary Return and Tab key events.
         my $suffix = $binding eq 'daily-2' ? "\n" : $binding eq 'daily-3' ? "\t" : '';
-        testapi::type_string($values{$binding} . $suffix,
-            max_interval => $binding eq 'body-complex-75' ? 250 : 20);
+        if ($binding eq 'body-rtl') {
+            # Ordinary GTK Unicode input, one guarded batch. QEMU's keyboard
+            # typing map cannot type Hebrew directly on the English baseline.
+            for my $character (split //, 'שלום') {
+                testapi::send_key('ctrl-shift-u');
+                testapi::type_string(sprintf('%x', ord($character)));
+                testapi::send_key('ret');
+            }
+            testapi::type_string(' Alex 75', max_interval => 20);
+        } else {
+            testapi::type_string($values{$binding} . $suffix,
+                max_interval => $binding eq 'body-complex-75' ? 250 : 20);
+        }
     } else {
         testapi::send_key('backspace');
     }

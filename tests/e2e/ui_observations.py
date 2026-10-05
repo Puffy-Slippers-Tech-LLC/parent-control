@@ -358,6 +358,8 @@ OPERATION_LABELS.update({operation: 'Saving or independently observing the persi
                          for operation in accessible_ui.CHINESE_LANGUAGE_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Reading or changing the owned Parent language through public controls'
                          for operation in accessible_ui.PARENT_LANGUAGE_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Reading inherited Parent dialog text, focus and retained synthetic draft'
+                         for operation in accessible_ui.PARENT_DIALOG_BINDINGS})
 RESPONSE_BYTE_LIMITS.update({operation: 32768
                             for operation in accessible_ui.PARENT_LANGUAGE_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Reading or changing the owned kiosk language through public controls'
@@ -1039,6 +1041,7 @@ class UiObservations:
                 return result
             except BaseException:
                 if operation in (accessible_ui.PARENT_LANGUAGE_OPERATIONS |
+                                 set(accessible_ui.PARENT_DIALOG_BINDINGS) |
                                  accessible_ui.KIOSK_LANGUAGE_OPERATIONS |
                                  accessible_ui.OVERLAY_LANGUAGE_OPERATIONS |
                                  set(accessible_ui.KIOSK_LANGUAGE_POLICIES) | {'overlay-language-policy'} |
@@ -1183,6 +1186,24 @@ class UiObservations:
                     and all(type(seconds) is int and seconds >= 0 for seconds in value['balances'].values()),
                     'ui:language-balances')
             expected['language_policy'] = value
+        if operation in accessible_ui.PARENT_DIALOG_BINDINGS:
+            surface, language, action = accessible_ui.PARENT_DIALOG_BINDINGS[operation]
+            if action == 'refused':
+                expected['refused'] = True
+            elif action != 'closed':
+                first, second = (('about-website-value', 'about-privacy-value') if surface == 'about'
+                                 else ('feedback-close', 'feedback-send'))
+                focused = first if action in ('focus', 'back') else second if action == 'tabbed' else None
+                value = {'surface': surface, 'language': language,
+                         'labels': {key: value for key, value in accessible_ui.PARENT_DIALOG_TEXT[language].items()
+                                    if key.startswith(surface + '-')}, 'focused': focused}
+                require(result.get('dialog_presentation') == value, 'ui:dialog-presentation')
+                expected['dialog_presentation'] = value
+                if surface == 'feedback':
+                    FeedbackObservation.from_value(result.get('feedback'))
+                    require(result['feedback']['draft'] == ('initial-empty' if action == 'empty'
+                                                            else 'synthetic-rtl'), 'ui:dialog-draft')
+                    expected['feedback'] = result['feedback']
         if operation in (accessible_ui.PARENT_LANGUAGE_OPERATIONS | accessible_ui.KIOSK_LANGUAGE_OPERATIONS |
                          accessible_ui.OVERLAY_LANGUAGE_OPERATIONS):
             language_operation, language_child = accessible_ui.KIOSK_LANGUAGE_BINDINGS.get(

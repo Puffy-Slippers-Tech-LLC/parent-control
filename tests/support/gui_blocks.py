@@ -33,6 +33,7 @@ my $journey = onpc_journey->new(prefix => 'host-gui', review => 0, exchange => s
     return {observed => $_[0]};
 });
 if ($block eq 'replace') { onpc_text::replace_text($journey, @arguments); }
+elsif ($block eq 'dialog-navigation') { onpc_parent::dialog_navigation($journey, @arguments); }
 elsif ($block eq 'allowance') {
     $arguments[1] = decode_json($arguments[1]);
     onpc_allowance_selection::select($journey, @arguments);
@@ -68,6 +69,7 @@ _KEYS = {
     'right': 'Right', 'left': 'Left', 'shift-right': '<Shift>Right',
     'backspace': 'BackSpace', 'ret': 'Return', 'esc': 'Escape',
     'alt-f4': '<Alt>F4',
+    'tab': 'Tab', 'shift-tab': '<Shift>Tab',
 }
 
 
@@ -88,7 +90,7 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
     memory. It reads shared modules without opening a display or socket. Real input still
     reacquires its public recipient; no precomputed observation is evidence.
     """
-    from tests.e2e.accessible_ui import TEXT_OPERATIONS, TEXT_VALUES, FILTER_OPERATIONS, ALLOWANCE_KEYBOARD_OPERATIONS
+    from tests.e2e.accessible_ui import TEXT_OPERATIONS, TEXT_VALUES, FILTER_OPERATIONS, ALLOWANCE_KEYBOARD_OPERATIONS, PARENT_DIALOG_BINDINGS
 
     events = json.loads(run_perl(_TRACE, block, *arguments).stdout)
     if not isinstance(events, list) or not 0 < len(events) <= 4096:
@@ -112,6 +114,11 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
                     binding, action = TEXT_OPERATIONS[operation]
                     identity = ('feedback-editor-input' if action == 'anchor'
                                 else TEXT_VALUES[binding][0])
+                elif operation in PARENT_DIALOG_BINDINGS:
+                    surface, _language, action = PARENT_DIALOG_BINDINGS[operation]
+                    first, second = (('about-website-value', 'about-privacy-value') if surface == 'about'
+                                     else ('feedback-close', 'feedback-send'))
+                    identity = second if action == 'tabbed' else first
                 elif operation in ALLOWANCE_KEYBOARD_OPERATIONS:
                     identity = 'parent-daily-limit-selector'
                 elif operation.endswith('-link-target'):

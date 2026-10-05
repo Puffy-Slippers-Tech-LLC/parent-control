@@ -364,6 +364,8 @@ from regression_ui import Bucket
 # Parent Hebrew observations add private text/focus doubles, recorder files and
 # synchronously waited bounded Perl children to parent_language_cleanup_safety.
 # No VM, shared bus/path or new resource owner; its compatible classification stays.
+# Parent inherited-dialog checks extend the same private node/decoder/recorder
+# fixtures and waited Perl children; no new resource or lifetime is introduced.
 REVIEWED = frozenset("""
 package_lifecycle_cleanup_safety
 package_purge_cleanup_safety

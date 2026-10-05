@@ -5,6 +5,7 @@ import copy
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop, parent_reopen, language_selection, custom_child_selection
 from private_artifacts import require
+from accessible_ui import TEXT_OPERATIONS, PARENT_DIALOG_BINDINGS
 
 # Reviewed GTK oracles, deliberately independent of the running catalogues.
 TEXTS = {
@@ -148,6 +149,62 @@ class ParentRtlJourney(ParentLanguageJourney):
             'checked': self.candidate,
             'focused': 'language-cancel' if operation.endswith('-focus') else 'language-continue'},
             'language:presentation-text-or-focus')
+        self.language_captures.add(stage)
+
+
+DIALOG_SCREENS = {
+    **fresh_desktop('parent'), 'desktop': 'ui:parent-language-wrong-entry',
+    'parent-command': 'ui:parent-command-launch',
+    'initial-language': 'ui:parent-language-initial',
+    'initial-save': 'ui:parent-language-save', 'initial-state': 'ui:parent-language-state',
+    'about-refused': 'ui:parent-dialog-about-en-refused',
+    'feedback-refused': 'ui:parent-dialog-feedback-en-refused',
+    'feedback-empty': 'ui:parent-dialog-feedback-en-empty',
+    **{operation: 'ui:' + operation for operation, (binding, _) in
+       TEXT_OPERATIONS.items() if binding in ('body-rtl', 'reply-rtl')},
+    'draft-seeded': 'ui:parent-dialog-feedback-en-read',
+    'draft-close': 'ui:parent-dialog-feedback-en-close',
+    'draft-closed': 'ui:parent-dialog-feedback-en-closed',
+}
+for prefix, selected in (('english', 'en'), ('hebrew', 'he'), ('restored', 'en')):
+    DIALOG_SCREENS.update({**selection(prefix, selected),
+                          prefix + '-save': 'ui:parent-language-save',
+                          prefix + '-state': 'ui:parent-language-state'})
+    for surface in ('about', 'feedback'):
+        for visit in ('first', 'independent'):
+            for action in ('open', 'focus', 'tabbed', 'back', 'read', 'close', 'closed', 'refused'):
+                DIALOG_SCREENS[f'{prefix}-{surface}-{visit}-{action}'] = f'ui:parent-dialog-{surface}-{selected}-{action}'
+DIALOG_PLAN = JourneyPlan(prefix='parent-dialog-language', worker_mode='parent_dialog_language',
+    screen_tags=DIALOG_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in DIALOG_SCREENS}, 'installed-greeter': 'start'},
+    invocations=tuple(DIALOG_SCREENS))
+
+
+class ParentDialogLanguageJourney(ParentLanguageJourney):
+    def __init__(self, context, progress, plan=DIALOG_PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        self.dialog_draft = None
+
+    def check_settings(self, stage, observed):
+        operation = self.plan.screen_tags.get(stage, '')[3:]
+        if operation not in PARENT_DIALOG_BINDINGS:
+            return super().check_settings(stage, observed)
+        InstalledJourney.check_settings(self, stage, observed)
+        require(stage not in self.language_captures, 'dialog:capture-replay')
+        surface, language, action = PARENT_DIALOG_BINDINGS[operation]
+        require(language == self.committed, 'dialog:inherited-language')
+        ui = observed['ui']
+        if action not in ('closed', 'refused'):
+            require(ui['dialog_presentation']['language'] == self.committed
+                    and ui['dialog_presentation']['surface'] == surface, 'dialog:translated-binding')
+            if surface == 'feedback' and action != 'empty':
+                from ui_observations import FeedbackObservation
+                current = FeedbackObservation.from_value(ui['feedback'])
+                require(current.draft == 'synthetic-rtl', 'dialog:expected-draft')
+                if self.dialog_draft is None:
+                    self.dialog_draft = copy.deepcopy(current)
+                require(current == self.dialog_draft, 'dialog:retained-draft')
         self.language_captures.add(stage)
 
 

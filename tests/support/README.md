@@ -38,6 +38,29 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 ## Host and guest boundaries
 
+Parent inherited About/feedback observations use
+`AccessibleUI.parent_dialog_presentation` with explicit surface/language and
+public Text/name/focus comparisons. The `synthetic-rtl` body/reply profile remains
+bounded synthetic input, read exactly before new input after reopening.
+`onpc_text::replace_text` owns its normal Unicode-key input;
+`onpc_parent::dialog_navigation` owns forward/backward Tab, reused by host
+`gui_blocks.run_block`. Its explicit `ltr`/`rtl` binding preserves the same
+Close/Send focus proof across GTK's mirrored Hebrew feedback action box.
+Closing the dialog permits ordinary Parent Preferences
+and reopening of the retained draft, without private translation/draft access.
+These operations add no storage, process, bus or cleanup owner. Existing private
+unit/cleanup fixtures and private UI preview/display classifications apply.
+Installed binding qualification remains pending until its guarded acceptance.
+
+Current-install Parent dialog regressions select
+`named_input(package_source=True)` in both their integration entry and
+`test_commands.qualification_artifact_command`. Snapshot acquisition derives
+the version from that package; preparing the current app snapshot does not
+refresh an older immutable qualification bundle. The launcher builds missing
+source-bound inputs and preserves valid existing bundles. Host launcher checks
+cover matching consumer/preparation bindings, failed preparation before VM
+dispatch and reuse without replacing inputs.
+
 `journey_blocks.allowance_selection`, `onpc_allowance_selection::select` and
 `AccessibleUI.allowance_keyboard` share the Parent allowance keyboard block.
 Host previews execute it with `gui_blocks.select_allowance` and guarded

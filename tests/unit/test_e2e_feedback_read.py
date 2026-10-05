@@ -4999,9 +4999,14 @@ def synthetic_feedback_ui():
     return ui, parent, dialog, controls
 
 
+@pytest.mark.parametrize('projection', ['synthetic-first', 'synthetic-rtl'])
 @pytest.mark.parametrize('fault', ['', 'body', 'reply', 'controls', 'attachments'])
-def test_nonempty_projection_compares_fields_and_controls_without_input(fault):
+def test_nonempty_projection_compares_fields_and_controls_without_input(fault, projection):
     ui, _, dialog, controls = synthetic_feedback_ui()
+    for binding in accessible_ui.FEEDBACK_PROJECTIONS[projection]:
+        identity, value = accessible_ui.TEXT_VALUES[binding]
+        controls[identity].text.count = len(value)
+        controls[identity].text.value = value
     if fault in ('body', 'reply'):
         identity = 'feedback-editor-input' if fault == 'body' else 'feedback-reply-email'
         controls[identity].text.value = 'X' * controls[identity].text.count
@@ -5011,9 +5016,9 @@ def test_nonempty_projection_compares_fields_and_controls_without_input(fault):
         dialog.children.append(Node(identity='feedback-attachment-0123456789abcdef'))
     if fault:
         with pytest.raises(accessible_ui.UiError):
-            ui.feedback_snapshot('synthetic-first')
+            ui.feedback_snapshot(projection)
     else:
-        assert FeedbackObservation.from_value(ui.feedback_snapshot('synthetic-first')).draft == 'synthetic-first'
+        assert FeedbackObservation.from_value(ui.feedback_snapshot(projection)).draft == projection
     for node in controls.values():
         node.action.do_action.assert_not_called()
 
@@ -5026,6 +5031,25 @@ def test_feedback_close_proof_refuses_wrong_window_without_input():
         ui.window_ready_to_close('feedback')
     parent.children.clear()
     assert ui.feedback_privacy_operation('feedback-close-refused') is None
+    for node in controls.values():
+        node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('state', ['absent', 'present', 'defunct'])
+def test_feedback_close_refusal_distinguishes_incomplete_absence(state):
+    ui, parent, dialog, controls = synthetic_feedback_ui()
+    if state != 'present':
+        parent.children.clear()
+    if state == 'defunct':
+        parent.children.append(Node(identity='unrelated', states=('defunct',)))
+    if state == 'absent':
+        assert ui.feedback_privacy_operation('feedback-close-refused') is None
+    else:
+        expected = 'ui:incomplete-tree' if state == 'defunct' else 'ui:feedback-wrong-entry'
+        with pytest.raises(accessible_ui.UiError, match=expected) as caught:
+            ui.feedback_privacy_operation('feedback-close-refused')
+        if state == 'defunct':
+            assert caught.value.__notes__ == ['ui:absence-read:defunct-tree']
     for node in controls.values():
         node.action.do_action.assert_not_called()
 

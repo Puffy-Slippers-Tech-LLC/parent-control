@@ -106,6 +106,8 @@ from regression_resources import HOST_WORKERS
 # installed envelope's unchanged live lease, worker and collection ownership.
 # Parent language inherits the unchanged installed envelope's lease/collection
 # cleanup; host checks own private pytest files and waited Perl children only.
+# Inherited Parent dialogs reuse those private fixtures and the unchanged live
+# envelope; no new lease, storage, process or cleanup owner is added.
 # Kiosk language uses those same private doubles, files and waited children;
 # public observations add no live owner beyond the existing installed envelope.
 # Overlay language inherits that envelope and owns only private pytest files,

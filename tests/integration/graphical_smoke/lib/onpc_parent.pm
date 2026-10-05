@@ -222,6 +222,53 @@ sub qualify_rtl {
     $journey->finish();
 }
 
+sub dialog_navigation {
+    onpc_progress::operation('Checking Parent dialog keyboard navigation in both directions');
+    my ($journey, $prefix, $direction) = @_;
+    die 'parent:dialog-navigation-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /^[a-z][a-z0-9-]*$/ && $direction =~ /^(ltr|rtl)$/;
+    $journey->consume_observation("$prefix-focus", $journey->seen("$prefix-focus"));
+    # GTK mirrors the horizontal feedback action box in Hebrew. Keep the same
+    # Close -> Send -> Close focus proof, using both keyboard directions.
+    testapi::send_key($direction eq 'rtl' ? 'shift-tab' : 'tab');
+    $journey->consume_observation("$prefix-tabbed", $journey->seen("$prefix-tabbed"));
+    testapi::send_key($direction eq 'rtl' ? 'tab' : 'shift-tab');
+    $journey->consume_observation("$prefix-back", $journey->seen("$prefix-back"));
+}
+
+sub qualify_dialog_language {
+    onpc_progress::operation('Qualifying inherited Parent dialog language and retained draft');
+    my ($exchange) = @_;
+    die 'parent:dialog-language-arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    require onpc_journey;
+    require onpc_text;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'parent-dialog-language', review => 0);
+    my $desktop = login_functional($journey);
+    $journey->consume_observation('initial-language', launch($journey, $desktop, 'initial-language'));
+    $journey->consume_observation($_, $journey->seen($_)) for
+        qw(initial-save initial-state about-refused feedback-refused feedback-empty);
+    onpc_text::replace_text($journey, $_) for qw(body-rtl reply-rtl);
+    $journey->consume_observation($_, $journey->seen($_)) for qw(draft-seeded draft-close);
+    testapi::send_key('alt-f4');
+    $journey->consume_observation('draft-closed', $journey->seen('draft-closed'));
+    for my $language ('english', 'hebrew', 'restored') {
+        language_selection($journey, $language);
+        $journey->consume_observation($_, $journey->seen($_)) for ("$language-save", "$language-state");
+        for my $surface ('about', 'feedback') {
+            for my $visit ('first', 'independent') {
+                my $prefix = "$language-$surface-$visit";
+                $journey->consume_observation("$prefix-open", $journey->seen("$prefix-open"));
+                dialog_navigation($journey, $prefix,
+                    $language eq 'hebrew' && $surface eq 'feedback' ? 'rtl' : 'ltr');
+                $journey->consume_observation($_, $journey->seen($_)) for ("$prefix-read", "$prefix-close");
+                testapi::send_key('alt-f4');
+                $journey->consume_observation($_, $journey->seen($_)) for ("$prefix-closed", "$prefix-refused");
+            }
+        }
+    }
+    $journey->finish();
+}
+
 sub qualify_language_isolation {
     onpc_progress::operation('Qualifying Parent Chinese language across enabled child selection');
     my ($exchange) = @_;

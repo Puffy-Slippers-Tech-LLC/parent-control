@@ -11,6 +11,7 @@ import accessible_ui as public
 import check_e2e_parent_language as selector
 import check_e2e_parent_language_isolation as isolation_selector
 import check_e2e_parent_rtl as rtl_selector
+import check_e2e_parent_dialog_language as dialog_selector
 import check_graphical_smoke as smoke
 import installed_journey
 import parent_language as language
@@ -82,6 +83,104 @@ def test_rtl_mode_refuses_before_vm(extra):
     args = {'assets': 'inputs', 'provision_credentials': True, **extra} if extra else {}
     with pytest.raises(CommandError, match='parent-rtl-prerequisites'):
         smoke.main(parent_rtl=True, **args)
+
+
+def test_dialog_selector_registration_decoder_and_distribution(monkeypatch, tmp_path):
+    from parent_setup_qualification import ParentDialogLanguageQualification
+    import e2e_worker
+    import tools.test_commands as commands
+    launch = Mock(return_value=0)
+    monkeypatch.setattr(dialog_selector, 'smoke', launch)
+    assert dialog_selector.main() == 0
+    launch.assert_called_once_with(assets=dialog_selector.ASSETS, provision_credentials=True,
+                                  parent_dialog_language=True)
+    context = SimpleNamespace(directory=tmp_path)
+    journey = ParentDialogLanguageQualification.journey(context, Mock())
+    assert journey.plan is language.DIALOG_PLAN and context.installed_snapshot.startswith('onpc-v')
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
+    monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(dialog_selector.ASSETS)))
+    for name in ('check_e2e_parent_dialog_language', 'check_e2e_parent_dialog_language.py'):
+        assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name])[-1] == str(dialog_selector.ASSETS)
+    assert all(tag[3:] in public.OPERATIONS and tag[3:] in OPERATION_LABELS
+               for tag in language.DIALOG_SCREENS.values())
+    distribution = e2e_worker.distribution_inputs()
+    assert b'qualify_dialog_language' in distribution['lib/onpc_parent.pm']
+    assert b'parent_dialog_language' in distribution['tests/smoke.pm']
+
+
+@pytest.mark.parametrize('extra', [{}, {'parent_rtl': True}, {'fresh_desktop': 'parent'}])
+def test_dialog_mode_refuses_before_vm(extra):
+    args = {'assets': 'inputs', 'provision_credentials': True, **extra} if extra else {}
+    with pytest.raises(CommandError, match='parent-dialog-language-prerequisites'):
+        smoke.main(parent_dialog_language=True, **args)
+
+
+@pytest.mark.parametrize('selected', ['en', 'he'])
+@pytest.mark.parametrize('fault', ['', 'owner', 'duplicate', 'stale', 'logical', 'name', 'focus', 'missing'])
+def test_dialog_public_snapshot_refusals(selected, fault):
+    controls = []
+    for identity, expected in public.PARENT_DIALOG_TEXT[selected].items():
+        if not identity.startswith('feedback-'): continue
+        node = Node(expected, identity=identity)
+        text = SimpleNamespace(get_character_count=lambda expected=expected: len(expected),
+                               get_text=lambda _a, _b, expected=expected: expected)
+        node.get_text_iface = lambda text=text: text
+        controls.append(node)
+    controls[0].states.add('focused')
+    dialog = Node(identity='feedback-dialog', states=('showing', 'visible', 'sensitive', 'active'), children=controls)
+    window = Node(identity='parent-window', children=[dialog])
+    ui = ui_for(window)
+    if fault == 'owner': ui.owner_pids = lambda: {999}
+    if fault == 'duplicate': dialog.children.append(deepcopy(controls[0]))
+    if fault == 'stale': controls[0].states.add('defunct')
+    if fault == 'logical': controls[0].get_text_iface().get_text = lambda _a, _b: 'changed'
+    if fault == 'name': controls[0].name = 'changed'
+    if fault == 'focus': controls[0].states.discard('focused')
+    if fault == 'missing': window.children.clear()
+    if fault:
+        with pytest.raises(public.UiError): ui.parent_dialog_presentation('feedback', selected, focused='feedback-close')
+    else:
+        assert ui.parent_dialog_presentation('feedback', selected, focused='feedback-close') == {
+            'surface': 'feedback', 'language': selected, 'focused': 'feedback-close',
+            'labels': {key: value for key, value in public.PARENT_DIALOG_TEXT[selected].items() if key.startswith('feedback-')}}
+    for node in controls: node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'extra', 'focus', 'language', 'draft', 'replay', 'inherited'])
+def test_dialog_decoder_and_real_recorder_step(tmp_path, fault):
+    stage = 'hebrew-feedback-first-tabbed'
+    operation = language.DIALOG_SCREENS[stage][3:]
+    value = {'surface': 'feedback', 'language': 'he', 'focused': 'feedback-send',
+             'labels': {key: text for key, text in public.PARENT_DIALOG_TEXT['he'].items() if key.startswith('feedback-')}}
+    feedback = {'draft': 'synthetic-rtl', 'attachments': ['diagnostic-logs.zip'],
+                'collection': 'ready', 'validation': 'none', 'controls': 'ready'}
+    if fault == 'extra': value['private'] = True
+    if fault == 'focus': value['focused'] = 'feedback-close'
+    if fault == 'language': value['language'] = 'en'
+    if fault == 'draft': feedback['draft'] = 'synthetic-first'
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+               'dialog_presentation': value, 'feedback': feedback}
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(payload, ensure_ascii=False).encode()))
+    observer = UiObservations(transport)
+    if fault in ('extra', 'focus', 'language', 'draft'):
+        with pytest.raises(EvidenceError): observer.observe(operation)
+        with pytest.raises(EvidenceError, match='previous-failure'): observer.observe(operation)
+        transport.call.assert_called_once()
+        return
+    assert observer.observe(operation) == payload
+    journey = language.ParentDialogLanguageJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.committed = 'en' if fault == 'inherited' else 'he'
+    journey.steps = [{'stage': item} for item in journey.plan.stages[:journey.plan.stages.index(stage)]]
+    journey.boot = 'a' * 64
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value=payload))
+    if fault == 'replay': journey.language_captures.add(stage)
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
 
 
 @pytest.mark.parametrize('selected', ['en', 'he'])
@@ -477,6 +576,90 @@ def test_rtl_worker_actual_order_and_no_keyboard_after_refusal(fault):
     keys = [['key', 'tab'] for index, stage in enumerate(expected)
             if stage.endswith(('-focus', '-refocus')) and index + 1 < len(expected)]
     assert [event for event in result['events'] if event[0] == 'key'] == keys
+
+
+@pytest.mark.parametrize('fault', ['', 'feedback-empty', 'text-body-rtl-selected',
+    'draft-seeded', 'hebrew-about-first-focus', 'hebrew-about-first-tabbed',
+    'hebrew-feedback-first-open', 'hebrew-feedback-first-back', 'restored-feedback-independent-read'])
+def test_dialog_worker_actual_order_and_refusal(fault):
+    worker = WORKER.replace('onpc_parent::qualify_language(', 'onpc_parent::qualify_dialog_language(')
+    worker = worker.replace("sub send_key {", "sub type_string { push @main::events, ['type', $_[0]] }\nsub send_key {")
+    result = json.loads(run_perl(worker, fault).stdout)
+    stages = list(language.DIALOG_SCREENS)[4:]
+    expected = stages if not fault else stages[:stages.index(fault) + 1]
+    assert [event[1] for event in result['events'] if event[0] == 'seen'] == expected
+    assert [event[1] for event in result['events'] if event[0] == 'title'] == [
+        'parent-dialog-language-' + stage for stage in expected]
+    assert bool(result['ok']) == (not fault), result['error']
+    assert (['finish'] in result['events']) == (not fault)
+    if not fault:
+        typed = [event[1] for event in result['events'] if event[0] == 'type']
+        assert typed == ['5e9', '5dc', '5d5', '5dd', ' Alex 75', 'rtl-check@example.invalid']
+        assert len([event for event in result['events'] if event == ['key', 'alt-f4']]) == 13
+        navigation = [event[1] for event in result['events']
+                      if event[0] == 'key' and event[1] in ('tab', 'shift-tab')]
+        assert navigation == [key for selected in ('english', 'hebrew', 'restored')
+                              for surface in ('about', 'feedback') for _visit in range(2)
+                              for key in (('shift-tab', 'tab') if selected == 'hebrew' and surface == 'feedback'
+                                          else ('tab', 'shift-tab'))]
+    assert not any(event in (['key', 'ret'], ['key', 'spc']) for event in result['events']
+                   if fault == 'feedback-empty')
+
+
+@pytest.mark.parametrize('direction', ['ltr', 'rtl'])
+@pytest.mark.parametrize('fault', ['', 'focus', 'tabbed', 'back'])
+def test_dialog_host_navigation_actual_worker_order_and_refusal(monkeypatch, direction, fault):
+    from tests.support.gui_blocks import run_block
+    from tests.support import keyboard
+    events = []
+    operations = {'navigation-' + action: 'ui:parent-dialog-feedback-he-' + action
+                  for action in ('focus', 'tabbed', 'back')}
+    def observe(operation, _version):
+        events.append(('observe', operation))
+        if fault and operation.endswith('-' + fault): raise public.UiError('host:refusal')
+        return {'operation': operation}
+    ui = SimpleNamespace(run=observe, api=SimpleNamespace(StateType=SimpleNamespace(FOCUSED='focused')))
+    monkeypatch.setattr(keyboard, 'key_combo', lambda _ui, identity, keys, **kwargs:
+                        events.append(('key', identity, keys)))
+    if fault:
+        with pytest.raises(public.UiError, match='host:refusal'):
+            run_block(ui, 'dialog-navigation', 'navigation', direction, operations=operations)
+        assert events[-1] == ('observe', 'parent-dialog-feedback-he-' + fault)
+    else:
+        run_block(ui, 'dialog-navigation', 'navigation', direction, operations=operations)
+    keys = [event for event in events if event[0] == 'key']
+    expected = [('key', 'feedback-close', '<Shift>Tab' if direction == 'rtl' else 'Tab'),
+                ('key', 'feedback-send', 'Tab' if direction == 'rtl' else '<Shift>Tab')]
+    assert keys == expected[:0 if fault == 'focus' else 1 if fault == 'tabbed' else 2]
+
+
+@pytest.mark.parametrize('binding', ['body-rtl', 'reply-rtl'])
+@pytest.mark.parametrize('fault', ['', 'selected', 'read'])
+def test_dialog_host_text_block_uses_actual_worker_and_refuses_input(monkeypatch, binding, fault):
+    from tests.support.gui_blocks import run_block
+    from tests.support import keyboard
+    events = []
+    def observe(operation, _version):
+        events.append(('observe', operation))
+        if fault and operation.endswith('-' + fault): raise public.UiError('host:refusal')
+        return {'operation': operation}
+    ui = SimpleNamespace(run=observe, api=SimpleNamespace(StateType=SimpleNamespace(FOCUSED='focused', ACTIVE='active')))
+    monkeypatch.setattr(keyboard, 'key_combo', lambda _ui, identity, keys, **kwargs: events.append(('key', identity, keys)))
+    monkeypatch.setattr(keyboard, 'type_text', lambda _ui, identity, text, **kwargs: events.append(('text', identity, text, kwargs['interval'])))
+    if fault:
+        with pytest.raises(public.UiError, match='host:refusal'): run_block(ui, 'replace', binding)
+        assert events[-1] == ('observe', 'text-' + binding + '-' + fault)
+    else:
+        run_block(ui, 'replace', binding)
+    typed = [event for event in events if event[0] == 'text']
+    if fault == 'selected': assert typed == []
+    elif binding == 'body-rtl':
+        assert typed == [('text', 'feedback-editor-input', value, pacing) for value, pacing in
+                         [('5e9', 0), ('5dc', 0), ('5d5', 0), ('5dd', 0), (' Alex 75', .02)]]
+        assert [event[2] for event in events if event[0] == 'key'] == [
+            '<Control>a', *['<Control><Shift>u', 'Return'] * 4]
+    else:
+        assert typed == [('text', 'feedback-reply-email', 'rtl-check@example.invalid', .02)]
 
 
 @pytest.mark.parametrize('fault', ['', *list(language.PLAN.screen_tags)[:4]])

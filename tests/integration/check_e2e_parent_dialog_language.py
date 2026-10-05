@@ -1,6 +1,5 @@
 #!/usr/bin/python3
-"""Qualify owned Parent Help/About links without following them."""
-
+"""Qualify inherited Parent dialog language and exact retained synthetic drafts."""
 import sys
 from check_graphical_smoke import main as smoke
 from tools.test_storage import named_input
@@ -9,8 +8,7 @@ ASSETS = named_input(package_source=True)
 
 
 def main():
-    return smoke(assets=ASSETS, provision_credentials=True,
-                 license_viewer_provider=True, information_link='information')
+    return smoke(assets=ASSETS, provision_credentials=True, parent_dialog_language=True)
 
 
 if __name__ == '__main__':

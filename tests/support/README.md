@@ -177,6 +177,16 @@ the single current-package composition; `PackageCommand.package_identities` and
 pre-existing preservation. The worker's `chinese_desktop_renewal`,
 `chinese_initial_notice` and `chinese_initial_form` leaves serve both histories.
 These add no live owner beyond the existing guarded envelope.
+
+Installed-snapshot prerequisite checks use an owned installed observation:
+`ChineseNativeAuthJourney` verifies assets at the public Parent checkpoint.
+The product-free package-command context requires transferred package inputs
+that this installed entry does not have. Retain
+`test_installed_asset_checkpoint_verifies_without_package_transfer` in the
+[native authentication regressions](../unit/test_chinese_native_auth_cleanup_safety.py)
+when reusing or moving prerequisite actions; it exercises the actual recorder
+and refuses missing assets before a reply.
+
 `kiosk_language_form` independently reads button
 labels and accessible names plus REQUEST03 values; neither reader performs
 automatic startup Save. `kiosk_language_policy` observes the declared child's
@@ -303,6 +313,16 @@ Keep expected outcomes, case tables, fault injection and independent oracles in
 the owning tests. The broker state-machine model intentionally has independent
 state and assertions. Standard `tmp_path`, `monkeypatch`, `unittest.mock` and
 `TemporaryDirectory` already supply reusable behavior and need no style wrapper.
+
+Build external authentication tree fixtures from the qualified provider's
+catalogue and observed message branch, independently of the adapter's expected
+strings. Bind the provider version, locale and authenticating/session roles:
+Chinese MATE in the kiosk uses the super-user explanation, not its same-user
+or multiple-identity explanations. The independent `native_tree` fixture and
+`test_chinese_kiosk_refuses_other_native_explanation_branches` in the
+[native authentication regressions](../unit/test_chinese_native_auth_cleanup_safety.py)
+preserve that distinction and refusal before secret input. A fixture copied
+from the adapter's oracle cannot detect a shared wrong expectation.
 
 Import fixtures explicitly instead of loading every helper as a global plugin.
 Include dependency fixtures in the consumer too; aliases can disambiguate names.

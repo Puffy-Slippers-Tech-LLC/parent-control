@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **307 — [Parent Hebrew presentation and inherited dialogs](E2E-Tasks/307-parent-language-presentation.md)**.
+Next task: **301 — [Qualify the installed product restart notice](E2E-Tasks/301-restart-notice.md)**.
 
 Task 300's complete Chinese latest-install case 254 and both required
 current-install/native-auth regressions passed on Ubuntu 26.04, including
@@ -44,9 +44,8 @@ text, keyboard focus and retained synthetic draft on Ubuntu 26.04, with both
 independent entries per dialog and all four required regressions. Collection,
 worker shutdown, owned cleanup, baseline restoration, finalization and
 preservation passed. The queue and catalogue retain the exact scope and reports.
-Task 307 composes the complete Parent history; capability qualification supplies
-no complete-case credit. Leave translated approval, panel/countdown and expiry
-work with their queued owners.
+Capability qualification supplies no complete-case credit. Leave translated
+approval, panel/countdown and expiry work with their queued owners.
 
 Task 307c qualified Riley's enabled 60-minute Parent English → Hebrew → English
 management, policy/name and numeric public-balance observations on Ubuntu 26.04,
@@ -54,8 +53,16 @@ including two independent reads per language against one immutable English
 capture. Required enabled-policy isolation, chooser and public-time regressions
 passed. Collection, worker shutdown, owned cleanup, baseline restoration,
 finalization and preservation passed; the queue and language catalogue retain
-the exact scope and reports. Task 307 remains unchecked and unregistered;
-this prerequisite supplies no complete-case credit.
+the exact scope and reports. This prerequisite supplies no complete-case credit.
+
+Task 307 completed E2E-055 `parent-hebrew`, case 256, on Ubuntu 26.04: the
+complete English → Hebrew → English Parent history preserves the original
+enabled policy, account/application names, numeric balances and synthetic
+feedback draft while independently reading chooser/dialog logical text and
+keyboard focus. Required dialog-language and enabled Hebrew-policy regressions
+passed. Collection, worker shutdown, owned cleanup, baseline restoration,
+finalization and preservation passed; coverage was regenerated. The queue and
+language catalogue retain the delivered scope and reports.
 
 The developer removed visual review from this and all future tasks while
 retaining the geometry prohibition. Follow the mandate's

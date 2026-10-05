@@ -368,7 +368,10 @@ from regression_ui import Bucket
 # fixtures and waited Perl children; no new resource or lifetime is introduced.
 # Enabled Hebrew policy decoding/comparison extends those private fixtures and
 # waited worker children; no shared path, VM, bus or additional resource owner.
+# Parent presentation uses private recorder/decoder files and bounded waited
+# Perl probes; no live VM, bus, display, shared cache or new cleanup owner.
 REVIEWED = frozenset("""
+parent_presentation_cleanup_safety
 package_lifecycle_cleanup_safety
 package_purge_cleanup_safety
 system_removal

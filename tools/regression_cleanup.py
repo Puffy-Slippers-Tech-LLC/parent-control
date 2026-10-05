@@ -136,7 +136,10 @@ from regression_resources import HOST_WORKERS
 # parent_language stays compatible in cleanup and unit inventories.
 # Enabled Hebrew policy uses the same private recorder/node fixtures and waited
 # worker probes; no protected operation, live owner or shared state is added.
+# Parent presentation exercises terminal refusals in private recorder/decoder
+# fixtures and waited Perl children; compatible here and in the unit inventory.
 REVIEWED = frozenset('''
+parent_presentation
 package_lifecycle
 package_purge
 parent_language

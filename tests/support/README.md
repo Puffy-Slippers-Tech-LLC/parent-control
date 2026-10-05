@@ -360,6 +360,15 @@ labels, account values, capture endpoints and elapsed-time budget; the shared
 check preserves zero-grant and naturally decreasing daily-balance assertions.
 Keep those values in the consumer instead of copying a comparison subclass.
 
+`public_language_value` also compares declared chooser/dialog presentations and
+feedback projections, with optional caller-named `capture`/`same` endpoints.
+It copies nested public values and refuses missing or repeated captures before
+the recorder reply. Parent dialog visits share `onpc_parent::dialog_visit` and
+`dialog_close`; recipes retain visit count, language, direction and assertions.
+Case 256 composes these with the enabled-policy and Preferences roundtrip
+operations. Its safety checks use private files/values and waited Perl children,
+compatible in both unit and cleanup inventories; no new live owner is introduced.
+
 `offline_language_actions` reuses the lease's existing Internet isolation and
 recovery owner. Bind its stages to public installed-policy observations before
 the action. An installed-snapshot history has no transferred installer, so its

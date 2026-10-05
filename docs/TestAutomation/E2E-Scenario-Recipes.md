@@ -1652,7 +1652,7 @@ owned cleanup and baseline restoration. The
 [language catalogue](E2E-Building-Blocks.md#personal-language-selection)
 records the shared bindings and retained acceptance reports.
 
-### Parent language presentation (planned task 307)
+### E2E-055
 
 One complete Parent English → Hebrew → English history for Jamie, selecting
 Riley with its recorded 60-minute allowance, zero grant and captured app rules.
@@ -1666,8 +1666,17 @@ Use exact body `שלום Alex 75` and reply `rtl-check@example.invalid`.
 After entry, close the dialog normally, change language through Preferences and
 reopen; compare retained body/reply before new input. Preserve account/application
 names, numeric policy and focus at each input/result boundary. No Send or
-external-link action. A public modal/draft-lifetime limitation remains a concrete
-gate; host fixtures or privately restored content cannot replace this history.
+external-link action. Public dialog reopening must preserve the actual draft;
+host fixtures or privately restored content cannot replace this history.
+
+E2E-055 `parent-hebrew`, case 256, binds the complete finite history in
+`tests/e2e/parent_presentation.py` and `onpc_parent_presentation::run`.
+One original English policy capture precedes draft entry. Each language has
+Save/reopen/Cancel Preferences keyboard checks, one About and one feedback visit
+with forward/backward focus, and a final policy/name/numeric balance read.
+Every feedback read compares the immutable original `synthetic-rtl` capture
+before any later input. Policy reads use a 600-second monotonic history bound
+and two-second refresh/formatter tolerance; the entire case deadline is 900 seconds.
 
 ### Overlay language presentation (planned task 308)
 

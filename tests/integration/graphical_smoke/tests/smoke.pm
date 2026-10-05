@@ -64,6 +64,7 @@ use onpc_package_install ();
 use onpc_customer_reboot ();
 use onpc_chinese_lifecycle ();
 use onpc_language_persistence ();
+use onpc_parent_presentation ();
 use onpc_clean_install ();
 
 # Only fixed stage metadata crosses this local file rendezvous. No guest
@@ -112,6 +113,12 @@ sub capture {
 
 sub run {
     my $ready = exchange('ready', undef);
+    if ($ready->{parent_presentation}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_parent_presentation::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{language_persistence}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

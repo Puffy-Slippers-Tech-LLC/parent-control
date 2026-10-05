@@ -34,14 +34,23 @@ def language_journey(*, checks):
     return partial(PublicLanguageJourney, checks=dict(checks))
 
 
-def public_language_value(key, expected):
-    """Literal complete chooser/form comparison, independent of catalogues."""
-    require(key in ('language', 'language_form'), 'language:public-key')
-    return partial(_public_value, key=key, expected=deepcopy(expected))
+def public_language_value(key, expected, *, capture=None, same=None):
+    """Literal public comparison with optional immutable caller-named endpoints."""
+    require(key in ('language', 'language_form', 'language_presentation',
+                    'dialog_presentation', 'feedback'), 'language:public-key')
+    require(not (capture and same), 'language:public-endpoints')
+    return partial(_public_value, key=key, expected=deepcopy(expected), capture=capture, same=same)
 
 
-def _public_value(journey, observed, *, key, expected):
-    require(observed['ui'].get(key) == expected, journey.plan.prefix + ':public-' + key)
+def _public_value(journey, observed, *, key, expected, capture, same):
+    value = observed['ui'].get(key)
+    require(value == expected, journey.plan.prefix + ':public-' + key)
+    if same:
+        require(same in journey.public_captures, 'language:missing-public-capture')
+        require(value == journey.public_captures[same], 'language:public-preservation')
+    if capture:
+        require(capture not in journey.public_captures, 'language:capture-replay')
+        journey.public_captures[capture] = deepcopy(value)
 
 
 def language_policy(expected, *, capture=None, same=None, max_elapsed_seconds,

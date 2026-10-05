@@ -256,25 +256,42 @@ sub qualify_dialog_language {
     $journey->consume_observation($_, $journey->seen($_)) for
         qw(initial-save initial-state about-refused feedback-refused feedback-empty);
     onpc_text::replace_text($journey, $_) for qw(body-rtl reply-rtl);
-    $journey->consume_observation($_, $journey->seen($_)) for qw(draft-seeded draft-close);
-    testapi::send_key('alt-f4');
-    $journey->consume_observation('draft-closed', $journey->seen('draft-closed'));
+    $journey->consume_observation('draft-seeded', $journey->seen('draft-seeded'));
+    dialog_close($journey, 'draft');
     for my $language ('english', 'hebrew', 'restored') {
         language_selection($journey, $language);
         $journey->consume_observation($_, $journey->seen($_)) for ("$language-save", "$language-state");
         for my $surface ('about', 'feedback') {
             for my $visit ('first', 'independent') {
                 my $prefix = "$language-$surface-$visit";
-                $journey->consume_observation("$prefix-open", $journey->seen("$prefix-open"));
-                dialog_navigation($journey, $prefix,
+                dialog_visit($journey, $prefix,
                     $language eq 'hebrew' && $surface eq 'feedback' ? 'rtl' : 'ltr');
-                $journey->consume_observation($_, $journey->seen($_)) for ("$prefix-read", "$prefix-close");
-                testapi::send_key('alt-f4');
-                $journey->consume_observation($_, $journey->seen($_)) for ("$prefix-closed", "$prefix-refused");
+                $journey->consume_observation("$prefix-refused", $journey->seen("$prefix-refused"));
             }
         }
     }
     $journey->finish();
+}
+
+sub dialog_close {
+    onpc_progress::operation('Closing the owned Parent dialog and confirming its absence');
+    my ($journey, $prefix) = @_;
+    die 'parent:dialog-close-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /^[a-z][a-z0-9-]*$/;
+    $journey->consume_observation("$prefix-close", $journey->seen("$prefix-close"));
+    testapi::send_key('alt-f4');
+    $journey->consume_observation("$prefix-closed", $journey->seen("$prefix-closed"));
+}
+
+sub dialog_visit {
+    onpc_progress::operation('Reading inherited Parent dialog text draft and keyboard focus');
+    my ($journey, $prefix, $direction) = @_;
+    die 'parent:dialog-visit-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /^[a-z][a-z0-9-]*$/ && $direction =~ /^(ltr|rtl)$/;
+    $journey->consume_observation("$prefix-open", $journey->seen("$prefix-open"));
+    dialog_navigation($journey, $prefix, $direction);
+    $journey->consume_observation("$prefix-read", $journey->seen("$prefix-read"));
+    dialog_close($journey, $prefix);
 }
 
 sub qualify_hebrew_policy {

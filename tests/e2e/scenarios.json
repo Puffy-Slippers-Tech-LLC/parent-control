@@ -3013,6 +3013,71 @@
       ]
     },
     {
+      "id": "E2E-055",
+      "title": "Parent Hebrew presentation and inherited dialogs",
+      "category": "customer-journey",
+      "owners": ["personal-language"],
+      "requirements": ["ONPC-CORE-TIME-001", "ONPC-CORE-TIME-006", "ONPC-CORE-ABOUT-001", "ONPC-CORE-FEEDBACK-003"],
+      "requirement_gap": null,
+      "contract_refs": [
+        "docs/Specification.md",
+        "docs/SystemDesign/Localization.md",
+        "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-055"
+      ],
+      "components": ["parent", "broker"],
+      "environment": ["ubuntu26.04"],
+      "preconditions": [
+        "existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets",
+        "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product",
+        "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"
+      ],
+      "phases": {
+        "setup": [{"id": "setup", "operation": "provision", "description": "Restore the current installed snapshot and provision fixture credentials."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin a fresh independent Parent history at the installed greeter."}],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Observe untouched English and native names, enable Riley's 60-minute allowance and capture policy and the exact mixed-script draft."},
+          {"id": "step-2", "operation": "ui", "description": "Read English management, Preferences and inherited About/feedback with keyboard focus and unchanged draft and policy."},
+          {"id": "step-3", "operation": "ui", "description": "Save Hebrew, reopen Preferences and inherited dialogs, and compare public logical text, keyboard focus, original draft and policy."},
+          {"id": "step-4", "operation": "ui", "description": "Restore English and independently compare Preferences, inherited dialogs, original draft, names, policy and numeric balances."}
+        ],
+        "end": [{"id": "end", "operation": "collect", "description": "Collect the complete public presentation and preservation results."}],
+        "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Finish owned worker shutdown, baseline restoration and preservation."}]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "untouched-english-native-names", "step_id": "step-1", "description": "Untouched English chooser text and stable native names are independently observed."},
+          {"id": "immutable-english-policy", "step_id": "step-1", "description": "Riley's enabled 60-minute policy, account/application names and zero-grant balances are captured publicly."},
+          {"id": "mixed-script-draft", "step_id": "step-1", "description": "The exact synthetic Hebrew/Latin body and reply are read and captured before closing feedback."},
+          {"id": "english-entry-about-inherited", "step_id": "step-2", "description": "English About logical text, unchanged names and keyboard focus are independently read."},
+          {"id": "english-entry-feedback-inherited", "step_id": "step-2", "description": "English feedback labels, keyboard focus and the immutable original draft are read before input."},
+          {"id": "english-entry-preferences-keyboard", "step_id": "step-2", "description": "Reopened English Preferences retains checked choice, native names and Cancel/Save keyboard focus."},
+          {"id": "english-entry-policy-preserved", "step_id": "step-2", "description": "English final management retains the original names, complete policy and bounded numeric balances."},
+          {"id": "hebrew-about-inherited", "step_id": "step-3", "description": "Hebrew About logical text, unchanged names and keyboard focus are independently read."},
+          {"id": "hebrew-feedback-inherited", "step_id": "step-3", "description": "Hebrew feedback labels, both keyboard directions and the immutable original draft are read before input."},
+          {"id": "hebrew-preferences-keyboard", "step_id": "step-3", "description": "Reopened Hebrew Preferences retains checked choice, native names and Cancel/Save keyboard focus."},
+          {"id": "hebrew-policy-preserved", "step_id": "step-3", "description": "Hebrew management retains the original names, complete policy and bounded numeric balances."},
+          {"id": "english-return-about-inherited", "step_id": "step-4", "description": "Restored English About logical text, unchanged names and keyboard focus are independently read."},
+          {"id": "english-return-feedback-inherited", "step_id": "step-4", "description": "Restored English feedback labels, keyboard focus and the immutable original draft are read before input."},
+          {"id": "english-return-preferences-keyboard", "step_id": "step-4", "description": "Reopened restored English Preferences retains checked choice, native names and Cancel/Save keyboard focus."},
+          {"id": "english-return-policy-preserved", "step_id": "step-4", "description": "The complete history finishes with original names, policy, zero grant and bounded numeric balances."}
+        ],
+        "backend": [], "other_user": []
+      },
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 900,
+      "matrix": {
+        "dimensions": {"history": ["parent-hebrew"]},
+        "full_combinations": [],
+        "rationale": "One complete Parent English Hebrew English history; qualified component matrices and other frontends remain separate."
+      },
+      "variants": [{
+        "coverage_id": 256, "id": "parent-hebrew", "owner": "personal-language",
+        "parameters": {"history": "parent-hebrew"}, "status": "ready", "pending_reason": null,
+        "executable": {"path": "tests/e2e/parent_presentation.py", "test_id": "parent-hebrew"}
+      }]
+    },
+    {
       "id": "E2E-053",
       "title": "Chinese latest-install kiosk lifecycle",
       "category": "customer-journey",

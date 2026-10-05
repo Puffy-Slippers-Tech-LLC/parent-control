@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">23669</span>/<span style="color: gray">0</span>/23669 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">24196</span>/<span style="color: gray">0</span>/24196 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">163</span>/<span style="color: gray">0</span>/163 | Checks broker behavior through a private D-Bus without changing the host system. |
-| UI | <span style="color: green">398</span>/<span style="color: gray">0</span>/398 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
+| UI | <span style="color: green">403</span>/<span style="color: gray">0</span>/403 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">244</span>/<span style="color: gray">0</span>/244 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">4</span>/<span style="color: gray">0</span>/4 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">142</span>/<span style="color: gray">0</span>/142 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">36</span>/<span style="color: gray">208</span>/244 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">24658</span>/<span style="color: gray">208</span>/24866** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">145</span>/<span style="color: gray">0</span>/145 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">37</span>/<span style="color: gray">208</span>/245 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">25194</span>/<span style="color: gray">208</span>/25402** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">35</span>/<span style="color: gray">208</span>/243 |
+| customer-journey | <span style="color: green">36</span>/<span style="color: gray">208</span>/244 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -70,6 +70,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [205](#scenario-205) | Review or decline an error report (surface: parent) | `E2E-045/parent` | ready |
 | [254](#scenario-254) | Chinese latest-install kiosk lifecycle | `E2E-053/latest-install` | ready |
 | [255](#scenario-255) | Personal languages persist across accounts and offline use | `E2E-054/account-offline` | ready |
+| [256](#scenario-256) | Parent Hebrew presentation and inherited dialogs | `E2E-055/parent-hebrew` | ready |
 | <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
@@ -773,6 +774,21 @@ Variant: history: account offline
 - Save Jordan German and Riley Hebrew with 75-second soft-included requests, cancel German, switch children/approvers and freshly re-enter kiosk.
 - Read Riley shared Hebrew on overlay command entry, normal relaunch and a renewed desktop session with independent approver choice.
 - Reread Chinese Parent and each unchanged child policy offline, independently restore Internet and reread both policies.
+
+### Scenario 256
+
+**Parent Hebrew presentation and inherited dialogs**
+
+Case: `E2E-055/parent-hebrew` · Category: customer-journey · Status: **ready**
+
+Variant: history: parent hebrew
+
+**Steps:**
+
+- Observe untouched English and native names, enable Riley's 60-minute allowance and capture policy and the exact mixed-script draft.
+- Read English management, Preferences and inherited About/feedback with keyboard focus and unchanged draft and policy.
+- Save Hebrew, reopen Preferences and inherited dialogs, and compare public logical text, keyboard focus, original draft and policy.
+- Restore English and independently compare Preferences, inherited dialogs, original draft, names, policy and numeric balances.
 
 <div style="color: gray">
 

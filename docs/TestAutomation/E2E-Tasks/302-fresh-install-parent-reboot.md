@@ -17,7 +17,7 @@ Session exception: Genuine installation, Close and reopening, a real reboot and 
 Use the queue's [fresh-install regression scope](../E2E-Task-Queue.md#fresh-install-restart-regression-scope)
 and [lifecycle behavior](../../Specification.md).
 
-Start from the product-free Ubuntu baseline, install the verified current package and observe its final reboot notice. Without reboot or upgrade, launch installed Parent as the administrator. Require one modal before management controls, with installation-neutral instructions, Close/default and Reboot now. Close exits Parent without boot change. Reopen and require the modal again. Activate Reboot now once through normal system authorization; independently observe a new boot, usable greeter and fresh administrator desktop. Reopen Parent, complete ordinary language setup if needed and require usable management with no restart modal.
+Start from the product-free Ubuntu baseline, install the verified current package and observe its final reboot notice. Without reboot or upgrade, launch installed Parent as the administrator. Require one modal before management controls, with installation-neutral instructions, Close and Reboot now. Close exits Parent without boot change. Reopen and require the modal again. Activate Reboot now once through normal system authorization; independently observe a new boot, usable greeter and fresh administrator desktop. Reopen Parent, complete ordinary language setup if needed and require usable management with no restart modal.
 
 Register one pending numeric case, its finite recipe, shared worker and exact
 selector during implementation; regenerate coverage through the maintained

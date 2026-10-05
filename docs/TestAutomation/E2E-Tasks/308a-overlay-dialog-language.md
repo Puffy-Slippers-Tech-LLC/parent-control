@@ -18,8 +18,8 @@ Qualify the child-overlay binding of shared language/presentation readers for
 English → Hebrew → English, including the request form, About and real error
 report. Use Riley/Jamie, 75 seconds, soft apps included; capture numeric values
 and account names before changes. Independently require Hebrew/restored English
-logical text, exact mixed-script content, matching accessible labels, stable IDs and usable
-keyboard/focus through the qualified observation route. Retain the exact body
+logical text, exact mixed-script content, matching accessible labels and stable IDs
+through the qualified observation route. Retain the exact body
 `שלום Alex 75` and reply `rtl-check@example.invalid` across normal report
 closure, public Preferences change and genuine report reopening.
 

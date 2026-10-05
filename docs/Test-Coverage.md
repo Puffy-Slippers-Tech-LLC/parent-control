@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">24196</span>/<span style="color: gray">0</span>/24196 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">24123</span>/<span style="color: gray">0</span>/24123 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">163</span>/<span style="color: gray">0</span>/163 | Checks broker behavior through a private D-Bus without changing the host system. |
-| UI | <span style="color: green">403</span>/<span style="color: gray">0</span>/403 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
+| UI | <span style="color: green">386</span>/<span style="color: gray">0</span>/386 | Checks GTK and GNOME Shell interaction, accessibility and presentation in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">244</span>/<span style="color: gray">0</span>/244 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">4</span>/<span style="color: gray">0</span>/4 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">145</span>/<span style="color: gray">0</span>/145 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">37</span>/<span style="color: gray">208</span>/245 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">25194</span>/<span style="color: gray">208</span>/25402** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">25104</span>/<span style="color: gray">208</span>/25312** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -577,7 +577,7 @@ Variant: flow: draft reopen
 
 **Steps:**
 
-- Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests own exhaustive local formatting, validation and attachment boundaries.
+- Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests cover distinct formatting results and meaningful validation and attachment boundaries.
 - Draft-reopen returns to the existing window, inspects Privacy, closes/reopens feedback to compare the draft, then exits/relaunches Parent to verify reset. Validation reopens and reads recovered valid state. Attachments removes one file and reads the remaining file. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback.
 
 ### Scenario 153
@@ -590,7 +590,7 @@ Variant: flow: validation
 
 **Steps:**
 
-- Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests own exhaustive local formatting, validation and attachment boundaries.
+- Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests cover distinct formatting results and meaningful validation and attachment boundaries.
 - Draft-reopen returns to the existing window, inspects Privacy, closes/reopens feedback to compare the draft, then exits/relaunches Parent to verify reset. Validation reopens and reads recovered valid state. Attachments removes one file and reads the remaining file. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback.
 
 ### Scenario 154
@@ -603,7 +603,7 @@ Variant: flow: attachments
 
 **Steps:**
 
-- Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests own exhaustive local formatting, validation and attachment boundaries.
+- Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests cover distinct formatting results and meaningful validation and attachment boundaries.
 - Draft-reopen returns to the existing window, inspects Privacy, closes/reopens feedback to compare the draft, then exits/relaunches Parent to verify reset. Validation reopens and reads recovered valid state. Attachments removes one file and reads the remaining file. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback.
 
 ### Scenario 155
@@ -616,7 +616,7 @@ Variant: flow: diagnostic export
 
 **Steps:**
 
-- Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests own exhaustive local formatting, validation and attachment boundaries.
+- Open Send Feedback in Parent. For draft-reopen enter text, bold, emoji and reply address plus one real attachment; for validation reject an empty send then edit body/reply; for attachments Open two real files then Cancel another chooser; for diagnostic-export use the real Download/Save chooser and inspect only its newly saved ZIP through the shared bounded read-only SSH artifact helper. UI tests cover distinct formatting results and meaningful validation and attachment boundaries.
 - Draft-reopen returns to the existing window, inspects Privacy, closes/reopens feedback to compare the draft, then exits/relaunches Parent to verify reset. Validation reopens and reads recovered valid state. Attachments removes one file and reads the remaining file. Diagnostic-export tries save cancellation and an unwritable location before successful save. Never submit valid feedback.
 
 ### Scenario 158
@@ -630,7 +630,7 @@ Variant: flow: boundaries
 **Steps:**
 
 - Read the selected child's saved allowance while limits are off and confirm the editor is unavailable. Enable limits in Parent.
-- For boundaries, select preset 15, accept custom 1 and reject 1441 while preserving saved 15. UI tests own the full preset/custom and commit-path matrices. For save-order, make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values.
+- For boundaries, select preset 15, accept custom 1 and reject 1441 while preserving saved 15. UI tests cover representative presets, custom boundaries and distinct commit paths through their saved results. For save-order, make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values.
 - Reopen Parent and compare both children's allowances with their last accepted values. Rejected text must not replace a saved value.
 
 ### Scenario 159
@@ -644,7 +644,7 @@ Variant: flow: save order
 **Steps:**
 
 - Read the selected child's saved allowance while limits are off and confirm the editor is unavailable. Enable limits in Parent.
-- For boundaries, select preset 15, accept custom 1 and reject 1441 while preserving saved 15. UI tests own the full preset/custom and commit-path matrices. For save-order, make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values.
+- For boundaries, select preset 15, accept custom 1 and reject 1441 while preserving saved 15. UI tests cover representative presets, custom boundaries and distinct commit paths through their saved results. For save-order, make the declared rapid valid changes and switch between children. Launch Parent again while it is open and verify one management window with the same selected child and saved values.
 - Reopen Parent and compare both children's allowances with their last accepted values. Rejected text must not replace a saved value.
 
 ### Scenario 161
@@ -671,8 +671,8 @@ Variant: flow: search filters
 
 **Steps:**
 
-- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests own full search/filter and local editor matrices. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
+- Give the child usable time and open App Limits with the declared assets. Read the child-specific list, including an app installed only for that child.
+- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 ### Scenario 190
@@ -786,8 +786,8 @@ Variant: history: parent hebrew
 **Steps:**
 
 - Observe untouched English and native names, enable Riley's 60-minute allowance and capture policy and the exact mixed-script draft.
-- Read English management, Preferences and inherited About/feedback with keyboard focus and unchanged draft and policy.
-- Save Hebrew, reopen Preferences and inherited dialogs, and compare public logical text, keyboard focus, original draft and policy.
+- Read English management, Preferences and inherited About/feedback text with unchanged draft and policy.
+- Save Hebrew, reopen Preferences and inherited dialogs, and compare translated public logical text, original draft and policy.
 - Restore English and independently compare Preferences, inherited dialogs, original draft, names, policy and numeric balances.
 
 <div style="color: gray">
@@ -3704,8 +3704,8 @@ Variant: flow: match editor
 
 **Steps:**
 
-- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests own full search/filter and local editor matrices. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
+- Give the child usable time and open App Limits with the declared assets. Read the child-specific list, including an app installed only for that child.
+- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3724,8 +3724,8 @@ Variant: flow: match reopen
 
 **Steps:**
 
-- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests own full search/filter and local editor matrices. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
+- Give the child usable time and open App Limits with the declared assets. Read the child-specific list, including an app installed only for that child.
+- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3744,8 +3744,8 @@ Variant: flow: shared launchers
 
 **Steps:**
 
-- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests own full search/filter and local editor matrices. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
+- Give the child usable time and open App Limits with the declared assets. Read the child-specific list, including an app installed only for that child.
+- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3764,8 +3764,8 @@ Variant: flow: special paths
 
 **Steps:**
 
-- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests own full search/filter and local editor matrices. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
+- Give the child usable time and open App Limits with the declared assets. Read the child-specific list, including an app installed only for that child.
+- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
@@ -3784,8 +3784,8 @@ Variant: flow: pattern files
 
 **Steps:**
 
-- Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child.
-- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests own full search/filter and local editor matrices. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
+- Give the child usable time and open App Limits with the declared assets. Read the child-specific list, including an app installed only for that child.
+- Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules.
 - Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.

@@ -1,40 +1,45 @@
 # UI and installed E2E coverage
 
-The `ui` category owns exhaustive behavior that can be established in a component
-preview without executing product backend logic. Installed E2E keeps a small
+The `ui` category owns representative functional behavior and meaningful local
+validation boundaries that can be established in a component preview without
+executing product backend logic. Both layers follow the
+[result-oriented UI mandate](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope).
+Installed E2E keeps a small
 representative check that the component works in the packaged application, plus
 every distinct backend, persistence, authorization, lifecycle and operating-system
 integration result. A preview pass alone does not establish those installed results.
 
-Allocate individual assertions, not whole features. Move an existing assertion
-only after its UI owner is executable; do not remove an unimplemented obligation.
+Allocate individual assertions, not whole features. Remove incidental GUI
+assertions rather than moving them to another suite. For retained functional
+assertions, move coverage only after its new owner is executable.
 Pending UI matrices below belong to their existing capability task, before its
 customer case. They do not create another queue or confer acceptance credit.
 
 ## Duplicate review and allocation
 
-| Cases / area | Full GUI owner | Installed E2E scope |
+| Cases / area | Local functional owner | Installed E2E scope |
 | --- | --- | --- |
 | 152, feedback formatting | `test_parent_feedback.py`: all block and inline formats, links, clear/reapply, undo/redo, Unicode and retained draft | Type text, bold one selection, append an emoji; retain reply, one real attachment, return from a directly launched supporting window, dialog preservation and app-exit reset. This does not activate a product link. |
 | 153, feedback validation | `test_parent_feedback.py` and `test_e2e_accessible_adapter.py`: local states, 5000/5001 ASCII and emoji, hidden characters, excessive formatting, rejected-send preservation | Reject one empty send, edit body/reply, reopen and observe recovery; never send valid feedback |
 | 154, attachments | `test_parent_feedback.py`: count, individual/total size, filename and atomic-rejection boundaries; real file reads and frozen attachment snapshot after source mutation | Real chooser Open with two files, Cancel preservation, remove one attachment and read the remaining file |
-| 158–159, daily allowance | `test_preview_smoke.py` and `test_control_overflow.py`: full preset matrix through shared click/type/Enter/saved-value selection, Custom focus, custom boundaries and local commit paths; no popup/highlight/cancellation checks | 158: preset 15, custom 1, invalid 1441; retain child switching, saved-value reload and restart. 159: click → `15m` → Enter → saved 15 minutes, then Custom through the same block, real rapid saves, ordering and single-instance behavior |
+| 158–159, daily allowance | `test_preview_smoke.py` and `test_control_overflow.py`: representative presets through shared click/type/Enter/saved-value selection, custom boundaries and distinct commit paths; no popup, caret or focus acceptance | 158: preset 15, custom 1, invalid 1441; retain child switching, saved-value reload and restart. 159: saved preset and custom results, last-change-wins rapid saves, independent child values and single-instance behavior |
 | 38–43, request forms | `test_request_form_component.py` owns local duration validation; the complete preset/custom matrix on both surfaces remains uncompleted and carries no acceptance credit from the removed gesture tasks | Cases excluded from scheduling by the [unsupported native-gesture rule](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures). Preserve their duration, authorization, duplicate-submission and rest-of-day assertions as uncovered; do not recreate gesture tasks. Other ordinary request/approval cases continue independently. |
-| 184, application search/filter | `test_preview_smoke.py::test_catalogue_complete_query_match_access_matrix`: five queries × four match-mode subsets × eight access subsets, exact empty results, restored complete rows and no policy writes | One exact-name search, one combined precise/Allowed filter, then clear against the real catalogue |
+| 184, application search/filter | `test_preview_smoke.py::test_catalogue_complete_query_match_access_matrix`: name, description, identifier, empty and no-match queries with representative match/access selections, including each category, empty filters and combined predicates; exact rows and no policy writes | One exact-name search, one combined precise/Allowed filter, then clear against the real catalogue |
 | 185–186, application matching | `test_preview_smoke.py::test_match_editor_valid_save_cancel_matrix`: precise/wildcard × absolute/basename Save and Cancel through shared blocks; `test_match_editor_invalid_reset_matrix`: empty/whitespace/unrelated absolute/basename drafts × old precise/wildcard × Cancel/Reset, exact explanations, retained drafts, unchanged Cancel and immediate default save | Real saved custom rule, representative local refusal and immediate Reset, cross-directory broker rejection, reopen/restart persistence and actual launch/enforcement |
 | Application access choices, PARENT16 | `test_preview_smoke.py::test_app_access_choices_save_and_independent_readback`: all three choices, unchanged Allowed without another save, wrong-row/modal refusal and independent entry through the shared access composite | Native fixture A's Allowed/Hard/Soft autosaves and exact public row readback; actual enforcement and full match/access composition stay with their separate tasks |
 | 151, 190–193, Help/About | `test_about_release.py`, `test_preview_smoke.py`, `test_e2e_accessible_adapter.py`, `test_request_form_component.py::test_overlay_about_license_shared_reader_and_unchanged_form`; Parent content/clickability is delivered by 185p and full overlay Help/About clickability/return by 185o | Owned About information and external-link clickability only, unchanged app return, kiosk restrictions and installed command manuals; no link invocation, URI/destination inspection or external handlers |
 | 205–207, error reporting | `test_error_feedback.py`: local presentation and report callback permutations; `test_preview_smoke.py::test_rejected_parent_rule_report_review_and_confirmed_policy`: confirmed precise/wildcard restoration, automatic report, synthetic draft, Privacy and normal closure through shared blocks | Complete case 205 and request-surface error routing, destinations and exits |
 | 155–157, 208–222, diagnostics/transport | Local presentation is UI; existing feedback UI tests cover callback success/failure states | Preserve actual collection, cancellation, service/network failures, sanitization and transport/lifetime checks; these execute different code from a stubbed preview |
-| Layout, scaling and automation identity | Existing parent/child/kiosk/layout/accessibility UI tests | No repeated layout or scale matrix in E2E |
-| Personal language settings | `test_language_settings.py`: English, German and Simplified Chinese on Parent, overlay and kiosk; first-run/session defaults, saved startup, commit-before-close, Cancel, read/save failure and retry, accessible labels and dynamic errors; Parent Hebrew public logical Text and Cancel-to-Save keyboard focus. Selected-child desktop defaults and reboot-required presentation have component coverage; agent preparation is a transport double, not native approval evidence. Existing GTK direction/alignment engineering and draft/scale coverage remain. | Tasks 300 and 306–310 follow the [acceptance mapping](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition): Chinese latest-install/reboot/two native approvals; account/offline persistence; Parent, overlay and kiosk Hebrew logical text/dialogs; panel refresh/countdown/natural expiry. Each missing surface/result binding has a bounded prerequisite. Apply the mandate's no-visual acceptance rule for this and future tasks; geometry remains prohibited. Chinese assets remain in prepare-baseline and desktop language in DESK13. Actual native text is required on both Chinese approvals; Hebrew requires qualified public logical text/identity/keyboard observations on each surface. No installed acceptance is claimed by this allocation. |
+| Scaling and automation identity | Representative scaled product operations and shared identity/input-safety qualification; no geometry, alignment, CSS, glyph-run or widget-order acceptance | No repeated layout or scale matrix in E2E |
+| Personal language settings | `test_language_settings.py`: English, German and Simplified Chinese on Parent, overlay and kiosk; first-run/session defaults, saved startup, Save/Cancel, read/save failure and retry, accessible labels and dynamic errors; Parent Hebrew logical text and saved language. Selected-child desktop defaults and restart notices have component coverage; agent preparation is a transport double, not native approval evidence. Search checks matching choices and translated results, without focus traversal. | Tasks 300 and 306–310 follow the [acceptance mapping](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition): Chinese latest-install/reboot/two native approvals; account/offline persistence; Parent, overlay and kiosk Hebrew logical text/dialogs; panel refresh/countdown/natural expiry. Each missing surface/result binding has a bounded prerequisite. Chinese assets remain in prepare-baseline and desktop language in DESK13. Actual native text is required on both Chinese approvals; Hebrew requires qualified public logical text and preserved function on each surface. No installed acceptance is claimed by this allocation. |
 
 Parent's inherited About/feedback matrix is owned by
-`test_language_settings.py::test_parent_dialog_inherited_text_keyboard_and_retained_hebrew_draft`:
-English → Hebrew → English, two visits per dialog/language, public logical text,
-both keyboard directions and the exact retained mixed-script body/reply. It
-executes the shared installed text/navigation blocks. Task 307b qualified that
-fixed installed binding; task 307 still owns its complete policy/history assertions.
+`test_language_settings.py::test_parent_dialog_inherited_text_and_retained_hebrew_draft`:
+English → Hebrew → English, one visit per dialog/language, public logical text
+and the exact retained mixed-script body/reply. It executes shared installed
+dialog operations. Task 307b's historical qualification included additional
+visits and keyboard traversal; current consumers require the functional results.
+Task 307 owns the complete policy/history assertions.
 
 The attachment UI fixture substitutes only the external chooser's returned file
 list. The real frontend reads the files, validates them and updates the dialog.
@@ -86,11 +91,11 @@ comparisons. Allowance cases select a small subset of the same boundary sequence
 used by qualification. New UI and E2E work must extend these shared operations
 before adding a second implementation of the same action.
 
-Full matrix qualification probes remain explicitly selected engineering
-diagnostics. They are not routine customer cases or members of the default E2E
-category. Qualify a changed input/provider route with its independent-entry and
-refusal checks; do not make every local value permutation a prerequisite for an
-otherwise unchanged installed component smoke check.
+Qualification probes remain explicitly selected engineering diagnostics. They
+also follow the result-oriented mandate: incidental GUI assertions do not gain
+an exemption by being called qualification. Qualify a changed input/provider
+route with necessary independent-entry and refusal checks; do not make every
+local value permutation a prerequisite for an unchanged installed component.
 
 The [task queue](E2E-Task-Queue.md) still owns order and close-out. This allocation
 review changes neither historical passes nor the current next-task pointer.

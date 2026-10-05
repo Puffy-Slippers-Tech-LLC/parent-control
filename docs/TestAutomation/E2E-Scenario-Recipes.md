@@ -10,7 +10,7 @@ entry/time rules.
 
 E2E-028, E2E-029 and E2E-034 are retired; their former coverage IDs 140–150
 remain system-test obligations outside the UI inventory. Preserve all current
-ready inventory bindings and their assertions. Each family below records
+ready inventory bindings and their functional assertions. Each family below records
 current implementation context, not an independent readiness authority. Follow
 the [execution plan](E2E-Execution-Plan.md#completion-and-document-cleanup) after
 a complete scenario pass. A block qualification alone leaves its scenario
@@ -144,9 +144,9 @@ Large durations test selection and displayed arithmetic without waiting to expir
 
 | Data | Complete finite set / expected result |
 | --- | --- |
-| Daily presets (158) | Select/read 15 minutes. The complete preset matrix belongs to UI tests. |
+| Daily presets (158) | Select/read 15 minutes. UI samples 0, 60, 90 and 1410 through the shared operation; preset list and keyboard mapping completeness remain lower-layer coverage. |
 | Daily custom (158) | Accept 1; reject 1441 with saved 15, then reopen and read 15. UI tests retain 0, 1, 15, 1439 and invalid empty, abc, −1, 0.5, 1440, 1441. The API's 1440 allowance remains engineering coverage. |
-| Daily saving (159) | From Jordan's enabled zero, use the shared block: click, type `15m`, Enter, then verify saved 15 minutes. The same block with `c`/Enter focuses Custom. Type valid 5 followed promptly by 6; final saved value is 6. Switch to Riley, select Custom with the same block, save 7, return and read Jordan=6/Riley=7. Launch Parent again without closing it: PARENT01 → UI13(one management window) → PARENT03/UI12(same selected child and values). Close/reopen and repeat the value read. Full preset and commit matrices belong to UI tests; real save ordering stays here. Do not assert a minimum visible Saving animation duration. |
+| Daily saving (159) | From Jordan's enabled zero, select 15 minutes through the shared allowance block and verify saved 15. Choose Custom and enter valid 5 followed promptly by 6; final saved value is 6. Switch to Riley, save custom 7, return and read Jordan=6/Riley=7. Launch Parent again without closing it: PARENT01 → UI13(one management window) → PARENT03/UI12(same selected child and values). Close/reopen and repeat the value read. Real save ordering stays here; popup, focus, intermediate draft, Saving and temporary control availability are automation mechanics rather than acceptance. |
 | E2E-005 profiles | daily-only: positive daily, no grant; grant-only: zero daily with real 10-minute approval before edits; combined: positive daily plus a real 10-minute addition. Enabled edits: daily-only/combined 4→5→0→5 minutes; grant-only 0→4→0. At zero, daily-only must deny access while combined retains its grant. Re-read actual D and the original grant deadline; if navigation exhausts a required margin, fail preparation rather than inject usage. |
 | Request presets (38/41) | Select 5 minutes, read its footer and actual approval prompt, then approve. UI tests own all 5, 15, 30, 60, 120, 240 choices on both surfaces. |
 | Request custom (39/42) | Reject 0.09 locally, then request and approve 1.25 minutes (75 seconds). UI tests own valid 0.1, 0.5, 1.25, 1440 and invalid empty, abc, −1, 0, 0.09, 1440.1, comma decimal 1,5, including whole-second display conversion. |
@@ -198,9 +198,9 @@ disabled or exhausted child's overlay is never a preparation shortcut.
 
 ### Coverage and execution policy
 
-Exhaust each declared finite matrix in its owning layer under the
-[UI/E2E allocation](UI-and-E2E-Coverage.md). Local GUI permutations belong to UI
-tests; E2E samples the installed component and retains every distinct backend or
+Cover each distinct functional outcome in its owning layer under the
+[UI/E2E allocation](UI-and-E2E-Coverage.md). Remove incidental GUI permutations;
+E2E samples the installed component and retains every distinct backend or
 OS result. For values sharing a backend mechanism, enumerate representative
 inputs inside the owning case. E2E-019 owns baseline
 launch rules; E2E-049 owns temporary exceptions on those same eight routes and
@@ -355,10 +355,10 @@ Implementation status: All cases pending.
 Bindings: soft-apps = excluded / included; approver = first / second.
 
 REQUEST13's repeated entry uses the shared `overlay_entry(..., 'panel-reopen')`
-binding: validate the existing fixed-child form, reveal the covered panel with
-Super, reacquire its public ID and focus, activate once, then verify Overview
-before Escape and independently reread the singleton form. The ordinary first
-panel entry uses `panel`; supporting overlay entries use `command`.
+binding to activate the panel control and independently reread the singleton
+fixed-child form. Any panel reveal, focus and Overview/Escape handling belongs
+inside that shared input route. The ordinary first panel entry uses `panel`;
+supporting overlay entries use `command`.
 
 1. FLOW13(combined, soft included) → C → FLOW08(soft) → APP04 → REQUEST13 twice (explicit panel launch and singleton check) → REQUEST03(fixed child,one form).
 2. REQUEST04(approver,duration) → REQUEST06(soft choice) → REQUEST08 → REQUEST09 → AUTH01(exact prompt).
@@ -828,11 +828,10 @@ Bindings: flow = boundaries / save-order.
 Cases 158 and 159 compose `journey_blocks.allowance_selection` and
 `onpc_allowance_selection::select`, the same block used by host UI through
 `tests.support.gui_blocks.select_allowance`. Case 158 chooses preset 15,
-restores its rejected-draft baseline and opens Custom with `c`/Enter through
-this block. Reopening an already visible custom editor observes its exact saved
-value without opening the popup again. Case 159 starts from Jordan's enabled
-saved zero: click, type `15m`, Enter and verify saved 15 minutes.
-Choose Custom with the same block (`c`/Enter), then perform rapid 5→6.
+restores its rejected-draft baseline and chooses Custom through this block.
+Reopening the custom editor reads its exact saved value. Case 159 starts from
+Jordan's enabled saved zero, selects 15 minutes and verifies saved 15.
+Choose Custom with the same block, then perform rapid 5→6.
 Riley's custom 7 entry and the named-child/rapid-save qualifications reuse the
 same block. All UI and E2E tests follow the
 [mandatory sequence](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception);
@@ -840,7 +839,7 @@ popup/highlight/cancellation assertions and alternate choice-selection routes
 are excluded.
 
 1. P → PARENT03(off,zero,editor disabled) → FLOW16(allowance=0,final=on).
-2. boundaries: installed samples from the allowance table {PARENT06 → PARENT08 → PARENT03 → UI12}; save-order: watch(PARENT08){PARENT06(rapid edits)} → PARENT02(other), retaining real save ordering and single-instance checks.
+2. boundaries: installed samples from the allowance table {PARENT06 → PARENT08 → PARENT03 → UI12}; save-order: PARENT06(rapid edits) → PARENT08(saved final value) → PARENT02(other), retaining real save ordering and single-instance checks.
 3. LIFE01(Parent) → PARENT02(each child) → PARENT03 → UI12(last accepted values).
 
 ### E2E-036
@@ -932,6 +931,8 @@ access/match legend through `AccessibleUI.expand_policy_legend` /
 wrong-entry refusals and unchanged policies. Reuse caller-owned stages from the
 [public policy legend contract](E2E-Building-Blocks.md#public-policy-legend);
 `PolicyLegendJourney` owns qualification, not the complete case lifecycle.
+The search/filter case uses final displayed rows and unchanged policy; it does
+not repeat the separate legend content qualification.
 The native launchers are already Jordan-only per-user inputs.
 
 Case 184 owns `search_filters.PLAN`, composing the
@@ -943,7 +944,7 @@ settings and independent 1800/0/1800-second balances. Complete installed accepta
 passed in `20261001T054514Z-f7691e2f` on every enabled VM, including collection,
 owned cleanup and baseline restoration. This supplies no acceptance for other flows.
 
-1. FLOW16(ample daily) → PARENT04(App Limits) → UI04(legend) → UI03 → PARENT12(assets).
+1. FLOW16(ample daily) → PARENT04(App Limits) → PARENT12(assets).
 2. Run the corresponding finite catalogue subrecipe below using PARENT10/11/13/15/16, UI16, shared FILE05 commands and LIFE01.
 3. PARENT12 → UI12(saved/expected rule) → C → FLOW08(declared positive and negative targets). Search-only checks compare rules without changing them.
 
@@ -1334,7 +1335,7 @@ saved rows and, when stated, using the app as the child.
 
 | Case | Exact block/data expansion |
 | --- | --- |
-| 184 search-filters | PARENT10 exact-name query → PARENT11 precise plus Allowed → UI13/UI12 exact expected intersection of the real declared catalogue; clear query/restore filters and compare PARENT12 initial policies. Compose `onpc_app_rows::search` / `filter` / `read_rows` with caller-owned stages and `journey_blocks.filter_screens`; use `native_fixtures.catalogue_rows` for the exact expected set. The native profile is Jordan-bound (`existing` text/filter child bindings and `existing-parent-app-rows`); unprefixed rows target Riley. A fresh case plan owns its lifecycle, rather than inheriting `CatalogueJourney`. The full UI matrix lives in `test_preview_smoke.py::test_catalogue_complete_query_match_access_matrix`: five queries (name, description, identifier, empty, no match) × four precise/pattern subsets × eight allowed/hard/soft subsets, including empty selections. |
+| 184 search-filters | PARENT10 exact-name query → PARENT11 precise plus Allowed → UI13/UI12 exact expected intersection of the real declared catalogue; clear query/restore filters and compare PARENT12 initial policies. Compose `onpc_app_rows::search` / `filter` / `read_rows` with caller-owned stages and `journey_blocks.filter_screens`; use `native_fixtures.catalogue_rows` for the exact expected set. The native profile is Jordan-bound (`existing` text/filter child bindings and `existing-parent-app-rows`); unprefixed rows target Riley. A fresh case plan owns its lifecycle, rather than inheriting `CatalogueJourney`. The representative UI matrix lives in `test_preview_smoke.py::test_catalogue_complete_query_match_access_matrix`: five queries (name, description, identifier, empty, no match) × ten filter sets covering all/none, each rule independently and representative intersections. |
 | 185 match-editor | PARENT13 → UI16 → PARENT15 saves a same-directory wildcard. Save a wildcard for a different directory and observe the real broker's failed-save report, close it and reread confirmed choices. Tasks 078/078a own the UI matrix for precise target/basename, empty/unrelated input, Cancel and Reset, including exact explanations and unchanged values. Real saved-rule and enforcement observations remain E2E. |
 | 186 match-reopen | Save custom same-directory wildcard; change access to Allowed; LIFE01 → PARENT02 → PARENT12 verifies remembered custom wildcard. Save precise on an app with a suggested pattern; reselect the child and reopen Parent, reading the documented suggested pattern each time. Reselect precise before a subsequent save. Repeat restoration after a customer-rejected pattern save, closing its report before reading. This records the current limitation, not desired new behavior. |
 | 187 shared-launchers | Two visible launchers for one supported app: PARENT16(first,Hard) → PARENT16(second,Allowed); C → FLOW08(each supported launch,denied). P → allow first → C → FLOW08(each,usable). Reverse which launcher holds the block and repeat. No claim of independent rules overriding the shared target. |
@@ -1599,19 +1600,20 @@ per complete recipe during implementation; none is registered or passed here.
 | 3: overlay-to-panel refresh, reopening/resume, countdown and natural expiry without reset/grants/policy changes | 310 | 310a plus existing retained-session, tooltip/menu, minute/final-tick and natural-expiry tasks |
 | 4: inherited About/feedback, synthetic draft/reply, unchanged names/numbers | 307 Parent; 308 overlay; 309 kiosk | 307b, 308a, 309a; real child/station report-entry gates remain 187o/187k |
 | 4: ordinary translated approval/result per request surface | 308 overlay; 300 kiosk | 308b genuine Shell approval; existing 300f Chinese MATE binding |
-| 6: installed Hebrew and restored English logical text, mixed-script content, stable IDs, matching labels, keyboard/focus under the no-visual acceptance rule | 307 Parent/dialogs; 308 overlay/dialogs; 309 kiosk/dialogs; 310 panel/tooltip/menu | 307a public observation route, then each surface's own qualification |
+| 6: installed Hebrew and restored English logical text, mixed-script content, stable IDs and matching labels under the no-visual acceptance rule | 307 Parent/dialogs; 308 overlay/dialogs; 309 kiosk/dialogs; 310 panel/tooltip/menu | 307a public observation route, then each surface's own qualification |
 | 7: latest-package installation, Chinese pre-reboot prompt, one reboot, untouched Chinese chooser/form and two real Chinese approvals across fresh sessions | 300 | 300k revised current-install composition; historical upgrade evidence alone is insufficient |
 
 Every scenario retains unchanged account/application names, numeric values,
 synthetic content, selections and policy/time comparisons where relevant.
-Exhaustive chooser/failure/layout/scale permutations remain with
+Distinct chooser Save/Cancel and validation outcomes remain with
 [UI coverage](UI-and-E2E-Coverage.md); that allocation does not replace the
-representative installed Hebrew logical-text/keyboard checks. The developer's
+representative installed Hebrew logical-text and functional checks. The developer's
 2026-10-05 decision removes visual inspection for this and all future tasks;
 apply the [presentation acceptance rule](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results).
-Keep host GTK direction/alignment engineering checks. Public text cannot claim
+Host UI checks also follow the result-oriented scope. Public text cannot claim
 pixel rendering, glyph order, clipping, font legibility or visual alignment.
-Missing required public text, identity or focus observations remain gates.
+Missing required public text or identity observations remain gates. Focus proofs
+remain input guards only; keyboard traversal is not a separate language outcome.
 
 ### E2E-054
 
@@ -1659,21 +1661,21 @@ Riley with its recorded 60-minute allowance, zero grant and captured app rules.
 At each language, independently observe management/Preferences and inherited
 About/feedback logical text, including exact mixed Hebrew/Latin content, and
 restored English labels under the mandate's no-visual acceptance rule.
-Read stable IDs, matching translated visible/accessibility labels and keyboard
-focus/navigation through the qualified installed observation route.
+Read stable IDs and matching translated visible/accessibility labels through the
+qualified installed observation route.
 
 Use exact body `שלום Alex 75` and reply `rtl-check@example.invalid`.
 After entry, close the dialog normally, change language through Preferences and
 reopen; compare retained body/reply before new input. Preserve account/application
-names, numeric policy and focus at each input/result boundary. No Send or
+names and numeric policy at each functional result boundary. No Send or
 external-link action. Public dialog reopening must preserve the actual draft;
 host fixtures or privately restored content cannot replace this history.
 
 E2E-055 `parent-hebrew`, case 256, binds the complete finite history in
 `tests/e2e/parent_presentation.py` and `onpc_parent_presentation::run`.
 One original English policy capture precedes draft entry. Each language has
-Save/reopen/Cancel Preferences keyboard checks, one About and one feedback visit
-with forward/backward focus, and a final policy/name/numeric balance read.
+Save/reopen/Cancel Preferences outcomes, one About and one feedback visit,
+and a final policy/name/numeric balance read.
 Every feedback read compares the immutable original `synthetic-rtl` capture
 before any later input. Policy reads use a 600-second monotonic history bound
 and two-second refresh/formatter tolerance; the entire case deadline is 900 seconds.
@@ -1685,7 +1687,7 @@ with Jamie selected, 75 seconds and soft apps included. Capture the native
 activity and synthetic content through the existing approval/return binding.
 Observe form, About and genuine error-report language, mixed-script logical
 text, stable IDs, visible/accessibility
-labels and keyboard/focus. Retain body `שלום Alex 75` and reply
+labels. Retain body `שלום Alex 75` and reply
 `rtl-check@example.invalid` across normal report closure, public language
 change and real reopening before any new input; preserve names/request values.
 
@@ -1707,8 +1709,8 @@ actual reopening before new input. Change approver and back while requiring
 the child's checked language and translated form remain unchanged.
 
 Require installed Hebrew and restored English logical text, exact mixed-script
-content, matching accessible labels, stable IDs and usable
-keyboard/focus. Preserve literal names, request numbers and station restrictions.
+content, matching accessible labels and stable IDs. Preserve literal names,
+request numbers and station restrictions.
 Use 187k's real error trigger/re-entry timing; unsupported draft reopening is
 a retained gate, not permission for private errors/state. No report submission
 or external-link activation. Ordinary translated kiosk approvals remain in
@@ -1725,7 +1727,7 @@ animation menu using their qualified public operations.
 
 Require Hebrew and restored English logical text, correct mixed
 text/numbers, matching visible/accessibility labels,
-stable IDs and usable keyboard/focus. Compare public time with actual elapsed
+stable IDs. Compare public time with actual elapsed
 bounds at each transition; choices cannot reset time, grant extra access or
 alter saved policy. Observe genuine minute and final-second progression through
 TIME02, then use the activity until natural TIME04 expiry. Require the lock to

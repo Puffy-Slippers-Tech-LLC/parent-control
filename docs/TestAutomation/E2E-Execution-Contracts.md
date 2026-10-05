@@ -36,9 +36,15 @@ Briefs contain task-specific deltas. Use this format for new and revised briefs:
   delivered scope includes its unchanged qualified prerequisites.
 - List required task IDs in the queue row's declared order with only the capability each supplies.
   State exact inventory binding/parameters for a scenario and link its recipe.
-- Name the product result, finite input/branch references, relevant source
+- Name the final product result, finite input/branch references, relevant source
   paths/symbols and selected qualification or case command. Mark nonexistent
   selectors as planned; inspect registration before running them.
+- Apply the [result-oriented UI scope](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
+  to new briefs and revised completed or pending coverage. Keep one independent
+  final observation per tested result; retain intermediate checks only for a
+  distinct functional outcome or necessary shared input-safety guard. Do not
+  require popup, focus, caret or rendering choreography or exhaustive independent
+  GUI combinations as a capability prerequisite.
 - Retain task-specific gates, expected public results and unresolved acceptance
   with its existing evidence pointer. Shared rules remain links to their owners.
 

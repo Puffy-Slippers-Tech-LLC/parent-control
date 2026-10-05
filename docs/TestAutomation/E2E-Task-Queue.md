@@ -8,6 +8,12 @@ A checked row preserves delivered scope and historical evidence. Current block
 qualification and scenario registration remain with their respective owners in
 the [documentation map](README.md#status-vocabulary). Historical menu, Terminal,
 external-handler or account-wizard work does not override the current UI mandate.
+Completed evidence may include popup, focus, typing, Saving or inhibition samples;
+current and future UI/E2E acceptance follows the mandate's
+[functional result contract](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope).
+Require final selected values, saved/rejected outcomes and their product effects.
+Keep intermediate presentation inside shared automation only when needed to
+deliver safe input; it is not additional coverage or a future prerequisite.
 The [initial migration decision](E2E-Execution-Plan.md#current-scope) supplies no
 acceptance for later changes.
 
@@ -581,7 +587,7 @@ setup must not dismiss or displace the notice.
 Resolve `update-required-dialog`, `update-required-message`,
 `update-required-close` and `update-required-reboot` through the shared public-ID
 adapter. Require one modal, restart instructions appropriate to installation,
-Close as the default action and a visible enabled Reboot now action. Close must
+usable Close and Reboot now actions. Close must
 leave the same boot and blocked operation; ordinary reopening/session re-entry
 must show the modal again. A single normal system-authorized Reboot now action
 must lead to an independently observed new boot, usable greeter and fresh target

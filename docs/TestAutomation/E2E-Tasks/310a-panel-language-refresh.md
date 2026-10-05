@@ -20,15 +20,15 @@ panel visible/accessibility text, countdown explanation and animation menu.
 Reopen the overlay, confirm the shared choice, close it, then resume the child
 session through the qualified retained-session route and observe refreshed
 presentation again. Require Hebrew/restored English logical text,
-correct mixed text/numbers, stable IDs and usable
-keyboard/focus through a separately qualified Shell observation route.
+correct mixed text/numbers and stable IDs through a separately qualified Shell
+observation route.
 
 Capture public time/policy before changing language and compare afterwards with
 declared monotonic elapsed bounds; no reset, extra access or policy/app changes.
 This slice reads bounded countdown samples; task 310 composes qualified TIME02
 progression and TIME04 natural expiry. Reuse 181h/181m for tooltip/menu mechanics;
 do not introduce coordinate hover/click input. Apply the mandate's no-visual
-acceptance rule; missing public text/focus keeps a gate, and GTK qualification
+acceptance rule; missing public text or identity keeps a gate, and GTK qualification
 does not transfer to Shell.
 
 ## Shared implementation

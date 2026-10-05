@@ -18,7 +18,7 @@ Qualify the station binding for Riley/Jamie, a 75-second soft-included request,
 and English → Hebrew → English via public Preferences. Read request, restricted
 About and real feedback/report presentation through qualified public semantics:
 Hebrew/restored English logical text, exact mixed Hebrew/Latin content, translated
-visible/accessibility labels, stable IDs and usable keyboard/focus. Compare exact
+visible/accessibility labels and stable IDs. Compare exact
 account names, numeric request values, body `שלום Alex 75` and reply
 `rtl-check@example.invalid` across normal report close, language switch and
 real report reopen. Retain station restrictions on external actions/files.

@@ -66,7 +66,7 @@ language catalogue retain the delivered scope and reports.
 
 The developer removed visual review from this and all future tasks while
 retaining the geometry prohibition. Follow the mandate's
-[public logical-text/keyboard acceptance](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results).
+[public logical-text acceptance](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results).
 No visual acceptance or product defect is claimed.
 
 ## Current scope
@@ -77,9 +77,13 @@ E2E-014 cases 38–43 retain uncovered inventory/recipe obligations but have no
 active or deferred task. Do not recreate those tasks or stop queue execution
 for this known exclusion. This records no acceptance pass.
 
-Apply the [UI/E2E allocation](UI-and-E2E-Coverage.md): full local GUI matrices
-belong in UI tests, with representative installed checks and complete integration
-assertions in E2E. Pending UI obligations stay in the existing capability tasks.
+Apply the [UI/E2E allocation](UI-and-E2E-Coverage.md) and
+[result-oriented mandate](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope):
+UI tests cover representative choices, meaningful boundaries and final functional
+results. E2E adds the distinct installed integration results. Popup, focus,
+typing and rendering minutiae are removed from both layers, including retained
+implementations; historical qualification details above do not require them in
+future work. Pending functional obligations stay in existing capability tasks.
 The allocation review does not advance the pointer or replace live acceptance.
 
 Current scenario status and counts come from `tests/e2e/scenarios.json`; block

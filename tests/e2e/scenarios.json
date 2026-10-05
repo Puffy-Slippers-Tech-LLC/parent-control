@@ -2095,7 +2095,7 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Give the child usable time and open App Limits with the declared assets. Read the legend and child-specific list, including an app installed only for that child."},
+          {"id": "step-1", "operation": "ui", "description": "Give the child usable time and open App Limits with the declared assets. Read the child-specific list, including an app installed only for that child."},
           {"id": "step-2", "operation": "ui", "description": "Run the selected installed search/filter sample, saved/rejected rule, reopening, shared-launcher, special-path or pattern-file recipe. UI tests cover representative query/filter combinations and local editor boundaries by final results. Use shared FILE05 commands for copies/renames and Parent's UI for all rules."},
           {"id": "step-3", "operation": "ui", "description": "Read saved or rejected choices and try relevant child launches. Match-reopen records the documented suggested-pattern redisplay after a precise override and explicitly reselects precise before another save."}
         ],

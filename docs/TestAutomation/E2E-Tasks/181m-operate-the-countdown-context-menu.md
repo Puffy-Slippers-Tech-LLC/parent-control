@@ -20,7 +20,9 @@ Implement one secondary click UI28 before PANEL01. Compose PANEL02 from UI17, Es
 
 ## Live VM acceptance
 
-On the VM, read default off, set on, close the menu, reopen and read on; set off and verify again. Return to a usable child desktop after each close. Persistence across session boundaries belongs to cases 162–163.
+On the VM, read default off, set on and independently read on; set off and verify
+off. Close/reopen only as needed for the public state read. Persistence across
+session boundaries belongs to cases 162–163.
 
 Qualification selector (implement and register before use):
 

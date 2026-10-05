@@ -16,7 +16,7 @@ Compose one complete case from the
 [fixed kiosk recipe](../E2E-Scenario-Recipes.md#kiosk-language-presentation-planned-task-309).
 Preserve the selected child's language across approver changes and all form,
 About and report English/Hebrew/English logical text, exact mixed-script content,
-keyboard, focus and draft/reply assertions. Compare literal account names and
+and draft/reply assertions. Compare literal account names and
 75-second request values through every transition. Keep the real report-entry
 gate and station restrictions intact. The ordinary translated kiosk approvals
 remain in task 300's independent continuous Chinese case.

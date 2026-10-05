@@ -26,6 +26,17 @@ reopen before new input. Host-only direction assertions cannot pass this case.
 
 Reuse 306a/307a/307b operations in the established InstalledJourney/worker path. The case owns one finite history and its independent comparisons.
 
+The [Parent dialog qualification](../E2E-Building-Blocks.md#parent-inherited-dialog-qualification)
+supplies `AccessibleUI.parent_dialog_presentation` / `parent_dialog_operation`,
+`open_about(..., language=...)`, `open_feedback(..., language=...)`,
+`feedback_snapshot('synthetic-rtl')` and `onpc_parent::dialog_navigation`.
+Reuse `onpc_text::replace_text` with `body-rtl` / `reply-rtl` and its guarded
+worker input. `ParentDialogLanguageJourney` / `DIALOG_PLAN` in
+`tests/e2e/parent_language.py` demonstrate the qualified fixed history; the case
+must declare its own endpoints and immutable comparisons through shared APIs.
+The qualified disabled-zero policy does not supply the recipe's enabled
+60-minute Hebrew management readback. Verify that exact binding before composing it.
+
 ## Implementation entry
 
 One planned complete case; no numeric coverage ID or executable is registered.

@@ -29,6 +29,13 @@ customer case. They do not create another queue or confer acceptance credit.
 | Layout, scaling and automation identity | Existing parent/child/kiosk/layout/accessibility UI tests | No repeated layout or scale matrix in E2E |
 | Personal language settings | `test_language_settings.py`: English, German and Simplified Chinese on Parent, overlay and kiosk; first-run/session defaults, saved startup, commit-before-close, Cancel, read/save failure and retry, accessible labels and dynamic errors; Parent Hebrew public logical Text and Cancel-to-Save keyboard focus. Selected-child desktop defaults and reboot-required presentation have component coverage; agent preparation is a transport double, not native approval evidence. Existing GTK direction/alignment engineering and draft/scale coverage remain. | Tasks 300 and 306–310 follow the [acceptance mapping](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition): Chinese latest-install/reboot/two native approvals; account/offline persistence; Parent, overlay and kiosk Hebrew logical text/dialogs; panel refresh/countdown/natural expiry. Each missing surface/result binding has a bounded prerequisite. Apply the mandate's no-visual acceptance rule for this and future tasks; geometry remains prohibited. Chinese assets remain in prepare-baseline and desktop language in DESK13. Actual native text is required on both Chinese approvals; Hebrew requires qualified public logical text/identity/keyboard observations on each surface. No installed acceptance is claimed by this allocation. |
 
+Parent's inherited About/feedback matrix is owned by
+`test_language_settings.py::test_parent_dialog_inherited_text_keyboard_and_retained_hebrew_draft`:
+English → Hebrew → English, two visits per dialog/language, public logical text,
+both keyboard directions and the exact retained mixed-script body/reply. It
+executes the shared installed text/navigation blocks. Task 307b qualified that
+fixed installed binding; task 307 still owns its complete policy/history assertions.
+
 The attachment UI fixture substitutes only the external chooser's returned file
 list. The real frontend reads the files, validates them and updates the dialog.
 The installed case remains responsible for the actual chooser handoff. The full

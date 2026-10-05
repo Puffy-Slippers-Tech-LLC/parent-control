@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **307b — [Qualify inherited Parent dialog language and drafts](E2E-Tasks/307b-parent-dialog-language.md)**.
+Next task: **307 — [Parent Hebrew presentation and inherited dialogs](E2E-Tasks/307-parent-language-presentation.md)**.
 
 Task 300's complete Chinese latest-install case 254 and both required
 current-install/native-auth regressions passed on Ubuntu 26.04, including
@@ -39,9 +39,13 @@ Task 307a's fixed Parent English → Hebrew → English chooser qualification an
 required Parent-language regression passed on Ubuntu 26.04, including collection,
 worker shutdown, owned cleanup, baseline restoration, finalization and
 preservation. The queue and language catalogue retain the exact scope and reports.
-Task 307b extends the existing About/feedback readers for their own translated
-dialog binding and retained synthetic draft; chooser qualification does not
-transfer to those dialogs. Leave translated approval, panel/countdown and expiry
+Task 307b qualified Parent About/feedback English → Hebrew → English logical
+text, keyboard focus and retained synthetic draft on Ubuntu 26.04, with both
+independent entries per dialog and all four required regressions. Collection,
+worker shutdown, owned cleanup, baseline restoration, finalization and
+preservation passed. The queue and catalogue retain the exact scope and reports.
+Task 307 composes the complete Parent history; capability qualification supplies
+no complete-case credit. Leave translated approval, panel/countdown and expiry
 work with their queued owners.
 
 The developer removed visual review from this and all future tasks while

@@ -50,7 +50,19 @@ Closing the dialog permits ordinary Parent Preferences
 and reopening of the retained draft, without private translation/draft access.
 These operations add no storage, process, bus or cleanup owner. Existing private
 unit/cleanup fixtures and private UI preview/display classifications apply.
-Installed binding qualification remains pending until its guarded acceptance.
+The fixed Parent English → Hebrew → English dialog binding passed
+`check_e2e_parent_dialog_language` on Ubuntu 26.04 in
+`20261005T183953Z-3eaae8af`, with all four required regressions, collection and
+owned cleanup. The [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#parent-inherited-dialog-qualification)
+owns exact scope and retained reports; other frontends and complete cases remain separate.
+
+Feedback's wrong-window close qualification distinguishes an indeterminate
+negative read from a positively present dialog with `absent_id(...,
+incomplete_raises=True)`. Neither releases input. The existing adapter failure
+diagnostic retains only finite absence reasons, never UI text, object paths or
+raw exception values. Synthetic-tree and isolated-payload regressions cover the
+distinction and private-value exclusion; these use existing in-memory/private
+child-process resources and do not change scheduling or cleanup ownership.
 
 Current-install Parent dialog regressions select
 `named_input(package_source=True)` in both their integration entry and

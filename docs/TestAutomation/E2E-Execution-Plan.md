@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **307a — [Qualify installed Hebrew presentation observations](E2E-Tasks/307a-installed-rtl-observations.md)**.
+Next task: **307b — [Qualify inherited Parent dialog language and drafts](E2E-Tasks/307b-parent-dialog-language.md)**.
 
 Task 300's complete Chinese latest-install case 254 and both required
 current-install/native-auth regressions passed on Ubuntu 26.04, including
@@ -35,16 +35,19 @@ overlay-language regressions passed on Ubuntu 26.04, including collection,
 owned cleanup and baseline restoration. The queue and language catalogue retain
 the delivered scope and reports.
 
-Task 307a now qualifies the missing permitted installed Hebrew presentation
-observations. Reuse the delivered language-aware Parent observations and
-300g–300j bindings and the mandate's public logical-text/keyboard acceptance.
-Leave inherited dialogs, translated approval,
-panel/countdown and expiry work with their queued owners.
+Task 307a's fixed Parent English → Hebrew → English chooser qualification and
+required Parent-language regression passed on Ubuntu 26.04, including collection,
+worker shutdown, owned cleanup, baseline restoration, finalization and
+preservation. The queue and language catalogue retain the exact scope and reports.
+Task 307b extends the existing About/feedback readers for their own translated
+dialog binding and retained synthetic draft; chooser qualification does not
+transfer to those dialogs. Leave translated approval, panel/countdown and expiry
+work with their queued owners.
 
-Task 307a's [rendered-presentation gate](E2E-Tasks/307a-installed-rtl-observations.md#acceptance-gate--rendered-presentation)
-records the developer's decision to remove visual review from this and all future
-tasks while retaining the geometry prohibition. Installed public text/focus
-qualification remains pending; no visual acceptance or product defect is claimed.
+The developer removed visual review from this and all future tasks while
+retaining the geometry prohibition. Follow the mandate's
+[public logical-text/keyboard acceptance](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results).
+No visual acceptance or product defect is claimed.
 
 ## Current scope
 

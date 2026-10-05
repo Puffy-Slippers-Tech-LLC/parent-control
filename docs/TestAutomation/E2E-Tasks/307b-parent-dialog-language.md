@@ -14,8 +14,12 @@ Estimate: 20–30 minutes.
 
 ## Scope and acceptance
 
-Qualify Parent's shared About/feedback binding in English and Hebrew, reusing
-the presentation reader from 307a. Observe inherited translated controls and
+Qualify Parent's shared About/feedback binding in English and Hebrew. Task 307a
+qualified only the Parent language chooser's logical text and keyboard/focus
+binding; its `AccessibleUI.language_presentation` reader is chooser-scoped.
+Reuse that contract and extend the existing dialog readers for their own public
+IDs and ownership. Shared IDs do not transfer chooser qualification to dialogs.
+Observe inherited translated controls and
 Hebrew/restored English logical text on both dialogs under the mandate's
 no-visual acceptance rule, unchanged product/application names, and the exact
 synthetic body `שלום Alex 75` and reply `rtl-check@example.invalid`.

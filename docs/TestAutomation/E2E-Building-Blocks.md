@@ -526,11 +526,10 @@ supplies guarded public form actions. Station history operations and Jordan's
 text binding use the kiosk session; overlay operations use Riley's child desktop.
 The shared observer preserves diagnostic lines separately from terminal replies.
 
-Required regressions passed with retained exports:
-[Parent language isolation](../../output/test-runs/host/exports/onpc-artifact-export-vjhvornv/report.md)
-(`20261005T155822Z-88a6b7fe`),
-[kiosk language restoration](../../output/test-runs/host/exports/onpc-artifact-export-excxscp1/report.md)
-(`20261005T160451Z-31e5762b`) and
+Required regressions passed:
+Parent language isolation (`20261005T155822Z-88a6b7fe`),
+kiosk language restoration (`20261005T160451Z-31e5762b`; both exports have since
+rotated under retention) and
 [overlay language](../../output/test-runs/host/exports/onpc-artifact-export-m_ujmu9c/report.md)
 (`20261005T161240Z-fe4f9c67`). All four acceptance slices passed collection,
 worker shutdown, owned cleanup, baseline restoration, finalization and
@@ -540,13 +539,37 @@ the real GTK nondefault-request history check. This completes only the stated
 account/offline history; Hebrew presentation, inherited dialogs, translated
 approval, panel/countdown and expiry acceptance remain with their queued owners.
 
+Task 307a qualified the fixed Parent English → Hebrew → English chooser history
+on Ubuntu 26.04 through `check_e2e_parent_rtl` in
+`20261005T171218Z-0b4a41da`. Each language has two independent chooser visits:
+bounded AT-SPI logical heading text, accessible native names and checked choice,
+public Cancel focus followed by normal Tab and independent Save focus,
+Save/reopen/Cancel, and unchanged selected child, disabled zero allowance and
+application-policy projection. Wrong-entry refusal also passed.
+`AccessibleUI.language_presentation` and the two
+`parent-language-presentation-*` operations own reusable observations;
+`ParentRtlJourney` / `RTL_PLAN` in `parent_language.py` and
+`onpc_parent::language_navigation` / `qualify_rtl` own the fixed binding.
+Required `check_e2e_parent_language` regression passed in
+`20261005T172018Z-01fd8580`, including all four saved languages, Chinese Cancel
+preserving German, normal relaunch and unchanged policy. Both runs passed
+collection, worker shutdown, owned cleanup, baseline restoration, finalization
+and preservation. Retained reports:
+[Parent Hebrew logical text and keyboard qualification](../../output/test-runs/host/exports/onpc-artifact-export-9yseonvl/report.md).
+[Parent language regression](../../output/test-runs/host/exports/onpc-artifact-export-fmiynjho/report.md).
+This qualifies only the Parent chooser binding. Other dialogs and surfaces,
+enabled-state Hebrew readback and complete scenarios remain separate. The
+developer removed visual review for this and future tasks while retaining the
+geometry prohibition; this evidence supplies no pixel-rendering acceptance.
+
 The remaining personal-language bindings follow the
 [acceptance decomposition](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition).
-This planning allocation qualifies no new route:
+The Parent chooser is qualified above; this allocation supplies no acceptance
+for the remaining bindings:
 
 | Pending binding | Qualification task | Complete scenario |
 | --- | --- | --- |
-| Installed Hebrew logical text, labels and keyboard/focus observations | 307a; separate qualification for each surface | 307–310 |
+| Installed Hebrew logical text, labels and keyboard/focus observations | Parent chooser qualified by 307a; other surfaces require separate qualification | 307–310 |
 | Parent inherited About/feedback text and retained synthetic draft | 307b | 307 |
 | Hebrew overlay product approval/result with ordinary native Shell authentication | 308b | 308 |
 | Overlay form/About/real error report and same-draft language changes | 308a, after 187o's genuine public trigger | 308 |

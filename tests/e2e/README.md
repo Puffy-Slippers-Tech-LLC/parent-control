@@ -16,6 +16,14 @@ provider adapters; names/roles/states verify meaning afterward. Use direct
 public actions with fresh independent results. Fail wrong targets/results and unavailable
 required information. Keep backend probes out of customer acceptance.
 
+Apply the mandate's
+[result-oriented scope](../../docs/Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
+to both completed implementations and planned cases. Each tested action needs
+its final public value or functional effect, not a sequence of popup, focus,
+typing and dismissal assertions. Shared navigation and input-safety guards remain
+where necessary. Preserve distinct policy transitions, persistence, rejection and
+recovery; sample independent GUI choices instead of repeating their full product.
+
 The [documentation map](../../docs/TestAutomation/README.md) owns status terms;
 the [UI mandate](../../docs/Mandates/UI-Automation-Mandate.MD) owns selector policy,
 including the external-provider exception. Retained ready bindings do not prove

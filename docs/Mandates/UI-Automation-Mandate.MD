@@ -6,6 +6,40 @@ owns callables and qualified scopes; the [coverage allocation](../TestAutomation
 owns which layer exercises each matrix. Read this mandate when changing either
 layer's automation, including shared workers.
 
+## Result-oriented test scope
+
+For existing and future UI and E2E tests, operate the control and independently
+verify its final public result. Test the product function: the saved allowance,
+filtered rows, changed language, accepted request, effective app rule or restored
+draft. A toggle's final on/off state or a selector's final value is sufficient
+when that value is the feature being tested. When the choice controls another
+function, verify that function too; a selected radio indicator alone does not
+prove that language, permissions or behavior changed.
+
+Do not make popup opening/closing, expansion, highlight/selected rendering,
+focus movement, caret position, per-keystroke display, button response animation
+or dialog dismissal a separate acceptance condition when the final result already
+proves the operation. Remove such assertions rather than moving them from E2E
+to UI tests. Opening a dialog or waiting for a control can remain necessary
+shared navigation; it is not an additional product test. An exit, cancellation
+or dialog lifetime is still a result when it determines saved data, submission,
+return to the child/greeter or preservation of work.
+
+Use representative choices and meaningful boundaries. Cover each distinct
+functional outcome, rejection, recovery and interacting condition; do not expand
+independent choices into an exhaustive GUI Cartesian product. Prefer lower-layer
+checks for pure value combinations. Installed E2E adds actual persistence,
+authorization, policy enforcement, lifecycle and integration results to a small
+GUI sample. A historical detailed test does not require future repetition.
+
+Retain intermediate observations when a later result would conceal a distinct
+functional failure, such as an unintended save, crossed child identity, premature
+access, lost work or an incorrect policy transition. Preserve input ownership,
+secret-recipient, keyboard-recipient, ambiguity, disabled-control and uncertain
+input guards below. These guards belong in shared automation and are not reasons
+to add focus/rendering acceptance to every customer case. Harness safety
+qualifications remain separate from product journeys.
+
 ## Route selection
 
 - **Choose the route by the feature under test:** Real GUI operations are for
@@ -99,7 +133,7 @@ and independent result checks apply to both routes.
 - **Daily allowance selection (all UI and E2E tests):** Use the one shared
   PARENT06 block: native left click on the identified allowance selector, type
   the desired minutes/hours (for example `15m`) or `c` for Custom, press Enter,
-  then independently verify the saved allowance or focused Custom editor.
+  then independently verify the saved allowance or use the Custom editor.
   No test or qualification may add popup-opening, expanded-state, highlight,
   cancellation, choice-row activation, arrow-navigation or menu-reopening
   checks to this sequence. There is no opt-in exception for UI tests.
@@ -178,11 +212,13 @@ the geometry prohibition or authorize skipping unrelated active blockers.
 
 - **Presentation acceptance:** The developer removed visual inspection/review
   from this task and all future tasks on 2026-10-05. Keep the geometry prohibition.
-  Qualify public logical text, matching accessible labels, stable identities,
-  keyboard focus/navigation and preserved user values. Pixel rendering, glyph
+  Qualify public logical text, matching accessible labels, stable identities
+  and preserved user values. Keyboard focus is an input-recipient guard when
+  needed, not a traversal or presentation acceptance matrix. Pixel rendering, glyph
   order, clipping, font legibility and visual alignment are excluded from
   automated acceptance; do not claim those results from text or language values.
-  Existing host GTK direction/alignment engineering checks remain applicable.
+  Host UI tests likewise verify translated content and preserved functionality,
+  without GTK direction/alignment or glyph-rendering acceptance matrices.
   Retained screenshots and the required VM watch are evidence/observation only
   and require no visual reviewer or visual pass decision.
 - After ID lookup (or qualified external-provider resolution), names, roles,

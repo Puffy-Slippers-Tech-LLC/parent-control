@@ -1780,8 +1780,12 @@ the unexecuted/failed selection with its original assertions.
    requirement, or the necessary harness safety guarantee. Follow the
    [app scope and prerequisite rules](../docs/TestAutomation/E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope).
    Use supported fixture helpers for unrelated OS/account/asset setup. Add
-   regression cases at the lowest effective layer; exhaustive independent form
-   values belong in local tests, with real installed/customer coverage for the
+   regression cases at the lowest effective layer. Apply the
+   [result-oriented UI scope](../docs/Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope):
+   representative GUI choices and meaningful boundaries verify final functionality;
+   pure value combinations belong in lower-layer tests when warranted. Remove
+   incidental popup, focus, caret and rendering assertions instead of relocating
+   them into UI coverage. Keep real installed/customer coverage for the
    boundaries and causal journeys that require it. App approval denial must
    assert unchanged grants/policy and recovery, not just Ubuntu's error message.
 2. Classify the tests, their affected components/shared dependencies, runner,

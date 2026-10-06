@@ -4260,7 +4260,10 @@ def test_length_reopen_decoder_and_journey_require_independent_prior_result(tmp_
 @pytest.mark.parametrize('fault', ['', 'source', 'disabled', 'refused', 'uncertain'])
 @pytest.mark.parametrize('kind', ['scalar', 'suffix'])
 def test_scalar_append_requires_exact_source_and_one_semantic_edit(fault, kind):
-    ui, _, _, controls = rejection_ui('mixed')
+    ui, _, dialog, controls = rejection_ui('mixed')
+    selection = Node(identity='feedback-editor-selection')
+    dialog.children.append(selection)
+    selection.parent = dialog
     node = controls['feedback-editor-input']
     binding = 'body-mixed-5001' if kind == 'scalar' else 'body-mixed-5001-base'
     sources = accessible_ui.TEXT_SCALARS if kind == 'scalar' else accessible_ui.TEXT_SUFFIXES
@@ -4282,7 +4285,13 @@ def test_scalar_append_requires_exact_source_and_one_semantic_edit(fault, kind):
         assert ui.set_text.call_count == (1 if fault == 'refused' else 0)
     else:
         operation(f'text-{kind}-{binding}-caret')
-        ui.set_text.assert_called_once_with('feedback-editor-input', accessible_ui.TEXT_VALUES[binding][1])
+        suffix = accessible_ui.TEXT_VALUES[binding][1][len(value):]
+        ui.set_text.assert_called_once_with('feedback-editor-insert', suffix)
+    if fault in ('source', 'disabled', 'uncertain'):
+        selection.setValue.assert_not_called()
+    else:
+        selection.setValue.assert_called_once_with({
+            'index': len(value.encode('utf-16-le')) // 2, 'length': 0})
     ui.activate_id.assert_not_called()
 
 

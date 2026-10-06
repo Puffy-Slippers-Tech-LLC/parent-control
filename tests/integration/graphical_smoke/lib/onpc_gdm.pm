@@ -222,7 +222,7 @@ sub _dismiss_observed_prompt {
         && ref($prompt->{ui}) eq 'HASH'
         && ($prompt->{ui}->{operation} // '') eq $operation
         && ($prompt->{ui}->{outcome} // '') eq 'passed'
-        && ($prompt->{ui}->{interface} // '') eq 'AT-SPI';
+        && ($prompt->{ui}->{interface} // '') eq 'ApplicationUI+external-provider';
     die 'gdm:console' unless testapi::current_console() eq 'sut';
     $journey->consume_observation('selected', $prompt);
     testapi::send_key('esc');

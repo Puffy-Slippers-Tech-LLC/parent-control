@@ -787,7 +787,7 @@ def test_invalid_submission_refuses_and_never_replays(fault):
     if fault == 'disabled':
         submit.states.discard('sensitive')
     elif fault == 'wrong-child':
-        ui.find_id('kiosk-child-selector').children[0].identity = 'kiosk-child-selected-9999'
+        ui.find_id('kiosk-child-selector').value = '9999'
     elif fault == 'wrong-value':
         custom.value = '1.25'
     elif fault == 'prompt':

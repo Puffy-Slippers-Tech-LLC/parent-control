@@ -46,12 +46,14 @@ def test_inspection_refuses_unsafe_list(fault):
 
 def test_failed_open_readback_cannot_toggle_again():
     ui, selector, _, _ = disabled_accounts_form()
-    selector.action.do_action.side_effect = lambda _: True
-    with pytest.raises(UiError, match='timeout:kiosk-offered-accounts'):
+    # Acknowledge the canonical setter without updating the selected account.
+    selector.setValue.side_effect = lambda _: None
+    with pytest.raises(UiError, match='timeout:kiosk-selected-account'):
         ui.run('kiosk-disabled-child-select', '')
     with pytest.raises(UiError, match='uncertain-input'):
         ui.run('kiosk-disabled-child-select', '')
-    selector.action.do_action.assert_called_once()
+    selector.setValue.assert_called_once_with('1001')
+    selector.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('settings', [

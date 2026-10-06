@@ -424,7 +424,8 @@ def test_observer_monitor_forwards_changes_without_waiting_for_guest_frames():
     observer._reap.assert_called_once()
 
 
-@pytest.mark.parametrize('text', ['x' * 20000, '\\"' * 20000, '界' * 20000, '\x00\n' * 20000])
+@pytest.mark.parametrize('text', ['x' * 20000, '\\"' * 20000, '界' * 20000, '\x00\n' * 20000],
+                         ids=['ascii', 'json-escapes', 'utf8', 'control-characters'])
 def test_long_progress_fits_frame_header_without_breaking_utf8(text):
     value = dict(current=3, total=5, case_id='3', title=text, step=text, operation=text)
     packet = progress_packet(value)

@@ -408,16 +408,22 @@ def test_shell_panel_actual_worker_order_and_refusal(fault, tmp_path):
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
     expected = list(SHELL_PANEL_PLAN.screen_tags)
     assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
+    # Panel activation belongs to the controller's Application UI API operation.
+    # The worker must read its independent result without injecting another key,
+    # including when reusing the existing form or stopping after a refusal.
+    panel_desktop = ['stage', 'panel-desktop']
+    if panel_desktop in result['events']:
+        index = result['events'].index(panel_desktop)
+        assert not any(event[0] == 'key' for event in result['events'][index + 1:])
     for prefix in ('panel', 'singleton'):
         launch = ['stage', prefix + '-launch']
         if launch in result['events']:
             index = result['events'].index(launch)
             if fault != prefix + '-launch':
-                assert result['events'][index + 1] == ['key', 'ret']
-                assert result['events'][index + 2] == ['stage', prefix + (
+                assert result['events'][index + 1] == ['stage', prefix + (
                     '-overview' if prefix == 'singleton' else '-form')]
             else:
-                assert ['key', 'ret'] not in result['events'][index + 1:]
+                assert result['events'][index + 1:] == []
     if not fault:
         assert result['events'].count(['password']) == 2
         assert result['events'][-1] == ['off']

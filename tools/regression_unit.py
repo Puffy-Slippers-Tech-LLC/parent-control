@@ -382,6 +382,9 @@ from regression_ui import Bucket
 # and cleanup classifications of fix_tests_cleanup_safety remain compatible.
 # Resume counter/selector checks use the same private reports, checkpoint trees,
 # waited pytest children and scheduler doubles; compatible isolation is unchanged.
+# Oversized-ID recovery uses private checkpoint JSON and bounded synthetic pytest
+# children; it adds no shared owner or resource and stays compatible. Progress
+# payload checks retain their existing resources, with short parameter IDs only.
 # Application UI projection tests use in-memory clients and tiny immutable
 # inventories only. No real bus, display, process, storage or cleanup owner.
 REVIEWED = frozenset("""

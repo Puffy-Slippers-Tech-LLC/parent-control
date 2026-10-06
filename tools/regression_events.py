@@ -10,9 +10,15 @@ from pathlib import Path
 import pytest
 
 PREFIX = 'ONPC-TEST-EVENT '
+MAX_CASE_ID_LENGTH = 65536
 
 
-def completed_cases(value):
+def completed_cases(value, *, replay_oversized=False):
+    """Validate resume IDs; checkpoint recovery can omit oversized IDs for replay.
+
+    Omission never grants a pass. Pytest snapshots remain strictly bounded;
+    only the checkpoint reader/writer opts into replaying otherwise valid IDs.
+    """
     # Keep resume validation self-contained: this plugin is also frozen into
     # the guest payload as system_progress, without the host checkpoint store.
     if value.startswith('@'):
@@ -38,11 +44,12 @@ def completed_cases(value):
     else:
         cases = json.loads(value)
     if (not isinstance(cases, list) or len(cases) > 100000
-            or any(not isinstance(case, str) or not case or len(case) > 65536
+            or any(not isinstance(case, str) or not case
+                   or (not replay_oversized and len(case) > MAX_CASE_ID_LENGTH)
                    or any(ord(c) < 32 for c in case) for case in cases)
             or len(set(cases)) != len(cases)):
         raise ValueError('invalid resume case inventory')
-    return set(cases)
+    return {case for case in cases if len(case) <= MAX_CASE_ID_LENGTH}
 
 
 def write_event(stream, kind, **fields):

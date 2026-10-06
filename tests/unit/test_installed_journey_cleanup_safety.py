@@ -576,6 +576,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         return result
     def accessibility_input(operation, terminal, mode='checked', *, worker_input=None, child=None):
         if worker_input is None:
+            if mode == 'custom-save':
+                assert (operation, terminal, mode) == plan.accessibility_inputs[state['stage']]
+                return observe_ui('parent-custom-save-trace', child=child)
             return observe_ui('accessibility-input-trace')
         token = 'a' * 32
         (directory / (state['stage'] + '.input-done.json')).write_text(json.dumps(

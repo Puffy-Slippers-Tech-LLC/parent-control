@@ -127,13 +127,23 @@ class Checkpoint:
                        for kind, args in logical.items()):
                     raise ValueError('resume selection differs from checkpoint; start without --resume to reset it')
                 for entry in state['categories'].values():
-                    completed_cases(json.dumps(entry['passed']))
+                    passed = completed_cases(json.dumps(entry['passed']), replay_oversized=True)
+                    if len(passed) != len(entry['passed']):
+                        # Older writers could persist pytest's oversized generated
+                        # parameter IDs. Replay only those cases; retain all other
+                        # passes and never certify the category from partial state.
+                        entry['passed'] = sorted(passed)
+                        entry['complete'] = False
+                        self.dirty = True
                     if type(entry['complete']) is not bool:
                         raise ValueError('invalid resume category state')
                 if (type(state.get('round', 1)) is not int or state.get('round', 1) < 1
                         or state.get('pending') not in (None, 'all', *state['categories'])):
                     raise ValueError('invalid resume repair progress')
                 self.state = state
+                if self.dirty:
+                    self.store.save(fd, self.state, name=self.name)
+                    self.dirty = False
             else:
                 self.state = dict(version=1, categories={kind: dict(args=args, passed=[], complete=False)
                                                         for kind, args in logical.items()})
@@ -200,7 +210,9 @@ class Checkpoint:
                 self.excluded[kind].remove(nodeid)
                 self.snapshot(kind)
         elif event['kind'] == 'finished' and nodeid not in failed:
-            passed.add(nodeid)
+            # A legitimate pytest parameter ID can exceed snapshot limits.
+            # Leave it queued for replay instead of writing an unreadable state.
+            passed.update(completed_cases(json.dumps([nodeid]), replay_oversized=True))
         else:
             return
         entry['passed'] = sorted(passed)

@@ -281,6 +281,9 @@ those cases to run again. A failed final controller/cleanup audit repeats a case
 so an empty selection cannot certify recovery. Changed selectors refuse resume;
 start without the option to reset. Host and individual VM checkpoints remain
 separate, and a retry can narrow an aggregate to an original category.
+Case IDs above the snapshot length limit are replayed rather than retained as
+passes. Resume repairs older checkpoints containing such IDs while keeping all
+other valid passes; malformed state and unsafe files still refuse execution.
 
 Preparation, ownership recovery and validated package inputs still run. System
 upgrade and removal/repair lifecycle cases replay their state-changing predecessors when

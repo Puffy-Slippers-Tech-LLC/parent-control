@@ -1590,3 +1590,42 @@ msgstr "還剩 %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "還剩 %(time)s，請儲存遊戲！"
+
+msgid "Reminders"
+msgstr "提醒"
+
+msgid "Add"
+msgstr "新增"
+
+msgid "Edit reminder"
+msgstr "編輯提醒"
+
+msgid "Delete reminder"
+msgstr "刪除提醒"
+
+msgid "Reminder text (optional)"
+msgstr "提醒文字（選填）"
+
+msgid "seconds"
+msgstr "秒"
+
+msgid "Invalid reminder"
+msgstr "提醒無效"
+
+msgid "Try again"
+msgstr "重試"
+
+msgid "Add reminder"
+msgstr "新增提醒"
+
+msgid "What the child will see"
+msgstr "孩子將看到的內容"
+
+msgid "When to show"
+msgstr "何時顯示"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "剩餘時間達到以下數值時顯示提醒："
+
+msgid "Duplicate reminder detected"
+msgstr "偵測到重複提醒"

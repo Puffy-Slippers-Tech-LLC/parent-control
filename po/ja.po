@@ -1587,3 +1587,42 @@ msgstr "残り %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "残り %(time)s，ゲームを保存してください！"
+
+msgid "Reminders"
+msgstr "リマインダー"
+
+msgid "Add"
+msgstr "追加"
+
+msgid "Edit reminder"
+msgstr "リマインダーを編集"
+
+msgid "Delete reminder"
+msgstr "リマインダーを削除"
+
+msgid "Reminder text (optional)"
+msgstr "リマインダーのテキスト（任意）"
+
+msgid "seconds"
+msgstr "秒"
+
+msgid "Invalid reminder"
+msgstr "無効なリマインダー"
+
+msgid "Try again"
+msgstr "再試行"
+
+msgid "Add reminder"
+msgstr "リマインダーを追加"
+
+msgid "What the child will see"
+msgstr "お子様に表示される内容"
+
+msgid "When to show"
+msgstr "表示するタイミング"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "残り時間が次の値になったときにリマインダーを表示します："
+
+msgid "Duplicate reminder detected"
+msgstr "重複するリマインダーが見つかりました"

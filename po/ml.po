@@ -1595,3 +1595,42 @@ msgstr "ശേഷിക്കുന്ന സമയം: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "ശേഷിക്കുന്ന സമയം: %(time)s, നിങ്ങളുടെ ഗെയിമുകൾ സംരക്ഷിക്കൂ!"
+
+msgid "Reminders"
+msgstr "ഓർമ്മപ്പെടുത്തലുകൾ"
+
+msgid "Add"
+msgstr "ചേർക്കുക"
+
+msgid "Edit reminder"
+msgstr "ഓർമ്മപ്പെടുത്തൽ തിരുത്തുക"
+
+msgid "Delete reminder"
+msgstr "ഓർമ്മപ്പെടുത്തൽ നീക്കുക"
+
+msgid "Reminder text (optional)"
+msgstr "ഓർമ്മപ്പെടുത്തലിന്റെ വാചകം (ഐച്ഛികം)"
+
+msgid "seconds"
+msgstr "സെക്കൻഡുകൾ"
+
+msgid "Invalid reminder"
+msgstr "അസാധുവായ ഓർമ്മപ്പെടുത്തൽ"
+
+msgid "Try again"
+msgstr "വീണ്ടും ശ്രമിക്കുക"
+
+msgid "Add reminder"
+msgstr "ഓർമ്മപ്പെടുത്തൽ ചേർക്കുക"
+
+msgid "What the child will see"
+msgstr "കുട്ടി കാണുന്നത്"
+
+msgid "When to show"
+msgstr "എപ്പോൾ കാണിക്കണം"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "ശേഷിക്കുന്ന സമയം ഈ മൂല്യത്തിൽ എത്തുമ്പോൾ ഓർമ്മപ്പെടുത്തൽ കാണിക്കും:"
+
+msgid "Duplicate reminder detected"
+msgstr "ആവർത്തിച്ച ഓർമ്മപ്പെടുത്തൽ കണ്ടെത്തി"

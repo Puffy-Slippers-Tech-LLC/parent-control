@@ -1589,3 +1589,42 @@ msgstr "Thời gian còn lại: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Thời gian còn lại: %(time)s, hãy lưu trò chơi của bạn!"
+
+msgid "Reminders"
+msgstr "Lời nhắc"
+
+msgid "Add"
+msgstr "Thêm"
+
+msgid "Edit reminder"
+msgstr "Sửa lời nhắc"
+
+msgid "Delete reminder"
+msgstr "Xóa lời nhắc"
+
+msgid "Reminder text (optional)"
+msgstr "Nội dung lời nhắc (không bắt buộc)"
+
+msgid "seconds"
+msgstr "giây"
+
+msgid "Invalid reminder"
+msgstr "Lời nhắc không hợp lệ"
+
+msgid "Try again"
+msgstr "Thử lại"
+
+msgid "Add reminder"
+msgstr "Thêm lời nhắc"
+
+msgid "What the child will see"
+msgstr "Nội dung trẻ sẽ thấy"
+
+msgid "When to show"
+msgstr "Khi nào hiển thị"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Lời nhắc sẽ hiển thị khi thời gian còn lại đạt:"
+
+msgid "Duplicate reminder detected"
+msgstr "Phát hiện lời nhắc trùng lặp"

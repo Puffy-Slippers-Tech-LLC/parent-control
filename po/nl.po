@@ -1595,3 +1595,42 @@ msgstr "Nog %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Nog %(time)s, sla je spellen op!"
+
+msgid "Reminders"
+msgstr "Herinneringen"
+
+msgid "Add"
+msgstr "Toevoegen"
+
+msgid "Edit reminder"
+msgstr "Herinnering bewerken"
+
+msgid "Delete reminder"
+msgstr "Herinnering verwijderen"
+
+msgid "Reminder text (optional)"
+msgstr "Herinneringstekst (optioneel)"
+
+msgid "seconds"
+msgstr "seconden"
+
+msgid "Invalid reminder"
+msgstr "Ongeldige herinnering"
+
+msgid "Try again"
+msgstr "Opnieuw proberen"
+
+msgid "Add reminder"
+msgstr "Herinnering toevoegen"
+
+msgid "What the child will see"
+msgstr "Wat het kind zal zien"
+
+msgid "When to show"
+msgstr "Wanneer tonen"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "De herinnering wordt getoond wanneer de resterende tijd dit bereikt:"
+
+msgid "Duplicate reminder detected"
+msgstr "Dubbele herinnering gevonden"

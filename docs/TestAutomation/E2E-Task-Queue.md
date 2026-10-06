@@ -294,7 +294,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 205 | [E2E-037: reboot](E2E-Tasks/205-case-163.md) | 181m, 062, 044, 007 | Cases 163 | 20–30 |
 | [ ] | 310a | [Qualify child panel language refresh and presentation](E2E-Tasks/310a-panel-language-refresh.md) | 043c, 052, 300i, 307a | Child language propagates to the countdown without resetting time or policy; exact binding and installed acceptance pending; gates in brief | 20–30 |
 | [ ] | 310 | [Language changes preserve countdown and natural expiry](E2E-Tasks/310-language-countdown-expiry.md) | 043c, 051, 052a, 062, 310a | One planned case: Language changes preserve countdown and natural expiry; exact binding and installed acceptance pending; gates and finite scope in brief | 35–55 (exception) |
-| [ ] | 311 | [Remaining-time system notifications](E2E-Tasks/311-remaining-time-notifications.md) | 007, 052, 062, 300i | One planned case: per-child reminders, translated defaults, literal custom text, fullscreen urgency and reboot/upgrade persistence; future public reminder-management UI and native banner qualification are gates; no executable or acceptance | 40–60 (exception) |
+| [ ] | 311 | [Remaining-time system notifications](E2E-Tasks/311-remaining-time-notifications.md) | 007, 052, 062, 300i | One planned case: per-child reminders, translated defaults, literal custom text, fullscreen urgency and reboot/upgrade persistence; fullscreen preference GUI/API implementation, installed public reminder-management UI and native banner qualification are gates; no executable or acceptance | 40–60 (exception) |
 | [ ] | 197 | [Compose overlay approval and return](E2E-Tasks/197-compose-approval-and-return-to-the-child.md) | 048b, 044, 052 | FLOW20 overlay new/open form | 20–30 |
 | [ ] | 265 | [E2E-048: daily-only-child-overlay](E2E-Tasks/265-case-223.md) | 197, 052c, 051 | Cases 223; gate in brief | 20–30 |
 | [ ] | 267 | [E2E-048: grant-only-child-overlay](E2E-Tasks/267-case-225.md) | 197, 052c, 065 | Cases 225; gate in brief | 20–30 |
@@ -583,6 +583,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 244 | [E2E-044: fall-back-daily-reset](E2E-Tasks/244-case-202.md) | 191, 065, 062 | Cases 202; gate in brief | Scheduled window; ≤60 (exception) |
 | [ ] | 245 | [E2E-044: fall-back-rest-of-day](E2E-Tasks/245-case-203.md) | 191, 065, 062 | Cases 203; gate in brief | Scheduled window; ≤60 (exception) |
 | [ ] | 246 | [E2E-044: fall-back-fixed-grant](E2E-Tasks/246-case-204.md) | 191, 065, 062 | Cases 204; gate in brief | Scheduled window; ≤60 (exception) |
+| [ ] | 312 | [Child reminder preferences persist across request surfaces](E2E-Tasks/312-child-reminder-preferences.md) | 300i, 300j, 007 | One planned case: reminder create/edit/delete, duplicate-time refusal, Cancel, sorted trigger descriptions, child isolation and persistence after reopening/reboot; installed public-control qualification pending; no implementation or acceptance | 35–55 (exception) |
 
 ## Fresh-install restart regression scope
 

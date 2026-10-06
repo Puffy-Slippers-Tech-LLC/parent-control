@@ -51,6 +51,15 @@ INTROSPECTION_XML = f"""
     <method name="GetOwnNotifications">
       <arg name="notifications_json" type="s" direction="out"/>
     </method>
+    <method name="GetChildNotifications">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="notifications_json" type="s" direction="out"/>
+    </method>
+    <method name="SetChildNotifications">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="notifications_json" type="s" direction="in"/>
+      <arg name="saved_notifications_json" type="s" direction="out"/>
+    </method>
     <method name="SetOwnNotifications">
       <arg name="notifications_json" type="s" direction="in"/>
       <arg name="saved_notifications_json" type="s" direction="out"/>
@@ -451,15 +460,22 @@ class Service:
             elif method == "GetOwnNotifications":
                 saved = self.broker.get_own_notifications(caller_uid)
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
-            elif method == "SetOwnNotifications":
-                encoded, = parameters.unpack()
+            elif method == "GetChildNotifications":
+                target_uid, = parameters.unpack()
+                saved = self.broker.get_child_notifications(caller_uid, target_uid)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
+            elif method in ("SetOwnNotifications", "SetChildNotifications"):
+                values = parameters.unpack()
+                encoded = values[-1]
                 if len(encoded.encode("utf-8")) > 512 * 1024:
                     raise InvalidRequest("notification preferences are too large")
                 try:
                     notifications = decode_preferences(encoded)
                 except (ValueError, RecursionError) as error:
                     raise InvalidRequest("invalid notification preferences") from error
-                saved = self.broker.set_own_notifications(caller_uid, notifications)
+                saved = (self.broker.set_own_notifications(caller_uid, notifications)
+                         if method == "SetOwnNotifications" else
+                         self.broker.set_child_notifications(caller_uid, values[0], notifications))
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
             elif method == "GetOwnLanguage":
                 language = self.broker.get_own_language(caller_uid)

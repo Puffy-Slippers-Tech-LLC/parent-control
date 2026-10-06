@@ -1589,3 +1589,42 @@ msgstr "Sisa waktu: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Sisa waktu: %(time)s, simpan permainanmu!"
+
+msgid "Reminders"
+msgstr "Pengingat"
+
+msgid "Add"
+msgstr "Tambah"
+
+msgid "Edit reminder"
+msgstr "Edit pengingat"
+
+msgid "Delete reminder"
+msgstr "Hapus pengingat"
+
+msgid "Reminder text (optional)"
+msgstr "Teks pengingat (opsional)"
+
+msgid "seconds"
+msgstr "detik"
+
+msgid "Invalid reminder"
+msgstr "Pengingat tidak valid"
+
+msgid "Try again"
+msgstr "Coba lagi"
+
+msgid "Add reminder"
+msgstr "Tambah pengingat"
+
+msgid "What the child will see"
+msgstr "Yang akan dilihat anak"
+
+msgid "When to show"
+msgstr "Kapan ditampilkan"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Pengingat akan ditampilkan ketika waktu tersisa mencapai:"
+
+msgid "Duplicate reminder detected"
+msgstr "Pengingat duplikat terdeteksi"

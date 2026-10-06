@@ -1595,3 +1595,42 @@ msgstr "Temps restant: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Temps restant: %(time)s, enregistra tas partidas!"
+
+msgid "Reminders"
+msgstr "Rampèls"
+
+msgid "Add"
+msgstr "Apondre"
+
+msgid "Edit reminder"
+msgstr "Modificar lo rampèl"
+
+msgid "Delete reminder"
+msgstr "Suprimir lo rampèl"
+
+msgid "Reminder text (optional)"
+msgstr "Tèxte del rampèl (opcional)"
+
+msgid "seconds"
+msgstr "segondas"
+
+msgid "Invalid reminder"
+msgstr "Rampèl invalid"
+
+msgid "Try again"
+msgstr "Tornar ensajar"
+
+msgid "Add reminder"
+msgstr "Apondre un rampèl"
+
+msgid "What the child will see"
+msgstr "Çò que l’enfant veirà"
+
+msgid "When to show"
+msgstr "Quand mostrar"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Lo rampèl serà afichat quand lo temps restant arribarà a :"
+
+msgid "Duplicate reminder detected"
+msgstr "Rampèl duplicat detectat"

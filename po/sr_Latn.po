@@ -1607,3 +1607,42 @@ msgstr "Preostalo vreme: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Preostalo vreme: %(time)s, sačuvaj svoje igre!"
+
+msgid "Reminders"
+msgstr "Podsetnici"
+
+msgid "Add"
+msgstr "Dodaj"
+
+msgid "Edit reminder"
+msgstr "Uredi podsetnik"
+
+msgid "Delete reminder"
+msgstr "Obriši podsetnik"
+
+msgid "Reminder text (optional)"
+msgstr "Tekst podsetnika (neobavezno)"
+
+msgid "seconds"
+msgstr "sekunde"
+
+msgid "Invalid reminder"
+msgstr "Neispravan podsetnik"
+
+msgid "Try again"
+msgstr "Pokušaj ponovo"
+
+msgid "Add reminder"
+msgstr "Dodaj podsetnik"
+
+msgid "What the child will see"
+msgstr "Šta će dete videti"
+
+msgid "When to show"
+msgstr "Kada prikazati"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Podsetnik će se prikazati kada preostalo vreme dostigne:"
+
+msgid "Duplicate reminder detected"
+msgstr "Otkriven je dupli podsetnik"

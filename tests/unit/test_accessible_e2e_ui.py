@@ -18,6 +18,27 @@ from tests.support.accessible_ui import Node, TEST_PROMPT_CONTRACTS, ui_for
 from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES
 
 
+@pytest.mark.parametrize('identity,surface', (
+    ('preferences-tabs', 'language-dialog'),
+    ('preferences-tab-reminders', 'language-dialog'),
+    ('reminder-list', 'language-dialog'),
+    ('reminder-status', 'language-dialog'),
+    ('reminder-five-minutes-edit', 'language-dialog'),
+    ('reminder-text-edit', 'language-dialog'),
+    ('reminder-unit-trigger', 'language-dialog'),
+    ('reminder-editor-delete', 'language-dialog'),
+    ('reminder-editor-save', 'reminder-editor-dialog'),
+    ('reminder-text', 'reminder-editor-dialog'),
+    ('reminder-value-increase', 'reminder-editor-dialog'),
+    ('reminder-unit', 'reminder-editor-dialog'),
+    ('reminder-duplicate-warning', 'reminder-editor-dialog'),
+))
+def test_child_preference_controls_bind_to_their_public_surface(identity, surface):
+    assert accessible_ui.owned_surface_id(identity) == surface
+    assert accessible_ui.owned_applications(identity) == (
+        accessible_ui.KIOSK_APPLICATION, accessible_ui.CHILD_APPLICATION)
+
+
 def test_live_product_lookup_refuses_external_provider_projection():
     target = Node(identity='parent-screen-limit-toggle')
     ui = ui_for(Node(identity='parent-window', children=[target]))

@@ -24,6 +24,28 @@ from tests.support.broker import (
 
 
 class CoreTests(unittest.TestCase):
+    def test_kiosk_notifications_require_kiosk_and_eligible_selected_child(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        accounts, preferences = Accounts(), PreferenceStore(Path(directory.name))
+        broker = make_broker(accounts=accounts, preferences=preferences)
+        settings = {'show_in_fullscreen': False, 'reminders': []}
+        defaults = broker.get_child_notifications(991, 1002)
+        self.assertEqual(broker.set_child_notifications(991, 1001, settings), settings)
+        self.assertEqual(broker.get_own_notifications(1001), settings)
+        self.assertEqual(broker.get_child_notifications(991, 1002), defaults)
+        for caller in (0, 1001, 1003, True):
+            with self.assertRaises(AccessDenied):
+                broker.get_child_notifications(caller, 1001)
+            with self.assertRaises(AccessDenied):
+                broker.set_child_notifications(caller, 1001, settings)
+        for target in (991, 1003, 1004, 1005):
+            with self.assertRaises(AccessDenied):
+                broker.set_child_notifications(991, target, settings)
+        with self.assertRaises(InvalidRequest):
+            broker.set_child_notifications(991, 1001, {})
+        self.assertEqual(accounts.events, [])
+
     def test_session_soft_app_status_uses_live_policy_instead_of_next_request_choice(self):
         accounts, preferences = Accounts(), Preferences()
         broker = make_broker(accounts=accounts, preferences=preferences)

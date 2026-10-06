@@ -1589,3 +1589,42 @@ msgstr "Kalan süre: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Kalan süre: %(time)s, oyunlarını kaydet!"
+
+msgid "Reminders"
+msgstr "Hatırlatıcılar"
+
+msgid "Add"
+msgstr "Ekle"
+
+msgid "Edit reminder"
+msgstr "Hatırlatıcıyı düzenle"
+
+msgid "Delete reminder"
+msgstr "Hatırlatıcıyı sil"
+
+msgid "Reminder text (optional)"
+msgstr "Hatırlatıcı metni (isteğe bağlı)"
+
+msgid "seconds"
+msgstr "saniye"
+
+msgid "Invalid reminder"
+msgstr "Geçersiz hatırlatıcı"
+
+msgid "Try again"
+msgstr "Tekrar dene"
+
+msgid "Add reminder"
+msgstr "Hatırlatıcı ekle"
+
+msgid "What the child will see"
+msgstr "Çocuğun göreceği metin"
+
+msgid "When to show"
+msgstr "Ne zaman gösterilsin"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Kalan süre şu değere ulaştığında hatırlatıcı gösterilecektir:"
+
+msgid "Duplicate reminder detected"
+msgstr "Yinelenen hatırlatıcı algılandı"

@@ -576,6 +576,96 @@ button.oh-no-parent-control-request-button:disabled {
   color: #cccccc;
 }
 
+.preferences-tabs { margin-bottom: -8px; }
+.oh-no-parent-control-language-dialog button.preferences-tab {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 8px 16px;
+  color: #bba4ed;
+  font-weight: bold;
+}
+.oh-no-parent-control-language-dialog button.preferences-tab:checked { color: #a4fff0; }
+.oh-no-parent-control-language-dialog button.preferences-tab:focus-visible {
+  outline: 2px solid #f4f4f4;
+  outline-offset: -5px;
+}
+.preferences-page {
+  border: 1px solid #436366;
+  border-radius: 6px;
+  padding: 12px;
+  background: rgba(17, 35, 43, 0.45);
+}
+.preferences-section-title { font-size: 18px; font-weight: bold; }
+.oh-no-parent-control-language-dialog button.preferences-close {
+  min-height: 28px;
+  min-width: 28px;
+  padding: 0;
+  font-size: 26px;
+  border: 1px solid #82929f;
+  border-radius: 0;
+  background: #293743;
+  color: #f4f4f4;
+}
+.reminder-row {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(244, 244, 244, 0.18);
+  border-radius: 4px;
+}
+.reminder-row:last-child { border-bottom-color: transparent; }
+.reminder-text { font-size: 16px; font-family: sans-serif; }
+.reminder-trigger { font-size: 13px; color: #9aa9b8; font-family: sans-serif; }
+.reminder-bell { color: #b484e3; }
+.reminder-editor-icon {
+  border: 2px solid #7841ce;
+  border-radius: 6px;
+  padding: 4px;
+  background: #25233d;
+}
+.reminder-editor-fields { padding: 16px; }
+.reminder-dialog entry {
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px solid #83c9e0;
+  border-radius: 6px;
+  background: #1f2d39;
+  color: #f4f4f4;
+  font-size: 18px;
+}
+.reminder-number entry { border-radius: 6px 0 0 6px; }
+.reminder-dialog dropdown button {
+  background: #2b3b4c;
+  border: 1px solid #6674a1;
+  font-size: 18px;
+}
+.oh-no-parent-control-language-dialog button.reminder-step {
+  min-height: 20px;
+  padding: 0 8px;
+  color: #a4d7f4;
+  background: #243644;
+  border-radius: 0;
+}
+.reminder-dialog .reminder-text { font-size: 18px; font-weight: bold; }
+.reminder-dialog .reminder-trigger { font-size: 15px; }
+.oh-no-parent-control-language-dialog button.reminder-edit,
+.oh-no-parent-control-language-dialog button.reminder-delete {
+  min-height: 24px;
+  min-width: 24px;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+button.reminder-edit { color: #8dccf3; }
+button.reminder-delete { color: #ff3535; }
+.oh-no-parent-control-language-dialog button.reminder-add {
+  min-height: 28px;
+  border: 1px solid #2cb987;
+  background: rgba(14, 113, 71, 0.75);
+  color: #c2fff0;
+}
+
 .oh-no-parent-control-language-dialog searchentry {
   min-height: 26px;
   padding: 4px 8px;

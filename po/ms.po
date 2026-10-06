@@ -1589,3 +1589,42 @@ msgstr "Baki masa: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Baki masa: %(time)s, simpan permainan anda!"
+
+msgid "Reminders"
+msgstr "Peringatan"
+
+msgid "Add"
+msgstr "Tambah"
+
+msgid "Edit reminder"
+msgstr "Edit peringatan"
+
+msgid "Delete reminder"
+msgstr "Padam peringatan"
+
+msgid "Reminder text (optional)"
+msgstr "Teks peringatan (pilihan)"
+
+msgid "seconds"
+msgstr "saat"
+
+msgid "Invalid reminder"
+msgstr "Peringatan tidak sah"
+
+msgid "Try again"
+msgstr "Cuba lagi"
+
+msgid "Add reminder"
+msgstr "Tambah peringatan"
+
+msgid "What the child will see"
+msgstr "Apa yang akan dilihat oleh kanak-kanak"
+
+msgid "When to show"
+msgstr "Bila ditunjukkan"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Peringatan akan ditunjukkan apabila masa yang tinggal mencapai:"
+
+msgid "Duplicate reminder detected"
+msgstr "Peringatan pendua dikesan"

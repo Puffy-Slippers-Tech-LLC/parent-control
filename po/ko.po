@@ -1589,3 +1589,42 @@ msgstr "남은 시간: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "남은 시간: %(time)s, 게임을 저장하세요!"
+
+msgid "Reminders"
+msgstr "알림"
+
+msgid "Add"
+msgstr "추가"
+
+msgid "Edit reminder"
+msgstr "알림 편집"
+
+msgid "Delete reminder"
+msgstr "알림 삭제"
+
+msgid "Reminder text (optional)"
+msgstr "알림 내용 (선택 사항)"
+
+msgid "seconds"
+msgstr "초"
+
+msgid "Invalid reminder"
+msgstr "잘못된 알림"
+
+msgid "Try again"
+msgstr "다시 시도"
+
+msgid "Add reminder"
+msgstr "알림 추가"
+
+msgid "What the child will see"
+msgstr "아이가 볼 내용"
+
+msgid "When to show"
+msgstr "표시 시점"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "남은 시간이 다음 값에 도달하면 알림이 표시됩니다:"
+
+msgid "Duplicate reminder detected"
+msgstr "중복 알림이 감지되었습니다"

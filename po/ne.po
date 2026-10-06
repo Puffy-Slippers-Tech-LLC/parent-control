@@ -1595,3 +1595,42 @@ msgstr "बाँकी समय: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "बाँकी समय: %(time)s, आफ्ना खेलहरू सुरक्षित गर!"
+
+msgid "Reminders"
+msgstr "सम्झाउने सूचनाहरू"
+
+msgid "Add"
+msgstr "थप्नुहोस्"
+
+msgid "Edit reminder"
+msgstr "सम्झाउने सूचना सम्पादन गर्नुहोस्"
+
+msgid "Delete reminder"
+msgstr "सम्झाउने सूचना मेट्नुहोस्"
+
+msgid "Reminder text (optional)"
+msgstr "सम्झाउने सूचनाको पाठ (वैकल्पिक)"
+
+msgid "seconds"
+msgstr "सेकेन्ड"
+
+msgid "Invalid reminder"
+msgstr "अमान्य सम्झाउने सूचना"
+
+msgid "Try again"
+msgstr "फेरि प्रयास गर्नुहोस्"
+
+msgid "Add reminder"
+msgstr "सम्झाउने सूचना थप्नुहोस्"
+
+msgid "What the child will see"
+msgstr "बालबालिकाले देख्ने कुरा"
+
+msgid "When to show"
+msgstr "कहिले देखाउने"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "बाँकी समय यो मानमा पुगेपछि सम्झाउने सूचना देखाइनेछ:"
+
+msgid "Duplicate reminder detected"
+msgstr "दोहोरिएको सम्झाउने सूचना भेटियो"

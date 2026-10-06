@@ -1595,3 +1595,42 @@ msgstr "%(time)s att"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "%(time)s att, lagre spela dine!"
+
+msgid "Reminders"
+msgstr "Påminningar"
+
+msgid "Add"
+msgstr "Legg til"
+
+msgid "Edit reminder"
+msgstr "Rediger påminning"
+
+msgid "Delete reminder"
+msgstr "Slett påminning"
+
+msgid "Reminder text (optional)"
+msgstr "Påminningstekst (valfritt)"
+
+msgid "seconds"
+msgstr "sekund"
+
+msgid "Invalid reminder"
+msgstr "Ugyldig påminning"
+
+msgid "Try again"
+msgstr "Prøv igjen"
+
+msgid "Add reminder"
+msgstr "Legg til påminning"
+
+msgid "What the child will see"
+msgstr "Kva barnet vil sjå"
+
+msgid "When to show"
+msgstr "Når ho vert vist"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Påminninga vert vist når attverande tid når:"
+
+msgid "Duplicate reminder detected"
+msgstr "Duplisert påminning oppdaga"

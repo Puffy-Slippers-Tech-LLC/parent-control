@@ -1601,3 +1601,42 @@ msgstr "Likęs laikas: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Likęs laikas: %(time)s, išsaugok savo žaidimus!"
+
+msgid "Reminders"
+msgstr "Priminimai"
+
+msgid "Add"
+msgstr "Pridėti"
+
+msgid "Edit reminder"
+msgstr "Redaguoti priminimą"
+
+msgid "Delete reminder"
+msgstr "Ištrinti priminimą"
+
+msgid "Reminder text (optional)"
+msgstr "Priminimo tekstas (nebūtina)"
+
+msgid "seconds"
+msgstr "sekundės"
+
+msgid "Invalid reminder"
+msgstr "Netinkamas priminimas"
+
+msgid "Try again"
+msgstr "Bandyti dar kartą"
+
+msgid "Add reminder"
+msgstr "Pridėti priminimą"
+
+msgid "What the child will see"
+msgstr "Ką matys vaikas"
+
+msgid "When to show"
+msgstr "Kada rodyti"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Priminimas bus rodomas, kai likęs laikas pasieks:"
+
+msgid "Duplicate reminder detected"
+msgstr "Aptiktas pasikartojantis priminimas"

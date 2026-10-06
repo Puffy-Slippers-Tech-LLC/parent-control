@@ -21,12 +21,17 @@ Customer goal: receive useful warnings before losing desktop access, including
 while playing a fullscreen game, with independent durable reminder choices.
 Use the [child requirement](../../Specification.md) and
 [reminder implementation contract](../../SystemDesign/Screen-Time.md#remaining-time-notifications).
-This session implements backend storage and notification delivery only.
+Backend storage, notification delivery and reminder-list dialog code are
+implemented; installed qualification remains pending.
 
-Gate: the child reminder-management dialog and its public Application UI API
-controls are not implemented. Qualify those future normal Save/CRUD handlers,
-and shared GNOME notification/provider and owned fullscreen-fixture operations,
-before implementing this case. Extract independent capability slices under the
+Gate: the fullscreen notification preference GUI control and its public
+Application UI API binding remain unimplemented. The existing reminder-management
+dialog preserves that backend field without exposing a control; implement and
+qualify its normal preference handler before the fullscreen branches. The child
+reminder-management dialog and its public controls also need installed
+qualification. Qualify their normal Save/CRUD handlers, and shared GNOME
+notification/provider and owned fullscreen-fixture operations, before implementing
+this case. Extract independent capability slices under the
 shared sizing contract as needed; this planned case does not absorb them.
 Private preference file edits, broker calls as UI input, injected notification
 events and accelerated private clocks cannot establish customer acceptance.
@@ -42,7 +47,7 @@ without coordinates, private actors or pixel/rendering acceptance.
 Finite history: start with untouched defaults and positive combined usable time
 above ten minutes. Independently observe the 10m, 5m, 1m and 15s warnings once
 through natural countdown; expect shared localized text and Critical urgency.
-Use German for one child and English for the other. Through the future public
+Use German for one child and English for the other. Through the public
 dialog, create a 75-second reminder with `Save your game now`, update it to 15
 seconds, delete the other reminders, and save. Verify literal custom text across
 the language switch and the other child's unchanged reminders. Save whitespace-only

@@ -105,7 +105,9 @@ field under the [migration compatibility rule](Data-Migration.md#adding-a-prefer
 `SetOwnNotifications(notifications_json)` atomically replaces it and returns
 the normalized saved JSON. Both derive the target from bus credentials and
 require an eligible child; administrators and the kiosk cannot use them for
-another account. This whole-list replacement supports future dialog create,
+another account. `GetChildNotifications(target_uid)` and
+`SetChildNotifications(target_uid, notifications_json)` expose the same data
+only to the configured kiosk for an eligible selected child. This whole-list replacement supports dialog create,
 read, update and delete operations without a separate data family. Each record
 has a stable `id`, positive integer `value`, `unit` (`minute` or `second`) and
 optional `text` (normalized to empty when omitted or whitespace-only).
@@ -119,7 +121,8 @@ Notification writes use the same locked read/modify/write, mode-0600 atomic
 replacement and fsync path as language. They preserve language, policy and
 request choices, and policy commits/rollback retain the latest notifications.
 Personal-only records remain personal-only. No notification write changes
-AccountsService, grants or enforcement. Preference dialog UI is not implemented.
+AccountsService, grants or enforcement. The shared request-screen
+[preferences dialog](Frontends.md#child-reminder-preferences) manages the list.
 
 Language writes preserve policy and request settings. The store serializes
 language read/modify/write with policy commits; policy saves and rollback retain

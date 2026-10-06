@@ -1601,3 +1601,42 @@ msgstr "Atlikušais laiks: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Atlikušais laiks: %(time)s, saglabā savas spēles!"
+
+msgid "Reminders"
+msgstr "Atgādinājumi"
+
+msgid "Add"
+msgstr "Pievienot"
+
+msgid "Edit reminder"
+msgstr "Rediģēt atgādinājumu"
+
+msgid "Delete reminder"
+msgstr "Dzēst atgādinājumu"
+
+msgid "Reminder text (optional)"
+msgstr "Atgādinājuma teksts (neobligāts)"
+
+msgid "seconds"
+msgstr "sekundes"
+
+msgid "Invalid reminder"
+msgstr "Nederīgs atgādinājums"
+
+msgid "Try again"
+msgstr "Mēģināt vēlreiz"
+
+msgid "Add reminder"
+msgstr "Pievienot atgādinājumu"
+
+msgid "What the child will see"
+msgstr "Ko bērns redzēs"
+
+msgid "When to show"
+msgstr "Kad rādīt"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Atgādinājums tiks parādīts, kad atlikušais laiks sasniegs:"
+
+msgid "Duplicate reminder detected"
+msgstr "Konstatēts dublēts atgādinājums"

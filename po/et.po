@@ -1595,3 +1595,42 @@ msgstr "Jäänud aeg: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Jäänud aeg: %(time)s, salvesta oma mängud!"
+
+msgid "Reminders"
+msgstr "Meeldetuletused"
+
+msgid "Add"
+msgstr "Lisa"
+
+msgid "Edit reminder"
+msgstr "Muuda meeldetuletust"
+
+msgid "Delete reminder"
+msgstr "Kustuta meeldetuletus"
+
+msgid "Reminder text (optional)"
+msgstr "Meeldetuletuse tekst (valikuline)"
+
+msgid "seconds"
+msgstr "sekundid"
+
+msgid "Invalid reminder"
+msgstr "Vigane meeldetuletus"
+
+msgid "Try again"
+msgstr "Proovi uuesti"
+
+msgid "Add reminder"
+msgstr "Lisa meeldetuletus"
+
+msgid "What the child will see"
+msgstr "Mida laps näeb"
+
+msgid "When to show"
+msgstr "Millal kuvada"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Meeldetuletus kuvatakse, kui järelejäänud aeg jõuab väärtuseni:"
+
+msgid "Duplicate reminder detected"
+msgstr "Tuvastati korduv meeldetuletus"

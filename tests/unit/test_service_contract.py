@@ -60,6 +60,32 @@ def test_notification_dbus_contract_has_no_target_uid():
         ("notifications_json", "s", "in"), ("saved_notifications_json", "s", "out"))
 
 
+def test_kiosk_notification_dispatch_preserves_caller_target_and_json_guards():
+    from oh_no_parent_control.service import GLib
+    service = Service.__new__(Service)
+    service.credentials = mock.Mock()
+    service.credentials.uid.return_value = 991
+    service.broker = mock.Mock()
+    settings = {'show_in_fullscreen': False, 'reminders': []}
+    service.broker.get_child_notifications.return_value = settings
+    service.broker.set_child_notifications.return_value = settings
+    for method, params in (
+            ('GetChildNotifications', GLib.Variant('(u)', (1001,))),
+            ('SetChildNotifications', GLib.Variant('(us)', (1001, json.dumps(settings))))):
+        invocation = mock.Mock()
+        service._method_call(None, ':1.42', None, None, method, params, invocation)
+        assert json.loads(invocation.return_value.call_args.args[0].unpack()[0]) == settings
+    service.broker.get_child_notifications.assert_called_once_with(991, 1001)
+    service.broker.set_child_notifications.assert_called_once_with(991, 1001, settings)
+    service.broker.set_child_notifications.reset_mock()
+    for encoded in ('{', '{"reminders": [], "reminders": []}', ' ' * (512 * 1024 + 1)):
+        invocation = mock.Mock()
+        service._method_call(None, ':1.42', None, None, 'SetChildNotifications',
+                             GLib.Variant('(us)', (1001, encoded)), invocation)
+        assert invocation.return_dbus_error.call_args.args[0].endswith('.InvalidRequest')
+    service.broker.set_child_notifications.assert_not_called()
+
+
 def test_session_soft_apps_dispatch_uses_authenticated_caller():
     from oh_no_parent_control.service import GLib
     service = Service.__new__(Service)

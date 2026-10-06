@@ -1595,3 +1595,42 @@ msgstr "Temps restant: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Temps restant: %(time)s, desa les teves partides!"
+
+msgid "Reminders"
+msgstr "Recordatoris"
+
+msgid "Add"
+msgstr "Afegeix"
+
+msgid "Edit reminder"
+msgstr "Edita el recordatori"
+
+msgid "Delete reminder"
+msgstr "Suprimeix el recordatori"
+
+msgid "Reminder text (optional)"
+msgstr "Text del recordatori (opcional)"
+
+msgid "seconds"
+msgstr "segons"
+
+msgid "Invalid reminder"
+msgstr "Recordatori no vàlid"
+
+msgid "Try again"
+msgstr "Torna-ho a provar"
+
+msgid "Add reminder"
+msgstr "Afegeix un recordatori"
+
+msgid "What the child will see"
+msgstr "Què veurà l’infant"
+
+msgid "When to show"
+msgstr "Quan mostrar-lo"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "El recordatori es mostrarà quan el temps restant arribi a:"
+
+msgid "Duplicate reminder detected"
+msgstr "S’ha detectat un recordatori duplicat"

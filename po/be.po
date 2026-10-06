@@ -1601,3 +1601,42 @@ msgstr "Астатні час: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Астатні час: %(time)s, захавай свае гульні!"
+
+msgid "Reminders"
+msgstr "Напаміны"
+
+msgid "Add"
+msgstr "Дадаць"
+
+msgid "Edit reminder"
+msgstr "Змяніць напамін"
+
+msgid "Delete reminder"
+msgstr "Выдаліць напамін"
+
+msgid "Reminder text (optional)"
+msgstr "Тэкст напаміну (неабавязкова)"
+
+msgid "seconds"
+msgstr "секунды"
+
+msgid "Invalid reminder"
+msgstr "Няправільны напамін"
+
+msgid "Try again"
+msgstr "Паспрабаваць зноў"
+
+msgid "Add reminder"
+msgstr "Дадаць напамін"
+
+msgid "What the child will see"
+msgstr "Што ўбачыць дзіця"
+
+msgid "When to show"
+msgstr "Калі паказваць"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Напамін з’явіцца, калі час, які застаўся, дасягне:"
+
+msgid "Duplicate reminder detected"
+msgstr "Выяўлены паўторны напамін"

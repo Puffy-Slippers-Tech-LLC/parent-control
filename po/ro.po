@@ -1601,3 +1601,42 @@ msgstr "Timp rămas: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Timp rămas: %(time)s, salvează-ți jocurile!"
+
+msgid "Reminders"
+msgstr "Mementouri"
+
+msgid "Add"
+msgstr "Adaugă"
+
+msgid "Edit reminder"
+msgstr "Editează mementoul"
+
+msgid "Delete reminder"
+msgstr "Șterge mementoul"
+
+msgid "Reminder text (optional)"
+msgstr "Textul mementoului (opțional)"
+
+msgid "seconds"
+msgstr "secunde"
+
+msgid "Invalid reminder"
+msgstr "Memento nevalid"
+
+msgid "Try again"
+msgstr "Încearcă din nou"
+
+msgid "Add reminder"
+msgstr "Adaugă memento"
+
+msgid "What the child will see"
+msgstr "Ce va vedea copilul"
+
+msgid "When to show"
+msgstr "Când să se afișeze"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Mementoul va fi afișat când timpul rămas ajunge la:"
+
+msgid "Duplicate reminder detected"
+msgstr "S-a detectat un memento duplicat"

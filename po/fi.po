@@ -1595,3 +1595,42 @@ msgstr "Aikaa jäljellä: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Aikaa jäljellä: %(time)s, tallenna pelisi!"
+
+msgid "Reminders"
+msgstr "Muistutukset"
+
+msgid "Add"
+msgstr "Lisää"
+
+msgid "Edit reminder"
+msgstr "Muokkaa muistutusta"
+
+msgid "Delete reminder"
+msgstr "Poista muistutus"
+
+msgid "Reminder text (optional)"
+msgstr "Muistutuksen teksti (valinnainen)"
+
+msgid "seconds"
+msgstr "sekuntia"
+
+msgid "Invalid reminder"
+msgstr "Virheellinen muistutus"
+
+msgid "Try again"
+msgstr "Yritä uudelleen"
+
+msgid "Add reminder"
+msgstr "Lisää muistutus"
+
+msgid "What the child will see"
+msgstr "Mitä lapsi näkee"
+
+msgid "When to show"
+msgstr "Milloin näytetään"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Muistutus näytetään, kun jäljellä oleva aika saavuttaa:"
+
+msgid "Duplicate reminder detected"
+msgstr "Päällekkäinen muistutus havaittu"

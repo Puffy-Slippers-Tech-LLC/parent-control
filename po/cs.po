@@ -1601,3 +1601,42 @@ msgstr "Zbývající čas: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Zbývající čas: %(time)s, ulož si hry!"
+
+msgid "Reminders"
+msgstr "Připomenutí"
+
+msgid "Add"
+msgstr "Přidat"
+
+msgid "Edit reminder"
+msgstr "Upravit připomenutí"
+
+msgid "Delete reminder"
+msgstr "Smazat připomenutí"
+
+msgid "Reminder text (optional)"
+msgstr "Text připomenutí (volitelné)"
+
+msgid "seconds"
+msgstr "sekundy"
+
+msgid "Invalid reminder"
+msgstr "Neplatné připomenutí"
+
+msgid "Try again"
+msgstr "Zkusit znovu"
+
+msgid "Add reminder"
+msgstr "Přidat připomenutí"
+
+msgid "What the child will see"
+msgstr "Co dítě uvidí"
+
+msgid "When to show"
+msgstr "Kdy zobrazit"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Připomenutí se zobrazí, když zbývající čas dosáhne:"
+
+msgid "Duplicate reminder detected"
+msgstr "Zjištěno duplicitní připomenutí"

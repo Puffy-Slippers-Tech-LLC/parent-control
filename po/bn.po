@@ -1595,3 +1595,42 @@ msgstr "অবশিষ্ট সময়: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "অবশিষ্ট সময়: %(time)s, তোমার গেমগুলো সংরক্ষণ করো!"
+
+msgid "Reminders"
+msgstr "অনুস্মারক"
+
+msgid "Add"
+msgstr "যোগ করুন"
+
+msgid "Edit reminder"
+msgstr "অনুস্মারক সম্পাদনা করুন"
+
+msgid "Delete reminder"
+msgstr "অনুস্মারক মুছুন"
+
+msgid "Reminder text (optional)"
+msgstr "অনুস্মারকের লেখা (ঐচ্ছিক)"
+
+msgid "seconds"
+msgstr "সেকেন্ড"
+
+msgid "Invalid reminder"
+msgstr "অবৈধ অনুস্মারক"
+
+msgid "Try again"
+msgstr "আবার চেষ্টা করুন"
+
+msgid "Add reminder"
+msgstr "অনুস্মারক যোগ করুন"
+
+msgid "What the child will see"
+msgstr "শিশু যা দেখবে"
+
+msgid "When to show"
+msgstr "কখন দেখাতে হবে"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "অবশিষ্ট সময় এই মানে পৌঁছালে অনুস্মারক দেখানো হবে:"
+
+msgid "Duplicate reminder detected"
+msgstr "একই অনুস্মারক পাওয়া গেছে"

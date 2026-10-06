@@ -1072,12 +1072,20 @@ def owned_surface_id(identity):
         return None if identity == fixture[1] else fixture[1]
     if identity.startswith('child-'):
         return None if identity == 'child-screen-time-indicator' else 'child-screen-time-indicator'
+    if identity in (
+            'reminder-editor-dialog', 'reminder-editor-save', 'reminder-editor-cancel',
+            'reminder-editor-close', 'reminder-editor-error', 'reminder-text',
+            'reminder-text-count', 'reminder-value', 'reminder-value-increase',
+            'reminder-value-decrease', 'reminder-unit', 'reminder-duplicate-warning'):
+        return None if identity == 'reminder-editor-dialog' else 'reminder-editor-dialog'
     for prefix, surface in (
         ('update-required-', 'update-required-dialog'),
         ('parent-startup-', 'parent-startup-window'),
         ('parent-access-denied-', 'parent-access-denied-window'),
         ('parent-revoke-', 'parent-revoke-dialog'),
         ('parent-match-rule-', 'parent-match-rule-dialog'),
+        ('preferences-', 'language-dialog'),
+        ('reminder-', 'language-dialog'),
         ('language-', 'language-dialog'),
         ('feedback-full-privacy-', 'feedback-privacy-dialog'),
         ('feedback-privacy-', 'feedback-privacy-dialog'),
@@ -1125,7 +1133,7 @@ def owned_applications(identity):
         return (WATCH_APPLICATION,)
     if identity.startswith('parent-'):
         return (PARENT_APPLICATION,)
-    if identity.startswith(('kiosk-', 'preview-screen-')):
+    if identity.startswith(('kiosk-', 'preview-screen-', 'preferences-', 'reminder-')):
         return (KIOSK_APPLICATION, CHILD_APPLICATION)
     if identity.startswith('preview-viewer-'):
         return ('com.puffyslippers.ScreenPreview',)
@@ -1951,6 +1959,7 @@ class AccessibleUI:
                     ('parent-window', 'kiosk-request-window')
                     if identity == 'update-required-dialog' else
                     ('parent-window',) if identity in ('parent-revoke-dialog', 'parent-match-rule-dialog') else
+                    ('language-dialog',) if identity == 'reminder-editor-dialog' else
                     ('parent-window', 'kiosk-request-window') if identity == 'language-dialog' else
                     ('kiosk-request-window',) if identity == 'preview-screen-dialog' else
                     tuple(value for value in primary if value != 'parent-access-denied-window'))

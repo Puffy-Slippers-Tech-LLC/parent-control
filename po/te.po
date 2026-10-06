@@ -1595,3 +1595,42 @@ msgstr "మిగిలిన సమయం: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "మిగిలిన సమయం: %(time)s, మీ ఆటలను సేవ్ చేసుకోండి!"
+
+msgid "Reminders"
+msgstr "గుర్తుచేసే సూచనలు"
+
+msgid "Add"
+msgstr "జోడించు"
+
+msgid "Edit reminder"
+msgstr "సూచనను సవరించు"
+
+msgid "Delete reminder"
+msgstr "సూచనను తొలగించు"
+
+msgid "Reminder text (optional)"
+msgstr "సూచన వచనం (ఐచ్ఛికం)"
+
+msgid "seconds"
+msgstr "సెకన్లు"
+
+msgid "Invalid reminder"
+msgstr "చెల్లని సూచన"
+
+msgid "Try again"
+msgstr "మళ్లీ ప్రయత్నించు"
+
+msgid "Add reminder"
+msgstr "సూచనను జోడించు"
+
+msgid "What the child will see"
+msgstr "పిల్లలకు కనిపించే వచనం"
+
+msgid "When to show"
+msgstr "ఎప్పుడు చూపించాలి"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "మిగిలిన సమయం ఈ విలువకు చేరినప్పుడు సూచన చూపబడుతుంది:"
+
+msgid "Duplicate reminder detected"
+msgstr "నకిలీ సూచన గుర్తించబడింది"

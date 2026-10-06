@@ -1619,3 +1619,42 @@ msgstr "الوقت المتبقي: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "الوقت المتبقي: %(time)s, احفظ ألعابك!"
+
+msgid "Reminders"
+msgstr "التذكيرات"
+
+msgid "Add"
+msgstr "إضافة"
+
+msgid "Edit reminder"
+msgstr "تعديل التذكير"
+
+msgid "Delete reminder"
+msgstr "حذف التذكير"
+
+msgid "Reminder text (optional)"
+msgstr "نص التذكير (اختياري)"
+
+msgid "seconds"
+msgstr "ثوانٍ"
+
+msgid "Invalid reminder"
+msgstr "تذكير غير صالح"
+
+msgid "Try again"
+msgstr "حاول مجددًا"
+
+msgid "Add reminder"
+msgstr "إضافة تذكير"
+
+msgid "What the child will see"
+msgstr "ما سيراه الطفل"
+
+msgid "When to show"
+msgstr "وقت العرض"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "سيظهر التذكير عندما يصل الوقت المتبقي إلى:"
+
+msgid "Duplicate reminder detected"
+msgstr "تم اكتشاف تذكير مكرر"

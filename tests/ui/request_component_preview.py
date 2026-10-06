@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 import time
 from tests.support.language_fixture import LanguageFixture
+from broker.oh_no_parent_control.preferences import default_notifications, validate_notifications
 
 from gi.repository import Gio, GLib
 
@@ -54,6 +55,9 @@ class Broker:
         self.preferences = copy.deepcopy(PREFERENCES)
         self.language = LanguageFixture(self.record)
         self.child_languages = {uid: LanguageFixture(self.record) for uid, *_ in USERS}
+        self.notifications = {uid: default_notifications() for uid, *_ in USERS}
+        self.notification_load_failures = int(os.environ.get('ONPC_NOTIFICATION_LOAD_FAILURES', '0'))
+        self.notification_save_failures = int(os.environ.get('ONPC_NOTIFICATION_SAVE_FAILURES', '0'))
         if self.scenario == "estimate-unavailable":
             # This fault opens a modal report during startup. Language setup is
             # a prerequisite, not part of the footer failure scenario.
@@ -173,6 +177,20 @@ class Broker:
                 'ListKioskUsers', 'GetChildLanguageContext'):
             return Reply(error=Gio.DBusError.new_for_dbus_error(
                 'com.puffyslippers.OhNoParentControl1.Error.RebootRequired', 'private detail'))
+        if method in ('GetOwnNotifications', 'GetChildNotifications'):
+            uid = USERS[0][0] if method == 'GetOwnNotifications' else values[0]
+            if self.notification_load_failures:
+                self.notification_load_failures -= 1
+                return Reply(error=RuntimeError('notification load failed'))
+            return Reply((json.dumps(self.notifications[uid]),))
+        if method in ('SetOwnNotifications', 'SetChildNotifications'):
+            uid = USERS[0][0] if method == 'SetOwnNotifications' else values[0]
+            if self.notification_save_failures:
+                self.notification_save_failures -= 1
+                return Reply(error=RuntimeError('notification save failed'))
+            self.notifications[uid] = validate_notifications(json.loads(values[-1]))
+            self.record('notifications-committed', uid=uid, settings=self.notifications[uid])
+            return Reply((json.dumps(self.notifications[uid]),))
         if method in ('GetChildLanguage', 'GetChildLanguageContext'):
             try:
                 language = self.child_languages[values[0]].read()

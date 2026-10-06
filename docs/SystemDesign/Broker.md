@@ -117,6 +117,8 @@ the broker resolves and revalidates it.
 | `SetOwnLanguage` | own | own | own |
 | `GetOwnNotifications` | own | - | - |
 | `SetOwnNotifications` | own | - | - |
+| `GetChildNotifications` | - | selected child | - |
+| `SetChildNotifications` | - | selected child | - |
 | `GetOwnSessionAllowsSoftApps` | own | - | - |
 | `GetChildLanguage` | - | selected child | - |
 | `GetChildLanguageContext` | - | selected child | - |

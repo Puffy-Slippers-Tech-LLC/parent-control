@@ -1595,3 +1595,42 @@ msgstr "Χρόνος που απομένει: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Χρόνος που απομένει: %(time)s, αποθήκευσε τα παιχνίδια σου!"
+
+msgid "Reminders"
+msgstr "Υπενθυμίσεις"
+
+msgid "Add"
+msgstr "Προσθήκη"
+
+msgid "Edit reminder"
+msgstr "Επεξεργασία υπενθύμισης"
+
+msgid "Delete reminder"
+msgstr "Διαγραφή υπενθύμισης"
+
+msgid "Reminder text (optional)"
+msgstr "Κείμενο υπενθύμισης (προαιρετικό)"
+
+msgid "seconds"
+msgstr "δευτερόλεπτα"
+
+msgid "Invalid reminder"
+msgstr "Μη έγκυρη υπενθύμιση"
+
+msgid "Try again"
+msgstr "Δοκιμάστε ξανά"
+
+msgid "Add reminder"
+msgstr "Προσθήκη υπενθύμισης"
+
+msgid "What the child will see"
+msgstr "Τι θα δει το παιδί"
+
+msgid "When to show"
+msgstr "Πότε να εμφανίζεται"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Η υπενθύμιση θα εμφανιστεί όταν ο χρόνος που απομένει φτάσει:"
+
+msgid "Duplicate reminder detected"
+msgstr "Εντοπίστηκε διπλότυπη υπενθύμιση"

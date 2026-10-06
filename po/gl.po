@@ -1595,3 +1595,42 @@ msgstr "Tempo restante: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Tempo restante: %(time)s, garda as túas partidas!"
+
+msgid "Reminders"
+msgstr "Lembranzas"
+
+msgid "Add"
+msgstr "Engadir"
+
+msgid "Edit reminder"
+msgstr "Editar lembranza"
+
+msgid "Delete reminder"
+msgstr "Eliminar lembranza"
+
+msgid "Reminder text (optional)"
+msgstr "Texto da lembranza (opcional)"
+
+msgid "seconds"
+msgstr "segundos"
+
+msgid "Invalid reminder"
+msgstr "Lembranza non válida"
+
+msgid "Try again"
+msgstr "Tentar de novo"
+
+msgid "Add reminder"
+msgstr "Engadir lembranza"
+
+msgid "What the child will see"
+msgstr "O que verá a crianza"
+
+msgid "When to show"
+msgstr "Cando mostrar"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "A lembranza mostrarase cando o tempo restante chegue a:"
+
+msgid "Duplicate reminder detected"
+msgstr "Detectouse unha lembranza duplicada"

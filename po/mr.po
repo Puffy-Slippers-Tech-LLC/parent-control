@@ -1595,3 +1595,42 @@ msgstr "उर्वरित वेळ: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "उर्वरित वेळ: %(time)s, तुमचे गेम जतन करा!"
+
+msgid "Reminders"
+msgstr "स्मरणपत्रे"
+
+msgid "Add"
+msgstr "जोडा"
+
+msgid "Edit reminder"
+msgstr "स्मरणपत्र संपादित करा"
+
+msgid "Delete reminder"
+msgstr "स्मरणपत्र हटवा"
+
+msgid "Reminder text (optional)"
+msgstr "स्मरणपत्राचा मजकूर (ऐच्छिक)"
+
+msgid "seconds"
+msgstr "सेकंद"
+
+msgid "Invalid reminder"
+msgstr "अवैध स्मरणपत्र"
+
+msgid "Try again"
+msgstr "पुन्हा प्रयत्न करा"
+
+msgid "Add reminder"
+msgstr "स्मरणपत्र जोडा"
+
+msgid "What the child will see"
+msgstr "मुलाला काय दिसेल"
+
+msgid "When to show"
+msgstr "कधी दाखवायचे"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "उर्वरित वेळ या मूल्यावर पोहोचल्यावर स्मरणपत्र दाखवले जाईल:"
+
+msgid "Duplicate reminder detected"
+msgstr "डुप्लिकेट स्मरणपत्र आढळले"

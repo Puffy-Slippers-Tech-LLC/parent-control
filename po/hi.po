@@ -1595,3 +1595,42 @@ msgstr "शेष समय: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "शेष समय: %(time)s, अपने गेम सहेज लो!"
+
+msgid "Reminders"
+msgstr "अनुस्मारक"
+
+msgid "Add"
+msgstr "जोड़ें"
+
+msgid "Edit reminder"
+msgstr "अनुस्मारक संपादित करें"
+
+msgid "Delete reminder"
+msgstr "अनुस्मारक हटाएँ"
+
+msgid "Reminder text (optional)"
+msgstr "अनुस्मारक पाठ (वैकल्पिक)"
+
+msgid "seconds"
+msgstr "सेकंड"
+
+msgid "Invalid reminder"
+msgstr "अमान्य अनुस्मारक"
+
+msgid "Try again"
+msgstr "फिर से प्रयास करें"
+
+msgid "Add reminder"
+msgstr "अनुस्मारक जोड़ें"
+
+msgid "What the child will see"
+msgstr "बच्चे को क्या दिखाई देगा"
+
+msgid "When to show"
+msgstr "कब दिखाएँ"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "शेष समय इस मान पर पहुँचने पर अनुस्मारक दिखाया जाएगा:"
+
+msgid "Duplicate reminder detected"
+msgstr "डुप्लिकेट अनुस्मारक मिला"

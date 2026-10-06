@@ -1595,3 +1595,42 @@ msgstr "Geratzen den denbora: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Geratzen den denbora: %(time)s, gorde zure jokoak!"
+
+msgid "Reminders"
+msgstr "Abisuak"
+
+msgid "Add"
+msgstr "Gehitu"
+
+msgid "Edit reminder"
+msgstr "Editatu abisua"
+
+msgid "Delete reminder"
+msgstr "Ezabatu abisua"
+
+msgid "Reminder text (optional)"
+msgstr "Abisuaren testua (aukerakoa)"
+
+msgid "seconds"
+msgstr "segundoak"
+
+msgid "Invalid reminder"
+msgstr "Abisu baliogabea"
+
+msgid "Try again"
+msgstr "Saiatu berriro"
+
+msgid "Add reminder"
+msgstr "Gehitu abisua"
+
+msgid "What the child will see"
+msgstr "Haurrak ikusiko duena"
+
+msgid "When to show"
+msgstr "Noiz erakutsi"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Abisua erakutsiko da geratzen den denbora honetara iristean:"
+
+msgid "Duplicate reminder detected"
+msgstr "Abisu bikoiztua hauteman da"

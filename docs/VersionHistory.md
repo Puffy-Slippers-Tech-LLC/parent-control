@@ -1,6 +1,7 @@
 ## v1.4 -
 ### New Features
 Language Dialog: You can search for a language by its English name as well as its localized name
+Remaing Time Reminders: Added default critical reminders in child session. Reminders show even in full-screen apps and can be customized in child preferences.
 
 ### Bugs
 Parent App: Parent app app grid column headers on some RTL languages overlap

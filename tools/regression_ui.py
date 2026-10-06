@@ -123,6 +123,8 @@ GROUPS = (
     # a tmp_path release file; bounded main-loop polling adds no resource owner.
     # Slow authentication uses the same tmp_path gate and bounded callback poll;
     # the case releases it in finally. No shared resource or cleanup owner changes.
+    # Reminder CRUD/retry uses the same owned request preview/display/bus,
+    # process-local backend double and tmp_path events; no new shared resources.
     ('Request behavior', ('test_request_form_component.py', 'test_language_settings.py'), 6),
     # App Limits language-review frames reuse the worker's spectator feed and
     # registered retention allocations; no new display, process or cleanup owner.

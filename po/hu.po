@@ -1595,3 +1595,42 @@ msgstr "Hátralévő idő: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Hátralévő idő: %(time)s, mentsd el a játékaidat!"
+
+msgid "Reminders"
+msgstr "Emlékeztetők"
+
+msgid "Add"
+msgstr "Hozzáadás"
+
+msgid "Edit reminder"
+msgstr "Emlékeztető szerkesztése"
+
+msgid "Delete reminder"
+msgstr "Emlékeztető törlése"
+
+msgid "Reminder text (optional)"
+msgstr "Emlékeztető szövege (nem kötelező)"
+
+msgid "seconds"
+msgstr "másodperc"
+
+msgid "Invalid reminder"
+msgstr "Érvénytelen emlékeztető"
+
+msgid "Try again"
+msgstr "Újrapróbálkozás"
+
+msgid "Add reminder"
+msgstr "Emlékeztető hozzáadása"
+
+msgid "What the child will see"
+msgstr "Amit a gyermek lát majd"
+
+msgid "When to show"
+msgstr "Mikor jelenjen meg"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Az emlékeztető akkor jelenik meg, amikor a hátralévő idő eléri ezt:"
+
+msgid "Duplicate reminder detected"
+msgstr "Ismétlődő emlékeztető észlelve"

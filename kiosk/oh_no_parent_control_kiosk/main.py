@@ -38,7 +38,7 @@ from common.oh_no_parent_control_ui.errors import (
 )
 
 from .model import RequestState, public_error
-from .language_dialog import LanguageDialog
+from .language_dialog import PreferencesDialog
 from .agent_locale import KioskAgentLocale
 from common.oh_no_parent_control_ui.languages import selected_language
 from .request_content import RequestContent
@@ -1311,11 +1311,55 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _open_language_dialog(self):
         if self._language_dialog is None:
-            self._language_dialog = LanguageDialog(
+            self._language_dialog = PreferencesDialog(
                 self, self._applied_language, self._save_language, self._language_saved,
                 self._language_cancelled,
-                account=self._request_content.selected_child_account())
+                account=self._request_content.selected_child_account(),
+                load_notifications=self._load_notifications,
+                save_notifications=self._save_notifications)
         self._language_dialog.present()
+
+    def _load_notifications(self, success, failure):
+        self._notifications_call(None, success, failure)
+
+    def _save_notifications(self, settings, success, failure):
+        self._notifications_call(settings, success, failure)
+
+    def _notifications_call(self, settings, success, failure):
+        revision = self._language_revision
+        target_uid = self._language_target_uid
+        if self._preview and not self._interactive_preview:
+            # Preview data stays local to this window and selected child.
+            from broker.oh_no_parent_control.preferences import default_notifications
+            if not hasattr(self, '_preview_notifications'):
+                self._preview_notifications = {}
+            if settings is not None:
+                self._preview_notifications[target_uid] = settings
+            success(self._preview_notifications.get(target_uid, default_notifications()))
+            return
+
+        def finished(connection, result):
+            if self._estimate_closed or revision != self._language_revision:
+                return
+            try:
+                encoded, = connection.call_finish(result).unpack()
+                saved = json.loads(encoded)
+            except Exception as error:
+                failure(error)
+            else:
+                success(saved)
+
+        try:
+            method = ('Get' if settings is None else 'Set') + (
+                'OwnNotifications' if self._child_overlay else 'ChildNotifications')
+            values = () if self._child_overlay else (target_uid,)
+            signature = '' if self._child_overlay else 'u'
+            if settings is not None:
+                values += (json.dumps(settings),)
+                signature += 's'
+            self._bus_call(method, GLib.Variant(f'({signature})', values), '(s)', finished)
+        except Exception as error:
+            failure(error)
 
     def _language_cancelled(self):
         self._language_dialog = None

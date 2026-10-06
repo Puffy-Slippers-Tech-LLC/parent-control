@@ -1595,3 +1595,42 @@ msgstr "Timp restant: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Timp restant: %(time)s, salve i tiei zûcs!"
+
+msgid "Reminders"
+msgstr "Memoris"
+
+msgid "Add"
+msgstr "Zonte"
+
+msgid "Edit reminder"
+msgstr "Modifiche la memorie"
+
+msgid "Delete reminder"
+msgstr "Elimine la memorie"
+
+msgid "Reminder text (optional)"
+msgstr "Test de memorie (facoltatîf)"
+
+msgid "seconds"
+msgstr "seconts"
+
+msgid "Invalid reminder"
+msgstr "Memorie no valide"
+
+msgid "Try again"
+msgstr "Torne prove"
+
+msgid "Add reminder"
+msgstr "Zonte une memorie"
+
+msgid "What the child will see"
+msgstr "Ce che il frut al viodarà"
+
+msgid "When to show"
+msgstr "Cuant mostrâ"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "La memorie e vignarà mostrade cuant che il timp restant al rive a:"
+
+msgid "Duplicate reminder detected"
+msgstr "Memorie doplie rilevade"

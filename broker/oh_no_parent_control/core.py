@@ -614,10 +614,17 @@ class Broker:
 
     def get_own_notifications(self, caller_uid: int) -> dict:
         self._target(self._load_config(), caller_uid)
+        return self._load_notifications(caller_uid)
+
+    def get_child_notifications(self, caller_uid: int, target_uid: int) -> dict:
+        target_uid = self._kiosk_language_target(caller_uid, target_uid)
+        return self._load_notifications(target_uid)
+
+    def _load_notifications(self, target_uid: int) -> dict:
         if self._preferences is None:
             raise BackendFailure("notification store is unavailable")
         try:
-            return self._preferences.load(caller_uid)["personal"]["notifications"]
+            return self._preferences.load(target_uid)["personal"]["notifications"]
         except (PreferencesError, OSError) as error:
             raise BackendFailure("notifications are unavailable") from error
 
@@ -648,6 +655,13 @@ class Broker:
 
     def set_own_notifications(self, caller_uid: int, notifications: object) -> dict:
         self._target(self._load_config(), caller_uid)
+        return self._save_notifications(caller_uid, notifications)
+
+    def set_child_notifications(self, caller_uid: int, target_uid: int, notifications: object) -> dict:
+        target_uid = self._kiosk_language_target(caller_uid, target_uid)
+        return self._save_notifications(target_uid, notifications)
+
+    def _save_notifications(self, target_uid: int, notifications: object) -> dict:
         try:
             notifications = validate_notifications(notifications)
         except PreferencesError as error:
@@ -655,7 +669,7 @@ class Broker:
         if self._preferences is None:
             raise BackendFailure("notification store is unavailable")
         try:
-            return self._preferences.update_notifications(caller_uid, notifications)
+            return self._preferences.update_notifications(target_uid, notifications)
         except (PreferencesError, OSError) as error:
             raise BackendFailure("could not save notifications") from error
 

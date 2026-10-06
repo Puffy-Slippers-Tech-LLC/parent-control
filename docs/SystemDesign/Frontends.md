@@ -322,6 +322,48 @@ closure and readiness. It leaves a subsequently opened Preferences dialog alone.
 Host preview launch and installed entry checkpoints use its
 `complete_parent_language_setup` and `complete_request_language_setup` wrappers.
 
+## Child reminder preferences
+
+The shared request-screen preferences window has Language and Reminders tabs.
+Language keeps its existing search, native-name choices, public IDs and private
+candidate translation context. Both tabs use the same list frame and scrollbar
+CSS; the armored Cancel/Save actions stay outside the lists.
+
+Reminders loads the selected child's authoritative backend configuration on
+first opening that tab. Defaults come from the backend, and saved empty lists
+remain empty. Rows sort by ascending trigger seconds. The larger caption is
+literal custom text or the translated default; the smaller gray caption is
+always the translated trigger duration. There is no synthetic custom preset.
+
+Add/Edit opens a separate modal metal-board editor with reminder text, a
+character counter and minute/second timing controls. New text is limited to 50
+characters; existing longer backend text can be retained unchanged when editing
+its trigger. Equal trigger seconds, including minute/second equivalents, show a
+footer warning and disable editor Save. The edited reminder excludes its own ID
+from that comparison. Editor Save updates only the preferences draft; Cancel
+discards that edit. There is no preview panel. Main Cancel discards the draft;
+main Save persists changed reminders and then the language selection. If the
+subsequent language write fails, the reminder write has already committed; the
+dialog retains the language candidate for retry. The fullscreen notification
+field is preserved without adding a control to these reference layouts.
+
+Read failures show a retry action without substituting defaults. Save failures
+retain the draft and allow retry. Dialog disposal and selected-child revisions
+discard stale asynchronous replies. The overlay uses caller-scoped notification
+methods; kiosk uses selected-child methods with the same kiosk/eligible-child
+authorization boundary as its language methods.
+
+Public controls are `preferences-tabs` (canonical `language`/`reminders`),
+`preferences-tab-language`, `preferences-tab-reminders`,
+`preferences-close`, `reminder-list`, `reminder-status`, `reminder-add`, `reminder-retry`, and
+`reminder-<stored-id>-text|trigger|edit|delete`. The separate editor publishes
+`reminder-editor-dialog`, `reminder-text`, `reminder-text-count`, `reminder-value`,
+`reminder-value-increase|decrease`, `reminder-unit` (canonical `minute`/`second`),
+`reminder-duplicate-warning`, `reminder-editor-error`, and
+`reminder-editor-save|cancel|close`. Stored IDs remain stable through edits;
+new rows receive unique IDs. Host checks establish local behavior only; installed
+acceptance remains planned in the task queue.
+
 ## Localization infrastructure
 
 See [Localization](Localization.md) for the shared GNU gettext infrastructure,

@@ -1589,3 +1589,42 @@ msgstr "დარჩენილი დრო: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "დარჩენილი დრო: %(time)s, შეინახე შენი თამაშები!"
+
+msgid "Reminders"
+msgstr "შეხსენებები"
+
+msgid "Add"
+msgstr "დამატება"
+
+msgid "Edit reminder"
+msgstr "შეხსენების შეცვლა"
+
+msgid "Delete reminder"
+msgstr "შეხსენების წაშლა"
+
+msgid "Reminder text (optional)"
+msgstr "შეხსენების ტექსტი (არასავალდებულო)"
+
+msgid "seconds"
+msgstr "წამი"
+
+msgid "Invalid reminder"
+msgstr "არასწორი შეხსენება"
+
+msgid "Try again"
+msgstr "სცადეთ ხელახლა"
+
+msgid "Add reminder"
+msgstr "შეხსენების დამატება"
+
+msgid "What the child will see"
+msgstr "რას დაინახავს ბავშვი"
+
+msgid "When to show"
+msgstr "როდის გამოჩნდეს"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "შეხსენება გამოჩნდება, როცა დარჩენილი დრო მიაღწევს:"
+
+msgid "Duplicate reminder detected"
+msgstr "აღმოჩენილია დუბლირებული შეხსენება"

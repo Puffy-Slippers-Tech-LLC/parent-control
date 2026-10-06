@@ -6,6 +6,15 @@
     <method name="GetOwnNotifications">
       <arg name="notifications_json" type="s" direction="out"/>
     </method>
+    <method name="GetChildNotifications">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="notifications_json" type="s" direction="out"/>
+    </method>
+    <method name="SetChildNotifications">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="notifications_json" type="s" direction="in"/>
+      <arg name="saved_notifications_json" type="s" direction="out"/>
+    </method>
     <method name="SetOwnNotifications">
       <arg name="notifications_json" type="s" direction="in"/>
       <arg name="saved_notifications_json" type="s" direction="out"/>

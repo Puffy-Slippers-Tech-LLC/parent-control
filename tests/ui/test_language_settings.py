@@ -42,7 +42,8 @@ EXPANDED_LANGUAGES = {
 
 def launch_language(launch_ui, tmp_path, surface, *, language='', session='en',
                     save_failures=0, load_failures=0, release=None, scenario='normal',
-                    child_desktop='', language_delay=0, unicode_input=False):
+                    child_desktop='', language_delay=0, unicode_input=False,
+                    notification_load_failures=0, notification_save_failures=0):
     path = tmp_path / 'language-events.jsonl'
     environment = {
         'ONPC_LANGUAGE_INITIAL': language,
@@ -56,6 +57,8 @@ def launch_language(launch_ui, tmp_path, surface, *, language='', session='en',
         'ONPC_REQUEST_COMPONENT_SCENARIO': scenario,
         'ONPC_CHILD_1001_DESKTOP_LANGUAGE': child_desktop,
         'ONPC_CHILD_LANGUAGE_DELAY_MS': str(language_delay),
+        'ONPC_NOTIFICATION_LOAD_FAILURES': str(notification_load_failures),
+        'ONPC_NOTIFICATION_SAVE_FAILURES': str(notification_save_failures),
     }
     if unicode_input:
         # Bare Mutter has no desktop input-method daemon. Reuse the Unicode
@@ -157,6 +160,123 @@ def test_chinese_initial_e2e_reader_uses_real_owned_controls(
 def committed(path):
     return [event['language'] for event in read_events(path)
             if event['event'] == 'language-committed']
+
+
+@pytest.mark.parametrize('surface', ('kiosk', 'overlay'))
+def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, surface):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, surface, language='en')
+    wait(lambda: ui.showing('kiosk-language-ready'), 'saved language ready')
+    ui.reader.open_language_preferences('kiosk')
+    assert ui.find('preferences-tabs').getChoices() == ['language', 'reminders']
+    assert ui.getValue('preferences-tabs') == 'language'
+    ui.setValue('preferences-tabs', 'reminders')
+    assert ui.getValue('preferences-tabs') == 'reminders'
+    wait(lambda: ui.find('reminder-list').getChoices() == [
+        'fifteen-seconds', 'one-minute', 'five-minutes', 'ten-minutes'], 'backend defaults sorted')
+    assert ui.getText('reminder-fifteen-seconds-text') == '15 seconds left'
+    assert ui.getText('reminder-fifteen-seconds-trigger') == '15 seconds left'
+    ui.activate('reminder-five-minutes-edit')
+    ui.setText('reminder-value', '30')
+    ui.setValue('reminder-unit', 'second')
+    ui.setText('reminder-text', '  Save <work>!  ')
+    ui.activate('reminder-editor-save')
+    assert ui.getText('reminder-five-minutes-text') == '  Save <work>!  '
+    assert ui.getText('reminder-five-minutes-trigger') == '30 seconds left'
+    ui.activate('reminder-ten-minutes-delete')
+    ui.activate('language-continue')
+    wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'preferences saved')
+    records = [e for e in read_events(path) if e['event'] == 'notifications-committed']
+    assert len(records) == 1 and records[0]['uid'] == 1001
+    assert records[0]['settings']['show_in_fullscreen'] is True
+    assert records[0]['settings']['reminders'] == [
+        {'id': 'fifteen-seconds', 'value': 15, 'unit': 'second', 'text': ''},
+        {'id': 'five-minutes', 'value': 30, 'unit': 'second', 'text': '  Save <work>!  '},
+        {'id': 'one-minute', 'value': 1, 'unit': 'minute', 'text': ''}]
+    ui.reader.open_language_preferences('kiosk')
+    ui.setValue('preferences-tabs', 'reminders')
+    wait(lambda: ui.getText('reminder-five-minutes-text') == '  Save <work>!  ', 'saved reminder reloads')
+    ui.activate('reminder-five-minutes-delete')
+    ui.activate('language-cancel')
+    ui.reader.open_language_preferences('kiosk')
+    ui.setValue('preferences-tabs', 'reminders')
+    wait(lambda: ui.showing('reminder-five-minutes-text'), 'Cancel retained saved reminder')
+    for identity in ('fifteen-seconds', 'five-minutes', 'one-minute'):
+        ui.activate(f'reminder-{identity}-delete')
+    ui.activate('language-continue')
+    wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'empty list saved')
+    ui.reader.open_language_preferences('kiosk')
+    ui.setValue('preferences-tabs', 'reminders')
+    wait(lambda: ui.showing('reminder-add') and ui.state('reminder-add', ui.api.StateType.SENSITIVE), 'empty list loaded')
+    assert ui.find('reminder-list').getChoices() == []
+    assert_no_policy_or_request_writes(path)
+
+
+def test_reminder_creation_validation_and_candidate_translation(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'overlay', language='en')
+    wait(lambda: ui.showing('kiosk-language-ready'), 'startup ready')
+    ui.reader.open_language_preferences('kiosk')
+    ui.setValue('preferences-tabs', 'reminders')
+    wait(lambda: ui.state('reminder-add', ui.api.StateType.SENSITIVE), 'backend reminders loaded')
+    ui.activate('reminder-add')
+    assert ui.showing('reminder-duplicate-warning')
+    assert not ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
+    ui.setText('reminder-value', '60')
+    ui.setValue('reminder-unit', 'second')
+    assert ui.showing('reminder-duplicate-warning')
+    assert not ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
+    ui.setValue('reminder-unit', 'minute')
+    ui.setText('reminder-value', '1.5')
+    ui.activate('reminder-editor-save')
+    assert ui.showing('reminder-editor-error')
+    ui.setText('reminder-value', '71582789')
+    ui.activate('reminder-editor-save')
+    assert ui.showing('reminder-editor-error')
+    ui.setText('reminder-value', '2')
+    assert ui.absent('reminder-duplicate-warning', within='reminder-editor-dialog')
+    assert ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
+    ui.setText('reminder-text', 'x' * 51)
+    ui.activate('reminder-editor-save')
+    assert ui.showing('reminder-editor-error')
+    ui.setText('reminder-text', '   ')
+    ui.activate('reminder-editor-save')
+    reminders = ui.find('reminder-list').getValue()
+    added = next(r for r in reminders if r['id'].startswith('reminder-'))
+    assert added == {**added, 'value': 2, 'unit': 'minute', 'text': ''}
+    ui.setValue('preferences-tabs', 'language')
+    ui.activate('language-choice-de')
+    ui.setValue('preferences-tabs', 'reminders')
+    assert ui.getText(f"reminder-{added['id']}-text") == 'Noch 2 Minuten'
+    assert ui.getText(f"reminder-{added['id']}-trigger") == 'Noch 2 Minuten'
+    assert ui.text('reminder-add') == 'Hinzufügen'
+    ui.activate('language-cancel')
+    assert not [e for e in read_events(path) if e['event'] == 'notifications-committed']
+    assert not committed(path)
+
+
+def test_reminder_load_and_save_failures_keep_draft_and_allow_retry(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'kiosk', language='en',
+                          notification_load_failures=1, notification_save_failures=1)
+    wait(lambda: ui.showing('kiosk-language-ready'), 'startup ready')
+    ui.reader.open_language_preferences('kiosk')
+    ui.setValue('preferences-tabs', 'reminders')
+    wait(lambda: ui.showing('reminder-retry'), 'read failure offers retry')
+    assert not ui.state('reminder-add', ui.api.StateType.SENSITIVE)
+    ui.activate('reminder-retry')
+    wait(lambda: ui.showing('reminder-one-minute-delete'), 'retry loaded backend reminders')
+    ui.activate('reminder-one-minute-delete')
+    ui.activate('language-continue')
+    wait(lambda: ui.showing('language-error'), 'failed save retains preferences')
+    assert 'one-minute' not in ui.find('reminder-list').getChoices()
+    assert not [e for e in read_events(path) if e['event'] == 'notifications-committed']
+    ui.activate('language-continue')
+    wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'retry saved preferences')
+    assert len([e for e in read_events(path) if e['event'] == 'notifications-committed']) == 1
 
 
 def test_installed_parent_chooser_reader_observes_first_run_and_preferences(

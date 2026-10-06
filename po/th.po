@@ -1589,3 +1589,42 @@ msgstr "เหลือเวลา %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "เหลือเวลา %(time)s, บันทึกเกมของคุณด้วย!"
+
+msgid "Reminders"
+msgstr "การแจ้งเตือน"
+
+msgid "Add"
+msgstr "เพิ่ม"
+
+msgid "Edit reminder"
+msgstr "แก้ไขการแจ้งเตือน"
+
+msgid "Delete reminder"
+msgstr "ลบการแจ้งเตือน"
+
+msgid "Reminder text (optional)"
+msgstr "ข้อความแจ้งเตือน (ไม่บังคับ)"
+
+msgid "seconds"
+msgstr "วินาที"
+
+msgid "Invalid reminder"
+msgstr "การแจ้งเตือนไม่ถูกต้อง"
+
+msgid "Try again"
+msgstr "ลองอีกครั้ง"
+
+msgid "Add reminder"
+msgstr "เพิ่มการแจ้งเตือน"
+
+msgid "What the child will see"
+msgstr "สิ่งที่เด็กจะเห็น"
+
+msgid "When to show"
+msgstr "เมื่อใดที่จะแสดง"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "การแจ้งเตือนจะแสดงเมื่อเวลาที่เหลือถึง:"
+
+msgid "Duplicate reminder detected"
+msgstr "ตรวจพบการแจ้งเตือนซ้ำ"

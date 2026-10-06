@@ -1589,3 +1589,42 @@ msgstr "قالغان ۋاقىت: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "قالغان ۋاقىت: %(time)s, ئويۇنلىرىڭىزنى ساقلاڭ!"
+
+msgid "Reminders"
+msgstr "ئەسكەرتىشلەر"
+
+msgid "Add"
+msgstr "قوشۇش"
+
+msgid "Edit reminder"
+msgstr "ئەسكەرتىشنى تەھرىرلەش"
+
+msgid "Delete reminder"
+msgstr "ئەسكەرتىشنى ئۆچۈرۈش"
+
+msgid "Reminder text (optional)"
+msgstr "ئەسكەرتىش تېكىستى (ئىختىيارىي)"
+
+msgid "seconds"
+msgstr "سېكۇنت"
+
+msgid "Invalid reminder"
+msgstr "ئىناۋەتسىز ئەسكەرتىش"
+
+msgid "Try again"
+msgstr "قايتا سىناڭ"
+
+msgid "Add reminder"
+msgstr "ئەسكەرتىش قوشۇش"
+
+msgid "What the child will see"
+msgstr "بالا كۆرىدىغان مەزمۇن"
+
+msgid "When to show"
+msgstr "قاچان كۆرسىتىش"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "قالغان ۋاقىت تۆۋەندىكى قىممەتكە يەتكەندە ئەسكەرتىش كۆرسىتىلىدۇ:"
+
+msgid "Duplicate reminder detected"
+msgstr "تەكرار ئەسكەرتىش بايقالدى"

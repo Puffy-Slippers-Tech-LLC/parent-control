@@ -200,6 +200,17 @@ screen-time control and absent accounts retain their existing restrictions.
 | `language-list` | Get/set canonical catalogue language code; choices enumerate catalogue codes; filtered-out choices refuse until search is cleared |
 | `language-choice-<lowercase-code>` | Actual language radio; selection relabels the chooser |
 | `language-continue`, `language-cancel`, `language-error` | Save, Cancel and ordinary save error readback |
+| `preferences-tab-language`, `preferences-tab-reminders`, `preferences-close` | Request-screen preference tabs and ordinary draft cancellation |
+| `preferences-tabs` | Get/set canonical active page `language` or `reminders`; `getChoices` enumerates both; setter uses the normal tab handler |
+| `reminder-list` | Sorted draft records via `getValue`; stable stored reminder IDs via `getChoices` |
+| `reminder-add`, `reminder-retry`, `reminder-<id>-edit`, `reminder-<id>-delete` | Normal reminder CRUD/read-retry handlers; backend remains authoritative |
+| `reminder-status` | Public loading/error text while the reminder list is unavailable |
+| `reminder-<id>-text`, `reminder-<id>-trigger` | Literal/default body and independently translated fixed trigger description |
+| `reminder-editor-dialog` | Modal owned by the request preferences `language-dialog` |
+| `reminder-text`, `reminder-value`, `reminder-unit` | Literal editor text/time; canonical unit `minute` or `second` |
+| `reminder-text-count`, `reminder-duplicate-warning`, `reminder-editor-error` | Character count and normal refusal messages; duplicate seconds disable Save |
+| `reminder-value-increase`, `reminder-value-decrease` | Normal bounded time increment/decrement handlers |
+| `reminder-editor-save`, `reminder-editor-cancel`, `reminder-editor-close` | Save to the preferences draft or discard the current edit; no preview panel |
 
 ## Shared information and feedback
 
@@ -266,8 +277,8 @@ is currently presenting a banner. Native banner accessibility, dismissal and
 fullscreen inhibition belong to GNOME's external provider under the
 [provider exception](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception).
 No private Shell actor traversal or alternate product input route is provided.
-Installed banner/provider qualification remains pending. The future reminder
-preferences dialog must publish its own guarded public IDs and normal handlers;
+Installed banner/provider qualification remains pending. The reminder
+preferences dialog publishes its own guarded public IDs and normal handlers;
 these read-only observations provide no settings input or backend-edit bypass.
 
 ## Reliability and lifecycle

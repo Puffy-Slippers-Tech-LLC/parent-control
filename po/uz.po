@@ -1590,3 +1590,42 @@ msgstr "Qolgan vaqt: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Qolgan vaqt: %(time)s, o‘yinlaringni saqla!"
+
+msgid "Reminders"
+msgstr "Eslatmalar"
+
+msgid "Add"
+msgstr "Qoʻshish"
+
+msgid "Edit reminder"
+msgstr "Eslatmani tahrirlash"
+
+msgid "Delete reminder"
+msgstr "Eslatmani oʻchirish"
+
+msgid "Reminder text (optional)"
+msgstr "Eslatma matni (ixtiyoriy)"
+
+msgid "seconds"
+msgstr "soniya"
+
+msgid "Invalid reminder"
+msgstr "Yaroqsiz eslatma"
+
+msgid "Try again"
+msgstr "Qayta urinish"
+
+msgid "Add reminder"
+msgstr "Eslatma qoʻshish"
+
+msgid "What the child will see"
+msgstr "Bola koʻradigan matn"
+
+msgid "When to show"
+msgstr "Qachon koʻrsatish"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "Qolgan vaqt ushbu qiymatga yetganda eslatma koʻrsatiladi:"
+
+msgid "Duplicate reminder detected"
+msgstr "Takroriy eslatma aniqlandi"

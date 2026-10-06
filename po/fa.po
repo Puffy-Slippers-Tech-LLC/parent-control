@@ -1595,3 +1595,42 @@ msgstr "زمان باقی‌مانده: %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "زمان باقی‌مانده: %(time)s, بازی‌هایت را ذخیره کن!"
+
+msgid "Reminders"
+msgstr "یادآوری‌ها"
+
+msgid "Add"
+msgstr "افزودن"
+
+msgid "Edit reminder"
+msgstr "ویرایش یادآوری"
+
+msgid "Delete reminder"
+msgstr "حذف یادآوری"
+
+msgid "Reminder text (optional)"
+msgstr "متن یادآوری (اختیاری)"
+
+msgid "seconds"
+msgstr "ثانیه"
+
+msgid "Invalid reminder"
+msgstr "یادآوری نامعتبر"
+
+msgid "Try again"
+msgstr "دوباره تلاش کنید"
+
+msgid "Add reminder"
+msgstr "افزودن یادآوری"
+
+msgid "What the child will see"
+msgstr "آنچه کودک خواهد دید"
+
+msgid "When to show"
+msgstr "زمان نمایش"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "یادآوری هنگامی نمایش داده می‌شود که زمان باقی‌مانده به این مقدار برسد:"
+
+msgid "Duplicate reminder detected"
+msgstr "یادآوری تکراری شناسایی شد"

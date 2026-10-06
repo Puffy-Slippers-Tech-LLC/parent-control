@@ -56,3 +56,42 @@ msgstr "%(time)s left"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "%(time)s left, save your games!"
+
+msgid "Reminders"
+msgstr "Reminders"
+
+msgid "Add"
+msgstr "Add"
+
+msgid "Edit reminder"
+msgstr "Edit reminder"
+
+msgid "Delete reminder"
+msgstr "Delete reminder"
+
+msgid "Reminder text (optional)"
+msgstr "Reminder text (optional)"
+
+msgid "seconds"
+msgstr "seconds"
+
+msgid "Invalid reminder"
+msgstr "Invalid reminder"
+
+msgid "Try again"
+msgstr "Try again"
+
+msgid "Add reminder"
+msgstr "Add reminder"
+
+msgid "What the child will see"
+msgstr "What the child will see"
+
+msgid "When to show"
+msgstr "When to show"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "The reminder will be shown when the remaining time reaches:"
+
+msgid "Duplicate reminder detected"
+msgstr "Duplicate reminder detected"

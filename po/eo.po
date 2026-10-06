@@ -1595,3 +1595,42 @@ msgstr "Restas %(time)s"
 #, python-format
 msgid "%(time)s left, save your games!"
 msgstr "Restas %(time)s, konservu viajn ludojn!"
+
+msgid "Reminders"
+msgstr "Memorigoj"
+
+msgid "Add"
+msgstr "Aldoni"
+
+msgid "Edit reminder"
+msgstr "Redakti memorigon"
+
+msgid "Delete reminder"
+msgstr "Forigi memorigon"
+
+msgid "Reminder text (optional)"
+msgstr "Teksto de memorigo (nedeviga)"
+
+msgid "seconds"
+msgstr "sekundoj"
+
+msgid "Invalid reminder"
+msgstr "Nevalida memorigo"
+
+msgid "Try again"
+msgstr "Reprovi"
+
+msgid "Add reminder"
+msgstr "Aldoni memorigon"
+
+msgid "What the child will see"
+msgstr "Kion la infano vidos"
+
+msgid "When to show"
+msgstr "Kiam montri"
+
+msgid "The reminder will be shown when the remaining time reaches:"
+msgstr "La memorigo aperos kiam la restanta tempo atingos:"
+
+msgid "Duplicate reminder detected"
+msgstr "Duobla memorigo detektita"

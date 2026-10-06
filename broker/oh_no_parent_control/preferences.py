@@ -37,6 +37,52 @@ class PreferencesError(ValueError):
 
 
 LANGUAGE_RE = re.compile(r"[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*")
+REMINDER_ID_RE = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
+MAX_REMINDERS = 64
+MAX_REMINDER_TEXT = 4096
+
+
+def default_notifications() -> dict:
+    """Fresh defaults; an explicitly saved empty list disables reminders."""
+    return {"show_in_fullscreen": True, "reminders": [
+        {"id": identifier, "value": value, "unit": unit, "text": ""}
+        for identifier, value, unit in (
+            ("ten-minutes", 10, "minute"), ("five-minutes", 5, "minute"),
+            ("one-minute", 1, "minute"), ("fifteen-seconds", 15, "second"))
+    ]}
+
+
+def validate_notifications(raw: object) -> dict:
+    if not isinstance(raw, dict) or set(raw) != {"show_in_fullscreen", "reminders"}:
+        raise PreferencesError("invalid notification preferences")
+    if type(raw["show_in_fullscreen"]) is not bool:
+        raise PreferencesError("fullscreen notification state must be boolean")
+    records = raw["reminders"]
+    if not isinstance(records, list) or len(records) > MAX_REMINDERS:
+        raise PreferencesError("notifications must be an array of at most 64 reminders")
+    reminders, ids = [], set()
+    for record in records:
+        if (not isinstance(record, dict) or not {"id", "value", "unit"} <= set(record) or
+                not set(record) <= {"id", "value", "unit", "text"}):
+            raise PreferencesError("invalid reminder record")
+        identifier, value, unit = (record[key] for key in ("id", "value", "unit"))
+        text = record.get("text", "")
+        if (not isinstance(identifier, str) or len(identifier) > 64 or
+                not REMINDER_ID_RE.fullmatch(identifier) or identifier in ids):
+            raise PreferencesError("invalid or duplicate reminder ID")
+        if not isinstance(unit, str) or unit not in {"minute", "second"}:
+            raise PreferencesError("invalid reminder unit")
+        maximum = UINT32_MAX // 60 if unit == "minute" else UINT32_MAX
+        if type(value) is not int or not 1 <= value <= maximum:
+            raise PreferencesError("reminder time must be a positive whole uint32 duration in seconds")
+        if (not isinstance(text, str) or len(text) > MAX_REMINDER_TEXT or "\x00" in text or
+                any(0xD800 <= ord(char) <= 0xDFFF for char in text)):
+            raise PreferencesError("invalid reminder text")
+        ids.add(identifier)
+        # Preserve literal custom text. Whitespace-only content means default.
+        reminders.append({"id": identifier, "value": value, "unit": unit,
+                          "text": text if text.strip() else ""})
+    return {"show_in_fullscreen": raw["show_in_fullscreen"], "reminders": reminders}
 
 
 def validate_language(value: object) -> str:
@@ -54,7 +100,7 @@ def validate_language(value: object) -> str:
 def default_preferences() -> dict:
     return {
         "version": FORMAT_VERSION,
-        "personal": {"language": ""},
+        "personal": {"language": "", "notifications": default_notifications()},
         "parent_control_enabled": False,
         "daily_time_limit_minutes": MIN_DAILY_LIMIT_MINUTES,
         "apps": {},
@@ -84,9 +130,11 @@ def validate_preferences(raw: object) -> dict:
     if raw["version"] != FORMAT_VERSION or type(raw["version"]) is not int:
         raise PreferencesError("unsupported preference version")
     personal = raw["personal"]
-    if not isinstance(personal, dict) or set(personal) != {"language"}:
+    if (not isinstance(personal, dict) or "language" not in personal or
+            not set(personal) <= {"language", "notifications"}):
         raise PreferencesError("invalid personal preferences")
     language = validate_language(personal["language"])
+    notifications = validate_notifications(personal.get("notifications", default_notifications()))
     if type(raw["parent_control_enabled"]) is not bool:
         raise PreferencesError("parent-control state must be boolean")
     # Legacy v3 records could omit this field. Keep its grant-only default
@@ -156,7 +204,7 @@ def validate_preferences(raw: object) -> dict:
     return {
         "version": FORMAT_VERSION,
         "parent_control_enabled": raw["parent_control_enabled"],
-        "personal": {"language": language},
+        "personal": {"language": language, "notifications": notifications},
         "daily_time_limit_minutes": daily_limit,
         "apps": apps,
         "request": {
@@ -271,6 +319,16 @@ class PreferenceStore:
             if set(raw) == {"version", "personal"}:
                 current = {"version": FORMAT_VERSION, "personal": current["personal"]}
             return self._write(uid, current)["personal"]["language"]
+
+    def update_notifications(self, uid: int, notifications: object) -> dict:
+        notifications = validate_notifications(notifications)
+        with self._write_lock:
+            raw = self._load_record(uid)
+            current = validate_preferences(raw)
+            current["personal"]["notifications"] = notifications
+            if set(raw) == {"version", "personal"}:
+                current = {"version": FORMAT_VERSION, "personal": current["personal"]}
+            return self._write(uid, current)["personal"]["notifications"]
 
     def _write(self, uid: int, normalized: dict) -> dict:
         LOG.info("preferences.004", app_policy_count=len(normalized.get("apps", {})))

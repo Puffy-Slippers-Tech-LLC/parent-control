@@ -1585,3 +1585,8 @@ msgstr "%(count)g óra"
 msgctxt "fractional hours below two"
 msgid "%(count)g hours"
 msgstr "%(count)g óra"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "Hátralévő idő: %(time)s"

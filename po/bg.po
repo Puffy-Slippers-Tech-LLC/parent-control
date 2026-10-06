@@ -1585,3 +1585,8 @@ msgstr "%(count)g часа"
 msgctxt "fractional hours below two"
 msgid "%(count)g hours"
 msgstr "%(count)g часа"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "Оставащо време: %(time)s"

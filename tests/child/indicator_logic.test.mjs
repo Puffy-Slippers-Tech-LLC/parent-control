@@ -113,6 +113,7 @@ test('countdown preference interaction cannot activate the request overlay', () 
     let requests = 0;
     let closes = 0;
     Object.assign(indicator, {
+        _requestButton: {checked: false},
         _tooltip: {hide() {}},
         _contextMenu: {
             isOpen: true,

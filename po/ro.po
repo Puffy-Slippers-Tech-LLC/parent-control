@@ -1591,3 +1591,8 @@ msgstr "%(count)g ore"
 msgctxt "fractional hours below two"
 msgid "%(count)g hours"
 msgstr "%(count)g ore"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "Timp rămas: %(time)s"

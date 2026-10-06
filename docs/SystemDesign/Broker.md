@@ -115,6 +115,8 @@ the broker resolves and revalidates it.
 | `GetOwnAccount` | own | - | - |
 | `GetOwnLanguage` | own | own | own |
 | `SetOwnLanguage` | own | own | own |
+| `GetOwnNotifications` | own | - | - |
+| `SetOwnNotifications` | own | - | - |
 | `GetChildLanguage` | - | selected child | - |
 | `GetChildLanguageContext` | - | selected child | - |
 | `SetChildLanguage` | - | selected child | - |
@@ -144,6 +146,11 @@ including the kiosk and administrators, rather than a selected child. These
 methods persist only presentation intent. The child-language methods are kiosk-only
 and validate an eligible child target before accessing storage; see the
 [language contract](State.md).
+
+The own-notification methods accept only eligible child callers and no target
+UID. They persist personal reminder choices through the same store without
+changing time limits, grants or application policy; see the
+[notification storage contract](State.md#persistent-and-derived-state).
 
 `ExportDiagnosticLogs` is a separate, read-only permission for all three product
 roles. It takes no arguments and returns the bounded ZIP of all four components

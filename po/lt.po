@@ -1591,3 +1591,8 @@ msgstr "%(count)g valandos"
 msgctxt "fractional hours below two"
 msgid "%(count)g hours"
 msgstr "%(count)g valandos"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "Likęs laikas: %(time)s"

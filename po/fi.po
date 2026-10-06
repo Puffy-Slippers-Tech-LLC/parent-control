@@ -1585,3 +1585,8 @@ msgstr "%(count)g tuntia"
 msgctxt "fractional hours below two"
 msgid "%(count)g hours"
 msgstr "%(count)g tuntia"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "Aikaa jäljellä: %(time)s"

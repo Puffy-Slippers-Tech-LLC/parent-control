@@ -20,6 +20,12 @@ The existing package exclusion marker prevents old/new broker writers from
 running while migration changes records. Unsupported older brokers cannot read
 version 4; downgrades remain unsupported.
 
+The optional version-4 notification field uses compatible read normalization,
+as described in [State](State.md#persistent-and-derived-state). Existing migration
+functions are unchanged. Missing fields receive reminder defaults, while saved
+customizations and explicitly empty reminder lists survive migration retries
+and future package upgrades.
+
 ## Package lifecycle
 
 `debian/preinst` creates `/var/lib/oh-no-parent-control/migration-in-progress` before a new payload is unpacked. Both the broker launcher and its systemd unit refuse to start while that marker exists. `preinst` explicitly stops a running broker before package files or saved records can change.

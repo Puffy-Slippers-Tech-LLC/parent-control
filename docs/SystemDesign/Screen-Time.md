@@ -9,6 +9,39 @@ Implementation: [core.py](../../broker/oh_no_parent_control/core.py), [extension
 
 ## Screen-time model
 
+### Remaining-time notifications
+
+The child extension's [notification controller](../../child/remainingTimeNotifications.js)
+uses the same verified total usable balance as the panel and expiry enforcement.
+It loads the child's persistent [reminder settings](State.md#persistent-and-derived-state)
+on enable, after language refresh on session resume, and when the request overlay
+exits. Preference failures retain the last successful configuration and use the
+ordinary error report; notification failure never stops countdown or locking.
+
+Reminders fire once when remaining time crosses a configured threshold. The
+timer schedules custom thresholds between normal panel updates, including
+second-based values above a minute. A renewed balance above a threshold rearms
+it; a two-second tolerance prevents repeated notifications from estimate wobble.
+Renewed usable time clears the previous warning immediately.
+Changing a reminder's threshold rearms that ID for its new time; text-only edits
+and equivalent minute/second values retain delivery to avoid replaying a warning.
+Startup does not replay past thresholds. A delayed tick crossing multiple
+thresholds emits only the nearest crossed reminder. At zero, while locked or on
+the greeter, notifications are cleared and no new reminder is emitted. Disabling
+the extension cancels pending preference reads and destroys its owned source.
+
+`show_in_fullscreen` chooses GNOME Shell `CRITICAL` urgency when true and `HIGH`
+when false. Shell owns banner presentation and fullscreen suppression through
+its [message tray API](https://raw.githubusercontent.com/GNOME/gnome-shell/50.0/js/ui/messageTray.js).
+Notifications use the product logo, user privacy scope, plain text and transient
+lifetime. A later reminder replaces the previous product notification so an
+undismissed critical banner cannot obstruct later reminders. Default content
+combines shared localized minute/second plurals with `%(time)s remaining` in all
+supported languages; custom text bypasses translation and markup parsing.
+The [Application UI API](../TestAutomation/Application-UI-API.md#child-panel)
+exposes current notification content and urgency; it does not claim native
+banner visibility. Installed acceptance is queued, not implemented.
+
 `SetPreferences` cannot alter `parent_control_enabled`. `SetParentControl`
 applies screen-time settings to the account and controls child-extension
 activation when the saved toggle changes. `SetPreferences` can save a daily

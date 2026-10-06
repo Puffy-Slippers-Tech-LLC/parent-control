@@ -24,6 +24,50 @@ from tests.support.broker import (
 
 
 class CoreTests(unittest.TestCase):
+    def test_child_notification_api_is_own_only_persistent_and_has_no_policy_effects(self):
+        accounts, authorizer = Accounts(), Authorizer()
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            broker = make_broker(accounts=accounts, preferences=store, authorizer=authorizer)
+            before = store.load(1001)
+            settings = {"show_in_fullscreen": False, "reminders": []}
+            self.assertEqual(broker.set_own_notifications(1001, settings), settings)
+            restarted = make_broker(accounts=accounts, preferences=PreferenceStore(Path(directory)))
+            self.assertEqual(restarted.get_own_notifications(1001), settings)
+            self.assertEqual(restarted.get_own_notifications(1002),
+                             before["personal"]["notifications"])
+            self.assertEqual(store.load(1001), {**before, "personal": {
+                **before["personal"], "notifications": settings}})
+            self.assertEqual(accounts.events, [])
+            self.assertEqual(authorizer.calls, [])
+
+    def test_notification_authorization_validation_and_storage_failure_boundaries(self):
+        store = mock.Mock()
+        broker = make_broker(preferences=store)
+        for uid in (991, 1003, 1004, 1005):
+            with self.assertRaises(AccessDenied):
+                broker.get_own_notifications(uid)
+            with self.assertRaises(AccessDenied):
+                broker.set_own_notifications(uid, {})
+        for uid in (True, -1, 12345):
+            with self.assertRaises(InvalidRequest):
+                broker.get_own_notifications(uid)
+        store.load.assert_not_called()
+        store.update_notifications.assert_not_called()
+        with self.assertRaises(InvalidRequest):
+            broker.set_own_notifications(1001, {})
+        store.update_notifications.assert_not_called()
+        settings = {"show_in_fullscreen": True, "reminders": []}
+        for error in (PreferencesError("future"), OSError("unavailable")):
+            store.load.side_effect = store.update_notifications.side_effect = error
+            with self.assertRaises(BackendFailure):
+                broker.get_own_notifications(1001)
+            with self.assertRaises(BackendFailure):
+                broker.set_own_notifications(1001, settings)
+        broker._preferences = None
+        with self.assertRaises(BackendFailure):
+            broker.get_own_notifications(1001)
+
     def test_kiosk_language_context_preserves_unset_preference_and_desktop_locale(self):
         accounts, preferences = Accounts(), Preferences()
         accounts.users[1001] = replace(accounts.users[1001], desktop_language='zh_CN.UTF-8')
@@ -51,7 +95,7 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(broker.get_own_language(1001), 'de')
         self.assertEqual(broker.get_child_language(991, 1002), '')
         self.assertEqual(broker.get_own_language(991), '')
-        self.assertEqual(preferences.load(1001), {**before, 'personal': {'language': 'de'}})
+        self.assertEqual(preferences.load(1001), {**before, 'personal': {**before['personal'], 'language': 'de'}})
 
     def test_child_language_restricts_caller_and_target_before_storage_access(self):
         store = mock.Mock()
@@ -85,7 +129,7 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(restarted.get_own_language(1001), "fr")
             self.assertEqual(restarted.get_own_language(991), "de")
             self.assertEqual(restarted.get_own_language(1003), "es")
-            expected = {**before, "personal": {"language": "fr"}}
+            expected = {**before, "personal": {**before["personal"], "language": "fr"}}
             self.assertEqual(store.load(1001), expected)
             self.assertEqual(accounts.events, [])
             self.assertEqual(authorizer.calls, [])
@@ -157,7 +201,7 @@ class CoreTests(unittest.TestCase):
             with self.assertRaises(BackendFailure):
                 broker.set_preferences(1003, 1001, requested)
             self.assertEqual(preferences.load(1001),
-                             {**before, "personal": {"language": "fr"}})
+                             {**before, "personal": {**before["personal"], "language": "fr"}})
 
     def test_extension_diagnostic_collection_targets_only_eligible_children(self):
         extensions = mock.Mock()

@@ -1585,3 +1585,8 @@ msgstr "%(count)g ঘণ্টা"
 msgctxt "fractional hours below two"
 msgid "%(count)g hours"
 msgstr "%(count)g ঘণ্টা"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "অবশিষ্ট সময়: %(time)s"

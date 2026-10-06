@@ -20,7 +20,7 @@ from typing import Callable, Protocol
 from .config import Configuration, ConfigurationError, UINT32_MAX
 from .preferences import (
     MAX_DAILY_LIMIT_MINUTES, MIN_DAILY_LIMIT_MINUTES, PreferencesError,
-    blocked_patterns, blocked_targets, validate_preferences, validate_language,
+    blocked_patterns, blocked_targets, validate_preferences, validate_language, validate_notifications,
 )
 
 LOG = get_logger("core")
@@ -611,6 +611,28 @@ class Broker:
     def set_own_language(self, caller_uid: int, language: object) -> str:
         self._authorize_own_language(caller_uid)
         return self._save_language(caller_uid, language)
+
+    def get_own_notifications(self, caller_uid: int) -> dict:
+        self._target(self._load_config(), caller_uid)
+        if self._preferences is None:
+            raise BackendFailure("notification store is unavailable")
+        try:
+            return self._preferences.load(caller_uid)["personal"]["notifications"]
+        except (PreferencesError, OSError) as error:
+            raise BackendFailure("notifications are unavailable") from error
+
+    def set_own_notifications(self, caller_uid: int, notifications: object) -> dict:
+        self._target(self._load_config(), caller_uid)
+        try:
+            notifications = validate_notifications(notifications)
+        except PreferencesError as error:
+            raise InvalidRequest("invalid notification preferences") from error
+        if self._preferences is None:
+            raise BackendFailure("notification store is unavailable")
+        try:
+            return self._preferences.update_notifications(caller_uid, notifications)
+        except (PreferencesError, OSError) as error:
+            raise BackendFailure("could not save notifications") from error
 
     def _kiosk_language_target(self, caller_uid: int, target_uid: int) -> int:
         config = self._load_config()

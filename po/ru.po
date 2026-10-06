@@ -1589,3 +1589,8 @@ msgstr "Не удалось сохранить доступ к приложен�
 #, python-format
 msgid "For %(name)s"
 msgstr "Для %(name)s"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "Оставшееся время: %(time)s"

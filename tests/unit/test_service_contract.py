@@ -1,4 +1,5 @@
 import unittest
+import json
 import pytest
 from unittest import mock
 import xml.etree.ElementTree as ElementTree
@@ -15,6 +16,47 @@ from common.oh_no_parent_control_ui.reboot import product_reboot_required
 
 
 from tests.support.paths import ROOT
+
+
+def test_notification_dispatch_uses_bus_uid_and_rejects_duplicate_or_oversized_json():
+    from oh_no_parent_control.service import GLib
+    service = Service.__new__(Service)
+    service.credentials = mock.Mock()
+    service.credentials.uid.return_value = 1001
+    service.broker = mock.Mock()
+    settings = {"show_in_fullscreen": True, "reminders": []}
+    service.broker.get_own_notifications.return_value = settings
+    service.broker.set_own_notifications.return_value = settings
+    invocation = mock.Mock()
+    for method in ("GetOwnNotifications", "SetOwnNotifications"):
+        params = GLib.Variant("()", ()) if method.startswith("Get") else GLib.Variant("(s)", (json.dumps(settings),))
+        service._method_call(None, ":1.42", None, None, method, params, invocation)
+        assert json.loads(invocation.return_value.call_args.args[0].unpack()[0]) == settings
+    service.broker.get_own_notifications.assert_called_once_with(1001)
+    service.broker.set_own_notifications.assert_called_once_with(1001, settings)
+    service.broker.set_own_notifications.reset_mock()
+    for encoded in ('{', '{"reminders": [], "reminders": []}', ' ' * (512 * 1024 + 1)):
+        refused = mock.Mock()
+        service._method_call(None, ":1.42", None, None, "SetOwnNotifications",
+                             GLib.Variant("(s)", (encoded,)), refused)
+        assert refused.return_dbus_error.call_args.args[0].endswith(".InvalidRequest")
+        refused.return_value.assert_not_called()
+    service.broker.set_own_notifications.assert_not_called()
+    # The runner may raise Python's recursion limit. Exercise the decoder's
+    # refusal deterministically rather than assuming a particular nesting limit.
+    with mock.patch("oh_no_parent_control.service.decode_preferences", side_effect=RecursionError):
+        refused = mock.Mock()
+        service._method_call(None, ":1.42", None, None, "SetOwnNotifications",
+                             GLib.Variant("(s)", ("[]",)), refused)
+        assert refused.return_dbus_error.call_args.args[0].endswith(".InvalidRequest")
+        refused.return_value.assert_not_called()
+    service.broker.set_own_notifications.assert_not_called()
+
+
+def test_notification_dbus_contract_has_no_target_uid():
+    assert signatures(INTROSPECTION_XML)["GetOwnNotifications"] == (("notifications_json", "s", "out"),)
+    assert signatures(INTROSPECTION_XML)["SetOwnNotifications"] == (
+        ("notifications_json", "s", "in"), ("saved_notifications_json", "s", "out"))
 
 
 @pytest.mark.parametrize('permissive', [False, True])

@@ -32,13 +32,35 @@ export class GnomeApplicationUiAdapter {
     listSurfaces() {
         const state = this._state();
         if (!state.available) return [];
-        return [{id: SURFACE_ID, application_id: APPLICATION_ID,
+        const surfaces = [{id: SURFACE_ID, application_id: APPLICATION_ID,
             type: 'child-panel', visible: state.visible, enabled: state.enabled,
             modal: false, parent_id: null}];
+        if (this._indicator._notifications?.current) surfaces.push({
+            id: 'child-time-notification', application_id: APPLICATION_ID,
+            type: 'notification', visible: !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter,
+            enabled: false, modal: false, parent_id: null});
+        return surfaces;
     }
 
     elements(surfaceId) {
         const state = this._state();
+        if (surfaceId === 'child-time-notification' && state.available) {
+            const current = this._indicator._notifications?.current;
+            if (!current) return null;
+            const visible = !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter;
+            const element = (id, type, operations) =>
+                ({id, type, visible, enabled: false, ...operations});
+            return [
+                element(surfaceId, 'notification', {getText: () => current.notification.title}),
+                element('child-time-notification-message', 'label', {
+                    getText: () => current.notification.body,
+                    getValue: () => current.seconds,
+                }),
+                element('child-time-notification-urgency', 'label', {
+                    getValue: () => current.urgency,
+                }),
+            ];
+        }
         if (surfaceId !== SURFACE_ID || !state.available) return null;
         const indicator = this._indicator;
         const element = (id, type, operations, enabled = state.enabled) =>

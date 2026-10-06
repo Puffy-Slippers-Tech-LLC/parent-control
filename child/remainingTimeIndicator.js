@@ -13,6 +13,7 @@ import {describeControl, setAutomationId} from './accessibility.js';
 import {queryEstimatedTimes, timerErrorCategory} from './timerQuery.js';
 import {calculateOwnRemainingTime} from './timeCalculationClient.js';
 import {prepareOwnSession} from './sessionPreparationClient.js';
+import {RemainingTimeNotifications} from './remainingTimeNotifications.js';
 import {logDebug, logInfo, logWarning} from './logger.js';
 import {
     displayState,
@@ -149,6 +150,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._contextMenuDestroyId = 0;
         this._contextMenuInputGuard = false;
         this._destroyed = false;
+        this._notifications = this._preview ? null : new RemainingTimeNotifications(
+            appName, logoPath, translations, onError, () => this._sync());
         this._activeExtensionEnd = approvedGrantRemaining > 0
             ? Main.timeLimitsManager.getCurrentTime() + approvedGrantRemaining
             : 0;
@@ -467,6 +470,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         if (this._destroyed)
             return;
         this._destroyed = true;
+        this._notifications?.close();
+        this._notifications = null;
         this._onRequest = null;
         this._onLanguageRefresh = null;
         this._translations = null;
@@ -555,6 +560,10 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         if (this._preview || this._destroyed)
             return;
         this._refreshEstimate();
+    }
+
+    refreshNotifications() {
+        this._notifications?.refresh();
     }
 
     async _refreshEstimate() {
@@ -678,6 +687,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             greeter: Main.sessionMode.isGreeter,
         });
         const remainingSecs = state.remaining;
+        this._notifications?.update(remainingSecs,
+            state.visible && this._statusLoaded && manager.dailyLimitEnabled);
         // Ubuntu uses a primary session mode named "ubuntu", while upstream
         // GNOME commonly uses "user".  Test the session semantics instead of
         // assuming the distribution-specific primary mode name.
@@ -715,7 +726,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         this._setShown(true);
         this._updateLabel(remainingSecs);
-        this._schedule(state.nextUpdateSeconds);
+        this._schedule(this._notifications?.nextDelay(remainingSecs, state.nextUpdateSeconds) ??
+            state.nextUpdateSeconds);
     }
 
     _lockSession() {

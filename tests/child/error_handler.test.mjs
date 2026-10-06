@@ -92,6 +92,8 @@ test('production extension uses live state while the separate preview supplies f
     const context = vm.createContext({
         Extension: class { getSettings() { return {}; } },
         ChildErrorHandler: class { report(error) { throw error; } },
+        GnomeApplicationUiAdapter: class { close() {} },
+        ChildApplicationUi: class { close() {} },
         TranslationContext: class {
             constructor(directory) {
                 this.directory = directory;
@@ -106,6 +108,7 @@ test('production extension uses live state while the separate preview supplies f
             refreshLanguage() { this.languageRefreshes++; }
             setRequestActive(active) { this.active = active; }
             refreshEstimate() {}
+            refreshNotifications() {}
         },
         appName: () => 'Parent Control',
         appLogoPath: () => '/product-logo.png',

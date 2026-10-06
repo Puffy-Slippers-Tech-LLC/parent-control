@@ -1577,3 +1577,8 @@ msgstr "アプリのアクセス設定を保存できませんでした。しば
 #, python-format
 msgid "For %(name)s"
 msgstr "%(name)s さん用"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "残り %(time)s"

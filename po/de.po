@@ -1583,3 +1583,8 @@ msgstr "Der App-Zugriff konnte nicht gespeichert werden. Bitte später erneut ve
 #, python-format
 msgid "For %(name)s"
 msgstr "Für %(name)s"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "Noch %(time)s"

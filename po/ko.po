@@ -1579,3 +1579,8 @@ msgstr "%(count)g시간"
 msgctxt "fractional hours below two"
 msgid "%(count)g hours"
 msgstr "%(count)g시간"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "남은 시간: %(time)s"

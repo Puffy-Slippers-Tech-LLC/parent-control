@@ -69,6 +69,8 @@ threads, releases its private gate in finally, and joins both before returning.
 Migration interruption and uninstall selection checks use those same private
 trees without real services, processes, sockets or privileged writes. Existing
 compatible preference, core, migration and uninstall classifications still apply.
+Notification preference/service checks use these same private records and
+process-local credential/account doubles; compatible overlap remains valid.
 
 Guest-probe additions to VM-control, snapshot, configuration and transport tests
 use existing private pytest lease/scratch trees and process-local SSH/libvirt,

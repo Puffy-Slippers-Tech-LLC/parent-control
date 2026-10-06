@@ -5,11 +5,78 @@ from unittest import mock
 
 from oh_no_parent_control.preferences import (
     PreferenceStore, PreferencesError, blocked_patterns, blocked_targets, default_preferences,
-    validate_preferences, validate_language,
+    validate_preferences, validate_language, validate_notifications, default_notifications,
 )
 
 
 class PreferenceTests(unittest.TestCase):
+    def test_notification_crud_persists_isolated_and_preserves_policy_and_language(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            self.assertEqual(store.load(1001)["personal"]["notifications"], default_notifications())
+            self.assertEqual(list(Path(directory).iterdir()), [])
+            # Older v4 records receive compatible optional defaults on read.
+            path = Path(directory) / "1001.json"
+            path.write_text(json.dumps({"version": 4, "personal": {"language": "fr"}}))
+            stale = store.load(1001)
+            settings = {"show_in_fullscreen": False, "reminders": [
+                {"id": "save-work", "value": 15, "unit": "second", "text": "  Save <work>!  "},
+                {"id": "finish", "value": 15, "unit": "minute", "text": "\t\n\u2003"},
+            ]}
+            saved = store.update_notifications(1001, settings)
+            self.assertEqual(saved["reminders"][1]["text"], "")
+            self.assertEqual(saved["reminders"][0]["text"], "  Save <work>!  ")
+            self.assertEqual(store.load(1001)["personal"]["language"], "fr")
+            self.assertEqual(set(json.loads(path.read_text())), {"version", "personal"})
+            # Stale policy commits and rollback share this path.
+            stale["daily_time_limit_minutes"] = 42
+            store.save(1001, stale)
+            store.update_language(1001, "de")
+            self.assertEqual(store.load(1001)["personal"]["notifications"], saved)
+            settings["reminders"] = [{**saved["reminders"][0], "value": 20}]
+            store.update_notifications(1001, settings)
+            settings["reminders"] = []
+            store.update_notifications(1001, settings)
+            restarted = PreferenceStore(Path(directory))
+            self.assertEqual(restarted.load(1001)["personal"]["notifications"], settings)
+            self.assertEqual(restarted.load(1001)["daily_time_limit_minutes"], 42)
+            self.assertEqual(restarted.load(1002)["personal"]["notifications"], default_notifications())
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_notifications_reject_malformed_values_and_preserve_existing_bytes(self):
+        import json
+        base = default_notifications()
+        record = base["reminders"][0]
+        omitted_text = {key: value for key, value in record.items() if key != "text"}
+        self.assertEqual(validate_notifications({**base, "reminders": [omitted_text]})["reminders"][0], record)
+        invalid = [None, {}, {**base, "show_in_fullscreen": 1}, {**base, "reminders": {}},
+                   {**base, "reminders": [record] * 65}, {**base, "reminders": [record, record]}]
+        invalid.extend({**base, "reminders": [{**record, key: value}]} for key, value in (
+            ("id", "../x"), ("id", ""), ("id", "x" * 65), ("value", True),
+            ("value", 0), ("value", 2 ** 32), ("value", 1.5), ("unit", "hour"),
+            ("unit", []), ("text", None), ("text", "x" * 4097), ("text", "\x00"),
+            ("text", "\ud800")))
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            store.update_notifications(1001, base)
+            path = Path(directory) / "1001.json"
+            before = path.read_bytes()
+            for value in invalid:
+                with self.subTest(value=value), self.assertRaises(PreferencesError):
+                    store.update_notifications(1001, value)
+                self.assertEqual(path.read_bytes(), before)
+            with mock.patch("oh_no_parent_control.preferences.os.replace", side_effect=OSError):
+                with self.assertRaises(OSError):
+                    store.update_notifications(1001, {**base, "reminders": []})
+            self.assertEqual(path.read_bytes(), before)
+            self.assertEqual([p.name for p in Path(directory).iterdir()], ["1001.json"])
+            for content in ('{', json.dumps({"version": 5, "personal": {"language": ""}})):
+                path.write_text(content)
+                with self.assertRaises(PreferencesError):
+                    store.update_notifications(1001, base)
+                self.assertEqual(path.read_text(), content)
+
     def test_language_persists_per_user_and_reset_follows_session(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "preferences"
@@ -64,9 +131,9 @@ class PreferenceTests(unittest.TestCase):
             store.update_language(1001, "fr")
             path = Path(directory) / "1001.json"
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")),
-                             {"version": 4, "personal": {"language": "fr"}})
+                             {"version": 4, "personal": {"language": "fr", "notifications": default_notifications()}})
             self.assertEqual(store.load(1001),
-                             {**default_preferences(), "personal": {"language": "fr"}})
+                             {**default_preferences(), "personal": {"language": "fr", "notifications": default_notifications()}})
             store.save(1001, default_preferences())
             raw = json.loads(path.read_text(encoding="utf-8"))
             self.assertIn("parent_control_enabled", raw)

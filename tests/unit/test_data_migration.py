@@ -34,7 +34,8 @@ class DataMigrationTests(unittest.TestCase):
         before = json.dumps(legacy, sort_keys=True)
         migrated = migrate_preferences_v3_to_v4(legacy)
         self.assertEqual(migrated, {**legacy, "version": 4, "personal": {"language": ""}})
-        self.assertEqual(validate_preferences(migrated), migrated)
+        self.assertEqual(validate_preferences(migrated),
+                         {**migrated, "personal": default_preferences()["personal"]})
         self.assertEqual(json.dumps(legacy, sort_keys=True), before)
 
     def test_v3_missing_optional_fields_uses_existing_defaults_after_upgrade(self):
@@ -228,7 +229,7 @@ class DataMigrationTests(unittest.TestCase):
             self.assertEqual(migrate_preferences(directory), 1)
             migrated = json.loads(record.read_text(encoding="utf-8"))
         self.assertEqual(migrated["version"], FORMAT_VERSION)
-        self.assertEqual(migrated["personal"], {"language": ""})
+        self.assertEqual(migrated["personal"], default_preferences()["personal"])
         self.assertEqual(migrated["apps"]["lunar.desktop"]["patterns"], [])
         self.assertFalse(migrated["apps"]["lunar.desktop"]["user_saved_match_rule"])
 

@@ -1583,3 +1583,8 @@ msgstr "No se pudo guardar el acceso a aplicaciones. Vuelve a intentarlo más ta
 #, python-format
 msgid "For %(name)s"
 msgstr "Para %(name)s"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "Tiempo restante: %(time)s"

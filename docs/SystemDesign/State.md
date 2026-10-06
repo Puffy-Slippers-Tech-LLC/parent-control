@@ -21,7 +21,7 @@ and atomically replaced. The current preference format is version 4 (`FORMAT_VER
 
 ```text
 version
-personal = { language }
+personal = { language, notifications = { show_in_fullscreen, reminders[] } }
 parent_control_enabled
 daily_time_limit_minutes
 apps[desktop-id] = {
@@ -92,6 +92,34 @@ owns the ordered supported choices and native display names for all components;
 the Python loader is GTK-independent and the same JSON is packaged with the
 Shell extension. Frontends own locale resolution and translation application.
 There is no change notification in this API.
+
+Child reminder preferences are an optional, backward-compatible version-4
+personal field. Older records normalize an absent `notifications` field to
+`show_in_fullscreen = true` and four reminders: 10 minutes, 5 minutes, 1 minute
+and 15 seconds, each with empty text. Explicit lists, including an empty list,
+are authoritative; reads and upgrades never merge presets into saved lists.
+No schema increment or released migration change is needed for this optional
+field under the [migration compatibility rule](Data-Migration.md#adding-a-preference-migration).
+
+`GetOwnNotifications()` returns the configuration as JSON.
+`SetOwnNotifications(notifications_json)` atomically replaces it and returns
+the normalized saved JSON. Both derive the target from bus credentials and
+require an eligible child; administrators and the kiosk cannot use them for
+another account. This whole-list replacement supports future dialog create,
+read, update and delete operations without a separate data family. Each record
+has a stable `id`, positive integer `value`, `unit` (`minute` or `second`) and
+optional `text` (normalized to empty when omitted or whitespace-only).
+Nonblank custom text is preserved literally. The configuration has at most 64
+records with unique lowercase hyphenated IDs of at most 64 characters; durations
+fit uint32 seconds and text has at most 4096 Unicode characters, without NUL
+or surrogate code points. The JSON transport is bounded at 512 KiB and rejects
+duplicate keys. Rejected inputs never replace saved data.
+
+Notification writes use the same locked read/modify/write, mode-0600 atomic
+replacement and fsync path as language. They preserve language, policy and
+request choices, and policy commits/rollback retain the latest notifications.
+Personal-only records remain personal-only. No notification write changes
+AccountsService, grants or enforcement. Preference dialog UI is not implemented.
 
 Language writes preserve policy and request settings. The store serializes
 language read/modify/write with policy commits; policy saves and rollback retain

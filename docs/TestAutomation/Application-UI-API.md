@@ -248,6 +248,27 @@ DOM selectors, supply HTML or bypass attachment/submission validation. It uses
 Panel input refuses while locked, on the greeter, hidden, or while a request
 is active. Setting the animation option changes no policy or time grant.
 
+The read-only `child-time-notification` surface exists while the extension owns
+a current system notification. IDs are stable across language and reminder
+configuration changes:
+
+| ID | Values and operations |
+| --- | --- |
+| `child-time-notification` | `getText`: actual notification title |
+| `child-time-notification-message` | `getText`: actual plain notification body; `getValue`: configured threshold in seconds |
+| `child-time-notification-urgency` | `getValue`: `critical` or `high` |
+
+These observations expose the notification supplied to Shell, including its
+current text after preference/language refresh. Logical visibility means an
+owned notification on the unlocked child desktop; it does not assert that Shell
+is currently presenting a banner. Native banner accessibility, dismissal and
+fullscreen inhibition belong to GNOME's external provider under the
+[provider exception](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception).
+No private Shell actor traversal or alternate product input route is provided.
+Installed banner/provider qualification remains pending. The future reminder
+preferences dialog must publish its own guarded public IDs and normal handlers;
+these read-only observations provide no settings input or backend-edit bypass.
+
 ## Reliability and lifecycle
 
 Services verify the caller's Unix UID through D-Bus and resolve controls within

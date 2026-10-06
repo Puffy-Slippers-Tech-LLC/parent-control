@@ -50,8 +50,13 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     _refreshLanguage() {
-        this._translations?.refresh(() => this._indicator?.refreshLanguage(),
-            error => this._errors?.report(error));
+        this._translations?.refresh(() => {
+            this._indicator?.refreshLanguage();
+            this._indicator?.refreshNotifications();
+        }, error => {
+            this._errors?.report(error);
+            this._indicator?.refreshNotifications();
+        });
     }
 
     _createIndicator() {

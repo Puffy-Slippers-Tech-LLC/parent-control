@@ -1579,3 +1579,8 @@ msgstr "%(count)g jam"
 msgctxt "fractional hours below two"
 msgid "%(count)g hours"
 msgstr "%(count)g jam"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "Baki masa: %(time)s"

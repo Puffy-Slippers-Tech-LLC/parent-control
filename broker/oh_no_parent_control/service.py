@@ -34,7 +34,7 @@ from .core import Broker, BrokerError, Busy, InvalidRequest
 from .extension_manager import ExtensionManager
 from .execution_policy import FapolicydPolicy, originally_permissive_policy
 from .logs import DailyLogWriter, configure_broker_logging
-from .preferences import PreferenceStore
+from .preferences import PreferenceStore, decode_preferences
 
 LOG = get_logger("service")
 BUS_NAME = "com.puffyslippers.OhNoParentControl1"
@@ -45,6 +45,13 @@ CONFIG_PATH = os.environ.get("OH_NO_PARENT_CONTROL_CONFIG", "/etc/oh-no-parent-c
 INTROSPECTION_XML = f"""
 <node>
   <interface name="{INTERFACE}">
+    <method name="GetOwnNotifications">
+      <arg name="notifications_json" type="s" direction="out"/>
+    </method>
+    <method name="SetOwnNotifications">
+      <arg name="notifications_json" type="s" direction="in"/>
+      <arg name="saved_notifications_json" type="s" direction="out"/>
+    </method>
     <method name="GetOwnLanguage">
       <arg name="language" type="s" direction="out"/>
     </method>
@@ -435,7 +442,20 @@ class Service:
                     f"{BUS_NAME}.Error.RebootRequired", "product activation requires a reboot",
                 )
                 return
-            if method == "GetOwnLanguage":
+            if method == "GetOwnNotifications":
+                saved = self.broker.get_own_notifications(caller_uid)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
+            elif method == "SetOwnNotifications":
+                encoded, = parameters.unpack()
+                if len(encoded.encode("utf-8")) > 512 * 1024:
+                    raise InvalidRequest("notification preferences are too large")
+                try:
+                    notifications = decode_preferences(encoded)
+                except (ValueError, RecursionError) as error:
+                    raise InvalidRequest("invalid notification preferences") from error
+                saved = self.broker.set_own_notifications(caller_uid, notifications)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
+            elif method == "GetOwnLanguage":
                 language = self.broker.get_own_language(caller_uid)
                 invocation.return_value(GLib.Variant("(s)", (language,)))
             elif method == "SetOwnLanguage":

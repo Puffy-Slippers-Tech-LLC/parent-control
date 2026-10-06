@@ -51,6 +51,8 @@ DEMANDS = {
     # Child query/indicator adapters use per-test VM contexts, clocks and fake
     # buses; GJS classification uses local error objects and owned GLib timers.
     # Neither accesses a live product bus, writes files or needs exclusivity.
+    # Reminder/source/UI-adapter checks add only private synchronous objects
+    # and read-only source imports; the child-node demand/isolation is unchanged.
     'child-node': Demand(2, GIB),
     'child-gjs': Demand(1, GIB),
     'backend': Demand(1, GIB),

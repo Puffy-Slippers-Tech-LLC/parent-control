@@ -1589,3 +1589,8 @@ msgstr "Nie udało się zapisać dostępu do aplikacji. Spróbuj ponownie późn
 #, python-format
 msgid "For %(name)s"
 msgstr "Dla %(name)s"
+
+#. Shared message: TIME_REMAINING_NOTIFICATION
+#, python-format
+msgid "%(time)s remaining"
+msgstr "Pozostały czas: %(time)s"

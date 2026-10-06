@@ -262,6 +262,13 @@ the public result and make a new explicit decision; do not blindly replay.
 API errors contain fixed categories, not drafts, account names, addresses or
 other UI contents. Calls themselves are not logged as diagnostic payloads.
 
+Clients check ownership before every call and send it to the pinned unique bus
+owner. A valid mutation acknowledgement remains successful if its handler exits
+the application before the reply is decoded; it acknowledges input, not the
+independently observed result. Reads also check ownership after the exchange.
+Later calls refuse an exited or replaced owner, and transport failures or invalid
+mutation replies remain uncertain without automatic replay.
+
 GTK service registration follows application registration/unregistration. Shell
 export follows extension enable/disable; queued authorization work is cancelled
 on teardown. Editor operations wait for the existing document readiness signal

@@ -106,10 +106,12 @@ def test_parent_failed_discovery_disables_management_until_report_closes(
         "parent_component_preview",
         environment_overrides={"ONPC_PARENT_COMPONENT_SCENARIO": scenario},
         wait_for_application=False,
+        complete_language_setup=False,
     )
     ui = automation
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
                               "startup feedback opens")
+    assert not ui.showing("language-dialog")
     evidence = {}
     for identity in ("parent-child-selector", "parent-screen-limit-toggle", "parent-revoke-button"):
         node = ui.target(identity)

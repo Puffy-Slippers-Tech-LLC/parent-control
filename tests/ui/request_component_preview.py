@@ -58,7 +58,7 @@ class Broker:
             self.child_languages[1002].language = self.child_languages[1002].language or 'en'
         if self.scenario == "two-hours-grant-only":
             self.preferences[1001]["request"]["last_selected_duration"] = "7200"
-        if self.scenario == "control-disabled":
+        if self.scenario in {"control-disabled", "control-disabled-single-approver"}:
             self.preferences[1001]["parent_control_enabled"] = False
         elif self.scenario == "remembered":
             self.preferences[1001]["request"].update({
@@ -184,6 +184,10 @@ class Broker:
         if method in ("ListManagedUsers", "ListKioskUsers"):
             return Reply((() if self.scenario == "no-children" else USERS,))
         if method == "ListApprovers":
+            if self.scenario == "control-disabled-single-approver":
+                # Keep the baseline-reader qualification's single-parent input
+                # separate from the other cases' two-parent station fixture.
+                return Reply((APPROVERS[:1],))
             return Reply((() if self.scenario == "no-approvers" else APPROVERS,))
         if method == "GetPreferences":
             return Reply((json.dumps(self.preferences[values[0]]),))

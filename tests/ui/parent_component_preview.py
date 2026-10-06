@@ -17,6 +17,10 @@ from parent.oh_no_parent_control_parent.preview_data import (
     PREVIEW_USERS,
 )
 
+if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") in ("policy-warning", "denied"):
+    from tests.support.application_ui_diagnostics import enable_provider_diagnostics
+    enable_provider_diagnostics()
+
 
 class ScriptedParentBroker:
     """Deterministic component-test broker; it contains no authorization logic."""

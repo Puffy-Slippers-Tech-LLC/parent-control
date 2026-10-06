@@ -82,7 +82,7 @@ def test_approver_baseline_reads_real_disabled_form(
     from tests.e2e import accessible_ui as module
 
     _application, path = launch_request(
-        launch_ui, tmp_path, overlay=False, scenario='control-disabled')
+        launch_ui, tmp_path, overlay=False, scenario='control-disabled-single-approver')
     wait_for_accessible_state(lambda: automation.showing('kiosk-screen-limit-notice'),
                               'disabled station loaded')
     assert not automation.state('kiosk-approver-selector', Atspi.StateType.SENSITIVE)

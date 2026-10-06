@@ -235,7 +235,9 @@ def _is_surface(widget):
     # extra typelib dependency by checking the public GType inheritance chain.
     from gi.repository import GObject
     kind = widget.__gtype__
-    while kind:
+    # All GTK widgets derive from GObject. PyGObject's type_parent raises at
+    # that root rather than returning an invalid (false) GType.
+    while kind != GObject.TYPE_OBJECT:
         if GObject.type_name(kind) == "AdwDialog":
             return True
         kind = GObject.type_parent(kind)

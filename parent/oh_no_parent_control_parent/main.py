@@ -363,6 +363,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._language_loading = False
         self._language_requested = False
         self._closed = False
+        self._fatal_discovery_error = False
         self._users = []
         self._users_loaded_once = False
         self._users_loading = False
@@ -1293,7 +1294,7 @@ class ParentWindow(Adw.ApplicationWindow):
         AboutDialog(self).present()
 
     def _load_language(self):
-        if self._language_loading or self._closed:
+        if self._language_loading or self._closed or self._fatal_discovery_error:
             return GLib.SOURCE_REMOVE
         self._language_loading = True
         self._run(self._client.get_own_language, self._language_loaded, self._language_failed)
@@ -1301,7 +1302,7 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _language_loaded(self, language):
         self._language_loading = False
-        if self._closed:
+        if self._closed or self._fatal_discovery_error:
             return
         self._own_language = language
         if not self._apply_language(language):
@@ -1317,13 +1318,13 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _language_failed(self, error):
         self._language_loading = False
-        if not self._closed:
+        if not self._closed and not self._fatal_discovery_error:
             self._finish_startup()
             self._language_shade.set_reveal_child(False)
             self._show_error(error, m.YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO)
 
     def _show_preferences(self, *_args):
-        if self._closed:
+        if self._closed or self._fatal_discovery_error:
             return
         self._language_requested = True
         self._load_language()
@@ -1344,15 +1345,16 @@ class ParentWindow(Adw.ApplicationWindow):
         self._language_requested = False
         self._finish_startup()
         set_automation_id(self._language_readiness, "parent-language-ready")
+        self._load_policy_warnings()
 
     def _save_language(self, language, success, failure):
         def saved(value):
-            if not self._closed:
+            if not self._closed and not self._fatal_discovery_error:
                 success(value)
 
         def failed(error):
             LOG.warning("parent.004", error_type=error_code(error))
-            if not self._closed:
+            if not self._closed and not self._fatal_discovery_error:
                 failure(error)
 
         self._run(lambda: self._client.set_own_language(language), saved, failed)
@@ -1365,6 +1367,7 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         self._finish_startup()
         set_automation_id(self._language_readiness, "parent-language-ready")
+        self._load_policy_warnings()
 
     def _apply_language(self, language):
         # Preferences refreshes storage on every visit. An unchanged language
@@ -1552,7 +1555,7 @@ class ParentWindow(Adw.ApplicationWindow):
         threading.Thread(target=worker, daemon=True).start()
 
     def _load_users(self):
-        if self._users_loading:
+        if self._users_loading or self._fatal_discovery_error:
             return GLib.SOURCE_REMOVE
         self._users_loading = True
         LOG.info("parent.005")
@@ -1570,6 +1573,14 @@ class ParentWindow(Adw.ApplicationWindow):
                 self._show_error(error, m.CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY)
             return
         LOG.warning("parent.006", error_type=error_code(error))
+        self._fatal_discovery_error = True
+        # Account discovery is fatal here. Replace setup rather than leaving
+        # two competing modals, and ignore outstanding language replies.
+        if self._language_dialog is not None:
+            self._language_dialog.destroy()
+            self._language_dialog = None
+        self._language_requested = False
+        self._language_shade.set_reveal_child(False)
         self.get_content().set_sensitive(False)
         self._show_error(error, m.THE_PARENT_APP_COULD_NOT_LOAD_PLEASE_TRY_AGAIN_LATER,
                          on_close=self.get_application().quit)
@@ -1865,7 +1876,12 @@ class ParentWindow(Adw.ApplicationWindow):
         self._policy_warning_query_failed = False
         affected = tuple(sorted(set(affected)))
         previous = self._reported_policy_warnings.get(uid, ())
-        self._reported_policy_warnings[uid] = affected
+        report_ready = self._language_dialog is None
+        # Management loads behind the startup chooser. Keep the warning visible,
+        # but do not open a competing modal or mark it reported until setup has
+        # finished. Save and Cancel refresh the current warning set afterward.
+        if report_ready or not affected:
+            self._reported_policy_warnings[uid] = affected
         self._policy_warning.set_visible(bool(affected))
         if not affected:
             return
@@ -1877,7 +1893,7 @@ class ParentWindow(Adw.ApplicationWindow):
         # App identities are displayed locally, never included in automatic
         # diagnostic events or the error-report draft.
         set_text(self._policy_warning, 'label', m.DETAIL_S_AFFECTED_APPS_APPS_S % {'detail': detail, 'apps': apps})
-        if affected != previous:
+        if affected != previous and report_ready:
             self._show_error(RuntimeError("application rules unavailable"), detail)
 
     def _policy_warnings_failed(self, uid, error):
@@ -1889,7 +1905,7 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         set_text(self._policy_warning, 'label', m.APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY)
         self._policy_warning.set_visible(True)
-        if not self._policy_warning_query_failed:
+        if not self._policy_warning_query_failed and self._language_dialog is None:
             self._policy_warning_query_failed = True
             self._show_error(error, m.APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI)
 

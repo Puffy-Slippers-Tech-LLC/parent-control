@@ -277,6 +277,10 @@ Preferences does not relabel an unchanged active language. For first-time
 setup, the chooser paints before the management interface is constructed in a
 later main-loop iteration behind it; account loading then runs asynchronously.
 A saved language is applied before constructing the management interface.
+If account loading fails fatally, Parent dismisses the language chooser immediately
+and shows the error report instead. Management stays disabled, and closing that
+report exits the app. Dismissal does not save or apply the chooser's candidate;
+outstanding language replies cannot reopen setup or update its destroyed controls.
 
 The chooser lists native names in catalogue order. Search matches native names,
 English names and language IDs, with case-insensitive partial and wildcard matching.

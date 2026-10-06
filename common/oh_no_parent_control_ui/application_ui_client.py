@@ -122,10 +122,18 @@ class UIClient:
             # timeout/transport/provider failure never authorizes replay.
             raise UIClientError(code if code in known else "Transport",
                                 uncertain=mutation) from error
-        self._check_owner(uncertain=mutation)
+        # The call targets the pinned unique owner, so its successful reply
+        # acknowledges that process's input even when the handler quits the
+        # application. Reads still require a live owner after the exchange;
+        # every subsequent call rechecks ownership before dispatching input.
+        if not mutation:
+            self._check_owner()
         try:
             encoded, = result.unpack()
-            return _decode(encoded, require_dict=False)
+            decoded = _decode(encoded, require_dict=False)
+            if mutation and decoded is not None:
+                raise ValueError("Invalid mutation acknowledgement")
+            return decoded
         except (ValueError, TypeError, KeyError) as error:
             raise UIClientError("InvalidResponse", uncertain=mutation) from error
 

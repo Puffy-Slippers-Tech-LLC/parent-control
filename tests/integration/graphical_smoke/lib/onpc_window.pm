@@ -4,8 +4,9 @@ use warnings;
 use onpc_progress ();
 use testapi ();
 
-# UI18: only registered active-window proofs can authorize Alt-F4. The result
-# checkpoint independently observes absence and the expected underlying surface.
+# UI18: consume the registered surface proof before its normal close operation.
+# Product closes use the App UI API; the external license viewer retains Alt-F4.
+# The result checkpoint independently checks absence and the underlying surface.
 sub close {
     onpc_progress::operation('Closing the current window');
     my ($journey, $window, $proof, $invocation) = @_;
@@ -29,7 +30,7 @@ sub close {
     $before = $invocation . $before;
     $after = $invocation . $after;
     $journey->consume_observation($before, $proof);
-    testapi::send_key('alt-f4');
+    testapi::send_key('alt-f4') if $window eq 'license';
     return $journey->seen($after);
 }
 

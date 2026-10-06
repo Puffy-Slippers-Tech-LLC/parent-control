@@ -1,6 +1,6 @@
 # 296b — Prove the denied Lunar login interval
 
-Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 40–60 minutes.

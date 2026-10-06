@@ -34,9 +34,7 @@ def test_language_switch_preserves_parent_selection_numeric_draft_and_filters(
     from tests.support.localization_review import switch_language, review_frame
     ui, wait = automation, wait_for_accessible_state
     open_parent(launch_ui, ui, wait)
-    ui.activate('parent-child-selector', action_name='menu.popup')
-    wait(lambda: ui.showing('parent-child-choice-1002'), 'child choices open')
-    ui.activate('parent-child-choice-1002')
+    ui.setValue('parent-child-selector', '1002')
     wait(lambda: ui.showing('parent-child-selected-1002'), 'second child selected')
     wait(lambda: ui.state('parent-screen-limit-toggle', ui.api.StateType.SENSITIVE),
          'second child controls finish loading')
@@ -45,10 +43,8 @@ def test_language_switch_preserves_parent_selection_numeric_draft_and_filters(
     wait(lambda: ui.state('parent-daily-limit-selector', ui.api.StateType.SENSITIVE),
          'second child preferences finish loading')
     select_allowance(ui, ('custom',), child=EXISTING_CHILD)
-    wait(lambda: ui.showing('parent-custom-daily-limit')
-         and ui.state('parent-custom-daily-limit', ui.api.StateType.FOCUSED), 'draft focused')
-    key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
-    key_combo(ui, 'parent-custom-daily-limit', 'BackSpace', state=ui.api.StateType.FOCUSED)
+    wait(lambda: ui.showing('parent-custom-daily-limit'), 'custom editor is available')
+    ui.setText('parent-custom-daily-limit', '')
     wait(lambda: ui.content('parent-custom-daily-limit') == '', 'unsaved empty draft')
     switch_language(ui, wait, 'parent', language)
     assert ui.showing('parent-child-selected-1002')
@@ -57,18 +53,13 @@ def test_language_switch_preserves_parent_selection_numeric_draft_and_filters(
     ui.activate('parent-page-app-limits')
     wait(lambda: ui.find('parent-app-search') is not None
          and ui.state('parent-app-search', ui.api.StateType.SENSITIVE), 'catalogue ready')
-    ui.focus('parent-app-search')
-    type_text(ui, 'parent-app-search', 'minecraft')
+    ui.setText('parent-app-search', 'minecraft')
     wait(lambda: len(ui.reader.app_rows(EXISTING_CHILD)) == 2, 'search returns matching apps')
     expected_rows = tuple(row for row in ui.reader.app_rows(EXISTING_CHILD)
                           if row[2] == 'pattern')
     assert len(expected_rows) == 1
     review_frame('parent-apps-' + language)
-    ui.activate('parent-filter-match-rule')
-    choice = 'parent-filter-match-rule-precise'
-    wait(lambda: ui.showing(choice), 'filter opens')
-    ui.activate(choice, action_name='check.toggle')
-    press_key(ui, choice, 'Escape', state=ui.api.StateType.FOCUSED)
+    ui.setValue('parent-filter-match-rule', ['pattern'])
     wait(lambda: ui.reader.app_rows(EXISTING_CHILD) == expected_rows, 'filter changes matching apps')
     # A second switch checks existing translated bindings without recreating data.
     switch_language(ui, wait, 'parent', 'ja')
@@ -129,15 +120,10 @@ def test_feedback_editor_and_actions_remain_reachable(
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
                               "feedback opens")
     editor = feedback_editor(ui, wait_for_accessible_state)
-    ui.activate("feedback-format-style")
-    # The last option can be clipped by the editor viewport. Activation checks
-    # ownership, VISIBLE, sensitivity and its public action without requiring
-    # SHOWING or adding scrolling before the action.
-    ui.activate("feedback-format-heading-2")
+    ui.setValue("feedback-format-style", "heading-2")
     wait_for_accessible_state(
-        lambda: [node.get_attributes().get("level")
-             for node in ui.nodes(ui.target(editor), strict=True)
-             if node.get_role_name() == "heading"] == ["2"],
+        lambda: any(operation.get('attributes', {}).get('header') == 2
+                    for operation in ui.getValue('feedback-editor-document')['ops']),
         "editor exposes Heading 2",
     )
     key = hashlib.sha256(b"sample-4.txt\0test attachment").hexdigest()[:16]
@@ -164,11 +150,7 @@ def test_about_content_remains_semantically_reachable(
     ui = automation
     wait_for_accessible_state(lambda: ui.find(menu) is not None,
                               "application menu publishes its ID")
-    ui.activate(menu, action_name="menu.popup")
-    about = ("parent-menu-about" if launcher == "parent_component_preview"
-             else "kiosk-menu-item-about")
-    wait_for_accessible_state(lambda: ui.showing(about), "About action opens")
-    ui.activate(about)
+    ui.setValue(menu, "about")
     wait_for_accessible_state(lambda: ui.showing("about-dialog"), "About opens")
     ui.reveal("about-copyright")
     assert ui.text("about-copyright") == (

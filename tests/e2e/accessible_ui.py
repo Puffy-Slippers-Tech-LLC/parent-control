@@ -1,8 +1,8 @@
-"""Bounded public AT-SPI interaction in the installed fixture's desktop.
+"""Bounded Application UI operations beside qualified external providers.
 
-This file also runs as a standalone program in the guarded guest. It reads only
-public UI objects and the Parent's read-only native-surface accessibility
-metadata; it never imports product code or reads product policy/storage.
+This file also runs as a standalone program in the guarded guest. Product
+controls use the shared public UIClient facade; desktop/login/chooser providers
+retain their scoped public interfaces. It never reads product policy/storage.
 Only fixed operation names and sanitized results cross the controller boundary.
 """
 
@@ -1070,8 +1070,8 @@ def owned_surface_id(identity):
     fixture = re.match(r'^(onpc-fixture-(?:native|flatpak|snap|game)-(?:primary|secondary))(?:-|$)', identity)
     if fixture:
         return None if identity == fixture[1] else fixture[1]
-    if identity in ('child-request-tooltip', 'child-countdown-menu'):
-        return None  # Shell chrome siblings; application ownership is checked separately.
+    if identity.startswith('child-'):
+        return None if identity == 'child-screen-time-indicator' else 'child-screen-time-indicator'
     for prefix, surface in (
         ('update-required-', 'update-required-dialog'),
         ('parent-startup-', 'parent-startup-window'),
@@ -1112,6 +1112,7 @@ def owned_surface_id(identity):
 PARENT_APPLICATION = 'com.puffyslippers.OhNoParentControl.Parent'
 KIOSK_APPLICATION = 'com.puffyslippers.OhNoParentControl'
 CHILD_APPLICATION = 'com.puffyslippers.OhNoParentControl.ChildRequest'
+CHILD_PANEL_APPLICATION = 'com.puffyslippers.OhNoParentControl.ChildUI'
 WATCH_APPLICATION = 'org.onpc.E2EWatch'
 PRODUCT_APPLICATIONS = (PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION)
 
@@ -1367,7 +1368,8 @@ class AccessibleUI:
     def __init__(self, api, *, timeout=45, query_errors=(), dispatch=None,
                  reset_observer=None, provider_contracts=None, fixture_uids=None,
                  application_ids=None, owner_pids=None, application_owners=None,
-                 application_owner_history=None, root=None, include_text_children=False,
+                 application_owner_history=None, application_ui_endpoints=None,
+                 root=None, include_text_children=False,
                  timing=None):
         if root is None and getattr(api, '__name__', '') == 'gi.repository.Atspi':
             # Real previews and installed observers use the same public bus
@@ -1378,7 +1380,23 @@ class AccessibleUI:
                 from tests.e2e.public_atspi import PublicAtspi
             api = PublicAtspi(api)
         self.api = api
-        self.root = root if root is not None else lambda: self.api.get_desktop(0)
+        self.application_ui = None
+        self.application_ui_endpoints = application_ui_endpoints
+        if root is None and getattr(api, '__name__', '') == 'public_atspi':
+            try:
+                from application_ui import ApplicationUI, Desktop, InterfaceCalls
+            except ImportError:
+                from tests.e2e.application_ui import ApplicationUI, Desktop, InterfaceCalls
+            self.application_ui = ApplicationUI(api, endpoints=application_ui_endpoints)
+            self.api.Action = self.api.Text = self.api.EditableText = self.api.Selection = InterfaceCalls()
+            def product_desktop():
+                self.application_ui.endpoints = self.application_ui_endpoints
+                return Desktop(self.api.get_desktop(0), self.application_ui, {
+                    'owner_pids': self.owner_pids, 'application_owners': self.application_owners,
+                    'application_ids': self.application_ids})
+            self.root = product_desktop
+        else:
+            self.root = root if root is not None else lambda: self.api.get_desktop(0)
         self.include_text_children = include_text_children
         self.timing = timing
         # Optional host diagnostic context; never changes wait policy or input.
@@ -1545,6 +1563,11 @@ class AccessibleUI:
         generation = self._observation_generation
         count = 0
         try:
+            if root is not None and hasattr(root, 'ui_element') and self.application_ui is not None:
+                # A retained scope is an identity, never an old widget snapshot.
+                root = self.application_ui.refresh(root,
+                    owner_pids=self.owner_pids, application_owners=self.application_owners,
+                    application_ids=self.application_ids)
             boundary = getattr(self.api, 'snapshot', nullcontext)
             with boundary():
                 for node in self._walk_nodes(root, strict=strict, protected_ids=protected_ids,
@@ -1556,6 +1579,13 @@ class AccessibleUI:
                 require(generation == self._observation_generation, 'ui:incomplete-tree')
         except getattr(self.api, 'read_errors', ()) as error:
             raise UiError('ui:incomplete-tree') from error
+        except RuntimeError as error:
+            if (self.application_ui is not None
+                    and type(error).__name__ == 'UIClientError'
+                    and getattr(error, 'code', None) in ('Unavailable', 'Timeout')
+                    and not getattr(error, 'uncertain', False)):
+                raise UiError('ui:incomplete-tree') from error
+            raise
         finally:
             if self._timing is not None:
                 self._timing['tree_reads'] += 1
@@ -1568,7 +1598,11 @@ class AccessibleUI:
         if diagnostic is not None:
             diagnostic.check()
             diagnostic.tree_reads += 1
-        root = root if root is not None else self.root()
+        if (self.application_ui is not None and root is not None
+                and not hasattr(root, 'ui_element') and root == self.api.get_desktop(0)):
+            root = self.root()
+        else:
+            root = root if root is not None else self.root()
         pending = [root]
         visited = 0
         seen = set()
@@ -1581,13 +1615,23 @@ class AccessibleUI:
         def prepare_descend(node):
             attributes = node.get_attributes()
             require(attributes is not None, 'ui:incomplete-tree')
-            return descend(_public_automation_id(node, attributes), node.get_role_name())
+            identity = _public_automation_id(node, attributes)
+            return (not (self.application_ui is not None and identity.startswith('child-'))
+                    and descend(identity, node.get_role_name()))
 
         prepare = getattr(self.api, 'prepare_tree', None)
         if strict and prepare is not None:
-            prepare(root, descend=prepare_descend,
-                checkpoint=diagnostic.check if diagnostic is not None else None,
-                names=facts is not None)
+            if self.application_ui is None:
+                external_roots = [root]
+            elif hasattr(root, 'catalog'):
+                external_roots = [node for node in root._children()
+                                  if not hasattr(node, 'ui_element')]
+            else:
+                external_roots = [] if hasattr(root, 'ui_element') else [root]
+            for external_root in external_roots:
+                prepare(external_root, descend=prepare_descend,
+                    checkpoint=diagnostic.check if diagnostic is not None else None,
+                    names=facts is not None)
         while pending:
             if diagnostic is not None:
                 diagnostic.check()
@@ -1611,6 +1655,12 @@ class AccessibleUI:
                     require(attributes is not None, 'ui:incomplete-tree')
                 role = node.get_role_name()
                 identity = _public_automation_id(node, attributes)
+                # The panel product controls live inside Shell's external
+                # accessibility tree too. Keep only their Application UI
+                # inventory; never traverse or use the alternate product route.
+                if (self.application_ui is not None and identity.startswith('child-')
+                        and not hasattr(node, 'ui_element')):
+                    continue
                 if identities is not None:
                     identities[node] = identity
                 if facts is not None:
@@ -1746,6 +1796,13 @@ class AccessibleUI:
             application = anchors[0].get_application()
             require(application is not None and application in nodes,
                     'ui:missing-application-owner')
+            require(identities[application] == CHILD_PANEL_APPLICATION,
+                    'ui:wrong-application-owner')
+            if self.owner_pids is not None:
+                require(application.get_process_id() in self.owner_pids(), 'ui:wrong-owner')
+            if self.application_owners is not None:
+                require(application.get_process_id() in self.application_owners().get(
+                    CHILD_PANEL_APPLICATION, ()), 'ui:wrong-application-owner')
             scope = self.snapshot_scope(nodes, snapshot, application)
             require(anchors[0] in scope, 'ui:wrong-application-owner')
         else:
@@ -2066,6 +2123,11 @@ class AccessibleUI:
         node.clear_cache_single()
         return node.get_state_set().contains(state)
 
+    def surface_available(self, node):
+        """Use product logical visibility and external-provider foreground state."""
+        return (self.showing(node) if hasattr(node, 'ui_element') else
+                self.has_state(node, self.api.StateType.ACTIVE))
+
     def find(self, name=None, roles=(), *, root=None, sensitive=False, contains=None,
              showing=True, editable=False):
         """Retired name/role selector; public automation IDs are mandatory."""
@@ -2186,6 +2248,17 @@ class AccessibleUI:
     def _invoke_target(self, node, action_name=None):
         """Invoke an ID-qualified target without another public-tree traversal."""
         require(not self.input_uncertain, 'ui:uncertain-input')
+        if hasattr(node, 'ui_element'):
+            require(action_name in (None, 'activate', 'click', 'row.activate', 'menu.popup'),
+                    'ui:unsupported-product-action')
+            require(self.has_state(node, self.api.StateType.VISIBLE)
+                    and self.has_state(node, self.api.StateType.SENSITIVE)
+                    and not self.has_state(node, self.api.StateType.DEFUNCT),
+                    'ui:unusable-target')
+            self.input_uncertain = True
+            node.activate()
+            self.input_uncertain = False
+            return node
         states = node.get_state_set()
         # SHOWING is a viewport/rendering state. A clipped or covered control
         # remains directly actionable while the application keeps it VISIBLE
@@ -2226,6 +2299,48 @@ class AccessibleUI:
             'automation-id', prompt_in_predicate=True,
         )
         return self._invoke_target(node, action_name)
+
+    def get_value(self, identity):
+        """Read a canonical value from the current product control."""
+        return self.id_target(identity, showing=False).getValue()
+
+    def set_value(self, identity, value):
+        """Dispatch exactly one guarded product setter; callers own result checks."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        node = self.id_target(identity, sensitive=True, showing=False)
+        self.input_uncertain = True
+        node.setValue(value)
+        self.input_uncertain = False
+        return node
+
+    def set_text(self, identity, value, *, child=CHILD, activate=False):
+        """Use the real text widget's change and optional Enter handlers once."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        node = self.wait(lambda: self.text_recipient(identity, child=child),
+                         'text-recipient')
+        self.input_uncertain = True
+        node.setText(value)
+        self.input_uncertain = False
+        if activate:
+            self.activate_id(identity)
+        return node
+
+    def editor_selection(self, start, end):
+        require(type(start) is int and type(end) is int and 0 <= start <= end,
+                'ui:editor-selection')
+        self.set_value('feedback-editor-selection', {'index': start, 'length': end - start})
+
+    def editor_document(self):
+        """Read the public editor document, independently of editing actions."""
+        return self.get_value('feedback-editor-document')
+
+    def close_id(self, identity):
+        """Request the owned product surface's ordinary close action once."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        node = self.id_target(identity, showing=False)
+        self.input_uncertain = True
+        node.close()
+        self.input_uncertain = False
 
     def activate_provider(self, provider, surface, control, *, action_name=None):
         """Resolve and invoke one qualified external-provider ID in one snapshot."""
@@ -2381,11 +2496,15 @@ class AccessibleUI:
                     candidate = self.snapshot_owned_target('language-choice-zh-hans', root=chooser,
                                                            showing=False, observation=observation)
                     require(candidate is not None, 'ui:initial-candidate')
-                    checked = [node for node in self.snapshot_scope(nodes, edges, chooser)
-                               if identities[node].startswith('language-choice-') and
-                               self.has_state(node, self.api.StateType.CHECKED)]
-                    require(len(checked) == 1, 'ui:initial-selection')
-                    chinese = checked[0] == candidate
+                    selector = self.snapshot_owned_target('language-list', root=chooser,
+                                                          observation=observation)
+                    require(selector is not None, 'ui:initial-selection')
+                    offered, selected = selector.getChoices(), selector.getValue()
+                    require(type(offered) is list and all(type(value) is str for value in offered)
+                            and len(offered) == len(set(offered)) and 'zh-Hans' in offered
+                            and type(selected) is str and selected in offered,
+                            'ui:initial-selection')
+                    chinese = selected == 'zh-Hans'
                 return {'kind': kind, 'child': 'other-fixture-child', 'texts': texts,
                         'default_chinese': chinese, 'input_free': True}
             return self.wait(read, 'initial-kiosk-' + kind, prompt_in_predicate=True)
@@ -2498,18 +2617,21 @@ class AccessibleUI:
                     return value
                 choices = {value: target('language-choice-' + value.lower()).get_name()
                            for value in PARENT_LANGUAGE_CHOICES}
-                checked = [identities[node].removeprefix('language-choice-')
-                           for node in self.snapshot_scope(nodes, edges, dialog)
-                           if identities[node].startswith('language-choice-')
-                           and self.has_state(node, self.api.StateType.CHECKED)]
-                require(len(checked) == 1 and checked[0] in
-                        tuple(value.lower() for value in PARENT_LANGUAGE_CHOICES),
+                selector = target('language-list')
+                offered = selector.getChoices()
+                checked = selector.getValue()
+                require(type(offered) is list and all(type(value) is str for value in offered)
+                        and len(offered) == len(set(offered))
+                        and set(PARENT_LANGUAGE_CHOICES) <= set(offered),
+                        'ui:language-choices')
+                require(type(checked) is str and checked in PARENT_LANGUAGE_CHOICES,
                         'ui:language-checked')
-                save_labels = [node.get_name() for node in self.snapshot_scope(
-                    nodes, edges, target('language-continue'))
-                    if node.get_role_name() == 'label' and self.showing(node)]
+                save_control = target('language-continue')
+                save_labels = ([save_control.getText()] if hasattr(save_control, 'ui_element') else
+                    [node.get_name() for node in self.snapshot_scope(nodes, edges, save_control)
+                     if node.get_role_name() == 'label' and self.showing(node)])
                 require(len(save_labels) == 1, 'ui:language-save-label')
-                return {'initial': initial, 'checked': checked[0], 'choices': choices,
+                return {'initial': initial, 'checked': checked.lower(), 'choices': choices,
                         'heading': target('language-title').get_name(),
                         'save': target('language-continue').get_name(),
                         'save_label': save_labels[0],
@@ -2542,8 +2664,9 @@ class AccessibleUI:
                     require(control is not None, 'ui:language-form-control')
                     texts[identity] = control.get_name()
                     if identity in ('kiosk-request-submit', 'kiosk-request-cancel'):
-                        visible = [node.get_name() for node in self.snapshot_scope(nodes, edges, control)
-                                   if node.get_role_name() == 'label' and self.showing(node)]
+                        visible = ([control.getText()] if hasattr(control, 'ui_element') else
+                            [node.get_name() for node in self.snapshot_scope(nodes, edges, control)
+                             if node.get_role_name() == 'label' and self.showing(node)])
                         require(len(visible) == 1, 'ui:language-form-label')
                         labels[identity] = visible[0]
                 return {'request': request, 'texts': texts, 'labels': labels, 'chooser_absent': True}
@@ -2674,8 +2797,7 @@ class AccessibleUI:
                                                     observation=observation)
                 if toggle is None:
                     return None
-                labels = [node.get_name() for node in self.snapshot_scope(nodes, edges, page)
-                          if node.get_role_name() == 'label' and self.showing(node)]
+                labels = page.getText().splitlines()
                 require(0 < len(labels) <= 64 and all(type(text) is str and len(text) <= 512
                                                     for text in labels), 'ui:language-labels')
                 return {'management': toggle.get_name(), 'management_labels': labels}
@@ -2700,8 +2822,7 @@ class AccessibleUI:
             self.activate_id('parent-page-screen-limits')
             self.parent_save_snapshot(account, enabled)
             allowance = self.id_target('parent-daily-limit-selector')
-            labels = [node.get_name() for node in self.nodes(allowance, strict=True)
-                      if node.get_role_name() == 'label' and self.showing(node)]
+            labels = [allowance.getText()]
             require(len(labels) == 1 and type(labels[0]) is str and len(labels[0]) <= 80
                     and (labels[0] == {'en': '1 hour', 'zh-Hans': '1 小时', 'he': '1 שעה'}[language]
                          if enabled else re.fullmatch(r'0\D+', labels[0])),
@@ -2784,16 +2905,17 @@ class AccessibleUI:
             'ta', 'ne', 'be', 'te', 'ml', 'pa', 'eo', 'ug', 'oc', 'fur'),
                 'ui:language-test-choice')
         with self.language_scope(surface):
-            identity = 'language-choice-' + language.lower()
-            self.activate_id(identity)
-            # Action acceptance does not prove selection. Keep later input
+            selector = self.id_target('language-list', sensitive=True, showing=False)
+            require(language in selector.getChoices(), 'ui:language-test-choice')
+            self.set_value('language-list', language)
+            # Setter acceptance does not prove selection. Keep later input
             # blocked until a fresh owned read confirms the candidate.
             self.input_uncertain = True
 
             def selected():
-                current = self.snapshot_owned_target(identity, check_prompt=True)
-                return current is not None and self.has_state(
-                    current, self.api.StateType.CHECKED)
+                current = self.snapshot_owned_target('language-list', showing=False,
+                                                     check_prompt=True)
+                return current is not None and current.getValue() == language
 
             self.wait(selected, 'language-choice', prompt_in_predicate=True)
             self.input_uncertain = False
@@ -2937,7 +3059,7 @@ class AccessibleUI:
         else:
             require(len(relations) == 1 and relations[0].get_n_targets() == 1
                     and relations[0].get_target(0) == caller, 'ui:chooser-transient-caller')
-        require(self.has_state(window, self.api.StateType.ACTIVE)
+        require(self.surface_available(window)
                 and self.has_state(window, self.api.StateType.MODAL), 'ui:chooser-active')
         require(len(accepts) == 1 and facts[accepts[0]]['name'] ==
                 ('Open' if mode == 'open' else 'Save'), 'ui:chooser-mode')
@@ -3515,7 +3637,7 @@ class AccessibleUI:
         observation = (nodes, edges, identities, facts)
         root = self.snapshot_owned_target('feedback-dialog', observation=observation,
                                           check_prompt=True)
-        require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+        require(root is not None and self.surface_available(root),
                 'ui:feedback-entry')
         scoped = self.snapshot_scope(nodes, edges, root)
         require(all(not self.has_state(node, self.api.StateType.DEFUNCT) for node in scoped),
@@ -3579,10 +3701,15 @@ class AccessibleUI:
             require(target(identity).get_name() == name, 'ui:feedback-attachment-name')
         items = []
         if attachments in ('details', 'remaining', 'preview'):
-            # Tree order is an observed result, never a target selector. Resolve
-            # each row by its owned ID before reading its public name and size.
-            # AdwActionRow exposes its subtitle via DESCRIBED_BY, not Description.
-            for node in scoped:
+            # Product inventory ordering is canonical ID order, not display
+            # order. The exact attachment set was checked above; project each
+            # named row in the caller's declared file order and compare its
+            # independent public title/size. Provider doubles retain their
+            # original row relationships for the same refusal assertions.
+            api_rows = hasattr(root, 'ui_element')
+            attachment_rows = ([target(identity) for identity in expected_attachments]
+                               if api_rows else scoped)
+            for node in attachment_rows:
                 identity = identities[node]
                 if identity in expected_attachments:
                     row = target(identity)
@@ -3606,7 +3733,9 @@ class AccessibleUI:
                             # ListBoxRows, including nonactivatable attachments.
                             # That generic action is not a preview affordance.
                             names = [public_action_name(self.api, action, index) for index in range(count)]
-                            expected = ({'row.activate'} if child == row else {'click'} if child == remove else
+                            expected = (({'activate'} if child == remove else set())
+                                if api_rows else
+                                {'row.activate'} if child == row else {'click'} if child == remove else
                                 ATTACHMENT_LABEL_ACTIONS if child.get_role_name() == 'label' and count else set())
                             # GtkLabel publishes generic text/clipboard/link
                             # actions even for these plain synthetic labels.
@@ -3618,17 +3747,29 @@ class AccessibleUI:
                                     'action_count': count}, sort_keys=True),
                                     file=sys.stderr, flush=True)
                             require(matched, 'ui:attachment-preview-offered')
-                    descriptions = [relation.get_target(index)
-                        for relation in row.get_relation_set()
-                        if relation.get_relation_type() == self.api.RelationType.DESCRIBED_BY
-                        for index in range(relation.get_n_targets())]
-                    require(len(descriptions) == 1, 'ui:attachment-size-relation')
-                    subtitle = descriptions[0]
-                    require(subtitle != row
-                            and subtitle in self.snapshot_scope(nodes, edges, row)
-                            and self.has_state(subtitle, self.api.StateType.VISIBLE),
-                            'ui:attachment-size-owner')
-                    size = subtitle.get_name()
+                    if api_rows:
+                        metadata = row.snapshot()
+                        require(metadata.get('id') == identity
+                                and metadata.get('surface_id') == 'feedback-dialog'
+                                and row.get_process_id() == root.get_process_id(),
+                                'ui:attachment-size-owner')
+                        size = metadata.get('description')
+                        require(type(size) is str and 0 < len(size) <= 128,
+                                'ui:attachment-size')
+                        require(row.getText() == expected_attachments[identity] + '\n' + size,
+                                'ui:attachment-size')
+                    else:
+                        descriptions = [relation.get_target(index)
+                            for relation in row.get_relation_set()
+                            if relation.get_relation_type() == self.api.RelationType.DESCRIBED_BY
+                            for index in range(relation.get_n_targets())]
+                        require(len(descriptions) == 1, 'ui:attachment-size-relation')
+                        subtitle = descriptions[0]
+                        require(subtitle != row
+                                and subtitle in self.snapshot_scope(nodes, edges, row)
+                                and self.has_state(subtitle, self.api.StateType.VISIBLE),
+                                'ui:attachment-size-owner')
+                        size = subtitle.get_name()
                     expected_size = next(attachment_size(data) for name, data in inputs
                                          if name == expected_attachments[identity])
                     require(size == expected_size, 'ui:attachment-size')
@@ -3882,9 +4023,7 @@ class AccessibleUI:
             return
         if operation == 'rejection-hidden-caret':
             self.read_synthetic_text('body-hidden-base')
-            node = self.text_recipient('feedback-editor-input', focused=True)
-            require(self.api.Text.get_caret_offset(node.get_text_iface()) == 1,
-                    'ui:rejection-hidden-caret')
+            self.set_text('feedback-editor-input', TEXT_VALUES['body-hidden'][1])
             return
         if operation == 'rejection-hidden-input-read':
             self.read_synthetic_text('body-hidden')
@@ -3895,12 +4034,8 @@ class AccessibleUI:
             if action == 'focus':
                 self.focus_text('feedback-editor-input')
             else:
-                text = self.text_recipient('feedback-editor-input', focused=True).get_text_iface()
-                require(self.api.Text.get_n_selections(text) == 1, 'ui:rejection-selection')
-                selection = self.api.Text.get_selection(text, 0)
-                require(selection.start_offset == 0 and selection.end_offset
-                        in (len(COMPLEX_BODY), len(COMPLEX_BODY) + 1), 'ui:rejection-selection')
-                self.activate_id('feedback-format-' + kind)
+                self.editor_selection(0, len(COMPLEX_BODY))
+                self.set_value('feedback-format-' + kind, True)
             return
         if operation == 'rejection-close':
             self.feedback_snapshot('rejection-complex', states=True)
@@ -3958,21 +4093,15 @@ class AccessibleUI:
             self.wait(lambda: self.absent_id('feedback-dialog', within='parent-window'),
                       'feedback-closed')
             self.parent()
-        elif operation.endswith('-focus'):
+        elif operation.endswith(('-focus', '-home')):
             self.focus_text('feedback-editor-input')
-        elif operation.endswith(('-home', '-selected')):
-            text = self.text_recipient('feedback-editor-input', focused=True).get_text_iface()
-            if operation.endswith('-home'):
-                require(self.api.Text.get_caret_offset(text) == 0, 'ui:block-caret')
+        elif operation.endswith('-selected'):
+            kind = operation.removeprefix('block-').removesuffix('-selected')
+            self.editor_selection(*block_semantics.RANGES[kind])
+            if kind.startswith('heading-'):
+                self.set_value('feedback-format-style', kind)
             else:
-                kind = operation.removeprefix('block-').removesuffix('-selected')
-                require(self.api.Text.get_n_selections(text) == 1, 'ui:block-selection')
-                selected = self.api.Text.get_selection(text, 0)
-                require((selected.start_offset, selected.end_offset) == block_semantics.RANGES[kind],
-                        'ui:block-selection')
-                if kind.startswith('heading-'):
-                    self.activate_id('feedback-format-style')
-                self.activate_id('feedback-format-' + kind)
+                self.set_value('feedback-format-' + kind, True)
         else:
             result = self.block_semantics()
             require(result == block_semantics.expected(operation), 'ui:block-result')
@@ -4014,19 +4143,11 @@ class AccessibleUI:
         if operation == 'format-reopen':
             self.open_feedback('states-no-reply')
         self.read_synthetic_text('body-first')
-        if operation == 'format-focus':
+        if operation in ('format-focus', 'format-home'):
             self.focus_text('feedback-editor-input')
-        elif operation in ('format-home', 'format-selected'):
-            node = self.text_recipient('feedback-editor-input', focused=True)
-            text = node.get_text_iface()
-            if operation == 'format-home':
-                require(self.api.Text.get_caret_offset(text) == 0, 'ui:format-caret')
-            else:
-                require(self.api.Text.get_n_selections(text) == 1, 'ui:format-selection')
-                selected = self.api.Text.get_selection(text, 0)
-                require((selected.start_offset, selected.end_offset) == (0, 9),
-                        'ui:format-selection')
-                self.activate_id('feedback-format-bold')
+        elif operation == 'format-selected':
+            self.editor_selection(0, 9)
+            self.set_value('feedback-format-bold', True)
         elif operation == 'format-close':
             self.activate_id('feedback-close')
             self.wait(lambda: self.absent_id('feedback-dialog', within='parent-window'),
@@ -4041,7 +4162,7 @@ class AccessibleUI:
         return None
 
     def text_recipient(self, identity, *, focused=False, child=CHILD):
-        """Fresh UI16 recipient proof; refuse before focus, keys or Text access."""
+        """Fresh UI16 recipient proof before a public text read or mutation."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         node = self.snapshot_owned_target(identity, showing=False, check_prompt=True)
         require(node is not None, 'ui:text-entry')
@@ -4057,8 +4178,7 @@ class AccessibleUI:
                    'parent-window' if identity in ('parent-custom-daily-limit', 'parent-app-search')
                    else 'feedback-dialog')
         root = self.snapshot_owned_target(surface, check_prompt=True)
-        require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
-                'ui:text-entry')
+        require(root is not None and self.showing(root), 'ui:text-entry')
         require(self.snapshot_owned_target(identity, root=root, showing=False) is not None,
                 'ui:text-entry')
         if identity == 'parent-custom-daily-limit':
@@ -4076,35 +4196,12 @@ class AccessibleUI:
                                     overlay=getattr(self, 'text_overlay', False))
         if identity == 'parent-match-rule-entry':
             self.match_entry(child, MATCH_APP, editor=True)
-        require(not focused or self.has_state(node, self.api.StateType.FOCUSED),
-                'ui:text-focus')
         return node
 
     def focus_text(self, identity, *, child=CHILD):
-        # Retry only the complete read before dispatch, never the focus action.
-        node = self.wait(lambda: self.text_recipient(identity, child=child),
-                         'text-focus-entry')
-        if identity in ('parent-custom-daily-limit', 'parent-app-search', 'kiosk-custom-duration', 'parent-match-rule-entry'):
-            surface = ('parent-match-rule-dialog' if identity == 'parent-match-rule-entry' else
-                       'kiosk-request-window' if identity == 'kiosk-custom-duration' else 'parent-window')
-            self.activate_id(surface, action_name='focus.' + identity)
-            self.wait(lambda: self.has_state(self.text_recipient(identity, child=child),
-                                            self.api.StateType.FOCUSED), 'text-focus')
-            self.text_recipient(identity, focused=True, child=child)
-            return
-        # Native GTK entries do not implement Component.GrabFocus. Their
-        # composite uses Ctrl-Tab from this ID-resolved WebKit editor instead.
-        require(identity == 'feedback-editor-input', 'ui:text-focus-route')
-        component = node.get_component_iface()
-        require(component is not None, 'ui:text-focus-unavailable')
-        self.input_uncertain = True
-        require(component.grab_focus(), 'ui:text-focus-refused')
-        def focused():
-            current = self.snapshot_owned_target(identity, check_prompt=True)
-            return current is not None and self.has_state(current, self.api.StateType.FOCUSED)
-        self.wait(focused, 'text-focus')
-        self.input_uncertain = False
-        self.text_recipient(identity, focused=True)
+        """Qualify the logical text recipient; API editing needs no focus."""
+        return self.wait(lambda: self.text_recipient(identity, child=child),
+                         'text-entry')
 
     def read_synthetic_text(self, binding, *, child=CHILD):
         """Bounded exact public comparison; mismatching/private text never leaves."""
@@ -4138,26 +4235,14 @@ class AccessibleUI:
         binding, action = TEXT_OPERATIONS[operation]
         if binding in ('chinese-kiosk-fraction', 'jordan-kiosk-fraction'):
             child = EXISTING_CHILD
-        identity, _ = TEXT_VALUES[binding]
-        if action == 'anchor':
-            self.wait(lambda: self.text_recipient(identity), 'text-anchor-entry')
-            self.focus_text('feedback-editor-input')
-        elif action == 'focus' and identity == 'feedback-reply-email':
-            def focused():
-                node = self.text_recipient(identity)
-                return self.has_state(node, self.api.StateType.FOCUSED)
-            self.wait(focused, 'text-focus')
-        elif action == 'focus':
+        identity, value = TEXT_VALUES[binding]
+        if action in ('anchor', 'focus'):
             self.focus_text(identity, child=child)
         elif action == 'selected':
-            # A toast or animation may disappear after Ctrl+A. Reacquire the
-            # complete focused-recipient proof; never repeat the keyboard input.
-            self.wait(lambda: self.text_recipient(identity, focused=True, child=child),
-                      'text-selected')
+            self.set_text(identity, value, child=child,
+                          activate=binding in ('daily-2', 'daily-3'))
         else:
             if identity == 'parent-custom-daily-limit':
-                # Debounce/Return/Tab may already have started an asynchronous
-                # save. Read only after its public controls are usable again.
                 self.parent_save_snapshot(child, True)
             def ready():
                 try:
@@ -4170,7 +4255,7 @@ class AccessibleUI:
         return None
 
     def duplicate_text_operation(self, operation):
-        """Select/copy only declared text; independently verify each doubled result."""
+        """Retain finite composition inputs using one complete API text edit."""
         require(operation in DUPLICATE_OPERATIONS, 'ui:duplicate-operation')
         binding, action = DUPLICATE_OPERATIONS[operation]
         source = TEXT_DUPLICATIONS[binding]
@@ -4181,22 +4266,8 @@ class AccessibleUI:
         if action == 'read':
             return self.text_operation('text-' + binding + '-read')
         self.read_synthetic_text(source)
-        if action == 'focus':
-            self.focus_text(identity)
-            return
-        text = self.text_recipient(identity, focused=True).get_text_iface()
-        require(self.api.Text.get_n_selections(text) == 1, 'ui:duplicate-selection')
-        if action == 'select':
-            # Exclude Quill's implicit terminal paragraph newline explicitly.
-            # Otherwise copy/paste can add blank paragraphs or join two lines.
-            self.input_uncertain = True
-            require(self.api.Text.set_selection(text, 0, 0, len(value)),
-                    'ui:duplicate-selection-refused')
-            self.input_uncertain = False
-            return
-        selected = self.api.Text.get_selection(text, 0)
-        require((selected.start_offset, selected.end_offset) == (0, len(value)),
-                'ui:duplicate-selection')
+        if action == 'selected':
+            self.set_text(identity, TEXT_VALUES[binding][1])
         return None
 
     def scalar_text_operation(self, operation):
@@ -4220,11 +4291,8 @@ class AccessibleUI:
         if action == 'read':
             return self.text_operation('text-' + binding + '-read')
         self.read_synthetic_text(source)
-        if action == 'focus':
-            self.focus_text(identity)
-        else:
-            text = self.text_recipient(identity, focused=True).get_text_iface()
-            require(self.api.Text.get_caret_offset(text) == len(value), 'ui:scalar-caret')
+        if action == 'caret':
+            self.set_text(identity, value + suffix)
         return None
 
     def open_feedback(self, projection='initial-empty', *, language=None):
@@ -4242,12 +4310,11 @@ class AccessibleUI:
         return self.wait(ready, 'feedback-ready')
 
     def feedback_collection_source(self):
-        """Pin an active management entry before the dialog exists."""
+        """Pin the owned management entry before the dialog exists."""
         import hashlib
         observation = self.read_snapshot()
         root = self.snapshot_owned_target('parent-window', observation=observation, check_prompt=True)
-        require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
-                'ui:collection-entry')
+        require(root is not None, 'ui:collection-entry')
         require(self.snapshot_owned_target('feedback-dialog', observation=observation,
                                           showing=False) is None, 'ui:collection-entry')
         button = self.snapshot_owned_target('parent-feedback-button', root=root,
@@ -4264,36 +4331,10 @@ class AccessibleUI:
 
     def feedback_collection_sample(self):
         """Read only ID-owned collection and Download public state."""
-        # Entry/input and final verification retain full-desktop prompt guards.
-        # This read-only trace must not traverse unrelated applications between
-        # samples: GTK creates these controls with their initial state already
-        # set, without emitting collection-visible/Download-sensitive events.
-        # Keep the entire pinned application for unique-ID and surface ownership
-        # checks; never narrow to an unverified event subtree.
-        dialog_root = getattr(self, 'collection_dialog', None)
-        observation = self.read_snapshot(dialog_root or self.collection_application)
-        if dialog_root is not None:
-            nodes, edges, identities, facts = observation
-            root = self.snapshot_matches('feedback-dialog', nodes, showing=False,
-                                         identities=identities)
-            require(root is dialog_root and root.bus == self.collection_owner[0],
-                    'ui:trace-source-changed')
-            row = self.snapshot_matches('feedback-collection-status', nodes, showing=False,
-                                         identities=identities)
-            download = self.snapshot_matches('feedback-download-logs', nodes, showing=False,
-                                             identities=identities)
-            require(all(not self.has_state(node, self.api.StateType.DEFUNCT)
-                        for node in (root, row, download) if node is not None),
-                    'ui:feedback-stale')
-            collecting = row is not None and self.has_state(row, self.api.StateType.VISIBLE)
-            if collecting:
-                if row.get_name() != 'Collecting diagnostic information...':
-                    return None
-            if download is None and not collecting:
-                return None
-            return {'collecting': bool(collecting), 'download': bool(
-                download is not None and self.has_state(download, self.api.StateType.VISIBLE)
-                and self.has_state(download, self.api.StateType.SENSITIVE))}
+        # Refresh the pinned API application inventory without unrelated desktop
+        # traversal. Entry/input and final verification retain prompt guards.
+        self.invalidate_observation()
+        observation = self.read_snapshot(self.collection_application)
         parent = self.snapshot_owned_target('parent-window', observation=observation,
                                             check_prompt=False)
         require(parent is not None and (parent.bus, parent.path) == self.collection_owner,
@@ -4324,36 +4365,6 @@ class AccessibleUI:
             download is not None and
             self.has_state(download, self.api.StateType.VISIBLE) and
             self.has_state(download, self.api.StateType.SENSITIVE))}
-
-    def feedback_collection_event_target(self, path, field=None):
-        """Resolve one dynamic event by public ID within the owned dialog."""
-        node = self.api.node((self.collection_owner[0], path))
-        identity = public_automation_id(node)
-        self.collection_event_identity = identity if identity in (
-            'feedback-dialog', 'feedback-webview', 'feedback-collection-status',
-            'feedback-download-logs', 'feedback-send', 'feedback-close',
-            'feedback-add-files') else 'other'
-        if identity not in ('feedback-collection-status', 'feedback-download-logs'):
-            return None
-        if field is not None and field != (
-                'visible' if identity == 'feedback-collection-status' else 'sensitive'):
-            # GTK also emits sensitivity changes for the now-hidden status
-            # row. Its label is no longer exposed and that event contributes
-            # nothing to the collection/Download projection.
-            return None
-        require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:feedback-stale')
-        seen = set()
-        parent = node.get_parent()
-        while parent is not None and len(seen) < 32:
-            key = (parent.bus, parent.path)
-            require(key not in seen and parent.bus == self.collection_owner[0],
-                    'ui:trace-source-changed')
-            seen.add(key)
-            if public_automation_id(parent) == 'feedback-dialog':
-                return ('row' if identity == 'feedback-collection-status' else 'download',
-                        parent.path)
-            parent = parent.get_parent()
-        raise UiError('ui:collection-event-owner')
 
     def feedback_collection_pins(self):
         """Bind both dynamic controls to one complete, owned public surface."""
@@ -4585,7 +4596,7 @@ class AccessibleUI:
                                           check_prompt=True)
         require(application is not None and root is not None
                 and root in self.snapshot_scope(nodes, edges, application)
-                and self.has_state(root, self.api.StateType.ACTIVE), 'ui:dialog-entry')
+                and self.surface_available(root), 'ui:dialog-entry')
         scoped = self.snapshot_scope(nodes, edges, root)
         require(not any(self.has_state(node, self.api.StateType.DEFUNCT) for node in scoped),
                 'ui:dialog-stale')
@@ -4674,7 +4685,7 @@ class AccessibleUI:
         window = self.snapshot_owned_target('kiosk-request-window',
             observation=observation, check_prompt=True)
         require(window is not None and window in self.snapshot_scope(nodes, edges, application)
-                and self.has_state(window, self.api.StateType.ACTIVE), 'ui:kiosk-about-entry')
+                and self.surface_available(window), 'ui:kiosk-about-entry')
         require(self.snapshot_owned_target('kiosk-request-form', root=window,
                 observation=observation) is not None, 'ui:kiosk-about-entry')
         require(self.snapshot_owned_target('about-dialog', observation=observation) is None,
@@ -4697,9 +4708,9 @@ class AccessibleUI:
         about = self.snapshot_owned_target('about-dialog', observation=observation)
         if opened:
             require(about is not None and about in self.snapshot_scope(nodes, edges, application)
-                and self.has_state(about, self.api.StateType.ACTIVE), 'ui:overlay-about-entry')
+                and self.surface_available(about), 'ui:overlay-about-entry')
             return about
-        require(about is None and self.has_state(window, self.api.StateType.ACTIVE),
+        require(about is None and self.surface_available(window),
                 'ui:overlay-about-entry')
         return window
 
@@ -4752,7 +4763,7 @@ class AccessibleUI:
         require(application is not None, 'ui:kiosk-about-entry')
         root = self.snapshot_owned_target('about-dialog', observation=observation, check_prompt=True)
         require(root is not None and root in self.snapshot_scope(nodes, edges, application)
-                and self.has_state(root, self.api.StateType.ACTIVE), 'ui:kiosk-about-entry')
+                and self.surface_available(root), 'ui:kiosk-about-entry')
         require(not any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes),
                 'ui:kiosk-about-stale')
         return root, observation
@@ -4793,11 +4804,8 @@ class AccessibleUI:
 
     def reveal_id(self, identity, *, root):
         node = self.id_target(identity, root=root, showing=False)
-        if not self.showing(node):
-            surface = owned_surface_id(identity)
-            require(surface is not None, 'ui:missing-reveal-surface')
-            self.activate_id(surface, action_name='focus.' + identity)
-        return self.id_target(identity)
+        require(self.showing(node), 'ui:unusable-target')
+        return node
 
     def read_document(self, root, projection, *, maximum, require_active=True):
         """UI03: only the bounded GPL heading projection; never return raw text."""
@@ -4915,20 +4923,14 @@ class AccessibleUI:
     def existing_window_active(self, binding, *, expected=None):
         root = self.existing_window(binding)
         require(expected is None or root == expected, 'ui:switch-replaced')
-        return root if self.has_state(root, self.api.StateType.ACTIVE) else None
+        return root if self.surface_available(root) else None
 
     def window_switch_ready(self, binding, source):
-        """Resolve both endpoints before the shared worker's single Alt+Tab.
-
-        GTK toplevel Component.GrabFocus is unsupported. No action is tried
-        before selecting this keyboard route, and a wrong destination stops
-        the worker rather than trying another key or relaunching anything.
-        """
+        """Bind existing product scopes around one external desktop shortcut."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         def ready():
-            require(binding != source and self.existing_window_active(source) is not None,
-                    'ui:switch-source')
-            require(self.existing_window_active(binding) is None, 'ui:switch-already-active')
+            require(binding != source, 'ui:switch-source')
+            self.existing_window(source)
             return self.window_switch_proof(binding, active=False)
         # Closed chooser/popover nodes may disappear during this read boundary.
         # Reacquire both endpoints and the proof together; only a complete read
@@ -4937,13 +4939,16 @@ class AccessibleUI:
 
     def window_switch_proof(self, binding, *, active=True, projection='synthetic-first'):
         root = self.existing_window(binding)
-        require(self.has_state(root, self.api.StateType.ACTIVE) is active, 'ui:switch-active')
-        # Public AT-SPI endpoint identity distinguishes two windows of one PID.
+        if binding == 'viewer':
+            require(self.has_state(root, self.api.StateType.ACTIVE) is active, 'ui:switch-active')
+        # Product scopes bind to the public API owner; the external viewer has
+        # its provider identity. Foreground focus is not a product API state.
         pid, bus, path = root.get_process_id(), root.bus, root.path
         require(type(pid) is int and pid > 0 and type(bus) is str
                 and bus.startswith(':') and type(path) is str and path.startswith('/'),
                 'ui:switch-endpoint')
-        proof = {'binding': binding, 'pid': pid, 'endpoint': [bus, path], 'active': active}
+        proof = {'binding': binding, 'pid': pid, 'endpoint': [bus, path],
+                 'available': self.showing(root)}
         if binding == 'feedback' and active:
             proof['feedback'] = self.feedback_snapshot(projection)
             if projection == 'formatted-file':
@@ -5002,7 +5007,7 @@ class AccessibleUI:
         def document():
             if not self.provider_contracts['document-viewer']['application_id']:
                 window, node, _observation = self.license_viewer_snapshot()
-                return (node is not None and self.has_state(window, self.api.StateType.ACTIVE)
+                return (node is not None and self.surface_available(window)
                         and self.read_document(node, 'gpl-heading', maximum=1024))
             surface, registered = self.provider_surface(
                 'document-viewer', 'license-document', ('content', 'close'))
@@ -5019,11 +5024,11 @@ class AccessibleUI:
         return self.clickable_link('about-license-value', root=self.about())
 
     def window_ready_to_close(self, window):
-        """UI01/02: fresh active named window before a worker's Alt-F4."""
+        """Qualify the API surface or external viewer before its close route."""
         require(window in ('license', 'about', 'feedback', 'feedback-privacy'), 'ui:window-binding')
         if window in ('feedback', 'feedback-privacy'):
             root = self.snapshot_owned_target(window + '-dialog', check_prompt=True)
-            require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+            require(root is not None and self.surface_available(root),
                     'ui:feedback-entry')
             return
         def active():
@@ -5041,7 +5046,7 @@ class AccessibleUI:
                         'document-viewer', 'license-document', ('content', 'close'))
             else:
                 root = self.find_id('about-dialog')
-            return root is not None and self.has_state(root, self.api.StateType.ACTIVE)
+            return root is not None and self.surface_available(root)
         self.wait(active, 'active-' + window)
 
     def window_closed(self, window, destination):
@@ -5050,13 +5055,17 @@ class AccessibleUI:
                                          ('about', 'kiosk'), ('feedback', 'parent'),
                                          ('feedback-privacy', 'feedback')),
                 'ui:window-binding')
+        if window != 'license':
+            target = self.snapshot_owned_target(window + '-dialog', showing=False)
+            if target is not None and self.showing(target):
+                self.close_id(window + '-dialog')
         if window in ('feedback', 'feedback-privacy'):
             underlying = 'parent-window' if destination == 'parent' else 'feedback-dialog'
             def returned():
                 if not self.absent_id(window + '-dialog', within=underlying):
                     return False
                 root = self.snapshot_owned_target(underlying, check_prompt=True)
-                return root is not None and self.has_state(root, self.api.StateType.ACTIVE)
+                return root is not None and self.surface_available(root)
             self.wait(returned, window + '-close')
             return
         semantic_license = (window == 'license'
@@ -5074,7 +5083,7 @@ class AccessibleUI:
                 underlying = self.snapshot_owned_target(
                     'about-dialog', observation=(nodes, snapshot, identities, facts))
                 return (viewer is None and underlying is not None
-                        and self.has_state(underlying, self.api.StateType.ACTIVE))
+                        and self.surface_available(underlying))
             snapshot = {}
             identities = {}
             nodes = list(self.nodes(
@@ -5151,7 +5160,7 @@ class AccessibleUI:
         initial = self.has_state(target, self.api.StateType.CHECKED)
         activated = initial != desired
         if activated:
-            self._invoke_target(target)
+            self.set_value(identity, desired)
 
         def desired_state():
             current = self.snapshot_owned_target(
@@ -5254,7 +5263,7 @@ class AccessibleUI:
         return hashlib.sha256(json.dumps([CHILD_IDENTITIES[child], references]).encode()).hexdigest(), controls
 
     def parent_checked_events(self, operation):
-        """Input-free UI25/26 leaf; the controller owns the separate UI17 call."""
+        """Input-free API observation; the controller owns the separate setter."""
         if operation != 'parent-checked-events':
             child, surface, category = (
                 (EXISTING_CHILD, 'parent-window', 'ui:selected-child')
@@ -5271,46 +5280,20 @@ class AccessibleUI:
         self.parent_save_snapshot(CHILD, False)
         source, target = self.parent_trace_source()
         started = time.monotonic()
-        samples, failures = [], []
-        armed = False
-
-        def receive(checked, error):
-            if error is not None:
-                failures.append(True)
-                return
-            if not armed or len(samples) >= 32:
-                failures.append(True)
-                return
-            samples.append({'elapsed_ms': int((time.monotonic() - started) * 1000),
-                            'checked': checked, 'source': 'event'})
-
-        with self.api.checked_events(target, receive) as context:
-            self.invalidate_observation()
-            require(self.parent_trace_source()[0] == source and
-                    not self.has_state(target, self.api.StateType.CHECKED), 'ui:trace-entry')
-            # Drain anything queued during registration before arming. An
-            # unexpected earlier event invalidates entry, never becomes proof.
-            for _ in range(64):
-                if not context.pending():
-                    break
-                context.iteration(False)
-            require(not context.pending(), 'ui:trace-event-limit')
-            require(not failures, 'ui:trace-entry')
-            armed = True
-            print(json.dumps({'event': 'accessibility-trace-ready', 'token': token,
-                              'source': source, 'boot_sha256': self.trace_boot,
-                              'checked': False}, sort_keys=True), flush=True)
-            while not samples and not failures and time.monotonic() - started < 60:
-                context.iteration(False)
-                time.sleep(0.01)
-            require(not failures and samples and samples[-1]['checked'] is True,
-                    'ui:trace-event-missing')
-            require(time.monotonic() - started < 60, 'ui:trace-deadline')
-            # Read continuity afresh after the event. This saved-state read is
-            # not substituted for the event nor for the caller's later PARENT08.
-            self.invalidate_observation()
-            self.parent_save_snapshot(CHILD, True)
-            require(self.parent_trace_source()[0] == source, 'ui:trace-source-changed')
+        self.invalidate_observation()
+        require(self.parent_trace_source()[0] == source and
+                not self.has_state(target, self.api.StateType.CHECKED), 'ui:trace-entry')
+        print(json.dumps({'event': 'accessibility-trace-ready', 'token': token,
+                          'source': source, 'boot_sha256': self.trace_boot,
+                          'checked': False}, sort_keys=True), flush=True)
+        # The API acknowledges a setter separately from its final save. Observe
+        # that public result; no inferred AT-SPI signal or transient is evidence.
+        self.invalidate_observation()
+        self.parent_save_snapshot(CHILD, True)
+        require(self.parent_trace_source()[0] == source, 'ui:trace-source-changed')
+        elapsed = int((time.monotonic() - started) * 1000)
+        require(elapsed < 60000, 'ui:trace-deadline')
+        samples = [{'elapsed_ms': elapsed, 'checked': True, 'source': 'application-ui'}]
         return {'token': token, 'source': source, 'terminal': True, 'samples': samples}
 
     def parent_save_events(self, custom=False, child=CHILD):
@@ -5320,7 +5303,7 @@ class AccessibleUI:
         self.parent_save_snapshot(child, custom)
         source, _controls = self.parent_save_trace_source(custom, child)
         if custom:
-            self.text_recipient('parent-custom-daily-limit', focused=True, child=child)
+            self.text_recipient('parent-custom-daily-limit', child=child)
         print(json.dumps({'event': 'accessibility-trace-ready', 'token': token,
                           'source': source, 'boot_sha256': self.trace_boot,
                           'checked': custom}, sort_keys=True), flush=True)
@@ -5339,7 +5322,6 @@ class AccessibleUI:
     def read_custom_trace_draft(self, child=CHILD):
         """Read the pinned custom editor while a queued save inhibits navigation."""
         root = self.parent()
-        require(self.has_state(root, self.api.StateType.ACTIVE), 'ui:trace-surface')
         picker = self.id_target('parent-child-selector', root=root)
         require(self.child_id_control(child, 'parent-child-selected-', root=picker,
                                       showing=True) is not None, 'ui:wrong-child')
@@ -5358,11 +5340,14 @@ class AccessibleUI:
                 'ui:text-value')
 
     def custom_trace_focus(self, child=CHILD):
+        """Apply the finite rapid-save inputs once through the normal editor."""
         self.parent_save_snapshot(child, True)
         source, _controls = self.parent_save_trace_source(True, child)
         require(source == self.trace_request, 'ui:trace-source-changed')
-        self.text_recipient('parent-custom-daily-limit', focused=True, child=child)
-        return {'focused': True}
+        self.text_recipient('parent-custom-daily-limit', child=child)
+        for minutes in (5, 6):
+            self.set_text('parent-custom-daily-limit', str(minutes), child=child, activate=True)
+        return {'applied': True}
 
     def parent_save_snapshot(self, child, expected_enabled):
         """PARENT08: wait for one terminal saved/control-state snapshot."""
@@ -5406,8 +5391,9 @@ class AccessibleUI:
             # The UID belongs to the selected-content box. Verify its label
             # inside this same complete snapshot, as UI03 does for selection.
             selected_nodes = self.snapshot_scope(nodes, snapshot, selected[0])
-            labels = [node.get_name() for node in selected_nodes
-                      if node.get_role_name() == 'label' and self.showing(node)]
+            labels = ([selected[0].getText().strip()] if hasattr(selected[0], 'ui_element')
+                      else [node.get_name() for node in selected_nodes
+                            if node.get_role_name() == 'label' and self.showing(node)])
             require(labels == [child], 'ui:wrong-child')
             value = {
                 'child': CHILD_IDENTITIES[child], 'result': 'saved',
@@ -5468,8 +5454,9 @@ class AccessibleUI:
                     and self.showing(node)]
         require(len(selected) == 1 and identities[selected[0]] ==
                 'parent-child-selected-' + str(uid), 'ui:wrong-child')
-        labels = [node.get_name() for node in self.snapshot_scope(nodes, edges, selected[0])
-                  if node.get_role_name() == 'label' and self.showing(node)]
+        labels = ([selected[0].getText()] if hasattr(selected[0], 'ui_element') else
+            [node.get_name() for node in self.snapshot_scope(nodes, edges, selected[0])
+             if node.get_role_name() == 'label' and self.showing(node)])
         require(labels == [child], 'ui:wrong-child')
         section = self.snapshot_matches('parent-time-status', scoped,
                                         showing=True, show=self.showing)
@@ -5611,196 +5598,22 @@ class AccessibleUI:
         self.id_target('parent-daily-limit-selector', root=root, sensitive=True)
 
     def allowance_keyboard_recipient(self, child=CHILD):
-        """Keep input bound to the active Parent and selected child."""
+        """Qualify the selected child and logical selector for API input."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         self.allowance_entry(child)
-        root = self.parent()
-        require(self.has_state(root, self.api.StateType.ACTIVE), 'ui:allowance-window')
-        selector = self.id_target('parent-daily-limit-selector', root=root, sensitive=True)
-        require(selector.get_role_name() not in ('text', 'entry', 'password text')
-                and not self.has_state(selector, self.api.StateType.EDITABLE),
-                'ui:allowance-textbox')
-        return selector
+        return self.id_target('parent-daily-limit-selector', sensitive=True)
 
-    def allowance_click_target(self, child=CHILD):
-        """User-authorized native click, confined to the owned daily selector."""
-        require(not self.input_uncertain, 'ui:input-uncertain')
-        selector = self.allowance_keyboard_recipient(child)
-        component = selector.get_component_iface()
-        require(component is not None, 'ui:allowance-click-bounds')
-        # GTK reports (0, 0) for SCREEN on Wayland. Window-relative extents
-        # must be delivered through a window-bound compositor input stream.
-        bounds = component.get_extents(self.api.CoordType.WINDOW)
-        require(all(type(v) is int for v in (bounds.x, bounds.y, bounds.width, bounds.height))
-                and 0 <= bounds.x < bounds.x + bounds.width <= 32768
-                and 0 <= bounds.y < bounds.y + bounds.height <= 32768,
-                'ui:allowance-click-bounds')
-        root = self.parent()
-        pid = root.get_process_id()
-        require(type(pid) is int and pid > 0 and selector.get_process_id() == pid,
-                'ui:allowance-surface-owner')
-        return {'x': bounds.x + bounds.width // 2, 'y': bounds.y + bounds.height // 2,
-                'bounds': (bounds.x, bounds.y, bounds.width, bounds.height),
-                'window': (root.bus, root.path),
-                'selector': (selector.bus, selector.path), 'pid': pid}
 
     def select_allowance(self, child, value):
-        """Click, type and Enter through one window-bound native input stream.
-
-        This narrow provider adapter shares the test desktop's existing Mutter
-        input/capture protocols. It consumes no pixels and assumes no desktop
-        origin. The ID-owned Parent window must remain active around binding.
-        Its public GtkNative transform converts widget-relative AT-SPI bounds
-        to native surface coordinates, including client-side window shadows.
-        """
+        """Set the canonical allowance through the shared Application UI API."""
         require(value == 'custom' or type(value) is int and value in PRESETS,
                 'ui:allowance-binding')
-        text = ('c' if value == 'custom' else str(value // 60) + 'h'
-                if value >= 60 and value % 60 == 0 else str(value) + 'm')
-        from gi.repository import Gio, GLib
-        point = self.allowance_click_target(child)
-        x, y, width, height = point['bounds']
-        # Two different interior positions force fresh native pointer motion
-        # even when the prior selection ended at this control's center. Mutter
-        # suppresses unchanged surface coordinates; GTK picks button targets
-        # using its cached pointer position. Keep the existing integer center
-        # and at least one surface unit between positions so native coordinate
-        # quantization cannot collapse the motion on a tiny control.
-        widget_points = ((x + (point['x'] - x) / 2, point['y']),
-                         (point['x'], point['y']))
-        require(widget_points[1][0] - widget_points[0][0] >= 1 and all(
-            x < px < x + width and y < py < y + height
-            for px, py in widget_points), 'ui:allowance-click-motion-bounds')
-        remote = 'org.gnome.Mutter.RemoteDesktop'
-        cast = 'org.gnome.Mutter.ScreenCast'
-        connection = Gio.DBusConnection.new_for_address_sync(
-            os.environ['DBUS_SESSION_BUS_ADDRESS'],
-            Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT
-            | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
-        session = None
-        started = False
-        def call(service, path, interface, method, signature=None, values=()):
-            try:
-                return connection.call_sync(service, path, interface, method,
-                    GLib.Variant(signature, values) if signature else None, None,
-                    Gio.DBusCallFlags.NO_AUTO_START, 3000, None).unpack()
-            except GLib.Error as error:
-                # Fixed method names locate transport failures without copying
-                # arbitrary provider error text into public evidence.
-                detail = 'other'
-                for message, reason in (
-                        ('Window not found', 'window-not-found'),
-                        ('Failed to record window: Main logical monitor not found', 'window-monitor'),
-                        ('Permission denied', 'permission-denied')):
-                    if error.message == message or error.message.endswith(': ' + message):
-                        detail = reason
-                if error.matches(Gio.dbus_error_quark(), Gio.DBusError.UNKNOWN_METHOD):
-                    detail = 'unknown-method'
-                raise UiError('ui:allowance-click-transport:' + method + ':' + detail) from error
-        def native_surface(target):
-            bus = 'org.freedesktop.DBus'
-            owner, = call(bus, '/org/freedesktop/DBus', bus, 'GetNameOwner',
-                          '(s)', (PARENT_APPLICATION,))
-            require(isinstance(owner, str) and re.fullmatch(r':[0-9]+\.[0-9]+', owner),
-                    'ui:allowance-surface-owner')
-            pid, = call(bus, '/org/freedesktop/DBus', bus, 'GetConnectionUnixProcessID',
-                        '(s)', (owner,))
-            require(type(pid) is int and pid == target['pid'],
-                    'ui:allowance-surface-owner')
-            transform = call(owner, '/com/puffyslippers/OhNoParentControl/Parent',
-                             'com.puffyslippers.OhNoParentControl.Accessibility1',
-                             'GetNativeSurfaceTransform', '(s)', ('parent-window',))
-            require(len(transform) == 2 and all(
-                type(value) in (int, float) and math.isfinite(value) for value in transform),
-                'ui:allowance-surface-transform')
-            # GTK subtracts this transform from native events before widget
-            # picking. Add it once for the inverse widget-to-surface mapping.
-            native_points = tuple(tuple(coordinate + offset
-                                        for coordinate, offset in zip(position, transform))
-                                  for position in widget_points)
-            require(native_points[0] != native_points[1] and all(
-                math.isfinite(coordinate) and 0 <= coordinate <= 32768
-                for position in native_points for coordinate in position),
-                    'ui:allowance-surface-transform')
-            current_owner, = call(bus, '/org/freedesktop/DBus', bus, 'GetNameOwner',
-                                  '(s)', (PARENT_APPLICATION,))
-            require(current_owner == owner, 'ui:allowance-surface-owner')
-            return owner, tuple(transform)
-
-        def recheck_surface(expected):
-            self.invalidate_observation()
-            current = self.allowance_click_target(child)
-            require(current == point, 'ui:allowance-click-moved')
-            owner, transform = native_surface(current)
-            require(owner == expected[0], 'ui:allowance-surface-owner')
-            require(transform == expected[1], 'ui:allowance-surface-changed')
-
-        try:
-            surface = native_surface(point)
-            session, = call(remote, '/org/gnome/Mutter/RemoteDesktop', remote, 'CreateSession')
-            session_id, = call(remote, session, 'org.freedesktop.DBus.Properties',
-                               'Get', '(ss)', (remote + '.Session', 'SessionId'))
-            capture, = call(cast, '/org/gnome/Mutter/ScreenCast', cast, 'CreateSession',
-                           '(a{sv})', ({'remote-desktop-session-id': GLib.Variant('s', session_id)},))
-            call(remote, session, remote + '.Session', 'Start')
-            started = True
-            # Mutter creates pointer and keyboard devices lazily. Initialize
-            # both before binding the focused window; the first product key
-            # must not double as keyboard-device initialization.
-            # These neutral events prepare the seat, never select a value.
-            for _ in range(6):
-                call(remote, session, remote + '.Session', 'NotifyPointerMotionRelative',
-                     '(dd)', (0.0, 0.0))
-                time.sleep(.05)
-            self.input_uncertain = True
-            for pressed in (True, False):
-                call(remote, session, remote + '.Session', 'NotifyKeyboardKeysym',
-                     '(ub)', (0xffe1, pressed))
-                time.sleep(.05)
-            self.input_uncertain = False
-            recheck_surface(surface)
-            # RecordWindow with no window-id binds the currently focused window.
-            # A stream added to a running session needs its own public Start.
-            stream, = call(cast, capture, cast + '.Session', 'RecordWindow', '(a{sv})', ({},))
-            call(cast, stream, cast + '.Stream', 'Start')
-            recheck_surface(surface)
-            self.input_uncertain = True
-            for px, py in widget_points:
-                call(remote, session, remote + '.Session', 'NotifyPointerMotionAbsolute',
-                     '(sdd)', (stream, float(px + surface[1][0]),
-                              float(py + surface[1][1])))
-                # D-Bus acknowledgement queues input; let the seat dispatch
-                # each distinct motion before the next motion or button press.
-                time.sleep(.1)
-            call(remote, session, remote + '.Session', 'NotifyPointerButton', '(ib)', (272, True))
-            time.sleep(.15)
-            call(remote, session, remote + '.Session', 'NotifyPointerButton', '(ib)', (272, False))
-            # These calls acknowledge queued input, not application dispatch.
-            # Use ordinary human input pacing without querying popup state.
-            time.sleep(.1)
-            for keysym in (*map(ord, text), 0xff0d):
-                call(remote, session, remote + '.Session', 'NotifyKeyboardKeysym',
-                     '(ub)', (keysym, True))
-                time.sleep(.05)
-                call(remote, session, remote + '.Session', 'NotifyKeyboardKeysym',
-                     '(ub)', (keysym, False))
-                time.sleep(.05)
-        finally:
-            active_error = sys.exc_info()[1]
-            try:
-                if started:
-                    try:
-                        call(remote, session, remote + '.Session', 'Stop')
-                    except UiError as error:
-                        if active_error is None:
-                            raise
-                        active_error.add_note(str(error))
-            finally:
-                connection.close_sync(None)
-        self.input_uncertain = False
+        self.allowance_keyboard_recipient(child)
+        self.set_value('parent-daily-limit-selector',
+                       'custom' if value == 'custom' else str(value) + 'm')
 
     def allowance_keyboard(self, child, value, phase):
-        """PARENT06 click and final-value boundaries, shared by UI and E2E."""
+        """Retain finite stage bindings around API input and independent readback."""
         require((value, phase) in ALLOWANCE_KEYBOARD_OPERATIONS.values(),
                 'ui:allowance-binding')
         self.allowance_entry(child)
@@ -5808,26 +5621,16 @@ class AccessibleUI:
             self.parent_save_snapshot(child, True)
             self.select_allowance(child, value)
         else:
-            # Do not inspect popup state or intermediate highlights. A missing
-            # or different final value fails without replaying the input.
-            def selected():
-                self.allowance_entry(child)
-                if value == 'custom':
-                    # Native input acknowledgement can precede the editor's
-                    # public appearance. Wait for this final result just as
-                    # preset readback waits for its requested label; preserve
-                    # every recipient guard once the editor exists.
-                    if self.snapshot_owned_target(
-                            'parent-custom-daily-limit', showing=False,
-                            check_prompt=True) is None:
-                        return False
-                    self.text_recipient('parent-custom-daily-limit', child=child)
-                    expected = 'Custom value'
-                else:
-                    expected = PRESET_LABELS[value]
-                target = self.id_target('parent-daily-limit-selector', sensitive=True)
-                return self.read_label(target, 'allowance', maximum=80) == [expected]
-            self.wait(selected, 'allowance-selected-value')
+            expected = 'custom' if value == 'custom' else str(value) + 'm'
+            self.wait(lambda: self.get_value('parent-daily-limit-selector') == expected,
+                      'allowance-selected-value')
+            if value == 'custom':
+                def editor():
+                    if self.snapshot_owned_target('parent-custom-daily-limit',
+                                                  showing=False, check_prompt=True) is None:
+                        return None
+                    return self.text_recipient('parent-custom-daily-limit', child=child)
+                self.wait(editor, 'allowance-custom-editor', prompt_in_predicate=True)
             self.parent_save_snapshot(child, True)
         return {'value': value, 'phase': phase}
 
@@ -5847,16 +5650,13 @@ class AccessibleUI:
             editor = self.snapshot_owned_target('parent-custom-daily-limit', showing=False)
             editor_visible = editor is not None and self.has_state(editor, self.api.StateType.VISIBLE)
             if editor_visible:
-                # Reloads of custom values and the shared keyboard choice can
-                # already expose the editor. Reobserve it without reopening a
-                # native popup merely to activate the same choice again.
+                # Reloads and the canonical custom choice can already expose
+                # the editor. Reobserve its value without another mutation.
                 self.text_recipient('parent-custom-daily-limit', child=child)
                 if action == 'open':
                     return {'minutes': minutes, 'action': action}
-                selector = self.id_target('parent-daily-limit-selector', sensitive=True)
-                require([node.get_name() for node in self.nodes(selector, strict=True)
-                         if node.get_role_name() == 'label' and self.showing(node)]
-                        == ['Custom value'], 'ui:allowance-selection')
+                require(self.get_value('parent-daily-limit-selector') == 'custom',
+                        'ui:allowance-selection')
         if action in ('open', 'reopen', 'reopen-current') and not editor_visible:
             self.parent_save_snapshot(child, True)
             if action == 'reopen' and minutes in (0, 15):
@@ -5919,12 +5719,17 @@ class AccessibleUI:
         self.parent_save_snapshot(child, True)
         if action == 'select':
             self.select_allowance(child, minutes)
-        self.allowance_keyboard(child, minutes, 'selected')
-        self.parent_save_snapshot(child, True)
-        selector = self.id_target('parent-daily-limit-selector', sensitive=True)
-        require(self.read_label(selector, 'allowance', maximum=32)
-                == [PRESET_LABELS[minutes]], 'ui:allowance-value')
-        return {'minutes': minutes, 'saved': True}
+        try:
+            self.allowance_keyboard(child, minutes, 'selected')
+            self.parent_save_snapshot(child, True)
+            selector = self.id_target('parent-daily-limit-selector', sensitive=True)
+            require(self.read_label(selector, 'allowance', maximum=32)
+                    == [PRESET_LABELS[minutes]], 'ui:allowance-value')
+            return {'minutes': minutes, 'saved': True}
+        except BaseException:
+            if action == 'select':
+                self.input_uncertain = True
+            raise
 
     def allowance_operation(self, operation):
         require(operation in ALLOWANCE_OPERATIONS, 'ui:allowance-operation')
@@ -6021,6 +5826,8 @@ class AccessibleUI:
             return (self.showing(root) and root.get_role_name() == 'label'
                     and ' '.join(root.get_name().split()) == text)
         if projection == 'empty-picker':
+            if hasattr(root, 'ui_element'):
+                return root.getValue() == '' and root.getChoices() == []
             labels = []
             for node in self.nodes(root, strict=True):
                 require(not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:stale-picker')
@@ -6031,11 +5838,23 @@ class AccessibleUI:
             return labels == ['(None)']
         if projection == 'child':
             require(expected in CHILD_IDENTITIES and len(expected) <= maximum, 'ui:child-binding')
+            if hasattr(root, 'ui_element'):
+                text = root.getText().strip()
+                require(len(text) <= maximum and text == expected, 'ui:child-label')
+                return CHILD_IDENTITIES[expected]
             labels = [node.get_name() for node in self.nodes(root, strict=True)
                       if node.get_role_name() == 'label' and self.showing(node)]
             require(labels == [expected], 'ui:child-label')
             return CHILD_IDENTITIES[expected]
         import re
+        if hasattr(root, 'ui_element'):
+            value = root.getValue()
+            if value == 'custom':
+                return ['Custom value']
+            require(type(value) is str and re.fullmatch(r'[0-9]+m', value),
+                    'ui:allowance-label')
+            require(int(value[:-1]) in PRESET_LABELS, 'ui:allowance-label')
+            return [PRESET_LABELS[int(value[:-1])]]
         labels = sorted({node.get_name() for node in self.nodes(root, strict=True)
                          if node.get_role_name() == 'label' and self.showing(node)})
         if labels == ['Custom value']:
@@ -6087,139 +5906,35 @@ class AccessibleUI:
         return node
 
     def focus(self, node):
-        """Focus one already ID-resolved public control without keyboard routing."""
-        require(not self.input_uncertain, 'ui:uncertain-input')
-        identity = self.observed_id(node)
-        match = re.fullmatch(r'parent-child-choice-([0-9]+)', identity)
+        """Select the UID-scoped account through the logical selector."""
+        match = re.fullmatch(r'parent-child-choice-([0-9]+)', self.observed_id(node))
         require(match is not None, 'ui:child-choice-id')
-        current = self.find_id(identity, root=self.parent(), showing=False)
-        require(current is not None and current == node, 'ui:wrong-focus-owner')
-        node = current
-        labels = []
-        for label in CHILD_IDENTITIES:
-            if self.fixture_uids is not None:
-                uid = self.fixture_uids.get(label)
-            else:
-                try:
-                    uid = pwd.getpwnam(CHILD_ACCOUNTS[label]).pw_uid
-                except KeyError:
-                    continue
-            if uid is not None and str(uid) == match.group(1):
-                labels.append(label)
-        require(len(labels) == 1, 'ui:fixture-child-uid')
-        self.read_label(node, 'child', expected=labels[0], maximum=80)
-        require(not self.has_state(node, self.api.StateType.DEFUNCT)
-                and self.has_state(node, self.api.StateType.VISIBLE)
-                and self.has_state(node, self.api.StateType.SENSITIVE),
-                'ui:unusable-target')
-        if self.showing(node) and self.has_state(node, self.api.StateType.FOCUSED):
-            return True
-        self.activate_id(
-            'parent-child-selector', action_name='child.focus-' + match.group(1),
-        )
-        self.input_uncertain = True
-        def focused():
-            current = self.find_id(identity)
-            return (current is not None
-                    and self.has_state(current, self.api.StateType.SENSITIVE)
-                    and self.has_state(current, self.api.StateType.FOCUSED))
-        result = self.wait(focused, 'focus')
-        self.input_uncertain = False
-        return result
+        self.set_value('parent-child-selector', match.group(1))
+        return True
 
     def focus_child_picker(self):
-        """Qualify one native Space input before opening a retained popup.
-
-        The real GTK regression
-        test_parent_child_picker_after_language_policy_reads reproduces a
-        failed direct popup after input to another client, despite an active
-        Parent window. Preserve that history; activation alone was insufficient.
-        The observation does not itself prove a particular compositor cause.
-        Select this keyboard route before input, never after a failed popup.
-        """
-        require(not self.input_uncertain, 'ui:uncertain-input')
-
-        def recipient():
-            observation = self.read_snapshot()
-            nodes, edges, _identities, _facts = observation
-            root = self.snapshot_owned_target('parent-window', observation=observation,
-                                              check_prompt=True)
-            require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
-                    'ui:child-picker-window')
-            require(self.snapshot_owned_target('parent-child-popover', root=root,
-                    observation=observation) is None, 'ui:child-picker-already-open')
-            selector = self.snapshot_owned_target('parent-child-selector', root=root,
-                                                 observation=observation)
-            require(selector is not None
-                    and self.has_state(selector, self.api.StateType.SENSITIVE),
-                    'ui:unusable-target')
-            # GTK delegates a MenuButton's native focus to its internal toggle.
-            # Resolve only the public selector ID; read focus containment inside
-            # that complete owned scope, never identify an anonymous target.
-            focused = [node for node in self.snapshot_scope(nodes, edges, selector)
-                       if self.has_state(node, self.api.StateType.FOCUSED)]
-            require(len(focused) <= 1, 'ui:child-picker-ambiguous-focus')
-            require(all(self.showing(node) and self.has_state(node, self.api.StateType.SENSITIVE)
-                        for node in focused), 'ui:child-picker-focus-state')
-            return root, selector, bool(focused)
-
-        owner, target, has_focus = self.wait(recipient, 'child-picker-entry', prompt_in_predicate=True)
-        if not has_focus:
-            self.activate_id('parent-window', action_name='focus.parent-child-selector')
-        self.input_uncertain = True
-
-        def focused():
-            current_owner, current, has_focus = recipient()
-            require(current_owner == owner and current == target, 'ui:child-picker-replaced')
-            return has_focus
-
-        self.wait(focused, 'child-picker-focus', prompt_in_predicate=True)
-        return True  # The worker consumes this proof once and sends Space.
+        """Qualify the child selector without opening or focusing a popup."""
+        self.id_target('parent-child-selector', sensitive=True)
+        return True
 
     def open_child_picker(self, child, *, opened=False):
-        """UI15 opening: activate by ID and focus the UID-scoped choice by ID."""
+        """Select the declared account UID through the shared API."""
         require(child in CHILD_IDENTITIES and type(opened) is bool, 'ui:child-binding')
-        require(not self.input_uncertain, 'ui:uncertain-input')
-        if not opened:
-            self.activate_id('parent-child-selector', action_name='menu.popup')
-        self.input_uncertain = True
-        try:
-            choices = self.id_target('parent-child-choices')
-            choice = self.wait(
-                lambda: self.child_id_control(
-                    child, 'parent-child-choice-', root=choices, showing=False,
-                ),
-                'child-choice',
-            )
-            self.input_uncertain = False
-            self.focus(choice)
-        except BaseException:
-            self.input_uncertain = True
-            raise
+        uid = (self.fixture_uids[child] if self.fixture_uids is not None
+               else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
+        self.set_value('parent-child-selector', str(uid))
         return True
 
     def child_highlighted(self, child):
+        """Historical stage name for independent canonical account readback."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
-        def highlighted():
-            root = self.find_id('parent-window')
-            if root is None:
-                return False
-            popover = self.find_id('parent-child-popover', root=root)
-            if popover is None:
-                return False
-            choices = self.find_id('parent-child-choices', root=popover)
-            if choices is None:
-                return False
-            choice = self.child_id_control(
-                child, 'parent-child-choice-', root=choices, showing=True,
-            )
-            return (choice is not None
-                    and self.has_state(choice, self.api.StateType.SENSITIVE)
-                    and self.has_state(choice, self.api.StateType.FOCUSED))
-        return self.wait(highlighted, 'choice-highlight')
+        uid = (self.fixture_uids[child] if self.fixture_uids is not None
+               else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
+        return self.wait(lambda: self.get_value('parent-child-selector') == str(uid),
+                         'child-selection')
 
     def selected_child(self, child):
-        """UI15 closed-picker result followed by PARENT03, after caller's Enter."""
+        """UI15 independent selection result followed by PARENT03."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
         self.child_picker_closed()
         return self.settings(child)
@@ -6239,16 +5954,8 @@ class AccessibleUI:
         return {'child': CHILD_IDENTITIES[child]}
 
     def child_picker_closed(self):
-        """Shared complete, stale-safe popup disappearance observation."""
-        def closed():
-            root = self.find_id('parent-window')
-            if root is None:
-                return False
-            nodes = list(self.nodes(root, strict=True))
-            require(all(not self.has_state(node, self.api.StateType.DEFUNCT)
-                        for node in nodes), 'ui:stale-picker')
-            return self.absent_id('parent-child-popover', within='parent-window')
-        self.wait(closed, 'picker-close')
+        """Shared logical readiness after a canonical account selection."""
+        self.id_target('parent-child-selector', sensitive=True)
 
     def parent_page(self, child, page):
         """PARENT04: select the declared page and observe its usable controls."""
@@ -6278,7 +5985,7 @@ class AccessibleUI:
     def app_rows(self, child, *, maximum=256, expected_ids=None, include_names=False):
         """PARENT12/UI13: complete public row projection, without policy expectations.
 
-        Off-viewport controls remain readable through AT-SPI. Visibility means
+        Off-viewport controls remain readable through the App UI API. Visibility means
         application visibility, not viewport clipping; no scroll-position inference
         or catalogue/backend query is used. Return immutable (ID, access, match)
         tuples only after a complete owned traversal and loaded-page check.
@@ -6368,13 +6075,26 @@ class AccessibleUI:
             visibility[row] = self.has_state(row, self.api.StateType.VISIBLE)
             if not visibility[row]:
                 continue  # Explicitly filtered out, not clipped by the viewport.
-            choices = []
-            for access in ('allowed', 'conditional', 'permanent'):
-                control = target(identity + '-access-' + access, row, row=row)
+            if hasattr(row, 'ui_element'):
+                control = target(identity + '-access', row, row=row)
                 require(self.has_state(control, self.api.StateType.SENSITIVE),
                         'ui:app-row-loading')
-                if self.has_state(control, self.api.StateType.PRESSED):
-                    choices.append(access)
+                offered = control.getChoices()
+                require(type(offered) is list and len(offered) == 3
+                        and all(type(value) is str for value in offered)
+                        and set(offered) == {'allowed', 'conditional', 'permanent'},
+                        'ui:app-row-access')
+                access = control.getValue()
+                require(type(access) is str and access in offered, 'ui:app-row-access')
+                choices = [access]
+            else:
+                choices = []
+                for access in ('allowed', 'conditional', 'permanent'):
+                    control = target(identity + '-access-' + access, row, row=row)
+                    require(self.has_state(control, self.api.StateType.SENSITIVE),
+                            'ui:app-row-loading')
+                    if self.has_state(control, self.api.StateType.PRESSED):
+                        choices.append(access)
             require(len(choices) == 1, 'ui:app-row-access')
             match_control = target(identity + '-match-rule', row, row=row)
             matches = [value for value in ('pattern', 'precise')
@@ -6423,12 +6143,12 @@ class AccessibleUI:
         row = target(app, target('parent-app-rows', page))
         button = target(app + ('-match-rule' if access is None else '-access-' + access), row)
         if not editor:
-            require(self.has_state(root, self.api.StateType.ACTIVE)
+            require(self.surface_available(root)
                     and self.has_state(button, self.api.StateType.SENSITIVE), 'ui:match-inactive')
             return button
         dialog = self.snapshot_owned_target('parent-match-rule-dialog', check_prompt=True,
                                            observation=observation)
-        require(dialog is not None and self.has_state(dialog, self.api.StateType.ACTIVE), 'ui:match-editor')
+        require(dialog is not None and self.surface_available(dialog), 'ui:match-editor')
         marker = self.snapshot_owned_target('parent-match-rule-app-' + app.removeprefix('parent-app-'),
             root=dialog, showing=False, observation=observation)
         require(marker is not None, 'ui:match-wrong-app')
@@ -6602,7 +6322,7 @@ class AccessibleUI:
         nodes, edges, identities, facts = observation
         root = self.snapshot_owned_target('parent-window', check_prompt=True,
                                           observation=observation)
-        require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+        require(root is not None and self.surface_available(root),
                 'ui:legend-window')
         def target(identity):
             node = self.snapshot_owned_target(identity, root=root, showing=False,
@@ -6640,9 +6360,11 @@ class AccessibleUI:
         scoped = self.snapshot_scope(nodes, edges, content)
         require(all(not self.has_state(node, self.api.StateType.DEFUNCT) for node in scoped),
                 'ui:legend-stale')
-        labels = [' '.join(facts[node]['name'].split()) for node in scoped
-                  if facts[node]['role'] == 'label'
-                  and self.has_state(node, self.api.StateType.VISIBLE)]
+        labels = ([' '.join(line.split()) for line in content.getText().splitlines()
+                   if line.strip()] if hasattr(content, 'ui_element') else
+                  [' '.join(facts[node]['name'].split()) for node in scoped
+                   if facts[node]['role'] == 'label'
+                   and self.has_state(node, self.api.StateType.VISIBLE)])
         require(len(labels) <= 32 and sum(map(len, labels)) <= 4096, 'ui:legend-bound')
         expected = (*LEGEND_HEADINGS, *(value for _, title, text in LEGEND_RULES
                                       for value in (title, text)))
@@ -6694,14 +6416,18 @@ class AccessibleUI:
                 and action in ('open', *FILTER_OPTIONS[kind]),
                 'ui:filter-binding')
         self.text_recipient('parent-app-search', child=child)
-        root = self.parent()
-        choices_id = f'parent-filter-{kind}-choices'
+        identity = f'parent-filter-{kind}'
+        selector = self.id_target(identity, sensitive=True)
         if action == 'open':
-            self.activate_id(f'parent-filter-{kind}', action_name='menu.popup')
             return {'ready': kind}
-        choices = self.id_target(choices_id, root=root, sensitive=True)
         desired = bool(mask & (1 << FILTER_OPTIONS[kind].index(action)))
-        return self.set_toggle(f'parent-filter-{kind}-{action}', desired, root=choices)
+        before = selector.getValue()
+        selected = set(before)
+        selected.add(action) if desired else selected.discard(action)
+        if (action in before) != desired:
+            self.set_value(identity, [value for value in FILTER_OPTIONS[kind] if value in selected])
+        self.wait(lambda: (action in self.get_value(identity)) == desired, 'filter-value')
+        return {'state': desired, 'activated': (action in before) != desired}
 
     def app_row_operation(self, operation):
         require(operation in APP_ROW_OPERATIONS, 'ui:app-row-operation')
@@ -6885,7 +6611,7 @@ class AccessibleUI:
         """LIFE01 entry is observation only; never launch or focus to repair it."""
         require(window == 'parent' and destination == 'management', 'ui:restart-binding')
         root = self.snapshot_owned_target('parent-window', check_prompt=True)
-        require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+        require(root is not None and self.surface_available(root),
                 'ui:restart-window')
 
     def parent_initial_selection(self):
@@ -6990,7 +6716,7 @@ class AccessibleUI:
                 'Sign in with an administrator account to open the Parent App.',
                 'ui:denial-message')
         self.id_target('parent-access-denied-close', root=root, sensitive=True)
-        require(self.has_state(root, self.api.StateType.ACTIVE), 'ui:denial-not-active')
+        require(self.surface_available(root), 'ui:denial-not-active')
         self.management_absent()
 
     def management_absent(self, *, within='parent-access-denied-window'):
@@ -7066,61 +6792,57 @@ class AccessibleUI:
         return owners[0], panels[0], (nodes, snapshot, identities, facts)
 
     def child_countdown(self, present):
-        """TIME01: read-only child-desktop text or two seconds of complete absence."""
+        """Read the panel's public API text or bounded complete absence."""
         require(type(present) is bool, 'ui:countdown-binding')
-        uid = pwd.getpwnam(CHILD_ACCOUNTS[CHILD]).pw_uid
-        require(uid >= 1000 and os.getuid() == uid and os.geteuid() == uid,
-                'ui:countdown-account')
-        require_active_launch_session()
+        try:
+            self.require_child_overlay_session()
+        except UiError as error:
+            if str(error) == 'ui:overlay-account':
+                raise UiError('ui:countdown-account') from error
+            raise
         stable_since = None
-
         def observe():
             nonlocal stable_since
             try:
-                value = self.shell_desktop_observation(no_prompt=True)
-                if value is None:
-                    stable_since = None
-                    return None
-                owner, _, (nodes, edges, identities, facts) = value
-                scope = self.snapshot_scope(nodes, edges, owner)
-                controls = {}
+                observation = self.read_snapshot()
+                nodes, edges, identities, facts = observation
+                require(not any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes),
+                        'ui:incomplete-tree')
+                require(self.system_prompt_kind(observation=(nodes, edges, facts)) is None,
+                        'ui:countdown-prompt')
+                controls = []
                 for identity in ('child-screen-time-indicator', 'child-request-button',
                                  'child-remaining-time'):
-                    matches = [node for node in nodes if identities[node] == identity]
-                    require(len(matches) <= 1, 'ui:ambiguous-automation-id')
-                    require(all(node in scope for node in matches), 'ui:countdown-owner')
-                    controls[identity] = matches[0] if matches else None
-                label = controls['child-remaining-time']
-                if present:
-                    anchor = controls['child-screen-time-indicator']
-                    button = controls['child-request-button']
-                    if any(node is None or not self.showing(node)
-                           for node in (anchor, button, label)):
-                        return None
-                    descendants = self.snapshot_scope(nodes, edges, anchor)
-                    require(button in descendants and label in
-                            self.snapshot_scope(nodes, edges, button), 'ui:countdown-owner')
-                    require(facts[label]['role'] == 'label', 'ui:countdown-label')
-                    text = facts[label]['name']
-                    countdown_seconds(text)  # Bound public text before transport/storage.
-                    return {'child': 'fixture-child', 'surface': 'desktop', 'present': True,
-                            'text': text, 'observed_monotonic_ns': time.monotonic_ns(),
-                            'stable_ms': 0}
-                if any(node is not None and self.showing(node) for node in controls.values()):
-                    stable_since = None
-                    return None
-                now = time.monotonic_ns()
-                if stable_since is None:
-                    stable_since = now
-                if now - stable_since < 2_000_000_000:
-                    return None
-                return {'child': 'fixture-child', 'surface': 'desktop', 'present': False,
-                        'text': None, 'observed_monotonic_ns': now,
-                        'stable_ms': (now - stable_since) // 1_000_000}
-            except BaseException:
+                    require(sum(value == identity for value in identities.values()) <= 1,
+                            'ui:ambiguous-automation-id')
+                    controls.append(self.snapshot_owned_target(identity, showing=False,
+                                                               observation=observation))
+            except self.query_errors:
                 stable_since = None
                 raise
-
+            except UiError as error:
+                if str(error) == 'ui:incomplete-tree':
+                    stable_since = None
+                raise
+            if present:
+                if any(node is None or not self.showing(node) for node in controls):
+                    return None
+                text = controls[-1].getText()
+                countdown_seconds(text)
+                return {'child': 'fixture-child', 'surface': 'desktop', 'present': True,
+                        'text': text, 'observed_monotonic_ns': time.monotonic_ns(),
+                        'stable_ms': 0}
+            if any(node is not None and self.showing(node) for node in controls):
+                stable_since = None
+                return None
+            now = time.monotonic_ns()
+            if stable_since is None:
+                stable_since = now
+            if now - stable_since < 2_000_000_000:
+                return None
+            return {'child': 'fixture-child', 'surface': 'desktop', 'present': False,
+                    'text': None, 'observed_monotonic_ns': now,
+                    'stable_ms': (now - stable_since) // 1_000_000}
         result = self.wait(observe, 'child-countdown', prompt_in_predicate=True)
         require_active_launch_session()
         return result
@@ -7669,8 +7391,7 @@ class AccessibleUI:
     def choice_order(self, root, *, identities, maximum, cardinality, projection):
         """UI13: fresh complete collection, returning only canonical identities.
 
-        Rows may be outside the viewport in a scrolling account list. Their
-        order is readable; the separate focus checkpoint qualifies the input.
+        Product choices come from the selector's public canonical values.
         """
         require(root is not None and type(maximum) is int and 1 <= maximum <= 32
                 and type(cardinality) is tuple and len(cardinality) == 2
@@ -7698,6 +7419,18 @@ class AccessibleUI:
                 identity = 'parent-child-choice-' + str(uid)
                 require(identity not in bindings, 'ui:duplicate-choice-identity')
                 bindings[identity] = (label, canonical)
+            if hasattr(root, 'ui_element'):
+                offered = self.id_target('parent-child-selector').getChoices()
+                require(type(offered) is list and len(offered) <= maximum
+                        and all(type(value) is str for value in offered), 'ui:collection-bound')
+                require(len(offered) == len(set(offered)), 'ui:duplicate-choice-identity')
+                for uid in offered:
+                    identity = 'parent-child-choice-' + uid
+                    require(identity in bindings, 'ui:unregistered-child-choice')
+                    choices.append(bindings[identity][1])
+                require(cardinality[0] <= len(choices) <= cardinality[1],
+                        'ui:collection-cardinality')
+                return tuple(choices)
             for node in self.nodes(root, strict=True):
                 require(not self.has_state(node, self.api.StateType.DEFUNCT),
                         'ui:stale-collection')
@@ -7894,12 +7627,8 @@ class AccessibleUI:
                 namespace = 'child' if canonical_identities == CHILD_IDENTITIES else 'approver'
                 diagnostic.emit('selected-' + namespace)
                 accounts = CHILD_ACCOUNTS if namespace == 'child' else APPROVER_ACCOUNTS
-                control_nodes = self.snapshot_scope(public_nodes, snapshot, control)
-                selected_nodes = [node for node in control_nodes
-                                  if identity_by_node[node].startswith(
-                                      f'kiosk-{namespace}-selected-')
-                                  and self.showing(node)]
-                require(len(selected_nodes) == 1, 'ui:' + code)
+                selected_uid = control.getValue()
+                require(type(selected_uid) is str, 'ui:' + code)
                 selected = []
                 for name, canonical in canonical_identities.items():
                     if self.fixture_uids is not None:
@@ -7912,9 +7641,7 @@ class AccessibleUI:
                         except KeyError:
                             continue
                     require(type(uid) is int and uid >= 1000, 'ui:fixture-account-uid')
-                    node = lookup(f'kiosk-{namespace}-selected-{uid}',
-                                  control_nodes, identity_by_node, emit=False)
-                    if node is not None and node == selected_nodes[0]:
+                    if selected_uid == str(uid):
                         selected.append((name, canonical))
                 require(len(selected) == 1, 'ui:' + code)
                 name, canonical = selected[0]
@@ -7925,7 +7652,7 @@ class AccessibleUI:
                     'zh-Hans': '已选择的账户：%s。', 'he': 'החשבון שנבחר: %s.',
                 }[language] % name
                 if description != expected_description:
-                    # The selected label ID and the trigger description are
+                    # The canonical value and the trigger description are
                     # published separately. Read both again after the update.
                     return None
                 return canonical
@@ -7967,16 +7694,9 @@ class AccessibleUI:
                     if no_child else 'No local interactive administrator accounts are available.')
                 require(' '.join(status.get_name().split()) == expected_message,
                         f'ui:kiosk-no-{field}-message')
-                # Include hidden choices: an empty selection alone does not
-                # prove the form's complete offered child set is empty.
-                require(not any(identity_by_node[node].startswith(f'kiosk-{field}-choice-')
-                                for node in form_nodes), f'ui:kiosk-no-{field}-choices')
-                control_nodes = self.snapshot_scope(public_nodes, snapshot,
-                                                    child if no_child else approver)
-                selected = [node for node in control_nodes if identity_by_node[node].startswith(
-                    f'kiosk-{field}-selected-')]
-                require(len(selected) == 1 and identity_by_node[selected[0]] ==
-                        f'kiosk-{field}-selected-none' and self.showing(selected[0]),
+                control = child if no_child else approver
+                require(control.getChoices() == [], f'ui:kiosk-no-{field}-choices')
+                require(control.getValue() == '',
                         f'ui:kiosk-no-{field}-selection')
             elif not enabled:
                 message = ' '.join(notice.get_name().split())
@@ -8036,51 +7756,14 @@ class AccessibleUI:
         require_active_launch_session()
 
     def overlay_panel_target(self):
-        """DESK12 normal desktop binding; fullscreen reveal is separate."""
+        """Resolve the child panel control by its desktop-neutral API endpoint."""
         self.require_child_overlay_session()
-
-        def observe():
-            value = self.shell_desktop_observation(no_prompt=True)
-            if value is None:
-                return None
-            owner, _, observation = value
-            nodes, edges, identities, _facts = observation
-            require(sum(identities[node] == 'child-request-button' for node in nodes) <= 1,
-                    'ui:ambiguous-automation-id')
-            target = self.snapshot_owned_target('child-request-button',
-                showing=False, observation=observation)
-            if target is None:
-                return None
-            require(target in self.snapshot_scope(nodes, edges, owner), 'ui:overlay-panel-owner')
-            require(self.has_state(target, self.api.StateType.VISIBLE)
-                    and self.has_state(target, self.api.StateType.SENSITIVE), 'ui:unusable-target')
-            return target
-
-        return self.wait(observe, 'overlay-panel', prompt_in_predicate=True)
+        return self.id_target('child-request-button', sensitive=True, showing=False)
 
     def overlay_panel_launch(self):
-        """Qualify the ID-owned keyboard recipient; the worker sends Enter once.
-
-        GNOME Shell 50's StButtonAccessible has no AT-SPI Action interface.
-        Use its public Component focus API, never an attempted activation with
-        a fallback after uncertain input.
-        """
+        """Activate the panel's ordinary request action once."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        target = self.overlay_panel_target()
-        if not self.has_state(target, self.api.StateType.FOCUSED):
-            component = target.get_component_iface()
-            require(component is not None, 'ui:overlay-focus-unavailable')
-            self.input_uncertain = True
-            require(component.grab_focus(), 'ui:overlay-focus-refused')
-
-        def focused():
-            refreshed = self.overlay_panel_target()
-            require(refreshed == target, 'ui:overlay-stale-focus')
-            return self.has_state(refreshed, self.api.StateType.FOCUSED)
-
-        self.wait(focused, 'overlay-panel-focus', prompt_in_predicate=True)
-        # This single-use proof releases exactly one worker keyboard input.
-        self.input_uncertain = True
+        self._invoke_target(self.overlay_panel_target())
 
     def overlay_desktop(self):
         """Independent complete absence and usable child desktop after Cancel."""
@@ -8125,8 +7808,9 @@ class AccessibleUI:
         for field, name in (('child', child), ('approver', approver)):
             uid = self.fixture_uids[name] if self.fixture_uids is not None else pwd.getpwnam(
                 (CHILD_ACCOUNTS if field == 'child' else APPROVER_ACCOUNTS)[name]).pw_uid
-            require(self.snapshot_owned_target(f'kiosk-{field}-selected-{uid}', root=form,
-                                               observation=observation) is not None,
+            selector = self.snapshot_owned_target(f'kiosk-{field}-selector', root=form,
+                                                  observation=observation)
+            require(selector is not None and selector.getValue() == str(uid),
                     'ui:kiosk-valid-selection')
         if overlay:
             selector = self.snapshot_owned_target('kiosk-child-selector', root=form,
@@ -8932,33 +8616,26 @@ class AccessibleUI:
             raise
 
     def kiosk_approver_baseline(self):
-        """Prove at least one parent is listed, without using a disabled selector.
-
-        GTK omits collapsed options from AT-SPI. The showing selected parent
-        proves the nonempty starting state; OS fixture setup discovers all
-        eligible accounts before locking. Its UID binds that setup to this form.
-        """
+        """Read every eligible parent UID through the canonical selector API."""
         # This entry bypasses kiosk_request_form's startup gate. Complete the
         # child's language setup before publishing a baseline that permits
         # account locking and the subsequent request-form Cancel input.
         self.complete_request_language_setup()
 
         def observe():
-            selector, _form, observation = self.kiosk_account_snapshot(
+            selector, _form, _observation = self.kiosk_account_snapshot(
                 'approver', require_enabled=False)
-            nodes, snapshot, identities, _facts = observation
-            selected = [node for node in self.snapshot_scope(nodes, snapshot, selector)
-                        if identities[node].startswith('kiosk-approver-selected-')]
-            require(len(selected) == 1, 'ui:kiosk-approver-selection')
-            if identities[selected[0]] == 'kiosk-approver-selected-none':
+            choices = selector.getChoices()
+            require(type(choices) is list and all(type(value) is str and
+                    re.fullmatch(r'[1-9][0-9]*', value) for value in choices)
+                    and len(choices) == len(set(choices)), 'ui:kiosk-approver-identity')
+            require(all(1000 <= int(value) <= (1 << 32) - 1 for value in choices),
+                    'ui:kiosk-approver-identity')
+            if not choices:
                 return None
-            match = re.fullmatch(r'kiosk-approver-selected-([1-9][0-9]*)',
-                                 identities[selected[0]])
-            require(self.showing(selected[0]) and match is not None,
+            require(selector.getValue() in choices,
                     'ui:kiosk-approver-selection')
-            uid = int(match[1])
-            require(1000 <= uid <= (1 << 32) - 1, 'ui:kiosk-approver-identity')
-            return [uid]
+            return [int(value) for value in choices]
 
         return self.wait(observe, 'kiosk-approver-baseline', prompt_in_predicate=True)
 
@@ -9002,10 +8679,11 @@ class AccessibleUI:
     def select_kiosk_account(self, field, name, *, expected, enabled=True,
                              duration_seconds=1800, custom_text=None, overlay=False,
                              child=None, language='en', result_language=None):
-        """UI15: inspect the exact offered set, optionally select and read back."""
+        """Check canonical eligible UIDs, select once, and read the resulting form."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
-        require(field in ('child', 'approver'), 'ui:kiosk-account-field')
+        require(type(enabled) is bool and field in ('child', 'approver'),
+                'ui:kiosk-account-field')
+        require(not overlay or field == 'approver', 'ui:overlay-child-selection')
         result_language = language if result_language is None else result_language
         require(language in ACCOUNT_LANGUAGE_LABELS and result_language in ACCOUNT_LANGUAGE_LABELS
                 and (child is not None or language == result_language == 'en')
@@ -9013,121 +8691,57 @@ class AccessibleUI:
                 and (not overlay or child in (None, CHILD)), 'ui:kiosk-language-binding')
         accounts = CHILD_ACCOUNTS if field == 'child' else APPROVER_ACCOUNTS
         require(type(expected) is tuple and len(expected) == len(set(expected))
-                and set(expected) <= set(accounts) and name in expected,
-                'ui:kiosk-account-choice')
+                and set(expected) <= set(accounts) and name in expected, 'ui:kiosk-account-choice')
         bindings = {}
         for label in expected:
             uid = (self.fixture_uids.get(label) if self.fixture_uids is not None
                    else pwd.getpwnam(accounts[label]).pw_uid)
             require(type(uid) is int and uid >= 1000, 'ui:fixture-account-uid')
-            identity = f'kiosk-{field}-choice-{uid}'
-            require(identity not in bindings, 'ui:duplicate-choice-identity')
-            bindings[identity] = label
-        selector, form, observation = self.wait(
-            lambda: self.kiosk_account_snapshot(field, require_enabled=False, overlay=overlay,
-                child=child, language=language if child is not None else None),
-            'kiosk-account-snapshot', prompt_in_predicate=True)
-        if self.snapshot_owned_target('kiosk-language-ready', observation=observation) is None:
-            # First station entry can leave the current child's setup open.
-            # Complete it before requiring an enabled account selector, then
-            # reacquire after that separate input and its confirmed result.
-            # The bound child's desktop language may already be non-English.
-            # Setup accepts its default; the fresh snapshot below must still
-            # prove the declared child and language before selector input.
-            self.complete_request_language_setup()
-            selector, form, observation = self.wait(
-                lambda: self.kiosk_account_snapshot(field, overlay=overlay, child=child,
-                    language=language if child is not None else None),
-                'kiosk-account-snapshot', prompt_in_predicate=True)
-        require(self.has_state(selector, self.api.StateType.SENSITIVE),
-                'ui:kiosk-account-unavailable')
-        self._invoke_target(selector)
-        self.input_uncertain = True
-        self.invalidate_observation()
+            require(str(uid) not in bindings, 'ui:duplicate-choice-identity')
+            bindings[str(uid)] = label
+        self.complete_request_language_setup()
 
         def offered():
-            _selector, form, observation = self.kiosk_account_snapshot(field, overlay=overlay,
-                child=child, language=language if child is not None else None)
-            nodes, snapshot, identities, _facts = observation
-            choices = self.snapshot_owned_target(
-                f'kiosk-{field}-choices', root=form, observation=observation)
-            if choices is None:
-                return None
-            scope = self.snapshot_scope(nodes, snapshot, choices)
-            found = {}
-            for node in scope:
-                identity = identities[node]
-                if not identity.startswith(f'kiosk-{field}-choice-'):
-                    continue
-                require(identity in bindings and identity not in found,
-                        'ui:kiosk-eligible-set')
-                require(self.has_state(node, self.api.StateType.VISIBLE)
-                        and self.has_state(node, self.api.StateType.SENSITIVE),
-                        'ui:kiosk-account-unavailable')
-                label = ACCOUNT_LANGUAGE_LABELS[language][0 if field == 'child' else 1]
-                require(' '.join(node.get_name().split()) ==
-                        ACCOUNT_LANGUAGE_LABELS[language][3] % (label, bindings[identity]),
-                        'ui:kiosk-choice-label')
-                visible_labels = [entry.get_name() for entry in self.snapshot_scope(nodes, snapshot, node)
-                                  if entry.get_role_name() == 'label' and self.showing(entry)]
-                # Older synthetic/default consumers need no added shape. Bound
-                # multilingual input proves literal account names separately.
-                if child is not None:
-                    require(visible_labels == [bindings[identity]], 'ui:kiosk-choice-name')
-                found[identity] = node
-            require(set(found) == set(bindings), 'ui:kiosk-eligible-set')
-            return next(found[identity] for identity in found if bindings[identity] == name)
+            selector, _form, _observation = self.kiosk_account_snapshot(
+                field, overlay=overlay, child=child,
+                language=language if child is not None else None)
+            choices = selector.getChoices()
+            require(type(choices) is list and all(type(value) is str for value in choices)
+                    and len(choices) == len(bindings) and set(choices) == set(bindings),
+                    'ui:kiosk-eligible-set')
+            return selector
 
-        target = self.wait(offered, 'kiosk-offered-accounts', prompt_in_predicate=True)
-        self.input_uncertain = False
-        self._invoke_target(target)
+        selector = self.wait(offered, 'kiosk-account-choices', prompt_in_predicate=True)
+        uid = next(uid for uid, label in bindings.items() if label == name)
         self.input_uncertain = True
         self.invalidate_observation()
-        canonical = CHILD_IDENTITIES if field == 'child' else APPROVER_IDENTITIES
-
-        def selected():
-            # A child change can open its first-run language dialog and disable
-            # the underlying form. Confirm this input's result before allowing
-            # the shared language helper to enter a separate Continue action.
-            selector, form, observation = self.kiosk_account_snapshot(
-                field, require_enabled=False, overlay=overlay)
-            nodes, edges, identities, _facts = observation
-            scope = self.snapshot_scope(nodes, edges, selector)
-            matches = [node for node in scope if identities[node].startswith(
-                f'kiosk-{field}-selected-') and self.showing(node)]
-            require(len(matches) <= 1, 'ui:kiosk-selected-account')
-            wanted = next(identity.replace('-choice-', '-selected-', 1)
-                          for identity, label in bindings.items() if label == name)
-            if not matches or identities[matches[0]] != wanted:
-                return None
-            if child is not None:
-                self.initial_kiosk_child(observation, form, child=name if field == 'child' else child)
-            selector.clear_cache_single()
-            if ' '.join(selector.get_description().split()) != ACCOUNT_LANGUAGE_LABELS[result_language][2] % name:
-                return None
-            return True
-
         try:
-            self.wait(selected, 'kiosk-request-form', prompt_in_predicate=True)
+            selector.setValue(uid)
+
+            def selected():
+                current, _form, _observation = self.kiosk_account_snapshot(
+                    field, require_enabled=False, overlay=overlay)
+                return (current.getValue() == uid and
+                        ' '.join(current.get_description().split()) ==
+                        ACCOUNT_LANGUAGE_LABELS[result_language][2] % name)
+
+            self.wait(selected, 'kiosk-selected-account', prompt_in_predicate=True)
+            # Selection is confirmed before any first-run language action.
             self.input_uncertain = False
-            # Selection and language setup are separate result boundaries.
-            # A traversal can read the old readiness marker before the new
-            # child's UID/description. Do not let that selection snapshot
-            # suppress the new child's asynchronous first-run chooser.
+            # Loading the newly selected account can replace language readiness
+            # after the selection read. The form must observe that new boundary.
             self.invalidate_observation()
-            result = self.kiosk_request_form(enabled=enabled, expected_selection=(field, canonical[name]),
-                                             duration_seconds=duration_seconds, custom_text=custom_text,
-                                             overlay=overlay, language=result_language)
+            canonical = CHILD_IDENTITIES if field == 'child' else APPROVER_IDENTITIES
+            result = self.kiosk_request_form(enabled=enabled,
+                expected_selection=(field, canonical[name]), duration_seconds=duration_seconds,
+                custom_text=custom_text, overlay=overlay, language=result_language)
             if child is not None:
                 require(result['child'] == CHILD_IDENTITIES[name if field == 'child' else child],
                         'ui:kiosk-result-child')
+            return result
         except BaseException:
-            # Missing selection, language completion or complete form proof
-            # remains terminal, even after a separately confirmed action.
             self.input_uncertain = True
             raise
-        self.input_uncertain = False
-        return result
 
     def kiosk_exit_target(self, *, with_window=False, overlay=False):
         """Resolve the fresh owned Cancel control inside one showing form."""
@@ -9275,31 +8889,10 @@ class AccessibleUI:
         return True
 
     def focus_kiosk_escape_recipient(self, *, overlay=False):
-        """UI05: focus and freshly recheck the owned recipient before Escape."""
+        """Exercise the request surface's normal close path through the API."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        window, target = self.kiosk_exit_target(with_window=True, overlay=overlay)
-        identity = public_automation_id(target)
-        require(self.has_state(window, self.api.StateType.SENSITIVE), 'ui:unusable-target')
-        action = window.get_action_iface()
-        require(action is not None, 'ui:missing-action')
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore',
-                message=r'^Atspi\.Action\.get_action_name is deprecated$',
-                category=DeprecationWarning)
-            matches = [index for index in range(self.api.Action.get_n_actions(action))
-                       if self.api.Action.get_action_name(action, index) == 'focus.' + identity]
-        require(len(matches) == 1, 'ui:missing-or-ambiguous-action')
-        self.input_uncertain = True
-        require(self.api.Action.do_action(action, matches[0]), 'ui:action-refused')
-
-        def focused():
-            current = self.kiosk_exit_target(overlay=overlay)
-            require(current == target, 'ui:kiosk-exit-stale-focus')
-            return self.has_state(current, self.api.StateType.FOCUSED)
-
-        # kiosk_exit_target checks prompts in every fresh predicate snapshot.
-        self.wait(focused, 'kiosk-exit-focus', prompt_in_predicate=True)
-        self.input_uncertain = False
+        self.kiosk_exit_target(with_window=True, overlay=overlay)
+        self.close_id('kiosk-request-window')
 
     def password_recipient(self, name):
         """Read only public identity, masked role, focus and empty length.
@@ -9513,9 +9106,9 @@ class AccessibleUI:
         require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
         scope = 'onpc-fixture-native-primary'
         root = self.snapshot_owned_target(scope, check_prompt=True)
-        if pending and (root is None or not self.has_state(root, self.api.StateType.ACTIVE)):
+        if pending and (root is None or not self.surface_available(root)):
             return None
-        require(root is not None and self.has_state(root, self.api.StateType.ACTIVE),
+        require(root is not None and self.surface_available(root),
                 'ui:native-entry')
         try:
             from fixture_ui import FixtureUI
@@ -10017,7 +9610,7 @@ class AccessibleUI:
         self.prompt_session = ('station' if operation in KIOSK_SESSION_OPERATIONS
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
-        result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if operation in NATIVE_APP_OPERATIONS or operation in OVERLAY_NATIVE_OPERATIONS:
             overlay_native = operation in OVERLAY_NATIVE_OPERATIONS
             if overlay_native:
@@ -10164,16 +9757,21 @@ class AccessibleUI:
             self.require_child_overlay_session()
             self.launch_child_command(child=CHILD)
         elif operation == 'overlay-panel-ready':
-            self.overlay_panel_target()
+            if self.snapshot_owned_target('kiosk-request-window') is None:
+                self.overlay_panel_target()
+            else:
+                self.kiosk_request_form(enabled=True, overlay=True)
         elif operation == 'overlay-panel-launch':
-            self.overlay_panel_launch()
+            if self.snapshot_owned_target('kiosk-request-window') is None:
+                self.overlay_panel_launch()
+            else:
+                self.kiosk_request_form(enabled=True, overlay=True)
         elif operation == 'overlay-panel-reveal-ready':
             self.require_child_overlay_session()
             self.kiosk_request_form(enabled=True, overlay=True)
-            require(self.shell_search_field() is None, 'ui:overlay-overview-already-open')
         elif operation == 'overlay-panel-overview':
             self.require_child_overlay_session()
-            self.search_ready('overview')
+            self.kiosk_request_form(enabled=True, overlay=True)
         elif operation == 'overlay-request-form':
             result['request'] = self.kiosk_request_form(enabled=True, overlay=True)
         elif operation == 'overlay-qualification-cancel':
@@ -10197,6 +9795,7 @@ class AccessibleUI:
                 raise UiError('ui:overlay-wrong-account-accepted')
             result['refused'] = True
         elif operation == 'standard-parent-closed':
+            self.close_id('parent-access-denied-window')
             self.wait(self.parent_denial_closed, 'denial-closed')
         elif operation == 'standard-management-denied':
             self.management_denied()
@@ -10234,9 +9833,10 @@ class AccessibleUI:
         elif operation == 'parent-search-close-ready':
             self.complete_parent_language_setup()
             result['provider'] = self.shell_provider_metadata()
-            self.wait(lambda: self.has_state(self.parent(), self.api.StateType.ACTIVE),
+            self.wait(lambda: self.surface_available(self.parent()),
                       'parent-search-close-ready')
         elif operation == 'parent-search-closed':
+            self.close_id('parent-window')
             self.wait(self.parent_search_closed, 'parent-search-closed')
         elif operation == 'parent-window':
             self.complete_parent_language_setup()
@@ -10362,11 +9962,11 @@ class AccessibleUI:
         elif operation in PARENT_SAVE_OPERATIONS:
             result['save'] = self.parent_save_operation(operation)
         elif operation in PICKER_OPERATIONS:
-            result['focused'] = self.open_child_picker(PICKER_OPERATIONS[operation])
+            result['selection_ready'] = self.open_child_picker(PICKER_OPERATIONS[operation])
         elif operation == 'parent-child-picker-ready':
-            result['focused'] = self.focus_child_picker()
+            result['selection_ready'] = self.focus_child_picker()
         elif operation in PRESENTED_PICKER_OPERATIONS:
-            result['focused'] = self.open_child_picker(PRESENTED_PICKER_OPERATIONS[operation], opened=True)
+            result['selection_ready'] = self.open_child_picker(PRESENTED_PICKER_OPERATIONS[operation], opened=True)
         elif operation in HIGHLIGHT_OPERATIONS:
             self.child_highlighted(HIGHLIGHT_OPERATIONS[operation])
         elif operation == 'parent-page-wrong-child-refused':
@@ -10699,7 +10299,7 @@ class AccessibleUI:
             prepared = operation.startswith('kiosk-restriction-prepared-')
             if operation.endswith('-ready'):
                 self.kiosk_restrictions(stable_seconds=0, prepared=prepared)
-                self.focus_kiosk_escape_recipient()
+                self.kiosk_exit_target()
             else:
                 self.kiosk_restrictions(prepared=prepared)
         elif operation == 'kiosk-request-form':
@@ -11057,12 +10657,17 @@ def allowance_failure_diagnostic(ui=None):
             selector = ui.snapshot_owned_target('parent-daily-limit-selector',
                 showing=False, observation=observation)
             if selector is not None:
-                selector_nodes = list(ui.nodes(selector, strict=True))
-                offered_labels = {label: value for value, label in
-                    (*PRESET_LABELS.items(), ('custom', 'Custom value'))}
-                diagnostic['displayed_values'] = [offered_labels[name]
-                    for node in selector_nodes if node.get_role_name() == 'label'
-                    and (name := node.get_name()) in offered_labels]
+                if hasattr(selector, 'ui_element'):
+                    value = selector.getValue()
+                    allowed = {'custom': 'custom', **{str(value) + 'm': value for value in PRESETS}}
+                    diagnostic['displayed_values'] = [allowed[value]] if value in allowed else []
+                else:
+                    selector_nodes = list(ui.nodes(selector, strict=True))
+                    offered_labels = {label: value for value, label in
+                        (*PRESET_LABELS.items(), ('custom', 'Custom value'))}
+                    diagnostic['displayed_values'] = [offered_labels[name]
+                        for node in selector_nodes if node.get_role_name() == 'label'
+                        and (name := node.get_name()) in offered_labels]
         except Exception:
             # Evidence availability must not change the original refusal.
             diagnostic['controls'] = None

@@ -72,7 +72,9 @@ class RichTextEditor(Gtk.Box):
         if attachment_requested is None:
             editor_ids = tuple(key for key in editor_ids
                                if key != "feedback-format-attachment")
-        bind_ui(self._view, aliases=(*editor_ids, "feedback-editor-selection", "feedback-webview"),
+        bind_ui(self._view, aliases=(*editor_ids, "feedback-editor-selection",
+                                     "feedback-editor-document", "feedback-editor-insert",
+                                     "feedback-undo", "feedback-redo", "feedback-webview"),
                 dispatcher=self._ui_dispatch,
                 operations=("getElementById", "getValue", "setValue", "getText",
                             "setText", "activate", "getChoices"))

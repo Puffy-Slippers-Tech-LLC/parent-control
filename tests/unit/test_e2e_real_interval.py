@@ -95,7 +95,7 @@ def test_real_controller_decodes_bounded_about_observation(monkeypatch, tmp_path
     if fault == 'endpoint': value['endpoint'] = ['bad', '/about']
     if fault == 'pid': value['pid'] = True
     if fault == 'extra': value['private'] = 'canary'
-    result = {'operation': 'about-interval-read', 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': 'about-interval-read', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               **({} if fault == 'missing' else {'about_interval': value})}
     transport = Mock()
     transport.call.return_value = json.dumps(result).encode()

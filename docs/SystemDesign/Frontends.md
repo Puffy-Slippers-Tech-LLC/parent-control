@@ -78,8 +78,8 @@ Registration follows application/extension lifetime. Same-user credentials,
 bounded arguments and operations, owner-pinned clients and single-use mutations
 prevent stale processes or uncertain calls from becoming silent input retries.
 Input completion does not establish a completed backend save. The existing
-accessibility routes below remain available; this new implementation does not
-claim UI/E2E migration or installed qualification. GTK changes load in a new
+accessibility routes below remain available; UI and E2E share the public API
+facade described in the test inventory. GTK changes load in a new
 frontend process; the child payload follows `session-renewal`. No migration is
 needed.
 

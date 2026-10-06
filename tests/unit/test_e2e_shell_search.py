@@ -100,7 +100,7 @@ def test_standard_qualification_accepts_only_sanitized_provider_metadata(fault):
     provider = {'version': '50.1-0ubuntu1.2', 'locale': 'en_US.UTF-8',
                 'keyboard': [['xkb', 'us']]}
     response = {'operation': 'standard-search-qualified', 'outcome': 'passed',
-                'interface': 'AT-SPI', 'provider': provider}
+                'interface': 'ApplicationUI+external-provider', 'provider': provider}
     if fault == 'private': response['private'] = 'private-canary'
     if fault == 'tuple': provider['locale'] = 'private\ntext'
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(response).encode()))

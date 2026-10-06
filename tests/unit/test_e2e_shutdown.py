@@ -69,7 +69,7 @@ require shift;
         return {functional_smoke => 1} if $_[0] eq 'ready';
         return {ui_focused => 1} if $_[0] eq 'gdm';
         return {ui => {operation => 'gdm-product-free-select-parent', outcome => 'passed',
-                       interface => 'AT-SPI'}} if $_[0] eq 'selected';
+                       interface => 'ApplicationUI+external-provider'}} if $_[0] eq 'selected';
         return {};
     };
     *onpc_flow00::serial = sub { push @events, 'serial-complete'; };

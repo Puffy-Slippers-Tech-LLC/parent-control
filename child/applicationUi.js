@@ -191,7 +191,10 @@ export class ChildApplicationUi {
             'setText', 'activate'].filter(operation => typeof element[operation] === 'function')];
         const metadata = {id: element.id, surface_id: surfaceId,
             application_id: APPLICATION_UI_NAME, type: element.type,
+            parent_id: element.id === surfaceId ? null : surfaceId,
+            role: element.type === 'boolean' ? 'switch' : element.type,
             visible: element.visible, enabled: element.enabled, operations};
+        if (values) metadata.description = element.description ?? '';
         if (values && element.getValue) metadata.value = element.getValue();
         if (values && element.getText) metadata.text = element.getText();
         return metadata;

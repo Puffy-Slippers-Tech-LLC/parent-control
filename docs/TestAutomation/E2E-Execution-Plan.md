@@ -71,6 +71,15 @@ No visual acceptance or product defect is claimed.
 
 ## Current scope
 
+All retained implementations and unfinished briefs use the
+[Application UI API](Application-UI-API.md) for product controls through the
+shared UI/E2E facade. This includes Parent, both request surfaces, dialogs,
+feedback editing and the child panel. Canonical setters replace native
+selector, text-entry and focus choreography; external authentication, file
+choosers and explicitly tested desktop integrations keep their provider routes.
+The [shared task contract](E2E-Execution-Contracts.md#task-brief-contract) applies
+this requirement to every task without changing its case scope or queue order.
+
 Native double-click automation is [excluded by the UI mandate](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures).
 Tasks 070, 070a and 071–076 were removed by the developer's scope decision;
 E2E-014 cases 38–43 retain uncovered inventory/recipe obligations but have no

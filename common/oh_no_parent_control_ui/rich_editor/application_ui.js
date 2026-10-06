@@ -17,7 +17,8 @@
     'feedback-format-heading-2': 'heading-2',
   };
   const known = new Set([
-    'feedback-webview', 'feedback-editor-selection', 'feedback-editor-input',
+    'feedback-webview', 'feedback-editor-selection', 'feedback-editor-document', 'feedback-editor-input',
+    'feedback-editor-insert', 'feedback-undo', 'feedback-redo',
     'feedback-format-toolbar', 'feedback-format-style', ...Object.keys(styles),
     ...Object.keys(formats), 'feedback-format-link', 'feedback-format-attachment',
     'feedback-format-clear', 'feedback-link-target', 'feedback-link-editor',
@@ -48,7 +49,8 @@
 
   function target(id) {
     if (!known.has(id)) throw new Error('Unknown editor control');
-    if (id === 'feedback-webview' || id === 'feedback-editor-selection') return editor;
+    if (['feedback-webview', 'feedback-editor-selection', 'feedback-editor-document',
+      'feedback-editor-insert', 'feedback-undo', 'feedback-redo'].includes(id)) return editor;
     const nodes = document.querySelectorAll(`[id="${id}"]`);
     if (nodes.length !== 1) throw new Error('Missing or ambiguous editor control');
     return nodes[0];
@@ -65,6 +67,7 @@
   }
   function value(id, node) {
     if (id === 'feedback-editor-selection') return selection();
+    if (id === 'feedback-editor-document') return quill.getContents();
     if (id === 'feedback-editor-input' || id === 'feedback-webview') return plainText();
     if (id === 'feedback-format-style') return currentStyle();
     if (id in styles) return currentStyle() === styles[id];
@@ -80,6 +83,8 @@
       ? value(id, node) : node.getAttribute('aria-label') || node.textContent || '';
   }
   function capabilities(id) {
+    if (id === 'feedback-editor-insert') return ['getElementById', 'setText'];
+    if (id === 'feedback-undo' || id === 'feedback-redo') return ['getElementById', 'activate'];
     const ops = ['getElementById', 'getText', 'getValue'];
     if (['feedback-editor-input', 'feedback-webview', 'feedback-link-target'].includes(id))
       ops.push('setText', 'setValue');
@@ -93,7 +98,17 @@
     return ops;
   }
   function setValue(id, node, next) {
-    if (id === 'feedback-editor-input' || id === 'feedback-webview') {
+    if (id === 'feedback-editor-insert') {
+      if (typeof next !== 'string') throw new Error('Text must be a string');
+      const range = selection();
+      const attributes = quill.getFormat(range.index, 0);
+      // One ordinary user-source delta preserves surrounding rich text and
+      // Quill history, including replacement of the retained selection.
+      quill.updateContents({ops: [{retain: range.index}, {delete: range.length},
+        {insert: next, attributes}]}, 'user');
+      lastSelection = {index: range.index + next.length, length: 0};
+      quill.setSelection(lastSelection.index, lastSelection.length, 'silent');
+    } else if (id === 'feedback-editor-input' || id === 'feedback-webview') {
       if (typeof next !== 'string') throw new Error('Text must be a string');
       quill.setText(next, 'user');
     } else if (id === 'feedback-link-target') {
@@ -133,7 +148,9 @@
       let result;
       if (operation === 'getElementById') {
         result = {id, visible, enabled, operations, value: value(id, node),
-          text: text(id, node)};
+          text: text(id, node), name: node.getAttribute('aria-label') || '',
+          description: node.getAttribute('aria-description') || '',
+          role: node.getAttribute('role') || (node.tagName === 'BUTTON' ? 'button' : 'text')};
       } else if (operation === 'getValue') {
         result = value(id, node);
       } else if (operation === 'getText') {
@@ -142,11 +159,23 @@
         result = Object.values(styles);
       } else {
         if (!enabled) throw new Error('Editor control is unavailable');
+        // Each finite API edit is one user action. Keep history independent
+        // of transport speed so adjacent calls cannot merge into one undo.
+        quill.history.cutoff();
         if (operation === 'activate') {
-          if (id.startsWith('feedback-format-')) restoreSelection();
-          node.click();
+          if (id === 'feedback-undo' || id === 'feedback-redo') {
+            quill.history[id === 'feedback-undo' ? 'undo' : 'redo']();
+            // History may restore its cursor silently. Retain the resulting
+            // range before a subsequent toolbar action moves focus away.
+            lastSelection = selection();
+          }
+          else {
+            if (id.startsWith('feedback-format-')) restoreSelection();
+            node.click();
+          }
         }
         else setValue(id, node, operation === 'setText' ? request.text : request.value);
+        quill.history.cutoff();
         publish();
         result = null;
       }

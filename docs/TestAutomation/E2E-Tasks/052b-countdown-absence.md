@@ -1,6 +1,6 @@
 # 052b — Verify countdown availability in UI tests
 
-Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [UI acceptance](../E2E-Execution-Contracts.md#ui-acceptance).
 
 Estimate: 20–30 minutes.
@@ -19,11 +19,12 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Extend the existing isolated-Shell owner
 [test_child_shell_lifecycle.py](../../../tests/ui/test_child_shell_lifecycle.py)
-and its shared adapter with supported countdown-availability checks. Keep
+and its shared `child-panel` Application UI API adapter with logical
+countdown-availability and input-refusal checks. Keep
 locked/greeter state branching in the existing
 [indicator logic tests](../../../tests/child/indicator_logic.test.mjs).
 Require complete public observations for UI absence; a disconnected observer,
-inaccessible tree or wrong owner cannot prove it. Do not manufacture real GDM
+incomplete API inventory or wrong owner cannot prove it. Do not manufacture real GDM
 sessions inside a host preview. Any unavailable public preview state remains a
 specific unimplemented UI obligation.
 

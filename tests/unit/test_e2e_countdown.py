@@ -34,7 +34,9 @@ def tree(monkeypatch, *, present=True):
     indicator = Node('Screen Time Remaining', 'panel', children=[button],
                      identity='child-screen-time-indicator')
     panel = Node('Activities', 'toggle button')
-    shell = Node('gnome-shell', 'application', children=[panel, *([indicator] if present else [])])
+    shell = Node(role='application', identity=accessible_ui.CHILD_PANEL_APPLICATION,
+                 children=[panel, *([indicator] if present else [])])
+    indicator.get_application = Mock(return_value=shell)
     root = Node(role='desktop frame', children=[shell])
     ui = ui_for(root)
     ui.timeout = 4
@@ -76,26 +78,24 @@ def test_positive_id_scoped_read_and_complete_stable_absence(monkeypatch):
         node.component.grab_focus.assert_not_called()
 
 
-@pytest.mark.parametrize('present', [True, False])
-@pytest.mark.parametrize('fault', ['wrong-account', 'inactive', 'wrong-surface', 'duplicate',
-                                 'wrong-owner', 'incomplete', 'defunct', 'prompt'])
+@pytest.mark.parametrize('present,fault', [
+    (present, fault) for present in (True, False) for fault in (
+        'wrong-account', 'inactive', 'wrong-surface', 'duplicate', 'wrong-owner',
+        'incomplete', 'defunct', 'prompt')
+    if present or fault not in ('wrong-surface', 'duplicate', 'wrong-owner')])
 def test_wrong_stale_or_incomplete_reads_never_establish_countdown(monkeypatch, present, fault):
     ui, root, shell, panel, indicator, label, _ = tree(monkeypatch, present=present)
     ui.timeout = 0
     if fault == 'wrong-account': monkeypatch.setattr(accessible_ui.os, 'getuid', lambda: 1002)
     if fault == 'inactive':
         accessible_ui.require_active_launch_session.side_effect = accessible_ui.UiError('ui:launch-session')
-    if fault == 'wrong-surface': panel.name = 'Unlock'
+    if fault == 'wrong-surface': shell.identity = 'foreign-application'
     if fault == 'duplicate':
         for _ in range(2):
             duplicate = Node('00:14', 'label', identity='child-remaining-time')
             duplicate.parent = shell
             shell.children.append(duplicate)
-    if fault == 'wrong-owner':
-        foreign = Node('foreign', 'application', children=[Node('00:14', 'label',
-                       identity='child-remaining-time')])
-        foreign.parent = root
-        root.children.append(foreign)
+    if fault == 'wrong-owner': ui.owner_pids = lambda: {999}
     if fault == 'incomplete': shell.children.append(None)
     if fault == 'defunct': panel.states.add('defunct')
     if fault == 'prompt': ui.system_prompt_kind = Mock(return_value='keyring')
@@ -138,7 +138,7 @@ def test_real_controller_decodes_countdown_and_rejects_invalid_evidence(present,
     if fault == 'timestamp': result['observed_monotonic_ns'] = True
     if fault == 'stable': result['stable_ms'] = 1
     if fault == 'extra': result['private'] = 'fixture-private-canary'
-    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'countdown': result}
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'countdown': result}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(payload).encode()))
     ui = UiObservations(transport)
     if fault:

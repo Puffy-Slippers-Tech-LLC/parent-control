@@ -22,15 +22,17 @@ def test_selection_checks_exact_choices_and_reads_independent_enabled_result(fie
     observed = RequestObservation.from_request(result['request'], operation=operation)
     assert observed.child == 'fixture-child'
     assert observed.request_enabled
-    selector.action.do_action.assert_called_once()
-    choices.children[0].action.do_action.assert_called_once()
+    selector.setValue.assert_called_once_with(str(ui.fixture_uids[expected[0]]))
+    selector.getChoices.assert_called()
+    selector.action.do_action.assert_not_called()
+    choices.children[0].action.do_action.assert_not_called()
     choices.children[1].action.do_action.assert_not_called()
     with pytest.raises(FrozenInstanceError):
         observed.child = 'changed'
 
 
 @pytest.mark.parametrize('fault', [None, 'wrong-selection', 'wrong-description',
-                                 'duplicate', 'wrong-owner', 'missing-result', 'save-failed'])
+                                 'malformed-selection', 'wrong-owner', 'missing-result', 'save-failed'])
 def test_child_selection_confirms_account_before_first_run_language_input(fault):
     ui, selector, choices, expected = accounts_form()
     ui.timeout = .5  # The full form is reread after successful language setup.
@@ -39,7 +41,7 @@ def test_child_selection_confirms_account_before_first_run_language_input(fault)
     button = Node(identity='language-continue')
     dialog = Node(identity='language-dialog', children=[button])
     dialog.parent = window
-    commit = choices.children[0].action.do_action.side_effect
+    commit = selector.setValue.side_effect
 
     def select(index):
         commit(index)
@@ -48,24 +50,22 @@ def test_child_selection_confirms_account_before_first_run_language_input(fault)
         # The language modal disables the underlying request controls.
         selector.states.discard('sensitive')
         if fault == 'wrong-selection':
-            selector.children[0].identity = 'kiosk-child-selected-1002'
+            selector.value = '1002'
         elif fault == 'wrong-description':
             selector.description = f'Selected account: {EXISTING_CHILD}.'
-        elif fault == 'duplicate':
-            duplicate = Node(identity=selector.children[0].identity)
-            duplicate.parent = selector
-            selector.children.append(duplicate)
+        elif fault == 'malformed-selection':
+            selector.value = ['1001', '1002']
         elif fault == 'wrong-owner':
             ui.owner_pids = lambda: {999}
         elif fault == 'missing-result':
-            selector.children.clear()
+            selector.value = ''
         return True
 
     def save(_):
         # The action has already passed its pre-input latch guard and is now
         # latched until the independent language completion read.
         assert ui.input_uncertain
-        assert selector.children[0].identity == 'kiosk-child-selected-1001'
+        assert selector.getValue() == '1001'
         assert selector.description == f'Selected account: {CHILD}.'
         if fault != 'save-failed':
             window.children.remove(dialog)
@@ -73,7 +73,7 @@ def test_child_selection_confirms_account_before_first_run_language_input(fault)
             selector.states.add('sensitive')
         return True
 
-    choices.children[0].action.do_action.side_effect = select
+    selector.setValue.side_effect = select
     button.action.do_action.side_effect = save
     if fault:
         with pytest.raises(UiError):
@@ -86,13 +86,14 @@ def test_child_selection_confirms_account_before_first_run_language_input(fault)
         assert result['child'] == 'fixture-child' and result['request_enabled']
         assert not ui.input_uncertain
     assert button.action.do_action.call_count == (1 if fault in (None, 'save-failed') else 0)
-    selector.action.do_action.assert_called_once()
-    choices.children[0].action.do_action.assert_called_once()
+    selector.setValue.assert_called_once_with('1001')
+    selector.action.do_action.assert_not_called()
+    choices.children[0].action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('field', ['child', 'approver'])
 @pytest.mark.parametrize('fault', [None, 'save-failed', 'still-disabled'])
-def test_account_input_completes_startup_language_before_opening_selector(
+def test_account_input_completes_startup_language_before_setting_selector(
         field, fault):
     ui, selector, choices, expected = accounts_form(field)
     window = ui.find_id('kiosk-request-window')
@@ -107,6 +108,7 @@ def test_account_input_completes_startup_language_before_opening_selector(
 
     def save(_):
         events.append('save')
+        selector.setValue.assert_not_called()
         selector.action.do_action.assert_not_called()
         for choice in choices.children:
             choice.action.do_action.assert_not_called()
@@ -117,16 +119,16 @@ def test_account_input_completes_startup_language_before_opening_selector(
                 selector.states.add('sensitive')
         return True
 
-    open_choices = selector.action.do_action.side_effect
+    commit = selector.setValue.side_effect
 
-    def open_selector(index):
-        events.append('open')
+    def select(value):
+        events.append('select')
         assert dialog not in window.children and ready in window.children
-        assert ui.input_uncertain  # This new selector action is now latched.
-        return open_choices(index)
+        assert ui.input_uncertain
+        return commit(value)
 
     button.action.do_action.side_effect = save
-    selector.action.do_action.side_effect = open_selector
+    selector.setValue.side_effect = select
     if fault:
         with pytest.raises(UiError, match=('timeout:language-saved' if fault == 'save-failed'
                                           else 'kiosk-account-unavailable')):
@@ -137,40 +139,41 @@ def test_account_input_completes_startup_language_before_opening_selector(
             with pytest.raises(UiError, match='uncertain-input'):
                 ui.select_kiosk_account(field, expected[0], expected=expected)
         selector.action.do_action.assert_not_called()
+        selector.setValue.assert_not_called()
         for choice in choices.children:
             choice.action.do_action.assert_not_called()
     else:
         result = ui.select_kiosk_account(field, expected[0], expected=expected)
-        assert events == ['save', 'open'] and not ui.input_uncertain
-        selector.action.do_action.assert_called_once()
-        choices.children[0].action.do_action.assert_called_once()
+        assert events == ['save', 'select'] and not ui.input_uncertain
+        selector.setValue.assert_called_once_with(str(ui.fixture_uids[expected[0]]))
+        selector.action.do_action.assert_not_called()
+        choices.children[0].action.do_action.assert_not_called()
         choices.children[1].action.do_action.assert_not_called()
         assert result['request_enabled']
     button.action.do_action.assert_called_once()
 
 
-@pytest.mark.parametrize('fault', ['missing', 'extra', 'duplicate', 'wrong-label',
+@pytest.mark.parametrize('fault', ['missing', 'extra', 'duplicate', 'noncanonical',
                                  'disabled', 'hidden', 'wrong-owner', 'wrong-surface'])
 def test_bad_offered_set_never_commits(fault):
     ui, selector, choices, expected = accounts_form()
-    target = choices.children[0]
     if fault == 'missing':
-        choices.children.pop()
+        selector.choices.pop()
     elif fault == 'extra':
-        choices.children.append(Node(identity='kiosk-child-choice-9999'))
+        selector.choices.append('9999')
     elif fault == 'duplicate':
-        choices.children.append(Node(identity=target.identity))
-    elif fault == 'wrong-label':
-        target.name = 'Child account: wrong'
+        selector.choices.append(selector.choices[0])
+    elif fault == 'noncanonical':
+        selector.choices[0] = 1001
     elif fault in ('disabled', 'hidden'):
-        target.states.discard('sensitive' if fault == 'disabled' else 'visible')
+        selector.states.discard('sensitive' if fault == 'disabled' else 'visible')
     elif fault == 'wrong-owner':
         ui.owner_pids = lambda: {999}
     else:
         ui.find_id('kiosk-request-window').identity = 'parent-window'
     with pytest.raises(UiError):
         ui.select_kiosk_account('child', CHILD, expected=expected)
-    target.action.do_action.assert_not_called()
+    selector.setValue.assert_not_called()
 
 
 def test_wrong_or_absent_choice_refuses_before_any_input():
@@ -179,6 +182,7 @@ def test_wrong_or_absent_choice_refuses_before_any_input():
         with pytest.raises(UiError, match='kiosk-account-choice'):
             ui.select_kiosk_account('child', name, expected=expected)
     selector.action.do_action.assert_not_called()
+    selector.setValue.assert_not_called()
 
 
 def test_overlay_disabled_child_selector_refuses_input():
@@ -187,31 +191,32 @@ def test_overlay_disabled_child_selector_refuses_input():
     with pytest.raises(UiError, match='kiosk-account-unavailable'):
         ui.select_kiosk_account('child', CHILD, expected=expected)
     selector.action.do_action.assert_not_called()
+    selector.setValue.assert_not_called()
 
 
 def test_uncertain_action_is_never_replayed():
     ui, selector, choices, expected = accounts_form()
-    choices.children[0].action.do_action.side_effect = RuntimeError('lost reply')
+    selector.setValue.side_effect = RuntimeError('lost reply')
     with pytest.raises(RuntimeError):
         ui.select_kiosk_account('child', CHILD, expected=expected)
     with pytest.raises(UiError, match='uncertain-input'):
         ui.select_kiosk_account('child', CHILD, expected=expected)
-    selector.action.do_action.assert_called_once()
-    choices.children[0].action.do_action.assert_called_once()
+    selector.setValue.assert_called_once_with('1001')
+    selector.action.do_action.assert_not_called()
 
 
 def test_successful_input_without_changed_selection_fails():
     ui, selector, choices, expected = accounts_form()
-    commit = choices.children[0].action.do_action.side_effect
+    commit = selector.setValue.side_effect
     def wrong(index):
         commit(index)
-        selector.children[0].identity = 'kiosk-child-selected-1002'
+        selector.value = '1002'
         selector.description = f'Selected account: {EXISTING_CHILD}.'
         return True
-    choices.children[0].action.do_action.side_effect = wrong
-    with pytest.raises(UiError, match='timeout:kiosk-request-form'):
+    selector.setValue.side_effect = wrong
+    with pytest.raises(UiError, match='timeout:kiosk-selected-account'):
         ui.select_kiosk_account('child', CHILD, expected=expected)
-    choices.children[0].action.do_action.assert_called_once()
+    selector.setValue.assert_called_once_with('1001')
     with pytest.raises(UiError, match='uncertain-input'):
         ui.select_kiosk_account('child', CHILD, expected=expected)
 
@@ -269,12 +274,12 @@ def test_ineligible_profile_refuses_conflicting_modes(conflict):
 
 def test_locked_administrator_cannot_appear_in_exact_public_choices():
     ui, selector, choices, expected = accounts_form('approver')
-    choices.children.append(Node(identity='kiosk-approver-choice-1010',
-                                 name='Approver account: Locked Parent'))
+    selector.choices.append('1010')
     with pytest.raises(UiError, match='eligible-set'):
         ui.select_kiosk_account('approver', PARENT, expected=expected)
     for choice in choices.children:
         choice.action.do_action.assert_not_called()
+    selector.setValue.assert_not_called()
 
 
 def test_ineligible_case_binds_fresh_fixture_to_complete_recorder(monkeypatch):
@@ -308,6 +313,7 @@ def test_account_snapshot_rejects_incomplete_tree_before_input():
     with pytest.raises(UiError):
         ui.select_kiosk_account('child', CHILD, expected=expected)
     selector.action.do_action.assert_not_called()
+    selector.setValue.assert_not_called()
 
 
 def test_account_snapshot_uses_one_complete_read_for_input_boundary():
@@ -381,8 +387,7 @@ def test_account_selection_discards_stale_reads_without_replaying_input(
 
     def nodes(*args, **kwargs):
         if stale in root.children:
-            stale_reads.append((selector.action.do_action.call_count,
-                                choices.children[0].action.do_action.call_count))
+            stale_reads.append(selector.setValue.call_count)
             if len(stale_reads) > 1 and not persistent:
                 root.children.remove(stale)
         yield from original_nodes(*args, **kwargs)
@@ -390,16 +395,23 @@ def test_account_selection_discards_stale_reads_without_replaying_input(
     monkeypatch.setattr(ui, 'nodes', nodes)
     if boundary == 'initial':
         root.children.append(stale)
+    elif boundary == 'offered':
+        def offered():
+            stale_reads.append(selector.setValue.call_count)
+            if persistent or len(stale_reads) == 1:
+                raise UiError('ui:stale-request-form')
+            return list(selector.choices)
+
+        selector.getChoices.side_effect = offered
     else:
-        action = selector.action if boundary == 'offered' else choices.children[0].action
-        original_input = action.do_action.side_effect
+        original_input = selector.setValue.side_effect
 
         def enter(index):
             original_input(index)
             root.children.append(stale)
             return True
 
-        action.do_action.side_effect = enter
+        selector.setValue.side_effect = enter
 
     if persistent:
         with pytest.raises(UiError, match='stale-request-form'):
@@ -410,10 +422,10 @@ def test_account_selection_discards_stale_reads_without_replaying_input(
         assert RequestObservation.from_request(result, operation=f'kiosk-{field}-select').request_enabled
         assert stale not in root.children and not ui.input_uncertain
     assert len(stale_reads) >= 2
-    assert set(stale_reads) == {({'initial': 0, 'offered': 1, 'selected': 1}[boundary],
-                                int(boundary == 'selected'))}
-    assert selector.action.do_action.call_count == (not persistent or boundary != 'initial')
-    assert choices.children[0].action.do_action.call_count == (not persistent or boundary == 'selected')
+    assert set(stale_reads) == {int(boundary == 'selected')}
+    assert selector.setValue.call_count == (not persistent or boundary == 'selected')
+    selector.action.do_action.assert_not_called()
+    choices.children[0].action.do_action.assert_not_called()
     choices.children[1].action.do_action.assert_not_called()
 
 

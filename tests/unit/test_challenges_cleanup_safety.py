@@ -128,7 +128,7 @@ def test_controller_challenge_checks_are_fresh_and_terminal(fault, role):
             operation = operation.replace('gdm-parent-recipient', 'gdm-child-recipient')
             operation = operation.replace('gdm-focused', 'gdm-child-focused')
         transport.call.return_value = json.dumps({
-            'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}).encode()
+            'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}).encode()
         return ui.observe_challenge(operation, context) if context else ui.observe(operation)
 
     for identity in ('first-login', 'second-login'):

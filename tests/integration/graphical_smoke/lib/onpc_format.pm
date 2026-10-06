@@ -13,9 +13,7 @@ sub apply_bold {
     my ($journey) = @_;
     die 'format:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     $journey->consume_observation('format-focus', $journey->seen('format-focus'));
-    testapi::send_key('ctrl-home');
     $journey->consume_observation('format-home', $journey->seen('format-home'));
-    testapi::send_key('shift-right') for 1 .. 9;
     for my $stage ('format-selected', 'format-read') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
@@ -31,11 +29,7 @@ sub apply_block {
         && exists $ranges{$kind} && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
     my $prefix = "${invocation}block-$kind";
     $journey->consume_observation("$prefix-focus", $journey->seen("$prefix-focus"));
-    testapi::send_key('ctrl-home');
     $journey->consume_observation("$prefix-home", $journey->seen("$prefix-home"));
-    my ($start, $end) = @{$ranges{$kind}};
-    testapi::send_key('right') for 1 .. $start;
-    testapi::send_key('shift-right') for 1 .. ($end - $start);
     $journey->consume_observation("$prefix-selected", $journey->seen("$prefix-selected"));
     $journey->consume_observation("$prefix-read", $journey->seen("$prefix-read"));
 }
@@ -52,19 +46,10 @@ sub apply_inline {
     $namespace = $invocation . $namespace;
     my $prefix = "$namespace-$kind";
     $journey->consume_observation("$prefix-focus", $journey->seen("$prefix-focus"));
-    testapi::send_key('ctrl-home');
     $journey->consume_observation("$prefix-home", $journey->seen("$prefix-home"));
-    if ($kind eq 'clear') {
-        testapi::send_key('ctrl-shift-end');
-    } else {
-        testapi::send_key('ctrl-end');
-        testapi::send_key('left') for 1 .. 12;
-        testapi::send_key('shift-right') for 1 .. 5;
-    }
     $journey->consume_observation("$prefix-selected", $journey->seen("$prefix-selected"));
     if ($kind eq 'link') {
         $journey->consume_observation("$namespace-link-target", $journey->seen("$namespace-link-target"));
-        testapi::type_string('https://example.com/feedback');
         $journey->consume_observation("$namespace-link-save", $journey->seen("$namespace-link-save"));
     }
     $journey->consume_observation("$prefix-read", $journey->seen("$prefix-read"));

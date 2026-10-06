@@ -1,0 +1,148 @@
+"""Public API projection guards, using private in-memory client doubles."""
+
+from copy import deepcopy
+from types import SimpleNamespace
+
+import pytest
+
+from tests.support.application_ui import ApplicationUI, UIClientError, utf16_index
+
+
+class Client:
+    application_id = 'com.puffyslippers.OhNoParentControl.Parent'
+    owner = ':1.42'
+    object_path = '/com/puffyslippers/OhNoParentControl/Parent'
+    pid = 4242
+
+    def __init__(self):
+        self.calls = []
+        self.failure = None
+        self.elements = {
+            'parent-window': self.metadata('parent-window'),
+            'parent-screen-limit-toggle': self.metadata(
+                'parent-screen-limit-toggle', parent='parent-window', role='switch',
+                value=False, operations=['getValue', 'setValue', 'activate']),
+        }
+
+    def metadata(self, identity, *, parent=None, role='window', value=None, operations=()):
+        return {'id': identity, 'surface_id': 'parent-window',
+                'application_id': self.application_id, 'parent_id': parent,
+                'type': 'test-control', 'role': role, 'visible': True, 'enabled': True,
+                'operations': ['getElementById', *operations], 'value': value}
+
+    def listSurfaces(self):
+        return [{'id': 'parent-window', 'application_id': self.application_id,
+                 'visible': True, 'enabled': True, 'modal': False, 'parent_id': None}]
+
+    def inventory(self, scope):
+        assert scope == 'parent-window'
+        return deepcopy(list(self.elements.values()))
+
+    def call(self, scope, identity, operation, arguments=None):
+        assert scope == 'parent-window'
+        self.calls.append((identity, operation, arguments))
+        if self.failure is not None:
+            raise self.failure
+        current = self.elements[identity]
+        if operation == 'getElementById':
+            return deepcopy(current)
+        if operation == 'getValue':
+            return current['value']
+        if operation == 'setValue':
+            current['value'] = arguments['value']
+            return None
+        raise AssertionError(operation)
+
+
+def catalog(client):
+    states = SimpleNamespace(**{name: name for name in (
+        'VISIBLE', 'SHOWING', 'SENSITIVE', 'FOCUSED', 'ACTIVE', 'CHECKED',
+        'PRESSED', 'SELECTED', 'EXPANDED', 'EDITABLE', 'MODAL')})
+    return ApplicationUI(SimpleNamespace(StateType=states), clients={'parent': client})
+
+
+def test_scoped_references_are_fresh_and_never_claim_keyboard_focus():
+    client = Client()
+    ui = catalog(client)
+    first = ui.getElementById('parent-screen-limit-toggle')
+    assert first.get_state_set().contains('SENSITIVE')
+    assert not first.get_state_set().contains('FOCUSED')
+    assert not first.get_state_set().contains('ACTIVE')
+    first.setValue(True)
+    second = ui.getElementById('parent-screen-limit-toggle')
+    assert second == first and second is not first
+    assert second.getValue() is True
+    assert second.get_state_set().contains('CHECKED')
+    assert [call[1] for call in client.calls].count('setValue') == 1
+    client.owner = ':1.43'
+    assert ui.getElementById('parent-screen-limit-toggle') != first
+
+
+@pytest.mark.parametrize('fault', ['cycle', 'missing-parent', 'wrong-owner', 'wrong-application'])
+def test_incomplete_inventory_or_foreign_launch_owner_refuses(fault):
+    client = Client()
+    ui = catalog(client)
+    kwargs = {}
+    if fault == 'cycle':
+        client.elements['parent-screen-limit-toggle']['parent_id'] = 'parent-screen-limit-toggle'
+    elif fault == 'missing-parent':
+        client.elements['parent-screen-limit-toggle']['parent_id'] = 'absent'
+    elif fault == 'wrong-owner':
+        kwargs['owner_pids'] = {99}
+    else:
+        kwargs['application_owners'] = {client.application_id: {99}}
+    with pytest.raises(UIClientError):
+        ui.applications(**kwargs)
+    assert not any(operation == 'setValue' for _, operation, _ in client.calls)
+
+
+def test_uncertain_mutation_is_dispatched_once_without_fallback():
+    client = Client()
+    node = catalog(client).getElementById('parent-screen-limit-toggle')
+    client.failure = UIClientError('Transport', uncertain=True)
+    with pytest.raises(UIClientError) as failed:
+        node.setValue(True)
+    assert failed.value.uncertain
+    assert client.calls == [('parent-screen-limit-toggle', 'setValue', {'value': True})]
+
+
+@pytest.mark.parametrize('role,expected', [
+    ('text-box', 'entry'), ('textbox', 'entry'), ('combo-box', 'combo box'),
+    ('list-item', 'list item'), ('tab-list', 'page tab list'), ('menu-item', 'menu item'),
+])
+def test_native_and_document_roles_share_the_result_vocabulary(role, expected):
+    client = Client()
+    client.elements['parent-screen-limit-toggle']['role'] = role
+    assert catalog(client).getElementById('parent-screen-limit-toggle').get_role_name() == expected
+
+
+def test_inventory_does_not_hide_ambiguous_application_identity():
+    first, second = Client(), Client()
+    second.owner = ':1.43'
+    ui = ApplicationUI(clients={'first': first, 'second': second})
+    with pytest.raises(UIClientError):
+        ui.getElementById('parent-screen-limit-toggle')
+
+
+def test_scoped_refresh_keeps_original_owner_when_another_surface_has_same_id():
+    first, second = Client(), Client()
+    second.owner = ':1.43'
+    ui = ApplicationUI(clients={'first': first, 'second': second})
+    root = ui.applications()[0]
+    second.elements['parent-screen-limit-toggle']['value'] = True
+    original = root.children[0].children[0]
+    assert ui.refresh(original).getValue() is False
+    first.elements['parent-screen-limit-toggle']['value'] = True
+    assert ui.refresh(original).getValue() is True
+    with pytest.raises(UIClientError):
+        ui.refresh(original, owner_pids={99})
+
+
+@pytest.mark.parametrize('offset,expected', [(0, 0), (1, 1), (3, 2), (4, 3)])
+def test_editor_offsets_use_utf16_without_splitting_a_scalar(offset, expected):
+    assert utf16_index('a😀b', offset) == expected
+
+
+def test_editor_offset_refuses_half_a_surrogate_pair():
+    with pytest.raises(UIClientError):
+        utf16_index('a😀b', 2)

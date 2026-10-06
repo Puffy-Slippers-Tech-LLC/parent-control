@@ -179,7 +179,8 @@ def _gtk():
 
 
 def _identity(widget):
-    return _gtk().Buildable.get_buildable_id(widget) or ""
+    from .gtk_automation import automation_id
+    return automation_id(widget)
 
 
 def _binding(widget):
@@ -223,7 +224,7 @@ def _walk(root):
         if count > _MAX_WIDGETS:
             raise UIError("Unavailable")
         yield widget
-        pending.extend(_children(widget))
+        pending.extend(reversed(tuple(_children(widget))))
 
 
 def _is_surface(widget):
@@ -345,6 +346,14 @@ def _generic(widget):
         # Adw.ActionRow exposes both logical strings as public properties.
         result["getText"] = lambda: "\n".join(
             text for text in (widget.get_title(), widget.get_subtitle()) if text)
+    elif isinstance(widget, Gtk.Window):
+        result["getText"] = lambda: widget.get_title() or ""
+    elif isinstance(widget, Gtk.Widget):
+        # Structural controls communicate their logical content through real
+        # child labels. Consumers need no anonymous accessibility descendants.
+        result["getText"] = lambda: "\n".join(
+            child.get_text() for child in _walk(widget)
+            if isinstance(child, Gtk.Label) and _visible(child))
     if isinstance(widget, Gtk.MenuButton):
         result["activate"] = widget.popup
     elif isinstance(widget, Gtk.Switch):
@@ -480,12 +489,26 @@ class GtkUIAdapter:
         virtual = binding.dispatcher is not None and element_id in binding.aliases
         callbacks = _generic(widget)
         operations = (binding.operations if virtual else callbacks.keys())
+        parent = widget.get_parent()
+        while parent is not None and parent is not surface and not _identity(parent):
+            parent = parent.get_parent()
+        parent_id = (_identity(widget) if virtual and _identity(widget) != element_id
+                     else _identity(parent) if parent is not None else None)
+        if widget is surface:
+            parent_id = None
         result = {"id": element_id, "surface_id": _identity(surface),
                   "application_id": self.application.get_application_id(),
                   "type": "document-element" if virtual else widget.__gtype__.name,
                   "visible": _visible(widget), "enabled": bool(widget.is_sensitive()),
-                  "operations": sorted(set(operations) | {"getElementById"})}
+                  "operations": sorted(set(operations) | {"getElementById"}),
+                  "parent_id": parent_id,
+                  "role": widget.get_accessible_role().value_nick}
         if snapshot and not virtual:
+            from .translation_widgets import accessible_metadata
+            result.update(accessible_metadata(widget))
+            if hasattr(widget, "get_title") and hasattr(widget, "get_subtitle"):
+                result["name"] = result["name"] or widget.get_title() or ""
+                result["description"] = result["description"] or widget.get_subtitle() or ""
             for operation, field_name in (("getValue", "value"), ("getText", "text"),
                                           ("getChoices", "choices")):
                 if operation in callbacks:
@@ -586,6 +609,10 @@ class GtkUIAdapter:
                         return
                     merged = dict(result)
                     fresh_metadata = self._metadata(current_surface, element_id, current_host)
+                    # Document roles describe the actual identified editor
+                    # control, rather than its containing WebKit widget.
+                    if type(result.get("role")) is str:
+                        fresh_metadata["role"] = result["role"]
                     merged.update(fresh_metadata)
                     precise_operations = result.get("operations", [])
                     if (type(precise_operations) is not list

@@ -1,6 +1,6 @@
 # 308b — Qualify translated overlay approval and return
 
-Follow the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):

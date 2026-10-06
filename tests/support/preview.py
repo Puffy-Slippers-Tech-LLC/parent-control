@@ -1,6 +1,7 @@
 """Owned preview-process lifecycle, independent of GTK and Dogtail imports."""
 
 from contextlib import contextmanager
+import json
 import subprocess
 import sys
 import tempfile
@@ -33,6 +34,7 @@ def preview_applications(session, directory):
     """
     processes = []
     application_ids = {}
+    explicit_endpoints = {}
 
     def launch(name, *, environment_overrides=None, wait_for_application=False):
         # Readiness belongs to the caller's public-ID adapter. A script name is
@@ -74,6 +76,8 @@ def preview_applications(session, directory):
         else:
             identity = None  # Other launchers need their own explicit contract.
         application_ids[process] = identity
+        if name == 'child_error_preview':
+            explicit_endpoints[process] = log_path
         return process, log_path
 
     # Readiness adapters can verify public surface ownership using only the
@@ -96,6 +100,28 @@ def preview_applications(session, directory):
                             if application_ids[process] == identity)
         for identity in frozenset(application_ids.values()) if identity is not None
     }
+
+    def application_ui_endpoints():
+        receipts = []
+        for process, log_path in explicit_endpoints.items():
+            if process.poll() is not None:
+                continue
+            log = log_path.read_text(encoding='utf-8', errors='replace')
+            lines = log.splitlines() if log.endswith('\n') else log.splitlines()[:-1]
+            values = [json.loads(line.removeprefix('ONPC_APPLICATION_UI_ENDPOINT '))
+                      for line in lines if line.startswith('ONPC_APPLICATION_UI_ENDPOINT ')]
+            if not values:
+                # The recorded process is starting. Its missing export cannot
+                # establish public absence or release another action.
+                from tests.support.automation import AutomationError
+                raise AutomationError('automation:incomplete-tree')
+            if len(values) != 1 or values[0].get('pid') != process.pid \
+                    or values[0].get('application_id') != application_ids[process]:
+                raise ValueError('Invalid launch-owned Application UI endpoint')
+            receipts.append(values[0])
+        return receipts
+
+    launch.application_ui_endpoints = application_ui_endpoints
 
     try:
         yield launch

@@ -55,7 +55,7 @@ def test_boot_replacement_refuses_before_next_customer_action(tmp_path, plan):
     journey.boot = 'a' * 64
     journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b' * 64}))
     journey.transport = SimpleNamespace(call=Mock(return_value=json.dumps({
-        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI',
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
         'boot_sha256': 'b' * 64,
     }).encode()))
     with pytest.raises(EvidenceError, match='boot-changed'):

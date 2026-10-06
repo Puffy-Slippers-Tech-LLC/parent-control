@@ -20,6 +20,7 @@ def test_child_preview_language_survives_overlay_cancel_and_reopen(
     ui.activate('kiosk-request-cancel')
     process.wait(timeout=10)
     assert language_file.read_text(encoding='utf-8') == 'de'
+    ui.reconstruct('child-request')
     launch_ui('child_overlay_preview', environment_overrides=environment)
     wait(lambda: ui.text('kiosk-request-submit') == 'ANFRAGEN',
          'reopened overlay reads the shared preview language')
@@ -40,9 +41,7 @@ def test_translated_request_preserves_choices_and_custom_draft(
     _process, path = launch_request(launch_ui, tmp_path, overlay=overlay,
                                    scenario='remembered', wait_for_application=False)
     wait(lambda: ui.state('kiosk-request-submit', ui.api.StateType.SENSITIVE), 'ready')
-    ui.focus('kiosk-custom-duration')
-    key_combo(ui, 'kiosk-custom-duration', '<Control>a', state=ui.api.StateType.FOCUSED)
-    type_text(ui, 'kiosk-custom-duration', '2.75')
+    ui.setText('kiosk-custom-duration', '2.75')
     wait(lambda: ui.content('kiosk-custom-duration') == '2.75', 'custom draft typed')
     switch_language(ui, wait, 'kiosk', language)
     assert ui.content('kiosk-custom-duration') == '2.75'
@@ -80,10 +79,7 @@ def test_request_layout_keeps_all_choices_and_submission_reachable(
         lambda: ui.state("kiosk-request-submit", ui.api.StateType.SENSITIVE),
         "scaled form is ready",
     )
-    ui.activate("kiosk-approver-selector")
-    wait_for_accessible_state(lambda: ui.find("kiosk-approver-choice-1010") is not None,
-                              "expanded choices are published")
-    ui.activate("kiosk-approver-choice-1010")
+    ui.setValue("kiosk-approver-selector", "1010")
     ui.activate("kiosk-duration-300")
     ui.reveal("kiosk-request-status")
     ui.activate("kiosk-request-submit")

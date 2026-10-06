@@ -41,7 +41,6 @@ sub qualify {
                 my $stage = "$prefix-$direction-$action";
                 $journey->consume_observation($stage, $journey->seen($stage));
             }
-            testapi::send_key('ret');
             my $stage = "$prefix-$direction-selected";
             $journey->consume_observation($stage, $journey->seen($stage));
         }

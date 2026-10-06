@@ -277,17 +277,17 @@ def test_station_form_targets_controls_only_by_public_id():
     assert observation.duration_seconds == 1800
 
 
-@pytest.mark.parametrize('fault', ['missing', 'wrong-uid', 'duplicate', 'wrong-description'])
+@pytest.mark.parametrize('fault', ['missing', 'wrong-uid', 'non-scalar', 'wrong-description'])
 @pytest.mark.parametrize('namespace', ['child', 'approver'])
 def test_selected_account_requires_uid_identity_before_description(namespace, fault):
     ui, _ = request_form()
     selector = ui.find_id(f'kiosk-{namespace}-selector')
     if fault == 'missing':
-        selector.children.clear()
+        selector.value = None
     elif fault == 'wrong-uid':
-        selector.children[0].identity = f'kiosk-{namespace}-selected-9000'
-    elif fault == 'duplicate':
-        selector.children.append(Node(identity=selector.children[0].identity))
+        selector.value = '9000'
+    elif fault == 'non-scalar':
+        selector.value = [selector.value, selector.value]
     else:
         selector.description = 'Selected account: wrong person.'
     with pytest.raises(UiError):
@@ -664,7 +664,7 @@ def test_station_default_entry_transport_rejects_every_unsupported_branch(destin
     from ui_observations import UiObservations
 
     result = {'operation': 'station-default-entry', 'outcome': 'passed',
-              'interface': 'AT-SPI', 'entry': {'destination': destination}}
+              'interface': 'ApplicationUI+external-provider', 'entry': {'destination': destination}}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
     with pytest.raises(EvidenceError, match='ui:station-default-entry'):
         UiObservations(transport).observe('station-default-entry')
@@ -676,7 +676,7 @@ def test_station_default_entry_transport_accepts_only_the_bound_default():
     from ui_observations import UiObservations
 
     result = {'operation': 'station-default-entry', 'outcome': 'passed',
-              'interface': 'AT-SPI',
+              'interface': 'ApplicationUI+external-provider',
               'entry': {'destination': 'default-request-form'}}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
     assert UiObservations(transport).observe('station-default-entry') == result
@@ -692,7 +692,7 @@ def test_station_branch_transport_only_accepts_bounded_sanitized_evidence(fault)
                'public_id_present': False, 'sensitive': True, 'focused': False}
     branch = {'destination': 'greeter-controls', 'controls': [control]}
     result = {'operation': 'station-entry-branch', 'outcome': 'passed',
-              'interface': 'AT-SPI', 'branch': branch}
+              'interface': 'ApplicationUI+external-provider', 'branch': branch}
     if fault == 'unknown-destination':
         branch['destination'] = 'desktop'
     elif fault == 'extra':
@@ -729,45 +729,40 @@ def test_large_standalone_observer_uses_guarded_stdin_not_one_exec_argument(tmp_
     (e2e / 'feedback_formats.py').write_text('FORMATS = True\n')
     (e2e / 'download_destination.py').write_text('DESTINATION = True\n')
     (e2e / 'fixture_ui.py').write_text('FIXTURE_UI = True\n')
+    service = tmp_path / 'common/oh_no_parent_control_ui'
+    service.mkdir(parents=True)
+    (service / 'application_ui.py').write_text('SERVICE = True\n')
+    (service / 'application_ui_client.py').write_text(
+        'from .application_ui import SERVICE\nCLIENT = SERVICE\n')
+    support = tmp_path / 'tests/support'
+    support.mkdir()
+    (support / 'application_ui.py').write_text(
+        'from common.oh_no_parent_control_ui.application_ui_client import CLIENT\nSUPPORT = CLIENT\n')
+    (e2e / 'application_ui.py').write_text(
+        'from application_ui_support import SUPPORT\nADAPTER = SUPPORT\n')
     data = tmp_path / 'data'
     data.mkdir()
     (data / 'app.json').write_text('{"version": "9.8.7"}')
     monkeypatch.setattr(ui_observations.system, 'ROOT', tmp_path)
-    result = {'operation': 'gdm-focused', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    result = {'operation': 'gdm-focused', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     raw = json.dumps(result).encode()
-    expected = (
-        'import sys, types\n'
-        'session_control = types.ModuleType("session_control")\n'
-        'sys.modules["session_control"] = session_control\n'
-        'exec(compile(' + repr('SESSION_CONTROL = True\n') + ', "session_control.py", "exec"), '
-        'session_control.__dict__)\n'
-        'public_atspi = types.ModuleType("public_atspi")\n'
-        'sys.modules["public_atspi"] = public_atspi\n'
-        'exec(compile(' + repr(reader) + ', "public_atspi.py", "exec"), '
-        'public_atspi.__dict__)\n'
-        'block_semantics = types.ModuleType("block_semantics")\n'
-        'sys.modules["block_semantics"] = block_semantics\n'
-        'exec(compile(' + repr('SEMANTICS = True\n') + ', "block_semantics.py", "exec"), '
-        'block_semantics.__dict__)\n'
-        'feedback_formats = types.ModuleType("feedback_formats")\n'
-        'sys.modules["feedback_formats"] = feedback_formats\n'
-        'exec(compile(' + repr('FORMATS = True\n') + ', "feedback_formats.py", "exec"), '
-        'feedback_formats.__dict__)\n'
-        'download_destination = types.ModuleType("download_destination")\n'
-        'sys.modules["download_destination"] = download_destination\n'
-        'exec(compile(' + repr('DESTINATION = True\n') + ', "download_destination.py", "exec"), '
-        'download_destination.__dict__)\n'
-        'fixture_ui = types.ModuleType("fixture_ui")\n'
-        'sys.modules["fixture_ui"] = fixture_ui\n'
-        'exec(compile(' + repr('FIXTURE_UI = True\n') + ', "fixture_ui.py", "exec"), '
-        'fixture_ui.__dict__)\n' + source
-    ).encode()
-
     def call(argv, **kwargs):
+        import sys
+        from unittest.mock import patch
         assert argv == ['/usr/bin/python3', '-I', '-', 'gdm-focused', '9.8.7']
-        assert kwargs['input'] == expected
         assert kwargs['input'].endswith(source.encode())
         assert len(kwargs['input']) > 128 * 1024
+        # Execute only the supplied inert fixture modules. This checks package
+        # and import ordering as well as inclusion of the shared API facade.
+        with patch.dict(sys.modules):
+            exec(compile(kwargs['input'], '<observer-fixture>', 'exec'), {})
+            for name, marker in (
+                    ('application_ui', 'ADAPTER'), ('application_ui_support', 'SUPPORT'),
+                    ('session_control', 'SESSION_CONTROL'), ('block_semantics', 'SEMANTICS'),
+                    ('feedback_formats', 'FORMATS'), ('download_destination', 'DESTINATION'),
+                    ('fixture_ui', 'FIXTURE_UI')):
+                assert getattr(sys.modules[name], marker) is True
+            assert sys.modules['public_atspi'].READER == 'public-atspi'
         config = {'directory': str(tmp_path), 'run': 'a' * 32, 'domain_uuid': 'b' * 32}
         assert len(vm_transport.remote(config, argv).encode()) < 4096
         if streamed:

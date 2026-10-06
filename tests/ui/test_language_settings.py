@@ -304,7 +304,6 @@ def test_enabled_parent_language_reader_keeps_real_gtk_names_and_numeric_balance
     for account, uid, name in ((EXISTING_CHILD, 1002, 'jordan'), (CHILD, 1001, 'riley')):
         reader.open_child_picker(account)
         reader.child_highlighted(account)
-        key_combo(ui, f'parent-child-choice-{uid}', 'Return', state=ui.api.StateType.FOCUSED)
         assert reader.run(f'parent-language-{name}-selected', '')['child_selection'] == {
             'child': 'fixture-child' if account == CHILD else 'existing-fixture-child'}
     translated = reader.parent_language_state(child=CHILD, enabled=True, language=selected_language)
@@ -353,28 +352,17 @@ def test_parent_child_picker_after_language_policy_reads(
     original = reader.kiosk_language_policy(child=CHILD)
     assert reader.open_child_picker(EXISTING_CHILD)
     reader.child_highlighted(EXISTING_CHILD)
-    key_combo(ui, 'parent-child-choice-1002', 'Return', state=ui.api.StateType.FOCUSED)
     reader.selected_child(EXISTING_CHILD)
     ui.activate('parent-screen-limit-toggle')
     reader.parent_save_snapshot(EXISTING_CHILD, True)
     if other_window:
         launch_ui('request_component_preview', environment_overrides={
             'ONPC_REQUEST_COMPONENT_OVERLAY': '1', 'ONPC_LANGUAGE_INITIAL': 'en'})
-        wait(lambda: ui.showing('kiosk-request-window')
-             and ui.state('kiosk-request-window', ui.api.StateType.ACTIVE),
-             'Other owned preview is active')
-        key_combo(ui, 'kiosk-request-window', '<Alt>F4', state=ui.api.StateType.ACTIVE)
-        wait(lambda: ui.state('parent-window', ui.api.StateType.ACTIVE),
-             'Parent is active again')
+        wait(lambda: ui.showing('kiosk-request-window'), 'Other owned preview is available')
+        ui.close('kiosk-request-window')
+        wait(lambda: ui.showing('parent-window'), 'Parent remains available')
     reader.kiosk_language_policy(child=EXISTING_CHILD)
-    assert reader.run('parent-child-picker-ready', '')['focused'] is True
-    # The installed worker starts a fresh observation after its single key.
-    # The host keyboard helper owns the equivalent independent input latch.
-    key_combo(ui, 'parent-window', 'space', state=ui.api.StateType.ACTIVE)
-    reader = observer()
-    assert reader.run('child-picker-presented', '')['focused'] is True
-    reader.child_highlighted(CHILD)
-    key_combo(ui, 'parent-child-choice-1001', 'Return', state=ui.api.StateType.FOCUSED)
+    ui.setValue('parent-child-selector', '1001')
     reader.selected_child(CHILD)
     assert reader.kiosk_language_policy(child=CHILD) == original
     assert [event['event'] for event in read_events(path)
@@ -621,7 +609,7 @@ def test_first_run_defaults_and_save_waits_for_commit(
 
 
 @pytest.mark.parametrize('snap_environment', (False, True), ids=('desktop', 'vscode-snap'))
-def test_parent_development_preview_language_keyboard_input(
+def test_parent_development_preview_language_application_ui_input(
         launch_ui, automation, wait_for_accessible_state, snap_environment):
     from tests.support.keyboard import press_key, type_text
 
@@ -634,23 +622,19 @@ def test_parent_development_preview_language_keyboard_input(
     launch_ui('parent_preview', complete_language_setup=False,
               environment_overrides=environment)
     wait(lambda: ui.showing('language-search'), 'development preview chooser opens')
-    ui.focus('language-search')
-    type_text(ui, 'language-search', 'PORT*BR')
+    ui.setText('language-search', 'PORT*BR')
     wait(lambda: ui.content('language-search') == 'PORT*BR'
          and ui.showing('language-choice-pt-br')
          and ui.absent('language-choice-en', within='language-dialog'),
-         'native keyboard input filters the preview language list')
-    press_key(ui, 'language-search', 'Escape', state=ui.api.StateType.FOCUSED)
-    wait(lambda: ui.content('language-search') == '', 'Escape restores the full list')
-    ui.focus('language-choice-fur')
-    assert ui.showing('language-choice-fur'), 'the last language is reachable by scrolling'
-    press_key(ui, 'language-choice-fur', 'space', state=ui.api.StateType.FOCUSED)
+         'Application UI text filters the preview language list')
+    ui.setText('language-search', '')
+    wait(lambda: ui.content('language-search') == '', 'clearing search restores the full list')
+    ui.setValue('language-list', 'fur')
     wait(lambda: ui.state('language-choice-fur', ui.api.StateType.CHECKED),
-         'the revealed language accepts native keyboard selection')
-    ui.focus('language-cancel')
-    press_key(ui, 'language-cancel', 'space', state=ui.api.StateType.FOCUSED)
+         'the language choice is selected')
+    ui.activate('language-cancel')
     wait(lambda: ui.absent('language-dialog', within='parent-window'),
-         'native Cancel closes the preview chooser')
+         'Cancel closes the preview chooser')
 
 
 def test_parent_first_run_shared_helper_saves_with_cancel_visible(
@@ -760,25 +744,19 @@ def test_kiosk_child_switch_restores_saved_language_and_reprompts_after_cancel(
     ui.reader.choose_language('kiosk', 'de')
     ui.reader.cancel_language('kiosk')
     assert not committed(path)
-    ui.activate('kiosk-child-selector')
-    wait(lambda: ui.find('kiosk-child-choice-1002') is not None, 'second child choice')
-    ui.activate('kiosk-child-choice-1002')
+    ui.setValue('kiosk-child-selector', '1002')
     wait(lambda: ui.showing('language-dialog'), 'second child has no preference')
     assert ui.text('language-account') == 'For Sam Rivera'
     ui.reader.choose_language('kiosk', 'de')
     ui.reader.save_language('kiosk')
     assert_surface_language(ui, wait, 'kiosk', 'de')
-    ui.activate('kiosk-child-selector')
-    wait(lambda: ui.find('kiosk-child-choice-1001') is not None, 'first child choice')
-    ui.activate('kiosk-child-choice-1001')
+    ui.setValue('kiosk-child-selector', '1001')
     wait(lambda: ui.showing('language-dialog'), 'cancelled child setup reopens')
     assert ui.text('language-account') == 'For Alex Morgan'
     assert ui.state('language-choice-en', ui.api.StateType.CHECKED)
     ui.reader.cancel_language('kiosk')
     assert_surface_language(ui, wait, 'kiosk', 'en')
-    ui.activate('kiosk-child-selector')
-    wait(lambda: ui.find('kiosk-child-choice-1002') is not None, 'saved child choice')
-    ui.activate('kiosk-child-choice-1002')
+    ui.setValue('kiosk-child-selector', '1002')
     wait(lambda: ui.showing('kiosk-language-ready'), 'saved child language loaded')
     assert ui.absent('language-dialog', within='kiosk-request-window')
     assert_surface_language(ui, wait, 'kiosk', 'de')

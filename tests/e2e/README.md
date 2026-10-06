@@ -3,17 +3,19 @@
 ## Functional GUI acceptance
 
 Apply the [UI mandate](../../docs/Mandates/UI-Automation-Mandate.MD) before
-choosing an input route. Use GUI input for tested product features and necessary
-graphical authentication. Supporting Shell/GDM, package, file, account, clock,
+choosing an input route. Use the
+[Application UI API](../../docs/TestAutomation/Application-UI-API.md) for tested
+product controls and qualified provider input for graphical authentication.
+Supporting Shell/GDM, package, file, account, clock,
 network and lifecycle work belongs in shared command/shortcut helpers.
 
 Follow [functional validation](../../docs/TestAutomation/E2E-Building-Blocks.md#functional-validation)
 for all new and migrated customer cases. Cosmetic defects (including alignment,
 size, color, font, resolution and scale changes) pass while the customer can
 complete the action and obtain its expected result. Resolve repository-owned
-targets by scoped public automation IDs and external targets through qualified
-provider adapters; names/roles/states verify meaning afterward. Use direct
-public actions with fresh independent results. Fail wrong targets/results and unavailable
+targets by scoped Application UI API IDs and external targets through qualified
+provider adapters; names/roles/states verify meaning afterward. Use canonical
+setters, ordinary actions and fresh independent results. Fail wrong targets/results and unavailable
 required information. Keep backend probes out of customer acceptance.
 
 Apply the mandate's
@@ -36,12 +38,20 @@ references, not executable exemptions. `ui:` stages retain public observations
 as screen evidence; worker markers alone cannot pass.
 
 The host [automation facade](../support/automation.py) and installed
-[observer](accessible_ui.py) share traversal, scoped identity/ownership checks,
-immutable read snapshots and public-action dispatch. Snapshot reuse ends before
-input, retry, client reset or the outer operation's return. State guards still
-query the live control, and partial trees never seed reusable observations.
-Both routes use [public_atspi.py](public_atspi.py) on the public accessibility
-D-Bus. Each traversal requests fresh bulk structural facts with `Cache.GetItems`;
+[observer](accessible_ui.py) share [application_ui.py](../support/application_ui.py)
+for product endpoint binding, scoped inventory, canonical values and operation
+dispatch. The same product `UIClient` pins each application's unique owner/PID;
+normal operations specify the current surface and reconstruct the client
+deliberately after restart. Reads/actions retain current ownership, logical
+visibility, sensitivity, modal and uncertain-input guards. Dialog discovery,
+selector values, editor operations and normal close requests use this route
+without keyboard, popup or AT-SPI product input. Cases retain their independent
+saved-policy, draft, validation and session-result assertions.
+
+External provider surfaces use [public_atspi.py](public_atspi.py) on the public
+accessibility D-Bus. Their snapshot reuse ends before input, retry, client reset
+or the outer operation's return; partial trees never seed observations.
+Each provider traversal requests fresh bulk structural facts with `Cache.GetItems`;
 unsupported or legacy caches use live queries. Children always use counted live
 enumeration: GTK can retain a hidden cache object at the same index as an
 unrealized replacement, or report zero children before a popup's controls enter
@@ -76,7 +86,7 @@ acknowledgement. System/command stages retain their separate boot observation.
 
 Each installed observer retains one `ui-operation-timing` record in its existing
 private command stderr. It reports the guest monotonic start, operation duration,
-reader traversal time/count, node count and up to 64 public AT-SPI action
+reader traversal time/count, node count and up to 64 public action
 dispatch offsets. It contains no observed UI text. These are diagnostics, not
 acceptance: reader time excludes transport/controller work, and action timestamps
 do not establish compositor presentation latency. Use the existing worker log
@@ -102,11 +112,11 @@ dialog or fallback after uncertain submission is involved.
 
 After a successful `desktop` or `fresh-parent-desktop` observation and boot
 continuity check, `InstalledJourney` automatically verifies the fixture Parent
-for continuous accessibility input through `session_control`'s
+for continuous application UI operations through `session_control`'s
 `parent-continuous-activity` binding. This covers fresh, reopened and post-reboot
 entry without a case-specific stage. The helper validates the active unlocked
 Parent, drops privileges and independently reads that user's GNOME `idle-delay`
-twice, requiring the zero value prepared by baseline. Accessibility actions do
+twice, requiring the zero value prepared by baseline. Application UI API actions do
 not reset the hardware idle timer. The envelope records readiness before
 acknowledging the desktop; stale configuration stops the attempt with baseline
 refresh required. There is no runtime settings write. Child desktop idle/expiry

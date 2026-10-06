@@ -48,6 +48,7 @@ def tree(kind):
     elif kind == 'language':
         children.append(Node(identity='language-dialog', children=[
             *[Node(name=text, identity=identity) for identity, text in lifecycle.CHOOSER.items()],
+            Node(identity='language-list', value='zh-Hans', choices=['en', 'de', 'zh-Hans', 'he']),
             Node(identity='language-choice-zh-hans', states=('visible', 'sensitive', 'checked'))]))
     else:
         children.append(Node(identity='kiosk-language-ready'))
@@ -218,18 +219,17 @@ def test_chooser_default_observed_without_candidate_input(fault):
     ui, window, _ = tree('language')
     chooser = window.children[-1]
     candidate = chooser.children[-1]
+    selector = chooser.children[-2]
     if fault == 'default':
-        candidate.states.remove('checked')
-        english = Node(identity='language-choice-en', states=('visible', 'checked'))
-        english.parent = chooser; chooser.children.append(english)
+        selector.value = 'en'
     if fault == 'multiple':
-        english = Node(identity='language-choice-en', states=('visible', 'checked'))
-        english.parent = chooser; chooser.children.append(english)
+        selector.value = ['en', 'zh-Hans']
     if fault == 'multiple':
         with pytest.raises(accessible_ui.UiError, match='initial-selection'): ui.initial_kiosk_presentation('language')
     else:
         assert ui.initial_kiosk_presentation('language')['default_chinese'] == (fault != 'default')
     candidate.action.do_action.assert_not_called()
+    selector.setValue.assert_not_called()
 
 
 @pytest.mark.parametrize('operation', ['kiosk-initial-notice', 'kiosk-initial-language', 'kiosk-initial-form'])
@@ -241,7 +241,7 @@ def test_real_controller_decoder_bounds_shape_and_realistic_output(operation, fa
     if fault == 'child': value['child'] = 'fixture-child'
     if fault == 'kind': value['kind'] = 'wrong'
     if fault == 'large': value['texts'][next(iter(value['texts']))] = 'x' * 513
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'initial': value}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'initial': value}
     raw = (json.dumps(result, ensure_ascii=False) + '\n').encode()
     def call(argv, **options):
         for offset in range(0, len(raw), 7): options['on_output'](raw[offset:offset + 7])
@@ -618,7 +618,7 @@ def test_declared_public_chinese_result_comparisons(fault):
 
 
 @pytest.mark.parametrize('fault', ['', 'startup', 'save-failed', 'saved-wrong-language',
-                                   'english-choice', 'wrong-child', 'missing-parent', 'wrong-result'])
+                                   'pre-language', 'wrong-child', 'missing-parent', 'wrong-result'])
 def test_post_setup_chinese_approver_selection_and_decoder(fault):
     ui, selector, choices, expected = accounts_form('approver')
     form = ui.find_id('kiosk-request-form')
@@ -628,6 +628,7 @@ def test_post_setup_chinese_approver_selection_and_decoder(fault):
     child = ui.find_id('kiosk-child-selector')
     child.children[0].identity = 'kiosk-child-selected-1002'
     child.children[0].name = accessible_ui.EXISTING_CHILD
+    child.value = '1002'
     child.description = '已选择的账户：Jordan (Child)。'
     selector.description = '已选择的账户：Casey (Parent)。'
     for choice, name in zip(choices.children, expected):
@@ -635,19 +636,21 @@ def test_post_setup_chinese_approver_selection_and_decoder(fault):
         label = Node(name, 'label')
         label.parent = choice
         choice.children.append(label)
-    original = choices.children[0].action.do_action.side_effect
+    original = selector.setValue.side_effect
 
-    def selected(index):
-        original(index)
+    def selected(value):
+        original(value)
         selector.description = ('Selected account: Jamie (Parent).' if fault == 'wrong-result'
                                 else '已选择的账户：Jamie (Parent)。')
         return True
 
-    choices.children[0].action.do_action.side_effect = selected
-    if fault == 'english-choice': choices.children[0].name = 'Approving parent: Jamie (Parent)'
-    if fault == 'wrong-child': child.children[0].identity = 'kiosk-child-selected-1001'
-    if fault == 'missing-parent': choices.children.pop()
-    ui.complete_request_language_setup = Mock(side_effect=AssertionError('unexpected language save'))
+    selector.setValue.side_effect = selected
+    if fault == 'pre-language': child.description = 'Selected account: Jordan (Child).'
+    if fault == 'wrong-child':
+        child.children[0].identity = 'kiosk-child-selected-1001'
+        child.value = '1001'
+    if fault == 'missing-parent': selector.choices.pop()
+    ui.complete_request_language_setup = Mock(wraps=ui.complete_request_language_setup)
     save = None
     if fault in ('startup', 'save-failed', 'saved-wrong-language'):
         window = ui.find_id('kiosk-request-window')
@@ -674,10 +677,8 @@ def test_post_setup_chinese_approver_selection_and_decoder(fault):
     operation = customer.PLAN.screen_tags['other-first-parent'][3:]
     if fault not in ('', 'startup'):
         with pytest.raises(accessible_ui.UiError): ui.run(operation, '')
-        if fault in ('wrong-child', 'save-failed', 'saved-wrong-language'):
-            selector.action.do_action.assert_not_called()
-        if fault != 'wrong-result': choices.children[0].action.do_action.assert_not_called()
-        if fault not in ('wrong-child', 'saved-wrong-language'):
+        if fault != 'wrong-result': selector.setValue.assert_not_called()
+        if fault in ('save-failed', 'wrong-result'):
             assert ui.input_uncertain
             with pytest.raises(accessible_ui.UiError, match='uncertain-input'): ui.run(operation, '')
     else:
@@ -695,12 +696,12 @@ def test_post_setup_chinese_approver_selection_and_decoder(fault):
         assert request['child'] == 'existing-fixture-child'
         assert request['approver'] == 'fixture-parent'
         assert request['duration_seconds'] == 1800 and request['allow_soft'] is False
-        selector.action.do_action.assert_called_once()
-        choices.children[0].action.do_action.assert_called_once()
-    if save is None:
-        ui.complete_request_language_setup.assert_not_called()
-    else:
-        ui.complete_request_language_setup.assert_called_once()
+        selector.setValue.assert_called_once_with('1000')
+    selector.action.do_action.assert_not_called()
+    for choice in choices.children:
+        choice.action.do_action.assert_not_called()
+    assert ui.complete_request_language_setup.called
+    if save is not None:
         save.action.do_action.assert_called_once()
 
 

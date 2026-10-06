@@ -49,7 +49,7 @@ class JourneyPlan:
     trace_bindings: dict = field(default_factory=dict)
     trace_terminals: dict = field(default_factory=dict)
     accessibility_inputs: dict = field(default_factory=dict)
-    keyboard_inputs: dict = field(default_factory=dict)
+    custom_inputs: dict = field(default_factory=dict)
     child_bindings: dict = field(default_factory=dict)
     request_checks: dict = field(default_factory=dict)
     balance_checks: dict = field(default_factory=dict)
@@ -122,10 +122,10 @@ class JourneyPlan:
                     for stage, binding in self.accessibility_inputs.items()) and
                 not set(self.accessibility_inputs) & set(self.stage_actions),
                 self.prefix + ':accessibility-input-plan')
-        require(set(self.keyboard_inputs) == {stage for stage, tag in self.screen_tags.items()
+        require(set(self.custom_inputs) == {stage for stage, tag in self.screen_tags.items()
                     if tag == 'ui:parent-custom-save-trace'} and
-                all(values == (5, 6) for values in self.keyboard_inputs.values()),
-                self.prefix + ':keyboard-input-plan')
+                all(values == (5, 6) for values in self.custom_inputs.values()),
+                self.prefix + ':custom-input-plan')
         require(all(stage in stages and self.screen_tags[stage] == 'ui:feedback-trace-start'
                     and binding in ('body-first', 'body-clear')
                     for stage, binding in self.trace_bindings.items()),
@@ -366,9 +366,9 @@ class InstalledJourney:
             os.fsync(stream.fileno())
 
     def publish_trace_input(self, stage, token, source):
-        """Release one focused keyboard batch while the owned observer runs."""
+        """Release external authentication input while its owned observer runs."""
         shell = self.plan.screen_tags.get(stage) == 'ui:overlay-approval-success'
-        require((shell or self.plan.screen_tags.get(stage) == 'ui:parent-custom-save-trace')
+        require(shell
                 and re.fullmatch(r'[0-9a-f]{32}', token)
                 and re.fullmatch(r'[0-9a-f]{64}', source), 'ui:trace-input-plan')
         pending = self.context.directory / (stage + '.input.tmp')
@@ -377,8 +377,7 @@ class InstalledJourney:
         with pending.open('x') as stream:
             json.dump({'stage': stage, 'token': token, 'source': source,
                        'child': self.plan.child_bindings.get(stage, 'child'),
-                       'binding': 'overlay-approve' if shell else 'custom-rapid',
-                       'values': ['ret'] if shell else list(self.plan.keyboard_inputs[stage])}, stream)
+                       'binding': 'overlay-approve', 'values': ['ret']}, stream)
             stream.flush()
             os.fsync(stream.fileno())
         pending.rename(destination)
@@ -536,14 +535,9 @@ class InstalledJourney:
                     observed['ui'] = self.ui.observe_shell_success(worker_input)
                     self.verify_trace_input(stage, self.ui.shell_approval_identity[:32])
                 elif tag == 'ui:parent-custom-save-trace':
-                    def worker_input(token, source):
-                        guard()
-                        self.publish_trace_input(stage, token, source)
-                        self.wait_trace_input(stage, token, guard)
                     observed['ui'] = self.ui.observe_accessibility_input(
-                        *plan.accessibility_inputs[stage], worker_input=worker_input,
+                        *plan.accessibility_inputs[stage],
                         child=plan.child_bindings.get(stage))
-                    self.verify_trace_input(stage, observed['ui']['token'])
                 elif tag in ('ui:accessibility-input-trace', 'ui:parent-save-trace',
                              'ui:feedback-collection-trace'):
                     observed['ui'] = self.ui.observe_accessibility_input(

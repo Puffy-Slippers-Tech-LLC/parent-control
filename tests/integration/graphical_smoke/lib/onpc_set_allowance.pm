@@ -18,7 +18,6 @@ sub run {
     for my $stage ('zero-reread', 'wrong-child', 'wrong-window', 'close-ready') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
-    testapi::send_key('alt-f4');
     $journey->seen('closed');
     $journey->consume_observation('same-allowance-configured', onpc_parent::set_allowance(
         $journey, 'desktop', 'parent', 'same-user', 'new', 'child', 1, 15, 1));

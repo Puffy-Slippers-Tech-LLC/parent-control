@@ -176,7 +176,7 @@ my $exchange = sub {
             ui_focused => 1,
             ui => {operation => $mode eq 'flow00' ? 'gdm-product-free-select-parent'
                                                   : 'gdm-select-parent',
-                   outcome => 'passed', interface => 'AT-SPI'},
+                   outcome => 'passed', interface => 'ApplicationUI+external-provider'},
             customer_reboot_authorized => ($mode ne 'install-unauthorized'),
             active_local_serial_session => ($mode ne 'install-session'),
             sudo_reboot_process_verified => ($mode ne 'install-recipient'),

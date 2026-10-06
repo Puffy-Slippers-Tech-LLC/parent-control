@@ -1,7 +1,6 @@
 """Read-boundary cost, freshness and shared-operation input safety."""
 
 from unittest.mock import Mock
-from types import SimpleNamespace
 
 import pytest
 
@@ -49,32 +48,28 @@ def lookup(ui, index):
 
 @pytest.mark.parametrize('fault,code', [
     ('child', 'wrong-child'), ('disabled', 'unusable-target'),
-    ('textbox', 'allowance-textbox'), ('inactive', 'allowance-window'), ('owner', 'wrong-owner'),
+    ('hidden', 'timeout:automation-id'), ('owner', 'wrong-owner'),
 ])
-def test_allowance_keyboard_refuses_unsafe_recipient(preset_ui, fault, code):
+def test_allowance_api_refuses_unsafe_recipient(preset_ui, fault, code):
     ui, window, selector, choice = preset_ui
-    window.states.add('active')
-    with ui.observation():
-        ui.activate_id(selector.identity)
-    choice.states.add('focused')
     if fault == 'child':
         window.children[0].children[0].identity = 'parent-child-selected-1002'
+        window.children[0].value = '1002'
     elif fault == 'disabled':
         selector.states.remove('sensitive')
-    elif fault == 'textbox':
-        selector.states.add('editable')
-    elif fault == 'inactive':
-        window.states.remove('active')
+    elif fault == 'hidden':
+        selector.states.remove('visible')
     else:
         ui.root().get_process_id = lambda: 101
     choice.action.do_action.reset_mock()
     with pytest.raises(UiError, match=code):
         ui.allowance_keyboard_recipient(accessible_ui.CHILD)
     choice.action.do_action.assert_not_called()
+    selector.setValue.assert_not_called()
 
 
 @pytest.mark.parametrize('expanded', [False, True])
-def test_allowance_keyboard_does_not_require_popup_or_focus(preset_ui, expanded):
+def test_allowance_api_does_not_require_popup_or_focus(preset_ui, expanded):
     ui, window, selector, _ = preset_ui
     window.states.add('active')
     if expanded:
@@ -97,6 +92,7 @@ def custom_result_editor(window, selector):
     editor.parent = window
     window.children.append(editor)
     selector.children[0].name = 'Custom value'
+    selector.value = 'custom'
     return editor
 
 
@@ -135,6 +131,7 @@ def test_allowance_custom_selected_missing_editor_times_out_without_replay(prese
     ui, window, selector, choice = preset_ui
     window.states.add('active')
     selector.children[0].name = 'Custom value'
+    selector.value = 'custom'
     ui.timeout = .4
     ui.parent_save_snapshot = Mock()
     ui.select_allowance = Mock()
@@ -147,7 +144,7 @@ def test_allowance_custom_selected_missing_editor_times_out_without_replay(prese
         now[0] += delay
 
     monkeypatch.setattr(accessible_ui.time, 'sleep', pending)
-    with pytest.raises(UiError, match='^ui:timeout:allowance-selected-value$'):
+    with pytest.raises(UiError, match='^ui:timeout:allowance-custom-editor$'):
         ui.allowance_keyboard(accessible_ui.CHILD, 'custom', 'selected')
     assert sleeps == [.2, .2]
     ui.parent_save_snapshot.assert_not_called()
@@ -161,7 +158,7 @@ def test_allowance_custom_selected_missing_editor_times_out_without_replay(prese
     ('child', 'wrong-child'), ('owner', 'wrong-owner'),
     ('duplicate', 'ambiguous-automation-id'), ('disabled', 'text-disabled'),
     ('hidden', 'text-disabled'), ('readonly', 'text-editor'),
-    ('inactive', 'text-entry'),
+    ('hidden-window', 'timeout:automation-id'),
 ])
 def test_allowance_custom_selected_preserves_present_editor_guards(preset_ui, monkeypatch, fault, code):
     ui, window, selector, choice = preset_ui
@@ -173,6 +170,7 @@ def test_allowance_custom_selected_preserves_present_editor_guards(preset_ui, mo
     monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
     if fault == 'child':
         window.children[0].children[0].identity = 'parent-child-selected-1002'
+        window.children[0].value = '1002'
     elif fault == 'owner':
         ui.root().get_process_id = lambda: 101
     elif fault == 'duplicate':
@@ -184,7 +182,7 @@ def test_allowance_custom_selected_preserves_present_editor_guards(preset_ui, mo
     elif fault == 'readonly':
         editor.states.remove('editable')
     else:
-        window.states.remove('active')
+        window.states.remove('visible')
     with pytest.raises(UiError, match='^ui:' + code + '$'):
         ui.allowance_keyboard(accessible_ui.CHILD, 'custom', 'selected')
     sleep.assert_not_called()
@@ -195,14 +193,13 @@ def test_allowance_custom_selected_preserves_present_editor_guards(preset_ui, mo
         node.component.grab_focus.assert_not_called()
 
 
-def test_allowance_ready_clicks_closed_selector_without_synthetic_focus(preset_ui):
+def test_allowance_ready_sets_closed_selector_without_synthetic_focus(preset_ui):
     ui, window, selector, choice = preset_ui
     window.states.add('active')
     ui.parent_save_snapshot = Mock()
     ui.reach_time_explanation = Mock()
     ui.activate_id = Mock()
     ui.select_allowance = Mock()
-    selector.component.get_extents = Mock(return_value=SimpleNamespace(x=100, y=200, width=80, height=40))
     assert ui.allowance_keyboard(accessible_ui.CHILD, 15, 'click') == {
         'value': 15, 'phase': 'click'}
     ui.select_allowance.assert_called_once_with(accessible_ui.CHILD, 15)
@@ -211,357 +208,95 @@ def test_allowance_ready_clicks_closed_selector_without_synthetic_focus(preset_u
     assert 'expanded' not in selector.states
 
 
-@pytest.mark.parametrize('bounds', [(-2147483648, 0, 80, 40), (0, 0, 0, 40),
-                                   (0, 0, 80, -1), (32760, 0, 80, 40),
-                                   (True, 0, 80, 40)])
-def test_allowance_click_refuses_invalid_public_bounds(preset_ui, bounds):
-    ui, window, selector, _ = preset_ui
-    window.states.add('active')
-    selector.component.get_extents = Mock(return_value=SimpleNamespace(
-        **dict(zip(('x', 'y', 'width', 'height'), bounds))))
-    with pytest.raises(UiError, match='allowance-click-bounds'):
-        ui.allowance_click_target()
-
-
-@pytest.fixture
-def native_allowance_transport(preset_ui, monkeypatch):
-    from gi.repository import Gio, GLib
-    ui, window, selector, _ = preset_ui
-    window.states.add('active')
-    window.bus, window.path = ':1.10', '/fixture/window'
-    selector.bus, selector.path = window.bus, '/fixture/window/selector'
-    selector.component.get_extents = Mock(return_value=SimpleNamespace(
-        x=100, y=200, width=80, height=40))
-    transport = SimpleNamespace(events=[], calls=[], destinations=[], fail=None, on_call=None,
-                                native_owner=':1.42', native_pid=100, native_transform=(0.0, 0.0),
-                                error_message='PRIVATE_PROVIDER_VALUE',
-                                error_domain=Gio.io_error_quark(),
-                                error_code=Gio.IOErrorEnum.FAILED)
-    def invoke(_service, _path, _interface, method, arguments, *_rest):
-        args = arguments.unpack() if arguments is not None else ()
-        transport.events.append((method, args))
-        transport.calls.append((_interface, method, args))
-        transport.destinations.append((_service, _path, _interface, method, args))
-        if transport.on_call:
-            transport.on_call(_interface, method, args)
-        if transport.fail and transport.fail(_interface, method, args):
-            raise GLib.Error.new_literal(transport.error_domain, transport.error_message,
-                                        transport.error_code)
-        values = {'GetNameOwner': (transport.native_owner,),
-                  'GetConnectionUnixProcessID': (transport.native_pid,),
-                  'GetNativeSurfaceTransform': transport.native_transform,
-                  'CreateSession': ('/session',), 'Get': ('session-id',),
-                  'RecordWindow': ('/stream',)}.get(method, ())
-        return SimpleNamespace(unpack=lambda: values)
-    connection = SimpleNamespace(call_sync=invoke, close_sync=Mock())
-    transport.connection = connection
-    monkeypatch.setattr(Gio.DBusConnection, 'new_for_address_sync', Mock(return_value=connection))
-    monkeypatch.setenv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/fixture-bus')
-    monkeypatch.setattr(accessible_ui.time, 'sleep',
-                        lambda delay: transport.events.append(('dispatch', delay)))
-    return ui, window, selector, transport
-
-
-@pytest.mark.parametrize('failure,interface,method,arguments,uncertain', [
-    (None, None, None, None, False),
-    ('remote-start', 'RemoteDesktop.Session', 'Start', (), False),
-    ('stream-start', 'ScreenCast.Stream', 'Start', (), False),
-    ('record-window', 'ScreenCast.Session', 'RecordWindow', ({},), False),
-    ('approach-motion', 'RemoteDesktop.Session', 'NotifyPointerMotionAbsolute', ('/stream', 120.0, 220.0), True),
-    ('center-motion', 'RemoteDesktop.Session', 'NotifyPointerMotionAbsolute', ('/stream', 140.0, 220.0), True),
-    ('button', 'RemoteDesktop.Session', 'NotifyPointerButton', (272, True), True),
-    ('shift-press', 'RemoteDesktop.Session', 'NotifyKeyboardKeysym', (0xffe1, True), True),
-    ('shift-release', 'RemoteDesktop.Session', 'NotifyKeyboardKeysym', (0xffe1, False), True),
-    ('product-key', 'RemoteDesktop.Session', 'NotifyKeyboardKeysym', (ord('1'), True), True),
-    ('stop', 'RemoteDesktop.Session', 'Stop', (), True),
-])
-def test_allowance_native_click_delivery_and_failure_lifetime(
-        native_allowance_transport, failure, interface, method, arguments, uncertain):
-    ui, _window, selector, transport = native_allowance_transport
-    events = transport.events
-    transport.fail = lambda actual_interface, actual_method, args: (
-        actual_interface == 'org.gnome.Mutter.' + interface
-        and actual_method == method and args == arguments) if failure else False
-    if failure:
-        with pytest.raises(UiError, match='allowance-click-transport:' + method) as raised:
-            ui.select_allowance(accessible_ui.CHILD, 15)
-        assert 'PRIVATE_' not in str(raised.value)
-        assert ui.input_uncertain == uncertain
-        if ui.input_uncertain:
-            delivered = list(events)
-            with pytest.raises(UiError, match='input-uncertain'):
-                ui.select_allowance(accessible_ui.CHILD, 15)
-            assert events == delivered
-        if failure in ('remote-start', 'stream-start', 'record-window', 'shift-press', 'shift-release'):
-            assert not any(name in ('NotifyPointerMotionAbsolute', 'NotifyPointerButton')
-                           for name, _ in events)
-            assert all(args[0] == 0xffe1 for name, args in events
-                       if name == 'NotifyKeyboardKeysym')
-    else:
-        ui.select_allowance(accessible_ui.CHILD, 15)
-        warm_keyboard = events.index(('NotifyKeyboardKeysym', (0xffe1, False)))
-        bind_window = events.index(('RecordWindow', ({},)))
-        motion = events.index(('NotifyPointerMotionAbsolute', ('/stream', 120.0, 220.0)))
-        assert warm_keyboard < bind_window < motion
-        assert [args for name, args in events[:motion] if name == 'NotifyKeyboardKeysym'] == [
-            (0xffe1, True), (0xffe1, False)]
-        assert ('org.gnome.Mutter.RemoteDesktop.Session', 'Start', ()) in transport.calls
-        assert ('org.gnome.Mutter.ScreenCast.Stream', 'Start', ()) in transport.calls
-        assert events[bind_window + 1] == ('Start', ())
-        assert events[motion:] == [
-            ('NotifyPointerMotionAbsolute', ('/stream', 120.0, 220.0)),
-            ('dispatch', .1),
-            ('NotifyPointerMotionAbsolute', ('/stream', 140.0, 220.0)),
-            ('dispatch', .1), ('NotifyPointerButton', (272, True)),
-            ('dispatch', .15), ('NotifyPointerButton', (272, False)),
-            ('dispatch', .1),
-            *[event for key in (ord('1'), ord('5'), ord('m'), 0xff0d)
-              for event in (('NotifyKeyboardKeysym', (key, True)), ('dispatch', .05),
-                            ('NotifyKeyboardKeysym', (key, False)), ('dispatch', .05))],
-            ('Stop', ())]
-        assert not ui.input_uncertain
-    assert sum(name == 'Stop' for name, _ in events) == (failure != 'remote-start')
-    transport.connection.close_sync.assert_called_once_with(None)
-    selector.action.do_action.assert_not_called()
-
-
-@pytest.mark.parametrize('boundary,fault,code', [
-    ('warm-up', 'owner', 'wrong-owner'),
-    ('warm-up', 'child', 'wrong-child'),
-    ('stream-start', 'inactive', 'allowance-window'),
-    ('stream-start', 'bounds', 'allowance-click-moved'),
-    ('stream-start', 'same-center-bounds', 'allowance-click-moved'),
-    ('stream-start', 'window', 'allowance-click-moved'),
-    ('stream-start', 'selector', 'allowance-click-moved'),
-])
-def test_allowance_native_click_rechecks_identity_and_bounds_before_delivery(
-        native_allowance_transport, boundary, fault, code):
-    ui, window, selector, transport = native_allowance_transport
-    def change_target(interface, method, args):
-        if ((boundary == 'warm-up' and method == 'NotifyKeyboardKeysym'
-             and args == (0xffe1, False)) or
-                (boundary == 'stream-start' and interface == 'org.gnome.Mutter.ScreenCast.Stream'
-                 and method == 'Start')):
-            if fault == 'owner':
-                ui.root().get_process_id = lambda: 101
-            elif fault == 'child':
-                window.children[0].children[0].identity = 'parent-child-selected-1002'
-            elif fault == 'inactive':
-                window.states.remove('active')
-            elif fault == 'window':
-                window.path += '/replacement'
-            elif fault == 'selector':
-                selector.path += '/replacement'
-            elif fault == 'same-center-bounds':
-                selector.component.get_extents.return_value.x -= 1
-                selector.component.get_extents.return_value.width += 2
-            else:
-                selector.component.get_extents.return_value.x += 1
-    transport.on_call = change_target
+@pytest.mark.parametrize('value,canonical', [(0, '0m'), (15, '15m'), (60, '60m'), ('custom', 'custom')])
+def test_allowance_api_dispatches_one_canonical_value_without_native_input(preset_ui, value, canonical):
+    ui, _window, selector, choice = preset_ui
+    selector.component.get_extents = Mock(side_effect=AssertionError('native geometry'))
     with ui.observation():
-        with pytest.raises(UiError, match=code):
-            ui.select_allowance(accessible_ui.CHILD, 15)
+        ui.select_allowance(accessible_ui.CHILD, value)
+    selector.setValue.assert_called_once_with(canonical)
+    assert selector.getValue() == canonical
     assert not ui.input_uncertain
-    assert not any(name in ('NotifyPointerMotionAbsolute', 'NotifyPointerButton')
-                   for name, _ in transport.events)
-    assert [args for name, args in transport.events if name == 'NotifyKeyboardKeysym'] == [
-        (0xffe1, True), (0xffe1, False)]
-    assert sum(name == 'RecordWindow' for name, _ in transport.events) == (boundary == 'stream-start')
-    assert transport.events[-1] == ('Stop', ())
-    transport.connection.close_sync.assert_called_once_with(None)
+    selector.action.do_action.assert_not_called()
+    choice.action.do_action.assert_not_called()
+    selector.component.get_extents.assert_not_called()
+    selector.component.grab_focus.assert_not_called()
 
 
-@pytest.mark.parametrize('message,reason', [
-    ('GDBus.Error:org.freedesktop.DBus.Error.Failed: Window not found', 'window-not-found'),
-    ('Failed to record window: Main logical monitor not found', 'window-monitor'),
-    ('Permission denied', 'permission-denied'),
-    ('PRIVATE_PROVIDER_VALUE', 'other'),
-    ('PRIVATE_PROVIDER_VALUE', 'unknown-method'),
+@pytest.mark.parametrize('fault,code', [
+    ('owner', 'wrong-owner'), ('child', 'wrong-child'),
+    ('disabled', 'unusable-target'), ('duplicate', 'ambiguous-automation-id'),
 ])
-def test_allowance_native_window_error_uses_finite_diagnostic(
-        native_allowance_transport, message, reason):
-    ui, _window, _selector, transport = native_allowance_transport
-    transport.fail = lambda _interface, method, _args: method == 'RecordWindow'
-    transport.error_message = message
-    if reason == 'unknown-method':
-        from gi.repository import Gio
-        transport.error_domain = Gio.dbus_error_quark()
-        transport.error_code = Gio.DBusError.UNKNOWN_METHOD
-    with pytest.raises(UiError) as raised:
+def test_allowance_api_rechecks_current_recipient_before_dispatch(preset_ui, fault, code):
+    ui, window, selector, _choice = preset_ui
+    with ui.observation():
+        assert ui.allowance_keyboard_recipient(accessible_ui.CHILD) is selector
+    if fault == 'owner':
+        ui.root().get_process_id = lambda: 101
+    elif fault == 'child':
+        window.children[0].children[0].identity = 'parent-child-selected-1002'
+        window.children[0].value = '1002'
+    elif fault == 'disabled':
+        selector.states.remove('sensitive')
+    else:
+        duplicate = Node(identity=selector.identity)
+        duplicate.parent = window
+        window.children.append(duplicate)
+    with pytest.raises(UiError, match=code):
         ui.select_allowance(accessible_ui.CHILD, 15)
-    assert str(raised.value) == 'ui:allowance-click-transport:RecordWindow:' + reason
+    selector.setValue.assert_not_called()
     assert not ui.input_uncertain
-    assert transport.events[-1] == ('Stop', ())
-    transport.connection.close_sync.assert_called_once_with(None)
 
 
-def test_allowance_native_cleanup_preserves_primary_uncertain_input_error(native_allowance_transport):
-    ui, _window, _selector, transport = native_allowance_transport
-    transport.fail = lambda _interface, method, args: (
-        method == 'Stop' or method == 'NotifyKeyboardKeysym' and args == (ord('1'), True))
+def test_allowance_api_uncertain_setter_is_never_replayed(preset_ui):
+    ui, _window, selector, _choice = preset_ui
+    error = UiError('application-ui:Timeout')
+    selector.setValue.side_effect = error
     with pytest.raises(UiError) as raised:
         ui.select_allowance(accessible_ui.CHILD, 15)
-    assert str(raised.value) == 'ui:allowance-click-transport:NotifyKeyboardKeysym:other'
-    assert raised.value.__notes__ == ['ui:allowance-click-transport:Stop:other']
+    assert raised.value is error and ui.input_uncertain
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.select_allowance(accessible_ui.CHILD, 15)
+    selector.setValue.assert_called_once_with('15m')
+
+
+@pytest.mark.parametrize('fault,code', [
+    ('unchanged', 'timeout:allowance-selected-value'),
+    ('description', 'allowance-value'), ('owner', 'wrong-owner'),
+    ('child', 'wrong-child'), ('incomplete', 'timeout:'),
+])
+def test_allowance_api_failed_independent_result_blocks_replay(preset_ui, fault, code):
+    ui, window, selector, _choice = preset_ui
+    commit = selector.setValue.side_effect
+    def select(value):
+        commit(value)
+        if fault == 'unchanged': selector.value = '0m'
+        if fault == 'description': selector.children[0].name = '0 minutes'
+        if fault == 'owner': ui.root().get_process_id = lambda: 101
+        if fault == 'child':
+            window.children[0].children[0].identity = 'parent-child-selected-1002'
+            window.children[0].value = '1002'
+        if fault == 'incomplete': window.children.append(None)
+    selector.setValue.side_effect = select
+    with pytest.raises(UiError, match=code):
+        ui.allowance_preset(accessible_ui.CHILD, 15, action='select')
     assert ui.input_uncertain
-    assert transport.events[-1] == ('Stop', ())
-    transport.connection.close_sync.assert_called_once_with(None)
-
-
-@pytest.mark.parametrize('transform,points', [
-    ((12.5, 8.0), ((132.5, 228.0), (152.5, 228.0))),
-    ((-7.0, -9.5), ((113.0, 210.5), (133.0, 210.5))),
-])
-def test_allowance_native_surface_translation_is_owned_and_applied_once(
-        native_allowance_transport, transform, points):
-    ui, _window, selector, transport = native_allowance_transport
-    transport.native_transform = transform
-    ui.select_allowance(accessible_ui.CHILD, 15)
-    assert [args for method, args in transport.events
-            if method == 'NotifyPointerMotionAbsolute'] == [('/stream', *point) for point in points]
-    bridge = [call for call in transport.destinations if call[3] == 'GetNativeSurfaceTransform']
-    assert bridge
-    assert all(call == (
-        ':1.42', '/com/puffyslippers/OhNoParentControl/Parent',
-        'com.puffyslippers.OhNoParentControl.Accessibility1',
-        'GetNativeSurfaceTransform', ('parent-window',)) for call in bridge)
-    assert all(args == (accessible_ui.PARENT_APPLICATION,)
-               for method, args in transport.events if method == 'GetNameOwner')
-    assert all(args == (':1.42',) for method, args in transport.events
-               if method == 'GetConnectionUnixProcessID')
-    first_input = next(index for index, (method, _args) in enumerate(transport.events)
-                       if method.startswith('Notify'))
-    assert any(method == 'GetNativeSurfaceTransform'
-               for method, _args in transport.events[:first_input])
-    assert not ui.input_uncertain
-    selector.action.do_action.assert_not_called()
-    transport.connection.close_sync.assert_called_once_with(None)
-
-
-@pytest.mark.parametrize('width,height,points', [
-    (4, 2, ((101.0, 201.0), (102.0, 201.0))),
-    (7, 3, ((101.5, 201.0), (103.0, 201.0))),
-])
-def test_allowance_native_motion_keeps_small_controls_inside_public_bounds(
-        native_allowance_transport, width, height, points):
-    ui, _window, selector, transport = native_allowance_transport
-    selector.component.get_extents = Mock(return_value=SimpleNamespace(
-        x=100, y=200, width=width, height=height))
-    transport.native_transform = (12.5, 8.0)
-    ui.select_allowance(accessible_ui.CHILD, 15)
-    motions = [args for method, args in transport.events
-               if method == 'NotifyPointerMotionAbsolute']
-    assert motions == [('/stream', x + 12.5, y + 8.0) for x, y in points]
-    assert motions[1][1] - motions[0][1] >= 1
-    assert all(100 < x < 100 + width and 200 < y < 200 + height for x, y in points)
-    assert [args for method, args in transport.events if method == 'NotifyPointerButton'] == [
-        (272, True), (272, False)]
-    assert [args for method, args in transport.events if method == 'NotifyKeyboardKeysym'] == [
-        (key, pressed) for key in (0xffe1, ord('1'), ord('5'), ord('m'), 0xff0d)
-        for pressed in (True, False)]
-
-
-@pytest.mark.parametrize('width,height', [(1, 1), (1, 40), (2, 40), (3, 40), (80, 1)])
-def test_allowance_native_motion_refuses_tiny_bounds_before_any_input(
-        native_allowance_transport, width, height):
-    ui, _window, selector, transport = native_allowance_transport
-    selector.component.get_extents = Mock(return_value=SimpleNamespace(
-        x=100, y=200, width=width, height=height))
-    with pytest.raises(UiError, match='^ui:allowance-click-motion-bounds$'):
+    with pytest.raises(UiError, match='uncertain-input'):
         ui.select_allowance(accessible_ui.CHILD, 15)
-    assert transport.events == []
-    assert not ui.input_uncertain
-    transport.connection.close_sync.assert_not_called()
-
-
-@pytest.mark.parametrize('fault,code', [
-    ('missing-owner', 'allowance-click-transport:GetNameOwner:other'),
-    ('missing-bridge', 'allowance-click-transport:GetNativeSurfaceTransform:other'),
-    ('invalid-owner', 'allowance-surface-owner'),
-    ('wrong-pid', 'allowance-surface-owner'),
-    ('boolean-pid', 'allowance-surface-owner'),
-    ('stale-owner', 'allowance-surface-owner'),
-])
-def test_allowance_native_surface_refuses_unowned_bridge_before_any_input(
-        native_allowance_transport, fault, code):
-    ui, _window, _selector, transport = native_allowance_transport
-    if fault in ('missing-owner', 'missing-bridge'):
-        method = 'GetNameOwner' if fault == 'missing-owner' else 'GetNativeSurfaceTransform'
-        transport.fail = lambda _interface, actual_method, _args: actual_method == method
-    elif fault == 'invalid-owner':
-        transport.native_owner = accessible_ui.PARENT_APPLICATION
-    elif fault == 'wrong-pid':
-        transport.native_pid = 101
-    elif fault == 'boolean-pid':
-        transport.native_pid = True
-    else:
-        def replace_owner(_interface, method, _args):
-            if method == 'GetNativeSurfaceTransform':
-                transport.native_owner = ':1.43'
-        transport.on_call = replace_owner
-    with pytest.raises(UiError, match=code) as raised:
-        ui.select_allowance(accessible_ui.CHILD, 15)
-    assert 'PRIVATE_' not in str(raised.value)
-    assert not any(method.startswith('Notify') for method, _args in transport.events)
-    assert not ui.input_uncertain
-    transport.connection.close_sync.assert_called_once_with(None)
-
-
-@pytest.mark.parametrize('transform', [
-    (float('nan'), 0.0), (0.0, float('inf')), (False, 0.0),
-    (0.0,), (0.0, 0.0, 0.0), (-200.0, 0.0), (0.0, 40000.0),
-    (-130.0, 0.0),  # Center is valid, but the approach would leave the native surface.
-])
-def test_allowance_native_surface_refuses_invalid_transform_before_any_input(
-        native_allowance_transport, transform):
-    ui, _window, _selector, transport = native_allowance_transport
-    transport.native_transform = transform
-    with pytest.raises(UiError, match='allowance-surface-transform'):
-        ui.select_allowance(accessible_ui.CHILD, 15)
-    assert not any(method.startswith('Notify') for method, _args in transport.events)
-    assert not ui.input_uncertain
-    transport.connection.close_sync.assert_called_once_with(None)
-
-
-@pytest.mark.parametrize('boundary', ['warm-up', 'stream-start'])
-@pytest.mark.parametrize('fault,code', [
-    ('owner', 'allowance-surface-owner'), ('transform', 'allowance-surface-changed'),
-])
-def test_allowance_native_surface_rechecks_binding_before_click(
-        native_allowance_transport, boundary, fault, code):
-    ui, _window, _selector, transport = native_allowance_transport
-    def change_binding(interface, method, args):
-        if ((boundary == 'warm-up' and method == 'NotifyKeyboardKeysym'
-             and args == (0xffe1, False)) or
-                (boundary == 'stream-start' and interface == 'org.gnome.Mutter.ScreenCast.Stream'
-                 and method == 'Start')):
-            if fault == 'owner':
-                transport.native_owner = ':1.43'
-            else:
-                transport.native_transform = (1.0, 0.0)
-    transport.on_call = change_binding
-    with ui.observation():
-        with pytest.raises(UiError, match=code):
-            ui.select_allowance(accessible_ui.CHILD, 15)
-    assert not any(method in ('NotifyPointerMotionAbsolute', 'NotifyPointerButton')
-                   for method, _args in transport.events)
-    assert [args for method, args in transport.events if method == 'NotifyKeyboardKeysym'] == [
-        (0xffe1, True), (0xffe1, False)]
-    assert not ui.input_uncertain
-    assert transport.events[-1] == ('Stop', ())
-    transport.connection.close_sync.assert_called_once_with(None)
+    selector.setValue.assert_called_once_with('15m')
 
 
 @pytest.fixture
 def preset_ui():
     label = Node('15 minutes', 'label')
-    allowance = Node(identity='parent-daily-limit-selector', children=[label])
+    allowance = Node(identity='parent-daily-limit-selector', value='15m',
+                     choices=('0m', '15m', '60m', 'custom'), children=[label])
     choice = Node(identity='parent-daily-limit-15',
                   description='Selected daily allowance: 15 minutes')
-    choices = Node(identity='parent-daily-limit-choices', children=[choice])
     selected = Node(identity='parent-child-selected-1001',
                     children=[Node(accessible_ui.CHILD, 'label')])
-    picker = Node(identity='parent-child-selector', children=[selected])
+    picker = Node(identity='parent-child-selector', value='1001', choices=('1001', '1002'),
+                  children=[selected])
     toggle = Node(identity='parent-screen-limit-toggle',
                   states=('showing', 'visible', 'sensitive', 'checked'))
     window = Node(identity='parent-window', children=[picker, toggle, allowance])
@@ -569,24 +304,18 @@ def preset_ui():
     ui.owner_pids = lambda: {100}
     ui._read_nodes = Mock(wraps=ui._read_nodes)
 
-    def open_picker(_index):
-        assert ui._observation_cache == []
-        choices.parent = allowance
-        allowance.children = [label, choices]
-        allowance.states.add('expanded')
-        return True
-
-    def select(_index):
-        assert ui._observation_cache == []
-        # Replace the accessible as GTK may do; a stale tree cannot read this result.
-        replacement = Node('15 minutes', 'label')
+    def select(value):
+        assert not ui._observation_cache
+        allowance.value = value
+        # Replace the public text projection; prior snapshots cannot prove it.
+        name = 'Custom value' if value == 'custom' else accessible_ui.PRESET_LABELS[int(value[:-1])]
+        replacement = Node(name, 'label')
         replacement.parent = allowance
         allowance.children = [replacement]
         allowance.states.discard('expanded')
         return True
 
-    allowance.action.do_action.side_effect = open_picker
-    choice.action.do_action.side_effect = select
+    allowance.setValue.side_effect = select
     return ui, window, allowance, choice
 
 
@@ -594,6 +323,7 @@ def test_preset_final_read_never_activates_a_choice(preset_ui):
     ui, _window, selector, choice = preset_ui
     assert ui.allowance_preset(accessible_ui.CHILD, 15, action='read')['saved']
     selector.action.do_action.assert_not_called()
+    selector.setValue.assert_not_called()
     choice.action.do_action.assert_not_called()
 
 
@@ -608,6 +338,7 @@ def test_independent_preset_calls_recheck_identity(preset_ui, fault, code):
         ui.root().get_process_id = lambda: 101
     else:
         window.children[0].children[0].identity = 'parent-child-selected-1002'
+        window.children[0].value = '1002'
     ui.select_allowance = Mock()
     with pytest.raises(UiError, match=code):
         ui.allowance_preset(accessible_ui.CHILD, 15, action='select')
@@ -625,6 +356,7 @@ def test_preset_result_retry_reacquires_without_replaying_input(preset_ui, monke
     original_attributes = allowance.get_attributes
     def select(_child, _value):
         ui.invalidate_observation()
+        allowance.value = '0m'
         allowance.children = [Node('0 minutes', 'label')]
         if fault != 'pending':
             allowance.get_attributes = Mock(side_effect=(LookupError() if fault == 'query-error'
@@ -633,6 +365,7 @@ def test_preset_result_retry_reacquires_without_replaying_input(preset_ui, monke
     def settle(delay):
         now[0] += delay
         allowance.get_attributes = original_attributes
+        allowance.value = '15m'
         allowance.children = [Node('15 minutes', 'label')]
     monkeypatch.setattr(accessible_ui.time, 'sleep', settle)
     assert ui.allowance_preset(accessible_ui.CHILD, 15, action='select')['saved']

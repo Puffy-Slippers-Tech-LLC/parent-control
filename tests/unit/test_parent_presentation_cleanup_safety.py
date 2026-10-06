@@ -98,7 +98,7 @@ def test_real_decoder_and_recorder_compare_before_reply(tmp_path, stage, fault):
     assert journey.public_captures['original-policy'][0]['app_names'][0][1] == 'Fixture application'
     assert journey.public_captures['original-draft'] == case.DRAFT
     operation = case.SCREENS[stage][3:]
-    payload = dict(operation=operation, outcome='passed', interface='AT-SPI')
+    payload = dict(operation=operation, outcome='passed', interface='ApplicationUI+external-provider')
     if stage == 'hebrew-final':
         payload['language_state'] = policy('he', 10)
         if fault == 'changed': payload['language_state']['rows'][0][1] = 'permanent'

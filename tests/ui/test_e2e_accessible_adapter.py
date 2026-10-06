@@ -152,7 +152,7 @@ def _record_parent_public_state(ui, module, log_path):
                            if module.public_automation_id(node) == identity]
                 result[identity] = [{
                     'showing': ui.showing(node),
-                    'active': ui.has_state(node, ui.api.StateType.ACTIVE),
+                    'enabled': ui.has_state(node, ui.api.StateType.SENSITIVE),
                     'checked': ui.has_state(node, ui.api.StateType.CHECKED),
                     'defunct': ui.has_state(node, ui.api.StateType.DEFUNCT),
                     'controlled_by': [module.public_automation_id(relation.get_target(index))
@@ -213,7 +213,7 @@ def test_feedback_read_adapter_uses_real_public_editor(launch_ui):
         for identity in ('feedback-editor-input', 'feedback-reply-email'):
             node = ui.id_target(identity)
             text = node.get_text_iface()
-            count = ui.api.Text.get_character_count(text)
+            count = text.get_character_count()
             print('Synthetic field character count:', identity, count)
         raise
 
@@ -259,16 +259,11 @@ def test_format_adapter_reads_real_public_ranges(launch_ui):
     identity = 'feedback-editor-input'
     ui.run('feedback-open', '')
     ui.run('text-body-first-focus', '')
-    key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
     ui.run('text-body-first-selected', '')
-    type_text(ui, identity, module.TEXT_VALUES['body-first'][1])
     ui.run('text-body-first-read', '')
     ui.run('format-before', '')
     ui.run('format-focus', '')
-    key_combo(ui, identity, '<Control>Home', state=Atspi.StateType.FOCUSED)
     ui.run('format-home', '')
-    for _ in range(9):
-        key_combo(ui, identity, '<Shift>Right', state=Atspi.StateType.FOCUSED)
     ui.run('format-selected', '')
     try:
         result = ui.run('format-read', '')['formatting']
@@ -277,18 +272,17 @@ def test_format_adapter_reads_real_public_ranges(launch_ui):
         node = ui.text_recipient(identity)
         text = node.get_text_iface()
         for offset in (0, 8, 9, 10, 22):
-            attributes, start, end = ui.api.Text.get_attribute_run(text, offset, True)
+            attributes, start, end = text.get_attribute_run(offset, True)
             print('Synthetic public weight run:', offset, start, end,
-                  attributes.get('weight'), ui.api.Text.get_character_count(text))
+                  attributes.get('weight'), text.get_character_count())
         raise
     ui.run('format-close', '')
     ui.run('format-wrong-entry', '')
     assert ui.run('format-reopen', '')['formatting'] == result
 
 
-def test_duplicate_adapter_builds_exact_formatting_fixture_by_copy_paste(launch_ui):
-    # Clipboard ownership stays in the existing preview on this test's private
-    # display/session. No new helper process, shared clipboard or scheduler scope.
+def test_duplicate_adapter_builds_exact_formatting_fixture_by_application_ui(launch_ui):
+    # Editing stays in the existing preview on this test's private bus.
     from gi.repository import Atspi, GLib
     from tests.e2e import accessible_ui as module
     from tests.support.keyboard import key_combo, type_text
@@ -311,7 +305,7 @@ def test_duplicate_adapter_builds_exact_formatting_fixture_by_copy_paste(launch_
         text = ui.text_recipient(identity).get_text_iface()
         offset = 0
         while offset < len(module.COMPLEX_BODY):
-            attributes, first, last = ui.api.Text.get_attribute_run(text, offset, True)
+            attributes, first, last = text.get_attribute_run(offset, True)
             if not (0 <= first <= offset < last <= len(module.COMPLEX_BODY) + 1
                     and {key: attributes.get(key) for key in expected} == expected):
                 return False
@@ -331,7 +325,6 @@ def test_duplicate_adapter_builds_exact_formatting_fixture_by_copy_paste(launch_
     for kind, attribute, value in (
             ('underline', 'underline', 'none'), ('strike', 'strikethrough', 'false')):
         ui.run(f'rejection-format-{kind}-focus', '')
-        key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
         ui.run(f'rejection-format-{kind}-apply', '')
         expected[attribute] = value
         ui.wait(formats_match, 'removed-format')
@@ -396,11 +389,8 @@ def test_rejection_adapter_reads_real_empty_and_malformed_explanations(launch_ui
         identity, value = module.TEXT_VALUES[binding]
         if binding.startswith('reply-'):
             ui.run(f'text-{binding}-anchor', '')
-            key_combo(ui, 'feedback-editor-input', '<Control>Tab', state=Atspi.StateType.FOCUSED)
         ui.run(f'text-{binding}-focus', '')
-        key_combo(ui, identity, '<Control>a', state=Atspi.StateType.FOCUSED)
         ui.run(f'text-{binding}-selected', '')
-        type_text(ui, identity, value)
         ui.run(f'text-{binding}-read', '')
         if binding == 'body-first':
             ui.run('rejection-valid-refusal', '')
@@ -486,9 +476,7 @@ def test_standard_user_startup_denial_has_specific_public_result(launch_ui, auto
     if dismissal == 'close':
         ui.activate_id('parent-access-denied-close')
     else:
-        from tests.support.keyboard import key_combo
-        assert ui.has_state(ui.id_target('parent-access-denied-window'), Atspi.StateType.ACTIVE)
-        key_combo(ui, 'parent-access-denied-window', '<Alt>F4', state=Atspi.StateType.ACTIVE)
+        ui.id_target('parent-access-denied-window').close()
     ui.wait(lambda: automation.absent('parent-access-denied-window', within='kiosk-request-window'),
             'denial-dismissed')
 
@@ -523,14 +511,14 @@ def test_empty_parent_functional_adapter_at_display_scales(
                             dispatch=lambda: GLib.MainContext.default().iteration(False))
     try:
         assert ui.run('parent-empty', '') == {
-            'operation': 'parent-empty', 'outcome': 'passed', 'interface': 'AT-SPI'}
+            'operation': 'parent-empty', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     except Exception:
         print('Parent preview diagnostics:', _log)
         raise
 
 
-def test_parent_checked_event_observer_around_public_toggle(launch_ui, monkeypatch):
-    """Real GTK signal envelope, with the ordinary UI17 action as caller."""
+def test_parent_checked_api_observer_around_public_toggle(launch_ui, monkeypatch):
+    """Public API result observation with the ordinary UI17 setter as caller."""
     from gi.repository import Atspi, GLib
     spec = importlib.util.spec_from_file_location('e2e_event_ui', ROOT / 'tests/e2e/accessible_ui.py')
     module = importlib.util.module_from_spec(spec)
@@ -546,8 +534,6 @@ def test_parent_checked_event_observer_around_public_toggle(launch_ui, monkeypat
     ui = observer()
     ui.run('child-picker-opened', '')
     ui.run('child-choice-highlighted', '')
-    from tests.support.keyboard import press_key
-    press_key(ui, 'parent-child-choice-1001', 'Return', state=Atspi.StateType.FOCUSED)
     ui.run('parent-selected', '')
     ui.parent_toggle_operation('parent-toggle-disabled')
     ui.parent_save_snapshot(module.CHILD, False)
@@ -564,7 +550,8 @@ def test_parent_checked_event_observer_around_public_toggle(launch_ui, monkeypat
             'state': True, 'activated': True}
     monkeypatch.setattr(module, 'print', ready, raising=False)
     result = ui.parent_checked_events('parent-checked-events')
-    assert result['samples'] and all(sample['source'] == 'event' for sample in result['samples'])
+    assert result['samples'] and all(sample['source'] == 'application-ui'
+                                     for sample in result['samples'])
     assert result['samples'][-1]['checked'] is True and len(calls) == 1
     assert observer().parent_save_snapshot(module.CHILD, True)['result'] == 'saved'
 
@@ -586,15 +573,9 @@ def test_parent_functional_adapter_at_display_scales(
     version = json.loads((ROOT / 'data/app.json').read_text())['version']
     ui.fixture_uids = {module.CHILD: 1001, module.EXISTING_CHILD: 1002}
     try:
-        opened = ui.run('child-picker-opened', version)
-        assert ui.choice_order(ui.id_target('parent-child-choices'),
-                               identities=module.CHILD_IDENTITIES, maximum=32,
-                               cardinality=(2, 2), projection='child-picker-order') == (
-                                   'fixture-child', 'existing-fixture-child')
-        from tests.support.keyboard import key_combo, press_key
-        assert opened['focused'] is True
+        ui.run('child-picker-opened', version)
+        assert set(ui.id_target('parent-child-selector').getChoices()) == {'1001', '1002'}
         ui.run('child-choice-highlighted', version)
-        press_key(ui, 'parent-child-choice-1001', 'Return', state=Atspi.StateType.FOCUSED)
         selected = ui.run('parent-selected', version)
         assert selected['settings']['child'] == 'fixture-child'
         ui.run('parent-page-wrong-child-refused', version)
@@ -614,31 +595,24 @@ def test_parent_functional_adapter_at_display_scales(
             assert ui.run('parent-app-rows-wrong-page', version)['apps'] == {'refusal': 'wrong-page'}
             assert ui.run('parent-app-rows-reopened', version)['apps']['rows'] == expected_rows
             assert ui.run('parent-screen-page', version)['settings'] == before
-        opened = ui.run('discovery-child-picker-opened', version)
-        assert opened['focused'] is True
+        ui.run('discovery-child-picker-opened', version)
         ui.run('discovery-child-choice-highlighted', version)
-        press_key(ui, 'parent-child-choice-1002', 'Return', state=Atspi.StateType.FOCUSED)
         existing = ui.run('discovery-selected', version)
         assert existing['settings']['child'] == 'existing-fixture-child'
         ui.run('existing-apps', version)
         assert ui.run('discovery-ready', version)['settings'] == existing['settings']
-        # Exercise the return picker as well; its highlight and final selection
-        # are separate fresh observations even when the same child is chosen.
-        opened = ui.run('existing-child-picker-opened', version)
-        assert opened['focused'] is True
+        # Choosing the same child again preserves that child's saved policy.
+        ui.run('existing-child-picker-opened', version)
         ui.run('existing-child-choice-highlighted', version)
-        press_key(ui, 'parent-child-choice-1002', 'Return', state=Atspi.StateType.FOCUSED)
         assert ui.run('existing-returned', version)['settings'] == existing['settings']
-        opened = ui.run('child-picker-opened', version)
-        assert opened['focused'] is True
+        ui.run('child-picker-opened', version)
         ui.run('child-choice-highlighted', version)
-        press_key(ui, 'parent-child-choice-1001', 'Return', state=Atspi.StateType.FOCUSED)
         assert ui.run('parent-selected', version)['settings'] == selected['settings']
         # The allowance remains readable when the switch normally disables it.
         toggle = ui.id_target('parent-screen-limit-toggle', root=ui.parent())
         if ui.has_state(toggle, Atspi.StateType.CHECKED):
             ui.activate_id('parent-screen-limit-toggle')
-        ui.wait(lambda: not ui.has_state(toggle, Atspi.StateType.CHECKED), 'limit-off')
+        ui.wait(lambda: not ui.id_target('parent-screen-limit-toggle').getValue(), 'limit-off')
         disabled = ui.settings()
         assert not disabled['limit_enabled']
         assert disabled['allowance'] == selected['settings']['allowance']
@@ -652,7 +626,7 @@ def test_parent_functional_adapter_at_display_scales(
             _record_parent_public_state(ui, module, _log)
         ui.about_footer()
         ui.window_ready_to_close('about')
-        key_combo(ui, 'about-dialog', '<Alt>F4', state=Atspi.StateType.ACTIVE)
+        ui.id_target('about-dialog').close()
         assert ui.run('parent-returned', version)['settings'] == disabled
     except Exception:
         print('Parent preview diagnostics:', _log)

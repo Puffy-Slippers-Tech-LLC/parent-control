@@ -33,7 +33,8 @@ def chooser_tree(initial=False):
                for key, text in language.CHOOSER.items()]
     controls = choices + [Node('Choose your language', identity='language-title'),
         Node('Save', identity='language-continue', description='Save your language preference.',
-             children=[Node('Save', 'label')]), Node('Cancel', identity='language-cancel')]
+             children=[Node('Save', 'label')]), Node('Cancel', identity='language-cancel'),
+        Node(identity='language-list', value='en', choices=language.CHOOSER)]
     dialog = Node(identity='language-dialog', children=controls)
     window = Node(identity='kiosk-request-window', children=[dialog,
         Node(identity='kiosk-language-loading' if initial else 'kiosk-language-ready'),
@@ -109,13 +110,15 @@ def test_mode_refuses_before_vm(extra):
 
 
 @pytest.mark.parametrize('initial', [True, False])
-@pytest.mark.parametrize('fault', ['', 'duplicate', 'missing', 'unchecked', 'multiple', 'stale', 'owner', 'surface', 'entry'])
+@pytest.mark.parametrize('fault', ['', 'duplicate', 'missing', 'empty-value', 'multiple-values',
+                                  'duplicate-choice', 'stale', 'owner', 'surface', 'entry'])
 def test_shared_kiosk_chooser_is_owned_complete_and_input_free(initial, fault):
     ui, window, dialog, controls = chooser_tree(initial)
     if fault == 'duplicate': dialog.children.append(Node(identity='language-title'))
     if fault == 'missing': dialog.children.remove(controls[3])
-    if fault == 'unchecked': controls[0].states.discard('checked')
-    if fault == 'multiple': controls[1].states.add('checked')
+    if fault == 'empty-value': controls[-1].value = ''
+    if fault == 'multiple-values': controls[-1].value = ['en', 'de']
+    if fault == 'duplicate-choice': controls[-1].choices.append('en')
     if fault == 'stale': controls[0].states.add('defunct')
     if fault == 'owner': ui.owner_pids = lambda: {999}
     if fault == 'surface': ui.application_ids = (public.PARENT_APPLICATION,)
@@ -186,7 +189,8 @@ def test_kiosk_stale_chooser_reacquisition_keeps_deadline_and_no_input(monkeypat
 @pytest.mark.parametrize('fault', ['', 'saving', 'wrong-child', 'allowance'])
 def test_public_policy_reader_projects_actual_balances_and_retains_settings(fault):
     selected = Node(identity='parent-child-selected-1002', children=[Node(public.EXISTING_CHILD, 'label')])
-    picker = Node(identity='parent-child-selector', children=[selected])
+    picker = Node(identity='parent-child-selector', value='1002', choices=('1001', '1002'),
+                  children=[selected])
     toggle = Node(identity='parent-screen-limit-toggle', states=('visible', 'showing', 'sensitive', 'checked'))
     allowance = Node(identity='parent-daily-limit-selector', children=[Node(
         '15 minutes' if fault == 'allowance' else '0 minutes', 'label')])
@@ -199,7 +203,9 @@ def test_public_policy_reader_projects_actual_balances_and_retains_settings(faul
     policy = policy_value()
     ui.parent_save_snapshot = Mock(wraps=ui.parent_save_snapshot)
     if fault == 'saving': picker.states.discard('sensitive')
-    if fault == 'wrong-child': selected.identity = 'parent-child-selected-1001'
+    if fault == 'wrong-child':
+        selected.identity = 'parent-child-selected-1001'
+        picker.value = '1001'
     ui.reach_time_explanation = Mock(return_value={key: {'seconds': value}
         for key, value in policy['balances'].items()})
     ui.app_rows = Mock(return_value=policy['rows'])
@@ -209,7 +215,7 @@ def test_public_policy_reader_projects_actual_balances_and_retains_settings(faul
         ui.app_rows.assert_not_called()
         return
     value = ui.kiosk_language_policy()
-    payload = dict(operation='kiosk-language-policy', outcome='passed', interface='AT-SPI', language_policy=value)
+    payload = dict(operation='kiosk-language-policy', outcome='passed', interface='ApplicationUI+external-provider', language_policy=value)
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(payload).encode()),
                                 commands=SimpleNamespace(progress=None))
     observed = UiObservations(transport).observe('kiosk-language-policy')
@@ -237,14 +243,21 @@ def test_stale_or_uncertain_input_is_never_repeated(operation):
     for control in controls: control.action.do_action.assert_not_called()
     controls[0].states.discard('defunct')
     target = next(node for node in controls if node.identity == {
-        'kiosk-language-choose-de': 'language-choice-de', 'kiosk-language-save': 'language-continue',
+        'kiosk-language-choose-de': 'language-list', 'kiosk-language-save': 'language-continue',
         'kiosk-language-cancel': 'language-cancel'}[operation])
     target.states.add('showing')
-    target.action.do_action.return_value = False
+    if operation == 'kiosk-language-choose-de':
+        target.setValue.side_effect = public.UiError('ui:lost-reply')
+    else:
+        target.action.do_action.return_value = False
     with pytest.raises(public.UiError): ui.kiosk_language_operation(operation)
     assert ui.input_uncertain
     with pytest.raises(public.UiError): ui.kiosk_language_operation(operation)
-    target.action.do_action.assert_called_once()
+    if operation == 'kiosk-language-choose-de':
+        target.setValue.assert_called_once_with('de')
+        target.action.do_action.assert_not_called()
+    else:
+        target.action.do_action.assert_called_once()
 
 
 @pytest.mark.parametrize('selected', language.CHOOSER)
@@ -255,6 +268,7 @@ def test_actual_form_reader_uses_general_request_projection_and_separate_text(se
     for node in form.children: node.states.add('sensitive')
     parent = ui.find_id('kiosk-approver-selector')
     parent.children[0].identity = 'kiosk-approver-selected-1000'
+    parent.value = '1000'
     parent.children[0].name = public.PARENT
     template = {'en': 'Selected account: %s.', 'de': 'Ausgewähltes Konto: %s.',
                 'zh-Hans': '已选择的账户：%s。', 'he': 'החשבון שנבחר: %s.'}[selected]
@@ -293,7 +307,7 @@ def test_real_decoder_bounds_refusals_and_terminal_latch(operation, key, value, 
     if key == 'language_policy':
         if fault == 'invalid': value['balances']['one_time'] = True
         if fault == 'oversize': value['rows'].extend(value['rows'] * 30)
-    payload = dict(operation=operation, outcome='passed', interface='AT-SPI', **{key: value})
+    payload = dict(operation=operation, outcome='passed', interface='ApplicationUI+external-provider', **{key: value})
     raw = json.dumps(payload, ensure_ascii=False).encode()
     def deliver(*args, **kwargs):
         if kwargs.get('on_output') is not None:

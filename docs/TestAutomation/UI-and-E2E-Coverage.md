@@ -34,7 +34,7 @@ input guards remain mandatory automation mechanics.
 | 152, feedback formatting | `test_parent_feedback.py`: all block and inline formats, links, clear/reapply, undo/redo, Unicode and retained draft | Type text, bold one selection, append an emoji; retain reply, one real attachment, return from a directly launched supporting window, dialog preservation and app-exit reset. This does not activate a product link. |
 | 153, feedback validation | `test_parent_feedback.py` and `test_e2e_accessible_adapter.py`: local states, 5000/5001 ASCII and emoji, hidden characters, excessive formatting, rejected-send preservation | Reject one empty send, edit body/reply, reopen and observe recovery; never send valid feedback |
 | 154, attachments | `test_parent_feedback.py`: chooser Cancel preservation, count, individual/total size, filename and atomic-rejection boundaries; real file reads and frozen attachment snapshot after source mutation | Prepare a report with two real files, remove the unwanted attachment and retain the intended file; use the shortest real chooser handoff |
-| 158–159, daily allowance | `test_preview_smoke.py` and `test_control_overflow.py`: representative presets through shared click/type/Enter/saved-value selection, custom boundaries, distinct commit paths and local window behavior; no popup, caret or focus acceptance | 158: preset 15 then custom 1; retain that final allowance through child switching, saved-value reload and restart. 159: last-change-wins rapid saves and independent child values after restart; no repeated launch/window-count exercise |
+| 158–159, daily allowance | `test_preview_smoke.py` and `test_control_overflow.py`: representative presets through shared Application UI API value selection and saved-value readback, custom boundaries, distinct commit paths and local window behavior; no popup, caret or focus acceptance | 158: preset 15 then custom 1; retain that final allowance through child switching, saved-value reload and restart. 159: last-change-wins rapid saves and independent child values after restart; no repeated launch/window-count exercise |
 | 38–43, request forms | `test_request_form_component.py` owns local duration validation; the complete preset/custom matrix on both surfaces remains uncompleted and carries no acceptance credit from the removed gesture tasks | Cases excluded from scheduling by the [unsupported native-gesture rule](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures). Preserve their duration, authorization, duplicate-submission and rest-of-day assertions as uncovered; do not recreate gesture tasks. Other ordinary request/approval cases continue independently. |
 | 184, application search/filter | `test_preview_smoke.py::test_catalogue_query_and_representative_filter_results`: name, description, identifier, empty and no-match queries; each match/access category, empty filters and two combined predicates sampled separately; exact rows and no policy writes | One exact-name search, one combined precise/Allowed filter, then clear against the real catalogue |
 | 185–186, application matching | `test_preview_smoke.py::test_match_editor_valid_save_cancel_matrix`: precise/wildcard and absolute/basename Save and Cancel through shared blocks; `test_match_editor_invalid_drafts_cancel_or_reset`: invalid drafts paired with precise/Cancel or wildcard/Reset, exact explanations, retained drafts, unchanged Cancel and immediate default save | Real saved custom rule, representative local refusal and immediate Reset, cross-directory broker rejection, reopen/restart persistence and actual launch/enforcement |
@@ -143,12 +143,14 @@ matrices are executable through the shared editor and text blocks.
 
 ## Shared operations
 
-Both layers use the same public-ID readers and finite values in
+Both layers use the same [Application UI API](Application-UI-API.md), scoped
+client facade in [`application_ui.py`](../../tests/support/application_ui.py),
+public-ID readers and finite values in
 [`accessible_ui.py`](../../tests/e2e/accessible_ui.py). Feedback host tests execute
 the installed worker's actual `onpc_text`, `onpc_format` and
 `onpc_feedback_states` composites through
 [`gui_blocks.py`](../../tests/support/gui_blocks.py). The host adapter supplies
-the private-display keyboard transport; each observation is executed afresh and
+its private-session API connection; each observation is executed afresh and
 failed observations stop input. It does not duplicate the worker's GUI sequence.
 
 Attachment fixtures reuse the shared declared file matrix and public result

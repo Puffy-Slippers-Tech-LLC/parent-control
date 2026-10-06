@@ -206,7 +206,7 @@ def test_real_decoder_two_fresh_challenges_and_terminal_refusal(fault):
     count = 0
     def call(argv, operation, **options):
         nonlocal count
-        value = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        value = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if operation in public.CHINESE_MATE_ORDER:
             if operation.endswith('open'): count += 1
             if operation.endswith('submit-success'):

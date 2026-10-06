@@ -258,7 +258,6 @@ sub dialog_close {
     die 'parent:dialog-close-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
         && $prefix =~ /^[a-z][a-z0-9-]*$/;
     $journey->consume_observation("$prefix-close", $journey->seen("$prefix-close"));
-    testapi::send_key('alt-f4');
     $journey->consume_observation("$prefix-closed", $journey->seen("$prefix-closed"));
 }
 
@@ -388,8 +387,8 @@ sub set_allowance {
     return $journey->seen($prefix . 'allowance-configured');
 }
 
-# PARENT02/UI15: opened public list -> UI14 -> Enter -> independent selection.
-# The caller may already hold the opened list at a recorder phase boundary.
+# PARENT02/UI15: canonical choice inventory -> API selection -> independent result.
+# The caller may already hold the inventory proof at a recorder phase boundary.
 sub select_child {
     onpc_progress::operation('Selecting [Child user] from the child selector');
     my ($journey, $child, $opened, $list_stage, $highlight_stage, $selected_stage) = @_;
@@ -405,9 +404,9 @@ sub select_child {
             || ($child eq 'child' || $child eq 'existing')
             && join('/', $list_stage, $highlight_stage, $selected_stage)
                 eq 'same-child-picker-opened/same-child-choice-highlighted/same-parent-selected');
-    my $highlighted = $journey->highlight_choice($opened, $list_stage, $highlight_stage);
+    $journey->consume_observation($list_stage, $opened);
+    my $highlighted = $journey->seen($highlight_stage);
     $journey->consume_observation($highlight_stage, $highlighted);
-    testapi::send_key('ret');
     return $journey->seen($selected_stage);
 }
 

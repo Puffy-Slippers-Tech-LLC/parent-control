@@ -211,7 +211,7 @@ my $journey = onpc_journey->new(prefix => 'smokeui', review => 0, exchange => su
     push @events, $_[0];
     die 'unavailable' if $_[0] eq $failure;
     return {ui_focused => 1, ui => {
-        operation => 'gdm-select-parent', outcome => 'passed', interface => 'AT-SPI'}};
+        operation => 'gdm-select-parent', outcome => 'passed', interface => 'ApplicationUI+external-provider'}};
 });
 my $ok = eval { onpc_gdm::functional_selection($journey); 1; };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
@@ -243,7 +243,7 @@ my $journey = onpc_journey->new(prefix => 'independent', review => ($fault eq 'r
     exchange => sub {
         die 'unavailable' if $_[0] eq 'dismissed' && $fault eq 'observation-failed';
         return {ui => {operation => $fault eq 'wrong-identity' ? 'gdm-list' : 'gdm-select-parent',
-                       interface => 'AT-SPI', outcome => 'passed'}};
+                       interface => 'ApplicationUI+external-provider', outcome => 'passed'}};
     });
 my $prompt = $journey->seen('selected');
 if ($fault eq 'stale') { $prompt = {%$prompt}; }

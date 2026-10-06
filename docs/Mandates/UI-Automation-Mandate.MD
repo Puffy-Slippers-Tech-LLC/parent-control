@@ -66,9 +66,9 @@ qualifications remain separate from product journeys.
 
 ## Application UI API
 
-Repository-owned product controls now expose the
-[Application UI API](../TestAutomation/Application-UI-API.md). This is an authorized UI input
-route: stable-ID setters and actions operate the actual controls through their
+All existing and future host UI tests, installed E2E tests and their task briefs
+must use the [Application UI API](../TestAutomation/Application-UI-API.md) for
+repository-owned product controls. Stable-ID setters and actions operate the actual controls through their
 normal handlers, with current ownership, effective sensitivity, logical
 visibility, modal and validation guards. Canonical values are independent of
 language/locale. Transport and consumers remain distro/desktop-neutral;
@@ -76,25 +76,33 @@ toolkit and GNOME panel details belong in their adapters. Future desktop ports
 implement the same adapter contract and public IDs rather than adding desktop
 branches to API consumers or customer cases.
 
-Prefer these operations for product journeys once their consuming adapter is
-qualified. Direct selector values do not require popup, accessibility, focus,
-scrolling or native-input qualification. The fixed editor API is permitted;
+Use the same shared test facade and operation helpers in host UI and installed
+E2E tests. Cases supply finite values and expected outcomes; shared helpers own
+endpoint binding, surface discovery, control operations, waits and refusal
+guards. Direct selector values do not require popup, accessibility, focus,
+scrolling or native-input qualification. The fixed editor API is required for
+product editor operations;
 arbitrary caller-supplied JavaScript, private backend edits and credential
 delivery through this service are not. A setter's success acknowledges input;
 independently observe the required public outcome, and never replay uncertain
 mutations automatically. Existing external-provider and authentication guards
 continue to apply outside the product API.
 
-The native allowance/AT-SPI rules below describe the retained implementations.
-They do not prohibit the new Application UI API. No existing UI/E2E tests were
-changed or executed as part of this API delivery, and implementation alone does
-not qualify a new consumer or close an acceptance task.
+Use `getValue`/`setValue` and `getChoices` for canonical choices,
+`getText`/`setText` for displayed or literal text, `activate` for ordinary
+actions, and the surface `close` operation for normal close requests. Discover
+dialog surfaces and resolve every operation against its current owner and
+surface. Pin the unique endpoint owner/PID; deliberately bind a new client after
+a restart. The bounded runtime inventory owns dynamically constructed controls.
+Never substitute toolkit calls, private widget state, AT-SPI product actions,
+native key/pointer injection or an alternate transport after refusal.
 
 ## Route selection
 
-- **Choose the route by the feature under test:** Real GUI operations are for
-  the product features the case exercises, such as its dropdowns, toggles,
-  textboxes, approval prompts and explicitly tested launch routes. All other
+- **Choose the route by the feature under test:** Application UI API operations
+  exercise product dropdowns, toggles, textboxes, dialogs and the child panel.
+  External provider operations exercise authentication and explicitly tested
+  operating-system launch routes or file choosers. All other
   desktop, Shell and GDM work is harness infrastructure. Use the simplest
   reliable supported shortcut, SSH command or public system API, in shared
   libraries; never duplicate it in a case. This applies to completed tasks and
@@ -149,8 +157,8 @@ not qualify a new consumer or close an acceptance task.
   bounded input, exact-file guards and independent app readback. Do not inject
   attachments into private app state or replace the live handoff with a stub.
 - **External links:** Acceptance stops at the product's link being clickable:
-  resolve its public ID and check a visible, enabled link with a usable public
-  activation action. Viewport clipping does not require following the link.
+  resolve its public ID through the Application UI API and check logical
+  visibility, sensitivity and the supported `activate` operation. Viewport clipping does not require following the link.
   Do not activate the link, inspect its URI/destination, launch a handler or
   validate what opens. This applies to Help, website, portal, privacy, mail,
   license and legal-file links across all tests. No browser/mail/document
@@ -180,31 +188,18 @@ and independent result checks apply to both routes.
 
 ## Target identity and provider exception
 
-- **Daily allowance selection (all UI and E2E tests):** Use the one shared
-  PARENT06 block: native left click on the identified allowance selector, type
-  the desired minutes/hours (for example `15m`) or `c` for Custom, press Enter,
-  then independently verify the saved allowance or use the Custom editor.
-  No test or qualification may add popup-opening, expanded-state, highlight,
-  cancellation, choice-row activation, arrow-navigation or menu-reopening
-  checks to this sequence. There is no opt-in exception for UI tests.
-  Resolve the active owning Parent window, selected child and enabled selector
-  by public IDs before input. Preserve native focus; do not inspect or move
-  focus inside the popup. The opening click alone may use fresh window-relative
-  bounds from that ID-resolved selector through a window-bound native stream.
-  Convert those widget bounds using Parent's read-only public
-  [native-surface metadata](../SystemDesign/Frontends.md#public-automation-identities),
-  bound to the same process and window. Revalidate ownership, bounds and the
-  transform around stream binding; missing or changed metadata refuses input.
-  GTK screen origins, fixed coordinates and VM/distro branches are forbidden.
-  Click, typing and Enter execute once through the shared input block;
-  an uncertain input fails without replay or an alternative route.
-  Only the final public allowance and save completion establish success.
-  Custom numeric editing/validation and per-child persistence remain separate
-  tests after this shared selection. The [catalogue](../TestAutomation/E2E-Building-Blocks.md#app-grid-search-and-parent-launch)
-  owns the implementation entry points.
+- **Daily allowance selection (all UI and E2E tests):** Use the shared
+  PARENT06 block to call `setValue("parent-daily-limit-selector", token)` with
+  an offered canonical duration or `custom`. For Custom, use the same facade
+  to set `parent-custom-daily-limit` and activate its normal validation handler.
+  Independently verify the final allowance and save completion. Resolve the
+  owning Parent surface, selected child and enabled control before input.
+  Do not open a popup, inspect focus, inject keys/pointer events or derive bounds
+  for this operation. Custom validation and per-child persistence retain their
+  distinct functional assertions.
 - For GUI operations required by the feature under test, and unavoidable
   graphical authentication, except for the external-provider exception below,
-  and the daily allowance keyboard exception above, every automated UI target
+  every automated UI target
   must be resolved by a stable public `automation-id`,
   scoped to its owning application and surface. Shared controls use one ID
   contract across surfaces, suites and helpers. Reject missing, duplicate,
@@ -216,7 +211,7 @@ and independent result checks apply to both routes.
   acceptance. These constraints apply when GUI interaction is necessary;
   they never require replacing a system command with GUI setup.
 - Add a missing ID to repository-owned application or fixture code and expose it
-  through the public accessibility interface before implementing its consumer.
+  through the Application UI API before implementing its consumer.
   Documentation-only work records the requirement without claiming implementation
   or qualification.
 - **Approved external-provider exception:** For dependencies outside this
@@ -275,22 +270,16 @@ the geometry prohibition or authorize skipping unrelated active blockers.
   without GTK direction/alignment or glyph-rendering acceptance matrices.
   Retained screenshots and the required VM watch are evidence/observation only
   and require no visual reviewer or visual pass decision.
-- After ID lookup (or qualified external-provider resolution), names, roles,
-  text and states may verify meaning and results.
-  Prefer invoking the ID-resolved control's public accessibility action directly,
-  including when a scroll viewport clips or covers an otherwise available control.
-  Do not add focus, scrolling or repeated tree traversals before such an action.
-  Resolve the target once per fresh input boundary; do not enumerate every ID or
-  repeat full traversals solely to obtain that same target.
-  Prefer a provider's direct ID lookup where available; otherwise reuse one fresh,
-  complete scoped snapshot for prompt, ownership and target checks at each input
-  boundary. Never reuse a snapshot across input or session transitions. Preserve
-  ambiguity, completeness, sensitivity, ownership and uncertain-input checks.
-  Use ordinary keyboard input when appropriate. If a direct public action is
-  unavailable, semantically reveal, scroll, focus or navigate, then reacquire by
-  ID or the qualified external-provider adapter. Truly hidden or disabled controls
-  still refuse; viewport clipping alone is not hidden application state. Cosmetic
-  differences cannot gate acceptance.
+- Product reads and input use current Application UI API element snapshots and
+  capabilities. Read logical values or text independently after input; observe
+  the saved policy, validation, draft or session outcome required by the case.
+  Do not add focus, scrolling or repeated inventories before a supported API
+  operation. Hidden, disabled, busy, detached, wrong-owner or modal-blocked
+  controls refuse; viewport clipping alone is not hidden application state.
+  External providers retain fresh complete scoped observations, qualified public
+  actions and keyboard-recipient guards. Their shared adapter may reveal or
+  focus a target when its input route requires it, then reacquire that same
+  target. No input or session transition may reuse an earlier recipient proof.
 - A successful input is not a successful result. Independently observe the
   required public state. Preserve ownership, secret-recipient, single-use input
   and uncertain-input guards; never replay an action whose effect is uncertain.

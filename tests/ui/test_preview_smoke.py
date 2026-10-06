@@ -78,14 +78,8 @@ def test_parent_preview_publishes_and_loads_management_controls(
                      "parent-screen-limit-toggle", "parent-daily-limit-selector",
                      "parent-revoke-button"):
         assert ui.target(identity).get_accessible_id() == identity
-    ui.activate("parent-child-selector", action_name="menu.popup")
-    wait_for_accessible_state(lambda: ui.showing("parent-child-choice-1002"),
-                              "child choices are ID-addressable actions")
-    for identity in ("parent-child-selector", "parent-child-popover",
-                     "parent-child-choices", "parent-child-choice-1001",
-                     "parent-child-choice-1002"):
-        assert ui.target(identity).get_accessible_id() == identity
-    ui.activate("parent-child-choice-1002")
+    assert set(ui.getChoices("parent-child-selector")) == {'1001', '1002'}
+    ui.setValue("parent-child-selector", "1002")
     wait_for_accessible_state(lambda: ui.showing("parent-child-selected-1002"),
                               "selected child is published by UID")
     assert ui.target("parent-child-selector").get_accessible_id() == "parent-child-selector"
@@ -400,10 +394,7 @@ def test_parent_rejected_custom_allowance_reloads_saved_value(
     # Match Task 040a's public reload: visit the other child and return before
     # reading the saved preset and reopening its custom editor.
     for uid in (1002, 1001):
-        ui.activate('parent-child-selector', action_name='menu.popup')
-        wait_for_accessible_state(lambda: ui.showing(f'parent-child-choice-{uid}'),
-                                  'child choices open')
-        ui.activate(f'parent-child-choice-{uid}')
+        ui.setValue('parent-child-selector', str(uid))
         wait_for_accessible_state(lambda: ui.showing(f'parent-child-selected-{uid}'),
                                   'selected child changes')
         wait_parent_ready(ui, wait_for_accessible_state)
@@ -474,8 +465,7 @@ def test_catalogue_query_and_representative_filter_results(
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       scenario='catalogue', events_path=events)
     wait_parent_ready(ui, wait_for_accessible_state)
-    ui.activate('parent-child-selector', action_name='menu.popup')
-    ui.activate('parent-child-choice-1002')
+    ui.setValue('parent-child-selector', '1002')
     wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
     reader = AccessibleUI(ui.api, timeout=20, query_errors=ui.query_errors,
         owner_pids=ui.owner_pids, application_ids=ui.application_ids,
@@ -523,8 +513,7 @@ def test_public_policy_legend_full_read_and_unchanged_choices(
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       scenario='catalogue', events_path=events)
     wait_parent_ready(ui, wait_for_accessible_state)
-    ui.activate('parent-child-selector', action_name='menu.popup')
-    ui.activate('parent-child-choice-1002')
+    ui.setValue('parent-child-selector', '1002')
     wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
     reader = AccessibleUI(ui.api, timeout=20, query_errors=ui.query_errors,
         owner_pids=ui.owner_pids, application_ids=ui.application_ids,
@@ -559,8 +548,7 @@ def test_app_access_choices_save_and_independent_readback(
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       scenario='catalogue', events_path=events)
     wait_parent_ready(ui, wait_for_accessible_state)
-    ui.activate('parent-child-selector', action_name='menu.popup')
-    ui.activate('parent-child-choice-1002')
+    ui.setValue('parent-child-selector', '1002')
     wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
     reader = AccessibleUI(ui.api, timeout=30, query_errors=ui.query_errors,
         owner_pids=ui.owner_pids, application_ids=ui.application_ids,
@@ -594,8 +582,7 @@ def test_policy_composite_filtered_and_independent_entry(
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       scenario='catalogue', events_path=tmp_path / 'policy-events.jsonl')
     wait_parent_ready(ui, wait_for_accessible_state)
-    ui.activate('parent-child-selector', action_name='menu.popup')
-    ui.activate('parent-child-choice-1002')
+    ui.setValue('parent-child-selector', '1002')
     wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
     reader = AccessibleUI(ui.api, timeout=30, query_errors=ui.query_errors,
         owner_pids=ui.owner_pids, application_ids=ui.application_ids,
@@ -635,8 +622,7 @@ def test_match_editor_valid_save_cancel_matrix(
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       scenario='catalogue', events_path=events)
     wait_parent_ready(ui, wait_for_accessible_state)
-    ui.activate('parent-child-selector', action_name='menu.popup')
-    ui.activate('parent-child-choice-1002')
+    ui.setValue('parent-child-selector', '1002')
     wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
     reader = AccessibleUI(ui.api, timeout=30, query_errors=ui.query_errors,
         owner_pids=ui.owner_pids, application_ids=ui.application_ids,
@@ -679,8 +665,7 @@ def test_match_editor_invalid_drafts_cancel_or_reset(
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       scenario='catalogue', events_path=events)
     wait_parent_ready(ui, wait_for_accessible_state)
-    ui.activate('parent-child-selector', action_name='menu.popup')
-    ui.activate('parent-child-choice-1002')
+    ui.setValue('parent-child-selector', '1002')
     wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
     reader = AccessibleUI(ui.api, timeout=30, query_errors=ui.query_errors,
         owner_pids=ui.owner_pids, application_ids=ui.application_ids,
@@ -726,8 +711,7 @@ def test_rejected_parent_rule_report_review_and_confirmed_policy(
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       scenario='rejected-rule', events_path=tmp_path / 'report-events.jsonl')
     wait_parent_ready(ui, wait_for_accessible_state)
-    ui.activate('parent-child-selector', action_name='menu.popup')
-    ui.activate('parent-child-choice-1002')
+    ui.setValue('parent-child-selector', '1002')
     wait_for_accessible_state(lambda: ui.showing('parent-child-selected-1002'), 'Jordan selected')
     reader = AccessibleUI(ui.api, timeout=30, query_errors=ui.query_errors,
         owner_pids=ui.owner_pids, application_ids=ui.application_ids,

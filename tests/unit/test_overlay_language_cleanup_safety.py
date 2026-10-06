@@ -49,7 +49,8 @@ def chooser_tree(initial=False):
                for key, text in language.CHOOSER.items()]
     controls = choices + [Node('Choose your language', identity='language-title'),
         Node('Save', identity='language-continue', description='Save your language preference.',
-             children=[Node('Save', 'label')]), Node('Cancel', identity='language-cancel')]
+             children=[Node('Save', 'label')]), Node('Cancel', identity='language-cancel'),
+        Node(identity='language-list', value='en', choices=language.CHOOSER)]
     dialog = Node(identity='language-dialog', children=controls)
     window = Node(identity='kiosk-request-window', children=[dialog,
         Node(identity='kiosk-language-loading' if initial else 'kiosk-language-ready'),
@@ -179,14 +180,14 @@ def test_mode_refuses_before_vm(extra):
 
 
 @pytest.mark.parametrize('initial', [True, False])
-@pytest.mark.parametrize('fault', ['', 'duplicate', 'missing', 'unchecked', 'multiple', 'stale',
+@pytest.mark.parametrize('fault', ['', 'duplicate', 'missing', 'empty-value', 'multiple-values', 'stale',
     'owner', 'station', 'parent', 'wrong-child', 'hidden-child', 'duplicate-child', 'account'])
 def test_child_owned_chooser_refuses_before_any_input(initial, fault):
     ui, window, dialog, controls = chooser_tree(initial)
     if fault == 'duplicate': dialog.children.append(Node(identity='language-title'))
     if fault == 'missing': dialog.children.remove(controls[3])
-    if fault == 'unchecked': controls[0].states.discard('checked')
-    if fault == 'multiple': controls[1].states.add('checked')
+    if fault == 'empty-value': controls[-1].value = ''
+    if fault == 'multiple-values': controls[-1].value = ['en', 'de']
     if fault == 'stale': controls[0].states.add('defunct')
     if fault == 'owner': ui.owner_pids = lambda: {999}
     if fault == 'station': ui.api.get_desktop(0).identity = public.KIOSK_APPLICATION
@@ -217,14 +218,21 @@ def test_stale_ambiguous_and_uncertain_input_is_not_replayed(operation):
     for control in controls: control.action.do_action.assert_not_called()
     dialog.children.pop()
     target = next(node for node in controls if node.identity == {
-        'overlay-language-choose-de': 'language-choice-de', 'overlay-language-save': 'language-continue',
+        'overlay-language-choose-de': 'language-list', 'overlay-language-save': 'language-continue',
         'overlay-language-cancel': 'language-cancel'}[operation])
     target.states.add('showing')
-    target.action.do_action.return_value = False
+    if operation == 'overlay-language-choose-de':
+        target.setValue.side_effect = public.UiError('ui:lost-reply')
+    else:
+        target.action.do_action.return_value = False
     with pytest.raises(public.UiError): ui.overlay_language_operation(operation)
     assert ui.input_uncertain
     with pytest.raises(public.UiError): ui.overlay_language_operation(operation)
-    target.action.do_action.assert_called_once()
+    if operation == 'overlay-language-choose-de':
+        target.setValue.assert_called_once_with('de')
+        target.action.do_action.assert_not_called()
+    else:
+        target.action.do_action.assert_called_once()
 
 
 def test_real_session_guard_rejects_wrong_uid_and_requires_active_session(monkeypatch):
@@ -254,6 +262,7 @@ def test_actual_overlay_form_reader_and_separate_visible_text(selected):
     child = ui.find_id('kiosk-child-selector')
     child.states.discard('sensitive')
     child.children[0].identity = 'kiosk-child-selected-1001'
+    child.value = '1001'
     child.children[0].name = public.CHILD
     template = {'en': 'Selected account: %s.', 'de': 'Ausgewähltes Konto: %s.',
                 'zh-Hans': '已选择的账户：%s。', 'he': 'החשבון שנבחר: %s.'}[selected]
@@ -292,7 +301,7 @@ def test_real_decoder_stream_and_terminal_latch(operation, key, value, fault):
     if key == 'language_policy':
         if fault == 'invalid': value['balances']['one_time'] = True
         if fault == 'oversize': value['rows'].extend(value['rows'] * 30)
-    payload = dict(operation=operation, outcome='passed', interface='AT-SPI', **{key: value})
+    payload = dict(operation=operation, outcome='passed', interface='ApplicationUI+external-provider', **{key: value})
     raw = json.dumps(payload, ensure_ascii=False).encode()
     def deliver(*args, **kwargs):
         if kwargs.get('on_output') is not None:

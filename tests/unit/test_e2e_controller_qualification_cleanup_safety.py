@@ -89,7 +89,7 @@ def test_semantic_reconciliation_requires_fresh_results_and_logout_order(tmp_pat
         if stage == 'gdm-return': details.append({'title': 'serial-logout', 'result': 'ok'})
         details.append({'title': 'smokeui-' + stage, 'result': 'ok'})
         observations.append({'stage': stage, 'ui': {
-            'operation': tag[3:], 'outcome': 'passed', 'interface': 'AT-SPI'}})
+            'operation': tag[3:], 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}})
     if fault == 'missing-ui': observations.pop()
     if fault == 'duplicate-ui': observations.append(observations[-1])
     if fault == 'wrong-operation': observations[-1]['ui']['operation'] = 'gdm-list'

@@ -88,7 +88,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     events = result['events']
     assert bool(result['ok']) == (not fault), result['error']
     assert events.count(['key', 'ret']) == (1 if fault else 2)
-    assert events.count(['key', 'alt-f4']) == (0 if fault else 2)
+    assert events.count(['key', 'alt-f4']) == 0
     if not fault:
         assert events.count(['query', 'Oh No! Parent Control']) == 2
         wrong = events.index(['seen', 'repeat-wrong-entry'])

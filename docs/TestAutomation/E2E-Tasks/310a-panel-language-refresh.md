@@ -1,6 +1,6 @@
 # 310a — Qualify child panel language refresh and presentation
 
-Follow the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
@@ -19,7 +19,7 @@ public countdown language and remaining time.
 Reopen the overlay, confirm the shared choice, close it, then resume the child
 session through the qualified retained-session route and observe refreshed
 countdown again. Require Hebrew/restored English public meaning and correct
-remaining time through a separately qualified Shell observation route. Full
+remaining time through the shared `child-panel` Application UI API. Full
 tooltip/menu translation and content combinations belong to host UI coverage;
 public IDs and matching semantics remain automation guards.
 
@@ -35,7 +35,8 @@ does not transfer to Shell.
 
 Reuse `AccessibleUI.child_countdown`, `overlay_panel_target`, LANG01,
 [countdown.py](../../../tests/e2e/countdown.py) and shared overlay/session
-workers. Extend their public observation schema for the exact Shell language
+workers. Read `child-remaining-time` canonical seconds and translated text;
+extend their public observation schema for the exact panel language
 binding, preserving active Riley, duplicate-ID and uncertain-input guards.
 
 ## Implementation entry

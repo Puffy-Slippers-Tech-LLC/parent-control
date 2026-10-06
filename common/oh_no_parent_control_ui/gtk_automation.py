@@ -6,6 +6,31 @@ import re
 
 
 _AUTOMATION_ID = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
+_PUBLISHED = {}
+
+
+class _PublishedIdentity:
+    """Keep identity for the native widget lifetime without retaining it."""
+
+    def __init__(self, widget, identity):
+        self.key = hash(widget)
+        self.identity = identity
+        self.target = widget.weak_ref(self.release)
+
+    def release(self, *_args):
+        if _PUBLISHED.get(self.key) is self:
+            del _PUBLISHED[self.key]
+
+
+def automation_id(widget):
+    """Return only an explicitly published application identity.
+
+    GTK templates also assign Buildable IDs, often repeated in separate rows.
+    Those toolkit implementation names are not application API elements.
+    """
+    record = _PUBLISHED.get(hash(widget))
+    return (record.identity if record is not None and record.target() == widget
+            else "")
 
 
 def set_automation_id(widget, automation_id: str):
@@ -18,6 +43,11 @@ def set_automation_id(widget, automation_id: str):
     from gi.repository import Gtk
     builder = Gtk.Builder()
     builder.expose_object(automation_id, widget)
+    record = _PUBLISHED.get(hash(widget))
+    if record is not None and record.target() == widget:
+        record.identity = automation_id
+    else:
+        _PUBLISHED[hash(widget)] = _PublishedIdentity(widget, automation_id)
     return widget
 
 

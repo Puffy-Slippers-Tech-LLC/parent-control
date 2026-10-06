@@ -57,7 +57,7 @@ def test_functional_selection_is_fresh_durable_and_never_replayed(tmp_path, faul
     controller.steps = [{'stage': 'ready'}, {'stage': 'gdm'}, {'stage': 'focused'}]
     controller.vm = Mock()
     result = {'operation': 'gdm-product-free-select-parent', 'outcome': 'passed',
-              'interface': 'AT-SPI'}
+              'interface': 'ApplicationUI+external-provider'}
     controller.ui = Mock(observe=Mock(return_value=result))
     (tmp_path / 'selected.request.json').write_text(json.dumps({'stage': 'selected', 'screenshot': None}))
     if fault == 'ui': controller.ui.observe.side_effect = RuntimeError('missing prompt')
@@ -82,7 +82,7 @@ def test_functional_list_publishes_direct_focus_without_positional_navigation(tm
     controller.steps = [{'stage': 'ready'}]
     controller.vm = Mock()
     result = {'operation': 'gdm-product-free-list', 'outcome': 'passed',
-              'interface': 'AT-SPI', 'focused': True}
+              'interface': 'ApplicationUI+external-provider', 'focused': True}
     controller.ui = Mock(observe=Mock(return_value=result))
     (tmp_path / 'gdm.request.json').write_text(json.dumps(
         {'stage': 'gdm', 'screenshot': None}))
@@ -121,7 +121,7 @@ def test_functional_return_uses_the_product_free_list_binding(tmp_path):
     controller.steps = [{'stage': stage} for stage in smoke.FUNCTIONAL_SERIAL_STAGES[:-1]]
     controller.vm = Mock(read=Mock(return_value={'unexpected_user_session': False}))
     result = {'operation': 'gdm-product-free-returned', 'outcome': 'passed',
-              'interface': 'AT-SPI'}
+              'interface': 'ApplicationUI+external-provider'}
     controller.ui = Mock(observe=Mock(return_value=result))
     (tmp_path / 'gdm-return.request.json').write_text(json.dumps(
         {'stage': 'gdm-return', 'screenshot': None}))

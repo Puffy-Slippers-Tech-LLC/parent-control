@@ -99,7 +99,6 @@ package testapi;
 sub record_info { push @main::labels, $_[0] }
 sub send_key {
     push @main::events, ['key', $_[0]];
-    die 'uncertain close' if $main::fault eq 'close-input';
 }
 package main;
 require onpc_license_viewer_provider;
@@ -115,6 +114,7 @@ my $ok = eval {
         die 'missing about' if $fault eq 'about' && $stage eq 'about';
         die 'missing license' if $fault eq 'license' && $stage eq 'license';
         die 'missing refusals' if $fault eq 'refusals' && $stage eq 'license-provider-refusals';
+        die 'uncertain close' if $fault eq 'close-input' && $stage eq 'parent-returned';
         die 'missing return' if $fault eq 'return' && $stage eq 'license-closed';
         return {};
     }, $link);
@@ -131,11 +131,17 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events,
     assert events.count(['seen', 'license']) == (0 if fault in ('help', 'about') else 1)
     assert events.count(['seen', 'license-provider-refusals']) == (
         0 if fault in ('help', 'about', 'license') else 1)
-    assert events.count(['key', 'alt-f4']) == {
-        '': 1, 'help': 0, 'about': 0, 'license': 0, 'refusals': 0, 'close-input': 1, 'return': 0,
-    }[fault]
+    assert not any(event[0] == 'key' for event in events)
+    assert events.count(['seen', 'parent-returned']) == (1 if fault in ('', 'close-input') else 0)
     if fault:
         assert ['finish'] not in events
+        assert events[-1] == ['seen', {
+            'help': 'help', 'about': 'about', 'license': 'license',
+            'refusals': 'license-provider-refusals', 'close-input': 'parent-returned',
+            'return': 'license-closed',
+        }[fault]]
+        assert ('uncertain close' if fault == 'close-input'
+                else 'missing ' + fault) in result['error']
     else:
         assert [event[1] for event in events if event[0] == 'seen'] == [
             'parent-selected', *(['help'] if link == 'information' else []),

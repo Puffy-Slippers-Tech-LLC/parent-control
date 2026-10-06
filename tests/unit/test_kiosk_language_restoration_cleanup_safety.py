@@ -34,26 +34,28 @@ def translated_accounts(field='child', before='de', after='he'):
         parent = ui.find_id('kiosk-approver-selector')
         parent.children[0].identity = 'kiosk-approver-selected-1000'
         parent.children[0].name = public.PARENT
+        parent.value = '1000'
+        parent.choices = ['1000']
         parent.description = public.ACCOUNT_LANGUAGE_LABELS[before][2] % public.PARENT
     for choice, name in zip(choices.children, expected):
         choice.name = public.ACCOUNT_LANGUAGE_LABELS[before][0 if field == 'child' else 1] + ': ' + name
         label = Node(name, 'label'); label.parent = choice; choice.children.append(label)
-    original = choices.children[0].action.do_action.side_effect
-    def commit(index):
-        original(index)
+    original = selector.setValue.side_effect
+    def commit(value):
+        original(value)
         selector.description = public.ACCOUNT_LANGUAGE_LABELS[after][2] % expected[0]
         child_control.description = public.ACCOUNT_LANGUAGE_LABELS[after][2] % (
             expected[0] if field == 'child' else child)
         ui.find_id('kiosk-approver-selector').description = public.ACCOUNT_LANGUAGE_LABELS[after][2] % public.PARENT
         return True
-    choices.children[0].action.do_action.side_effect = commit
+    selector.setValue.side_effect = commit
     return ui, selector, choices, expected, child
 
 
 @pytest.mark.parametrize('field,before,after', [('child', 'de', 'he'), ('child', 'he', 'de'),
     ('approver', 'de', 'de'), ('approver', 'he', 'he')])
 @pytest.mark.parametrize('fault', ['', 'owner', 'surface', 'child', 'missing-uid', 'duplicate-uid',
-    'pre-language', 'post-language', 'offered-set', 'literal-name', 'stale', 'uncertain'])
+    'pre-language', 'post-language', 'offered-set', 'unexpected-uid', 'stale', 'uncertain'])
 def test_bound_selector_uses_independent_identity_language_and_terminal_result(field, before, after, fault):
     ui, selector, choices, expected, child = translated_accounts(field, before, after)
     if fault == 'owner': ui.owner_pids = lambda: {999}
@@ -63,35 +65,35 @@ def test_bound_selector_uses_independent_identity_language_and_terminal_result(f
     if fault == 'duplicate-uid': ui.fixture_uids[expected[1]] = ui.fixture_uids[expected[0]]
     if fault == 'pre-language': before = 'en'
     if fault == 'post-language':
-        original = choices.children[0].action.do_action.side_effect
-        def wrong_result(index):
-            original(index)
+        original = selector.setValue.side_effect
+        def wrong_result(value):
+            original(value)
             selector.description = 'Selected account: wrong language.'
             return True
-        choices.children[0].action.do_action.side_effect = wrong_result
-    if fault == 'offered-set': choices.children.pop()
-    if fault == 'literal-name': choices.children[0].children[0].name = 'Changed literal name'
+        selector.setValue.side_effect = wrong_result
+    if fault == 'offered-set': selector.choices.pop()
+    if fault == 'unexpected-uid': selector.choices[0] = '9999'
     if fault == 'stale': selector.states.add('defunct')
     if fault == 'uncertain': ui.input_uncertain = True
-    ui.complete_request_language_setup = Mock(side_effect=AssertionError('unexpected setup'))
+    ui.complete_request_language_setup = Mock(wraps=ui.complete_request_language_setup)
     call = lambda: ui.select_kiosk_account(field, expected[0], expected=expected,
         child=child, language=before, result_language=after)
     if fault:
         with pytest.raises(public.UiError): call()
-        if fault not in ('offered-set', 'literal-name', 'post-language'):
-            selector.action.do_action.assert_not_called()
-        if fault in ('offered-set', 'literal-name'):
-            choices.children[0].action.do_action.assert_not_called()
-        if fault in ('offered-set', 'literal-name', 'post-language', 'uncertain'):
+        if fault != 'post-language':
+            selector.setValue.assert_not_called()
+        if fault in ('post-language', 'uncertain'):
             assert ui.input_uncertain
             with pytest.raises(public.UiError, match='uncertain-input'): call()
     else:
         value = call()
         assert value['child'] == public.CHILD_IDENTITIES[expected[0] if field == 'child' else child]
         assert value['approver'] == 'fixture-parent' and value['duration_seconds'] == 1800
-        selector.action.do_action.assert_called_once()
-        choices.children[0].action.do_action.assert_called_once()
-    ui.complete_request_language_setup.assert_not_called()
+        selector.setValue.assert_called_once_with(str(ui.fixture_uids[expected[0]]))
+        ui.complete_request_language_setup.assert_called_once()
+    selector.action.do_action.assert_not_called()
+    for choice in choices.children:
+        choice.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('startup', ['unset', 'saved', 'save-failed'])
@@ -109,7 +111,7 @@ def test_selected_child_snapshot_cannot_supply_later_language_readiness(startup)
 
     def mixed_selection(*args, **kwargs):
         result = snapshot(*args, **kwargs)
-        if choices.children[0].action.do_action.called and not selected_reads:
+        if selector.setValue.called and not selected_reads:
             # A complete traversal is not atomic: it can read the old ready
             # marker before the new UID and English selector description.
             selected_reads.append(ui._observation_generation)
@@ -143,14 +145,15 @@ def test_selected_child_snapshot_cannot_supply_later_language_readiness(startup)
             assert result['duration_seconds'] == 1800 and result['allow_soft'] is False
             assert result['custom_text'] is None
             assert not ui.input_uncertain
-    selector.action.do_action.assert_called_once()
-    choices.children[0].action.do_action.assert_called_once()
+    selector.setValue.assert_called_once_with('1001')
+    selector.action.do_action.assert_not_called()
+    choices.children[0].action.do_action.assert_not_called()
     if startup == 'saved':
         save.action.do_action.assert_not_called()
-        ui.complete_request_language_setup.assert_not_called()
+        ui.complete_request_language_setup.assert_called_once()
     else:
         save.action.do_action.assert_called_once()
-        ui.complete_request_language_setup.assert_called_once()
+        assert ui.complete_request_language_setup.call_count == 2
     assert ui._observation_generation > selected_reads[0]
 
 
@@ -196,6 +199,7 @@ def riley_chooser():
         states=('visible', 'sensitive', *(('checked',) if key == 'he' else ())))
         for key, text in CHOOSER.items()]
     dialog = Node(identity='language-dialog', children=[*choices,
+        Node(identity='language-list', value='he', choices=public.PARENT_LANGUAGE_CHOICES),
         Node(CHOOSER['he'][1], identity='language-title'),
         Node(CHOOSER['he'][2], identity='language-continue', description=CHOOSER['he'][3],
              children=[Node(CHOOSER['he'][2], 'label')])])
@@ -336,7 +340,7 @@ def test_real_decoder_nondefault_child_approver_and_mismatched_result(operation,
         if key == 'language': value['checked'] = 'unknown'
         else: (value['request'] if key == 'language_form' else value)['child'] = 'missing-child'
     if fault == 'oversize': value['unbounded'] = 'x' * 32768
-    payload = dict(operation=operation, outcome='passed', interface='AT-SPI', **{key: value})
+    payload = dict(operation=operation, outcome='passed', interface='ApplicationUI+external-provider', **{key: value})
     raw = json.dumps(payload, ensure_ascii=False).encode()
     def deliver(*args, **kwargs):
         if kwargs.get('on_output'):
@@ -412,46 +416,39 @@ def test_actual_worker_order_titles_and_no_input_after_refusal(monkeypatch, faul
         if fault == 'riley-final-ready':
             assert events[ready + 1:] == []
         else:
-            assert events[ready + 1:ready + 4] == [
-                ['key', 'spc'], ['title', 'kiosk-language-restoration-riley-final-open'],
+            assert events[ready + 1:ready + 3] == [
+                ['title', 'kiosk-language-restoration-riley-final-open'],
                 ['stage', 'riley-final-open']]
     if fault:
         assert events[-1] == ['stage', fault]
 
 
-@pytest.mark.parametrize('fault', ['', 'wrong-stage', 'missing-focus', 'false-focus', 'numeric-focus'])
-def test_shared_keyboard_selection_requires_exact_focus_receipt(fault):
+@pytest.mark.parametrize('fault', ['', 'ready', 'open', 'focus', 'selected'])
+def test_shared_semantic_selection_stops_at_each_failed_observation(fault):
     worker = WORKER.split('require onpc_kiosk_eligible_choices;')[0] + r'''
 require onpc_allowance_boundaries;
 require onpc_journey;
 my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
     my ($stage) = @_;
     push @events, ['stage', $stage];
-    my $reply = {observed => $stage, ui_focused => JSON::PP::true};
-    if ($stage eq 'another-ready') {
-        FAULT
-    }
-    return $reply;
+    FAULT
+    return {observed => $stage};
 });
 my $ok = eval { onpc_allowance_boundaries::select_child($journey, 'another', 'keyboard'); 1; };
 print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
 '''
-    replacement = {'': '', 'wrong-stage': "$reply->{observed} = 'old-ready';",
-        'missing-focus': 'delete $reply->{ui_focused};',
-        'false-focus': '$reply->{ui_focused} = JSON::PP::false;',
-        'numeric-focus': '$reply->{ui_focused} = 1;'}[fault]
+    replacement = f"die 'observation refused' if $stage eq 'another-{fault}';" if fault else ''
     result = json.loads(run_perl(worker.replace('FAULT', replacement)).stdout)
+    expected = [['stage', 'another-' + phase] for phase in ('ready', 'open', 'focus', 'selected')]
     if fault:
-        assert not result['ok'] and 'allowance:picker-focus' in result['error']
-        assert result['events'] == [['stage', 'another-ready']]
+        assert not result['ok'] and 'observation refused' in result['error']
+        assert result['events'] == expected[:expected.index(['stage', 'another-' + fault]) + 1]
     else:
         assert result['ok'], result['error']
-        assert result['events'] == [['stage', 'another-ready'], ['key', 'spc'],
-            ['stage', 'another-open'], ['stage', 'another-focus'], ['key', 'ret'],
-            ['stage', 'another-selected']]
+        assert result['events'] == expected
 
 
-def test_return_requires_app_entry_and_independent_active_window_before_policy():
+def test_return_requires_app_entry_and_independent_available_window_before_policy():
     stages = list(recipe.SCREENS)
     start = stages.index('return-desktop')
     assert stages[start:start + 6] == ['return-desktop', 'return-parent-command',
@@ -462,27 +459,28 @@ def test_return_requires_app_entry_and_independent_active_window_before_policy()
     assert recipe.SCREENS['riley-final-open'] == 'ui:child-picker-presented'
 
 
-@pytest.mark.parametrize('fault', ['', 'inactive', 'wrong-owner', 'inactive-reply'])
+@pytest.mark.parametrize('fault', ['', 'hidden', 'wrong-owner', 'unavailable-reply'])
 def test_return_window_proof_is_independent_of_visible_policy_controls(fault):
     window = Node(identity='parent-window', children=[Node(identity='parent-child-selector')])
     window.bus, window.path = ':1.42', '/public/parent'
-    if fault != 'inactive':
-        window.states.add('active')
+    window.ui_element = object()
+    if fault == 'hidden':
+        window.states.discard('showing')
     ui = ui_for(window)
     if fault == 'wrong-owner':
         ui.owner_pids = lambda: {999}
     operation = recipe.SCREENS['return-parent-window'][3:]
-    if fault in ('inactive', 'wrong-owner'):
+    if fault in ('hidden', 'wrong-owner'):
         with pytest.raises(public.UiError):
             ui.run(operation, '')
     else:
         result = ui.run(operation, '')
-        if fault == 'inactive-reply':
-            result['window']['active'] = False
+        if fault == 'unavailable-reply':
+            result['window']['available'] = False
         observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
         if fault:
             with pytest.raises(EvidenceError, match='switch-response'):
                 observer.observe(operation)
         else:
-            assert observer.observe(operation)['window']['active'] is True
+            assert observer.observe(operation)['window']['available'] is True
     window.children[0].action.do_action.assert_not_called()

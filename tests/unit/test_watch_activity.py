@@ -266,7 +266,7 @@ def test_guest_private_probe_does_not_forward_output(monkeypatch, capsys):
 @pytest.mark.parametrize('failed', [False, True])
 def test_ui_qualification_without_recorder_uses_existing_command_pane(transcript, failed):
     from ui_observations import UiObservations
-    result = {'operation': 'gdm-list', 'outcome': 'passed', 'interface': 'AT-SPI', 'focused': True}
+    result = {'operation': 'gdm-list', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'focused': True}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
     if failed:
         transport.call.side_effect = RuntimeError('private transport exception')

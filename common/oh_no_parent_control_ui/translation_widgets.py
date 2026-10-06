@@ -48,6 +48,7 @@ class _Bindings:
 
     def __init__(self, widget):
         self.values = {}
+        self.accessible = {}
         self.callback = None
         self.context = None
         self.fixed_direction = None
@@ -169,6 +170,7 @@ def _refresh(widget, _property=None, bindings=None, *, refresh_direction=True):
             widget.set_property(key, text)
         else:
             widget.update_property([key], [text])
+            bindings.accessible[key] = text
     callback = bindings.callback
     if callback is not None:
         callback(context.translations)
@@ -203,8 +205,24 @@ def set_text(widget, property_name, value):
 
 
 def accessible_text(widget, properties, values):
-    widget.update_property(properties, [_bind(widget, 'accessible', key, value)
-                                       for key, value in zip(properties, values)])
+    rendered = [_bind(widget, 'accessible', key, value)
+                for key, value in zip(properties, values)]
+    widget.update_property(properties, rendered)
+    _bindings_for(widget).accessible.update(zip(properties, rendered))
+
+
+def accessible_metadata(widget):
+    """Read the current published labels without an accessibility transport.
+
+    GTK exposes property updates but no property getter. Keep their rendered
+    values with the existing native-lifetime translation binding, refreshed by
+    the same path that publishes them to assistive technology.
+    """
+    bindings = getattr(widget, '_message_bindings', None)
+    values = bindings.accessible if bindings is not None else {}
+    return {key: values.get(prop, '') for key, prop in (
+        ('name', Gtk.AccessibleProperty.LABEL),
+        ('description', Gtk.AccessibleProperty.DESCRIPTION))}
 
 
 def register_retranslation(widget, callback):

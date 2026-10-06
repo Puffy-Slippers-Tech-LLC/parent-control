@@ -48,7 +48,6 @@ package testapi;
 sub record_info { }
 sub send_key {
     push @main::events, ['key', $_[0]];
-    die 'uncertain close' if $main::fault eq 'close-input';
 }
 package main;
 require onpc_parent_terminal_provider;
@@ -61,6 +60,7 @@ my $ok = eval {
         push @events, ['seen', $stage];
         die 'uncertain command' if $fault eq 'command' && $stage eq 'entry-parent-command';
         die 'missing denial' if $fault eq 'denial' && $stage eq 'entry-management-denied';
+        die 'uncertain close' if $fault eq 'close-input' && $stage eq 'entry-denial-closed';
         die 'missing return' if $fault eq 'return' && $stage eq 'entry-denial-closed';
         return {};
     });
@@ -73,9 +73,16 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     assert events[:3] == [['seen', 'desktop'], ['seen', 'wrong-entry'],
                           ['seen', 'entry-desktop']]
     assert events.count(['seen', 'entry-parent-command']) == 1
-    assert events.count(['key', 'alt-f4']) == (0 if fault in ('command', 'denial') else 1)
+    assert not any(event[0] == 'key' for event in events)
+    assert events.count(['seen', 'entry-denial-closed']) == (
+        0 if fault in ('command', 'denial') else 1)
     if fault:
         assert ['finish'] not in events
+        assert events[-1] == ['seen', {
+            'command': 'entry-parent-command', 'denial': 'entry-management-denied',
+            'close-input': 'entry-denial-closed', 'return': 'entry-denial-closed',
+        }[fault]]
+        assert {'command': 'uncertain command', 'denial': 'missing denial',
+                'close-input': 'uncertain close', 'return': 'missing return'}[fault] in result['error']
     else:
-        assert events[-3:] == [['key', 'alt-f4'], ['seen', 'entry-denial-closed'],
-                               ['finish']]
+        assert events[-2:] == [['seen', 'entry-denial-closed'], ['finish']]

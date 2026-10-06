@@ -321,6 +321,7 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
                                     application_ids=launch.application_ids,
                                     application_owners=launch.application_owners,
                                     application_owner_history=launch.application_owner_history,
+                                    application_ui_endpoints=launch.application_ui_endpoints,
                                     complete_read_wait=wait_for_accessible_state)
                     ui.reader.timeout = UI_TIMEOUT_SECONDS
                     ui.reader.dispatch = lambda: GLib.MainContext.default().iteration(False)
@@ -332,14 +333,15 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
                     api.reset()
             return result
 
-        for name in ("owner_pids", "application_ids", "application_owners", "application_owner_history"):
+        for name in ("owner_pids", "application_ids", "application_owners", "application_owner_history",
+                     "application_ui_endpoints"):
             setattr(launch_ready, name, getattr(launch, name))
         yield launch_ready
 
 
 @pytest.fixture
 def wait_for_accessible_state():
-    """Wait for an AT-SPI transition with a Python-owned deadline."""
+    """Wait for a complete public UI result with a Python-owned deadline."""
 
     from gi.repository import GLib
     from tests.e2e.accessible_ui import UiError
@@ -381,7 +383,7 @@ def wait_for_accessible_state():
             time.sleep(.05)
         if checkpoint is not None:
             checkpoint('timeout', attempt)
-        raise AssertionError(f"Timed out waiting for accessibility state: {description}")
+        raise AssertionError(f"Timed out waiting for public UI state: {description}")
 
     def wait(predicate, description: str):
         if UI_TIMINGS is None:
@@ -394,7 +396,7 @@ def wait_for_accessible_state():
 
 @pytest.fixture
 def automation(hermetic_ui_session, launch_ui, wait_for_accessible_state):
-    """Return the shared public-ID AT-SPI adapter for the private session."""
+    """Share Application UI product operations and external-provider adapters."""
     import gi
     gi.require_version("Atspi", "2.0")
     from gi.repository import Atspi, GLib
@@ -408,6 +410,7 @@ def automation(hermetic_ui_session, launch_ui, wait_for_accessible_state):
                         application_ids=launch_ui.application_ids,
                         application_owners=launch_ui.application_owners,
                         application_owner_history=launch_ui.application_owner_history,
+                        application_ui_endpoints=launch_ui.application_ui_endpoints,
                         complete_read_wait=wait_for_accessible_state)
         ui.reader.timeout = UI_TIMEOUT_SECONDS
         ui.reader.dispatch = lambda: GLib.MainContext.default().iteration(False)

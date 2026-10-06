@@ -50,7 +50,8 @@ def chooser_tree(*, initial=False, selected='en'):
     controls += [Node(text[1], identity='language-title'),
                  Node(text[2], identity='language-continue', description=text[3],
                       children=[Node(text[2], 'label')]),
-                 Node(identity='language-cancel')]
+                 Node(identity='language-cancel'),
+                 Node(identity='language-list', value=selected, choices=language.TEXTS)]
     dialog = Node(identity='language-dialog', children=controls)
     marker = Node(identity='parent-language-loading' if initial else 'parent-language-ready')
     window = Node(identity='parent-window', children=[marker, dialog])
@@ -147,8 +148,8 @@ def test_dialog_public_snapshot_refusals(selected, fault):
 
 
 @pytest.mark.parametrize('surface', ['about', 'feedback'])
-@pytest.mark.parametrize('fault', ['', 'owner', 'duplicate', 'stale', 'inactive', 'missing'])
-def test_customer_close_proof_checks_owner_and_active_dialog_without_content(surface, fault):
+@pytest.mark.parametrize('fault', ['', 'owner', 'duplicate', 'stale', 'hidden', 'missing'])
+def test_customer_close_proof_checks_owner_and_available_dialog_without_content(surface, fault):
     dialog = Node(identity=surface + '-dialog',
                   states=('showing', 'visible', 'sensitive', 'active'))
     window = Node(identity='parent-window', children=[dialog])
@@ -156,14 +157,14 @@ def test_customer_close_proof_checks_owner_and_active_dialog_without_content(sur
     if fault == 'owner': ui.owner_pids = lambda: {999}
     if fault == 'duplicate': window.children.append(deepcopy(dialog))
     if fault == 'stale': dialog.states.add('defunct')
-    if fault == 'inactive': dialog.states.discard('active')
+    if fault == 'hidden': dialog.states.discard('visible')
     if fault == 'missing': window.children.clear()
     operation = 'parent-dialog-' + surface + '-he-close-ready'
     if fault:
         with pytest.raises(public.UiError): ui.run(operation, '1.1')
     else:
         result = ui.run(operation, '1.1')
-        assert result == {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        assert result == {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
         assert observer.observe(operation) == result
     dialog.action.do_action.assert_not_called()
@@ -180,7 +181,7 @@ def test_dialog_decoder_and_real_recorder_step(tmp_path, fault):
     if fault == 'extra': value['private'] = True
     if fault == 'language': value['language'] = 'en'
     if fault == 'draft': feedback['draft'] = 'synthetic-first'
-    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                'dialog_presentation': value, 'feedback': feedback}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(payload, ensure_ascii=False).encode()))
     observer = UiObservations(transport)
@@ -213,7 +214,7 @@ def test_presentation_decoder_and_real_recorder_step(tmp_path, fault):
     if fault == 'choice': value['checked'] = 'en'
     if fault == 'text': value['heading'] = language.TEXTS['en'][1]
     if fault == 'extra': value['private'] = True
-    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                'language': value}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(payload, ensure_ascii=False).encode()))
     observer = UiObservations(transport)
@@ -334,14 +335,16 @@ def test_exclusive_mode_refuses_before_vm(extra):
 
 
 @pytest.mark.parametrize('initial', [False, True])
-@pytest.mark.parametrize('fault', ['', 'duplicate', 'missing', 'unchecked', 'multiple', 'stale',
+@pytest.mark.parametrize('fault', ['', 'duplicate', 'missing', 'empty-value', 'multiple-values',
+                                  'duplicate-choice', 'stale',
                                   'wrong-owner', 'wrong-frontend', 'wrong-entry'])
 def test_actual_chooser_read_is_complete_owned_and_input_free(initial, fault):
     ui, window, dialog, controls = chooser_tree(initial=initial)
     if fault == 'duplicate': dialog.children.append(Node(identity='language-title'))
     if fault == 'missing': dialog.children.remove(controls[3])
-    if fault == 'unchecked': controls[0].states.discard('checked')
-    if fault == 'multiple': controls[1].states.add('checked')
+    if fault == 'empty-value': controls[-1].value = ''
+    if fault == 'multiple-values': controls[-1].value = ['en', 'de']
+    if fault == 'duplicate-choice': controls[-1].choices.append('en')
     if fault == 'stale': controls[0].states.add('defunct')
     if fault == 'wrong-owner': ui.owner_pids = lambda: {999}
     if fault == 'wrong-frontend': ui.application_ids = (public.KIOSK_APPLICATION,)
@@ -411,17 +414,25 @@ def test_stale_chooser_releases_no_language_input(operation):
 def test_disabled_input_and_uncertain_response_never_replay(operation):
     ui, window, dialog, controls = chooser_tree()
     target = next(node for node in controls if node.identity == {
-        'parent-language-choose-de': 'language-choice-de',
+        'parent-language-choose-de': 'language-list',
         'parent-language-save': 'language-continue', 'parent-language-cancel': 'language-cancel'}[operation])
     target.states.discard('sensitive')
     with pytest.raises(public.UiError): ui.parent_language_operation(operation)
     target.action.do_action.assert_not_called()
+    target.setValue.assert_not_called()
     target.states.add('sensitive'); target.states.add('showing')
-    target.action.do_action.return_value = False
+    if operation == 'parent-language-choose-de':
+        target.setValue.side_effect = public.UiError('ui:lost-reply')
+    else:
+        target.action.do_action.return_value = False
     with pytest.raises(public.UiError): ui.parent_language_operation(operation)
     assert ui.input_uncertain
     with pytest.raises(public.UiError): ui.parent_language_operation(operation)
-    target.action.do_action.assert_called_once()
+    if operation == 'parent-language-choose-de':
+        target.setValue.assert_called_once_with('de')
+        target.action.do_action.assert_not_called()
+    else:
+        target.action.do_action.assert_called_once()
 
 
 @pytest.mark.parametrize('fault', ['', 'choice', 'heading', 'extra', 'oversize', 'policy'])
@@ -434,7 +445,7 @@ def test_real_decoder_and_terminal_failure(fault):
     if fault == 'extra': value['extra'] = 'private'
     if fault == 'oversize': value['save_description'] = 'x' * 513
     if fault == 'policy': value['rows'][0][1] = 'unknown'
-    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', key: value}
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', key: value}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(payload, ensure_ascii=False).encode()))
     observer = UiObservations(transport)
     if fault:
@@ -454,7 +465,7 @@ def test_management_labels_decoder_bounds_and_realistic_policy_size(fault):
     if fault == 'oversize': value['management_labels'] = ['x' * 513]
     if fault == 'not-text': value['management_labels'] = [True]
     payload = {'operation': 'parent-language-state', 'outcome': 'passed',
-               'interface': 'AT-SPI', 'language_state': value}
+               'interface': 'ApplicationUI+external-provider', 'language_state': value}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(payload).encode()))
     observer = UiObservations(transport)
     if fault:
@@ -473,12 +484,13 @@ def test_management_reader_uses_owned_page_and_only_visible_labels(fault):
     toggle = Node('Screen time limit', identity='parent-screen-limit-toggle')
     label = Node('Screen Time Limit', 'label')
     page = Node(identity='parent-screen-limits-page', children=[toggle, label])
+    page.getText = Mock(side_effect=lambda: label.name if 'visible' in label.states else '')
     window = Node(identity='parent-window', children=[page])
     ui = ui_for(window)
     if fault == 'wrong-owner': ui.owner_pids = lambda: {999}
     if fault == 'duplicate': page.children.append(Node(identity='parent-screen-limit-toggle'))
     if fault == 'stale': label.states.add('defunct')
-    if fault == 'hidden-label': label.states.discard('showing')
+    if fault == 'hidden-label': label.states.discard('visible')
     if fault == 'outside-page':
         page.children.remove(toggle)
         window.children.append(toggle)
@@ -535,8 +547,7 @@ def test_actual_worker_order_titles_and_no_later_input(fault):
         'parent-language-' + stage for stage in expected]
     assert bool(result['ok']) == (not fault), result['error']
     assert (['finish'] in result['events']) == (not fault)
-    assert [event for event in result['events'] if event[0] == 'key'] == (
-        [['key', 'alt-f4']] if 'closed' in expected else [])
+    assert [event for event in result['events'] if event[0] == 'key'] == []
 
 
 @pytest.mark.parametrize('fault', ['', *list(language.RTL_SCREENS)[4:]])
@@ -550,9 +561,7 @@ def test_rtl_worker_actual_order_and_no_keyboard_after_refusal(fault):
         'parent-rtl-' + stage for stage in expected]
     assert bool(result['ok']) == (not fault), result['error']
     assert (['finish'] in result['events']) == (not fault)
-    keys = [['key', 'tab'] for index, stage in enumerate(expected)
-            if stage.endswith(('-focus', '-refocus')) and index + 1 < len(expected)]
-    assert [event for event in result['events'] if event[0] == 'key'] == keys
+    assert [event for event in result['events'] if event[0] == 'key'] == []
 
 
 @pytest.mark.parametrize('fault', ['', 'feedback-empty', 'text-body-rtl-selected',
@@ -569,44 +578,28 @@ def test_dialog_worker_actual_order_and_refusal(fault):
         'parent-dialog-language-' + stage for stage in expected]
     assert bool(result['ok']) == (not fault), result['error']
     assert (['finish'] in result['events']) == (not fault)
-    if not fault:
-        typed = [event[1] for event in result['events'] if event[0] == 'type']
-        assert typed == ['5e9', '5dc', '5d5', '5dd', ' Alex 75', 'rtl-check@example.invalid']
-        assert len([event for event in result['events'] if event == ['key', 'alt-f4']]) == 7
-        navigation = [event[1] for event in result['events']
-                      if event[0] == 'key' and event[1] in ('tab', 'shift-tab')]
-        assert navigation == []
-    assert not any(event in (['key', 'ret'], ['key', 'spc']) for event in result['events']
-                   if fault == 'feedback-empty')
+    assert not any(event[0] in ('key', 'type') for event in result['events'])
 
 
 @pytest.mark.parametrize('binding', ['body-rtl', 'reply-rtl'])
 @pytest.mark.parametrize('fault', ['', 'selected', 'read'])
-def test_dialog_host_text_block_uses_actual_worker_and_refuses_input(monkeypatch, binding, fault):
+def test_dialog_host_text_block_uses_shared_api_stages_and_stops_on_refusal(binding, fault):
     from tests.support.gui_blocks import run_block
-    from tests.support import keyboard
     events = []
     def observe(operation, _version):
         events.append(('observe', operation))
         if fault and operation.endswith('-' + fault): raise public.UiError('host:refusal')
         return {'operation': operation}
-    ui = SimpleNamespace(run=observe, api=SimpleNamespace(StateType=SimpleNamespace(FOCUSED='focused', ACTIVE='active')))
-    monkeypatch.setattr(keyboard, 'key_combo', lambda _ui, identity, keys, **kwargs: events.append(('key', identity, keys)))
-    monkeypatch.setattr(keyboard, 'type_text', lambda _ui, identity, text, **kwargs: events.append(('text', identity, text, kwargs['interval'])))
+    ui = SimpleNamespace(run=observe)
     if fault:
         with pytest.raises(public.UiError, match='host:refusal'): run_block(ui, 'replace', binding)
         assert events[-1] == ('observe', 'text-' + binding + '-' + fault)
     else:
         run_block(ui, 'replace', binding)
-    typed = [event for event in events if event[0] == 'text']
-    if fault == 'selected': assert typed == []
-    elif binding == 'body-rtl':
-        assert typed == [('text', 'feedback-editor-input', value, pacing) for value, pacing in
-                         [('5e9', 0), ('5dc', 0), ('5d5', 0), ('5dd', 0), (' Alex 75', .02)]]
-        assert [event[2] for event in events if event[0] == 'key'] == [
-            '<Control>a', *['<Control><Shift>u', 'Return'] * 4]
-    else:
-        assert typed == [('text', 'feedback-reply-email', 'rtl-check@example.invalid', .02)]
+    stages = (['anchor'] if binding.startswith('reply-') else []) + ['focus', 'selected', 'read']
+    if fault:
+        stages = stages[:stages.index(fault) + 1]
+    assert events == [('observe', f'text-{binding}-{stage}') for stage in stages]
 
 
 @pytest.mark.parametrize('fault', ['', *list(language.PLAN.screen_tags)[:4]])
@@ -638,14 +631,7 @@ def test_isolation_actual_worker_sequence_and_refusal(fault):
         'parent-language-isolation-' + stage for stage in expected]
     assert bool(result['ok']) == (not fault), result['error']
     assert (['finish'] in result['events']) == (not fault)
-    keys = []
-    for index, stage in enumerate(expected):
-        if stage.endswith('-ready') and ('-setup-' in stage or stage.startswith(('riley-', 'jordan-', 'reopened-'))):
-            if index + 1 < len(expected): keys.append(['key', 'spc'])
-        elif stage.endswith('-focus'):
-            if index + 1 < len(expected): keys.append(['key', 'ret'])
-        elif stage == 'close-ready' and index + 1 < len(expected): keys.append(['key', 'alt-f4'])
-    assert [event for event in result['events'] if event[0] == 'key'] == keys
+    assert [event for event in result['events'] if event[0] == 'key'] == []
 
 
 @pytest.mark.parametrize('fault', ['', 'renamed-choose', 'renamed-state', 'renamed-reopen'])
@@ -710,11 +696,7 @@ def test_hebrew_policy_real_worker_order_titles_and_terminal_refusal(fault):
         'parent-hebrew-policy-' + stage for stage in expected]
     assert bool(result['ok']) == (not fault), result['error']
     assert (['finish'] in result['events']) == (not fault)
-    keys = []
-    for index, stage in enumerate(expected[:-1]):
-        if stage == 'riley-setup-ready': keys.append(['key', 'spc'])
-        elif stage == 'riley-setup-focus': keys.append(['key', 'ret'])
-    assert [event for event in result['events'] if event[0] == 'key'] == keys
+    assert [event for event in result['events'] if event[0] == 'key'] == []
 
 
 @pytest.mark.parametrize('fault', ['', 'uid', 'disabled', 'allowance', 'language', 'number', 'extra'])
@@ -727,7 +709,7 @@ def test_hebrew_policy_actual_decoder_terminal_refusal(fault):
     if fault == 'number': value['balances']['daily']['seconds'] = 3599
     if fault == 'extra': value['balances']['private'] = True
     operation = 'parent-language-riley-enabled-he'
-    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'language_state': value}
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'language_state': value}
     observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(payload).encode())))
     if fault:
         with pytest.raises(EvidenceError): observer.observe(operation)
@@ -791,19 +773,19 @@ def enabled_value(child='child', selected='en', elapsed=0):
 
 
 @pytest.mark.parametrize('child', ['child', 'existing'])
-@pytest.mark.parametrize('fault', ['', 'wrong-uid', 'wrong-label', 'duplicate', 'stale', 'open'])
-def test_language_selection_proves_uid_and_closed_picker_without_english_settings(child, fault):
+@pytest.mark.parametrize('fault', ['', 'wrong-uid', 'wrong-label', 'duplicate', 'stale'])
+def test_language_selection_proves_canonical_uid_without_english_settings(child, fault):
     account = public.NAMED_CUSTOM_CHILDREN[child]
     uid = 1001 if child == 'child' else 1002
     selected = Node(identity=f'parent-child-selected-{uid}', children=[Node(account, 'label')])
     if fault == 'wrong-uid': selected.identity = f'parent-child-selected-{uid + 10}'
     if fault == 'wrong-label': selected.children[0].name = 'wrong account'
     if fault == 'stale': selected.states.add('defunct')
-    picker = Node(identity='parent-child-selector', children=[selected])
+    picker = Node(identity='parent-child-selector', value=str(uid + 10 if fault == 'wrong-uid' else uid),
+                  choices=('1001', '1002'), children=[selected])
     if fault == 'duplicate': picker.children.append(deepcopy(selected))
     window = Node(identity='parent-window', children=[picker,
         Node(identity='parent-daily-limit-selector', children=[Node('1 小时', 'label')])])
-    if fault == 'open': window.children.append(Node(identity='parent-child-popover'))
     ui = ui_for(window); ui.timeout = .05
     ui.settings = Mock(side_effect=AssertionError('English settings reader'))
     operation = f'parent-language-{"riley" if child == "child" else "jordan"}-selected'
@@ -814,6 +796,7 @@ def test_language_selection_proves_uid_and_closed_picker_without_english_setting
             'child_selection': {'child': public.CHILD_IDENTITIES[account]}}
     ui.settings.assert_not_called()
     picker.action.do_action.assert_not_called()
+    picker.setValue.assert_not_called()
 
 
 @pytest.mark.parametrize('child', ['child', 'existing'])
@@ -824,7 +807,7 @@ def test_language_selection_decoder_and_recorder_refuse_before_reply(tmp_path, c
     value = {'child': public.CHILD_IDENTITIES[public.NAMED_CUSTOM_CHILDREN[child]]}
     if fault == 'wrong-child': value['child'] = 'wrong-child'
     if fault == 'extra': value['private'] = 'canary'
-    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     if fault != 'missing': payload['child_selection'] = value
     observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(payload).encode())))
     if fault in ('wrong-child', 'extra', 'missing'):
@@ -859,7 +842,7 @@ def test_enabled_real_decoder_explicit_account_and_public_numbers(child, fault):
     if fault == 'translated-number': value['balances']['daily']['text'] = '1h'
     if fault == 'extra': value['balances']['private'] = 'no'
     if fault == 'timestamp': value['balances']['observed_monotonic_ns'] = True
-    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'language_state': value}
+    payload = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'language_state': value}
     observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(payload).encode())))
     if fault:
         with pytest.raises(EvidenceError): observer.observe(operation)
@@ -913,15 +896,17 @@ def test_public_policy_projection_reads_translated_allowance_without_changing_se
         allowance, selected_language, title):
     from accessible_ui import EXISTING_CHILD
     selected = Node(identity='parent-child-selected-1002', children=[Node(EXISTING_CHILD, 'label')])
-    picker = Node(identity='parent-child-selector', children=[selected])
+    picker = Node(identity='parent-child-selector', value='1002', choices=('1001', '1002'),
+                  children=[selected])
     toggle = Node(language.TEXTS[selected_language][4], identity='parent-screen-limit-toggle')
     amount = Node(identity='parent-daily-limit-selector', states=('showing', 'visible'),
                   children=[Node(allowance, 'label')])
     screen = Node(identity='parent-page-screen-limits')
     apps = Node(identity='parent-page-app-limits')
+    page = Node(identity='parent-screen-limits-page', children=[toggle, Node(title, 'label')])
+    page.getText = Mock(return_value=title)
     window = Node(identity='parent-window', children=[Node(identity='parent-language-ready'),
-        picker, amount, screen, apps,
-        Node(identity='parent-screen-limits-page', children=[toggle, Node(title, 'label')])])
+        picker, amount, screen, apps, page])
     ui = ui_for(window)
     ui.app_rows = Mock(return_value=(('parent-app-' + 'a' * 16, 'allowed', 'precise'),))
     if allowance in ('30 minutes', 'wrong'):
@@ -953,7 +938,9 @@ def test_enabled_state_reader_requires_explicit_child_and_translated_allowance(c
     uid = 1001 if child == 'child' else 1002
     selected = Node(identity=f'parent-child-selected-{uid}', children=[Node(account, 'label')])
     if fault == 'wrong-child': selected.identity = 'parent-child-selected-' + str(1003 - (uid - 1000))
-    picker = Node(identity='parent-child-selector', children=[selected])
+    picker = Node(identity='parent-child-selector',
+                  value=str(1003 - (uid - 1000) if fault == 'wrong-child' else uid),
+                  choices=('1001', '1002'), children=[selected])
     toggle = Node(language.TEXTS[selected_language][4], identity='parent-screen-limit-toggle',
                   states=('visible', 'showing', 'sensitive', 'checked'))
     if fault == 'disabled': toggle.states.remove('checked')
@@ -963,6 +950,7 @@ def test_enabled_state_reader_requires_explicit_child_and_translated_allowance(c
     screen, apps = Node(identity='parent-page-screen-limits'), Node(identity='parent-page-app-limits')
     page = Node(identity='parent-screen-limits-page', children=[toggle,
         *(Node(text, 'label') for text in sorted(language.ENABLED_LABELS[selected_language]))])
+    page.getText = Mock(return_value='\n'.join(sorted(language.ENABLED_LABELS[selected_language])))
     window = Node(identity='parent-window', children=[Node(identity='parent-language-ready'),
         picker, amount, screen, apps, page,
         Node(identity='parent-app-limits-page', children=[Node(identity='parent-app-search')])])

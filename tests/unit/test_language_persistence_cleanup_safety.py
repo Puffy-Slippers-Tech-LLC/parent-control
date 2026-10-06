@@ -187,7 +187,7 @@ def test_real_decoder_preserves_complete_request_shape_and_terminal_failure(stag
     if fault == 'extra': value['extra'] = True
     if fault == 'text': value['texts']['kiosk-request-submit'] = 'x' * 513
     operation = case.SCREENS[stage][3:]
-    payload = dict(operation=operation, outcome='passed', interface='AT-SPI', language_form=value)
+    payload = dict(operation=operation, outcome='passed', interface='ApplicationUI+external-provider', language_form=value)
     raw = json.dumps(payload, ensure_ascii=False).encode()
     diagnostic = {'event': 'kiosk-form-observation', 'phase': 'public-tree', 'status': 'reading',
         'elapsed_ms': 0, 'tree': 'unread', 'public_ids': {}, 'tree_reads': 0,

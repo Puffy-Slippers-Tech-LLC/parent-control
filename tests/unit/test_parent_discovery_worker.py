@@ -77,10 +77,12 @@ def test_customer_worker_selects_existing_and_new_children_in_order():
     assert stages == list(PLAN.screen_tags)
     assert not any(event[0] in ('assert', 'click') and event[1].startswith('onpc-parent-')
                    for event in result['events'])
-    for stage in ('child-choice-highlighted', 'new-child-choice-highlighted',
-                  'existing-child-choice-highlighted'):
+    for stage, selected in (
+            ('child-choice-highlighted', 'parent-selected'),
+            ('new-child-choice-highlighted', 'new-child-selected'),
+            ('existing-child-choice-highlighted', 'existing-returned')):
         index = result['events'].index(['stage', stage])
-        assert result['events'][index + 1] == ['key', 'ret']
+        assert result['events'][index + 1] == ['stage', selected]
     assert result["events"][-1] == ["power", "off"]
 
 
@@ -149,12 +151,14 @@ our @events;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub record_info { }
-sub send_key { push @main::events, $_[0]; die 'uncertain' if $main::fault eq 'uncertain'; }
+sub send_key { push @main::events, ['key', $_[0]]; }
 package main;
 require onpc_parent;
 require onpc_journey;
 my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
     push @events, $_[0];
+    die 'uncertain selection' if $fault eq 'uncertain'
+        && $_[0] eq 'new-child-choice-highlighted';
     return {ui_focused => 1, observed => $_[0]};
 });
 my $opened = $journey->seen('new-child-visible');
@@ -164,17 +168,29 @@ my $ok = eval {
         'new-child-visible', 'new-child-choice-highlighted', 'new-child-selected');
     1;
 };
-print encode_json({ok => $ok ? 1 : 0, events => \@events});
+my $error = $@;
+my $replay = eval {
+    onpc_parent::select_child($journey, $fault eq 'wrong-binding' ? 'existing' : 'new', $opened,
+        'new-child-visible', 'new-child-choice-highlighted', 'new-child-selected');
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, error => $error,
+    replay => $replay ? 1 : 0, events => \@events});
 ''', fault).stdout)
     assert result['ok'] == (not fault)
+    assert not result['replay']
     if not fault:
         assert result['events'] == ['new-child-visible',
-            'new-child-choice-highlighted', 'ret', 'new-child-selected']
+            'new-child-choice-highlighted', 'new-child-selected']
     elif fault == 'uncertain':
+        assert 'uncertain selection' in result['error']
         assert result['events'] == [
-            'new-child-visible', 'new-child-choice-highlighted', 'ret']
+            'new-child-visible', 'new-child-choice-highlighted']
     else:
-        assert not any(key in result['events'] for key in ('home', 'down', 'ret'))
+        assert ('journey:stale-observation' if fault == 'stale'
+                else 'parent:selection-binding') in result['error']
+        assert result['events'] == (['new-child-visible', 'unrelated']
+                                    if fault == 'stale' else ['new-child-visible'])
 
 
 @pytest.mark.parametrize('expected,before,after', [

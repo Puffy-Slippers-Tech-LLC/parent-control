@@ -30,14 +30,9 @@ sub select_child {
     die 'allowance:selection-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
         && $prefix =~ /\A[a-z][a-z0-9-]*\z/ && ($route eq 'action' || $route eq 'keyboard');
     if ($route eq 'keyboard') {
-        my $ready = seen($journey, "$prefix-ready");
-        die 'allowance:picker-focus' unless defined($ready->{observed})
-            && $ready->{observed} eq "$prefix-ready"
-            && JSON::PP::is_bool($ready->{ui_focused}) && $ready->{ui_focused};
-        testapi::send_key('spc');
+        seen($journey, "$prefix-ready");
     }
     seen($journey, "$prefix-$_") for ('open', 'focus');
-    testapi::send_key('ret');
     seen($journey, "$prefix-selected");
 }
 

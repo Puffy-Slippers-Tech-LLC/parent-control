@@ -126,8 +126,8 @@ sub navigate_choice {
     die 'journey:positional-navigation-refused';
 }
 
-# UI14: an explicit fresh list reply drives navigation; its separate checkpoint
-# must verify identity and focus before a caller may commit the selection.
+# UI14: consume one fresh choice proof, then request its registered result check.
+# Legacy stage names do not imply product keyboard input or focus acceptance.
 sub highlight_choice {
     onpc_progress::operation('Highlighting the intended list choice');
     my ($self, $choice, $list_stage, $focused_stage) = @_;

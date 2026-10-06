@@ -382,7 +382,10 @@ from regression_ui import Bucket
 # and cleanup classifications of fix_tests_cleanup_safety remain compatible.
 # Resume counter/selector checks use the same private reports, checkpoint trees,
 # waited pytest children and scheduler doubles; compatible isolation is unchanged.
+# Application UI projection tests use in-memory clients and tiny immutable
+# inventories only. No real bus, display, process, storage or cleanup owner.
 REVIEWED = frozenset("""
+application_ui_support
 test_checkpoint
 parent_presentation_cleanup_safety
 package_lifecycle_cleanup_safety

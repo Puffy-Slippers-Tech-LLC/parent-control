@@ -95,7 +95,7 @@ def test_recipient_needs_fresh_correct_focus_and_two_proofs(prior):
     ui.last_operation = prior
     for operation in ('gdm-parent-recipient', 'gdm-parent-recipient-rechecked'):
         transport.call.return_value = json.dumps(dict(
-            operation=operation, outcome='passed', interface='AT-SPI')).encode()
+            operation=operation, outcome='passed', interface='ApplicationUI+external-provider')).encode()
         if prior != 'gdm-product-free-focused':
             with pytest.raises(EvidenceError, match='recipient-order'): ui.observe(operation)
             break
@@ -246,7 +246,7 @@ def test_provider_transport_requires_complete_bounded_tuple(operation, fault):
     provider = ({'shell': shell, 'gdm_version': '50.0-1ubuntu1'}
                 if operation.startswith('gdm-') else shell)
     if fault == 'extra': provider['unregistered'] = True
-    result = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed'}
+    result = {'operation': operation, 'interface': 'ApplicationUI+external-provider', 'outcome': 'passed'}
     if fault != 'missing': result['provider'] = provider
     ui = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
     if fault:

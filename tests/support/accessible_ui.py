@@ -41,10 +41,17 @@ TEST_PROMPT_CONTRACTS.update({
 
 class Node:
     def __init__(self, name='', role='frame', children=(), states=('showing', 'visible', 'sensitive'),
-                 appearance=None, identity='', description=''):
+                 appearance=None, identity='', description='', value=None, choices=()):
         self.name, self.role, self.children = name, role, list(children)
         self.identity = identity
         self.description = description
+        self.value = value
+        self.choices = list(choices)
+        self.getValue = Mock(side_effect=lambda: self.value)
+        self.getChoices = Mock(side_effect=lambda: list(self.choices))
+        self.setValue = Mock(side_effect=self._set_value)
+        self.setText = Mock(side_effect=lambda value: setattr(self, 'value', value))
+        self.close = Mock(side_effect=self._close)
         self.parent = None
         for child in self.children:
             child.parent = self
@@ -61,6 +68,19 @@ class Node:
         )
 
     def clear_cache_single(self): pass
+    def _set_value(self, value):
+        self.value = value
+        if type(value) is bool:
+            (self.states.add if value else self.states.discard)('checked')
+    def _close(self):
+        if self.parent is not None:
+            self.parent.children.remove(self)
+    def getText(self):
+        if type(self.value) is str:
+            return self.value
+        if self.role == 'label' or not self.children:
+            return self.name
+        return '\n'.join(child.getText() for child in self.children if 'visible' in child.states)
     def get_role_name(self): return self.role
     def get_name(self): return self.name
     def get_accessible_id(self): return self.identity

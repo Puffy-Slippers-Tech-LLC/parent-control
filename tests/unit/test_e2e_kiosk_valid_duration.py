@@ -234,9 +234,7 @@ def test_station_about_worker_preserves_order_and_stops_on_refusal(monkeypatch, 
     assert bool(result['ok']) == (refusal is None), result['error']
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
     closes = [event for event in result['events'] if event == ['key', 'alt-f4']]
-    assert len(closes) == (0 if refusal in (
-        'wrong-entry', 'allowance-configured', 'parent-selected', 'open-estimate',
-        'about-open', 'about-read', 'about-close-ready') else 1)
+    assert closes == []  # The shared API observation closes the product surface.
 
 
 @pytest.mark.parametrize('fault', [None, 'daily', 'one_time', 'total'])
@@ -279,8 +277,9 @@ def test_station_about_return_compares_captured_form_before_acknowledgement(monk
 
 
 def valid_form():
-    ui, _, choices, _ = accounts_form('approver')
-    choices.children[0].action.do_action(0)
+    ui, selector, _, _ = accounts_form('approver')
+    selector.setValue('1000')
+    selector.setValue.reset_mock()
     form = ui.find_id('kiosk-request-form')
     status = Node('Estimated time remaining if approved: 45m', 'label', identity='kiosk-request-status')
     custom = Node('Custom minutes', 'entry', identity='kiosk-custom-duration', states=('visible', 'sensitive', 'editable'))
@@ -349,7 +348,7 @@ def test_station_restrictions_inspect_complete_public_tree(fault):
         assert observer.observe('kiosk-restriction-read') == result
 
 
-def test_station_shortcut_ready_focuses_owned_cancel_without_activating_it():
+def test_station_shortcut_ready_preserves_owned_window_without_product_input():
     from tests.support.e2e_kiosk import request_form
     ui, _ = request_form()
     window = ui.find_id('kiosk-request-window')
@@ -357,7 +356,9 @@ def test_station_shortcut_ready_focuses_owned_cancel_without_activating_it():
     window.action.get_action_name = lambda _: 'focus.kiosk-request-cancel'
     window.action.do_action.side_effect = lambda _: cancel.states.add('focused') or True
     ui.run('kiosk-restriction-ready', '')
-    assert 'focused' in cancel.states
+    assert 'focused' not in cancel.states
+    window.action.do_action.assert_not_called()
+    window.close.assert_not_called()
     cancel.action.do_action.assert_not_called()
 
 
@@ -395,7 +396,8 @@ def test_station_restrictions_after_rejection_validate_prepared_form(phase, faul
         observer = UiObservations(Mock())
         observer.call = Mock(return_value=(json.dumps(result).encode(), []))
         assert observer.observe(operation) == result
-        assert ('focused' in cancel.states) == (phase == 'ready')
+        assert 'focused' not in cancel.states
+    window.close.assert_not_called()
     cancel.action.do_action.assert_not_called()
     ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
 
@@ -507,9 +509,10 @@ def test_public_choices_roundtrip_through_real_controller_decoder():
         if 'valid_choice' in result:
             RequestObservation.from_request(result['valid_choice']['request'], operation=operation)
     ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
-    assert ui.find_id('kiosk-soft-apps-toggle').action.do_action.call_count == 2
+    assert ui.find_id('kiosk-soft-apps-toggle').setValue.call_count == 2
     ui.kiosk_valid_choice('kiosk-valid-excluded-select')
-    assert ui.find_id('kiosk-soft-apps-toggle').action.do_action.call_count == 2
+    assert ui.find_id('kiosk-soft-apps-toggle').setValue.call_count == 2
+    ui.find_id('kiosk-soft-apps-toggle').action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['wrong-child', 'wrong-approver', 'disabled', 'hidden',
@@ -520,6 +523,7 @@ def test_refuses_bad_input_boundary(fault):
     if fault in ('wrong-child', 'wrong-approver'):
         field = fault.removeprefix('wrong-')
         ui.find_id(f'kiosk-{field}-selector').children[0].identity = f'kiosk-{field}-selected-9999'
+        ui.find_id(f'kiosk-{field}-selector').value = '9999'
     elif fault in ('disabled', 'hidden'):
         target.states.discard('sensitive' if fault == 'disabled' else 'visible')
     elif fault == 'duplicate':
@@ -648,7 +652,7 @@ def test_custom_open_waits_for_public_reveal_without_replaying_input(result):
     ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
 
 
-def test_custom_text_focus_uses_owned_surface_action_and_exact_readback():
+def test_custom_text_uses_public_setter_and_independent_exact_readback():
     ui, _, custom = valid_form()
     ui.kiosk_valid_choice('kiosk-valid-custom-open')
     window = ui.find_id('kiosk-request-window')
@@ -659,7 +663,8 @@ def test_custom_text_focus_uses_owned_surface_action_and_exact_readback():
     ui.run('text-kiosk-fraction-selected', '')
     result = ui.run('text-kiosk-fraction-read', '')
     assert result['text']['exact']
-    window.action.do_action.assert_called_once()
+    custom.setText.assert_called_once_with('1.25')
+    window.action.do_action.assert_not_called()
 
 
 def test_wrong_entry_refusal_has_no_input():
@@ -835,8 +840,7 @@ def test_invalid_worker_order_text_and_terminal_refusal(monkeypatch, refusal):
     assert bool(result['ok']) == (refusal is None), result['error']
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
     if refusal is None:
-        assert [event[1] for event in result['events'] if event[0] == 'text'] == [
-            '1.25', 'abc', '-1', '0', '0.09', '1440.1', '1,5']
+        assert [event[1] for event in result['events'] if event[0] == 'text'] == []
 
 
 def test_invalid_wrong_entry_refuses_without_input():
@@ -874,7 +878,7 @@ def test_flow_worker_order_and_terminal_refusal(monkeypatch, refusal):
     assert bool(result['ok']) == (refusal is None), result['error']
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
     if refusal is None:
-        assert [event[1] for event in result['events'] if event[0] == 'text'] == ['1.25', '1.25']
+        assert [event[1] for event in result['events'] if event[0] == 'text'] == []
 
 
 @pytest.mark.parametrize('refusal', [None, 'open-estimate', 'cancel-action', 'cancel-returned'])
@@ -888,7 +892,7 @@ def test_cancel_case_worker_order_and_terminal_refusal(monkeypatch, refusal):
     expected = list(CANCEL_PLAN.screen_tags)
     assert bool(result['ok']) == (refusal is None), result['error']
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
-    assert [event[1] for event in result['events'] if event[0] == 'text'] == ['1.25']
+    assert [event[1] for event in result['events'] if event[0] == 'text'] == []
     assert expected.count('cancel-action') == 1
     assert expected[-1] == 'cancel-returned'
 
@@ -904,13 +908,9 @@ def test_escape_case_worker_order_single_input_and_terminal_refusal(monkeypatch,
     expected = list(ESCAPE_PLAN.screen_tags)
     assert bool(result['ok']) == (refusal is None), result['error']
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
-    assert [event[1] for event in result['events'] if event[0] == 'text'] == ['1.25']
+    assert [event[1] for event in result['events'] if event[0] == 'text'] == []
     escapes = [index for index, event in enumerate(result['events']) if event == ['key', 'esc']]
-    assert len(escapes) == (0 if refusal in ('open-estimate', 'escape-ready') else 1)
-    if escapes:
-        index = escapes[0]
-        assert result['events'][index - 1:index + 2] == [
-            ['stage', 'escape-ready'], ['key', 'esc'], ['stage', 'escape-returned']]
+    assert escapes == []  # Normal close is dispatched by the shared API stage.
     if refusal:
         assert result['events'][-1] == ['stage', refusal]
 
@@ -963,9 +963,17 @@ def test_flow_reselects_approver_with_saved_custom_and_soft_choices():
 
 @pytest.mark.parametrize('operation', ['kiosk-flow-child-select', 'kiosk-flow-approver-select'])
 def test_flow_account_input_refuses_wrong_entry(operation):
-    ui = ui_for(Node(identity='parent-window'))
-    with pytest.raises(UiError, match='kiosk-account-surface'):
+    parent = Node(identity='parent-window')
+    ui = ui_for(parent)
+    # Canonical account selection first requires the station's language-ready
+    # surface. A management-only desktop cannot satisfy that prerequisite.
+    with pytest.raises(UiError, match='timeout:kiosk-language-entry'):
         ui.run(operation, '')
+    parent.action.do_action.assert_not_called()
+    assert ui.input_uncertain
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.run(operation, '')
+    parent.action.do_action.assert_not_called()
 
 
 def test_flow_reentry_compares_independent_choices():
@@ -1028,7 +1036,9 @@ def mate_form(binding=None):
         ui.find_id('kiosk-soft-apps-toggle').states.discard('checked')
         for field_name, name in (('child', child), ('approver', approver)):
             selector = ui.find_id(f'kiosk-{field_name}-selector')
-            selector.children[0].identity = f'kiosk-{field_name}-selected-{ui.fixture_uids[name]}'
+            uid = str(ui.fixture_uids[name])
+            selector.value = uid
+            selector.children[0].identity = f'kiosk-{field_name}-selected-{uid}'
             selector.children[0].name = name
             selector.description = f'Selected account: {name}.'
         message.name = m.POLKIT_GRANT.source % {'target': child, 'duration': '30 minutes'}
@@ -1400,7 +1410,7 @@ def test_approved_case_complete_worker_order_and_failure_stops(monkeypatch, refu
     if refusal:
         assert result['events'][-1] == ['stage', refusal]
     else:
-        assert [event[1] for event in result['events'] if event[0] == 'text'] == ['1.25']
+        assert [event[1] for event in result['events'] if event[0] == 'text'] == []
         assert result['events'][-1] == ['power', 'off']
 
 
@@ -1547,7 +1557,7 @@ def test_new_approval_after_rejection_requires_fresh_form_and_challenge(fault):
     def call(_args, operation, **kwargs):
         approval = ({'rejected': True, 'cancelled': True, 'no_error': True}
                     if operation.endswith('submit-rejection') else {'challenge_id': current * 64})
-        value = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+        value = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                  'approval': approval}
         if operation not in ('kiosk-mate-open', 'kiosk-mate-rejection-open'):
             value['boot_sha256'] = 'c' * 64
@@ -1787,7 +1797,7 @@ def test_approval_controller_reconciles_fresh_proofs_and_latches(fault, binding)
                     {'approved': True, 'form_success': True} if operation.endswith('success') else
                     {'rejected': True, 'cancelled': True, 'no_error': True} if operation.endswith('submit-rejection') else
                     {'challenge_id': ('b' if fault == 'changed' and operation.endswith('rechecked') else 'a') * 64})
-        value = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'approval': approval}
+        value = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'approval': approval}
         if operation != operations[0]:
             value['boot_sha256'] = 'c' * 64
         return json.dumps(value).encode(), []

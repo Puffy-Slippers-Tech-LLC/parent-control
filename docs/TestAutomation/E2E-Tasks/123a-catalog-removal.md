@@ -1,6 +1,6 @@
 # 123a — Save a match draft after fixture removal
 
-Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 30–50 minutes.

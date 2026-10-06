@@ -33,7 +33,7 @@ PLAN = JourneyPlan(
     child_bindings=CHILDREN,
     accessibility_inputs={f'{entry}-rapid': ('parent-custom-trace-focus', 6, 'custom-save')
                           for entry in ('first', 'second')},
-    keyboard_inputs={f'{entry}-rapid': (5, 6) for entry in ('first', 'second')},
+    custom_inputs={f'{entry}-rapid': (5, 6) for entry in ('first', 'second')},
     settings_checks={
         **{f'{entry}-back-selected': SettingsObservation('existing-fixture-child', True, ('6 minutes',))
            for entry in ('first', 'second')},

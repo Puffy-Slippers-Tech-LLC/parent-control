@@ -42,7 +42,7 @@ def test_command_requires_child_desktop_and_never_replays(monkeypatch, fault):
     else:
         # Actual registered operation, including its sanitized input-only reply.
         assert ui.run('native-command-launch', '') == {
-            'operation': 'native-command-launch', 'outcome': 'passed', 'interface': 'AT-SPI'}
+            'operation': 'native-command-launch', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     if fault in (None, 'submission'):
         submit.assert_called_once_with([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect', '--service-type=exec',
@@ -201,7 +201,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
                    for event in events if event[0] == 'marker']
         observations = [{'stage': stage, 'ui' if tag.startswith('ui:') else 'system': {
             'operation': tag[3:] if tag.startswith('ui:') else tag[7:],
-            'outcome': 'passed', 'interface': 'AT-SPI' if tag.startswith('ui:') else 'system session'}}
+            'outcome': 'passed', 'interface': 'ApplicationUI+external-provider' if tag.startswith('ui:') else 'system session'}}
             for stage, tag in PLAN.screen_tags.items()]
         proofs = {event[1]: event[2] for event in events if event[0] == 'challenge'}
         for observation in observations:

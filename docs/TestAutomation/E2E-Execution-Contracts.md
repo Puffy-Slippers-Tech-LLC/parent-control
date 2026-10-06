@@ -17,7 +17,7 @@ prerequisites, implementation and acceptance alongside these applicable owners:
 | --- | --- |
 | Selecting or resuming work | [Plan reading routes](E2E-Execution-Plan.md#load-only-the-selected-context); the first unchecked active queue row is authoritative. Prerequisite task IDs select delivered scope, not predecessor briefs or saved VM state. |
 | Any implementation | [Shared support guide](../../tests/support/README.md), [bounded supporting work](E2E-Building-Blocks.md#keep-supporting-work-bounded) and [composition preflight](E2E-Building-Blocks.md#composition-preflight). Cases and qualifications call the same shared operations; callers retain their distinct assertions. |
-| UI work | [UI mandate](../Mandates/UI-Automation-Mandate.MD) and [UI/E2E allocation](UI-and-E2E-Coverage.md). Use public IDs for owned controls; qualify necessary external GUI adapters. Supporting system operations use shared commands/APIs. |
+| UI work | [Application UI API](Application-UI-API.md), [UI mandate](../Mandates/UI-Automation-Mandate.MD) and [UI/E2E allocation](UI-and-E2E-Coverage.md). All existing and new product reads/actions use the shared UI/E2E facade with scoped stable IDs and canonical values. Keep authentication, file choosers and supporting tools in their external adapters; supporting system operations use shared commands/APIs. |
 | Reusable guest inputs | [Baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline). Add declared fixtures/dependencies to idempotent baseline preparation; attempts and app-snapshot preparation verify them. Deliberate package/account/file mutations under test remain in the journey. |
 | Host checks | [Suite selection](../../tests/README.md#all-established-regressions) and [parallelism review](../../tests/README.md#host-test-parallelism-review); use selected `tools/run-tests unit`/`ui` scopes. Direct launchers remain available for narrow diagnosis. |
 | Storage or cleanup changes | [Storage mandate](../Mandates/Test-Storage-Mandate.md) and the affected ownership/cleanup regressions. Use shared allocation and recorded identities. |
@@ -166,7 +166,7 @@ Necessary provider adapters are capability work for named consumers. Their scope
 current qualification stay in the
 [provider catalogue](E2E-Building-Blocks.md#external-provider-qualification);
 their next action is always a row in this queue. Repository-owned UI and fixtures
-retain mandatory public automation IDs.
+use the Application UI API with mandatory scoped public automation IDs.
 
 External IDs are optional. Spend at most ten minutes per provider surface once
 on an available tree and useful official source, then use the approved scoped
@@ -208,8 +208,9 @@ complete any new capability.
 
 Follow [functional validation](E2E-Building-Blocks.md#functional-validation)
 and the [UI mandate](../Mandates/UI-Automation-Mandate.MD) for route selection.
-Use public accessibility, normal customer input and independent observations
-of required results. Backend product probes, synthetic grants, clock changes,
+Use the Application UI API for product controls, qualified external input for
+provider surfaces, and independent observations of required results.
+Backend product probes, synthetic grants, clock changes,
 internal faults and cosmetic/screenshot comparisons cannot pass customer cases.
 Reuse the existing [consumer path](E2E-Building-Blocks.md#add-a-consumer):
 `InstalledJourney/JourneyPlan`, `UiObservations`, `AccessibleUI` and the shared

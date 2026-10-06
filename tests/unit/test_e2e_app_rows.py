@@ -229,7 +229,7 @@ def test_parent_report_projection_crosses_real_controller_decoder(operation, fau
         'validation': 'none', 'controls': 'ready'})
     if fault == 'extra': value['private'] = 'canary'
     elif fault == 'wrong': value['refusal' if key == 'report' else 'draft'] = 'initial-empty'
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', key: value}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', key: value}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({**result,
         'boot_sha256': 'b' * 64}).encode()))
     observer = UiObservations(transport)
@@ -264,7 +264,7 @@ print encode_json(\@events);
 '''
     full = json.loads(run_perl(program, '').stdout)
     assert [value for kind, value in full if kind == 'observe'] == list(screens)
-    assert ('key', 'alt-f4') in map(tuple, full)
+    assert not any(kind in ('key', 'text') for kind, _value in full)
     assert all('send' not in value for kind, value in full if kind == 'observe')
     for stage in screens:
         events = json.loads(run_perl(program, stage).stdout)
@@ -318,7 +318,7 @@ my $j = onpc_journey->new(prefix=>'independent', review=>0, exchange=>sub {
 eval {onpc_feedback_privacy::close_parent_report($j, 'renamed');};
 print encode_json(\@events);
 '''
-    full = [['observe', 'renamed-report'], ['key', 'alt-f4'],
+    full = [['observe', 'renamed-report'],
             ['observe', 'renamed-feedback-draft-closed']]
     assert json.loads(run_perl(program, '').stdout) == full
     for stage in screens:
@@ -571,8 +571,12 @@ def test_match_selected_observation_retries_only_reads_before_further_input(faul
         assert ui.text_operation('text-match-precise-selected', child=child) is None
         stale.get_name.assert_called_once()
     else:
-        with pytest.raises(accessible_ui.UiError, match='match-child' if fault == 'wrong-child' else 'timeout:text-selected'):
+        with pytest.raises(accessible_ui.UiError, match='match-child' if fault == 'wrong-child' else 'timeout:text-recipient'):
             ui.text_operation('text-match-precise-selected', child=child)
+    if fault == 'transient':
+        entry.setText.assert_called_once_with(accessible_ui.TEXT_VALUES['match-precise'][1])
+    else:
+        entry.setText.assert_not_called()
     for node in (entry, button, *responses):
         node.action.do_action.assert_not_called()
 
@@ -584,7 +588,7 @@ def test_match_projection_crosses_real_controller_decoder(fault):
     elif fault == 'missing': value.pop('rule')
     elif fault == 'extra': value['private'] = 'value'
     elif fault == 'wrong-app': value['app'] = accessible_ui.MATCH_OTHER_APP
-    result = {'operation': 'match-row', 'outcome': 'passed', 'interface': 'AT-SPI', 'match': value}
+    result = {'operation': 'match-row', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'match': value}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({**result, 'boot_sha256': 'b' * 64}).encode()))
     if fault:
         with pytest.raises(EvidenceError, match='match-response'):
@@ -673,7 +677,7 @@ def test_match_invalid_projection_crosses_real_decoder(fault):
     value = {'invalid': 'empty', 'message': accessible_ui.MATCH_INVALID['empty']}
     if fault == 'message': value['message'] = 'wrong'
     if fault == 'extra': value['private'] = 'value'
-    result = {'operation': 'match-invalid-empty', 'outcome': 'passed', 'interface': 'AT-SPI', 'match': value}
+    result = {'operation': 'match-invalid-empty', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'match': value}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({**result, 'boot_sha256': 'b' * 64}).encode()))
     if fault:
         with pytest.raises(EvidenceError, match='match-response'):
@@ -858,7 +862,7 @@ def test_access_projection_crosses_real_controller_decoder(fault):
     elif fault == 'app': value['app'] = accessible_ui.MATCH_OTHER_APP
     elif fault == 'extra': value['private'] = 'value'
     elif fault == 'missing': value.pop('choice')
-    result = {'operation': 'access-row', 'outcome': 'passed', 'interface': 'AT-SPI', 'access': value}
+    result = {'operation': 'access-row', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'access': value}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({**result, 'boot_sha256': 'b' * 64}).encode()))
     if fault:
         with pytest.raises(EvidenceError, match='access-response'):
@@ -982,8 +986,8 @@ print encode_json(\@events);
     full = json.loads(run_perl(program.replace('FAIL', ''), accessible_ui.MATCH_APP,
                                json.dumps(filters), draft).stdout)
     assert [value for kind, value in full if kind == 'observe'] == list(screens)
-    assert [value for kind, value in full if kind == 'text'] == [
-        accessible_ui.TEXT_VALUES[binding][1] for binding in ('catalogue-identifier', draft)]
+    assert not any(kind in ('text', 'key') for kind, _value in full)
+    assert screens['renamed-draft-selected'] == 'ui:text-' + draft + '-selected'
     for stage in screens:
         stop = "die 'refused' if $_[0] eq '" + stage + "';"
         events = json.loads(run_perl(program.replace('FAIL', stop), accessible_ui.MATCH_APP,
@@ -1154,7 +1158,7 @@ def test_projection_validates_transport_and_does_not_embed_allowed_expectations(
 @pytest.mark.parametrize('count', [46, 256])
 def test_collection_transport_accepts_complete_installed_sized_reply(streamed, operation, count):
     rows = [[f'parent-app-{index:016x}', 'allowed', 'precise'] for index in range(count)]
-    result = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed',
+    result = {'operation': operation, 'interface': 'ApplicationUI+external-provider', 'outcome': 'passed',
               'apps': {'rows': rows}}
     raw = (json.dumps(result) + '\n').encode()
     assert len(raw) > (8192 if count == 256 else 2048)
@@ -1217,7 +1221,7 @@ def test_collection_transport_preserves_size_and_schema_refusals(streamed, fault
         operation = 'parent-window'
     elif fault == 'refusal-operation':
         operation = 'parent-app-rows-wrong-child'
-    result = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed',
+    result = {'operation': operation, 'interface': 'ApplicationUI+external-provider', 'outcome': 'passed',
               'apps': {'rows': rows}}
     raw = json.dumps(result).encode() + b'\n'
     if fault == 'bytes':
@@ -1368,41 +1372,37 @@ print encode_json(\@events);
                                             if boundary else expected + ['power'])
 
 
-def test_filter_leaves_use_owned_options_and_final_state():
+def test_filter_leaves_use_canonical_values_and_final_state():
     ui, page, *_ = app_ui()
     root = ui.find_id('parent-window')
     root.states.add('active')
     ui.find_id('parent-child-selector').children[0].role = 'label'
     search = ui.find_id('parent-app-search')
     search.states.add('editable')
-    options = [Node(identity='parent-filter-match-rule-' + option,
-                    states=('visible', 'showing', 'sensitive', 'checked'))
-               for option in accessible_ui.FILTER_OPTIONS['match-rule']]
-    choices = Node(identity='parent-filter-match-rule-choices', children=options)
-    choices.parent = root
-    def toggle(target):
-        if 'checked' in target.states:
-            target.states.remove('checked')
-        else:
-            target.states.add('checked')
-    ui._invoke_target = Mock(side_effect=toggle)
-    ui.activate_id = Mock(side_effect=lambda *_, **__: root.children.append(choices))
+    selector = Node(identity='parent-filter-match-rule')
+    selector.value = list(accessible_ui.FILTER_OPTIONS['match-rule'])
+    selector.parent = root
+    root.children.append(selector)
+    ui._invoke_target = Mock()
+    ui.activate_id = Mock()
     assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'open') == {'ready': 'match-rule'}
-    ui.activate_id.assert_called_once_with('parent-filter-match-rule', action_name='menu.popup')
+    ui.activate_id.assert_not_called()
     assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'pattern') == {
         'state': False, 'activated': True}
     assert ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'precise') == {
         'state': True, 'activated': False}
-    ui._invoke_target.assert_called_once_with(options[0])
+    selector.setValue.assert_called_once_with(['precise'])
+    assert selector.getValue() == ['precise']
+    ui._invoke_target.assert_not_called()
     with pytest.raises(accessible_ui.UiError, match='wrong-child'):
         ui.catalogue_filter(accessible_ui.EXISTING_CHILD, 'match-rule', 2, 'pattern')
-    root.children.remove(choices)
+    root.children.remove(selector)
     with pytest.raises(accessible_ui.UiError):
         ui.catalogue_filter(accessible_ui.CHILD, 'match-rule', 2, 'pattern')
-    ui._invoke_target.assert_called_once()
+    selector.setValue.assert_called_once()
 
 
-def test_filter_composite_is_independently_reusable_and_refusal_stops_escape():
+def test_filter_composite_is_independently_reusable_and_refusal_stops_later_input():
     from journey_blocks import filter_screens
     from tests.support.perl import run_perl
     assert filter_screens('match-rule', 2, 'renamed') == {
@@ -1422,7 +1422,7 @@ my $journey = onpc_journey->new(prefix=>'independent', review=>0, exchange=>sub 
 eval {onpc_app_rows::filter($journey, 'match-rule', 2, 'renamed');};
 print encode_json(\@events);
 '''
-    expected = ['renamed-open', 'renamed-pattern', 'renamed-precise', 'key:esc']
+    expected = ['renamed-open', 'renamed-pattern', 'renamed-precise']
     for boundary in (None, *[stage for stage in expected if not stage.startswith('key:')]):
         stop = "die 'refused' if $_[0] eq '" + boundary + "';" if boundary else ''
         result = run_perl(program.replace('FAIL', stop))
@@ -1436,7 +1436,7 @@ def test_filter_transport_checks_every_option_set_and_explicit_state(operation):
     options = accessible_ui.FILTER_OPTIONS[kind]
     value = ({'ready': kind} if action == 'open'
              else {'state': bool(mask & (1 << options.index(action))), 'activated': False})
-    result = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed', 'filter': value}
+    result = {'operation': operation, 'interface': 'ApplicationUI+external-provider', 'outcome': 'passed', 'filter': value}
     observer, *_ = collection_transport((json.dumps(result) + '\n').encode(), False)
     assert observer.observe(operation) == result
     result['filter'] = {'unexpected': True}
@@ -1523,7 +1523,7 @@ def test_catalogue_adapter_refuses_incomplete_result_and_observes_debounce():
         ui.app_row_operation('catalogue-absent-rows')
 
 
-def test_catalogue_text_entry_binds_nondefault_child_before_focus_input():
+def test_catalogue_text_entry_binds_nondefault_child_without_focus_input():
     ui, page, *_ = app_ui()
     root = ui.find_id('parent-window')
     root.states.add('active')
@@ -1535,8 +1535,7 @@ def test_catalogue_text_entry_binds_nondefault_child_before_focus_input():
     search.states.add('editable')
     ui.activate_id = Mock(side_effect=lambda *_, **__: search.states.add('focused'))
     ui.focus_text('parent-app-search', child=accessible_ui.EXISTING_CHILD)
-    ui.activate_id.assert_called_once_with('parent-window', action_name='focus.parent-app-search')
-    ui.activate_id.reset_mock()
+    ui.activate_id.assert_not_called()
     with pytest.raises(accessible_ui.UiError, match='wrong-child'):
         ui.focus_text('parent-app-search', child=accessible_ui.CHILD)
     page.states.discard('visible')
@@ -1548,7 +1547,7 @@ def test_catalogue_text_entry_binds_nondefault_child_before_focus_input():
 @pytest.mark.parametrize('operation', list(accessible_ui.CATALOGUE_ROW_OPERATIONS))
 def test_catalogue_results_use_complete_controller_schema(operation):
     rows = [] if 'absent' in operation else [[ROW, 'allowed', 'precise']]
-    result = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed',
+    result = {'operation': operation, 'interface': 'ApplicationUI+external-provider', 'outcome': 'passed',
               'apps': {'rows': rows}}
     observer, *_ = collection_transport((json.dumps(result) + '\n').encode(), False)
     assert observer.observe(operation) == result
@@ -1782,7 +1781,7 @@ def test_legend_complete_projection_uses_real_controller_decoder(streamed, opera
         ui.read_policy_legend(accessible_ui.EXISTING_CHILD))
     if operation.endswith('expand'):
         projection['activated'] = False
-    result = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed',
+    result = {'operation': operation, 'interface': 'ApplicationUI+external-provider', 'outcome': 'passed',
               'legend': projection}
     observer, *_ = collection_transport((json.dumps(result) + '\n').encode(), streamed)
     assert observer.observe(operation) == result

@@ -1,6 +1,6 @@
 # 181m — Operate the countdown context menu
 
-Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
@@ -16,7 +16,12 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Implement one secondary click UI28 before PANEL01. Compose PANEL02 from UI17 and independent final option readback; any menu dismissal needed for later input is shared navigation. Bind only the public countdown-animation option.
+Use the shared `child-panel` Application UI API client. PANEL01 reads
+`child-countdown-animation-toggle`; PANEL02 sets its canonical boolean through
+UI17 and independently reads the final value. UI28 activates
+`child-countdown-menu` only when ordinary menu entry is needed. Bind only the
+public countdown-animation option; no secondary-click, focus or popup route
+is a prerequisite of changing the preference.
 
 ## Live VM acceptance
 

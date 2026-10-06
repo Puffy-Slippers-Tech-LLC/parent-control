@@ -86,7 +86,6 @@ sub filter {
         my $stage = "$prefix-$action";
         $journey->consume_observation($stage, $journey->seen($stage));
     }
-    testapi::send_key('esc');
 }
 
 sub catalogue_search {

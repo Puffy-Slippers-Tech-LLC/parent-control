@@ -41,6 +41,7 @@ def overlay(monkeypatch):
     child.states.discard('sensitive')
     child.description = 'Selected account: ' + a.CHILD + '.'
     child.children[0].identity = 'kiosk-child-selected-1001'
+    child.value = '1001'
     return ui, application, form, child
 
 
@@ -63,84 +64,49 @@ def test_overlay_reads_current_selected_account_descriptions(monkeypatch):
 def panel(monkeypatch):
     child_session(monkeypatch)
     button = Node('Request time', 'push button', identity='child-request-button')
+    button.ui_element = SimpleNamespace()
+    button.activate = Mock()
     indicator = Node(identity='child-screen-time-indicator', children=[button])
-    shell = Node('gnome-shell', 'application', children=[
-        Node('Activities', 'toggle button'), indicator])
-    indicator.get_application = Mock(return_value=shell)
-    root = Node(role='desktop frame', children=[shell])
-    return ui_for(root), root, shell, button
+    application = Node(role='application', identity=a.CHILD_PANEL_APPLICATION, children=[indicator])
+    indicator.get_application = Mock(return_value=application)
+    shell = Node('gnome-shell', 'application', children=[Node('Activities', 'toggle button')])
+    root = Node(role='desktop frame', children=[shell, application])
+    return ui_for(root), root, application, button
 
 
-def test_panel_without_action_focuses_public_id_for_single_keyboard_activation(monkeypatch):
+def test_panel_activates_api_target_without_native_focus(monkeypatch):
     ui, _, _, button = panel(monkeypatch)
-    # GNOME Shell 50 StButtonAccessible has Component, but no Action interface.
-    button.get_action_iface = Mock(return_value=None)
+    button.get_action_iface = Mock(side_effect=AssertionError('native product action'))
     ui.run('overlay-panel-launch', '')
-    button.component.grab_focus.assert_called_once()
-    assert 'focused' in button.states
-    button.action.do_action.assert_not_called()
-    with pytest.raises(a.UiError, match='uncertain-input'):
-        ui.run('overlay-panel-launch', '')
-    button.component.grab_focus.assert_called_once()
-
-
-@pytest.mark.parametrize('fault', ['', 'wrong-child', 'overview-open', 'prompt'])
-def test_panel_reveal_requires_fixed_form_and_closed_prompt_free_overview(monkeypatch, fault):
-    ui, _, _, child = overlay(monkeypatch)
-    if fault == 'wrong-child': child.children[0].identity = 'kiosk-child-selected-1002'
-    field = Node('Search', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
-    shell = Node('gnome-shell', 'application', children=[field] if fault == 'overview-open' else [])
-    root = Node(role='desktop frame', children=[shell])
-    # Form read uses the actual reader; the following complete snapshot is
-    # the independent provider guard immediately before the worker's key.
-    original = ui.shell_search_snapshot
-    def snapshot():
-        ui.api.get_desktop = lambda _: root
-        return original()
-    monkeypatch.setattr(ui, 'shell_search_snapshot', snapshot)
-    if fault == 'prompt': ui.handle_system_prompt = Mock(side_effect=a.UiError('ui:prompt'))
-    if fault:
-        with pytest.raises(a.UiError): ui.run('overlay-panel-reveal-ready', '')
-    else:
-        ui.run('overlay-panel-reveal-ready', '')
-    child.action.do_action.assert_not_called()
-
-
-def test_panel_return_requires_observed_overview_before_escape(monkeypatch):
-    ui, _, shell, button = panel(monkeypatch)
-    with pytest.raises(a.UiError): ui.run('overlay-panel-overview', '')
-    field = Node('Search', 'text', states=('showing', 'visible', 'sensitive', 'editable'))
-    field.get_text_iface = lambda: SimpleNamespace(
-        get_character_count=lambda: 0, get_text=lambda *_: '')
-    ui.api.Text = SimpleNamespace(get_character_count=lambda text: text.get_character_count(),
-                                 get_text=lambda text, *args: text.get_text(*args))
-    shell.children.append(field)
-    ui.run('overlay-panel-overview', '')
+    button.activate.assert_called_once_with()
     button.component.grab_focus.assert_not_called()
-
-
-@pytest.mark.parametrize('fault', ['unavailable', 'refused', 'unfocused', 'replaced', 'prompt'])
-def test_panel_focus_failure_never_releases_keyboard_input(monkeypatch, fault):
-    ui, _, shell, button = panel(monkeypatch)
-    if fault == 'unavailable': button.get_component_iface = Mock(return_value=None)
-    if fault == 'refused': button.component.grab_focus.side_effect = lambda: False
-    if fault == 'unfocused': button.component.grab_focus.side_effect = lambda: True
-    if fault in ('replaced', 'prompt'):
-        def focus():
-            button.states.add('focused')
-            if fault == 'replaced':
-                shell.children[1].children[:] = [Node(identity='child-request-button')]
-            else:
-                ui.system_prompt_kind = Mock(return_value='keyring')
-            return True
-        button.component.grab_focus.side_effect = focus
-    with pytest.raises(a.UiError): ui.run('overlay-panel-launch', '')
     button.action.do_action.assert_not_called()
-    if fault != 'unavailable':
-        with pytest.raises(a.UiError, match='uncertain-input'):
-            ui.run('overlay-panel-launch', '')
-        button.component.grab_focus.assert_called_once()
 
+
+@pytest.mark.parametrize('fault', ['', 'wrong-child', 'prompt'])
+def test_panel_reopen_reads_fixed_form_without_product_or_overview_input(monkeypatch, fault):
+    ui, _, _, child = overlay(monkeypatch)
+    if fault == 'wrong-child': child.value = '1002'
+    if fault == 'prompt': ui.handle_system_prompt = Mock(side_effect=a.UiError('ui:prompt'))
+    ui.overlay_panel_launch = Mock(side_effect=AssertionError('duplicate form launch'))
+    ui.shell_search_snapshot = Mock(side_effect=AssertionError('unneeded overview navigation'))
+    for operation in ('overlay-panel-reveal-ready', 'overlay-panel-ready',
+                      'overlay-panel-launch', 'overlay-panel-overview'):
+        if fault:
+            with pytest.raises(a.UiError):
+                ui.run(operation, '')
+        else:
+            ui.run(operation, '')
+    ui.overlay_panel_launch.assert_not_called()
+    ui.shell_search_snapshot.assert_not_called()
+    child.setValue.assert_not_called()
+
+
+def test_panel_return_requires_existing_owned_request_form(monkeypatch):
+    ui, _, _, button = panel(monkeypatch)
+    with pytest.raises(a.UiError):
+        ui.run('overlay-panel-overview', '')
+    button.activate.assert_not_called()
 
 @pytest.mark.parametrize('fault', ['', 'unlocked', 'wrong-child', 'duplicate-form', 'foreign-form',
     'wrong-application', 'expanded', 'defunct', 'missing', 'wrong-duration', 'mute', 'incomplete'])
@@ -149,6 +115,7 @@ def test_fixed_overlay_reader_refuses_unsafe_or_incomplete_forms(monkeypatch, fa
     if fault == 'unlocked': child.states.add('sensitive')
     if fault == 'wrong-child':
         child.children[0].identity = 'kiosk-child-selected-1002'
+        child.value = '1002'
         child.description = 'Selected account: ' + a.EXISTING_CHILD + '.'
     if fault == 'duplicate-form':
         form.children.append(Node(identity='kiosk-request-form'))
@@ -175,30 +142,32 @@ def test_fixed_overlay_reader_refuses_unsafe_or_incomplete_forms(monkeypatch, fa
 
 @pytest.mark.parametrize('fault', ['', 'wrong-owner', 'duplicate', 'hidden', 'disabled',
                                    'prompt', 'wrong-account', 'defunct', 'incomplete', 'uncertain'])
-def test_panel_launch_requires_owned_unlocked_child_and_never_replays(monkeypatch, fault):
-    ui, root, shell, button = panel(monkeypatch)
-    if fault == 'wrong-owner': shell.name = 'foreign-app'
-    if fault == 'duplicate': shell.children.append(Node(identity='child-request-button'))
+def test_panel_launch_requires_owned_child_target_and_never_replays_uncertain_input(monkeypatch, fault):
+    ui, root, application, button = panel(monkeypatch)
+    if fault == 'wrong-owner': application.identity = 'foreign-app'
+    if fault == 'duplicate': application.children[0].children.append(Node(identity=button.identity))
     if fault == 'hidden': button.states.discard('visible')
     if fault == 'disabled': button.states.discard('sensitive')
     if fault == 'prompt': ui.system_prompt_kind = Mock(return_value='keyring')
     if fault == 'wrong-account': monkeypatch.setattr(a.os, 'getuid', lambda: 1002)
     if fault == 'defunct': button.states.add('defunct')
-    if fault == 'incomplete': shell.children.append(None)
-    if fault == 'uncertain': button.component.grab_focus.side_effect = TimeoutError()
+    if fault == 'incomplete': application.children.append(None)
+    if fault == 'uncertain': button.activate.side_effect = TimeoutError()
     if fault:
-        with pytest.raises((a.UiError, TimeoutError)): ui.run('overlay-panel-launch', '')
-        assert button.component.grab_focus.call_count == (1 if fault == 'uncertain' else 0)
+        with pytest.raises((a.UiError, TimeoutError)):
+            ui.run('overlay-panel-launch', '')
+        assert button.activate.call_count == (1 if fault == 'uncertain' else 0)
     else:
         ui.run('overlay-panel-ready', '')
-        button.action.do_action.assert_not_called()
+        button.activate.assert_not_called()
         ui.run('overlay-panel-launch', '')
-        button.component.grab_focus.assert_called_once()
-        button.action.do_action.assert_not_called()
-    if fault in ('', 'uncertain'):
-        with pytest.raises(a.UiError, match='uncertain-input'): ui.run('overlay-panel-launch', '')
-        assert button.component.grab_focus.call_count == 1
-
+        button.activate.assert_called_once_with()
+    if fault == 'uncertain':
+        with pytest.raises(a.UiError, match='uncertain-input'):
+            ui.run('overlay-panel-launch', '')
+        button.activate.assert_called_once_with()
+    button.component.grab_focus.assert_not_called()
+    button.action.do_action.assert_not_called()
 
 @pytest.mark.parametrize('operation', ['child-command-launch', *sorted(a.OVERLAY_OPERATIONS)])
 def test_overlay_operations_bind_child_and_refuse_another_account(monkeypatch, operation):
@@ -364,10 +333,4 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages});
     result = json.loads(run_perl(program, fault, json.dumps(list(screens)), route).stdout)
     expected = list(screens)
     if fault: expected = expected[:expected.index('another-caller-' + fault) + 1]
-    if route != 'command' and 'another-caller-launch' in expected and fault != 'launch':
-        expected.insert(expected.index('another-caller-launch') + 1, 'key:ret')
-    if route == 'panel-reopen':
-        if fault != 'reveal': expected.insert(1, 'key:super')
-        if 'another-caller-overview' in expected and fault != 'overview':
-            expected.insert(expected.index('another-caller-overview') + 1, 'key:esc')
     assert result['stages'] == expected and bool(result['ok']) == (not fault)

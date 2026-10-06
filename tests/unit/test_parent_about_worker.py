@@ -63,6 +63,7 @@ sub mouse_height { $main::fault eq 'native' ? 768 : 800 }
 package main;
 require onpc_parent_about;
 my $exchange = sub {
+    die 'uncertain product close' if $fault eq 'close-input' && $_[0] eq 'parent-returned';
     die 'checkpoint failed' if $fault eq 'checkpoint' && $_[0] eq 'license-closed';
     die 'picker failed' if $fault eq 'click' && $_[0] eq 'child-picker-opened';
     die 'selection failed' if $fault eq 'screen' && $_[0] eq 'parent-selected';
@@ -233,12 +234,7 @@ def test_return_block_accepts_independent_entry_and_never_replays_uncertain_inpu
     result = json.loads(run_perl(PROBE, '0', fault, 'return').stdout)
     assert result['ok'] == (not fault)
     keys = [event[1] for event in result['events'] if event[0] == 'key']
-    if fault in ('missing', 'stale'):
-        assert not keys
-    elif fault == 'checkpoint':
-        assert keys == []
-    else:
-        assert keys == ['alt-f4']
+    assert keys == []
     assert not any(event[0] in ('secret', 'click', 'text') for event in result['events'])
 
 
@@ -247,7 +243,7 @@ def test_link_check_precedes_footer_and_only_about_is_closed():
     assert result['events'] == [
         ['stage', 'license'], ['stage', 'license-closed'],
         ['stage', 'about-returned'],
-        ['key', 'alt-f4'], ['stage', 'parent-returned'],
+        ['stage', 'parent-returned'],
     ]
 
 
@@ -271,9 +267,9 @@ def test_parent_information_case_uses_complete_shared_sequence_and_stops_on_refu
                    for event in result['events'])
     assert [event for event in result['events'] if event[0] == 'power'] == (
         [] if fault else [['power', 'off']])
-    # The only ordinary key after sign-in closes About; no external link input.
+    # Product close is one API observation; no external link input.
     keys = [event[1] for event in result['events'] if event[0] == 'key']
-    assert keys.count('alt-f4') == int(fault in ('', 'close-input', 'parent-returned'))
+    assert keys.count('alt-f4') == 0
 
 
 @pytest.mark.parametrize('window,before,after', [
@@ -305,6 +301,7 @@ package main;
 require onpc_window;
 require onpc_journey;
 my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    die 'uncertain product close' if $fault eq 'uncertain' && $window ne 'license' && $_[0] eq $after;
     push @events, $_[0];
     die 'missing result' if $fault eq 'result' && $_[0] eq $after;
     return {};
@@ -318,9 +315,10 @@ print encode_json({ok => $ok ? 1 : 0, replay => $replay ? 1 : 0, events => \@eve
 ''', window, before, after, fault).stdout)
     assert bool(result['ok']) == (not fault)
     assert not result['replay']
+    inputs = ['alt-f4'] if window == 'license' else []
     assert result['events'] == ([] if fault in ('stale', 'missing', 'binding')
-                                else ['alt-f4'] if fault == 'uncertain'
-                                else ['alt-f4', after])
+                                else inputs if fault == 'uncertain'
+                                else [*inputs, after])
 
 
 @pytest.mark.parametrize('fault', ['', 'native'])

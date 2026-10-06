@@ -1,39 +1,25 @@
 #!/usr/bin/env python3
-"""Exercise the real child indicator and shared overlay through AT-SPI."""
+"""Exercise the real child panel and shared overlay through Application UI."""
 
 from __future__ import annotations
 
-import os
 import json
+import os
+from pathlib import Path
 import re
 import subprocess
 import sys
 import time
-from pathlib import Path
 
-import gi
+from gi.repository import GLib
 
-gi.require_version("Atspi", "2.0")
-from gi.repository import Atspi, GLib
-
-from dogtail.hermetic.mutter import MutterInputBackend
-
+from common.oh_no_parent_control_ui.application_ui_client import UIClient, UIClientError
 from child_shell_screenshot import capture_screenshot
-from mutter_input import press_key as _press_key
-from tests.support.automation import Automation, AutomationError
-from tests.support.automation_ids import audit_owned_controls
-from tests.support.keyboard import deliver
 
-
-Atspi.set_timeout(2000, 5000)
 
 TIMEOUT_SECONDS = float(os.environ.get("ONPC_CHILD_INTERACTION_TIMEOUT_SECONDS", "15"))
-_WAIT_ACTIVE = False
 EVENTS_PATH = Path(os.environ["ONPC_CHILD_OVERLAY_EVENTS_PATH"])
 SNAPSHOT_PATH = Path(os.environ["ONPC_CHILD_OVERLAY_A11Y_PATH"])
-X_KEYCODE_ESCAPE = 9
-X_KEYCODE_SPACE = 65
-X_KEYCODE_MENU = 135
 COUNTDOWN_ANIMATION_SCHEMA = "com.puffyslippers.oh-no-parent-control.child"
 COUNTDOWN_ANIMATION_KEY = "one-minute-countdown-animation"
 EXTENSION_UUID = "oh-no-parent-control@tech.puffyslippers.com"
@@ -42,124 +28,83 @@ COUNTDOWN_ANIMATION_ID = "child-countdown-animation-toggle"
 OVERLAY_WINDOW_ID = "kiosk-request-window"
 OVERLAY_CANCEL_ID = "kiosk-request-cancel"
 SHELL_PID = int(os.environ["ONPC_CHILD_SHELL_PID"])
+UI = None
+OVERLAY = None
 
 
-def _shell_application():
-    """Return only the runner-owned Shell application from the public desktop."""
-    desktop = Atspi.get_desktop(0)
-    applications = []
-    for index in range(desktop.get_child_count()):
-        application = desktop.get_child_at_index(index)
-        try:
-            if application is not None and application.get_process_id() == SHELL_PID:
-                applications.append(application)
-        except GLib.Error:
-            # A separate application such as a just-closed request overlay may
-            # still have a defunct desktop entry.  It is outside this Shell ID
-            # scope and cannot invalidate the owned application lookup.
-            continue
-    if len(applications) > 1:
-        raise AssertionError("The nested Shell published multiple applications")
-    return applications[0] if applications else None
-
-
-UI = Automation(Atspi, _shell_application, query_errors=(GLib.Error,))
-
-
-def _node_role(node):
-    try:
-        return node.get_role_name() or "unknown"
-    except GLib.Error:
-        return "unknown"
-
-
-def _state(node, state_type):
-    try:
-        return node.get_state_set().contains(state_type)
-    except GLib.Error:
-        return False
+def _panel():
+    global UI
+    if UI is None:
+        candidate = UIClient("child-panel")
+        if candidate.pid != SHELL_PID:
+            raise AssertionError("Child panel is not owned by the launched Shell")
+        UI = candidate
+    return UI
 
 
 def _find_request_button():
-    node = UI.find(REQUEST_BUTTON_ID)
-    return node if node is not None and _state(node, Atspi.StateType.SHOWING) else None
-
-
-def _find_countdown_animation_item():
-    node = UI.find(COUNTDOWN_ANIMATION_ID)
-    return node if node is not None and _state(node, Atspi.StateType.SHOWING) else None
+    node = _panel().getElementById(REQUEST_BUTTON_ID)
+    return node if node.visible and node.enabled else None
 
 
 def _countdown_animation_setting():
-    schema_dir = (
-        Path(os.environ["XDG_DATA_HOME"]) / "gnome-shell" / "extensions" /
-        EXTENSION_UUID / "schemas"
-    )
-    environment = {
-        **os.environ,
-        "GSETTINGS_SCHEMA_DIR": str(schema_dir),
-    }
+    schema_dir = (Path(os.environ["XDG_DATA_HOME"]) / "gnome-shell" / "extensions" /
+                  EXTENSION_UUID / "schemas")
     result = subprocess.run(
-        ["gsettings", "get", COUNTDOWN_ANIMATION_SCHEMA,
-         COUNTDOWN_ANIMATION_KEY],
-        text=True,
-        capture_output=True,
-        check=False,
-        env=environment,
+        ["gsettings", "get", COUNTDOWN_ANIMATION_SCHEMA, COUNTDOWN_ANIMATION_KEY],
+        text=True, capture_output=True, check=False,
+        env={**os.environ, "GSETTINGS_SCHEMA_DIR": str(schema_dir)},
     )
     if result.returncode != 0:
-        raise AssertionError(
-            "Could not read the private countdown animation setting: "
-            f"{result.stderr.strip()}"
-        )
+        raise AssertionError("Could not read the private countdown animation setting: "
+                             + result.stderr.strip())
     return result.stdout.strip() == "true"
 
 
 def _overlay_automation():
+    global OVERLAY
     active = [pid for pid in _launch_records() if _process_exists(pid)]
     if len(active) > 1:
         raise AssertionError("More than one request overlay process is running")
     if not active:
         return None
-    desktop = Atspi.get_desktop(0)
-    applications = []
-    for index in range(desktop.get_child_count()):
-        application = desktop.get_child_at_index(index)
-        try:
-            if application is not None and application.get_process_id() == active[0]:
-                applications.append(application)
-        except GLib.Error:
-            continue
-    if len(applications) > 1:
-        raise AssertionError("The request overlay process published multiple applications")
-    if not applications:
-        return None
-    return Automation(
-        Atspi,
-        lambda: applications[0],
-        query_errors=(GLib.Error,),
-        owner_pids=lambda: frozenset(active),
-    )
+    # Reconstruct only at the deliberate, recorded new-process boundary.
+    if OVERLAY is None or OVERLAY.pid != active[0]:
+        candidate = UIClient("child-request")
+        if candidate.pid != active[0]:
+            raise AssertionError("Request overlay has the wrong launch owner")
+        OVERLAY = candidate
+    return OVERLAY
 
 
 def _overlay_surfaces():
-    overlay_ui = _overlay_automation()
-    if overlay_ui is None:
+    overlay = _overlay_automation()
+    if overlay is None:
         return [], []
-    windows = [node for node in overlay_ui.find_all(OVERLAY_WINDOW_ID)
-               if _state(node, Atspi.StateType.SHOWING)]
-    cancel = [node for node in overlay_ui.find_all(OVERLAY_CANCEL_ID)
-              if _state(node, Atspi.StateType.SHOWING)]
-    return windows, cancel
+    windows = [surface for surface in overlay.listSurfaces()
+               if surface["id"] == OVERLAY_WINDOW_ID and surface["visible"]]
+    if not windows:
+        return [], []
+    cancel = overlay.getElementById(OVERLAY_CANCEL_ID)
+    return windows, [cancel] if cancel.visible else []
+
+
+def _complete_language_setup(overlay):
+    if any(surface["id"] == "language-dialog" for surface in overlay.listSurfaces()):
+        overlay.activate("language-continue", surface_id="language-dialog")
+        _wait(lambda: not any(surface["id"] == "language-dialog"
+                              for surface in overlay.listSurfaces()),
+              "the initial language choice to commit")
+    _wait(lambda: overlay.getElementById(OVERLAY_CANCEL_ID).enabled,
+          "the shared request form to become available")
 
 
 def _activate_overlay_cancel():
-    overlay_ui = _overlay_automation()
-    if overlay_ui is None:
-        raise AssertionError("The live request overlay application was not published")
-    overlay_ui.complete_read_wait = _wait_for_complete_read
-    overlay_ui.complete_request_language_setup()
-    overlay_ui.activate(OVERLAY_CANCEL_ID)
+    overlay = _overlay_automation()
+    if overlay is None:
+        raise AssertionError("The live request overlay was not published")
+    _complete_language_setup(overlay)
+    overlay.activate(OVERLAY_CANCEL_ID)
 
 
 def _launch_records():
@@ -169,7 +114,7 @@ def _launch_records():
     for line in EVENTS_PATH.read_text(encoding="utf-8", errors="replace").splitlines():
         event, separator, pid = line.partition("\t")
         if event != "request-launch" or not separator or not pid.isdigit():
-            raise AssertionError(f"Malformed redacted request-launch event: {line!r}")
+            raise AssertionError("Malformed redacted request-launch event")
         records.append(int(pid))
     return records
 
@@ -179,100 +124,37 @@ def _process_exists(pid):
 
 
 def _snapshot():
-    lines = []
-    for node in UI.nodes():
-        try:
-            identity = node.get_accessible_id() or ""
-        except GLib.Error:
-            continue
-        if not identity.startswith(("child-", "kiosk-")):
-            continue
-        states = node.get_state_set()
-        lines.append(
-            f"id={identity!r} role={_node_role(node)!r} "
-            f"visible={states.contains(Atspi.StateType.VISIBLE)} "
-            f"showing={states.contains(Atspi.StateType.SHOWING)} "
-            f"checked={states.contains(Atspi.StateType.CHECKED)}"
-        )
-    text = "\n".join(lines) + "\n"
+    try:
+        records = _panel().inventory()
+        text = "\n".join(
+            f"id={item['id']!r} type={item['type']!r} "
+            f"visible={item['visible']} enabled={item['enabled']}"
+            for item in records) + "\n"
+    except UIClientError as error:
+        text = "Application UI inventory unavailable: " + error.code + "\n"
     SNAPSHOT_PATH.write_text(text, encoding="utf-8")
     return text
 
 
 def _wait(predicate, description):
-    global _WAIT_ACTIVE
-    previous_wait = _WAIT_ACTIVE
-    _WAIT_ACTIVE = True
+    """Retry read-only observations; every mutation is outside this helper."""
     deadline = time.monotonic() + TIMEOUT_SECONDS
-    try:
-        while time.monotonic() < deadline:
-            try:
-                value = predicate()
-            except AutomationError as error:
-                if str(error) != "automation:incomplete-tree":
-                    raise
-                value = None
-            except (AttributeError, GLib.Error):
-                value = None
-            # Atspi.Accessible proxies may be falsey despite referring to a
-            # real actor. None/False are the only not-ready predicate values.
-            if value is not None and value is not False:
-                return value
-            # Keep predicates and exceptions on the Python stack, as in the
-            # host UI fixture. A nested GLib loop can dispatch another wait's
-            # inspection sources and swallow failures in those callbacks.
-            for _ in range(32):
-                if time.monotonic() >= deadline:
-                    break
-                if not GLib.MainContext.default().iteration(False):
-                    break
-            time.sleep(min(0.05, max(0, deadline - time.monotonic())))
-    finally:
-        _WAIT_ACTIVE = previous_wait
-    raise AssertionError(
-        f"Timed out waiting for {description}.\n"
-        f"Launch records: {_launch_records()!r}\n"
-        f"Redacted accessibility snapshot:\n{_snapshot()}"
-    )
-
-
-def _wait_for_complete_read(predicate, description):
-    # An enclosing result wait owns the retry and its original deadline.
-    # Propagate an incomplete read to it instead of opening a second wait
-    # that can reenter the same predicate or restart its timeout budget.
-    if _WAIT_ACTIVE:
-        return predicate()
-    return _wait(predicate, description)
-
-
-# Shared semantic actions perform several fresh public-tree reads before and
-# after input.  Keep those reads inside this probe's bounded AT-SPI retry loop
-# so a provider object replaced between traversals cannot abort before input or
-# leave a confirmed focus result unobserved.  Automation still latches uncertain
-# input and never replays an action whose delivery is unknown.
-UI.complete_read_wait = _wait_for_complete_read
-
-
-def _prepare_indicator_input():
-    # The owned public ID is the input recipient. No Shell state mutation or
-    # overview shortcut is allowed to manufacture reachability.
-    print("interaction input=indicator-reacquire", flush=True)
-    button = _wait(_find_request_button, "the ID-addressed Shell request indicator")
-    print("interaction input=indicator-focus", flush=True)
-    UI.focus(REQUEST_BUTTON_ID)
-    _wait(
-        lambda: _state(_find_request_button(), Atspi.StateType.FOCUSED),
-        "keyboard focus on the Shell request indicator",
-    )
-    print("interaction input=indicator-focus-confirmed", flush=True)
-    return button
-
-
-def _press_recipient_key(input_backend, identity, keycode):
-    print(f"interaction input=key-start id={identity} keycode={keycode}", flush=True)
-    deliver(UI, identity, Atspi.StateType.FOCUSED,
-            lambda: _press_key(input_backend, keycode))
-    print(f"interaction input=key-delivered id={identity} keycode={keycode}", flush=True)
+    while time.monotonic() < deadline:
+        try:
+            value = predicate()
+        except UIClientError as error:
+            if error.uncertain or error.code != "Unavailable":
+                raise
+            value = None
+        if value is not None and value is not False:
+            return value
+        for _ in range(32):
+            if not GLib.MainContext.default().iteration(False):
+                break
+        time.sleep(min(.05, max(0, deadline - time.monotonic())))
+    raise AssertionError(f"Timed out waiting for {description}.\n"
+                         f"Launch records: {_launch_records()!r}\n"
+                         f"Redacted Application UI snapshot:\n{_snapshot()}")
 
 
 def _one_overlay(expected_launches):
@@ -280,145 +162,94 @@ def _one_overlay(expected_launches):
     windows, cancel = _overlay_surfaces()
     if len(records) != expected_launches or len(windows) != 1 or len(cancel) != 1:
         return None
-    if not _process_exists(records[-1]):
-        return None
-    return windows[0], cancel[0]
+    return (windows[0], cancel[0]) if _process_exists(records[-1]) else None
 
 
 def _overlay_closed(expected_launches):
     records = _launch_records()
     windows, cancel = _overlay_surfaces()
-    if len(records) != expected_launches or windows or cancel:
-        return False
-    return records and not _process_exists(records[-1])
+    return (len(records) == expected_launches and not windows and not cancel
+            and not _process_exists(records[-1]))
 
 
-def _review_language_changes(input_backend, oracles):
-    """Cases supply finite independent literals; reuse the owned public actions."""
+def _open_overlay(expected_launches):
+    _wait(_find_request_button, "the reusable Shell request action")
+    _panel().activate(REQUEST_BUTTON_ID)
+    _wait(lambda: _one_overlay(expected_launches), "one child request overlay")
+
+
+def _review_language_changes(oracles):
+    """Finite expected text stays in the case; controls use the common facade."""
     for launches, (language, expected) in enumerate(oracles.items(), start=1):
-        _prepare_indicator_input()
-        _press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_SPACE)
-        _wait(lambda: _one_overlay(launches), 'one language-review overlay')
+        _open_overlay(launches)
         overlay = _overlay_automation()
-        overlay.complete_read_wait = _wait_for_complete_read
-        overlay.complete_request_language_setup()
-        overlay.reader.open_language_preferences('kiosk')
-        overlay.reader.choose_language('kiosk', language)
-        overlay.reader.save_language('kiosk')
-        _wait(lambda: overlay.text('kiosk-request-submit') == expected['request'],
-              'the overlay applies its committed translation')
+        _complete_language_setup(overlay)
+        overlay.setValue("kiosk-menu-button", "preferences")
+        _wait(lambda: any(surface["id"] == "language-dialog"
+                          for surface in overlay.listSurfaces()), "the language chooser")
+        overlay.setValue("language-list", language, surface_id="language-dialog")
+        overlay.activate("language-continue", surface_id="language-dialog")
+        _wait(lambda: overlay.getText("kiosk-request-submit") == expected["request"],
+              "the overlay applies its committed translation")
         overlay.activate(OVERLAY_CANCEL_ID)
-        _wait(lambda: _overlay_closed(launches), 'the language-review overlay closes')
-        # The time remains dynamic; only its translated surrounding message and
-        # production countdown format are expected, not a frozen timer value.
-        panel_pattern = re.escape(expected['panel']).replace(
-            re.escape('%(time)s'), r'\d{2}:\d{2}') + ', generation-one'
-        _wait(lambda: re.fullmatch(panel_pattern, UI.text(REQUEST_BUTTON_ID)),
-              'the panel reloads its own language after the overlay exits')
-        actual = UI.target(REQUEST_BUTTON_ID).get_description()
-        assert actual == expected['description'], (language, 'panel description', expected['description'], actual)
-        _prepare_indicator_input()
-        _press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_MENU)
-        _wait(_find_countdown_animation_item, 'the translated countdown menu')
-        actual = UI.text(COUNTDOWN_ANIMATION_ID)
-        assert actual == expected['countdown'], (language, 'countdown label', expected['countdown'], actual)
-        UI.focus(COUNTDOWN_ANIMATION_ID)
-        capture_screenshot(Path(os.environ['ONPC_CHILD_SHELL_SCREENSHOT_PATH']).with_name(
-            'language-' + language + '.png'))
-        _press_recipient_key(input_backend, COUNTDOWN_ANIMATION_ID, X_KEYCODE_ESCAPE)
-        _wait(lambda: _find_countdown_animation_item() is None, 'the menu closes')
-        print('Child panel localization reviewed: ' + language, flush=True)
+        _wait(lambda: _overlay_closed(launches), "the language-review overlay closes")
+        panel_pattern = re.escape(expected["panel"]).replace(
+            re.escape("%(time)s"), r"\d{2}:\d{2}") + ", generation-one"
+        _wait(lambda: re.fullmatch(panel_pattern, _panel().getText(REQUEST_BUTTON_ID)),
+              "the panel reloads its own language after the overlay exits")
+        actual = _panel().getElementById(REQUEST_BUTTON_ID).snapshot()["description"]
+        assert actual == expected["description"], (language, "panel description", expected["description"], actual)
+        actual = _panel().getText(COUNTDOWN_ANIMATION_ID)
+        assert actual == expected["countdown"], (language, "countdown label", expected["countdown"], actual)
+        capture_screenshot(Path(os.environ["ONPC_CHILD_SHELL_SCREENSHOT_PATH"]).with_name(
+            "language-" + language + ".png"))
+        print("Child panel localization reviewed: " + language, flush=True)
 
 
 def main():
-    input_backend = None
     try:
-        input_backend = MutterInputBackend()
-        input_backend.connectMonitor()
         _wait(_find_request_button, "the Shell request action")
-        _wait(lambda: audit_owned_controls(UI, "child-screen-time-indicator"),
-              "the complete child indicator ID inventory")
+        inventory = _panel().inventory()
+        assert {item["id"] for item in inventory} >= {
+            "child-screen-time-indicator", REQUEST_BUTTON_ID, "child-remaining-time",
+            "child-request-tooltip", "child-countdown-menu", COUNTDOWN_ANIMATION_ID,
+        }
         windows, cancel = _overlay_surfaces()
         if _launch_records() or windows or cancel:
             raise AssertionError("The interaction preview opened an overlay before activation")
         print("interaction stage=initially-closed", flush=True)
-
-        localization = os.environ.get('ONPC_CHILD_LOCALIZATION_ORACLES')
+        localization = os.environ.get("ONPC_CHILD_LOCALIZATION_ORACLES")
         if localization:
-            _review_language_changes(input_backend, json.loads(localization))
-            print('Child panel localization cycle passed', flush=True)
+            _review_language_changes(json.loads(localization))
+            print("Child panel localization cycle passed", flush=True)
             return 0
 
-        if _countdown_animation_setting():
+        if _countdown_animation_setting() or _panel().getValue(COUNTDOWN_ANIMATION_ID):
             raise AssertionError("Countdown animation did not default to disabled")
-        _prepare_indicator_input()
-        _press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_MENU)
-        countdown_item = _wait(
-            _find_countdown_animation_item,
-            "the secondary-click countdown animation checkbox",
-        )
-        if _state(countdown_item, Atspi.StateType.CHECKED):
-            raise AssertionError("Countdown animation checkbox did not default to unchecked")
-        UI.focus(COUNTDOWN_ANIMATION_ID)
-        _press_recipient_key(input_backend, COUNTDOWN_ANIMATION_ID, X_KEYCODE_SPACE)
-        _wait(
-            _countdown_animation_setting,
-            "the countdown animation choice to persist",
-        )
+        _panel().setValue(COUNTDOWN_ANIMATION_ID, True)
+        _wait(_countdown_animation_setting, "the countdown animation choice to persist")
+        _wait(lambda: _panel().getValue(COUNTDOWN_ANIMATION_ID) is True,
+              "the public animation preference result")
         windows, cancel = _overlay_surfaces()
         if _launch_records() or windows or cancel:
             raise AssertionError("Changing the countdown preference opened a request overlay")
-        # The setting action does not close Shell's check-menu.  Close it as
-        # the customer recipe requires, then independently prove its absence
-        # before routing the normal request action to the indicator.
-        _press_recipient_key(input_backend, COUNTDOWN_ANIMATION_ID, X_KEYCODE_ESCAPE)
-        _wait(
-            lambda: _find_countdown_animation_item() is None,
-            "the countdown animation menu to close after Escape",
-        )
-        windows, cancel = _overlay_surfaces()
-        if _launch_records() or windows or cancel:
-            raise AssertionError("Closing the countdown menu opened a request overlay")
         print("interaction stage=countdown-preference-persisted", flush=True)
 
-        # Shell's St.Button has no AT-SPI Action interface. Resolve and focus
-        # its public ID, then use its normal keyboard action once. Duplicate
-        # launch-state decisions remain covered at their platform-neutral unit
-        # boundary; the mapped overlay hides this Shell control from public UI.
-        _prepare_indicator_input()
-        _press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_SPACE)
-        _wait(lambda: len(_launch_records()) == 1, "one opening request process")
-        _wait(lambda: _one_overlay(1), "one visible child request overlay")
+        _open_overlay(1)
         capture_screenshot(Path(os.environ["ONPC_CHILD_SHELL_SCREENSHOT_PATH"]))
         print("interaction stage=overlay-visible", flush=True)
-
-        windows, cancel = _overlay_surfaces()
-        if len(_launch_records()) != 1 or len(windows) != 1 or len(cancel) != 1:
-            raise AssertionError("The request action did not open exactly one shared overlay")
-
         _activate_overlay_cancel()
         _wait(lambda: _overlay_closed(1), "the first overlay to close")
         print("interaction stage=first-overlay-closed", flush=True)
-        _wait(
-            lambda: not _state(_find_request_button(), Atspi.StateType.CHECKED),
-            "the indicator to clear its active state",
-        )
-
-        _wait(_find_request_button, "the reusable Shell request action")
-        _prepare_indicator_input()
-        _press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_SPACE)
-        _wait(lambda: _one_overlay(2), "one reopened child request overlay")
+        _open_overlay(2)
         print("interaction stage=overlay-reopened", flush=True)
         records = _launch_records()
         if records[0] == records[1]:
             raise AssertionError("The reopened overlay did not use a new process")
-
         _activate_overlay_cancel()
         _wait(lambda: _overlay_closed(2), "the reopened overlay to close")
-        print(
-            "Child indicator interaction passed; launches=2 "
-            "max_concurrent_overlays=1 reopened=true"
-        )
+        print("Child indicator interaction passed; launches=2 "
+              "max_concurrent_overlays=1 reopened=true")
         return 0
     except Exception as error:
         print(f"Child indicator interaction failed: {error}", file=sys.stderr)
@@ -430,11 +261,8 @@ def main():
         except Exception:
             print("Child interaction failure screenshot unavailable", file=sys.stderr)
         print(f"Launch records: {_launch_records()!r}", file=sys.stderr)
-        print(f"Redacted accessibility snapshot:\n{_snapshot()}", file=sys.stderr)
+        print(f"Redacted Application UI snapshot:\n{_snapshot()}", file=sys.stderr)
         return 1
-    finally:
-        if input_backend is not None:
-            input_backend.disconnect()
 
 
 if __name__ == "__main__":

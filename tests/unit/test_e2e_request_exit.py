@@ -52,7 +52,7 @@ def test_cancel_activates_the_fresh_owned_control_once():
     ui, cancel = exit_form()
     ui.nodes = Mock(wraps=ui.nodes)
     assert ui.run('kiosk-request-cancel', '') == {
-        'operation': 'kiosk-request-cancel', 'outcome': 'passed', 'interface': 'AT-SPI'}
+        'operation': 'kiosk-request-cancel', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     cancel.action.do_action.assert_called_once_with(0)
     cancel.parent.parent.action.do_action.assert_not_called()
     assert ui.nodes.call_count == 1
@@ -107,8 +107,8 @@ def test_exit_accepts_readable_unrelated_stale_leaf(monkeypatch, operation):
         assert ui.nodes.call_count == 1
     else:
         cancel.action.do_action.assert_not_called()
-        cancel.parent.parent.action.do_action.assert_called_once_with(0)
-        assert ui.nodes.call_count == 2
+        cancel.parent.parent.action.do_action.assert_not_called()
+        cancel.parent.parent.close.assert_called_once_with()
 
 
 @pytest.mark.parametrize('operation', EXIT_INPUTS)
@@ -213,34 +213,32 @@ def test_exit_snapshot_preserves_scope_ambiguity_and_completeness_guards(fault):
     cancel.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['refused', 'no-focus', 'replaced'])
-def test_escape_refuses_when_reveal_does_not_prove_fresh_focus(fault):
+@pytest.mark.parametrize('fault', ['Failed', 'Timeout', 'OwnerChanged'])
+def test_surface_close_failure_latches_without_replay(fault):
+    from common.oh_no_parent_control_ui.application_ui_client import UIClientError
     ui, cancel = exit_form()
     ui.timeout = 0
-
-    def reveal(_index):
-        if fault == 'replaced':
-            replacement = Node(identity='kiosk-request-cancel')
-            replacement.parent = cancel.parent
-            cancel.parent.children = [replacement]
-        return fault != 'refused'
-
-    cancel.parent.parent.action.do_action.side_effect = reveal
-    with pytest.raises(UiError):
+    window = cancel.parent.parent
+    window.close.side_effect = UIClientError(fault, uncertain=True)
+    with pytest.raises(UIClientError):
         ui.run('kiosk-request-escape-ready', '')
     cancel.action.do_action.assert_not_called()
     assert ui.input_uncertain
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.run('kiosk-request-escape-ready', '')
+    window.close.assert_called_once_with()
 
 
-def test_escape_focuses_the_owned_control_without_activating_it():
+def test_surface_close_uses_the_owned_api_without_focus_or_cancel_activation():
     ui, cancel = exit_form()
     ui.nodes = Mock(wraps=ui.nodes)
     assert ui.run('kiosk-request-escape-ready', '') == {
-        'operation': 'kiosk-request-escape-ready', 'outcome': 'passed', 'interface': 'AT-SPI'}
-    cancel.parent.parent.action.do_action.assert_called_once_with(0)
+        'operation': 'kiosk-request-escape-ready', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+    cancel.parent.parent.action.do_action.assert_not_called()
+    cancel.parent.parent.close.assert_called_once_with()
     cancel.component.grab_focus.assert_not_called()
     cancel.action.do_action.assert_not_called()
-    assert ui.nodes.call_count == 2
+    assert not ui.input_uncertain
 
 
 @pytest.mark.parametrize('operation', ['kiosk-request-cancel', 'kiosk-request-escape-ready'])
@@ -283,7 +281,7 @@ def test_exit_input_refuses_an_active_authentication_prompt(operation):
 def test_return_observation_requires_form_disappearance_and_usable_greeter():
     ui = greeter()
     assert ui.run('gdm-station-returned', '') == {
-        'operation': 'gdm-station-returned', 'outcome': 'passed', 'interface': 'AT-SPI'}
+        'operation': 'gdm-station-returned', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     assert all(not node.component.grab_focus.called for node in ui.nodes(strict=True))
 
 
@@ -367,7 +365,7 @@ def test_worker_uses_direct_station_entries_for_cancel_and_escape():
         *expected_route('escape'), 'escape-ready', 'escape-returned',
     ]
     assert [event[1] for event in result['events'] if event[0] == 'key'] == [
-        'ret', 'ret', 'esc']
+        'ret', 'ret']
     assert result['events'][-3:] == [
         ['disable'], ['power', 'off'], ['stage', 'shutdown']]
 

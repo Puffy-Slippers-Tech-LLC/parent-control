@@ -64,7 +64,7 @@ def test_real_controller_decoder_validates_complete_public_activity(fault):
     if fault == 'path': value['endpoint'][1] = 'not-a-path'
     if fault == 'text': value['state']['submitted'] = 'No submitted draft'
     if fault == 'state-extra': value['state']['private'] = 'canary'
-    reply = {'operation': 'native-activity', 'outcome': 'passed', 'interface': 'AT-SPI',
+    reply = {'operation': 'native-activity', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
              'activity': value, 'boot_sha256': 'b' * 64}
     observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(reply).encode())))
     observer.boot_guard = ''
@@ -233,7 +233,7 @@ def test_actual_worker_order_markers_and_every_failure_stops(fault, tmp_path):
         for stage, tag in PLAN.screen_tags.items():
             item = {'stage': stage, 'ui' if tag.startswith('ui:') else 'system': {
                 'operation': tag.split(':', 1)[1], 'outcome': 'passed',
-                'interface': 'AT-SPI' if tag.startswith('ui:') else 'system session'}}
+                'interface': 'ApplicationUI+external-provider' if tag.startswith('ui:') else 'system session'}}
             challenge = PLAN.challenge_at(stage)
             if challenge: item['challenge'] = challenge
             observations.append(item)

@@ -76,7 +76,7 @@ def test_about_return_uses_explicit_immutable_settings_before_reply(tmp_path, fa
     returned = {'child': 'fixture-child', 'limit_enabled': fault == 'toggle',
                 'allowance': ['45 minutes' if fault == 'allowance' else '30 minutes']}
     if fault == 'child': returned['child'] = 'existing-fixture-child'
-    result = {'operation': stage, 'outcome': 'passed', 'interface': 'AT-SPI'}
+    result = {'operation': stage, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     if fault != 'missing': result['settings'] = returned
     if fault == 'replay': journey.check_settings(stage, {'ui': result})
     journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'a' * 64}))

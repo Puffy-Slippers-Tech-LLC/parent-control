@@ -223,16 +223,13 @@ sub overlay_entry {
         # The fullscreen overlay hides the panel. Reveal it once through
         # Overview after proving the fixed-child form and closed Overview.
         $journey->invoke("$prefix-reveal");
-        testapi::send_key('super');
     }
     $journey->invoke("$prefix-panel") if $route ne 'command';
     $journey->invoke("$prefix-launch");
     # The panel checkpoint proves focus on child-request-button by public ID.
     # StButtonAccessible has no Action interface; activate with one ordinary key.
-    testapi::send_key('ret') if $route ne 'command';
     if ($route eq 'panel-reopen') {
         $journey->invoke("$prefix-overview");
-        testapi::send_key('esc');
     }
     return $journey->invoke("$prefix-form");
 }

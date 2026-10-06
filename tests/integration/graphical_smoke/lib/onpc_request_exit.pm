@@ -22,7 +22,6 @@ sub escape {
     my ($journey) = @_;
     die 'request-exit:escape-arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     $journey->seen('escape-ready');
-    testapi::send_key('esc');
     $journey->seen('escape-returned');
 }
 

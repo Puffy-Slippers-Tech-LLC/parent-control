@@ -116,7 +116,7 @@ def test_wrong_or_stale_challenge_refuses_before_cancel(monkeypatch, fault, code
 
 
 def proof_value():
-    return {'operation': 'overlay-shell-cancel-ready', 'outcome': 'passed', 'interface': 'AT-SPI',
+    return {'operation': 'overlay-shell-cancel-ready', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
         'shell_prompt': {'provider': {'version': '50.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]},
             'child': 'fixture-child', 'approver': 'fixture-parent', 'duration_seconds': 75,
             'allow_soft': True, 'cancel_ready': True, 'same_challenge_rechecked': True,
@@ -158,7 +158,7 @@ def test_real_open_sequence_rechecks_before_releasing_keyboard_input(monkeypatch
     else:
         result = ui.run(operation, '')
         expected = (proof_value() if operation == 'overlay-shell-cancel-ready' else {
-            'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'approval': {
+            'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'approval': {
                 'challenge_id': 'a' * 64, 'provider': proof_value()['shell_prompt']['provider'],
                 'rejected_proofs': list(a.SHELL_PROMPT_REFUSALS)}})
         assert result == expected
@@ -367,7 +367,7 @@ def test_live_observer_readiness_is_durable_bound_and_single_use(monkeypatch, fa
         if fault != 'missing': on_output((json.dumps(ready) + '\n').encode())
         if fault == 'duplicate': on_output((json.dumps(ready) + '\n').encode())
         result = {'operation': 'overlay-approval-success', 'outcome': 'passed',
-                  'interface': 'AT-SPI', 'boot_sha256': 'c' * 64,
+                  'interface': 'ApplicationUI+external-provider', 'boot_sha256': 'c' * 64,
                   'approval': {'approved': True, 'form_success': True}}
         on_output((json.dumps(result) + '\n').encode())
     transport.call.side_effect = call
@@ -467,7 +467,7 @@ def test_approval_decoder_enforces_same_challenge_order_and_terminal_failure(fau
             if fault == 'extra': value['raw'] = 'private label'
             if fault == 'refusals': value['rejected_proofs'].pop()
         if operation == 'overlay-approval-success': value = {'approved': True, 'form_success': True}
-        return json.dumps({'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+        return json.dumps({'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                            'approval': value, **({'boot_sha256': 'c' * 64}
                                if operation in a.SHELL_APPROVAL_ORDER[1:] else {})}).encode(), []
     observer.call = Mock(side_effect=call)
@@ -597,7 +597,7 @@ def test_real_recorder_refuses_changed_choices_before_durable_reply(tmp_path, fa
     if fault != 'missing': journey.check_preserved_request('before', {'ui': {'valid_choice': {'request': value}}})
     if fault == 'changed': value['allow_soft'] = False
     if fault == 'replay': journey.check_preserved_request('after', {'ui': {'valid_choice': {'request': value}}})
-    result = {'operation': 'overlay-valid-fraction-soft-read', 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': 'overlay-valid-fraction-soft-read', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'valid_choice': {'request': value}}
     journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}, {'stage': 'before'}]
     journey.boot = 'a' * 64

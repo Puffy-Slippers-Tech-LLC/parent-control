@@ -441,10 +441,18 @@ def test_owned_gtk_surfaces_share_the_core_identity_publisher(monkeypatch):
         expose_object=lambda identity, widget: exposed.append((identity, widget))))
     monkeypatch.setitem(sys.modules, "gi", SimpleNamespace())
     monkeypatch.setitem(sys.modules, "gi.repository", SimpleNamespace(Gtk=gtk))
-    widget = SimpleNamespace(set_name=Mock())
+    widget = Mock()
+    widget.weak_ref.return_value = lambda: widget
     assert gtk_automation.set_automation_id(widget, "e2e-watch-close") is widget
     widget.set_name.assert_called_once_with("e2e-watch-close")
     assert exposed == [("e2e-watch-close", widget)]
+    assert gtk_automation.automation_id(widget) == "e2e-watch-close"
+    assert gtk_automation.automation_id(object()) == ""
+    gtk_automation.set_automation_id(widget, "e2e-watch-window")
+    assert gtk_automation.automation_id(widget) == "e2e-watch-window"
+    widget.weak_ref.assert_called_once()
+    widget.weak_ref.call_args.args[0]()
+    assert gtk_automation.automation_id(widget) == ""
     for invalid in (None, "", "E2E-Watch", "e2e_watch", "-e2e-watch"):
         with pytest.raises(ValueError, match="lowercase hyphenated"):
             gtk_automation.set_automation_id(widget, invalid)
@@ -766,16 +774,16 @@ def test_nested_privacy_dialog_cannot_borrow_the_primary_window_owner():
 
 
 @pytest.mark.parametrize("fault", [None, "foreign-menu", "duplicate-anchor"])
-def test_child_chrome_siblings_stay_in_the_indicator_application(fault):
-    indicator = Node("child-screen-time-indicator")
+def test_child_controls_stay_in_the_api_surface(fault):
     tooltip = Node("child-request-tooltip")
     toggle = Node("child-countdown-animation-toggle")
     menu = Node("child-countdown-menu", [toggle])
-    shell = Node("", [indicator, tooltip, menu])
+    indicator = Node("child-screen-time-indicator", [tooltip, menu])
+    shell = Node("com.puffyslippers.OhNoParentControl.ChildUI", [indicator])
     indicator.get_application = lambda: shell
     desktop = Node("", [shell])
     if fault == "foreign-menu":
-        shell.children.remove(menu)
+        indicator.children.remove(menu)
         desktop.children.append(Node("foreign-app", [menu]))
     elif fault == "duplicate-anchor":
         shell.children.append(Node("child-screen-time-indicator"))
@@ -850,6 +858,9 @@ def test_owned_disabled_state_tracks_inheritance_and_local_notifications(monkeyp
                 callback(self, None)
 
         def set_name(self, _name): pass
+        def weak_ref(self, _release):
+            import weakref
+            return weakref.ref(self)
         def get_mapped(self): return False
         def is_sensitive(self): return self.local_sensitive and self.parent_sensitive
 

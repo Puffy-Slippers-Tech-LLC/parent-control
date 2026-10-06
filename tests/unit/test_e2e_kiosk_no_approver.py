@@ -21,6 +21,8 @@ def empty_form():
     selector = ui.find_id('kiosk-approver-selector')
     selector.children[0].identity = 'kiosk-approver-selected-none'
     selector.children[0].name = ''
+    selector.value = ''
+    selector.choices = []
     selector.description = 'Choose the approving parent.'
     form = ui.find_id('kiosk-request-form')
     status = Node('No local interactive administrator accounts are available.',
@@ -43,10 +45,11 @@ def test_empty_approver_result_is_exact_and_read_only():
     for node in ui.nodes(strict=True):
         node.action.do_action.assert_not_called()
         node.component.grab_focus.assert_not_called()
+        node.setValue.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [
-    'approver', 'hidden-approver', 'selected-approver', 'duplicate-none', 'hidden-none',
+    'approver', 'malformed-choices', 'selected-approver', 'malformed-selection', 'hidden-selector',
     'wrong-message', 'missing-message', 'duplicate-message', 'wrong-owner',
     'wrong-surface', 'request-enabled', 'duration-enabled', 'approver-enabled',
     'soft-enabled', 'no-child', 'stale', 'incomplete', 'prompt',
@@ -54,21 +57,22 @@ def test_empty_approver_result_is_exact_and_read_only():
 def test_refuses_incorrect_or_incomplete_public_evidence(fault):
     ui = empty_form()
     form = ui.find_id('kiosk-request-form')
-    if fault in ('approver', 'hidden-approver', 'duplicate-message'):
-        node = Node(identity='kiosk-request-status' if fault == 'duplicate-message'
-                    else 'kiosk-approver-choice-1000',
-                    states=() if fault == 'hidden-approver' else ('showing', 'visible'))
+    selector = ui.find_id('kiosk-approver-selector')
+    if fault == 'duplicate-message':
+        node = Node(identity='kiosk-request-status')
         node.parent = form
         form.children.append(node)
+    elif fault == 'approver':
+        selector.choices = ['1000']
+    elif fault == 'malformed-choices':
+        selector.getChoices.side_effect = None
+        selector.getChoices.return_value = None
     elif fault == 'selected-approver':
-        ui.find_id('kiosk-approver-selected-none').identity = 'kiosk-approver-selected-1010'
-    elif fault == 'duplicate-none':
-        selector = ui.find_id('kiosk-approver-selector')
-        node = Node(identity='kiosk-approver-selected-none')
-        node.parent = selector
-        selector.children.append(node)
-    elif fault == 'hidden-none':
-        ui.find_id('kiosk-approver-selected-none').states.clear()
+        selector.value = '1010'
+    elif fault == 'malformed-selection':
+        selector.value = None
+    elif fault == 'hidden-selector':
+        selector.states.clear()
     elif fault == 'wrong-message':
         ui.find_id('kiosk-request-status').name = 'Screen limit is not enabled in Parent App'
     elif fault == 'missing-message':
@@ -82,7 +86,7 @@ def test_refuses_incorrect_or_incomplete_public_evidence(fault):
                     'approver': 'approver-selector', 'soft': 'soft-apps-toggle'}[fault[:-8]]
         ui.find_id('kiosk-' + identity).states.add('sensitive')
     elif fault == 'no-child':
-        ui.find_id('kiosk-child-selected-1002').identity = 'kiosk-child-selected-none'
+        ui.find_id('kiosk-child-selector').value = ''
     elif fault == 'stale':
         form.states.add('defunct')
     elif fault == 'incomplete':
@@ -203,8 +207,8 @@ def test_worker_requires_every_result_without_authentication(monkeypatch, refusa
 def baseline_form(uids):
     ui, _ = request_form()
     selector = ui.find_id('kiosk-approver-selector')
-    # GTK omits collapsed choices. The showing selection proves a nonempty form.
-    selector.children[0].identity = f'kiosk-approver-selected-{uids[0] if uids else "none"}'
+    selector.choices = [str(uid) for uid in uids]
+    selector.value = str(uids[0]) if uids else ''
     return ui, selector
 
 
@@ -259,10 +263,11 @@ def test_complete_callback_owns_fresh_observed_fixture_and_deadline(monkeypatch)
 def test_baseline_accepts_any_listed_parent_without_input(uids):
     ui, _ = baseline_form(uids)
     result = ui.run('kiosk-approver-baseline', '')
-    assert result['approver_uids'] == uids[:1]
+    assert result['approver_uids'] == uids
     for node in ui.nodes(strict=True):
         node.action.do_action.assert_not_called()
         node.component.grab_focus.assert_not_called()
+        node.setValue.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'save-failed', 'load-failed'])
@@ -322,16 +327,17 @@ def test_baseline_completes_startup_language_before_parent_readback_and_cancel(f
 
 @pytest.mark.parametrize('fault', ['empty', 'missing-selection', 'bad-id',
                                   'low-uid', 'high-uid',
-                                  'hidden-selected', 'duplicate-selected',
+                                  'hidden-selector', 'duplicate-choice', 'noncanonical-choice',
                                   'wrong-owner', 'wrong-surface', 'incomplete', 'stale', 'prompt'])
 def test_baseline_refuses_missing_or_ambiguous_public_evidence(fault):
     ui, selector = baseline_form([] if fault == 'empty' else [5432])
-    if fault == 'missing-selection': selector.children.clear()
-    if fault == 'bad-id': selector.children[0].identity = 'kiosk-approver-selected-garbage'
-    if fault == 'low-uid': selector.children[0].identity = 'kiosk-approver-selected-0'
-    if fault == 'high-uid': selector.children[0].identity = f'kiosk-approver-selected-{2 ** 32}'
-    if fault == 'hidden-selected': selector.children[0].states.clear()
-    if fault == 'duplicate-selected': selector.children.append(Node(identity='kiosk-approver-selected-5432'))
+    if fault == 'missing-selection': selector.value = ''
+    if fault == 'bad-id': selector.choices = ['garbage']
+    if fault == 'low-uid': selector.choices = ['0']
+    if fault == 'high-uid': selector.choices = [str(2 ** 32)]
+    if fault == 'hidden-selector': selector.states.clear()
+    if fault == 'duplicate-choice': selector.choices.append('5432')
+    if fault == 'noncanonical-choice': selector.choices = [5432]
     if fault == 'wrong-owner': ui.owner_pids = lambda: {999}
     if fault == 'wrong-surface': ui.find_id('kiosk-request-window').identity = 'parent-window'
     if fault == 'incomplete': selector.children.append(None)
@@ -348,8 +354,8 @@ def test_baseline_controller_keeps_only_presence_in_durable_evidence():
     observer.call = Mock(return_value=(json.dumps(result).encode(), []))
     sanitized = observer.observe('kiosk-approver-baseline')
     assert sanitized == {'operation': 'kiosk-approver-baseline', 'outcome': 'passed',
-                         'interface': 'AT-SPI', 'approver_present': True}
-    assert observer.approver_uids == (5432,)
+                         'interface': 'ApplicationUI+external-provider', 'approver_present': True}
+    assert observer.approver_uids == (5432, 6543)
     observer.call.return_value = b'{}', []
     with pytest.raises(EvidenceError):
         observer.observe('kiosk-no-approver-form')
@@ -360,7 +366,7 @@ def test_baseline_controller_keeps_only_presence_in_durable_evidence():
 def test_baseline_controller_rejects_invalid_reply(uids):
     observer = UiObservations(Mock())
     result = {'operation': 'kiosk-approver-baseline', 'outcome': 'passed',
-              'interface': 'AT-SPI', 'approver_uids': uids}
+              'interface': 'ApplicationUI+external-provider', 'approver_uids': uids}
     observer.call = Mock(return_value=(json.dumps(result).encode(), []))
     with pytest.raises(EvidenceError, match='approver-baseline'):
         observer.observe('kiosk-approver-baseline')

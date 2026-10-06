@@ -46,6 +46,7 @@ export class GnomeApplicationUiAdapter {
         return [
             element(SURFACE_ID, 'child-panel', {}),
             element('child-request-button', 'button', {
+                description: indicator._requestButton.accessible_description,
                 getText: () => indicator._requestButton.accessible_name,
                 activate: () => indicator._requestAccess(),
             }),

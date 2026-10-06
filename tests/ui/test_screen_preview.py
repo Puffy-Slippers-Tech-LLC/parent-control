@@ -37,10 +37,7 @@ def test_screen_dialog_reports_invalid_custom_dimensions_and_recovers(
     ui = automation
     wait_for_accessible_state(lambda: ui.find("kiosk-menu-button") is not None,
                               "request screen publishes its menu ID")
-    ui.activate("kiosk-menu-button", action_name="menu.popup")
-    wait_for_accessible_state(lambda: ui.showing("kiosk-menu-item-change-screens"),
-                              "screen action opens")
-    ui.activate("kiosk-menu-item-change-screens")
+    ui.setValue("kiosk-menu-button", "change-screens")
     wait_for_accessible_state(lambda: ui.showing("preview-screen-dialog"),
                               "screen dialog opens")
     ui.activate("preview-screen-scale", action_name="menu.popup")
@@ -55,9 +52,7 @@ def test_screen_dialog_reports_invalid_custom_dimensions_and_recovers(
     ui.activate("preview-screen-resolution-custom", action_name="row.activate")
     wait_for_accessible_state(lambda: ui.showing("preview-screen-width"),
                               "custom resolution reveals its dimension fields")
-    ui.focus("preview-screen-width")
-    key_combo(ui, "preview-screen-width", "<Control>a", state=ui.api.StateType.FOCUSED)
-    type_text(ui, "preview-screen-width", "479")
+    ui.setText("preview-screen-width", "479")
     ui.activate("preview-screen-save")
     wait_for_accessible_state(
         lambda: (status := ui.find("preview-screen-status")) is not None

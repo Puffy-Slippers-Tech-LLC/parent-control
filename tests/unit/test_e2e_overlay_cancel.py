@@ -152,7 +152,7 @@ def test_case_activity_check_precedes_reply_and_resumed_input(tmp_path, fault, s
     journey.steps = [{'stage': earlier} for earlier in plan.stages[:plan.stages.index(stage)]]
     journey.boot = 'a' * 64
     journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
-        'operation': 'overlay-native-activity', 'outcome': 'passed', 'interface': 'AT-SPI',
+        'operation': 'overlay-native-activity', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
         'activity': current}))
     (tmp_path / (stage + '.request.json')).write_text(json.dumps({
         'stage': stage, 'screenshot': None}))
@@ -219,7 +219,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         proofs = {event[1]: event[2] for event in result['events'] if event[0] == 'challenge'}
         observations = [{'stage': stage, 'ui' if tag.startswith('ui:') else 'system': {
             'operation': tag.split(':', 1)[1], 'outcome': 'passed',
-            'interface': 'AT-SPI' if tag.startswith('ui:') else 'system session'},
+            'interface': 'ApplicationUI+external-provider' if tag.startswith('ui:') else 'system session'},
             **({'challenge': proofs[stage]} if stage in proofs else {})}
             for stage, tag in plan.screen_tags.items()]
         (tmp_path / 'testresults').mkdir()
@@ -228,10 +228,9 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         assert stages.count('cancel') == (exit == 'overlay')
         assert stages.index('activity-returned') < stages.index('resumed-submit')
         assert sum(event[0] == 'password' for event in result['events']) == 2
-        assert [event[1] for event in result['events'] if event[0] == 'text'] == ['1.25']
-        assert result['events'].count(['key', 'esc']) == (exit == 'overlay-escape')
+        assert not any(event[0] == 'text' for event in result['events'])
+        assert ['key', 'esc'] not in result['events']
         if exit == 'overlay-escape':
             ready = result['events'].index(['seen', 'escape-ready'])
-            key = result['events'].index(['key', 'esc'])
             returned = result['events'].index(['seen', 'escape-returned'])
-            assert ready < key < returned
+            assert ready < returned

@@ -22,7 +22,8 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Preview process lifecycle | [preview.py](preview.py) | `preview_applications` owns only its Popen handles/logs, enables Python's fault handler before startup imports, cleans up failed discovery, attempts every owned child and reports cleanup failures. Fatal Python/native signals leave Python thread tracebacks in the existing preview log; Python 3.14 also emits the current native stack when supported by the runtime build. `tests/ui/conftest.py` owns the compositor, accessibility and `request_display_scale` fixtures; layout/overflow tests discover scaling there instead of importing a collected case. |
 | Preview event observations | [events.py](events.py) | `read_events` returns complete JSON-lines records, waits for an unfinished final line, and refuses corrupt complete records. |
 | Update-required dialog | [update_required.py](update_required.py) | Parent and request previews replace only the reboot transport with a recording refusal; public modal/buttons remain real and the host is never rebooted. |
-| Public GUI traversal, ownership and actions | [automation.py](automation.py), [accessible_ui.py](../e2e/accessible_ui.py), [public_atspi.py](../e2e/public_atspi.py) | Host previews and installed E2E share the public D-Bus reader, `AccessibleUI` traversal, complete immutable snapshots, scoped ID resolution, action selection and the uncertain-input latch. The host facade supplies its root, recorded preview owners, event wait and diagnostic names. Complete snapshots and indexes expire before input, retries and observer resets; mutable compatibility projections cannot seed indexes. |
+| Product UI ownership, inventory and operations | [application_ui.py](application_ui.py), [automation.py](automation.py), [accessible_ui.py](../e2e/accessible_ui.py) | Host previews and installed E2E share the Application UI API facade, owner/PID pins, scoped inventory/node projection, canonical setters and ordinary actions. Cases own finite inputs and independent outcomes. Complete observations expire before input, retries and observer resets; missing/ambiguous owners and unavailable controls refuse. |
+| External GUI providers | [public_atspi.py](../e2e/public_atspi.py), [accessible_ui.py](../e2e/accessible_ui.py) | Authentication, real file choosers and supporting desktop tools retain qualified public provider observations/actions and secret-recipient guards. Product controls never fall back to this route after an API refusal. |
 | Maintainer-script machines | [package_scripts.py](package_scripts.py), [shell.py](shell.py) | `package_machine` and `Machine` execute real scripts against temporary files and explicit command doubles. `Machine` binds Ubuntu/Fedora OS, hook, service and account adapters; `run_rpm` executes embedded erase callbacks and the installed abort-remove callback in an isolated shell. Removal/purge cases own their distro/action matrix; Debian package notices and PAM-selection cases stay Ubuntu-only. Path relocation alone is not a sandbox. |
 | Terminal and pipe capture | [terminal.py](terminal.py) | `capture` drains output while the child runs, bounds execution and signals only its owned Popen handle. Return codes and terminal color behavior are retained. |
 | Graphical Perl helper probes | [perl.py](perl.py) | `run_perl` supplies the maintained library path, captured streams and a deadline. Tests declare their public testapi doubles and assert secret exclusion. |
@@ -34,16 +35,16 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Redacted authentication evidence | [authentication.py](authentication.py) | `collect_local` executes the real collector with account/OS reads replaced. |
 | Catalog scope and screenshot metadata | [installed_catalog.py](installed_catalog.py), [screens.py](screens.py) | Temporary real catalog discovery; synthetic PNG headers for metadata validation, not pixel acceptance. |
 | Child indicator unit adapter | [indicator.mjs](../child/support/indicator.mjs) | Fresh Node VM context and explicit platform doubles; nested-Shell tests retain real lifecycle/input coverage. |
-| Nested-Shell input delivery | [mutter_input.py](../ui/mutter_input.py) | Pointer motion, press and release have separate dispatch intervals; pointer and keyboard actions complete the RemoteDesktop session before observation. Failure screenshots retain the pointer to distinguish placement from delivery. |
+| External desktop input delivery | [mutter_input.py](../ui/mutter_input.py) | Supporting desktop/provider operations retain their qualified input transport and owned session cleanup. Product panel and GTK controls use the Application UI API facade. |
 
 ## Host and guest boundaries
 
 Parent inherited About/feedback observations use
 `AccessibleUI.parent_dialog_presentation` with explicit surface/language and
-public Text/name comparisons. The `synthetic-rtl` body/reply profile remains
+public API text/name comparisons. The `synthetic-rtl` body/reply profile remains
 bounded synthetic input, read exactly before new input after reopening.
-`onpc_text::replace_text` owns its normal Unicode-key input, including fresh
-keyboard-recipient proof. Dialog checks read translated content and retained
+`onpc_text::replace_text` owns its normal Application UI API text operation,
+including fresh owner/surface checks. Dialog checks read translated content and retained
 draft values without a focus-traversal acceptance sequence.
 Closing the dialog permits ordinary Parent Preferences
 and reopening of the retained draft, without private translation/draft access.
@@ -75,34 +76,21 @@ dispatch and reuse without replacing inputs.
 
 `journey_blocks.allowance_selection`, `onpc_allowance_selection::select` and
 `gui_blocks.select_allowance` share one Parent allowance block.
-`AccessibleUI.select_allowance` sends one native click, typed value and Enter
-in the same window-bound Mutter session. It initializes both native input
-devices before binding the window and starting the stream. `allowance_keyboard` independently
+`AccessibleUI.select_allowance` selects the canonical offered duration or
+`custom` through the scoped `parent-daily-limit-selector` API value.
+The retained `allowance_keyboard` observation name independently
 reads the final saved value or available Custom editor. Existing preset/custom
-helpers delegate to that input block. No popup/highlight/cancellation or
-direct-choice variant is available; see the
+helpers delegate to that input block; the name does not select keyboard input.
+See the
 [mandatory sequence](../../docs/Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception).
 Cases own desired values and subsequent save/persistence assertions.
-Fresh active-window/child/selector identity and enabled-state checks remain;
-only the click uses public window-relative bounds. Input errors preserve the
+Fresh surface/child/selector identity and enabled-state checks remain.
+Input errors preserve the
 uncertain-input latch; readback never replays input.
-Parent's read-only `Accessibility1.GetNativeSurfaceTransform` bridge supplies
-the current GTK native offset omitted by AT-SPI WINDOW bounds. The shared
-adapter checks the unique bus owner's PID against the identified Parent, then
-rechecks owner, target bounds and transform around stream binding. It adds the
-offset once; no fixed shadow size, desktop origin or display scaling is inferred.
-Before the single click, two distinct positions inside those validated bounds
-end at the selector's center. Mutter suppresses same-position Wayland motion;
-real movement refreshes GTK's cached pointer target after popup dismissal.
-Both surface positions are validated before input, and bounds too small for
-distinct interior positions refuse. This adds no click, popup observation or
-focus operation.
-The provider synchronizes GTK's queued window-system requests before its fresh
-window proof, ordering prior popup teardown before cross-connection stream
-binding. Custom result observation waits for its editor to appear, then keeps
-the existing ownership and usability guards; it never repeats input.
-The adapter retains the same owned session cleanup, private preview display
-and VM lifetimes. Unit probes use existing private doubles and waited Perl;
+Custom result observation waits for its editor to become logically available,
+then uses `setText` and `activate` for normal validation and saving.
+The adapter retains the same private preview display and VM lifetimes.
+Unit probes use existing private doubles and waited Perl;
 UI tests use the existing private display. No new process, storage or cleanup
 owner is introduced; existing unit/UI parallelism classifications apply.
 
@@ -133,7 +121,7 @@ and its public-time regression without replacing valid inputs.
 
 Overlay About reads reuse `journey_blocks.overlay_license_read`,
 `onpc_about::overlay_license` and the shared `AccessibleUI.clickable_link` reader.
-The child-owned About scope and close proof precede normal Alt-F4; fresh absence
+The child-owned About scope and close proof precede the ordinary API close request; fresh absence
 and active form return precede caller-declared immutable request comparisons in
 `KioskRequestJourney`. Host and installed workers never activate these links.
 The finite `links='browser-links'` fragment checks website and privacy through
@@ -152,8 +140,8 @@ invalidates it. Each independent call starts fresh; cancellation discards the
 scope and retains any uncertain-input latch. The scope adds no process, bus,
 storage or cleanup owner, so existing unit and UI parallel classifications apply.
 
-Shared kiosk/overlay duration selection waits for the ID-resolved control's
-public pressed state after its single activation. An accepted action may still
+Shared kiosk/overlay duration selection sets the canonical duration value and
+waits for its independent public value readback. An accepted action may still
 be completing; every retry reacquires ownership and readiness before the exact
 form readback. Missing results, cancellation and ownership changes remain
 terminal and never replay the input.
@@ -179,7 +167,7 @@ consumers. Existing cases therefore retain their original scope. Preview launch
 owns the existing process and private bus as before; setup adds no new resource,
 storage or cleanup lifetime and leaves the existing parallel classifications intact.
 
-Before opening an account selector, request account selection checks startup
+Before setting an account selector, request account selection checks startup
 language readiness in its owned snapshot. If setup is pending, it uses the shared
 language helper and reacquires the selector after confirmed completion; a selector
 that remains disabled still refuses input.
@@ -213,23 +201,17 @@ Shell desktop discovery and readable background controls do not establish
 window activation. A failed command or active-window read stops the sequence;
 neither is retried through another input route.
 
-For the retained Parent picker after session return, callers select
-`custom_child_selection(..., route='keyboard')` and the matching
-`onpc_allowance_boundaries::select_child` route before input. The public window
-focus action targets `parent-child-selector`; a fresh owned snapshot requires
-an active window and unique visible, sensitive native focus within that
-ID-resolved selector. GTK delegates MenuButton focus to its internal toggle;
-this is focus containment, not anonymous-node targeting. A consumed exact
-focus receipt permits one Space. The separate `*-picker-presented` observation
-requires the popup and UID-scoped choice before the existing focus/Enter/selected
-readbacks. Failure is terminal and never falls back from a failed popup action.
-Real GTK regression covers policy-page reads both alone and after input to
-another owned preview window, which reproduced the direct-popup timeout.
+For the retained Parent picker after session return, shared child selection
+sets `parent-child-selector` to the declared UID through the Application UI API
+and independently reads selected-child identity and ready policy controls.
+Retained route arguments are compatibility metadata; they do not inject keys.
+No popup, semantic focus or native focus proof is required. Failure is terminal
+and never falls back to a different input route. Real GTK coverage preserves
+policy-page reads both alone and after work in another owned preview window.
 `test_parent_child_picker_after_language_policy_reads` in the
 [language UI tests](../ui/test_language_settings.py) preserves that preceding
-input/return history. Active-window proof alone did not repair the live failure;
-do not reduce this regression to a newly launched window or infer popup success
-from focus/action acknowledgement.
+input/return history. Do not reduce this regression to a newly launched window
+or infer selected-child success from setter acknowledgement.
 The additional preview uses the existing private bus/display and owned cleanup;
 UI parallel classification remains private. Unit doubles and waited Perl retain
 their existing unit/cleanup classifications. Policy collection explicitly waits

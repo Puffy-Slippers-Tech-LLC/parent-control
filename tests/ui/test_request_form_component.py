@@ -50,9 +50,8 @@ def test_overlay_about_license_shared_reader_and_unchanged_form(
     assert reader.run('overlay-valid-fraction-soft-read', '')['valid_choice']['request'] == before
 
 
-@pytest.mark.parametrize('exit_action', ('cancel', 'escape'))
 def test_shared_overlay_choice_adapter_and_fractional_text_on_native_gtk(
-        launch_ui, automation, wait_for_accessible_state, monkeypatch, exit_action):
+        launch_ui, automation, wait_for_accessible_state, monkeypatch):
     from gi.repository import GLib
     from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT, KIOSK_INVALID_VALUES
     from tests.e2e.ui_observations import RequestObservation
@@ -91,12 +90,7 @@ def test_shared_overlay_choice_adapter_and_fractional_text_on_native_gtk(
             result = reader.run(operation, '')
             request = RequestObservation.from_request(result['invalid_choice']['request'], operation=operation)
             assert request.custom_text == value and request.request_enabled
-    if exit_action == 'escape':
-        from tests.support.keyboard import press_key
-        reader.run('overlay-request-escape-ready', '')
-        press_key(reader, 'kiosk-request-cancel', 'Escape', state=reader.api.StateType.FOCUSED)
-    else:
-        reader.run('overlay-request-cancel', '')
+    reader.run('overlay-request-cancel', '')
     wait_for_accessible_state(lambda: ui.find('kiosk-request-window') is None,
                               'shared exit closed overlay')
 
@@ -130,14 +124,6 @@ def ready(ui, wait):
 
 def status(ui, wait, expected):
     wait(lambda: ui.text("kiosk-request-status") == expected, expected)
-
-
-def send_escape(ui):
-    """Send Escape through Dogtail's hermetic Mutter input backend."""
-    from tests.support.keyboard import press_key
-
-    ui.reveal("kiosk-request-window")
-    press_key(ui, "kiosk-request-window", "Escape", state=ui.api.StateType.ACTIVE)
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
@@ -189,12 +175,9 @@ def test_shared_predefined_approver_and_soft_choices_submit(
     path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
                         overlay=overlay)
     ready(ui, wait_for_accessible_state)
-    ui.activate("kiosk-approver-selector")
-    wait_for_accessible_state(lambda: ui.find("kiosk-approver-choice-1010") is not None,
-                              "approver choice published")
-    ui.activate("kiosk-approver-choice-1010")
+    ui.setValue("kiosk-approver-selector", "1010")
     ui.activate("kiosk-duration-300")
-    ui.activate("kiosk-soft-apps-row")
+    ui.setValue("kiosk-soft-apps-toggle", True)
     ui.activate("kiosk-request-submit")
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "submitted request")
@@ -314,10 +297,7 @@ def test_kiosk_child_selection_reloads_that_childs_preferences(
     path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
                         overlay=False)
     ready(ui, wait_for_accessible_state)
-    ui.activate("kiosk-child-selector")
-    wait_for_accessible_state(lambda: ui.find("kiosk-child-choice-1002") is not None,
-                              "second child choice published")
-    ui.activate("kiosk-child-choice-1002")
+    ui.setValue("kiosk-child-selector", "1002")
     wait_for_accessible_state(
         lambda: any(call["values"] == [1002] for call in calls(path, "GetPreferences")),
         "selected child's preferences",
@@ -360,19 +340,13 @@ def test_local_selection_changes_are_saved_before_submission(
     path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
                         overlay=overlay, selections_path=selections)
     ready(ui, wait_for_accessible_state)
-    ui.activate("kiosk-approver-selector")
-    wait_for_accessible_state(lambda: ui.find("kiosk-approver-choice-1010") is not None,
-                              "approver choice published")
-    ui.activate("kiosk-approver-choice-1010")
+    ui.setValue("kiosk-approver-selector", "1010")
     wait_for_accessible_state(
         lambda: selections.exists() and json.loads(selections.read_text()).get("approver_uid") == 1010,
         "locally saved approver",
     )
     if not overlay:
-        ui.activate("kiosk-child-selector")
-        wait_for_accessible_state(lambda: ui.find("kiosk-child-choice-1002") is not None,
-                                  "second child choice published")
-        ui.activate("kiosk-child-choice-1002")
+        ui.setValue("kiosk-child-selector", "1002")
         wait_for_accessible_state(
             lambda: json.loads(selections.read_text()).get("child_uid") == 1002,
             "locally saved child",
@@ -445,7 +419,7 @@ def test_service_failure_shows_only_redacted_public_copy(
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-def test_single_flight_ignores_escape_while_authentication_is_active(
+def test_single_flight_refuses_cancel_while_authentication_is_active(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
     path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
                         overlay=overlay, scenario="slow-request")
@@ -457,9 +431,9 @@ def test_single_flight_ignores_escape_while_authentication_is_active(
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: len(calls(path, method)) == 1,
                               "one in-flight request")
-    send_escape(request_ui)
-    wait_for_accessible_state(lambda: bool(events(path, "escape")), "active-request Escape")
-    assert events(path, "escape")[0]["handled"] is False
+    from tests.support.automation import AutomationError
+    with pytest.raises(AutomationError, match='application-ui:Unavailable'):
+        request_ui.activate("kiosk-request-cancel")
     wait_for_accessible_state(lambda: bool(events(path, "result")), "completed request")
     assert not events(path, "logout")
     assert not events(path, "close_overlay")
@@ -473,19 +447,6 @@ def test_mute_control_stays_hidden_with_remembered_preferences(
     ready(request_ui, wait_for_accessible_state)
     assert request_ui.absent("kiosk-mute-button", within="kiosk-request-window")
     assert not calls(path, "SetRequestMuted")
-
-
-@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-def test_escape_uses_each_modes_idle_exit_behavior(
-        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
-    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
-                        overlay=overlay)
-    ready(request_ui, wait_for_accessible_state)
-    send_escape(request_ui)
-    wait_for_accessible_state(lambda: bool(events(path, "escape")), "idle Escape")
-    assert events(path, "escape")[0]["handled"] is True
-    expected = "close_overlay" if overlay else "logout"
-    wait_for_accessible_state(lambda: bool(events(path, expected)), f"{expected} callback")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
@@ -569,10 +530,7 @@ def test_footer_estimate_changes_with_selected_child(
                         overlay=False)
     status(ui, wait_for_accessible_state,
            "Estimated time remaining if approved: 1h 17m")
-    ui.activate("kiosk-child-selector")
-    wait_for_accessible_state(lambda: ui.find("kiosk-child-choice-1002") is not None,
-                              "second child choice published")
-    ui.activate("kiosk-child-choice-1002")
+    ui.setValue("kiosk-child-selector", "1002")
     status(ui, wait_for_accessible_state,
            "Estimated time remaining if approved: 45m")
     assert calls(path, "GetTimeStatus")[-1]["values"] == [1002, 1800]

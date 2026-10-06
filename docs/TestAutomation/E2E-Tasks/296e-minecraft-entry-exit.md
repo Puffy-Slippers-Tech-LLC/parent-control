@@ -1,6 +1,6 @@
 # 296e — Launch Minecraft to its menu and exit normally
 
-Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.

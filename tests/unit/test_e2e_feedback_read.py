@@ -101,7 +101,7 @@ def test_collection_real_decoder_waits_for_finished_state(fault):
             if fault == 'terminal': samples.pop()
             if fault == 'order': samples[-1]['elapsed_ms'] = 0
             value = {'token': token, 'source': 'c' * 64, 'terminal': True, 'samples': samples}
-        on_output(json.dumps({'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+        on_output(json.dumps({'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                               'boot_sha256': 'b' * 64, 'trace': value}).encode() + b'\n')
         return b''
 
@@ -200,7 +200,7 @@ def test_collection_readiness_public_decoder(value):
     operation = 'feedback-collection-ready'
     reader = UiObservations(SimpleNamespace(commands=SimpleNamespace(progress=None)))
     reader.call = Mock(return_value=(json.dumps({
-        'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+        'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
         'collection': value}).encode(), []))
     if value is not None and value['collecting'] is False and value['download'] is True:
         assert reader.observe(operation)['collection'] == value
@@ -216,7 +216,6 @@ def test_collection_sample_does_not_wait_for_unrelated_desktop_traversal():
     dialog.bus, dialog.path = ':1.2', '/dialog'
     ui.collection_owner = (parent.bus, parent.path)
     ui.collection_application = application
-    ui.collection_dialog = dialog
     row = Node('Collecting diagnostic information...', identity='feedback-collection-status')
     row.parent = dialog
     dialog.children.append(row)
@@ -249,40 +248,6 @@ def test_collection_input_rejects_changed_source_before_opening():
     with pytest.raises(accessible_ui.UiError, match='ui:trace-source-changed'):
         accessible_ui.AccessibleUI.feedback_collection_events(ui, 'feedback-collection-open')
     ui.open_feedback.assert_not_called()
-
-
-@pytest.mark.parametrize('fault', ['', 'foreign', 'missing-dialog', 'defunct'])
-def test_collection_event_requires_public_id_and_owned_dialog(monkeypatch, fault):
-    dialog = SimpleNamespace(bus=':1.2', path='/dialog', get_parent=lambda: None)
-    parent = SimpleNamespace(bus=':1.3' if fault == 'foreign' else ':1.2',
-                             path='/parent', get_parent=lambda: dialog)
-    row = SimpleNamespace(bus=':1.2', path='/row', get_parent=lambda: parent,
-                          get_name=lambda: 'Collecting diagnostic information...')
-    identities = {id(row): 'feedback-collection-status',
-                  id(parent): 'container',
-                  id(dialog): 'other' if fault == 'missing-dialog' else 'feedback-dialog'}
-    monkeypatch.setattr(accessible_ui, 'public_automation_id',
-                        lambda node: identities[id(node)])
-    ui = SimpleNamespace(api=SimpleNamespace(node=lambda _: row,
-                                             StateType=SimpleNamespace(DEFUNCT='defunct')),
-                         collection_owner=(':1.2', '/parent'),
-                         has_state=lambda _node, _state: fault == 'defunct')
-    if fault:
-        with pytest.raises(accessible_ui.UiError):
-            accessible_ui.AccessibleUI.feedback_collection_event_target(ui, '/row')
-    else:
-        assert accessible_ui.AccessibleUI.feedback_collection_event_target(ui, '/row') == ('row', '/dialog')
-
-
-def test_collection_ignores_hidden_row_sensitivity_before_reading_label(monkeypatch):
-    row = SimpleNamespace(get_name=Mock(side_effect=AssertionError('hidden label read')))
-    monkeypatch.setattr(accessible_ui, 'public_automation_id',
-                        lambda _node: 'feedback-collection-status')
-    ui = SimpleNamespace(api=SimpleNamespace(node=lambda _: row),
-                         collection_owner=(':1.2', '/parent'))
-    assert accessible_ui.AccessibleUI.feedback_collection_event_target(
-        ui, '/row', 'sensitive') is None
-    row.get_name.assert_not_called()
 
 
 @pytest.mark.parametrize('download_exposed', [True, False])
@@ -370,7 +335,7 @@ def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault
             assert argv[-1] == child
         argument = argv[-2] if child else argv[-1]
         operations.append(operation)
-        reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+        reply = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                  'boot_sha256': 'b' * 64}
         if operation == 'parent-custom-events':
             token = argument
@@ -387,29 +352,28 @@ def test_custom_trace_real_decoder_preserves_enabled_editing_and_one_input(fault
         else:
             assert operation == 'parent-custom-trace-focus'
             assert retained[0][0] == 0 and argument == 'c' * 64
-            reply['trace'] = {'focused': True}
+            inputs.append(argument)
+            if fault == 'input':
+                raise OSError('uncertain App UI mutation')
+            reply['trace'] = {'applied': True}
         on_output((json.dumps(reply) + '\n').encode())
         return b''
-
-    def release(token, source):
-        inputs.append((token, source))
-        if fault == 'input': raise OSError('uncertain keyboard batch')
 
     reader.transport.call = call
     if fault:
         with pytest.raises((EvidenceError, OSError)):
-            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release, child=child)
+            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', child=child)
         assert reader.trace_failed
         with pytest.raises(EvidenceError, match='previous-failure'):
-            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release, child=child)
+            reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', child=child)
     else:
-        result = reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', worker_input=release, child=child)
+        result = reader.observe_accessibility_input('parent-custom-trace-focus', 6, 'custom-save', child=child)
         assert result['saved'] == {'saved': True, 'minutes': 6} and len(retained) == 2
         assert operations == ['parent-custom-events', 'parent-custom-trace-focus', 'parent-custom-saved-result']
     assert len(inputs) == (0 if fault == 'disabled-entry' else 1)
 
 
-@pytest.mark.parametrize('fault', ['', 'first-rapid', 'input', 'second-reopened',
+@pytest.mark.parametrize('fault', ['', 'first-rapid', 'second-reopened',
     *[f'{entry}-{direction}-{step}' for entry in ('first', 'second')
       for direction in ('away', 'back') for step in ('open', 'focus', 'selected')]])
 def test_custom_worker_actual_sequence_and_failed_input_stop(fault):
@@ -439,32 +403,25 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
 ''', fault).stdout)
     stages = list(PLAN.screen_tags)
     stages = stages[stages.index('parent-selected'):] + ['finish']
-    boundary = 'first-rapid' if fault == 'input' else fault
+    boundary = fault
     assert result['stages'] == (stages[:stages.index(boundary) + 1] if fault else stages)
     assert bool(result['ok']) is (not fault)
     if not fault:
-        assert result['keys'] == ['ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2
+        assert result['keys'] == []
 
 
-def test_custom_trace_renamed_stage_and_immutable_input_gate(tmp_path):
+def test_custom_trace_renamed_stage_refuses_external_keyboard_release(tmp_path):
     from dataclasses import replace
     from installed_journey import InstalledJourney
     from custom_save_trace import PLAN
     plan = replace(PLAN, screen_tags={'renamed-input': 'ui:parent-custom-save-trace'},
                    accessibility_inputs={'renamed-input': ('parent-custom-trace-focus', 6, 'custom-save')},
-                   keyboard_inputs={'renamed-input': (5, 6)}, settings_checks={}, advance_after={},
+                   custom_inputs={'renamed-input': (5, 6)}, settings_checks={}, advance_after={},
                    phases={'ready': 'setup', 'setup-detached': 'setup', 'renamed-input': 'step-1'})
     journey = InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
-    journey.publish_trace_input('renamed-input', 'a' * 32, 'b' * 64)
-    with pytest.raises(EvidenceError, match='replay'):
+    with pytest.raises(EvidenceError, match='trace-input-plan'):
         journey.publish_trace_input('renamed-input', 'a' * 32, 'b' * 64)
-    with pytest.raises(EvidenceError, match='incomplete'):
-        journey.verify_trace_input('renamed-input', 'a' * 32)
-    (tmp_path / 'renamed-input.input-done.json').write_text(json.dumps(
-        {'stage': 'renamed-input', 'token': 'a' * 32}))
-    journey.verify_trace_input('renamed-input', 'a' * 32)
-    with pytest.raises(EvidenceError, match='incomplete'):
-        journey.verify_trace_input('renamed-input', 'c' * 32)
+    assert not list(tmp_path.iterdir())
 
 
 @pytest.mark.parametrize('named', [False, True])
@@ -486,7 +443,7 @@ def test_named_custom_worker_sequence_and_every_refusal():
     from tests.support.perl import run_perl
     expected = list(PLAN.screen_tags)
     expected = expected[expected.index('parent-selected'):] + ['finish']
-    for fault in ['', 'wrong-child-proof', *expected[:-1]]:
+    for fault in ['', *expected[:-1]]:
         result = json.loads(run_perl(r'''
 use strict; use warnings; use JSON::PP;
 our (@stages, @keys); our ($fault) = @ARGV;
@@ -513,14 +470,11 @@ my $ok = eval { onpc_feedback_states::run_named_child_custom_saves(sub {
 }); 1; };
 print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
 ''', fault).stdout)
-        boundary = 'first-rapid' if fault == 'wrong-child-proof' else fault
+        boundary = fault
         assert result['stages'] == (expected[:expected.index(boundary) + 1] if fault else expected)
         assert bool(result['ok']) is (not fault)
-        if fault == 'wrong-child-proof':
-            assert result['keys'] == []
         if not fault:
-            assert result['keys'] == ['ctrl-a', '5\n', 'ctrl-a', '6\n', 'ret', 'ret'] * 2 + [
-                'ret', 'ctrl-a', '7', 'ret', 'ret']
+            assert result['keys'] == []
     assert PLAN.child_bindings['first-rapid'] == 'existing'
     assert PLAN.child_bindings['riley-text-read'] == 'child'
     assert PLAN.settings_checks['final-away-selected'].child == 'existing-fixture-child'
@@ -597,7 +551,7 @@ def test_parent_window_count_controller_requires_exact_numeric_one(count, valid)
     from ui_observations import UiObservations
     reader = UiObservations(Mock())
     payload = {'operation': 'parent-window-count', 'outcome': 'passed',
-               'interface': 'AT-SPI', 'count': count}
+               'interface': 'ApplicationUI+external-provider', 'count': count}
     reader.call = lambda *args, **kwargs: (json.dumps(payload).encode(), [])
     if valid:
         assert reader._observe('parent-window-count')['count'] == 1
@@ -655,7 +609,7 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
         if fault in expected[:2]:
             assert not result['keys']
         if not fault:
-            assert result['keys'] == ['ret', 'ctrl-a', '7']
+            assert result['keys'] == []
     with pytest.raises(EvidenceError, match='ordinary-custom-value'):
         ordinary_custom_save('independent', 'child', 8)
 
@@ -689,10 +643,9 @@ def test_custom_save_preparation_and_independent_result(capsys, fault):
     assert accessible_ui.AccessibleUI.parent_save_events(ui, True) == {
         'token': 'a' * 32, 'source': 'c' * 64, 'prepared': True}
     assert json.loads(capsys.readouterr().out)['source'] == 'c' * 64
-    # This preparation authorizes the next keyboard batch, so recipient focus
-    # is a safety proof rather than saved-result acceptance.
+    # The canonical editor input uses its scoped availability, without focus.
     ui.text_recipient.assert_called_once_with(
-        'parent-custom-daily-limit', focused=True, child=accessible_ui.CHILD)
+        'parent-custom-daily-limit', child=accessible_ui.CHILD)
     ui.trace_request = 'c' * 64
     if fault == 'source': ui.parent_save_trace_source.return_value = ('d' * 64, controls)
     if fault == 'saved-value': ui.read_custom_trace_draft.side_effect = accessible_ui.UiError('ui:text-value')
@@ -742,7 +695,7 @@ def test_actual_exchange_releases_only_one_validated_keyboard_batch(tmp_path, fa
     exchange = source[source.index('sub exchange {'):source.index('\nsub capture {')]
     proof = {'stage': 'other' if fault == 'wrong-stage' else 'renamed',
              'token': 'invalid' if fault == 'wrong-token' else 'a' * 32,
-             'source': 'b' * 64, 'binding': 'custom-rapid', 'values': [5, 6], 'child': 'child'}
+             'source': 'b' * 64, 'binding': 'overlay-approve', 'values': ['ret'], 'child': 'child'}
     (tmp_path / 'renamed.input.json').write_text(json.dumps(proof))
     result = json.loads(run_perl('use strict; use warnings; use JSON::PP; use Time::HiRes qw(time sleep);\n' + exchange + r'''
 my ($directory, $fault) = @ARGV; chdir($directory) or die 'chdir';
@@ -779,18 +732,18 @@ def test_parent_save_trace_plan_and_controller_keep_readiness_before_one_input()
             on_output((json.dumps({'event': 'accessibility-trace-ready', 'token': token,
                                    'source': 'c' * 64, 'boot_sha256': 'b' * 64,
                                    'checked': False}) + '\n').encode())
-            reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+            reply = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                      'boot_sha256': 'b' * 64, 'trace': {'token': token, 'source': 'c' * 64,
                                                      'prepared': True}}
         elif operation == 'parent-saved-result':
             assert operations == ['parent-save-events', 'parent-toggle-enabled', 'parent-saved-result']
             assert argv[-1] == 'save:' + 'c' * 64
-            reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+            reply = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                      'boot_sha256': 'b' * 64, 'trace': {'saved': True, 'enabled': True}}
         else:
             assert operation == 'parent-toggle-enabled'
             assert retained[0][0] == 0 and argv[-1] == 'save:' + 'c' * 64
-            reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+            reply = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                      'boot_sha256': 'b' * 64,
                      'toggle': {'state': True, 'activated': True}}
         on_output((json.dumps(reply) + '\n').encode())
@@ -820,7 +773,7 @@ def test_accessibility_trace_stream_brackets_one_input_and_latches(monkeypatch, 
             assert retained and argv[-1] == 'c' * 64
             if fault == 'input':
                 raise OSError('uncertain action')
-            reply = json.dumps({'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+            reply = json.dumps({'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                                'boot_sha256': 'b' * 64,
                                'toggle': {'state': True, 'activated': True}}).encode()
             assert on_output is not None  # The nested call must own its parser.
@@ -839,10 +792,10 @@ def test_accessibility_trace_stream_brackets_one_input_and_latches(monkeypatch, 
         if fault == 'duplicate': on_output(encoded)
         if fault == 'observer': raise OSError('observer lost')
         if fault == 'cancel': raise KeyboardInterrupt()
-        samples = [{'elapsed_ms': i, 'checked': True, 'source': 'event'} for i in range(32)]
+        samples = [{'elapsed_ms': i, 'checked': True, 'source': 'application-ui'} for i in range(32)]
         if fault == 'order': samples[-1]['elapsed_ms'] = 0
         if fault == 'oversize': samples.append(samples[-1])
-        reply = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+        reply = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                  'boot_sha256': 'b' * 64, 'trace': {'token': token, 'source': 'c' * 64,
                      'terminal': True, 'samples': samples}}
         on_output(json.dumps(reply).encode() + b'\n')
@@ -1108,10 +1061,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
     assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
     assert bool(result['ok']) is (not fault)
     assert result['events'][-1] == (fault or 'finish')
-    if not fault:
-        assert result['events'].count('type:Synthetic feedback first') == 2
-        if composition:
-            assert result['events'].count('key:backspace') == 2
+    assert result['events'] == result['stages'] + ([] if fault else ['finish'])
 
 
 def test_clear_trace_refuses_empty_entry_and_blocks_input(monkeypatch):
@@ -1144,12 +1094,12 @@ package testapi;
 sub record_info { }
 sub send_key {
     push @main::events, $_[0];
-    die 'uncertain input' if $main::uncertain && $_[0] eq 'backspace';
 }
 package main;
 require onpc_feedback_states;
 my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
     push @stages, $_[0];
+    die 'uncertain input' if $main::uncertain && $_[0] eq 'renamed-selected';
     return {observed => $_[0], ui_focused => JSON::PP::true};
 });
 my $ok = eval { onpc_feedback_states::observed_text($journey, 'renamed', 'body-clear'); 1; };
@@ -1157,7 +1107,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
 ''', '1' if uncertain else '0').stdout)
     expected = list(observed_text('renamed', 'body-clear'))
     assert result['stages'] == (expected[:3] if uncertain else expected)
-    assert result['events'] == ['ctrl-a', 'backspace']
+    assert result['events'] == []
     assert bool(result['ok']) is (not uncertain)
 
 
@@ -1165,7 +1115,7 @@ def trace_reader(monkeypatch):
     import ui_observations
     ui, _, _, _ = feedback_ui()
     value = ui.feedback_snapshot(states=True)
-    reply = {'operation': 'feedback-state-empty', 'outcome': 'passed', 'interface': 'AT-SPI',
+    reply = {'operation': 'feedback-state-empty', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
              'feedback_state': value, 'boot_sha256': 'b' * 64}
     reader = ui_observations.UiObservations(Mock())
     reader.boot_guard = 'b' * 64
@@ -1311,12 +1261,6 @@ def test_host_gui_blocks_share_worker_input_and_stop_at_refused_observation(monk
             raise ValueError('refused')
         return {'stage': stage}
     ui.run.side_effect = observe
-    monkeypatch.setattr(gui_blocks.keyboard, 'key_combo',
-        lambda _ui, identity, key, **_: events.append(('key', identity, key)))
-    monkeypatch.setattr(gui_blocks.keyboard, 'repeat_cursor',
-        lambda _ui, identity, key, count: events.extend([('key', identity, key)] * count))
-    monkeypatch.setattr(gui_blocks.keyboard, 'type_text',
-        lambda _ui, identity, value, **_: events.append(('text', identity, value)))
     def execute():
         gui_blocks.run_block(ui, 'replace', 'body-first')
         gui_blocks.run_block(ui, 'bold')
@@ -1327,14 +1271,15 @@ def test_host_gui_blocks_share_worker_input_and_stop_at_refused_observation(monk
         assert events[-1] == ('observe', fault)
     else:
         execute()
-        assert ('text', 'feedback-editor-input', 'Synthetic feedback first') in events
-        assert events.count(('key', 'feedback-editor-input', '<Shift>Right')) == 9
-        assert ('text', 'feedback-editor-input', '1f600') in events
+        assert ('observe', 'text-body-first-selected') in events
+        assert ('observe', 'format-selected') in events
+        assert ('observe', 'text-scalar-body-smoke-caret') in events
         assert events[-1] == ('observe', 'text-scalar-body-smoke-read')
+    assert all(event[0] == 'observe' for event in events)
 
 
 @pytest.mark.parametrize('fault', ['', 'filter-access-rule-3-permanent'])
-def test_host_filter_uses_guarded_escape_and_stops_after_refused_input(monkeypatch, fault):
+def test_host_filter_uses_semantic_values_and_stops_after_refused_input(monkeypatch, fault):
     from tests.support import gui_blocks
     events = []
     ui = ui_for(Node())
@@ -1351,8 +1296,6 @@ def test_host_filter_uses_guarded_escape_and_stops_after_refused_input(monkeypat
         events.append(('wait', code, options))
         return bounded_wait(predicate, code, **options)
     ui.wait = wait
-    monkeypatch.setattr(gui_blocks.keyboard, 'key_combo',
-        lambda _ui, identity, key, **options: events.append(('key', identity, key, options)))
     def execute():
         gui_blocks.run_block(ui, 'filter', 'access-rule', '3', 'filter-access-rule-3')
         events.append(('next-input',))
@@ -1365,8 +1308,7 @@ def test_host_filter_uses_guarded_escape_and_stops_after_refused_input(monkeypat
         execute()
         assert events[-1] == ('next-input',)
     keys = [event for event in events if event[0] == 'key']
-    assert keys == ([] if fault else [
-        ('key', 'parent-window', 'Escape', {'state': 'active', 'post_delay': 0.05})])
+    assert keys == []
     assert not [event for event in events if event[0] == 'wait']
     assert events[:4] == [('observe', 'filter-access-rule-3-' + action)
                          for action in ('open', 'allowed', 'conditional', 'permanent')]
@@ -1407,8 +1349,8 @@ print encode_json({ok => $ok ? 1 : 0, error => "$@", events => \@events});
     success = json.loads(run_perl(script, fragment, prefix, '', *stages).stdout)
     assert success['ok'], success['error']
     assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
-    assert [event for event in success['events'] if event[0] == 'key'] == [
-        ['key', 'alt-tab' if fragment == 'window' else 'alt-f4']]
+    assert [event for event in success['events'] if event[0] == 'key'] == (
+        [['key', 'alt-tab']] if fragment == 'window' else [])
     for stage in stages:
         result = json.loads(run_perl(script, fragment, prefix, stage, *stages).stdout)
         assert not result['ok'] and 'proof refused' in result['error']
@@ -1423,9 +1365,9 @@ def test_window_history_uses_declared_operations_for_renamed_invocations():
     plan = JourneyPlan(prefix='consumer', worker_mode='consumer', phases={},
                        screen_tags=window_switch_entry('independent-'))
     journey = WindowSwitchJourney(SimpleNamespace(), Mock(), plan)
-    parent = {'binding': 'parent', 'pid': 42, 'endpoint': [':1.42', '/window'], 'active': True}
+    parent = {'binding': 'parent', 'pid': 42, 'endpoint': [':1.42', '/window'], 'available': True}
     journey.check_settings('independent-switch-parent-before', {'ui': {'window': dict(parent)}})
-    journey.check_settings('independent-switch-parent-ready', {'ui': {'window': {**parent, 'active': False}}})
+    journey.check_settings('independent-switch-parent-ready', {'ui': {'window': dict(parent)}})
     journey.check_settings('independent-switch-parent', {'ui': {'window': dict(parent)}})
     with pytest.raises(EvidenceError, match='window-or-draft-changed'):
         journey.check_settings('independent-switch-parent', {'ui': {'window': {**parent, 'pid': 43}}})
@@ -1463,7 +1405,7 @@ def test_draft_actual_worker_sequence_and_every_refusal(monkeypatch, flow):
     stages = list(PLAN.screen_tags)
     assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
     assert all(tag.removeprefix('ui:') in OPERATION_LABELS for tag in PLAN.screen_tags.values())
-    assert sum(event[:2] == ['key', 'alt-f4'] for event in success['events']) == (4 if flow == 'draft' else 0)
+    assert not any(event[:2] == ['key', 'alt-f4'] for event in success['events'])
     assert sum(event[:2] == ['key', 'alt-tab'] for event in success['events']) == (3 if flow == 'draft' else 0)
     assert not any('send' in operation for operation in PLAN.screen_tags.values())
     for stage in stages:
@@ -1511,9 +1453,9 @@ def test_file_review_decoder_and_preservation(operation):
         'items': [['Synthetic note.txt', '34 bytes']], 'include_logs': False}
     compare_file_draft(draft)
     value = ({'window': {'binding': 'feedback', 'pid': 42, 'endpoint': [':1.42', '/window'],
-                        'active': True, 'feedback': draft}} if 'switch-' in operation else
+                        'available': True, 'feedback': draft}} if 'switch-' in operation else
              {} if operation.endswith('privacy-open') else {'file_draft': draft})
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', **value}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', **value}
     transport = Mock()
     observer = UiObservations(transport)
     observer.call = Mock(return_value=(json.dumps(result).encode(), []))
@@ -1612,7 +1554,7 @@ def test_formatted_draft_decoder_and_independent_prior_comparison(tmp_path, rese
     if fault == 'format': value['formats']['link'] = 'https://example.com/wrong'
     if fault == 'reply': value['draft'] = 'states-no-reply'
     if fault == 'extra': value['private'] = 'refuse'
-    reply = {'operation': operation, 'interface': 'AT-SPI', 'outcome': 'passed', 'draft_state': value}
+    reply = {'operation': operation, 'interface': 'ApplicationUI+external-provider', 'outcome': 'passed', 'draft_state': value}
     reader = UiObservations(Mock())
     reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
     if fault:
@@ -1663,8 +1605,8 @@ def test_formatted_window_decoder_preserves_endpoint_and_complete_draft(tmp_path
     from parent_feedback_draft import PLAN, ACTIONS
     from ui_observations import UiObservations
     value = {'binding': 'feedback', 'pid': 123, 'endpoint': [':1.123', '/org/a11y/atspi/accessible/42'],
-             'active': True, 'feedback': formatted_draft_expected()}
-    reply = {'operation': 'draft-switch-feedback', 'outcome': 'passed', 'interface': 'AT-SPI', 'window': value}
+             'available': True, 'feedback': formatted_draft_expected()}
+    reply = {'operation': 'draft-switch-feedback', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'window': value}
     reader = UiObservations(Mock())
     reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
     assert reader.observe('draft-switch-feedback') == reply
@@ -1698,38 +1640,25 @@ def test_empty_draft_reset_observes_formatting_before_any_input(monkeypatch, fau
         node.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['', 'uri', 'text', 'duplicate', 'missing-interface',
-                                  'invalid', 'incomplete', 'cycle', 'extent'])
+@pytest.mark.parametrize('fault', ['', 'uri', 'text', 'duplicate', 'invalid', 'incomplete', 'extent'])
 def test_formats_link_reader_requires_exact_text_and_public_destination(fault):
     import feedback_formats as formats
-    link = Mock()
-    link.get_role_name.return_value = 'link'
-    link.get_text_iface.return_value = Mock(get_character_count=Mock(return_value=5),
-                                          get_text=Mock(return_value='Plain'))
-    link.get_hyperlink.return_value = Mock(get_n_anchors=Mock(return_value=1),
-        is_valid=Mock(return_value=True), get_uri=Mock(return_value=formats.LINK),
-        get_start_index=Mock(return_value=0), get_end_index=Mock(return_value=1))
-    link.get_child_count.return_value = 0
-    children = [link]
-    root = Mock(get_role_name=Mock(return_value='section'))
+    operations = [{'insert': formats.blocks.BODY[:formats.START]},
+                  {'insert': 'Plain', 'attributes': {'link': formats.LINK}},
+                  {'insert': formats.blocks.BODY[formats.END:] + '\n'}]
     if fault == 'uri':
-        link.get_hyperlink.return_value.get_uri.return_value = 'https://example.com/wrong'
+        operations[1]['attributes']['link'] = 'https://example.com/wrong'
     elif fault == 'text':
-        link.get_text_iface.return_value.get_text.return_value = 'Other'
+        operations[1]['insert'] = 'Other'
     elif fault == 'duplicate':
-        children.append(link)
-    elif fault == 'missing-interface':
-        link.get_hyperlink.return_value = None
+        operations.extend([{'insert': 'separator'}, operations[1]])
     elif fault == 'invalid':
-        link.get_hyperlink.return_value.is_valid.return_value = False
+        operations[1]['insert'] = {'image': 'unsupported'}
     elif fault == 'extent':
-        link.get_hyperlink.return_value.get_end_index.return_value = 5
+        operations[1]['insert'] = 'Plai'
     elif fault == 'incomplete':
-        children.append(None)
-    elif fault == 'cycle':
-        children.append(root)
-    root.get_child_count.return_value = len(children)
-    root.get_child_at_index.side_effect = lambda index: children[index]
+        operations.append(None)
+    root = SimpleNamespace(document=lambda: {'ops': operations})
     if fault:
         with pytest.raises(accessible_ui.UiError):
             formats.read_links(root, accessible_ui.require)
@@ -1738,48 +1667,32 @@ def test_formats_link_reader_requires_exact_text_and_public_destination(fault):
 
 
 @pytest.mark.parametrize('fault', ['', 'strike', 'normal', 'range', 'partial', 'link-text'])
-def test_linked_attributes_use_independent_link_text_and_embedded_width(fault):
+def test_linked_attributes_use_exact_public_document_ranges(fault):
     import feedback_formats as formats
-    normal = {'weight': '400', 'style': 'normal', 'underline': 'none', 'strikethrough': 'false'}
-    styled = {'weight': '700', 'style': 'italic', 'underline': 'single', 'strikethrough': 'true'}
-    def run(offset, defaults):
-        if offset < formats.START:
-            return normal, 0, formats.START
-        return ({**normal, 'weight': '700'} if fault == 'normal' else normal,
-                formats.START + 1, len(formats.blocks.BODY) - 4)
-    text = Mock(get_character_count=Mock(return_value=len(formats.blocks.BODY)),
-                get_attribute_run=Mock(side_effect=run))
-    link_text = Mock(get_character_count=Mock(return_value=5),
-                     get_text=Mock(return_value='Other' if fault == 'link-text' else 'Plain'),
-                     get_attribute_run=Mock(return_value=(
-                         {**styled, 'strikethrough': 'false'} if fault == 'strike' else styled,
-                         1 if fault == 'partial' else 0, 4 if fault == 'range' else 5)))
-    link = Mock(get_role_name=Mock(return_value='link'),
-                get_attributes=Mock(return_value={}), get_text_iface=Mock(return_value=link_text),
-                get_child_count=Mock(return_value=0))
-    link.get_hyperlink.return_value = Mock(get_n_anchors=Mock(return_value=1),
-        is_valid=Mock(return_value=True), get_uri=Mock(return_value=formats.LINK),
-        get_start_index=Mock(return_value=0), get_end_index=Mock(return_value=1))
-    root = Mock(get_role_name=Mock(return_value='entry'), get_attributes=Mock(return_value={}),
-                get_text_iface=Mock(return_value=text), get_child_count=Mock(return_value=1),
-                get_child_at_index=Mock(return_value=link))
-    text.get_text.return_value = formats.blocks.BODY
+    styled = {kind: True for kind in formats.INLINE}
+    operations = [{'insert': formats.blocks.BODY[:formats.START]},
+                  {'insert': 'Plain', 'attributes': {**styled, 'link': formats.LINK}},
+                  {'insert': formats.blocks.BODY[formats.END:] + '\n'}]
+    if fault == 'strike': operations[1]['attributes']['strike'] = False
+    if fault == 'normal': operations[2]['attributes'] = {'bold': True}
+    if fault == 'range': operations[1]['insert'] = 'Plai'
+    if fault == 'partial':
+        operations[1:2] = [{'insert': 'P', 'attributes': {'link': formats.LINK}},
+                           {'insert': 'lain', 'attributes': {**styled, 'link': formats.LINK}}]
+    if fault == 'link-text': operations[1]['insert'] = 'Other'
+    root = SimpleNamespace(document=lambda: {'ops': operations})
     ui = Mock(text_recipient=Mock(return_value=root))
     if fault:
         with pytest.raises(accessible_ui.UiError):
             formats.read(ui, accessible_ui.require, 'linked-kept-reopen')
     else:
         assert formats.read(ui, accessible_ui.require, 'linked-kept-reopen') == formats.expected('linked-kept-reopen')
-        link_text.get_attribute_run.assert_called_once_with(2, True)
-        # The suffix query uses the public embedded width, not flattened 94.
-        assert text.get_attribute_run.call_args_list[0].args == (90, True)
-        ui.api.Text.get_n_selections.return_value = 1
-        ui.api.Text.get_selection.return_value = SimpleNamespace(start_offset=0, end_offset=94)
         formats.operate(ui, 'formats-clear-selected', accessible_ui.require, accessible_ui.UiError)
+        ui.editor_selection.assert_called_once_with(0, len(formats.blocks.BODY))
         ui.activate_id.assert_called_once_with('feedback-format-clear')
         ui.activate_id.reset_mock()
-        ui.api.Text.get_selection.return_value.end_offset = 98
-        with pytest.raises(accessible_ui.UiError, match='ui:formats-selection'):
+        ui.editor_selection.side_effect = accessible_ui.UiError('ui:editor-selection')
+        with pytest.raises(accessible_ui.UiError, match='ui:editor-selection'):
             formats.operate(ui, 'formats-clear-selected', accessible_ui.require, accessible_ui.UiError)
         ui.activate_id.assert_not_called()
 
@@ -1824,15 +1737,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
     assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
     assert bool(result['ok']) is (not fault)
     assert result['events'][-1] == (fault or 'finish')
-    if not fault:
-        events = [event.replace('linked-', 'formats-') for event in result['events']]
-        for kind in ('bold', 'italic', 'underline', 'strike', 'link', *(() if linked else ('clear',))):
-            keys = events[events.index(f'formats-{kind}-home') + 1:
-                          events.index(f'formats-{kind}-selected')]
-            assert keys == (['ctrl-shift-end'] if kind == 'clear' else
-                            ['ctrl-end'] + ['left'] * (len(blocks.BODY) - START)
-                            + ['shift-right'] * (END - START))
-        assert events[events.index('formats-link-target') + 1] == 'type:' + LINK
+    assert result['events'] == result['stages'] + ([] if fault else ['finish'])
 
 
 @pytest.mark.parametrize('linked', [False, True])
@@ -1845,7 +1750,7 @@ def test_formats_decoder_independent_recorder_and_shipped_imports(tmp_path, link
     from installed_journey import record_installed_journey
     from ui_observations import UiObservations
     reader = UiObservations(Mock())
-    reply = {'operation': prefix + '-kept-reopen', 'outcome': 'passed', 'interface': 'AT-SPI',
+    reply = {'operation': prefix + '-kept-reopen', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
              'formats': formats.expected(prefix + '-kept-reopen')}
     reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
     assert reader.observe(prefix + '-kept-reopen') == reply
@@ -1907,25 +1812,22 @@ def test_link_selector_preserves_guarded_envelope(monkeypatch):
         smoke.main(feedback_link_semantics=True, feedback_formats=True)
 
 
-@pytest.mark.parametrize('fault', ['', 'unfocused', 'wrong-text', 'selection', 'uncertain',
+@pytest.mark.parametrize('fault', ['', 'disabled', 'wrong-text', 'selection', 'uncertain',
                                   'missing', 'duplicate', 'wrong-owner'])
 def test_formats_selection_refuses_before_toolbar_input(fault):
     import feedback_formats as formats
     ui, parent, dialog, controls = feedback_ui()
     editor = controls['feedback-editor-input']
-    editor.states.add('focused')
     editor.text.count = len(formats.blocks.BODY)
     ui.api.Text.get_text = Mock(return_value=formats.blocks.BODY)
-    ui.api.Text.get_n_selections = Mock(return_value=1)
-    ui.api.Text.get_selection = Mock(return_value=SimpleNamespace(
-        start_offset=formats.START, end_offset=formats.END))
+    ui.editor_selection = Mock()
     ui.activate_id = Mock()
-    if fault == 'unfocused':
-        editor.states.remove('focused')
+    if fault == 'disabled':
+        editor.states.remove('sensitive')
     elif fault == 'wrong-text':
         ui.api.Text.get_text.return_value = 'x' * editor.text.count
     elif fault == 'selection':
-        ui.api.Text.get_selection.return_value.end_offset += 1
+        ui.editor_selection.side_effect = accessible_ui.UiError('ui:editor-selection')
     elif fault == 'uncertain':
         ui.input_uncertain = True
     elif fault == 'missing':
@@ -1940,11 +1842,12 @@ def test_formats_selection_refuses_before_toolbar_input(fault):
         ui.activate_id.assert_not_called()
     else:
         formats.operate(ui, 'formats-link-selected', accessible_ui.require, accessible_ui.UiError)
+        ui.editor_selection.assert_called_once_with(formats.START, formats.END)
         ui.activate_id.assert_called_once_with('feedback-format-link')
 
 
-@pytest.mark.parametrize('fault', ['', 'text', 'selection', 'unfocused'])
-def test_link_entry_requires_selected_synthetic_prefill(fault):
+@pytest.mark.parametrize('fault', ['', 'text', 'refused', 'disabled'])
+def test_link_entry_requires_exact_prefill_before_semantic_edit(fault):
     import feedback_formats as formats
     ui, _, dialog, controls = feedback_ui()
     editor = controls['feedback-editor-input']
@@ -1957,55 +1860,40 @@ def test_link_entry_requires_selected_synthetic_prefill(fault):
     target.parent = dialog
     ui.api.Text.get_text = Mock(side_effect=lambda text, *_:
         formats.blocks.BODY if text is editor.text else 'Other' if fault == 'text' else 'Plain')
-    ui.api.Text.get_n_selections = Mock(return_value=1)
-    ui.api.Text.get_selection = Mock(return_value=SimpleNamespace(
-        start_offset=0, end_offset=4 if fault == 'selection' else 5))
+    ui.set_text = Mock()
     ui.activate_id = Mock()
-    if fault == 'unfocused':
-        target.states.remove('focused')
+    if fault == 'disabled':
+        target.states.remove('sensitive')
+    elif fault == 'refused':
+        ui.set_text.side_effect = accessible_ui.UiError('ui:action-refused')
     if fault:
         with pytest.raises(accessible_ui.UiError):
             formats.operate(ui, 'formats-link-target', accessible_ui.require, accessible_ui.UiError)
     else:
         formats.operate(ui, 'formats-link-target', accessible_ui.require, accessible_ui.UiError)
+        ui.set_text.assert_called_once_with('feedback-link-target', formats.LINK)
     ui.activate_id.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['', 'duplicate', 'wrong-text', 'normal-in-container',
-                                  'missing-level', 'list-kind', 'incomplete'])
-def test_block_reader_associates_exact_text_and_refuses_ambiguous_trees(fault):
+                                  'conflicting-formats', 'incomplete'])
+def test_block_reader_associates_exact_text_and_public_document_formats(fault):
     from block_semantics import FORMATS, LINES, projection, read_blocks
-
-    def node(role='paragraph', attrs=None, value=None, children=()):
-        item = Mock()
-        item.get_role_name.return_value = role
-        item.get_attributes.return_value = attrs or {}
-        item.get_text_iface.return_value = None if value is None else Mock(
-            get_text=Mock(return_value=value), get_character_count=Mock(return_value=len(value)))
-        item.get_child_count.return_value = len(children)
-        item.get_child_at_index.side_effect = lambda index: children[index]
-        return item
-
-    nodes = [node('heading', {'level': '1'}, LINES[0]),
-             node('heading', {'level': '2'}, LINES[1]),
-             node('list item', {'roledescription': 'numbered list item'}, LINES[2]),
-             node('list item', {'roledescription': 'bulleted list item'}, LINES[3]),
-             node(attrs={'xml-roles': 'blockquote'}, value=LINES[4]),
-             node(attrs={'xml-roles': 'code'}, children=[node(value=LINES[5])])]
+    attributes = [{'header': 1}, {'header': 2}, {'list': 'ordered'},
+                  {'list': 'bullet'}, {'blockquote': True}, {'code-block': True}, {}]
+    operations = [operation for line, attrs in zip(LINES, attributes)
+                  for operation in ({'insert': line}, {'insert': '\n', 'attributes': attrs})]
     if fault == 'duplicate':
-        nodes.append(nodes[0])
+        operations.extend(operations[:2])
     elif fault == 'wrong-text':
-        nodes[0].get_text_iface.return_value.get_text.return_value = LINES[-1]
+        operations[0]['insert'] = LINES[-1]
     elif fault == 'normal-in-container':
-        nodes[-1] = node(attrs={'xml-roles': 'code'}, children=[
-            node(value=LINES[5]), node(value=LINES[-1])])
-    elif fault == 'missing-level':
-        nodes[0].get_attributes.return_value = {}
-    elif fault == 'list-kind':
-        nodes[2].get_attributes.return_value = {}
+        operations[-1]['attributes'] = {'code-block': True}
+    elif fault == 'conflicting-formats':
+        operations[1]['attributes']['list'] = 'ordered'
     elif fault == 'incomplete':
-        nodes.append(None)
-    root = node(children=nodes)
+        operations.append(None)
+    root = SimpleNamespace(document=lambda: {'ops': operations})
     if fault:
         with pytest.raises(accessible_ui.UiError):
             read_blocks(root, accessible_ui.require)
@@ -2019,7 +1907,7 @@ def test_block_decoder_and_independent_recorder(tmp_path):
     from ui_observations import UiObservations
     value = projection(FORMATS)
     reader = UiObservations(Mock())
-    reply = {'operation': 'block-reopen', 'outcome': 'passed', 'interface': 'AT-SPI',
+    reply = {'operation': 'block-reopen', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
              'blocks': value}
     reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
     assert reader.observe('block-reopen') == reply
@@ -2258,7 +2146,7 @@ def test_attachment_controller_decodes_exact_metadata_and_refuses_corruption(ope
     if operation == 'attachment-remaining':
         ui.attachment_operation('attachment-remove')
     value = ui.attachment_operation(operation)
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'attachment': value}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'attachment': value}
     controller = UiObservations(Mock())
     controller.call = Mock(return_value=(json.dumps(result).encode(), []))
     assert controller.observe(operation)['attachment'] == value
@@ -2586,7 +2474,7 @@ def test_save_controller_requires_exact_mode_caller_and_result(operation):
         value['provider'] = {'route': 'nautilus-portal', 'version': '50.2.2-1',
             'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']],
             'mode': 'save', 'caller': 'parent-feedback'}
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'chooser': value}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'chooser': value}
     controller = UiObservations(Mock())
     controller.call = Mock(return_value=(json.dumps(result).encode(), []))
     assert controller.observe(operation)['chooser'] == value
@@ -2680,7 +2568,7 @@ def test_export_comparison_runs_through_recorder_and_refuses_before_reply(tmp_pa
     from diagnostic_export import PLAN, journey as factory
     import installed_journey
     window = {'binding': 'feedback', 'pid': 42, 'endpoint': [':1.42', '/feedback'],
-              'active': True, 'feedback': {'draft': 'synthetic-first',
+              'available': True, 'feedback': {'draft': 'synthetic-first',
                 'attachments': ['diagnostic-logs.zip'], 'collection': 'ready',
                 'validation': 'none', 'controls': 'ready'}}
     for fault in ('', 'pid', 'endpoint', 'feedback', 'capture'):
@@ -2818,7 +2706,7 @@ def test_window_history_copies_capture_before_independent_comparison():
         'capture': 'ui:switch-draft-before', 'return': 'ui:switch-feedback'})
     journey = WindowSwitchJourney(SimpleNamespace(), Mock(), plan)
     window = {'binding': 'feedback', 'pid': 42, 'endpoint': [':1.42', '/window'],
-              'active': True, 'feedback': {'items': [['Synthetic note.txt', '26 bytes']]}}
+              'available': True, 'feedback': {'items': [['Synthetic note.txt', '26 bytes']]}}
     original = deepcopy(window)
     journey.check_settings('capture', {'ui': {'window': window}})
     window['endpoint'][1] = '/changed'
@@ -2931,7 +2819,7 @@ def test_case155_independent_comparison_refuses_before_durable_reply(tmp_path, m
     from synthetic_files import diagnostic_export_actions
     import installed_journey
     window = {'binding': 'feedback', 'pid': 42, 'endpoint': [':1.42', '/feedback'],
-              'active': True, 'feedback': {'draft': 'synthetic-first',
+              'available': True, 'feedback': {'draft': 'synthetic-first',
                 'attachments': ['diagnostic-logs.zip'], 'collection': 'ready',
                 'validation': 'none', 'controls': 'ready'}}
     journey = DiagnosticExportJourney(SimpleNamespace(directory=tmp_path), Mock(), PLAN,
@@ -3494,7 +3382,7 @@ def test_boundary_controller_decodes_exact_results_and_rejects_altered_evidence(
     if operation.endswith('-open'):
         value['provider'] = {'route': 'nautilus-portal', 'version': '50.2.2-1',
                              'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'boundary': value}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'boundary': value}
     controller = UiObservations(Mock())
     controller.call = Mock(return_value=(json.dumps(result).encode(), []))
     assert controller.observe(operation)['boundary'] == value
@@ -3901,7 +3789,7 @@ def test_chooser_real_controller_decodes_closed_evidence(operation):
                              'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
     if operation in ('chooser-attachments', 'chooser-preserved'):
         value['attachments'] = ['diagnostic-logs.zip', *accessible_ui.CHOOSER_FILES]
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', 'chooser': value}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'chooser': value}
     controller = UiObservations(Mock())
     controller.call = Mock(return_value=(json.dumps(result).encode(), []))
     assert controller.observe(operation)['chooser'] == value
@@ -3911,7 +3799,7 @@ def test_chooser_real_controller_decodes_closed_evidence(operation):
 def test_chooser_controller_rejects_partial_attachment_evidence():
     from ui_observations import UiObservations
     controller = UiObservations(Mock())
-    result = {'operation': 'chooser-preserved', 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': 'chooser-preserved', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'chooser': {'checked': 'chooser-preserved', 'attachments': ['diagnostic-logs.zip']}}
     controller.call = Mock(return_value=(json.dumps(result).encode(), []))
     with pytest.raises(EvidenceError, match='chooser-response'):
@@ -4201,7 +4089,7 @@ def test_rejection_requires_independent_explanation_and_decodes_closed_result(ca
     dialog.children.append(Node(label, identity='feedback-status'))
     state = ui.rejection_operation(f'rejection-{case}-read')
     reader = UiObservations(Mock())
-    response = {'operation': f'rejection-{case}-read', 'outcome': 'passed', 'interface': 'AT-SPI',
+    response = {'operation': f'rejection-{case}-read', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                 'feedback_state': state}
     reader.call = Mock(return_value=(json.dumps(response).encode(), []))
     assert reader.observe(response['operation']) == response
@@ -4249,54 +4137,41 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
     assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
     assert bool(result['ok']) is (not fault)
     assert result['events'][-1] == (fault or 'finish')
-    if not fault:
-        caret = result['events'].index('rejection-hidden-caret')
-        assert result['events'][caret + 1:caret + 5] == [
-            'ctrl-shift-u', 'type:0001', 'ret', 'rejection-hidden-input-read']
-        assert result['events'].count('ctrl-shift-v') == 4
-        assert result['events'].count('ctrl-c') == 4
-        assert 'type:' + accessible_ui.COMPLEX_BODY not in result['events']
-        for binding in (value for value in accessible_ui.TEXT_DUPLICATIONS
-                        if value.startswith('body-complex')):
-            selected = result['events'].index('text-duplicate-' + binding + '-selected')
-            assert result['events'][selected + 1:selected + 6] == [
-                'ctrl-c', 'ctrl-end', 'ret', 'ctrl-shift-v', 'text-duplicate-' + binding + '-read']
+    assert result['events'] == result['stages'] + ([] if fault else ['finish'])
 
 
-@pytest.mark.parametrize('fault', ['', 'unfocused', 'wrong-source', 'selection', 'refused', 'uncertain'])
+@pytest.mark.parametrize('fault', ['', 'wrong-source', 'disabled', 'refused', 'uncertain'])
 @pytest.mark.parametrize('binding', ['body-complex-150', 'body-ascii-5000-double-1'])
-def test_duplicate_source_and_exact_selection_guard_copy(fault, binding):
+def test_duplicate_source_guards_one_semantic_edit_and_independent_read(fault, binding):
     ui, _, _, controls = feedback_ui()
     node = controls['feedback-editor-input']
     value = accessible_ui.TEXT_VALUES[accessible_ui.TEXT_DUPLICATIONS[binding]][1]
     prefix = 'text-duplicate-' + binding
     node.text.count = len(value) + 1
-    node.states.add('focused')
     ui.api.Text.get_text = Mock(return_value=value + '\n')
-    ui.api.Text.get_n_selections = Mock(return_value=1)
-    ui.api.Text.set_selection = Mock(return_value=True)
-    ui.api.Text.get_selection = Mock(return_value=SimpleNamespace(start_offset=0, end_offset=len(value)))
-    if fault == 'unfocused':
-        node.states.remove('focused')
-    elif fault == 'wrong-source':
+    ui.set_text = Mock()
+    if fault == 'wrong-source':
         ui.api.Text.get_text.return_value = 'y' * len(value) + '\n'
-    elif fault == 'selection':
-        ui.api.Text.get_n_selections.return_value = 0
+    elif fault == 'disabled':
+        node.states.remove('sensitive')
     elif fault == 'refused':
-        ui.api.Text.set_selection.return_value = False
+        ui.set_text.side_effect = accessible_ui.UiError('ui:action-refused')
     elif fault == 'uncertain':
         ui.input_uncertain = True
     if fault:
         with pytest.raises(accessible_ui.UiError):
-            ui.duplicate_text_operation(prefix + '-select')
-        assert ui.api.Text.set_selection.call_count == (1 if fault == 'refused' else 0)
+            ui.duplicate_text_operation(prefix + '-selected')
+        assert ui.set_text.call_count == (1 if fault == 'refused' else 0)
     else:
         ui.duplicate_text_operation(prefix + '-select')
-        ui.api.Text.set_selection.assert_called_once_with(node.text, 0, 0, len(value))
+        ui.set_text.assert_not_called()
         ui.duplicate_text_operation(prefix + '-selected')
-        ui.api.Text.get_selection.return_value.end_offset += 1
-        with pytest.raises(accessible_ui.UiError, match='duplicate-selection'):
-            ui.duplicate_text_operation(prefix + '-selected')
+        expected = accessible_ui.TEXT_VALUES[binding][1]
+        ui.set_text.assert_called_once_with('feedback-editor-input', expected)
+        node.text.count = len(expected)
+        ui.api.Text.get_text.return_value = expected
+        assert ui.duplicate_text_operation(prefix + '-read')['length'] == len(expected)
+        ui.set_text.assert_called_once()
 
 
 def test_rejection_selector_preserves_guarded_envelope(monkeypatch):
@@ -4362,7 +4237,7 @@ def test_length_reopen_decoder_and_journey_require_independent_prior_result(tmp_
     ui, _, _, _ = rejection_ui(family)
     state = ui.feedback_snapshot(f'length-{family}-5001', states=True)
     response = {'operation': f'length-{family}-reopen', 'outcome': 'passed',
-                'interface': 'AT-SPI', 'feedback_state': state}
+                'interface': 'ApplicationUI+external-provider', 'feedback_state': state}
     reader = UiObservations(Mock())
     reader.call = Mock(return_value=(json.dumps(response).encode(), []))
     assert reader.observe(response['operation']) == response
@@ -4382,9 +4257,9 @@ def test_length_reopen_decoder_and_journey_require_independent_prior_result(tmp_
         reader.observe(response['operation'])
 
 
-@pytest.mark.parametrize('fault', ['', 'source', 'focus', 'caret', 'uncertain'])
+@pytest.mark.parametrize('fault', ['', 'source', 'disabled', 'refused', 'uncertain'])
 @pytest.mark.parametrize('kind', ['scalar', 'suffix'])
-def test_scalar_append_requires_exact_source_and_public_character_caret(fault, kind):
+def test_scalar_append_requires_exact_source_and_one_semantic_edit(fault, kind):
     ui, _, _, controls = rejection_ui('mixed')
     node = controls['feedback-editor-input']
     binding = 'body-mixed-5001' if kind == 'scalar' else 'body-mixed-5001-base'
@@ -4392,21 +4267,22 @@ def test_scalar_append_requires_exact_source_and_public_character_caret(fault, k
     value = accessible_ui.TEXT_VALUES[sources[binding][0]][1]
     operation = getattr(ui, kind + '_text_operation')
     node.text.value, node.text.count = value, len(value)
-    node.states.add('focused')
-    ui.api.Text.get_caret_offset = Mock(return_value=len(value))
+    ui.set_text = Mock()
     if fault == 'source':
         node.text.value = 'y' * len(value)
-    elif fault == 'focus':
-        node.states.remove('focused')
-    elif fault == 'caret':
-        ui.api.Text.get_caret_offset.return_value -= 1
+    elif fault == 'disabled':
+        node.states.remove('sensitive')
+    elif fault == 'refused':
+        ui.set_text.side_effect = accessible_ui.UiError('ui:action-refused')
     elif fault == 'uncertain':
         ui.input_uncertain = True
     if fault:
         with pytest.raises(accessible_ui.UiError):
             operation(f'text-{kind}-{binding}-caret')
+        assert ui.set_text.call_count == (1 if fault == 'refused' else 0)
     else:
         operation(f'text-{kind}-{binding}-caret')
+        ui.set_text.assert_called_once_with('feedback-editor-input', accessible_ui.TEXT_VALUES[binding][1])
     ui.activate_id.assert_not_called()
 
 
@@ -4448,27 +4324,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
     assert result['stages'] == (stages[:stages.index(fault) + 1] if fault else stages)
     assert bool(result['ok']) is (not fault)
     assert result['events'][-1] == (fault or 'finish')
-    if not fault:
-        assert result['events'].count('ctrl-c') == 16
-        assert result['events'].count('ctrl-shift-v') == 16
-        typed = [event.removeprefix('type:') for event in result['events'] if event.startswith('type:')]
-        assert sum(value.count('x') for value in typed) == 1278
-        assert max(map(len, typed)) == 312
-        for binding, (seed, *copies) in accessible_ui.TEXT_REPETITIONS.items():
-            assert 'type:' + accessible_ui.TEXT_VALUES[seed][1] in result['events']
-            assert 'type:' + accessible_ui.TEXT_VALUES[binding][1] not in result['events']
-            for target in copies:
-                prefix = 'text-duplicate-' + target
-                selected = result['events'].index(prefix + '-selected')
-                assert result['events'][selected + 1:selected + 5] == [
-                    'ctrl-c', 'ctrl-end', 'ctrl-shift-v', prefix + '-read']
-            caret = result['events'].index(f'text-suffix-{binding}-caret')
-            assert result['events'][caret + 1:caret + 3] == [
-                'type:' + accessible_ui.TEXT_SUFFIXES[binding][1], f'text-suffix-{binding}-read']
-        for units in (5000, 5001):
-            caret = result['events'].index(f'text-scalar-body-mixed-{units}-caret')
-            assert result['events'][caret + 1:caret + 5] == [
-                'ctrl-shift-u', 'type:1f600', 'ret', f'text-scalar-body-mixed-{units}-read']
+    assert result['events'] == result['stages'] + ([] if fault else ['finish'])
 
 
 def test_length_selector_preserves_guarded_envelope(monkeypatch):
@@ -4484,9 +4340,11 @@ def test_length_selector_preserves_guarded_envelope(monkeypatch):
 
 
 @pytest.mark.parametrize('fault', ['', 'absent', 'wrong-owner', 'duplicate', 'hidden',
-                                  'disabled', 'already-active', 'focus-lost', 'uncertain'])
+                                  'disabled', 'uncertain'])
 def test_existing_window_preparation_refuses_unsafe_or_uncertain_targets(fault):
     ui, parent, dialog, _ = synthetic_feedback_ui()
+    # Product API readiness is logical availability, independent of foreground.
+    dialog.ui_element = object()
     dialog.states.discard('active')
     parent.states.add('active')
     dialog.bus, dialog.path = ':1.123', '/org/a11y/atspi/accessible/42'
@@ -4498,19 +4356,14 @@ def test_existing_window_preparation_refuses_unsafe_or_uncertain_targets(fault):
         parent.children.append(Node(identity='feedback-dialog'))
     elif fault in ('hidden', 'disabled'):
         dialog.states.discard('showing' if fault == 'hidden' else 'sensitive')
-    elif fault == 'already-active':
-        dialog.states.add('active')
-    elif fault == 'focus-lost':
-        parent.states.discard('active')
     elif fault == 'uncertain':
         ui.input_uncertain = True
     if fault:
         with pytest.raises(accessible_ui.UiError):
             ui.window_switch_ready('feedback', 'parent')
     else:
-        assert ui.window_switch_ready('feedback', 'parent')['active'] is False
-        with pytest.raises(accessible_ui.UiError, match='switch-active'):
-            ui.window_switch_proof('feedback')
+        assert ui.window_switch_ready('feedback', 'parent')['available'] is True
+        assert ui.window_switch_proof('feedback')['available'] is True
     dialog.component.grab_focus.assert_not_called()
 
 
@@ -4522,7 +4375,7 @@ def test_window_switch_public_proof_decoder_and_retained_identity(tmp_path):
     dialog.bus, dialog.path = ':1.123', '/org/a11y/atspi/accessible/42'
     value = ui.window_switch_proof('feedback')
     reader = UiObservations(Mock())
-    reply = {'operation': 'switch-feedback', 'outcome': 'passed', 'interface': 'AT-SPI',
+    reply = {'operation': 'switch-feedback', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
              'window': value}
     reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
     assert reader.observe('switch-feedback') == reply
@@ -4533,7 +4386,6 @@ def test_window_switch_public_proof_decoder_and_retained_identity(tmp_path):
     ready = copy.deepcopy(reply)
     ready['operation'] = 'switch-feedback-ready'
     ready['window'].pop('feedback')
-    ready['window']['active'] = False
     reader.call.return_value = (json.dumps(ready).encode(), [])
     assert reader.observe('switch-feedback-ready') == ready
     journey.check_settings('switch-feedback-ready', {'ui': ready})
@@ -4541,7 +4393,7 @@ def test_window_switch_public_proof_decoder_and_retained_identity(tmp_path):
     value['endpoint'][1] += '1'
     with pytest.raises(EvidenceError, match='window-or-draft-changed'):
         journey.check_settings('switch-feedback-again', {'ui': reply})
-    value['active'] = False
+    value['available'] = False
     reader.call.return_value = (json.dumps(reply).encode(), [])
     with pytest.raises(EvidenceError, match='switch-response'):
         reader.observe('switch-feedback')
@@ -4568,7 +4420,7 @@ def test_window_viewer_launch_retries_only_complete_reads(monkeypatch, boundary,
     ui.handle_system_prompt = Mock()
     ui.existing_window_active = Mock(return_value=Node())
     ui.license_viewer_snapshot = Mock(return_value=(None, None, None))
-    proof = {'binding': 'viewer', 'pid': 123, 'endpoint': [':1.2', '/viewer'], 'active': True}
+    proof = {'binding': 'viewer', 'pid': 123, 'endpoint': [':1.2', '/viewer'], 'available': True}
     metadata = {'version': '50.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
     ui.window_switch_proof = Mock(return_value=proof)
     ui.license_provider_metadata = Mock(return_value=metadata)
@@ -4612,7 +4464,7 @@ def test_window_viewer_launch_retries_only_complete_reads(monkeypatch, boundary,
 def test_window_switch_readiness_retries_only_complete_reads(monkeypatch, boundary, failure):
     ui = ui_for(Node())
     ui.timeout = 1 if failure == 'transient' else 0
-    proof = {'binding': 'viewer', 'pid': 123, 'endpoint': [':1.2', '/viewer'], 'active': False}
+    proof = {'binding': 'viewer', 'pid': 123, 'endpoint': [':1.2', '/viewer'], 'available': True}
     source = Node()
     reads = []
     error = accessible_ui.UiError('ui:document-owner' if failure == 'wrong-owner'
@@ -4627,9 +4479,11 @@ def test_window_switch_readiness_retries_only_complete_reads(monkeypatch, bounda
             raise error
         return value
 
-    ui.existing_window_active = lambda binding: read(
-        'source' if binding == 'feedback' else 'target', source if binding == 'feedback' else None)
-    ui.window_switch_proof = lambda binding, **kwargs: read('proof', proof)
+    ui.existing_window = lambda binding: read('source', source)
+    def window_proof(binding, **kwargs):
+        read('target', source)
+        return read('proof', proof)
+    ui.window_switch_proof = window_proof
     launch = Mock()
     monkeypatch.setattr(accessible_ui.subprocess, 'run', launch)
     monkeypatch.setattr(accessible_ui.time, 'sleep', Mock())
@@ -4776,7 +4630,7 @@ def test_format_decoder_and_independent_recorder(tmp_path):
     value = [{'start': 0, 'end': 9, 'weight': 'bold'},
              {'start': 9, 'end': 23, 'weight': 'normal'}]
     reader = UiObservations(Mock())
-    reply = {'operation': 'format-read', 'outcome': 'passed', 'interface': 'AT-SPI',
+    reply = {'operation': 'format-read', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
              'formatting': value}
     reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
     assert reader.observe('format-read') == reply
@@ -4888,7 +4742,7 @@ def test_state_controller_and_actual_decoder_reject_unexpected_results(tmp_path,
     ui, _, _, controls = synthetic_feedback_ui()
     value = ui.feedback_snapshot('synthetic-first', states=True)
     reader = UiObservations(Mock())
-    reply = {'operation': 'feedback-state-valid', 'outcome': 'passed', 'interface': 'AT-SPI',
+    reply = {'operation': 'feedback-state-valid', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
              'feedback_state': value}
     reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
     assert reader.observe('feedback-state-valid') == reply
@@ -4959,9 +4813,8 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages, ty
     if fault:
         assert result['events'][-1] == fault
     else:
-        from feedback_states import EDITS
-        assert result['typed'] == [accessible_ui.TEXT_VALUES[binding][1] for binding, _ in EDITS]
-        assert result['events'][-1] == 'finish'
+        assert result['typed'] == []
+        assert result['events'] == stages + ['finish']
 
 
 def synthetic_feedback_ui():
@@ -5083,7 +4936,7 @@ def test_nonempty_feedback_roundtrips_actual_controller_decoder():
     from ui_observations import UiObservations
     ui, _, _, _ = synthetic_feedback_ui()
     reader = UiObservations(Mock())
-    reply = {'operation': 'feedback-draft-reopen', 'outcome': 'passed', 'interface': 'AT-SPI',
+    reply = {'operation': 'feedback-draft-reopen', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
              'feedback': ui.feedback_snapshot('synthetic-first')}
     reader.call = Mock(return_value=(json.dumps(reply).encode(), []))
     assert reader.observe('feedback-draft-reopen') == reply
@@ -5128,9 +4981,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, stages => \@stages});
     if fault:
         assert result['events'][-1] == fault
     else:
-        assert result['events'].count('alt-f4') == 3
-        assert result['events'].count('type') == 2
-        assert result['events'][-1] == 'finish'
+        assert result['events'] == stages + ['finish']
 
 
 def test_reset_selector_owned_envelope_and_explicit_empty_expectation(tmp_path, monkeypatch):
@@ -5187,8 +5038,8 @@ def test_reset_actual_worker_sequence_and_every_refusal(monkeypatch):
     stages = list(PLAN.screen_tags)
     assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
     assert all(tag.removeprefix('ui:') in OPERATION_LABELS for tag in PLAN.screen_tags.values())
-    assert sum(event[:2] == ['key', 'alt-f4'] for event in success['events']) == 2
-    assert sum(event[0] == 'text' for event in success['events']) == 2
+    # The initial external greeter still commits its authenticated login once.
+    assert [event for event in success['events'] if event[0] in ('key', 'text')] == [['key', 'ret']]
     for stage in stages:
         monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
         result = json.loads(run_perl(script).stdout)
@@ -5379,7 +5230,7 @@ def test_synthetic_text_exact_bounded_readback(binding):
 
 
 @pytest.mark.parametrize('fault', ['masked', 'disabled', 'wrong-owner', 'wrong-entry',
-                                 'unfocused', 'uncertain', 'wrong-value', 'long-value'])
+                                 'uncertain', 'wrong-value', 'long-value'])
 def test_text_refuses_before_input_or_private_projection(fault):
     ui, parent, _, controls = feedback_ui()
     node = controls['feedback-editor-input']
@@ -5423,20 +5274,20 @@ def test_text_qualification_selector_and_gate(monkeypatch):
     assert TEXT_PLAN.worker_mode == 'text_qualification'
 
 
-def test_text_focus_is_public_and_independently_verified_with_failure_latch():
+def test_text_readiness_needs_no_focus_and_preserves_uncertain_input_latch():
     ui, _, _, controls = feedback_ui()
     node = controls['feedback-editor-input']
-    ui.focus_text('feedback-editor-input')
-    node.component.grab_focus.assert_called_once()
+    assert ui.focus_text('feedback-editor-input') is node
+    node.component.grab_focus.assert_not_called()
     assert ui.text_recipient('feedback-editor-input', focused=True) is node
-    node.component.grab_focus.side_effect = None
-    node.component.grab_focus.return_value = False
-    with pytest.raises(accessible_ui.UiError, match='ui:text-focus-refused'):
+    node.states.remove('sensitive')
+    with pytest.raises(accessible_ui.UiError, match='ui:text-disabled'):
         ui.focus_text('feedback-editor-input')
-    assert ui.input_uncertain
+    assert not ui.input_uncertain
+    ui.input_uncertain = True
     with pytest.raises(accessible_ui.UiError, match='ui:uncertain-input'):
         ui.focus_text('feedback-editor-input')
-    assert node.component.grab_focus.call_count == 2
+    node.component.grab_focus.assert_not_called()
 
 
 @pytest.mark.parametrize('anchor', [False, True])
@@ -5464,7 +5315,7 @@ def test_text_focus_preflight_retries_reads_without_replaying_input(anchor, faul
         focus.assert_not_called()
     else:
         operation()
-        focus.assert_called_once()
+        focus.assert_not_called()
     controls['feedback-reply-email'].component.grab_focus.assert_not_called()
 
 
@@ -5481,20 +5332,22 @@ def test_live_text_refusals_perform_no_focus_or_text_read():
     ui.api.Text.get_text.assert_not_called()
 
 
-def test_native_reply_focus_uses_verified_editor_anchor_without_native_grab():
+def test_reply_preparation_and_semantic_edit_use_the_declared_recipient():
     ui, _, _, controls = feedback_ui()
     editor = controls['feedback-editor-input']
     reply = controls['feedback-reply-email']
     reply.component.grab_focus.side_effect = AssertionError('GTK has no GrabFocus')
     ui.text_operation('text-reply-first-anchor')
-    editor.component.grab_focus.assert_called_once()
-    reply.states.add('focused')
+    editor.component.grab_focus.assert_not_called()
     ui.text_operation('text-reply-first-focus')
+    ui.set_text = Mock()
     ui.text_operation('text-reply-first-selected')
+    ui.set_text.assert_called_once_with('feedback-reply-email',
+        accessible_ui.TEXT_VALUES['reply-first'][1], child=accessible_ui.CHILD, activate=False)
     reply.component.grab_focus.assert_not_called()
 
 
-def test_reply_anchor_refuses_disabled_destination_before_focusing_editor():
+def test_reply_preparation_refuses_disabled_destination_without_input():
     ui, _, _, controls = feedback_ui()
     controls['feedback-reply-email'].states.remove('sensitive')
     with pytest.raises(accessible_ui.UiError, match='ui:text-disabled'):
@@ -5563,10 +5416,9 @@ no warnings 'redefine';
 my $ok = eval { onpc_text::replace_text(bless({}, 'onpc_journey'), $binding); 1; };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', binding, fault).stdout)
-    stages = [f'text-{binding}-focus', 'ctrl-a', f'text-{binding}-selected',
-              'backspace' if binding.endswith('clear') else 'type', f'text-{binding}-read']
+    stages = [f'text-{binding}-focus', f'text-{binding}-selected', f'text-{binding}-read']
     if binding.startswith('reply-'):
-        stages = [f'text-{binding}-anchor', 'ctrl-tab', *stages]
+        stages = [f'text-{binding}-anchor', *stages]
     assert result['events'] == (stages[:stages.index(f'text-{binding}-{fault}') + 1]
                                 if fault else stages)
     assert bool(result['ok']) is (not fault)

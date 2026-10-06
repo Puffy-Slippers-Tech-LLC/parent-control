@@ -1,4 +1,4 @@
-"""Qualify production IDs through the public accessibility connection."""
+"""Application UI identities and isolated translation-helper engineering contracts."""
 
 import pytest
 
@@ -10,102 +10,57 @@ pytestmark = pytest.mark.ui
 
 @pytest.mark.parametrize('frontend', ['parent', 'kiosk'])
 def test_language_chooser_previews_keep_owner_language_until_commit(
-        hermetic_ui_session, frontend):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, frontend):
     """Candidate translations leave the owning window's language unchanged."""
-    import subprocess
-    import sys
-    from tests.support.paths import ROOT
+    from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES
+    from tests.support.events import read_events
 
-    script = '''
-import gi
-gi.require_version('Gtk', '4.0')
-gi.require_version('Gdk', '4.0')
-from gi.repository import Gdk, Gio, GLib, Gtk
-from common.oh_no_parent_control_ui import messages as m
-from common.oh_no_parent_control_ui.translation_widgets import context_for, localized
-from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES
-from common.oh_no_parent_control_ui.localization import load_translations
-from FRONTEND.oh_no_parent_control_FRONTEND.language_dialog import LanguageDialog
-
-Gtk.init()
-provider = Gtk.CssProvider()
-provider.load_from_path('FRONTEND/oh_no_parent_control_FRONTEND/style.css')
-Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider,
-                                        Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-application = Gtk.Application(application_id='com.puffyslippers.LanguageModalTest',
-                              flags=Gio.ApplicationFlags.NON_UNIQUE)
-application.register(None)
-parent = Gtk.ApplicationWindow(application=application)
-label = localized(Gtk.Label, label=m.CHOOSE_YOUR_LANGUAGE)
-parent.set_child(label)
-context_for(parent).apply('en')
-parent.present()
-if 'FRONTEND' == 'kiosk':
-    parent.fullscreen()
-saves, cancellations = [], []
-options = {'account': (1001, 'Zoë', '')} if 'FRONTEND' == 'kiosk' else {}
-dialog = LanguageDialog(parent, 'en', lambda *args: saves.append(args),
-                        None, lambda: cancellations.append(True), **options)
-dialog.present()
-loop = GLib.MainContext.default()
-def drain():
-    while loop.pending():
-        loop.iteration(False)
-drain()
-assert dialog.get_application() is application
-assert dialog.get_transient_for() is parent
-
-def controls(widget):
-    result = {}
-    identity = Gtk.Buildable.get_buildable_id(widget)
-    if identity and identity.startswith('language-'):
-        result[identity] = widget
-    child = widget.get_first_child()
-    while child is not None:
-        result.update(controls(child))
-        child = child.get_next_sibling()
-    return result
-
-original = controls(dialog)
-search = original['language-search']
-for query, expected in [
+    events = tmp_path / 'language-candidate-events.jsonl'
+    launch_ui('parent_component_preview' if frontend == 'parent' else 'request_component_preview',
+              environment_overrides={
+                  'ONPC_LANGUAGE_INITIAL': 'en',
+                  'ONPC_LANGUAGE_SAVE_FAILURES': '1',
+                  'ONPC_PARENT_COMPONENT_EVENTS_PATH': str(events),
+                  'ONPC_REQUEST_COMPONENT_EVENTS_PATH': str(events),
+                  'LANGUAGE': 'en_US.UTF-8', 'LC_ALL': 'C.UTF-8',
+              })
+    ui, wait = automation, wait_for_accessible_state
+    owner = 'parent-screen-limit-toggle' if frontend == 'parent' else 'kiosk-request-submit'
+    owner_text = 'Screen time limit' if frontend == 'parent' else 'REQUEST'
+    ui.reader.open_language_preferences(frontend)
+    assert ui.target('language-dialog').surface_metadata['parent_id'] == (
+        'parent-window' if frontend == 'parent' else 'kiosk-request-window')
+    for query, expected in [
         ('GLI', {'en'}), ('PORT*BR', {'pt-BR'}), ('РУСС', {'ru'}),
         ('中文', {'zh-Hans', 'zh-Hant'}), ('SR-?ATN', {'sr-Latn'}),
         ('no such language', set())]:
-    search.set_text(query)
-    drain()
-    visible = {language for language, _name in SUPPORTED_LANGUAGES
-               if original['language-choice-' + language.lower()].get_visible()}
-    assert visible == expected, (query, visible, expected)
-    assert dialog._selected == 'en'
-search.set_text('')
-drain()
-assert all(original['language-choice-' + language.lower()].get_visible()
-           for language, _name in SUPPORTED_LANGUAGES)
-assert not saves and not cancellations
-dialog._failure(None)
-for language, native_name in SUPPORTED_LANGUAGES:
-    choice = original['language-choice-' + language.lower()]
-    choice.set_active(True)
-    drain()
-    translations = load_translations(language)
-    assert original['language-title'].get_label() == translations.gettext('Choose your language')
-    assert 'language-description' not in controls(dialog)
-    assert original['language-continue'].get_label() == translations.gettext('Save')
-    assert original['language-cancel'].get_label() == translations.gettext('Cancel')
-    assert search.get_placeholder_text() == translations.gettext('Search languages')
-    assert original['language-error'].get_label() == translations.gettext('Your language could not be saved. Please try again.')
-    assert choice.get_child().get_label() == native_name
-    assert label.get_label() == 'Choose your language', 'candidate escaped into owner'
-    assert not saves and not cancellations
-dialog._dismiss(None)
-assert cancellations == [True] and not saves
-assert label.get_label() == 'Choose your language'
-parent.destroy()
-'''.replace('FRONTEND', frontend)
-    result = subprocess.run([sys.executable, '-c', script], cwd=ROOT,
-                            capture_output=True, text=True, timeout=30)
-    assert result.returncode == 0, result.stdout + result.stderr
+        ui.setText('language-search', query)
+        wait(lambda: {language for language, _name in SUPPORTED_LANGUAGES
+                      if ui.showing('language-choice-' + language.lower())} == expected,
+             'language search returns exactly the declared matches')
+        assert ui.getValue('language-list') == 'en'
+    ui.setText('language-search', '')
+    assert set(ui.getChoices('language-list')) == {code for code, _name in SUPPORTED_LANGUAGES}
+    ui.activate('language-continue')
+    wait(lambda: ui.showing('language-error'), 'the ordinary save failure is reported')
+    assert not any(event['event'] == 'language-committed' for event in read_events(events))
+    for language, title, save, cancel in (
+            ('en', 'Choose your language', 'Save', 'Cancel'),
+            ('de', 'Sprache wählen', 'Speichern', 'Abbrechen'),
+            ('he', 'בחירת השפה שלך', 'שמירה', 'ביטול'),
+            ('ta', 'உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்', 'சேமிக்கவும்', 'ரத்து')):
+        ui.setValue('language-list', language)
+        wait(lambda: ui.getText('language-title') == title, 'the candidate relabels its chooser')
+        assert ui.getText('language-continue') == save
+        assert ui.getText('language-cancel') == cancel
+        assert ui.getValue('language-list') == language
+        assert ui.text(owner) == owner_text, 'candidate escaped into owner'
+        assert not any(event['event'] == 'language-committed' for event in read_events(events))
+    ui.activate('language-cancel')
+    wait(lambda: ui.absent('language-dialog', within=(
+        'parent-window' if frontend == 'parent' else 'kiosk-request-window')),
+         'Cancel leaves the owner language unchanged')
+    assert ui.text(owner) == owner_text
 
 
 def test_translation_bindings_follow_native_lifetime_and_reparenting(hermetic_ui_session):
@@ -174,7 +129,7 @@ second.destroy()
 
 def test_language_is_private_reversible_and_inherited_by_shared_dialogs(
         hermetic_ui_session):
-    """Language changes preserve other windows, user data and native lifetime."""
+    """Engineering contract for synthetic widget contexts and native lifetime."""
     import subprocess
     import sys
     from tests.support.paths import ROOT
@@ -262,7 +217,7 @@ assert not context.members and not other_context.members
 
 
 def test_private_label_language_preserves_tamil_text_and_attributes(hermetic_ui_session):
-    """Language switching keeps user text, markup and explicit attributes."""
+    """Engineering Pango binding contract on synthetic labels and entries."""
     import subprocess
     import sys
     from tests.support.paths import ROOT
@@ -382,19 +337,9 @@ def test_station_selected_uids_drive_the_public_guest_projection(
     launch_ui("kiosk_preview", wait_for_application=False)
     ui = automation
     wait_for_accessible_state(lambda: ui.showing("kiosk-approver-selector"), "request ready")
-    ui.activate("kiosk-approver-selector")
-    wait_for_accessible_state(
-        lambda: ui.find("kiosk-approver-choice-1010") is not None,
-        "approver choice is published",
-    )
-    ui.activate("kiosk-approver-choice-1010")
+    ui.setValue("kiosk-approver-selector", "1010")
     wait_for_accessible_state(lambda: ui.showing("kiosk-approver-selected-1010"), "selected approver UID")
-    ui.activate("kiosk-child-selector")
-    wait_for_accessible_state(
-        lambda: ui.find("kiosk-child-choice-1002") is not None,
-        "child choice is published",
-    )
-    ui.activate("kiosk-child-choice-1002")
+    ui.setValue("kiosk-child-selector", "1002")
     wait_for_accessible_state(lambda: ui.showing("kiosk-child-selected-1002"), "selected child UID")
     wait_for_accessible_state(lambda: ui.showing("kiosk-screen-limit-notice"), "disabled child loaded")
     reader = AccessibleUI(Atspi, timeout=20, query_errors=(GLib.Error,),
@@ -422,9 +367,6 @@ def test_station_selected_uids_drive_the_public_guest_projection(
 def test_parent_feedback_and_about_publish_public_ids(
         launch_ui, automation, wait_for_accessible_state):
     launch_ui("parent_component_preview", wait_for_application=False)
-    import gi
-    gi.require_version("Atspi", "2.0")
-    from gi.repository import Atspi
     ui = automation
     wait_for_accessible_state(lambda: ui.find("parent-feedback-button") is not None,
                               "parent controls publish IDs")
@@ -436,11 +378,7 @@ def test_parent_feedback_and_about_publish_public_ids(
     ui.activate("parent-feedback-button")
     wait_for_accessible_state(lambda: ui.find("feedback-dialog") is not None,
                               "feedback dialog publishes its ID")
-    owners = [relation.get_target(index)
-              for relation in ui.target("feedback-dialog").get_relation_set()
-              if relation.get_relation_type() == Atspi.RelationType.CONTROLLED_BY
-              for index in range(relation.get_n_targets())]
-    assert owners == [ui.target("parent-window")]
+    assert ui.target("feedback-dialog").surface_metadata['parent_id'] == 'parent-window'
     for identity in ("feedback-dialog", "feedback-webview", "feedback-send",
                      "feedback-close", "feedback-toggle-logs", "feedback-content"):
         assert ui.target(identity).get_accessible_id() == identity
@@ -455,7 +393,7 @@ def test_parent_feedback_and_about_publish_public_ids(
                      "feedback-format-style", "feedback-format-link"):
         node = ui.target(identity)
         attributes = node.get_attributes()
-        assert attributes["toolkit"] == "WebKitGTK"
+        assert attributes["toolkit"] == "ApplicationUI"
         assert attributes["id"] == identity
         assert guest_reader.find_id(identity, root=ui.target("feedback-webview")) == node
     wait_for_accessible_state(lambda: audit_product_controls(ui, "feedback-dialog"),
@@ -465,21 +403,10 @@ def test_parent_feedback_and_about_publish_public_ids(
         lambda: ui.absent("feedback-dialog", within="parent-window"),
         "feedback dialog closes",
     )
-    assert not [relation.get_target(index)
-                for relation in ui.target("parent-window").get_relation_set()
-                if relation.get_relation_type() == Atspi.RelationType.CONTROLLER_FOR
-                for index in range(relation.get_n_targets())
-                if public_automation_id(relation.get_target(index)) == "feedback-dialog"]
-    ui.activate("parent-menu-button", action_name="menu.popup")
-    wait_for_accessible_state(lambda: ui.find("parent-menu-about") is not None,
-                              "About menu item publishes its ID")
-    ui.activate("parent-menu-about")
+    ui.setValue("parent-menu-button", "about")
     wait_for_accessible_state(lambda: ui.find("about-dialog") is not None,
                               "About dialog publishes its ID")
-    assert [relation.get_target(index)
-            for relation in ui.target("about-dialog").get_relation_set()
-            if relation.get_relation_type() == Atspi.RelationType.CONTROLLED_BY
-            for index in range(relation.get_n_targets())] == [ui.target("parent-window")]
+    assert ui.target("about-dialog").surface_metadata['parent_id'] == 'parent-window'
     for identity in ("about-version", "about-license-value",
                      "about-legal-notices-value", "about-integration-notice"):
         assert ui.target(identity).get_accessible_id() == identity

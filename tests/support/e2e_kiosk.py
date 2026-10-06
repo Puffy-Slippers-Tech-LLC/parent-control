@@ -8,12 +8,14 @@ def request_form(*, fault=None):
     child = Node(
         'Child account', 'push button', identity='kiosk-child-selector',
         description='Selected account: Jordan (Child).',
+        value='1002', choices=('1001', '1002'),
         children=[Node('Jordan (Child)', 'label', identity='kiosk-child-selected-1002')],
     )
     approver = Node(
         'Approving parent', 'push button', states=('showing', 'visible'),
         identity='kiosk-approver-selector',
         description='Selected account: Casey (Parent).',
+        value='1010', choices=('1010',),
         children=[Node('Casey (Parent)', 'label', identity='kiosk-approver-selected-1010')],
     )
     durations = []
@@ -84,13 +86,16 @@ def accounts_form(field='child'):
     choices.parent = form
     form.children.append(choices)
     selector.states.add('sensitive')
-    selector.action.do_action.side_effect = lambda _: choices.states.add('showing') or True
+    selector.choices = [str(ui.fixture_uids[name]) for name in expected]
 
-    def commit(_):
+    def commit(value):
+        assert value in selector.choices
+        name = next(name for name in expected if str(ui.fixture_uids[name]) == value)
+        selector.value = value
         selected = selector.children[0]
-        selected.identity = f'kiosk-{field}-selected-{ui.fixture_uids[expected[0]]}'
-        selected.name = expected[0]
-        selector.description = f'Selected account: {expected[0]}.'
+        selected.identity = f'kiosk-{field}-selected-{value}'
+        selected.name = name
+        selector.description = f'Selected account: {name}.'
         # Independent form read, with enabled availability after loading.
         for node in form.children:
             if node.identity == 'kiosk-screen-limit-notice':
@@ -100,10 +105,11 @@ def accounts_form(field='child'):
         choices.states.discard('showing')
         return True
 
-    choices.children[0].action.do_action.side_effect = commit
+    selector.setValue.side_effect = commit
     if field == 'approver':
         child = ui.find_id('kiosk-child-selector')
         child.children[0].identity = 'kiosk-child-selected-1001'
+        child.value = '1001'
         child.description = f'Selected account: {CHILD}.'
     return ui, selector, choices, expected
 
@@ -111,14 +117,16 @@ def accounts_form(field='child'):
 def disabled_accounts_form():
     ui, selector, choices, expected = accounts_form()
 
-    def commit(_):
-        selector.children[0].identity = 'kiosk-child-selected-1001'
+    def commit(value):
+        assert value == '1001'
+        selector.value = value
+        selector.children[0].identity = f'kiosk-child-selected-{value}'
         selector.children[0].name = CHILD
         selector.description = f'Selected account: {CHILD}.'
         choices.states.discard('showing')
         return True
 
-    choices.children[0].action.do_action.side_effect = commit
+    selector.setValue.side_effect = commit
     return ui, selector, choices, expected
 
 

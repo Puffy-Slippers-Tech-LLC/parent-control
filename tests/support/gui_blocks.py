@@ -1,15 +1,12 @@
-"""Run the installed worker's finite GUI blocks on the private host display.
+"""Run installed Application UI composites on the private host display.
 
-Only the input transport differs: the existing Perl composites supply their
-ordered public observations and keyboard batches; AccessibleUI and the guarded
-host keyboard execute them. This is not a VM runner or a selector language.
+The Perl composites declare the same finite operation sequence for both suites.
+The shared reader owns every API input and its independent public observation.
 """
 
 import json
-from itertools import groupby
 
 from tests.support.perl import run_perl
-from tests.support import keyboard
 
 
 _TRACE = r'''
@@ -60,18 +57,6 @@ else { die 'host-gui:block'; }
 print encode_json(\@events);
 '''
 
-_KEYS = {
-    'ctrl-a': '<Control>a', 'ctrl-home': '<Control>Home',
-    'ctrl-end': '<Control>End', 'ctrl-tab': '<Control>Tab',
-    'ctrl-shift-end': '<Control><Shift>End', 'ctrl-shift-u': '<Control><Shift>u',
-    'ctrl-c': '<Control>c', 'ctrl-shift-v': '<Control><Shift>v',
-    'right': 'Right', 'left': 'Left', 'shift-right': '<Shift>Right',
-    'backspace': 'BackSpace', 'ret': 'Return', 'esc': 'Escape',
-    'alt-f4': '<Alt>F4',
-    'tab': 'Tab', 'shift-tab': '<Shift>Tab', 'spc': 'space',
-}
-
-
 def select_allowance(ui, values, *, child=None):
     """Run the installed allowance block on the host's private display."""
     from tests.e2e.journey_blocks import allowance_selection
@@ -90,57 +75,19 @@ def run_block(ui, block, *arguments, child=None, operations=None, child_bindings
     """Execute once, stopping at the first failed observation or input.
 
     The short, waited Perl process only expands a named finite composite into
-    memory. It reads shared modules without opening a display or socket. Real input still
-    reacquires its public recipient; no precomputed observation is evidence.
+    memory. It reads shared modules without opening a display or socket. Each
+    live operation resolves its public API recipient; the trace is not evidence.
     """
-    from tests.e2e.accessible_ui import TEXT_OPERATIONS, TEXT_VALUES, FILTER_OPERATIONS, ALLOWANCE_KEYBOARD_OPERATIONS
-
     events = json.loads(run_perl(_TRACE, block, *arguments).stdout)
     if not isinstance(events, list) or not 0 < len(events) <= 4096:
         raise ValueError('Invalid GUI block')
     observations = {}
-    identity = 'feedback-editor-input'
-    filter_input = False
-    for event, group in groupby(events):
-        if event[0] == 'key' and event[1] in ('right', 'left', 'shift-right'):
-            # Same ordered keys and subsequent exact selection proof as the VM;
-            # reuse host pacing for cursor-only batches that cannot change focus.
-            keyboard.repeat_cursor(ui, identity, _KEYS[event[1]], sum(1 for _ in group))
-            continue
-        for event in group:
-            if event[0] == 'observe':
-                stage = event[1]
-                operation = operations[stage].removeprefix('ui:') if operations is not None else stage
-                filter_input = operation in FILTER_OPERATIONS
-                if operation in TEXT_OPERATIONS:
-                    binding, action = TEXT_OPERATIONS[operation]
-                    identity = ('feedback-editor-input' if action == 'anchor'
-                                else TEXT_VALUES[binding][0])
-                elif operation in ALLOWANCE_KEYBOARD_OPERATIONS:
-                    identity = 'parent-daily-limit-selector'
-                elif operation.endswith('-link-target'):
-                    identity = 'feedback-link-target'
-                elif operation.endswith('-focus'):
-                    identity = 'feedback-editor-input'
-                elif operation in FILTER_OPERATIONS:
-                    identity = 'parent-window'
-                elif operation == 'feedback-privacy-open':
-                    identity = 'feedback-privacy-dialog'
-                elif operation in ('feedback-draft-reread', 'parent-report-read'):
-                    identity = 'feedback-dialog'
-                bound_child = child_bindings.get(stage) if child_bindings is not None else child
-                binding = {'child': bound_child} if bound_child else {}
-                observations[stage] = ui.run(operation, '', **binding)
-            elif event[0] == 'key':
-                # Dismiss the menu as navigation; the caller checks actual rows.
-                # Each later input still reacquires its guarded public recipient.
-                pacing = {'post_delay': 0.05} if filter_input and event[1] == 'esc' else {}
-                keyboard.key_combo(ui, identity, _KEYS[event[1]],
-                    state=ui.api.StateType.ACTIVE if event[1] in ('esc', 'alt-f4') else ui.api.StateType.FOCUSED,
-                    **pacing)
-                filter_input = False
-            elif event[0] == 'text':
-                keyboard.type_text(ui, identity, event[1], interval=event[2] / 1000)
-            else:
-                raise ValueError('Invalid GUI block event')
+    for event in events:
+        if not isinstance(event, list) or len(event) != 2 or event[0] != 'observe':
+            raise ValueError('Product composites require Application UI operations')
+        stage = event[1]
+        operation = operations[stage].removeprefix('ui:') if operations is not None else stage
+        bound_child = child_bindings.get(stage) if child_bindings is not None else child
+        binding = {'child': bound_child} if bound_child else {}
+        observations[stage] = ui.run(operation, '', **binding)
     return observations

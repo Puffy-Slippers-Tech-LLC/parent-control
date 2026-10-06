@@ -20,6 +20,8 @@ def empty_form():
     child = ui.find_id('kiosk-child-selector')
     child.children[0].identity = 'kiosk-child-selected-none'
     child.children[0].name = ''
+    child.value = ''
+    child.choices = []
     child.description = 'Choose the child account.'
     status = ui.find_id('kiosk-screen-limit-notice')
     status.identity = 'kiosk-request-status'
@@ -40,26 +42,25 @@ def test_empty_form_is_exact_and_read_only():
     for node in nodes:
         node.action.do_action.assert_not_called()
         node.component.grab_focus.assert_not_called()
+        node.setValue.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['child', 'hidden-child', 'selected-child', 'duplicate-none',
+@pytest.mark.parametrize('fault', ['child', 'malformed-choices', 'selected-child', 'malformed-selection',
     'wrong-message', 'wrong-owner', 'wrong-surface', 'missing-message', 'duplicate-message',
     'request-enabled', 'duration-enabled', 'stale', 'incomplete', 'prompt'])
 def test_empty_state_refuses_invalid_public_evidence(fault):
     ui = empty_form()
     form = ui.find_id('kiosk-request-form')
-    if fault in ('child', 'hidden-child'):
-        node = Node(identity='kiosk-child-choice-1001', states=() if fault == 'hidden-child'
-                    else ('showing', 'visible', 'sensitive'))
-        node.parent = form
-        form.children.append(node)
+    child = ui.find_id('kiosk-child-selector')
+    if fault == 'child':
+        child.choices = ['1001']
+    elif fault == 'malformed-choices':
+        child.getChoices.side_effect = None
+        child.getChoices.return_value = None
     elif fault == 'selected-child':
-        ui.find_id('kiosk-child-selected-none').identity = 'kiosk-child-selected-1001'
-    elif fault == 'duplicate-none':
-        child = ui.find_id('kiosk-child-selector')
-        node = Node(identity='kiosk-child-selected-none')
-        node.parent = child
-        child.children.append(node)
+        child.value = '1001'
+    elif fault == 'malformed-selection':
+        child.value = None
     elif fault == 'wrong-message':
         ui.find_id('kiosk-request-status').name = 'Screen limit is not enabled in Parent App'
     elif fault == 'wrong-owner':

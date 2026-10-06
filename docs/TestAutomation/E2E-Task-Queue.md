@@ -12,6 +12,11 @@ Completed evidence may include popup, focus, typing, Saving or inhibition sample
 current and future UI/E2E acceptance follows the mandate's
 [functional result contract](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope).
 Require final selected values, saved/rejected outcomes and their product effects.
+Every completed implementation and unfinished brief uses the shared
+[Application UI API](Application-UI-API.md) for product controls and retains
+qualified provider routes for authentication, file choosers and external tools.
+The [shared task contract](E2E-Execution-Contracts.md#task-brief-contract) owns
+this common requirement; queue scopes and historical completion remain intact.
 Keep intermediate presentation inside shared automation only when needed to
 deliver safe input; it is not additional coverage or a future prerequisite.
 The [initial migration decision](E2E-Execution-Plan.md#current-scope) supplies no

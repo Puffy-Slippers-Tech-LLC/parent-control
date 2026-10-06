@@ -15,8 +15,14 @@ def switch_language(ui, wait, surface, language):
 
 
 def public_label_names(ui, identity):
-    """Read anonymous label descendants of one public ID, with finite bounds."""
-    pending = [(ui.target(identity), 0)]
+    """Read bounded public content of one identified logical container."""
+    from tests.support.application_ui import is_product_node
+    root = ui.target(identity)
+    if is_product_node(root):
+        text = root.getText()
+        assert len(text) <= 65536
+        return text.splitlines()
+    pending = [(root, 0)]
     names = []
     visited = 0
     while pending:

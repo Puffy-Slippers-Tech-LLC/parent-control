@@ -52,7 +52,7 @@ PLAN = JourneyPlan(
                    'riley-final': 'step-3'},
     child_bindings=CHILDREN,
     accessibility_inputs={'jordan-rapid': ('parent-custom-trace-focus', 6, 'custom-save')},
-    keyboard_inputs={'jordan-rapid': (5, 6)},
+    custom_inputs={'jordan-rapid': (5, 6)},
     settings_checks={
         'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
         'jordan-back-selected': SettingsObservation('existing-fixture-child', True, ('6 minutes',)),

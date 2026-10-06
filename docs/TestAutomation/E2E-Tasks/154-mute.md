@@ -1,6 +1,6 @@
 # 154 — Deferred qualification of restored mute
 
-Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract).
+Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract).
 This deferred brief has no current-release acceptance.
 
 This is future-feature scope, outside current-release completion. No active

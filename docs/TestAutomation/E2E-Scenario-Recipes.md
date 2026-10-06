@@ -44,7 +44,13 @@ Preparation ends when the declared prerequisite is established; the following
 product action and independent customer result supply acceptance.
 
 Names, labels, roles, text and order below describe inputs/results, not selectors.
-Use the catalogue's qualified binding under the UI mandate.
+Use the catalogue's shared [Application UI API](Application-UI-API.md) binding
+under the UI mandate for every product control. `setValue` selects canonical
+account UIDs, duration tokens, language codes and rule keys; `setText` edits
+literal fields, and `activate`/`close` invoke normal handlers. Dialogs and editor
+operations use the same facade in both UI and E2E suites. Independently read
+the required result after input. External authentication, file chooser and
+supporting-tool operations retain their provider adapters.
 
 Every ordinary Parent launch or reopening uses PARENT01's direct
 `oh-no-parent-control-parent` command, including launches inside FLOW01/P/P0
@@ -144,7 +150,7 @@ Large durations test selection and displayed arithmetic without waiting to expir
 
 | Data | Complete finite set / expected result |
 | --- | --- |
-| Daily presets (158) | Select/read 15 minutes. UI samples 0, 60, 90 and 1410 through the shared operation; preset list and keyboard mapping completeness remain lower-layer coverage. |
+| Daily presets (158) | Select/read 15 minutes. UI samples 0, 60, 90 and 1410 through the shared API operation; canonical preset-list completeness remains lower-layer coverage. |
 | Daily custom (158) | Save custom 1 after preset 15; reopen and read the final saved 1. UI tests own invalid-input rejection, including preservation of the last saved value, and the complete custom boundary set. The API's 1440 allowance remains engineering coverage. |
 | Daily saving (159) | From Jordan's enabled zero, save 15, then custom 5 followed promptly by 6; final saved value is 6. Save Riley custom 7, return and read Jordan=6/Riley=7. Close/reopen and repeat the per-child read. Real save ordering stays here; singleton window, popup, focus, intermediate draft, Saving and temporary control availability belong to shared UI qualification. |
 | E2E-005 profiles | daily-only: positive daily, no grant; grant-only: zero daily with real 10-minute approval before edits; combined: positive daily plus a real 10-minute addition. Enabled edits: daily-only/combined 4→5→0 minutes; grant-only 0→4→0. Read saved allowance and original grant deadline after each edit; visit the child at the positive and zero access boundaries. At zero, daily-only must deny access while combined retains its grant. If navigation exhausts a required margin, fail preparation rather than inject usage. |

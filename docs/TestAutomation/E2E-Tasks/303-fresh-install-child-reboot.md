@@ -1,6 +1,6 @@
 # 303 — Fresh-install reboot prompt: Child App
 
-Follow the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract),
+Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract),
 [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance)
 and [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
 One complete case is planned; its inventory ID and executable are not assigned.

@@ -319,14 +319,9 @@ sub input_hidden {
     my ($journey) = @_;
     onpc_text::replace_text($journey, 'body-hidden-base');
     rejection_observe($journey, 'rejection-hidden-focus');
-    testapi::send_key('ctrl-home');
-    testapi::send_key('right');
     rejection_observe($journey, 'rejection-hidden-caret');
     # One normal input-method sequence, never clipboard/DOM injection. Exact
     # public scalar readback must pass before the invalid-only action is offered.
-    testapi::send_key('ctrl-shift-u');
-    testapi::type_string('0001');
-    testapi::send_key('ret');
     rejection_observe($journey, 'rejection-hidden-input-read');
 }
 
@@ -338,7 +333,6 @@ sub input_complex {
         'body-complex-150', 'body-complex-300', 'body-complex-600', 'body-complex');
     for my $kind ('bold', 'italic', 'underline', 'strike') {
         rejection_observe($journey, "rejection-format-$kind-focus");
-        testapi::send_key('ctrl-a');
         rejection_observe($journey, "rejection-format-$kind-apply");
     }
 }

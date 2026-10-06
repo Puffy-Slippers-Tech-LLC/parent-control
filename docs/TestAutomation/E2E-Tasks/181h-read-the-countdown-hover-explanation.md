@@ -1,6 +1,6 @@
 # 181h — Read the countdown explanation in UI tests
 
-Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [UI acceptance](../E2E-Execution-Contracts.md#ui-acceptance).
 
 Estimate: 20–30 minutes.
@@ -20,17 +20,17 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 Extend the existing isolated-Shell owner
 [test_child_shell_lifecycle.py](../../../tests/ui/test_child_shell_lifecycle.py)
 and shared [Shell adapter](../../../tests/ui/child_shell_interaction.py) to
-operate the identified countdown and independently read its explanation.
-The existing localization test reads panel descriptions; a real hover result
-is not yet registered. Retain lower-layer hover-state rules in
+read `child-request-tooltip` through the shared `child-panel` Application UI
+API client and independently compare its explanation with the public remaining
+time. Retain lower-layer hover-state rules in
 [indicator logic tests](../../../tests/child/indicator_logic.test.mjs).
-Use the minimum supported input and public text readback, with no geometry or
+Use the stable API ID and public text readback, with no geometry or
 popup/focus choreography assertions.
 
 ## UI acceptance
 
 On the isolated Shell surface, require the explanation's public meaning and
-current time value after supported hover on the identified control. Missing
+current time value from the identified API control. Missing
 text, wrong owner or stale target fails. Preserve shared input guards. This UI
 result does not establish installed time accuracy, policy enforcement or expiry.
 

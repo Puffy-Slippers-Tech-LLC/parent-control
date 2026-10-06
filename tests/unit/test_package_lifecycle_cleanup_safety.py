@@ -284,7 +284,10 @@ def test_actual_continuous_worker_consumes_all_unique_stages_and_stops_on_failur
         assert result['events'].count(['secret']) == 1 + len(case.PLAN.challenges) + 1
         assert [event for event in result['events'] if event[0] != 'title'][-1] == ['power', 'off']
         assert [event[1] for event in result['events']
-                if event[0] == 'text' and event[1] in ('4', '5')] == ['4', '5']
+                if event[0] == 'text' and event[1] in ('4', '5')] == []
+        assert all(stage in stages for stage in (
+            'initial-allowance-text-selected', 'initial-allowance-text-read',
+            'reapply-allowance-text-selected', 'reapply-allowance-text-read'))
     assert not any(event[0] in ('pointer', 'click') for event in result['events'])
 
 
@@ -351,13 +354,12 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     result = json.loads(run_perl(source, fault).stdout)
     expected = [['stage', 'renamed-parent-command'], ['stage', 'renamed-parent-window'],
                 ['stage', 'renamed-child-picker-opened'], ['stage', 'renamed-child-choice-highlighted'],
-                ['key', 'ret'], ['stage', 'renamed-parent-selected'], ['stage', 'independent-open'],
-                ['stage', 'independent-text-focus'], ['key', 'ctrl-a'],
-                ['stage', 'independent-text-selected'], ['text', '5'],
+                ['stage', 'renamed-parent-selected'], ['stage', 'independent-open'],
+                ['stage', 'independent-text-focus'], ['stage', 'independent-text-selected'],
                 ['stage', 'independent-text-read'], ['stage', 'independent-saved']]
     assert bool(result['ok']) == (not fault), result
     if fault == 'invalid-prefix': expected = []
-    elif fault == 'invalid-value': expected = expected[:6]
+    elif fault == 'invalid-value': expected = expected[:5]
     elif fault: expected = expected[:expected.index(['stage', fault]) + 1]
     assert result['events'] == expected
 

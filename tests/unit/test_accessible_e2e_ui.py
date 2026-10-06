@@ -21,7 +21,7 @@ from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES
 def test_observer_payload_runs_without_checkout_imports(tmp_path):
     """Exercise the real stdin payload with the guest's isolated Python route."""
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({
-        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI',
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
     }).encode()))
     UiObservations(transport).observe('desktop')
     argv = transport.call.call_args.args[0]
@@ -42,7 +42,7 @@ def test_observer_payload_runs_without_checkout_imports(tmp_path):
 def test_adapter_failure_payload_reports_static_sites_without_private_values(tmp_path, guarded):
     """Exercise the actual isolated payload's terminal exception handler."""
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({
-        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI',
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
     }).encode()))
     UiObservations(transport).observe('desktop')
     # A pre-input public reader error, with private canaries in all raw fields.
@@ -107,13 +107,13 @@ def test_adapter_query_failure_kind_excludes_private_error_values(domain, code, 
 @pytest.mark.parametrize('expected', ['', 'b' * 64])
 def test_ui_boot_guard_shares_one_transport_call_without_changing_ui_projection(expected):
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({
-        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI',
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
         'boot_sha256': 'b' * 64,
     }).encode()))
     observer = UiObservations(transport)
     observer.boot_guard = expected
     assert observer.observe('desktop') == {
-        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI'}
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     assert observer.boot_proof == 'b' * 64
     transport.call.assert_called_once()
     assert transport.call.call_args.args[0][-1] == expected
@@ -121,7 +121,7 @@ def test_ui_boot_guard_shares_one_transport_call_without_changing_ui_projection(
 
 @pytest.mark.parametrize('proof', [None, 'c' * 64, 'private-value', 1])
 def test_ui_boot_proof_must_match_and_never_reuses_a_previous_reply(proof):
-    result = {'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    result = {'operation': 'desktop', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     if proof is not None:
         result['boot_sha256'] = proof
     observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
@@ -342,7 +342,7 @@ def test_direct_child_command_requires_safe_entry_and_never_replays(monkeypatch,
             ui.run('child-command-launch', '')
     else:
         assert ui.run('child-command-launch', '') == {
-            'operation': 'child-command-launch', 'outcome': 'passed', 'interface': 'AT-SPI'}
+            'operation': 'child-command-launch', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     if fault not in ('session', 'desktop', 'prompt'):
         submit.assert_called_once_with([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
@@ -424,56 +424,55 @@ def parent_save_ui(*, enabled=True, controls_enabled=True, child_uid=1001):
         children=[Node('Riley (Child)', 'label')])
     picker = Node(
         'Selected child', 'button', states=control_states,
-        identity='parent-child-selector', children=[selected])
+        identity='parent-child-selector', children=[selected], value=str(child_uid))
     toggle = Node(
         'Screen time limit', 'switch', states=toggle_states,
         identity='parent-screen-limit-toggle')
     allowance = Node(
         '30 minutes', 'button', states=allowance_states,
-        identity='parent-daily-limit-selector')
+        identity='parent-daily-limit-selector', value='30m')
     root = Node(
         'Oh No! Parent Control', identity='parent-window',
         children=[picker, toggle, allowance])
     return ui_for(root), root, picker, toggle, allowance
 
 
-@pytest.mark.parametrize('fault', ['', 'wrong-child', 'wrong-surface', 'source', 'event', 'cancel'])
-def test_parent_checked_observer_is_input_free_and_cleans_up(monkeypatch, capsys, fault):
-    from contextlib import contextmanager
+@pytest.mark.parametrize('fault', ['', 'wrong-child', 'wrong-surface', 'source', 'read', 'cancel'])
+def test_parent_checked_observer_reads_public_result_without_input(monkeypatch, capsys, fault):
     ui, root, picker, toggle, allowance = parent_save_ui(enabled=False)
     allowance.children.append(Node('30 minutes', 'label'))
     root.bus = toggle.bus = ':1.10'
     root.path, toggle.path = '/window', '/switch'
     ui.trace_request, ui.trace_boot = 'a' * 32, 'b' * 64
-    closed = []
-    @contextmanager
-    def subscribe(node, receive):
-        assert node is toggle
-        def iteration(_):
-            if fault == 'cancel': raise KeyboardInterrupt()
+    reads = []
+    original = ui.parent_save_snapshot
+    def saved(child, enabled):
+        reads.append(enabled)
+        if enabled:
+            if fault == 'cancel':
+                raise KeyboardInterrupt()
+            if fault == 'read':
+                raise UiError('ui:incomplete-tree')
             assert 'accessibility-trace-ready' in capsys.readouterr().out
             toggle.states.add('checked')
             allowance.states.add('sensitive')
-            if fault == 'source': root.path = '/replacement'
-            receive(True, ValueError('malformed event') if fault == 'event' else None)
-        try:
-            yield SimpleNamespace(pending=lambda: False, iteration=iteration)
-        finally:
-            closed.append(True)
-    ui.api.checked_events = subscribe
+            if fault == 'source':
+                root.path = '/replacement'
+        return original(child, enabled)
+    ui.parent_save_snapshot = saved
     if fault.startswith('wrong-'):
         result = ui.parent_checked_events('parent-trace-' + fault + '-refused')
         assert result == {'refusal': fault}
-        assert not closed
+        assert not reads
     elif fault:
         with pytest.raises((UiError, KeyboardInterrupt)):
             ui.parent_checked_events('parent-checked-events')
-        assert closed == [True]
+        assert reads == [False, True]
     else:
         result = ui.parent_checked_events('parent-checked-events')
         assert result['samples'][0]['checked'] is True
-        assert result['samples'][0]['source'] == 'event'
-        assert closed == [True]
+        assert result['samples'][0]['source'] == 'application-ui'
+        assert reads == [False, True]
     toggle.action.do_action.assert_not_called()
 
 
@@ -722,7 +721,7 @@ def test_jordan_time_controller_carries_identity_and_rejects_wrong_child(operati
     projection = ui.time_explanation(accessible_ui.EXISTING_CHILD)
     if fault:
         projection['child'] = 'fixture-child'
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'time_explanation': projection, 'boot_sha256': 'b' * 64}
     transport = Mock()
     transport.call.return_value = json.dumps(result).encode()
@@ -799,7 +798,7 @@ def test_time_explanation_controller_decodes_and_validates_real_projection(fault
     if fault == 'clock': projection['observed_monotonic_ns'] = -1
     if fault == 'private-text': projection['daily']['text'] = 'unreviewed private text'
     if fault == 'child': projection['child'] = 'other-child'
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'time_explanation': projection}
     transport = Mock()
     transport.call.return_value = json.dumps(result).encode()
@@ -845,7 +844,7 @@ def test_idle_revoke_observation_and_controller_refuse_bad_results_without_input
     else:
         projection = ui.revoke_disabled(accessible_ui.CHILD, enabled)
         operation = 'parent-revoke-disabled-' + ('on' if enabled else 'off')
-        result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+        result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
                   'revoke': projection}
         transport = Mock()
         transport.call.return_value = json.dumps(result).encode()
@@ -877,7 +876,7 @@ def test_owned_lookup_reads_each_subtree_once_and_reacquires_after_transition():
     assert ui.nodes.call_count == 1
 
 
-def test_explicit_toggle_activates_once_and_reads_a_fresh_result():
+def test_explicit_toggle_sets_canonical_value_once_and_reads_a_fresh_result():
     ui, root, toggle = parent_toggle_ui()
     ui.nodes = Mock(wraps=ui.nodes)
     toggle.get_accessible_id = Mock(wraps=toggle.get_accessible_id)
@@ -885,19 +884,20 @@ def test_explicit_toggle_activates_once_and_reads_a_fresh_result():
                        states=('showing', 'visible', 'sensitive', 'checked'),
                        identity='parent-screen-limit-toggle')
 
-    def activate(_index):
+    def update(value):
+        assert value is True
         root.children[:] = [replacement]
         replacement.parent = root
         return True
 
-    toggle.action.do_action.side_effect = activate
+    toggle.setValue.side_effect = update
     assert ui.set_toggle('parent-screen-limit-toggle', True, root=root) == {
         'state': True, 'activated': True}
-    toggle.action.do_action.assert_called_once_with(0)
-    # One complete observation before input, one fresh observation afterward;
-    # prompt/ownership/target checks share each observation's captured IDs.
-    assert ui.nodes.call_count == 2
-    toggle.get_accessible_id.assert_called_once_with()
+    toggle.setValue.assert_called_once_with(True)
+    toggle.action.do_action.assert_not_called()
+    # The result comes from the replacement control, not the pre-input object.
+    assert ui.find_id('parent-screen-limit-toggle', root=root) is replacement
+    assert 'checked' not in toggle.states and 'checked' in replacement.states
 
 
 def test_explicit_toggle_already_current_reads_disabled_setting_without_input():
@@ -942,9 +942,11 @@ def test_hidden_toggle_qualification_handles_retained_or_omitted_stack_pages(ret
 
 def test_explicit_toggle_never_replays_an_uncertain_or_unobserved_action():
     ui, root, toggle = parent_toggle_ui()
+    toggle.setValue.side_effect = None  # The independent public result never changes.
     with pytest.raises(UiError, match='ui:timeout:toggle-state'):
         ui.set_toggle('parent-screen-limit-toggle', True, root=root)
-    toggle.action.do_action.assert_called_once_with(0)
+    toggle.setValue.assert_called_once_with(True)
+    toggle.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('enabled', [True, False])
@@ -1038,7 +1040,7 @@ def test_parent_save_snapshot_refuses_incomplete_or_unsettled_results(fault):
 ])
 def test_toggle_observation_accepts_only_its_fixed_sanitized_result(operation):
     from accessible_ui import TOGGLE_OPERATIONS
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'toggle': TOGGLE_OPERATIONS[operation]}
     session = UiObservations(SimpleNamespace(call=Mock(
         return_value=(json.dumps(result) + '\n').encode())))
@@ -1052,7 +1054,7 @@ def test_toggle_observation_accepts_only_its_fixed_sanitized_result(operation):
 @pytest.mark.parametrize('operation', accessible_ui.PARENT_SAVE_OPERATIONS)
 def test_parent_save_observation_accepts_only_its_fixed_sanitized_result(operation):
     expected = accessible_ui.PARENT_SAVE_OPERATIONS[operation]
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'save': expected}
     session = UiObservations(SimpleNamespace(call=Mock(
         return_value=(json.dumps(result) + '\n').encode())))
@@ -1075,14 +1077,17 @@ def test_allowance_presets_require_independent_public_value(minutes, action):
     def select(_child, _minutes):
         ui.invalidate_observation()
         label.name = expected
+        allowance.value = str(minutes) + 'm'
     ui.select_allowance = Mock(side_effect=select)
     if action != 'select':
         label.name = expected
+        allowance.value = str(minutes) + 'm'
     assert ui.allowance_preset(accessible_ui.CHILD, minutes, action=action) == {
         'minutes': minutes, 'saved': True}
     assert ui.select_allowance.call_count == (action == 'select')
     ui.timeout = .01
     label.name = different
+    allowance.value = '15m' if minutes == 0 else '0m'
     with pytest.raises(UiError, match='allowance-selected-value'):
         ui.allowance_preset(accessible_ui.CHILD, minutes, action='read')
 
@@ -1100,7 +1105,7 @@ def test_unoffered_presets_refuse_before_input(minutes):
 @pytest.mark.parametrize('phase', ['click', 'selected'])
 def test_allowance_keyboard_controller_requires_exact_public_boundary(value, phase):
     operation = f'allowance-keyboard-{value}-{phase}'
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'allowance_keyboard': {'value': value, 'phase': phase}}
     transport = SimpleNamespace(call=Mock(return_value=(json.dumps(result) + '\n').encode()))
     reader = UiObservations(transport)
@@ -1216,7 +1221,7 @@ def test_settings_reads_custom_editor_value_through_controller(value):
     assert settings == {'child': 'fixture-child', 'limit_enabled': True,
                         'allowance': [value + ' minutes']}
     result = {'operation': 'parent-selected', 'outcome': 'passed',
-              'interface': 'AT-SPI', 'settings': settings}
+              'interface': 'ApplicationUI+external-provider', 'settings': settings}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
     assert UiObservations(transport).observe('parent-selected')['settings'] == settings
     ui.api.Text.get_text.return_value = 'x' * len(value)
@@ -1240,7 +1245,7 @@ def test_custom_allowance_reads_only_exact_public_saved_value(value, monkeypatch
     assert ui.custom_allowance(child, value, action='open') == {
         'minutes': value, 'action': 'open'}
     ui.activate_id.assert_not_called()
-    # The pause sends no input; the Tab route must leave the editor.
+    # The pause sends no input; public saved reads are independent of focus.
     if value == 1:
         from itertools import count
         clock = count()
@@ -1251,6 +1256,7 @@ def test_custom_allowance_reads_only_exact_public_saved_value(value, monkeypatch
         'minutes': value, 'action': 'saved'}
     selector = ui.id_target('parent-daily-limit-selector')
     selector.children = [Node('Custom value', 'label')]
+    selector.value = 'custom'
     for action in ('reopen', 'reopen-current'):
         assert ui.custom_allowance(child, value, action=action) == {
             'minutes': value, 'action': action}
@@ -1261,6 +1267,7 @@ def test_custom_allowance_reads_only_exact_public_saved_value(value, monkeypatch
     with pytest.raises(UiError, match='ui:text-value'):
         ui.custom_allowance(child, value, action='reopen')
     selector.children = [Node('15 minutes', 'label')]
+    selector.value = '15m'
     with pytest.raises(UiError, match='ui:allowance-selection'):
         ui.custom_allowance(child, value, action='reopen')
     ui.activate_id.assert_not_called()
@@ -1313,7 +1320,7 @@ def test_invalid_allowance_requires_public_rejection_and_exact_draft(binding):
 def test_invalid_allowance_controller_rejects_mismatched_projection(operation):
     projection = {'binding': accessible_ui.INVALID_ALLOWANCE_OPERATIONS[operation],
                   'validation': 'rejected'}
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'allowance_validation': projection}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
     assert UiObservations(transport).observe(operation)['allowance_validation'] == projection
@@ -1343,7 +1350,7 @@ def test_custom_allowance_controller_preserves_exact_action_and_value(operation)
     value, action = accessible_ui.CUSTOM_ALLOWANCE_OPERATIONS[operation]
     projection = ({'refusal': action} if action in ('wrong-child', 'disabled')
                   else {'minutes': value, 'action': action})
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'custom_allowance': projection}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
     assert UiObservations(transport).observe(operation)['custom_allowance'] == projection
@@ -1368,7 +1375,7 @@ def test_allowance_controller_rejects_mismatched_public_projection(operation):
     value = ({'refusal': operation.removeprefix('allowance-')}
              if operation in ('allowance-disabled', 'allowance-wrong-child')
              else {'minutes': int(operation.split('-')[1]), 'saved': True})
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'allowance': value}
     transport = SimpleNamespace(call=Mock(return_value=(json.dumps(result) + '\n').encode()))
     session = UiObservations(transport)
@@ -1755,7 +1762,7 @@ def test_product_free_standard_entry_refuses_wrong_shape_before_focus(fault):
 def test_product_free_standard_entry_retains_fresh_challenge_order(fault):
     def call(argv, **kwargs):
         operation = argv[3]
-        result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if operation in accessible_ui.GREETER_NAVIGATION: result['focused'] = True
         return json.dumps(result).encode()
     transport = SimpleNamespace(call=Mock(side_effect=call))
@@ -2185,7 +2192,7 @@ def test_time_denial_and_return_cross_the_real_controller_decoder(fault):
     if fault == 'wrong-child': denial['recipient'] = 'existing-fixture-child'
     if fault == 'desktop': denial['desktop_access'] = True
     if fault == 'order': ui.last_operation = 'gdm-child-focused'
-    result = {'operation': 'gdm-child-time-denied', 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': 'gdm-child-time-denied', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'denial': denial}
     if fault == 'missing': del result['denial']
     transport.call.return_value = json.dumps(result).encode()
@@ -2194,7 +2201,7 @@ def test_time_denial_and_return_cross_the_real_controller_decoder(fault):
     else:
         assert ui.observe('gdm-child-time-denied') == result
         for operation in ('gdm-child-denied-return-ready', 'gdm-child-denied-returned'):
-            result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+            result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
             if operation.endswith('ready'): result['denial'] = denial
             transport.call.return_value = json.dumps(result).encode()
             assert ui.observe(operation) == result
@@ -2204,7 +2211,7 @@ def test_time_denial_and_return_cross_the_real_controller_decoder(fault):
 @pytest.mark.parametrize('fault', ['', 'missing-provider', 'invalid-layout', 'wrong-operation'])
 def test_child_provider_result_crosses_real_controller_decoder(operation, fault):
     shell = {'version': '50.1-0ubuntu1.2', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'provider': {'shell': shell, 'gdm_version': '50.1-0ubuntu0.1'}
                           if operation == 'gdm-child-list' else shell}
     if operation == 'gdm-child-list': result['focused'] = True
@@ -2608,7 +2615,7 @@ def test_greeter_reply_through_real_transport_and_command_stream(monkeypatch, tm
     import vm_transport
     import watch_activity
 
-    result = {'interface': 'AT-SPI', 'focused': True,
+    result = {'interface': 'ApplicationUI+external-provider', 'focused': True,
               'operation': 'gdm-other-list', 'outcome': 'passed'}
     raw = (json.dumps(result) + '\n').encode()
     commands = owned_commands.Commands()
@@ -3148,7 +3155,7 @@ def test_empty_parent_requires_readable_explanation_and_no_selected_child(fault,
         assert observe() is None
     else:
         assert observe() == {
-            'operation': 'parent-empty', 'outcome': 'passed', 'interface': 'AT-SPI'}
+            'operation': 'parent-empty', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     picker.action.do_action.assert_not_called()
 
 
@@ -3242,9 +3249,11 @@ def test_language_helper_leaves_preferences_open_after_startup(surface):
 @pytest.mark.parametrize('surface', ['parent', 'kiosk'])
 @pytest.mark.parametrize('language', ['en', 'de', 'zh-Hans', 'zh-Hant', 'pt',
                                     'fur', 'ar', 'fa', 'he', 'ug', 'ur', 'bn', 'hi'])
-def test_language_candidate_requires_checked_readback_without_replay(surface, language):
+def test_language_candidate_requires_canonical_readback_without_replay(surface, language):
     choice = Node(identity='language-choice-' + language.lower())
-    dialog = Node(identity='language-dialog', children=[choice])
+    listing = Node(identity='language-list', choices=[code for code, _ in SUPPORTED_LANGUAGES])
+    listing.setValue.side_effect = None
+    dialog = Node(identity='language-dialog', children=[choice, listing])
     window = Node(identity='parent-window' if surface == 'parent' else 'kiosk-request-window',
                   children=[dialog])
     ui = ui_for(window)
@@ -3255,24 +3264,21 @@ def test_language_candidate_requires_checked_readback_without_replay(surface, la
     assert ui.application_ids is None
     with pytest.raises(UiError, match='uncertain-input'):
         ui.choose_language(surface, language)
-    choice.action.do_action.assert_called_once_with(0)
+    listing.setValue.assert_called_once_with(language)
+    choice.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('surface', ['parent', 'kiosk'])
 @pytest.mark.parametrize('language', [language for language, _ in SUPPORTED_LANGUAGES])
-def test_language_candidate_uses_ids_and_independent_checked_state(surface, language):
+def test_language_candidate_uses_ids_and_independent_canonical_value(surface, language):
     choice = Node('an unrelated translated name', identity='language-choice-' + language.lower())
+    listing = Node(identity='language-list', choices=[code for code, _ in SUPPORTED_LANGUAGES])
     ui = ui_for(Node(identity='parent-window' if surface == 'parent' else 'kiosk-request-window',
-                     children=[Node(identity='language-dialog', children=[choice])]))
-
-    def select(_index):
-        choice.states.add('checked')
-        return True
-
-    choice.action.do_action.side_effect = select
+                     children=[Node(identity='language-dialog', children=[choice, listing])]))
     ui.choose_language(surface, language)
     assert not ui.input_uncertain and ui.application_ids is None
-    choice.action.do_action.assert_called_once_with(0)
+    listing.setValue.assert_called_once_with(language)
+    choice.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('language', ['xx', 'EN', 'en/foo', '../ar', 'ar.UTF-8'])
@@ -3374,6 +3380,8 @@ def test_return_waits_for_the_window_to_finish_closing(operation):
     else:
         ui = ui_for(root)
     ui.timeout = .5
+    # Closing acknowledges the API request before the surface disappears.
+    old.close.side_effect = None
     observations = []
     def dispatch():
         container = old.parent.children
@@ -3385,6 +3393,7 @@ def test_return_waits_for_the_window_to_finish_closing(operation):
     ui.settings = Mock(return_value={'child': 'fixture-child'})
     assert ui.run(operation, '1.1')['outcome'] == 'passed'
     assert observations == [True, True]
+    old.close.assert_called_once_with()
 
 
 @pytest.mark.parametrize('fault', [None, 'wrong-document', 'hidden', 'password'])
@@ -3402,7 +3411,7 @@ def test_license_link_check_ignores_external_documents_and_never_activates(fault
     ui.api.Text = SimpleNamespace(get_character_count=lambda node: len(content),
                                  get_text=Mock(side_effect=lambda node, start, end: content[start:end]))
     result = ui.run('license', '1.1')
-    assert result == {'operation': 'license', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    assert result == {'operation': 'license', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     link.action.do_action.assert_not_called()
     document.get_text.assert_not_called()
     ui.api.Text.get_text.assert_not_called()
@@ -3562,7 +3571,7 @@ def test_clickable_link_requires_owned_usable_control_without_following_it(fault
         if identity in ('about-website-value', 'about-privacy-value', 'about-support-value'):
             operation = identity.split('-')[1] + '-clickable'
             assert ui.run(operation, '1.1') == {
-                'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+                'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     else:
         with pytest.raises(UiError):
             ui.clickable_link(identity, root=about)
@@ -3635,7 +3644,7 @@ def test_about_text_projections_require_the_exact_showing_label(projection, labe
 @pytest.mark.parametrize('operation', ['gdm-list', 'gdm-other-list'])
 @pytest.mark.parametrize('focused,valid', [(True, True), (False, False), (1, False), (None, False)])
 def test_guest_list_selection_requires_id_resolved_semantic_focus(focused, valid, operation):
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'focused': focused}
     session = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
     if valid:
@@ -3649,17 +3658,16 @@ def test_guest_list_selection_requires_id_resolved_semantic_focus(focused, valid
     'child-picker-opened', 'discovery-child-picker-opened',
     'new-child-picker-opened', 'existing-child-picker-opened',
 ])
-@pytest.mark.parametrize('focused,valid', [(True, True), (False, False), (1, False)])
-def test_child_picker_reply_requires_id_resolved_focus(operation, focused, valid):
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI',
-              'focused': focused}
+@pytest.mark.parametrize('ready,valid', [(True, True), (False, False), (1, False)])
+def test_child_picker_reply_requires_canonical_selection(operation, ready, valid):
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
+              'selection_ready': ready}
     session = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
     if valid:
-        assert session.observe(operation)['focused'] is True
+        assert session.observe(operation)['selection_ready'] is True
     else:
         with pytest.raises(EvidenceError, match='ui:response'):
             session.observe(operation)
-
 
 def test_password_widget_contents_are_never_traversed():
     secret = Node('secret', 'password text', children=[Node('must not read')])
@@ -3667,82 +3675,58 @@ def test_password_widget_contents_are_never_traversed():
     assert list(ui_for(secret).nodes()) == [secret]
 
 
-@pytest.mark.parametrize('fault', ['', 'already-focused', 'inactive', 'owner', 'missing',
-    'duplicate', 'disabled', 'open', 'focus-missing', 'focus-outside', 'focus-hidden',
-    'focus-duplicate', 'replaced', 'uncertain'])
-def test_retained_child_picker_keyboard_proof_binds_owned_focus_and_never_replays(fault):
-    native = Node(role='toggle button')
-    picker = Node(identity='parent-child-selector', children=[native])
-    outside = Node(identity='parent-page-screen-limits')
-    root = Node(identity='parent-window', children=[picker, outside])
-    root.states.add('active')
-    root.action.get_action_name = lambda _: 'focus.parent-child-selector'
+@pytest.mark.parametrize('fault', ['', 'owner', 'missing', 'duplicate', 'disabled'])
+def test_child_picker_readiness_qualifies_owned_enabled_control_without_input(fault):
+    picker = Node(identity='parent-child-selector', value='1001')
+    root = Node(identity='parent-window', children=[picker])
     ui = ui_for(root)
-    if fault == 'inactive': root.states.remove('active')
     if fault == 'owner': ui.owner_pids = lambda: {999}
     if fault == 'missing': root.children.remove(picker)
     if fault == 'duplicate': root.children.append(Node(identity=picker.identity))
     if fault == 'disabled': picker.states.remove('sensitive')
-    if fault == 'open': root.children.append(Node(identity='parent-child-popover'))
-    if fault == 'already-focused': native.states.add('focused')
-    if fault == 'uncertain': ui.input_uncertain = True
-
-    def focus(_):
-        if fault != 'focus-missing':
-            (outside if fault == 'focus-outside' else native).states.add('focused')
-        if fault == 'focus-hidden': native.states.remove('showing')
-        if fault == 'focus-duplicate': picker.states.add('focused')
-        if fault == 'replaced':
-            replacement = Node(identity=picker.identity, children=[Node(states=('visible', 'showing', 'sensitive', 'focused'))])
-            root.children[0] = replacement
-            replacement.parent = root
-        return True
-
-    root.action.do_action.side_effect = focus
-    success = fault in ('', 'already-focused')
-    if success:
-        result = ui.run('parent-child-picker-ready', '')
-        assert result['focused'] is True and ui.input_uncertain
-        decoder = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
-        assert decoder.observe('parent-child-picker-ready')['focused'] is True
-    else:
-        with pytest.raises(UiError): ui.run('parent-child-picker-ready', '')
-    if success or fault.startswith('focus-') or fault in ('replaced', 'uncertain'):
-        with pytest.raises(UiError, match='uncertain-input'):
+    if fault:
+        with pytest.raises(UiError):
             ui.run('parent-child-picker-ready', '')
-    assert root.action.do_action.call_count == (0 if fault in (
-        'already-focused', 'inactive', 'owner', 'missing', 'duplicate', 'disabled', 'open', 'uncertain') else 1)
+    else:
+        result = ui.run('parent-child-picker-ready', '')
+        assert result['selection_ready'] is True and not ui.input_uncertain
+        decoder = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
+        assert decoder.observe('parent-child-picker-ready')['selection_ready'] is True
+        assert ui.run('parent-child-picker-ready', '')['selection_ready'] is True
+    picker.setValue.assert_not_called()
     picker.action.do_action.assert_not_called()
-    outside.action.do_action.assert_not_called()
+    picker.component.grab_focus.assert_not_called()
 
 
 @pytest.mark.parametrize('opened', [False, True])
-def test_missing_child_popup_is_terminal_without_input_replay(opened):
-    picker = Node(identity='parent-child-selector')
-    picker.action.get_action_name = lambda _: 'menu.popup'
+def test_child_selection_uncertain_setter_is_never_replayed(opened):
+    picker = Node(identity='parent-child-selector', value='1002')
+    picker.setValue.side_effect = TimeoutError('uncertain public setter')
     ui = ui_for(Node(identity='parent-window', children=[picker]))
-    with pytest.raises(UiError, match='timeout:automation-id'):
+    with pytest.raises(TimeoutError):
         ui.open_child_picker(accessible_ui.CHILD, opened=opened)
     assert ui.input_uncertain
     with pytest.raises(UiError, match='uncertain-input'):
         ui.open_child_picker(accessible_ui.CHILD, opened=opened)
-    assert picker.action.do_action.call_count == (0 if opened else 1)
+    picker.setValue.assert_called_once_with('1001')
+    picker.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('operation', ['parent-child-picker-ready', 'child-picker-presented'])
-@pytest.mark.parametrize('focused', [False, 1, None])
-def test_keyboard_picker_decoder_refuses_unconfirmed_input_or_result(operation, focused):
-    result = dict(operation=operation, outcome='passed', interface='AT-SPI', focused=focused)
+@pytest.mark.parametrize('ready', [False, 1, None])
+def test_picker_decoder_refuses_unconfirmed_api_selection(operation, ready):
+    result = dict(operation=operation, outcome='passed', interface='ApplicationUI+external-provider',
+                  selection_ready=ready)
     decoder = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
-    with pytest.raises(EvidenceError, match='ui:response'): decoder.observe(operation)
-
+    with pytest.raises(EvidenceError, match='ui:response'):
+        decoder.observe(operation)
 
 @pytest.mark.parametrize('fault', [None, 'changed-child', 'unreviewed-text'])
 def test_return_exports_only_sanitized_settings_without_hidden_prior_selection(fault):
     settings = {'child': 'fixture-child', 'limit_enabled': False, 'allowance': ['30 minutes']}
     def response(operation, values):
         return json.dumps({'operation': operation, 'outcome': 'passed',
-                           'interface': 'AT-SPI', 'settings': values}).encode()
+                           'interface': 'ApplicationUI+external-provider', 'settings': values}).encode()
     transport = SimpleNamespace(call=Mock(return_value=response('parent-selected', settings)))
     session = UiObservations(transport)
     returned = dict(settings)
@@ -3756,64 +3740,47 @@ def test_return_exports_only_sanitized_settings_without_hidden_prior_selection(f
         assert session.observe(operation)['settings'] == settings
 
 
-@pytest.mark.parametrize('fault', [None, 'missing', 'wrong-highlight', 'hidden', 'disabled',
-                                  'wrong-selection', 'popup-remains'])
-def test_dynamic_child_requires_expansion_highlight_and_independent_selection(fault):
+@pytest.mark.parametrize('fault', [None, 'missing', 'disabled', 'wrong-value', 'wrong-selection'])
+def test_dynamic_child_sets_canonical_uid_and_requires_independent_selection(fault):
     from accessible_ui import PRODUCT, CHILD, NEW_CHILD
     selected = Node(CHILD, 'label', identity='parent-child-selected-1001')
-    picker = Node('', 'button', children=[selected], identity='parent-child-selector')
+    picker = Node('', 'button', children=[selected], identity='parent-child-selector', value='1001')
     allowance = Node('Daily time allowance', 'button', children=[Node('30 minutes', 'label')],
                      states=('showing', 'visible'), identity='parent-daily-limit-selector')
     root = Node(PRODUCT, identity='parent-window', children=[picker,
         Node('Screen time limit', 'switch', identity='parent-screen-limit-toggle'), allowance,
         Node("Today's Remaining Time", 'label', identity='parent-time-status')])
-    row = Node('', 'button', children=[Node(NEW_CHILD, 'label')],
-               identity='parent-child-choice-1003')
-    first = Node('', 'button', children=[Node(CHILD, 'label')],
-                 identity='parent-child-choice-1001')
-    listing = Node('', 'panel', children=[first, row], identity='parent-child-choices')
-    popover = Node('', 'panel', children=[listing], identity='parent-child-popover')
-    def expand(_index):
-        if fault != 'missing':
-            root.children.append(popover)
-            popover.parent = root
-        return True
-    picker.action.get_n_actions = lambda: 3
-    picker.action.get_action_name = lambda index: (
-        'menu.popup', 'child.focus-1001', 'child.focus-1003')[index]
-    def selector_action(index):
-        if index == 0:
-            return expand(index)
-        (first if index == 1 else row).states.add('focused')
-        return True
-    picker.action.do_action.side_effect = selector_action
     ui = ui_for(root)
-    if fault == 'disabled': row.states.remove('sensitive')
-    if fault == 'hidden': row.children[0].states.remove('showing')
-    if fault in ('missing', 'disabled', 'hidden'):
-        with pytest.raises(UiError): ui.run('new-child-picker-opened', '')
+    if fault == 'missing': root.children.remove(picker)
+    if fault == 'disabled': picker.states.remove('sensitive')
+    def update(value):
+        assert value == '1003'
+        picker.value = '1001' if fault == 'wrong-value' else value
+        if fault != 'wrong-selection':
+            selected.name = NEW_CHILD
+            selected.identity = 'parent-child-selected-1003'
+    picker.setValue.side_effect = update
+    if fault in ('missing', 'disabled'):
+        with pytest.raises(UiError):
+            ui.run('new-child-picker-opened', '')
+        picker.setValue.assert_not_called()
     else:
-        assert ui.run('new-child-picker-opened', '')['focused'] is True
-        if fault == 'wrong-highlight':
-            row.states.remove('focused')
-            first.states.add('focused')
-        if fault == 'wrong-highlight':
-            with pytest.raises(UiError, match='choice-highlight'):
+        assert ui.run('new-child-picker-opened', '')['selection_ready'] is True
+        if fault == 'wrong-value':
+            with pytest.raises(UiError, match='child-selection'):
                 ui.run('new-child-choice-highlighted', '')
         else:
             ui.run('new-child-choice-highlighted', '')
-            if fault != 'popup-remains': root.children.remove(popover)
-            if fault != 'wrong-selection':
-                selected.name = NEW_CHILD
-                selected.identity = 'parent-child-selected-1003'
-            if fault:
-                with pytest.raises(UiError): ui.run('new-child-selected', '')
+            if fault == 'wrong-selection':
+                with pytest.raises(UiError):
+                    ui.run('new-child-selected', '')
             else:
                 assert ui.run('new-child-selected', '')['settings'] == {
-                    'child': 'new-fixture-child', 'limit_enabled': False, 'allowance': ['30 minutes']}
-    expected_actions = [(0,)] if fault in ('missing', 'hidden', 'disabled') else [(0,), (2,)]
-    assert [item.args for item in picker.action.do_action.call_args_list[:2]] == expected_actions
-
+                    'child': 'new-fixture-child', 'limit_enabled': False,
+                    'allowance': ['30 minutes']}
+        picker.setValue.assert_called_once_with('1003')
+    picker.action.do_action.assert_not_called()
+    picker.component.grab_focus.assert_not_called()
 
 @pytest.mark.parametrize('fault', [None, 'new-identity', 'new-replay', 'new-return-changed',
                                   'existing-return-changed', 'private-text'])
@@ -3827,7 +3794,7 @@ def test_discovery_controller_keeps_child_settings_separate_and_private(fault):
     journey = InstalledJourney(SimpleNamespace(), Mock(), PLAN, actions={'create-account': Mock()})
     def observe(operation, settings):
         transport.call.return_value = json.dumps({'operation': operation, 'outcome': 'passed',
-            'interface': 'AT-SPI', 'settings': settings}).encode()
+            'interface': 'ApplicationUI+external-provider', 'settings': settings}).encode()
         result = session.observe(operation)
         stage = next(stage for stage, tag in PLAN.screen_tags.items() if tag == 'ui:' + operation)
         journey.check_settings(stage, {'ui': result})
@@ -3861,7 +3828,7 @@ def test_discovery_controller_keeps_child_settings_separate_and_private(fault):
 def test_discovery_retains_original_zero_allowance_and_limits_off_expectation(enabled, allowance):
     from installed_journey import InstalledJourney
     from parent_discovery import PLAN
-    result = {'operation': 'discovery-selected', 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': 'discovery-selected', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'settings': {'child': 'existing-fixture-child', 'limit_enabled': enabled,
                            'allowance': allowance}}
     session = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
@@ -3904,50 +3871,33 @@ def test_child_collection_uses_an_independent_current_list(fault):
         assert collect() == ('new-fixture-child', 'fixture-child')
 
 
-def test_closed_picker_cannot_hide_a_persistently_stale_subtree(monkeypatch):
+def test_picker_readiness_cannot_hide_a_persistently_stale_subtree(monkeypatch):
     from accessible_ui import PRODUCT, NEW_CHILD
     stale = Node('private-canary', states=('defunct',))
     picker = Node('', 'button', identity='parent-child-selector', children=[
         Node(NEW_CHILD, 'label', identity='parent-child-selected-1003')])
     ui = ui_for(Node(PRODUCT, identity='parent-window', children=[picker, stale]))
-    ui.timeout = 1
-    monkeypatch.setattr('accessible_ui.time.sleep', lambda _seconds: None)
-    clock = iter((0, 0, 2))
-    monkeypatch.setattr('accessible_ui.time.monotonic', lambda: next(clock))
-    with pytest.raises(UiError, match='stale-picker'):
+    with pytest.raises(UiError):
         ui.selected_child(NEW_CHILD)
-    assert len(ui.incomplete_observations) == 2
-
-
-def test_closed_picker_retries_a_transient_stale_subtree_without_input(monkeypatch):
-    from accessible_ui import PRODUCT, NEW_CHILD
-    stale = Node('private-canary', states=('defunct',))
-    picker = Node('', 'button', identity='parent-child-selector', children=[
-        Node(NEW_CHILD, 'label', identity='parent-child-selected-1003')])
-    root = Node(PRODUCT, identity='parent-window', children=[picker, stale])
-    ui = ui_for(root)
-    ui.timeout = 1
-    monkeypatch.setattr('accessible_ui.time.sleep', lambda _seconds: None)
-    expected = {'child': NEW_CHILD}
-    ui.settings = Mock(return_value=expected)
-    original_has_state = ui.has_state
-    stale_reads = 0
-
-    def has_state(node, state):
-        nonlocal stale_reads
-        value = original_has_state(node, state)
-        if node is stale and state == ui.api.StateType.DEFUNCT and value:
-            stale_reads += 1
-            root.children.remove(stale)
-        return value
-
-    ui.has_state = has_state
-    assert ui.selected_child(NEW_CHILD) == expected
-    assert stale_reads == 1
-    assert ui.incomplete_observations == [
-        {'checkpoint': 'picker-close', 'notes': []}]
+    picker.setValue.assert_not_called()
     picker.action.do_action.assert_not_called()
 
+
+def test_picker_readiness_reacquires_after_a_complete_tree_transition():
+    from accessible_ui import PRODUCT, NEW_CHILD
+    picker = Node('', 'button', identity='parent-child-selector', children=[
+        Node(NEW_CHILD, 'label', identity='parent-child-selected-1003')])
+    root = Node(PRODUCT, identity='parent-window', children=[picker])
+    ui = ui_for(root)
+    expected = {'child': NEW_CHILD}
+    ui.settings = Mock(return_value=expected)
+    assert ui.selected_child(NEW_CHILD) == expected
+    replacement = Node(identity='parent-child-selector')
+    replacement.parent = root
+    root.children[:] = [replacement]
+    assert ui.selected_child(NEW_CHILD) == expected
+    picker.setValue.assert_not_called()
+    replacement.setValue.assert_not_called()
 
 @pytest.mark.parametrize('fault', [None, 'missing-id', 'wrong-uid', 'wrong-label'])
 def test_child_collection_uses_uid_identity_with_nested_content(fault):
@@ -4054,7 +4004,7 @@ def test_controller_requires_fresh_recipient_recheck_without_wrong_account_detou
                          'gdm-focused': 'gdm-standard-focused'}.get(operation, operation)
             operation = operation.replace('gdm-parent-recipient', 'gdm-standard-recipient')
         transport.call.return_value = json.dumps({
-            'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}).encode()
+            'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}).encode()
         ui.observe(operation)
     if fault != 'skip-wrong':
         observe('gdm-other-focused')
@@ -4140,7 +4090,7 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
             ui.run('standard-parent-unavailable', '')
     else:
         assert ui.run('standard-parent-unavailable', '') == {
-            'operation': 'standard-parent-unavailable', 'outcome': 'passed', 'interface': 'AT-SPI'}
+            'operation': 'standard-parent-unavailable', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         assert now[0] >= 2
         if fault == 'transient-stale': assert now[0] >= 4
     suggestion.action.do_action.assert_not_called()
@@ -4213,7 +4163,7 @@ def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
     else:
         assert ui.run('standard-parent-unavailable', '') == {
             'operation': 'standard-parent-unavailable', 'outcome': 'passed',
-            'interface': 'AT-SPI'}
+            'interface': 'ApplicationUI+external-provider'}
         assert now[0] >= 2
         if fault: assert now[0] >= 4
     suggestion.action.do_action.assert_not_called()
@@ -4222,7 +4172,7 @@ def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
 @pytest.mark.parametrize('operation', ['standard-desktop', 'standard-app-grid', 'standard-search-entered',
                                       'standard-parent-unavailable'])
 def test_standard_controller_rejects_private_text_and_wrong_operation(operation):
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
     assert UiObservations(transport).observe(operation) == result
     result['private'] = 'private-canary'
@@ -4375,7 +4325,7 @@ def test_search_checkpoint_semantically_focuses_the_id_target(focused):
 @pytest.mark.parametrize('point', [{'x': -1, 'y': 2}, {'x': True, 'y': 2},
                                  {'x': 3.5, 'y': 2}, {'x': 3, 'y': 2, 'private': 'canary'}])
 def test_retired_pointer_reply_is_rejected(point):
-    result = {'operation': 'standard-app-grid', 'outcome': 'passed', 'interface': 'AT-SPI', 'pointer': point}
+    result = {'operation': 'standard-app-grid', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', 'pointer': point}
     with pytest.raises(EvidenceError, match='response'):
         UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))).observe('standard-app-grid')
 
@@ -4437,7 +4387,7 @@ def test_id_qualified_polkit_prompt_blocks_keyring_middleware_without_input():
 
 @pytest.mark.parametrize('keys', [[], ['esc'], ['ret'], ['esc', 'esc'], 'esc', None, ['home']])
 def test_system_prompt_checkpoint_cannot_authorize_unobserved_keyboard_input(keys):
-    result = {'operation': 'standard-system-prompt', 'outcome': 'passed', 'interface': 'AT-SPI',
+    result = {'operation': 'standard-system-prompt', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
               'navigation': keys}
     session = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(result).encode())))
     with pytest.raises(EvidenceError, match='response'):
@@ -4508,7 +4458,7 @@ def test_fresh_desktop_refusal_retains_prompt_facts_without_private_ui_values(ki
 @pytest.mark.parametrize('fault', ['', 'kind', 'source', 'role', 'boolean', 'extra', 'bound'])
 def test_prompt_failure_diagnostic_is_bounded_in_the_real_isolated_payload(tmp_path, fault):
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({
-        'operation': 'desktop', 'outcome': 'passed', 'interface': 'AT-SPI',
+        'operation': 'desktop', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
     }).encode()))
     UiObservations(transport).observe('desktop')
     prompt = {'kind': 'unknown', 'source': 'directory-language', 'role': 'dialog',
@@ -4614,7 +4564,7 @@ def test_streamed_prompt_input_is_narrow_ordered_and_restores_command_parser(fau
     if fault == 'bad-point': prompt['pointer']['x'] = True
     if fault == 'wrong-kind': prompt['kind'] = 'polkit'
     if fault == 'extra-field': prompt['secret'] = 'must-refuse'
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     values = [prompt, result]
     if fault == 'duplicate-result': values.append(result)
     if fault == 'after-result': values.reverse()

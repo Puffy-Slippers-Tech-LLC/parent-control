@@ -91,9 +91,7 @@ def test_live_capture_detach_reattach_preserves_public_actions(
         before = observed['frame'][0]
         assert 'test_live_capture_detach_reattach' in observed['frame'][1]['test']
         feeds.close()
-        ui.activate('kiosk-approver-selector')
-        wait(lambda: ui.showing('kiosk-approver-choice-1010'), 'declared approver is available')
-        ui.activate('kiosk-approver-choice-1010')
+        ui.setValue('kiosk-approver-selector', '1010')
         ui.activate('kiosk-duration-300')
         ui.activate('kiosk-request-submit')
         wait(lambda: bool(calls(events, 'RequestAccess')), 'request commits after viewer detaches')

@@ -25,8 +25,9 @@ def test_disabled_selection_and_independent_read_never_activate_disabled_control
         assert observation.message == 'screen-limit-disabled'
         assert not observation.request_enabled
         assert not observation.approver_selector_enabled
-    selector.action.do_action.assert_called_once()
-    choices.children[0].action.do_action.assert_called_once()
+    selector.setValue.assert_called_once_with('1001')
+    selector.action.do_action.assert_not_called()
+    choices.children[0].action.do_action.assert_not_called()
     for identity in ('kiosk-approver-selector', 'kiosk-request-submit',
                      'kiosk-soft-apps-toggle', 'kiosk-duration-1800'):
         ui.find_id(identity).action.do_action.assert_not_called()
@@ -55,13 +56,14 @@ def test_disabled_binding_refuses_enabled_result_without_replaying_input():
         ui.select_kiosk_account('child', CHILD, expected=expected, enabled=False)
     with pytest.raises(UiError, match='uncertain-input'):
         ui.select_kiosk_account('child', CHILD, expected=expected, enabled=False)
-    selector.action.do_action.assert_called_once()
-    choices.children[0].action.do_action.assert_called_once()
+    selector.setValue.assert_called_once_with('1001')
+    selector.action.do_action.assert_not_called()
+    choices.children[0].action.do_action.assert_not_called()
 
 
 def test_invalid_expected_availability_refuses_before_input():
     ui, selector, _, expected = disabled_accounts_form()
-    with pytest.raises(UiError, match='kiosk-enabled-binding'):
+    with pytest.raises(UiError, match='kiosk-account-field'):
         ui.select_kiosk_account('child', CHILD, expected=expected, enabled=0)
     selector.action.do_action.assert_not_called()
 

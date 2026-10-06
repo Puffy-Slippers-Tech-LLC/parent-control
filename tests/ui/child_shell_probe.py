@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wait for the isolated Shell, extension, and semantic indicator readiness."""
+"""Wait for the isolated Shell, extension, and Application UI readiness."""
 
 from __future__ import annotations
 
@@ -9,11 +9,10 @@ import time
 
 import gi
 
-gi.require_version("Atspi", "2.0")
 gi.require_version("Gio", "2.0")
-from gi.repository import Atspi, Gio, GLib
+from gi.repository import Gio, GLib
 
-from tests.support.automation import Automation, AutomationError
+from common.oh_no_parent_control_ui.application_ui_client import UIClient, UIClientError
 
 
 UUID = "oh-no-parent-control@tech.puffyslippers.com"
@@ -26,16 +25,10 @@ EXPECTED_ACCESSIBLE_NAMES = {
     "Request time, 00:44",
 }
 EXPECTED_MARKER = os.environ.get("ONPC_CHILD_SHELL_EXPECTED_MARKER", "")
-EVENTS = (
-    "object:children-changed",
-    "object:property-change:accessible-name",
-    "object:state-changed:showing",
-    "window:create",
-)
 LAST_EXTENSION_INFO: object = "not queried"
 LAST_ACCESSIBLE_NAME = "not found"
 REQUEST_BUTTON_ID = "child-request-button"
-UI = Automation(Atspi, lambda: Atspi.get_desktop(0), query_errors=(GLib.Error,))
+UI = None
 
 
 def is_expected_accessible_name(name):
@@ -69,27 +62,29 @@ def _extension_is_active(connection: Gio.DBusConnection) -> bool:
 
 
 def _find_indicator():
-    global LAST_ACCESSIBLE_NAME
+    global LAST_ACCESSIBLE_NAME, UI
     try:
-        node = UI.find(REQUEST_BUTTON_ID)
-        if node is None:
+        if UI is None:
+            candidate = UIClient("child-panel")
+            expected_pid = os.environ.get("ONPC_CHILD_SHELL_PID")
+            if expected_pid is not None and candidate.pid != int(expected_pid):
+                raise AssertionError("Child panel is not owned by the launched Shell")
+            UI = candidate
+        node = UI.getElementById(REQUEST_BUTTON_ID)
+        if not node.visible:
             return None
-        # Shell's Clutter bridge exposes VISIBLE for panel actors in the
-        # devkit compositor, while SHOWING remains false for the whole
-        # offscreen stage. Resolve the product control by ID first; its name is
-        # only a post-lookup meaning/result check.
-        if not node.get_state_set().contains(Atspi.StateType.VISIBLE):
-            return None
-        name = node.get_name() or ""
+        name = node.text
         if not is_expected_accessible_name(name):
             return None
         LAST_ACCESSIBLE_NAME = name
         return node
-    except (AutomationError, AttributeError, GLib.Error):
+    except UIClientError as error:
+        if error.code not in ("Unavailable", "OwnerChanged"):
+            raise
         return None
 
 
-def _accessibility_diagnostics() -> dict[str, object]:
+def _application_ui_diagnostics() -> dict[str, object]:
     relevant_nodes = []
     for identity in (
         "child-screen-time-indicator", "child-remaining-time", REQUEST_BUTTON_ID,
@@ -97,13 +92,15 @@ def _accessibility_diagnostics() -> dict[str, object]:
         "child-countdown-animation-toggle",
     ):
         try:
-            matches = UI.find_all(identity)
-            relevant_nodes.extend({
+            if UI is None:
+                break
+            node = UI.getElementById(identity)
+            relevant_nodes.append({
                 "id": identity,
-                "showing": node.get_state_set().contains(Atspi.StateType.SHOWING),
-                "visible": node.get_state_set().contains(Atspi.StateType.VISIBLE),
-            } for node in matches)
-        except (AutomationError, AttributeError, GLib.Error):
+                "visible": node.visible,
+                "enabled": node.enabled,
+            })
+        except UIClientError:
             continue
     return {
         "identified_nodes": relevant_nodes,
@@ -134,8 +131,6 @@ def main() -> int:
         state["shell"] = False
         wake()
 
-    listener = Atspi.EventListener.new(wake)
-    registered_events = [event for event in EVENTS if listener.register(event)]
     extension_signal = connection.signal_subscribe(
         SHELL_NAME,
         EXTENSIONS_INTERFACE,
@@ -170,19 +165,17 @@ def main() -> int:
                 current.destroy()
         Gio.bus_unwatch_name(shell_watch)
         connection.signal_unsubscribe(extension_signal)
-        for event in registered_events:
-            listener.deregister(event)
 
     if not all(state.values()):
         missing = ", ".join(name for name, ready in state.items() if not ready)
         print(f"Timed out waiting for child Shell readiness: {missing}", file=sys.stderr)
         print(f"Extension info: {LAST_EXTENSION_INFO!r}", file=sys.stderr)
         print(
-            f"Redacted accessibility summary: {_accessibility_diagnostics()!r}",
+            f"Redacted Application UI summary: {_application_ui_diagnostics()!r}",
             file=sys.stderr,
         )
         return 1
-    print(f"Child Shell ready; accessible request name: {LAST_ACCESSIBLE_NAME}")
+    print(f"Child Shell ready; public request text: {LAST_ACCESSIBLE_NAME}")
     return 0
 
 

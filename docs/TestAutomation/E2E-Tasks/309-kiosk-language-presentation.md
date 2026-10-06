@@ -1,6 +1,6 @@
 # 309 — Kiosk Hebrew presentation and inherited dialogs
 
-Follow the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 Also apply [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
 

@@ -199,7 +199,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
     journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
     journey.boot = 'a' * 64
     journey.transport = object()
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     journey.ui = SimpleNamespace(
         boot_proof=('b' if fault == 'boot' else 'a') * 64,
         observe=Mock(return_value=result, side_effect=RuntimeError('ui-failed') if fault == 'ui' else None))
@@ -393,7 +393,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         assert ui_observer.boot_guard == ('b' * 64 if boot_bindings or boot.read.call_count else '')
         boot_bindings.append(ui_observer.boot_guard)
         operation_counts[operation] = operation_counts.get(operation, 0) + 1
-        result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if operation == 'about-interval-read':
             result['about_interval'] = {'pid': 123, 'endpoint': [':1.2', '/about'],
                                         'product': accessible_ui.PRODUCT, 'version': '9.8.7'}
@@ -911,7 +911,7 @@ def test_discovery_comparison_failure_blocks_fixture_and_reply(tmp_path, fault):
     journey.steps = [{'stage': name} for name in plan.stages[:plan.stages.index(stage)]]
     earlier = journeys.SettingsObservation('existing-fixture-child', False, ('0 minutes',))
     if fault != 'missing-earlier': journey.settings_observations['parent-selected'] = earlier
-    result = {'operation': 'discovery-ready', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    result = {'operation': 'discovery-ready', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     if fault != 'missing':
         result['settings'] = {'child': earlier.child, 'limit_enabled': fault == 'changed',
                               'allowance': ['0 minutes']}
@@ -935,7 +935,7 @@ def test_parent_information_return_comparison_refuses_before_durable_reply(tmp_p
     earlier = journeys.SettingsObservation('fixture-child', False, ('0 minutes',))
     if fault != 'missing-earlier':
         journey.settings_observations['parent-selected'] = earlier
-    result = {'operation': 'parent-returned', 'outcome': 'passed', 'interface': 'AT-SPI'}
+    result = {'operation': 'parent-returned', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
     if fault != 'missing':
         result['settings'] = {
             'child': 'existing-fixture-child' if fault == 'child' else earlier.child,
@@ -982,7 +982,7 @@ def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, monkeypa
     for stage, tag in plan.screen_tags.items():
         if tag.startswith('ui:'):
             observations.append({'stage': stage, 'ui': {
-                'operation': tag[3:], 'outcome': 'passed', 'interface': 'AT-SPI'}})
+                'operation': tag[3:], 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}})
         elif tag.startswith('system:'):
             observations.append({'stage': stage, 'system': {
                 'operation': tag[7:], 'outcome': 'passed', 'interface': 'system session'}})

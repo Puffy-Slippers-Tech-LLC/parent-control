@@ -61,6 +61,5 @@ class WindowSwitchJourney(InstalledJourney):
             expected = self.windows.get(binding)
             if stage.endswith('-ready') and expected is not None:
                 expected = {key: item for key, item in expected.items() if key != 'feedback'}
-                expected['active'] = False
             require(expected is not None and value == expected,
                     'switch:window-or-draft-changed')

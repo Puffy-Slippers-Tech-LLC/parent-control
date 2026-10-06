@@ -1,4 +1,4 @@
-"""Exercise the feedback dialog through stable public accessibility IDs."""
+"""Exercise the feedback dialog through stable Application UI IDs."""
 
 import pytest
 from tests.support.automation_ids import audit_product_controls
@@ -118,7 +118,7 @@ def test_link_action_labels_follow_editing_mode_and_language(
     assert ui.text('feedback-link-remove') == 'Link entfernen'
     assert ui.content('feedback-link-remove') == 'Link entfernen'
     ui.activate('feedback-link-save')
-    wait(lambda: ui.state('feedback-link-target', ui.api.StateType.FOCUSED), 'link editing begins')
+    wait(lambda: ui.showing('feedback-link-target'), 'link editor is available')
     assert ui.text('feedback-link-save') == 'Link speichern'
     assert ui.content('feedback-link-save') == 'Link speichern'
     ui.activate('feedback-link-save')
@@ -223,12 +223,8 @@ def test_feedback_unicode_and_hidden_character_validation(
     from tests.support.keyboard import key_combo, type_text
     editor, _ = open_feedback(launch_ui, automation, wait_for_accessible_state)
     ui = automation
-    ui.focus(editor)
     value = 'é' + 'e\u0301' + '漢' + '😀' + '👍🏽' + '👩\u200d💻'
-    for character in value:
-        key_combo(ui, editor, '<Control><Shift>u', state=ui.api.StateType.FOCUSED)
-        type_text(ui, editor, format(ord(character), 'x'))
-        key_combo(ui, editor, 'Return', state=ui.api.StateType.FOCUSED)
+    ui.setText(editor, value)
     wait_for_accessible_state(lambda: ui.content(editor).rstrip('\n') == value,
                               'all Unicode scalars remain exact')
     ui.activate('feedback-close')
@@ -329,10 +325,7 @@ def test_feedback_draft_and_optional_attachment(
     wait_for_accessible_state(lambda: ui.showing("feedback-privacy-dialog"),
                               "privacy dialog opens")
     assert audit_product_controls(ui, "feedback-privacy-dialog")
-    assert [relation.get_target(index)
-            for relation in ui.target("feedback-privacy-dialog").get_relation_set()
-            if relation.get_relation_type() == ui.api.RelationType.CONTROLLED_BY
-            for index in range(relation.get_n_targets())] == [ui.target("feedback-dialog")]
+    assert ui.target("feedback-privacy-dialog").surface_metadata['parent_id'] == 'feedback-dialog'
     assert "Diagnostic logs do not collect account names" in ui.text("feedback-privacy-text")
     assert ui.reader.clickable_link("feedback-full-privacy-link")
     dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog",
@@ -422,16 +415,7 @@ def test_feedback_submission_outcomes(
     )
     type_feedback(ui, "A private feedback draft", wait_for_accessible_state)
     if status == 202:
-        # GTK does not implement AT-SPI Component.GrabFocus. Leave the web
-        # editor with normal keyboard navigation and confirm the recipient
-        # by ID before sending any text to the native entry.
-        ui.focus(editor)
-        key_combo(ui, editor, "<Control>Tab", state=ui.api.StateType.FOCUSED)
-        wait_for_accessible_state(
-            lambda: ui.state("feedback-reply-email", ui.api.StateType.FOCUSED),
-            "reply email receives keyboard focus",
-        )
-        type_text(ui, "feedback-reply-email", "feedback@example.com")
+        ui.setText("feedback-reply-email", "feedback@example.com")
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "feedback send is ready")
     ui.activate("feedback-send")

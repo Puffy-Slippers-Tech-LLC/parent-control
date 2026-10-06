@@ -234,7 +234,7 @@ def test_real_recorder_compares_renamed_form_before_durable_reply(tmp_path, faul
     journey.boot = 'a' * 64
     journey.check_estimate = Mock()
     journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
-        'operation': 'overlay-valid-fraction-soft-read', 'outcome': 'passed', 'interface': 'AT-SPI',
+        'operation': 'overlay-valid-fraction-soft-read', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
         'valid_choice': {'request': returned}}))
     (tmp_path / 'compare.request.json').write_text(json.dumps({'stage': 'compare', 'screenshot': None}))
     if fault:

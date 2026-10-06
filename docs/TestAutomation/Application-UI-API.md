@@ -81,7 +81,7 @@ a JSON object and returns a JSON value. Operation names and keys are case-sensit
 
 | Operation | Arguments | Result |
 | --- | --- | --- |
-| `getElementById` | `{}` | Snapshot including ID, owning surface/application, type, visibility, sensitivity, supported operations, and supported text/value/choices |
+| `getElementById` | `{}` | Snapshot including ID, owning surface/application, logical parent ID, type/role, translated name/description, visibility, sensitivity, supported operations, and supported text/value/choices |
 | `getValue` | `{}` | Canonical current value |
 | `setValue` | `{"value": value}` | `null` after UI input |
 | `getText` | `{}` | Current text displayed by the control |
@@ -211,6 +211,9 @@ Kiosk restrictions continue to remove unavailable external actions.
 | `feedback-reply-email` | Literal reply address text |
 | `feedback-editor-input`, `feedback-webview` | Get/set plain editor text through Quill's user-edit path; draft and displayed document update together |
 | `feedback-editor-selection` | Get/set `{"index": 0, "length": 5}` using Quill UTF-16 offsets; retained selection is independent of focus |
+| `feedback-editor-document` | Read-only `getValue` returns the public Quill document delta: `{"ops": [{"insert": "text", "attributes": {}}]}`; attributes are present only when applicable. Use it for independent text, inline/block format and synthetic-link assertions |
+| `feedback-editor-insert` | `setText` replaces the retained selection through Quill's ordinary user edit, preserving surrounding formatting and edit history |
+| `feedback-undo`, `feedback-redo` | `activate` invokes the public Quill history action; independently read the resulting document |
 | `feedback-format-style` | Get/set `normal`, `heading-1`, `heading-2`; `getChoices`; activate native picker |
 | `feedback-format-normal`, `feedback-format-heading-1`, `feedback-format-heading-2` | Activate logical style alternative; boolean selection readback |
 | `feedback-format-bold`, `feedback-format-italic`, `feedback-format-underline`, `feedback-format-strike`, `feedback-format-ordered`, `feedback-format-bulleted`, `feedback-format-quote`, `feedback-format-code` | Boolean current-selection formatting, boolean setter or native toolbar activation |
@@ -264,8 +267,14 @@ export follows extension enable/disable; queued authorization work is cancelled
 on teardown. Editor operations wait for the existing document readiness signal
 and use the normal draft bridge. New GTK processes load these APIs; packaged
 child code follows the existing `session-renewal` activation classification.
-No saved-data migration is needed.
+No saved-data migration is needed. Finite editor API edits have explicit history
+boundaries, so separate calls do not merge into one undo step based on timing.
 
-This delivery adds product code and the API inventory. Existing UI/E2E tests
-have not been migrated or executed; installed and cross-distro/desktop
-qualification is not claimed by this inventory or by a package build.
+Host UI and installed E2E tests share the
+[test facade](../../tests/support/application_ui.py) and the same product client,
+stable IDs and canonical operations. Their existing shared readers and worker
+composites retain scenario values and independent result checks. External
+authentication, system file choosers and supporting desktop tools retain their
+scoped provider adapters. The [shared support guide](../../tests/support/README.md)
+owns implementation reuse; the API inventory and a package build alone do not
+establish installed or cross-desktop acceptance.

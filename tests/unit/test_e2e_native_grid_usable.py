@@ -145,7 +145,7 @@ def test_real_controller_decoder_requires_exact_public_result(operation, fault):
     key, value = ('provider', provider) if operation == 'native-grid' else ('activity', activity)
     if fault == 'wrong': value['locale' if key == 'provider' else 'submitted'] = 'wrong'
     if fault == 'extra': value['private'] = 'canary'
-    result = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI', key: value}
+    result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider', key: value}
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({**result,
                                 'boot_sha256': 'b' * 64}).encode()))
     observer = UiObservations(transport)
@@ -226,7 +226,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         details = [{'title': event[1], 'result': 'ok'}
                    for event in events if event[0] == 'marker']
         observations = [{'stage': stage, 'ui': {
-            'operation': tag[3:], 'outcome': 'passed', 'interface': 'AT-SPI'}}
+            'operation': tag[3:], 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}}
             for stage, tag in PLAN.screen_tags.items()]
         results = tmp_path / 'testresults'
         results.mkdir()

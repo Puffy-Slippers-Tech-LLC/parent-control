@@ -36,10 +36,10 @@ RESPONSE_BYTE_LIMITS = {
 OPERATION_LABELS = {
     'parent-about-information': 'Reading installed product, version and legal information',
     'overlay-about-summary': 'Reading overlay product, version and legal information',
-    **{operation: 'Checking the owned daily allowance keyboard ' + phase
+    **{operation: 'Setting or reading the owned daily allowance through its API: ' + phase
        for operation, (_value, phase) in accessible_ui.ALLOWANCE_KEYBOARD_OPERATIONS.items()},
-    'parent-child-picker-ready': 'Focusing the owned Parent child selector for keyboard opening',
-    **{operation: 'Checking the keyboard-opened child selector and focusing the declared child'
+    'parent-child-picker-ready': 'Checking the owned Parent child selector is available',
+    **{operation: 'Selecting the declared child through its canonical UID'
        for operation in accessible_ui.PRESENTED_PICKER_OPERATIONS},
     **{operation: 'Observing the initial request station without automatic language setup: ' +
        operation.removeprefix('kiosk-initial-') for operation in accessible_ui.INITIAL_KIOSK_OPERATIONS},
@@ -195,7 +195,7 @@ OPERATION_LABELS = {
     'standard-parent-command-launch': 'Invoking the Parent command as [Standard user]',
     'child-command-launch': 'Invoking the child overlay command as [Child user]',
     'overlay-panel-ready': 'Checking the child panel request control',
-    'overlay-panel-launch': 'Qualifying focus for one child panel activation',
+    'overlay-panel-launch': 'Activating the child request action through its API',
     'overlay-panel-reveal-ready': 'Checking the open overlay before revealing its panel',
     'overlay-panel-overview': 'Checking Overview before returning to the open overlay',
     'overlay-request-form': 'Reading one overlay with the fixed child account',
@@ -204,8 +204,8 @@ OPERATION_LABELS = {
     'overlay-wrong-account-refused': 'Refusing overlay entry from another account',
     'standard-parent-closed': 'Checking denial dismissal returns to the standard desktop',
     'parent-empty': 'Checking the explanation for no eligible children',
-    'child-picker-opened': 'Expanding the child selector for [Child user]',
-    'child-choice-highlighted': 'Checking [Child user] is highlighted',
+    'child-picker-opened': 'Selecting [Child user] through the Parent API',
+    'child-choice-highlighted': 'Reading the selected [Child user] identity',
     'parent-selected': 'Checking the selected child and displayed settings',
     'parent-screen-page': 'Returning to Screen Limits and reading settings',
     'parent-apps-page': 'Opening App Limits and checking its controls',
@@ -234,17 +234,17 @@ OPERATION_LABELS = {
     'parent-save-reopened': 'Reading the saved state from a fresh Parent observation',
     'parent-save-disabled': 'Reading the saved disabled Parent controls',
     'discovery-ready': 'Checking existing-child settings and remaining time',
-    'new-child-picker-opened': 'Expanding the child selector for [New child]',
-    'new-child-choice-highlighted': 'Checking [New child] is highlighted',
+    'new-child-picker-opened': 'Selecting [New child] through the Parent API',
+    'new-child-choice-highlighted': 'Reading the selected [New child] identity',
     'new-child-selected': 'Checking the selected new child and displayed settings',
-    'existing-child-picker-opened': 'Expanding the child selector for [Existing child]',
-    'existing-child-choice-highlighted': 'Checking [Existing child] is highlighted',
+    'existing-child-picker-opened': 'Selecting [Existing child] through the Parent API',
+    'existing-child-choice-highlighted': 'Reading the selected [Existing child] identity',
     'existing-returned': 'Checking the returned existing child and displayed settings',
     'existing-apps': 'Reading App Limits for [Existing child]',
     'new-child-apps': 'Reading App Limits for [New child]',
     'new-child-screen': 'Reading screen-time settings for [New child]',
-    'discovery-child-picker-opened': 'Expanding the child selector for [Existing child]',
-    'discovery-child-choice-highlighted': 'Checking [Existing child] is highlighted',
+    'discovery-child-picker-opened': 'Selecting [Existing child] through the Parent API',
+    'discovery-child-choice-highlighted': 'Reading the selected [Existing child] identity',
     'discovery-selected': 'Checking existing-child settings and remaining time',
     'standard-desktop': 'Waiting for the standard-account desktop',
     'standard-system-prompt': 'Checking for a login-keyring prompt',
@@ -306,7 +306,7 @@ OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret 
                          for operation in accessible_ui.TEXT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking native app launch and ordinary draft submission: ' + operation
                          for operation in accessible_ui.NATIVE_APP_OPERATIONS})
-OPERATION_LABELS.update({operation: 'Copying and doubling declared synthetic editor text'
+OPERATION_LABELS.update({operation: 'Setting and reading doubled synthetic editor text'
                          for operation in accessible_ui.DUPLICATE_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Applying and independently reading synthetic range formatting'
                          for operation in accessible_ui.FORMAT_OPERATIONS})
@@ -322,9 +322,9 @@ OPERATION_LABELS.update({operation: 'Qualifying exact UTF-16 boundary drafts wit
                          for operation in accessible_ui.LENGTH_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Appending and reading one declared Unicode scalar'
                          for operation in accessible_ui.SCALAR_OPERATIONS})
-OPERATION_LABELS.update({operation: 'Finishing and reading a clipboard-built synthetic fixture'
+OPERATION_LABELS.update({operation: 'Finishing and reading a declared synthetic fixture'
                          for operation in accessible_ui.SUFFIX_OPERATIONS})
-OPERATION_LABELS.update({operation: 'Activating an existing window and independently checking its public state'
+OPERATION_LABELS.update({operation: 'Returning to an existing window and reading its retained public state'
                          for operation in accessible_ui.WINDOW_SWITCH_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying kiosk approval and its explicit public result'
                          for operation in accessible_ui.MATE_APPROVAL_OPERATIONS})
@@ -618,8 +618,8 @@ class UiObservations:
     def observe_accessibility_input(self, operation, terminal, mode='checked', *, worker_input=None, child=None):
         """Prepare the owned input once, then independently observe its result.
 
-        Save acceptance reads the settled value. Event sampling remains with
-        the explicitly selected event-delivery and collection diagnostics.
+        Save acceptance reads the settled API value. Collection diagnostics
+        retain independent bounded reads of their public controls.
         """
         custom = mode == 'custom-save'
         collection = mode == 'collection'
@@ -628,7 +628,7 @@ class UiObservations:
         require((collection and operation == 'feedback-collection-open' and terminal is True
                  and worker_input is None) or
                 (custom and operation == 'parent-custom-trace-focus' and terminal == 6
-                 and callable(worker_input)) or
+                 and worker_input is None) or
                 (operation == 'parent-toggle-enabled' and terminal is True and
                  mode in ('checked', 'save') and worker_input is None),
                 'ui:trace-input-binding')
@@ -654,14 +654,14 @@ class UiObservations:
                                       **({'child': child} if child else {}))['trace']
                 self.trace_sink(token, 1, saved)
                 return {'operation': 'parent-custom-save-trace' if custom else 'parent-save-trace',
-                        'outcome': 'passed', 'interface': 'AT-SPI', 'token': token,
+                        'outcome': 'passed', 'interface': 'ApplicationUI', 'token': token,
                         'terminal': terminal, 'saved': saved}
             for index, sample in enumerate(value['samples'], 1):
                 self.trace_sink(token, index, sample)
             return {'operation': ('feedback-collection-trace' if collection else
                                   'parent-custom-save-trace' if custom else 'parent-save-trace' if mode == 'save'
                                   else 'accessibility-input-trace'), 'outcome': 'passed',
-                    'interface': 'AT-SPI', 'token': token, 'terminal': terminal,
+                    'interface': 'ApplicationUI', 'token': token, 'terminal': terminal,
                     'samples': value['samples']}
         except BaseException:
             self.trace_failed = True
@@ -688,9 +688,6 @@ class UiObservations:
         require(self._trace_clock() - trace['started'] < 60, 'ui:trace-deadline')
         trace['input'] = True  # Consume before the fallible action; never replay.
         self._observe(trace['operation'], **({'child': trace['child']} if trace.get('child') else {}))
-        if trace['mode'] == 'custom-save':
-            require(self._trace_clock() - trace['started'] < 60, 'ui:trace-deadline')
-            trace['worker_input'](trace['token'], trace['source'])
 
     def _trace_sample(self):
         with watch_activity.operation('Reading one unchanged public feedback trace sample'):
@@ -719,7 +716,7 @@ class UiObservations:
                                        'state': value['feedback_state']}]}
             self.trace_sink(token, 0, self.trace['samples'][0])
             return {'operation': 'feedback-trace-start', 'outcome': 'passed',
-                    'interface': 'AT-SPI', 'token': token, 'ready': True}
+                    'interface': 'ApplicationUI+external-provider', 'token': token, 'ready': True}
         except BaseException:
             self.trace_failed = True
             self.trace = None
@@ -777,7 +774,7 @@ class UiObservations:
                         'ui:trace-terminal')
                 self.trace = None
                 return {'operation': 'feedback-trace-finish', 'outcome': 'passed',
-                        'interface': 'AT-SPI', 'token': token,
+                        'interface': 'ApplicationUI+external-provider', 'token': token,
                         'terminal': trace['binding'] + '-ready', 'samples': trace['samples']}
             self.trace = None  # Consume before any fallible read; never replay.
             for _ in range(2):
@@ -792,7 +789,7 @@ class UiObservations:
                 require(elapsed >= trace['samples'][-1]['elapsed_ms'], 'ui:trace-order')
                 trace['samples'].append({'elapsed_ms': elapsed, 'state': value['feedback_state']})
             return {'operation': 'feedback-trace-finish', 'outcome': 'passed',
-                    'interface': 'AT-SPI', 'token': token,
+                    'interface': 'ApplicationUI+external-provider', 'token': token,
                     'terminal': 'three-unchanged-samples', 'samples': trace['samples']}
         except BaseException:
             self.trace_failed = True
@@ -1084,11 +1081,29 @@ class UiObservations:
             self.progress.operation(OPERATION_LABELS[operation])
         program = (system.ROOT / 'tests/e2e/accessible_ui.py').read_text()
         modules = 'import sys, types\n'
-        for name in ('session_control', 'public_atspi', 'block_semantics', 'feedback_formats', 'download_destination', 'fixture_ui'):
-            source = (system.ROOT / f'tests/e2e/{name}.py').read_text()
-            modules += (f'{name} = types.ModuleType("{name}")\n'
-                        f'sys.modules["{name}"] = {name}\n'
-                        f'exec(compile({source!r}, "{name}.py", "exec"), {name}.__dict__)\n')
+        # The public client is test-side code. Carry the same facade used by
+        # previews even for product-free GDM observations before installation.
+        # Every product value still comes from the live Application UI service.
+        for package in ('common', 'common.oh_no_parent_control_ui'):
+            modules += (f'module = types.ModuleType({package!r})\n'
+                        f'module.__path__ = []\n'
+                        f'sys.modules[{package!r}] = module\n')
+        sources = {
+            'common.oh_no_parent_control_ui.application_ui':
+                'common/oh_no_parent_control_ui/application_ui.py',
+            'common.oh_no_parent_control_ui.application_ui_client':
+                'common/oh_no_parent_control_ui/application_ui_client.py',
+            'application_ui_support': 'tests/support/application_ui.py',
+            **{name: f'tests/e2e/{name}.py' for name in (
+                'application_ui', 'session_control', 'public_atspi', 'block_semantics',
+                'feedback_formats', 'download_destination', 'fixture_ui')},
+        }
+        for name, path in sources.items():
+            source = (system.ROOT / path).read_text()
+            modules += (f'module = types.ModuleType({name!r})\n'
+                        f'module.__package__ = {name.rpartition(".")[0]!r}\n'
+                        f'sys.modules[{name!r}] = module\n'
+                        f'exec(compile({source!r}, {name + ".py"!r}, "exec"), module.__dict__)\n')
         program = modules + program
         version = json.loads((system.ROOT / 'data/app.json').read_bytes())['version']
         self.boot_proof = None
@@ -1138,7 +1153,7 @@ class UiObservations:
             require(type(proof) is str and re.fullmatch(r'[0-9a-f]{64}', proof)
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
-        expected = {'operation': operation, 'outcome': 'passed', 'interface': 'AT-SPI'}
+        expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS:
             action = accessible_ui.LANGUAGE_HISTORY_REQUESTS[operation][4]
             if action == 'form':
@@ -1379,7 +1394,7 @@ class UiObservations:
                                 'ui:trace-sample')
                     elif operation == 'parent-checked-events':
                         require(set(sample) == {'elapsed_ms', 'checked', 'source'} and
-                                type(sample['checked']) is bool and sample['source'] == 'event',
+                                type(sample['checked']) is bool and sample['source'] == 'application-ui',
                                 'ui:trace-sample')
                     previous = sample['elapsed_ms']
                 if operation == 'feedback-collection-events':
@@ -1391,7 +1406,7 @@ class UiObservations:
             elif operation == 'feedback-collection-open':
                 require(value == {'opened': True}, 'ui:collection-open')
             elif operation == 'parent-custom-trace-focus':
-                require(value == {'focused': True}, 'ui:trace-focus')
+                require(value == {'applied': True}, 'ui:trace-input')
             elif operation == 'parent-custom-trace-disabled-refused':
                 require(value == {'refusal': 'disabled'}, 'ui:trace-refusal')
             else:
@@ -1525,9 +1540,9 @@ class UiObservations:
         if (operation in accessible_ui.PICKER_OPERATIONS
                 or operation in accessible_ui.PRESENTED_PICKER_OPERATIONS
                 or operation == 'parent-child-picker-ready'):
-            require(type(result) is dict and set(result) == {*expected, 'focused'}
-                    and result['focused'] is True, 'ui:response')
-            expected['focused'] = True
+            require(type(result) is dict and set(result) == {*expected, 'selection_ready'}
+                    and result['selection_ready'] is True, 'ui:response')
+            expected['selection_ready'] = True
         if operation in accessible_ui.GREETER_NAVIGATION:
             require(type(result) is dict and set(result) == {*expected, 'focused'}
                     and result['focused'] is True, 'ui:response')
@@ -1704,8 +1719,8 @@ class UiObservations:
                        'viewer' if stage in ('switch-viewer-launch', 'switch-viewer',
                            'switch-viewer-again', 'switch-viewer-close') else 'feedback')
             require(type(value) is dict and set(value) == {
-                'binding', 'pid', 'endpoint', 'active', *(['feedback'] if binding == 'feedback' and not ready else [])}
-                and value['binding'] == binding and value['active'] is (not ready)
+                    'binding', 'pid', 'endpoint', 'available', *(['feedback'] if binding == 'feedback' and not ready else [])}
+                and value['binding'] == binding and value['available'] is True
                 and type(value['pid']) is int and value['pid'] > 0
                 and type(value['endpoint']) is list and len(value['endpoint']) == 2
                 and all(type(part) is str and 0 < len(part) <= 256 for part in value['endpoint'])

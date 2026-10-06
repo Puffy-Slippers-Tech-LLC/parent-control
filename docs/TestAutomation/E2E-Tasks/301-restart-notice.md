@@ -1,6 +1,6 @@
 # 301 — Qualify the installed product restart notice
 
-Follow the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract),
+Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract),
 [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance)
 and [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
 This is planned capability work; no implementation or qualification is claimed.

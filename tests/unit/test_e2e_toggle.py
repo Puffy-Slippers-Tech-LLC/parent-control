@@ -94,10 +94,9 @@ def test_toggle_worker_selects_the_child_before_toggling_and_consumes_every_resu
         'save-disabled', 'limit-current', 'hidden-control-refused', 'disabled-settings',
     ]
     inputs = [event for event in result['events'] if event[0] in ('key', 'text', 'secret')]
-    assert inputs == [['key', 'ret'], ['key', 'ret']]
-    commit = max(index for index, event in enumerate(result['events']) if event == ['key', 'ret'])
-    assert result['events'][commit - 1] == ['stage', 'child-choice-highlighted']
-    assert result['events'][commit + 1] == ['record', 'parent-toggle-parent-selected']
+    assert inputs == [['key', 'ret']]  # External authentication submission.
+    selected = result['events'].index(['stage', 'child-choice-highlighted'])
+    assert result['events'][selected + 1] == ['record', 'parent-toggle-parent-selected']
 
 
 def test_parent_save_is_the_fixed_argument_free_integration_selector():
@@ -109,7 +108,7 @@ def test_parent_save_is_the_fixed_argument_free_integration_selector():
     assert 'sys.argv' not in source
 
 
-def test_toggle_worker_refuses_input_without_independent_choice_focus(monkeypatch):
+def test_toggle_worker_refuses_input_without_independent_choice_readback(monkeypatch):
     monkeypatch.setenv('ONPC_TEST_MISSING_FOCUS', '1')
     result = json.loads(run_perl(PERL_WORKER).stdout)
     assert not result['ok']
@@ -484,8 +483,7 @@ def test_set_allowance_actual_worker_stops_before_later_input_at_every_boundary(
     success = json.loads(run_perl(ALLOWANCE_WORKER).stdout)
     assert success['ok'], success['error']
     assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
-    assert [event for event in success['events'] if event[0] == 'key'] == [
-        ['key', 'ret'], ['key', 'ret'], ['key', 'alt-f4'], ['key', 'ret']]
+    assert [event for event in success['events'] if event[0] == 'key'] == [['key', 'ret']]
     for stage in stages:
         monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
         result = json.loads(run_perl(ALLOWANCE_WORKER).stdout)
@@ -517,7 +515,7 @@ def test_fresh_thirty_actual_worker_stops_at_every_refused_boundary(monkeypatch,
     assert success['ok'], success['error']
     stages = list(PLAN.screen_tags)
     assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
-    assert [event for event in success['events'] if event[0] == 'key'] == [['key', 'ret'], ['key', 'ret']]
+    assert [event for event in success['events'] if event[0] == 'key'] == [['key', 'ret']]
     assert set(PLAN.phases) == set(PLAN.stages)
     assert all(tag.removeprefix('ui:') in OPERATIONS for tag in PLAN.screen_tags.values())
     assert all(tag.removeprefix('ui:') in OPERATION_LABELS for tag in PLAN.screen_tags.values())
@@ -537,8 +535,7 @@ def test_zero_total_actual_worker_stops_at_each_refused_observation(monkeypatch)
     assert success['ok'], success['error']
     stages = list(PLAN.screen_tags)
     assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
-    assert [event for event in success['events'] if event[0] == 'key'] == [
-        ['key', 'ret'], ['key', 'ret']]
+    assert [event for event in success['events'] if event[0] == 'key'] == [['key', 'ret']]
     for stage in stages:
         monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
         result = json.loads(run_perl(script).stdout)
@@ -555,8 +552,7 @@ def test_app_restart_worker_refusal_never_closes_or_relaunches_after_failure(mon
     assert success['ok'], success['error']
     stages = list(PLAN.screen_tags)
     assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
-    assert [event for event in success['events'] if event[0] == 'key'] == [
-        ['key', 'ret'], ['key', 'alt-f4']]
+    assert [event for event in success['events'] if event[0] == 'key'] == [['key', 'ret']]
     for stage in stages:
         monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
         result = json.loads(run_perl(script).stdout)
@@ -663,11 +659,7 @@ def test_custom_reopen_checks_the_declared_reload_or_retained_selection(
     # the active Custom editor (Frontends.md's successful-autosave contract).
     ui.snapshot_owned_target.return_value = Mock() if action == 'reopen-current' else None
     ui.has_state.return_value = True
-    selector = ui.id_target.return_value
-    label = Mock()
-    label.get_role_name.return_value = 'label'
-    label.get_name.return_value = '0 minutes' if wrong_selection else 'Custom value'
-    ui.nodes.return_value = [label]
+    ui.get_value.return_value = '0m' if wrong_selection else 'custom'
     ui.showing.return_value = True
     if wrong_selection:
         ui.allowance_preset.side_effect = UiError('ui:allowance-value')
@@ -684,9 +676,7 @@ def test_custom_reopen_checks_the_declared_reload_or_retained_selection(
             ui.allowance_preset.assert_called_once_with(CHILD, minutes, action='read')
         else:
             ui.allowance_preset.assert_not_called()
-            ui.id_target.assert_called_once_with('parent-daily-limit-selector', sensitive=True)
-            ui.nodes.assert_called_once_with(selector, strict=True)
-            label.get_name.assert_called_once_with()
+            ui.get_value.assert_called_once_with('parent-daily-limit-selector')
     if action == 'reopen-current':
         # Reobserve the retained result; never select Custom to repair it.
         ui.allowance_keyboard.assert_not_called()
@@ -753,8 +743,7 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
         if refused:
             assert result['events'][-1] == ['stage', refused]
         else:
-            for value, suffix in ((1, ''), (2, '\n'), (3, '\t')):
+            assert not any(event[0] in ('text', 'key') for event in result['events'])
+            for value in (1, 2, 3):
                 index = result['events'].index(['stage', f'text-daily-{value}-selected'])
-                assert result['events'][index + 1] == [
-                    'text', str(value) + suffix, 'max_interval', 20]
-                assert result['events'][index + 2] == ['stage', f'text-daily-{value}-read']
+                assert result['events'][index + 1] == ['stage', f'text-daily-{value}-read']

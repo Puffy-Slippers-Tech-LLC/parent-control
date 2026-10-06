@@ -376,7 +376,12 @@ from regression_ui import Bucket
 # waited worker children; no shared path, VM, bus or additional resource owner.
 # Parent presentation uses private recorder/decoder files and bounded waited
 # Perl probes; no live VM, bus, display, shared cache or new cleanup owner.
+# Resume regressions use small private pytest checkpoint files and one waited
+# synthetic pytest child. Repair-loop checks reuse the recorded process doubles;
+# they add no shared owner, VM, display, socket or expensive fixture. Both unit
+# and cleanup classifications of fix_tests_cleanup_safety remain compatible.
 REVIEWED = frozenset("""
+test_checkpoint
 parent_presentation_cleanup_safety
 package_lifecycle_cleanup_safety
 package_purge_cleanup_safety

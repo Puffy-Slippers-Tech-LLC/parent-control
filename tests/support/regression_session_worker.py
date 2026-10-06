@@ -22,7 +22,7 @@ test_commands.selections = lambda root, argv: [(argv[0], argv[1:])]
 dispatch = test_commands._main
 
 
-def run(argv, *, detached=False):
+def run(argv, *, detached=False, checkpoint=None):
     assert detached
     root = Path(sys.argv[1])
     (root / 'started').write_text(argv[0])

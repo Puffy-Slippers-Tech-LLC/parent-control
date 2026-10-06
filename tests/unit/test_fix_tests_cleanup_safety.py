@@ -81,6 +81,52 @@ def test_worker_round_count_and_top_frame(checkout, rounds):
                for number in range(1, rounds + 1))
 
 
+def test_resume_after_cancellation_keeps_passed_category_and_fresh_run_resets(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=[], tests=[None, None], wait_test=1)))
+    run, _ = fix_tests.select(root, categories=('unit', 'ui'))
+    wait_for(root / 'test-ready')
+    assert fix_tests.select(root, categories=('unit', 'ui'), stop=True) == (run, False)
+    assert fix_tests.follow(run, io.StringIO()) == 130
+    (root / 'mode').write_text('pass')
+    resumed, started = fix_tests.select(root, categories=('unit', 'ui'), resume=True)
+    assert started and resumed != run
+    assert fix_tests.follow(resumed, io.StringIO()) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['category'] for call in calls] == ['unit', 'ui', 'ui']
+    assert '--resume' in calls[-1]['args']
+    fresh, started = fix_tests.select(root, categories=('unit', 'ui'))
+    assert started and fix_tests.follow(fresh, io.StringIO()) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['category'] for call in calls] == ['unit', 'ui', 'ui', 'unit', 'ui']
+    assert all('--resume' not in call['args'] for call in calls[-2:])
+
+
+def test_resume_interrupted_clean_verification_repeats_the_whole_pass(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed'], tests=[None, None, None, 'ui-case', None, None], wait_test=5)))
+    run, _ = fix_tests.select(root, categories=('unit', 'ui'), rounds=2)
+    wait_for(root / 'test-ready')
+    assert fix_tests.select(root, categories=('unit', 'ui'), stop=True) == (run, False)
+    assert fix_tests.follow(run, io.StringIO()) == 130
+    from test_checkpoint import Checkpoint
+    checkpoint = Checkpoint(root, [('unit', []), ('ui', [])],
+                            namespace='fix-tests', resume=True)
+    assert not checkpoint.complete('unit') and not checkpoint.complete('ui')
+    assert checkpoint.state['round'] == 2 and checkpoint.state['pending'] == 'unit'
+    (root / 'mode').write_text('pass')
+    resumed, started = fix_tests.select(root, categories=('unit', 'ui'), rounds=2, resume=True)
+    assert started and fix_tests.follow(resumed, io.StringIO()) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    tests = [call for call in calls if call['kind'] == 'test']
+    assert [call['category'] for call in tests] == ['unit', 'ui', 'unit', 'ui', 'ui', 'unit', 'unit', 'ui']
+    assert '--resume' in tests[-2]['args'] and '--resume' not in tests[-1]['args']
+
+
 def test_host_and_vm_repair_runs_have_independent_owners_and_cancellation(checkout):
     root, spawned = checkout
     host, host_started = fix_tests.select(root, categories=('host',))
@@ -318,17 +364,20 @@ def test_unread_predecessor_result_does_not_count_as_the_requested_category(chec
 @pytest.mark.parametrize('scope', ['host', 'vm', 'batch'])
 def test_stale_runner_uses_existing_recovery_route_then_retries_category(checkout, monkeypatch, scope):
     from vm_selection import VARIABLE, execution_selection
+    vm_args = []
     if scope == 'host':
         monkeypatch.delenv(VARIABLE, raising=False)
     elif scope == 'batch':
-        execution_selection()
+        _, vms = execution_selection()
+        vm_args = ['--vm', ','.join(vm.name for vm in vms)]
+    else:
+        vm_args = ['--vm', vm_name()]
     root, _ = checkout
     (root / 'mode').write_text('retention-once')
     run, _ = fix_tests.select(root, rounds=2, categories=('unit',))
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-    vm_args = ['--vm', vm_name()] if scope == 'vm' else []
     recovery_args = ['--host-only'] if scope == 'host' else vm_args
     assert [call['args'] for call in calls] == [
         ['--stop-on-error', 'unit', *vm_args], recovery_args,
@@ -410,8 +459,9 @@ def test_category_arguments_survive_worker_repairs_and_verification(checkout, op
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     tests = [call for call in calls if call['kind'] == 'test']
     assert len(tests) == 5  # Initial attempt, two repair retries, two verification rounds.
-    assert all(call['args'] == ['--stop-on-error', 'unit', *options,
-                                '--vm', vm_name()] for call in tests)
+    assert [call['args'] for call in tests] == [
+        [*(['--resume'] if index in (1, 2) else []), '--stop-on-error', 'unit',
+         *options, '--vm', vm_name()] for index in range(5)]
     assert len([call for call in calls if call['kind'] == 'agent']) == 2
 
 
@@ -617,8 +667,12 @@ def test_diagnostic_experiment_retains_evidence_and_selectors_without_repair_cla
     assert 'verification_failed:' not in agents[-1]['prompt']
     assert all('model_reasoning_effort="medium"' in call['args'] for call in agents)
     tests = [call for call in calls if call['kind'] == 'test']
-    assert all(call['args'] == ['--stop-on-error', 'unit', '-k', 'selected', '-q',
-                                '--vm', vm_name()] for call in tests)
+    retries = ['A', '', 'A'] if len(observations) == 4 else ['A', 'A']
+    assert [call['args'] for call in tests] == [
+        ['--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()],
+        *[['--resume', '--stop-on-error', 'unit', '-k', 'selected', '-q',
+           *(['--resume-case=' + case] if case else []), '--vm', vm_name()]
+          for case in retries]]
     rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
     diagnostics = [row for row in rows if row['event'] == 'diagnostic_execution']
     assert diagnostics and all(row['failure']['case'] == 'A' for row in diagnostics)

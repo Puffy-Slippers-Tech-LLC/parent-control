@@ -81,7 +81,12 @@ def test_real_worker_order_titles_and_terminal_refusal(monkeypatch, fault):
 
 
 @pytest.mark.parametrize('fault', ['', 'changed', 'missing', 'replay', 'storage'])
-@pytest.mark.parametrize('stage', ['hebrew-feedback-open', 'english-return-feedback-read', 'hebrew-final'])
+@pytest.mark.parametrize('stage', [
+    'hebrew-feedback-open',
+    # The reopen stage reads the retained draft; keep the existing case selector.
+    pytest.param('english-return-feedback-open', id='english-return-feedback-read'),
+    'hebrew-final',
+])
 def test_real_decoder_and_recorder_compare_before_reply(tmp_path, stage, fault):
     journey = shared.language_journey(checks=case.CHECKS)(SimpleNamespace(directory=tmp_path), Mock(), case.PLAN)
     original_policy = policy()

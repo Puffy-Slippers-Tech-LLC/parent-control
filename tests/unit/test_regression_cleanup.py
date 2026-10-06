@@ -172,6 +172,29 @@ def test_unit_inventory_event_carries_exact_ids(monkeypatch):
     assert events == [('collection', dict(total=1, collection_only=True, nodeids=nodes))]
 
 
+def test_empty_inventory_diagnostic_precedes_refusal_and_omits_private_values(monkeypatch):
+    import regression_events
+    events = []
+    monkeypatch.setenv('ONPC_REGRESSION_EVENTS', '1')
+    monkeypatch.setenv('ONPC_REGRESSION_INVENTORY', '1')
+    monkeypatch.setattr(regression_events, 'emit', lambda kind, **fields: events.append((kind, fields)))
+    session = SimpleNamespace(items=[], config=SimpleNamespace(
+        option=SimpleNamespace(collectonly=False)))
+    try:
+        raise pytest.UsageError(
+            'not found: tests/unit/test_sample.py::test_case[private-canary]\n(private collector)',
+            'not found: tests/unit/test_sample.py::test_case[another-private-value]\n(private collector)',
+            'private unrelated error')
+    except pytest.UsageError:
+        collection_finish(session)
+    assert events == [
+        ('collection_diagnostic', dict(error_kind='selector-error', selector_error_count=3,
+                                      missing_test_sites=['tests/unit/test_sample.py::test_case'])),
+        ('collection', dict(total=0, collection_only=False, nodeids=[])),
+    ]
+    assert 'private' not in json.dumps(events)
+
+
 @pytest.mark.parametrize('reason,visible', [
     (f'{HOST_WORKERS} host categories already running', ''),
     ('waiting for required host jobs', ''),

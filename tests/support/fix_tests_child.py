@@ -32,7 +32,8 @@ def main():
                           for name in ('unit', 'ui', 'system', 'e2e')}))
         return 0
     mode = (root / 'mode').read_text()
-    category = args[1] if kind == 'test' else kind
+    test_args = [arg for arg in args if arg != '--resume' and not arg.startswith('--resume-case=')]
+    category = test_args[1] if kind == 'test' else kind
     record = {'kind': kind, 'category': category, 'pid': os.getpid(), 'args': args}
     record['frame_directory'] = os.environ.get('ONPC_TEST_FRAME_DIRECTORY')
     if kind == 'agent':

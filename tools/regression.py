@@ -455,6 +455,7 @@ class Execution:
         self.decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
         self.captured, self.finished, self.failed = [], set(), set()
         self.inventory_seen = False
+        self.resume_empty = False
         self.fixture_failed = False
         run.sequence += 1
         filename = f'category-{run.sequence:03d}.log'
@@ -483,6 +484,7 @@ class Execution:
                 if self.inventory_seen:
                     raise ValueError('duplicate test inventory event')
                 self.inventory_seen = True
+                self.resume_empty = event.get('resume_empty', False)
                 if item.total is not None and item.total != event['total']:
                     raise ValueError('test inventory changed after collection')
                 item.total = event['total']
@@ -510,6 +512,8 @@ class Execution:
                     self.fixture_failed = True
                     from test_retention import preserve_for_recovery
                     preserve_for_recovery()
+            if not self.collect and self.run.checkpoint is not None:
+                self.run.checkpoint.event(item.retry_category, event, self.failed)
             self.run.report.snapshot(self.run.categories, force=event['kind'] == 'failure')
             if event['kind'] == 'failure':
                 self.run.report.checkpoint(force=True)
@@ -545,7 +549,7 @@ class Execution:
             run.report.write('\n' + html.escape(tail) + '\n' + item.name +
                              ' — Exit status: ' + str(status) + '\n')
             if self.collect:
-                item.state = 'Pending' if status == 0 else 'Failed'
+                item.state = 'Passed' if self.resume_empty and status == 0 else 'Pending' if status == 0 else 'Failed'
             else:
                 if item.nodeids is not None and not self.inventory_seen and not run.control.stopped.is_set():
                     raise ValueError('missing test execution inventory')
@@ -560,6 +564,12 @@ class Execution:
                               'Failed' if status or item.failures else
                               'Passed' if item.done == item.total else
                               'Running' if self.units else 'Failed')
+                if (run.checkpoint is not None and item.state in ('Failed', 'Interrupted')
+                        and not self.failed and self.finished and item.done == item.total):
+                    # A final controller/cleanup error must be exercised again.
+                    # Completing every assertion alone cannot certify cleanup.
+                    run.checkpoint.event(item.retry_category,
+                        dict(kind='failure', nodeid=sorted(self.finished)[-1]), set())
             item.stop_timer()
             run.report.snapshot(run.categories)
             run.dashboard.draw(force=True)
@@ -590,6 +600,7 @@ class Run:
                  host_builds=False, serial_builds=False, continue_on_errors=False, scope=None,
                  phases=None):
         self.root, self.report, self.control = root, report, control
+        self.checkpoint = None
         self.continue_on_errors = continue_on_errors
         self.phases = phases if phases is not None else (
             ('host',) if host_only or host_builds else ('host', 'system', 'e2e'))
@@ -623,12 +634,71 @@ class Run:
         vm_args = arguments() if category in ('system', 'e2e', 'integration') else []
         return [str(self.root / 'tools/run-tests'), category, '--unattended', *args, *vm_args]
 
+    def resume_category(self, item, kind=None):
+        kind = kind or item.retry_category
+        # Builders must provide fresh validated paths for dependent commands.
+        if self.checkpoint is None or kind == 'artifacts' or not self.checkpoint.complete(kind):
+            return False
+        item.retry_category = kind
+        if item.total is None:
+            item.total = max(1, len(self.checkpoint.passed(kind)))
+        item.done, item.state = item.total, 'Passed'
+        self.report.write('\nResume: previously completed category ' + kind + '\n')
+        return True
+
+    def command_environment(self, command):
+        environment = host.environment(self.root)
+        kind = ('ui' if Path(command[0]).name == 'run-ui-tests' else
+                command[1] if Path(command[0]).name == 'run-tests' and len(command) > 1 else None)
+        if self.checkpoint is not None and kind in ('unit', 'component', 'ui', 'fixture-runtime', 'coverage'):
+            from test_checkpoint import EXCLUDE
+            environment[EXCLUDE] = self.checkpoint.environment(kind)
+        return environment
+
+    def resume_command(self, item, command):
+        kind = item.retry_category
+        passed = self.checkpoint.passed(kind) if self.checkpoint is not None else set()
+        if not passed or kind not in ('system', 'e2e'):
+            return command
+        if kind == 'system':
+            return [*command, '--completed-cases=' + json.dumps(sorted(passed))]
+        import runpy
+        options = [arg for arg in command[2:] if arg != '--unattended']
+        runner = runpy.run_path(str(self.root / 'tests/e2e/runner.py'))
+        plan = runner['preflight'](options, root=self.root, allow_missing_artifacts=True)
+        remaining = [case for case in plan['cases'] if case['case_id'] not in passed]
+        # If only suite finalization failed, rerun its final case to exercise
+        # the controller and its cleanup rather than claiming an empty pass.
+        remaining = remaining or plan['cases'][-1:]
+        filtered = []
+        skip_value = False
+        for arg in options:
+            if skip_value:
+                skip_value = False
+            elif arg in ('--scenario', '--id'):
+                skip_value = True
+            elif arg == '--ready' or arg.startswith(('--scenario=', '--id=')):
+                continue
+            else:
+                filtered.append(arg)
+        filtered.append('--id=' + ','.join(str(case['coverage_id']) for case in remaining))
+        item.nodeids = tuple(case['case_id'] for case in remaining)
+        item.total = len(remaining)
+        return [*command[:2], '--unattended', *filtered]
+
     def execute(self, item, command, *, collect=False, events=False, units=None):
         if self.control.stopped.is_set():
             item.state = 'Interrupted'
             return 130, ''
         item.retry_category = ('ui' if Path(command[0]).name == 'run-ui-tests' else
                                command[1] if Path(command[0]).name == 'run-tests' else None)
+        if not collect and self.resume_category(item):
+            return 0, ''
+        if not collect:
+            command = self.resume_command(item, command)
+            if item.retry_category == 'system' and self.checkpoint is not None:
+                # The controller announces the remaining resolved inventory.
+                item.total = None
         if not collect and len(command) > 1 and command[1] in ('publish', 'artifacts', 'system', 'e2e'):
             self.wait_for_resources(item, command[1])
             if self.control.stopped.is_set():
@@ -649,7 +719,7 @@ class Run:
             self.dashboard.draw()
 
         try:
-            status = self.control.run(command, cwd=self.root, env=host.environment(self.root),
+            status = self.control.run(command, cwd=self.root, env=self.command_environment(command),
                                       output=execution.output, cooperative=True,
                                       tick=tick)
             return execution.finish(status)
@@ -674,6 +744,7 @@ class Run:
         item.wait_reason = ''
 
     def host_jobs(self, jobs, *, phase='host'):
+        jobs = [job for job in jobs if not self.resume_category(job.item, job.item.retry_category or job.kind)]
         queued = time.monotonic()
         before = sum(job.item.elapsed for job in jobs)
         setattr(self.dashboard, phase + '_started', queued)
@@ -703,7 +774,7 @@ class Run:
             return Execution(self, job.item, events=job.events)
 
         def command(argv, output):
-            return self.control.run(argv, cwd=self.root, env=host.environment(self.root),
+            return self.control.run(argv, cwd=self.root, env=self.command_environment(argv),
                                     output=output, cooperative=True)
 
         def waiting(job, reason):
@@ -780,6 +851,8 @@ class Run:
 
     def pytest_jobs(self, kind, inventory, args, *, exact=False):
         """Share module isolation and scheduling across host and selected runs."""
+        if inventory.state == 'Passed' and not inventory.total:
+            return []
         buckets = {'ui': ui_buckets, 'unit': unit_buckets}[kind](inventory.nodeids)
         items = [Category(bucket.name, len(bucket.nodeids), nodeids=bucket.nodeids,
                           retry_category=kind)
@@ -825,7 +898,7 @@ class Run:
                 return
             status, _ = self.execute(item, self.command(kind, *args, '--collect-only', '-q'),
                                      collect=True, events=True)
-            if status or not item.total:
+            if status or (not item.total and item.state != 'Passed'):
                 if self.control.stopped.is_set():
                     return
                 raise ValueError('pytest collection failed or collected no tests')
@@ -1031,7 +1104,7 @@ def recover_initial_checks(root, state):
 
 
 def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
-         continue_on_errors=False, selections=None, phases=None, stop_on_error=False):
+         continue_on_errors=False, selections=None, phases=None, stop_on_error=False, checkpoint=None):
     import test_retention
     import test_activity
     root = root or Path(__file__).resolve().parents[1]
@@ -1045,12 +1118,13 @@ def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
             status = retained_main(root,
                                    host_only=host_only, host_builds=host_builds,
                                    serial_builds=serial_builds, continue_on_errors=continue_on_errors,
-                                   selections=selections, phases=phases, stop_on_error=stop_on_error)
+                                   selections=selections, phases=phases, stop_on_error=stop_on_error,
+                                   checkpoint=checkpoint)
         return 130 if storage_control.stopped.is_set() else status
 
 
 def retained_main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
-                  continue_on_errors=False, selections=None, phases=None, stop_on_error=False):
+                  continue_on_errors=False, selections=None, phases=None, stop_on_error=False, checkpoint=None):
     root = root or Path(__file__).resolve().parents[1]
     report = None
     run = None
@@ -1066,6 +1140,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
             else:
                 from regression_selection import SelectedRun
                 run = SelectedRun(root, report, control, selections, stop_on_error=stop_on_error)
+            run.checkpoint = checkpoint
             run.run()
             status = 0 if all(item.state == 'Passed' for item in run.categories) else 1
         except (Exception, KeyboardInterrupt) as error:
@@ -1095,6 +1170,8 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                         if item.state in ('Running', 'Pending'):
                             item.state = 'Interrupted' if status == 130 else 'Blocked'
                     report.snapshot(run.categories)
+                    if checkpoint is not None:
+                        checkpoint.finish(run.categories)
                     report.write('\n## Final result\n\n' + ('Passed' if status == 0 else
                                  'Interrupted; owned child cleanup finished' if status == 130 else 'Failed') + '\n')
                     report.write('\nVM backing verification: ' + run.verification_mode + '\n')

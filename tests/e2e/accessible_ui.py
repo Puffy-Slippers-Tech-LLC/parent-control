@@ -2786,6 +2786,17 @@ class AccessibleUI:
         with self.language_scope(surface):
             identity = 'language-choice-' + language.lower()
             self.activate_id(identity)
+            # Action acceptance does not prove selection. Keep later input
+            # blocked until a fresh owned read confirms the candidate.
+            self.input_uncertain = True
+
+            def selected():
+                current = self.snapshot_owned_target(identity, check_prompt=True)
+                return current is not None and self.has_state(
+                    current, self.api.StateType.CHECKED)
+
+            self.wait(selected, 'language-choice', prompt_in_predicate=True)
+            self.input_uncertain = False
 
     def language_save_completed(self, surface):
         """Observe readiness and closure together; do not replay an uncertain Save."""

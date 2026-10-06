@@ -8,13 +8,17 @@ from parent_about import PLAN as ABOUT_PLAN
 SCREEN_TAGS = {}
 for stage, tag in ABOUT_PLAN.screen_tags.items():
     SCREEN_TAGS[stage] = tag
-    if stage == 'license':
+    # Link qualification has its own stages beyond the customer About read.
+    if stage == 'about':
+        SCREEN_TAGS['license'] = 'ui:license'
         SCREEN_TAGS['license-provider-refusals'] = 'ui:license-provider-refusals'
+        SCREEN_TAGS['license-closed'] = 'ui:license-closed'
 
 PLAN = JourneyPlan(
     prefix='license-provider', worker_mode='license_viewer_provider',
     screen_tags=SCREEN_TAGS,
-    phases={**ABOUT_PLAN.phases, 'license-provider-refusals': 'step-1'},
+    phases={**ABOUT_PLAN.phases, 'license': 'step-1',
+            'license-provider-refusals': 'step-1', 'license-closed': 'step-2'},
     advance_after={'license-provider-refusals': 'step-2'},
     settings_checks=ABOUT_PLAN.settings_checks,
 )

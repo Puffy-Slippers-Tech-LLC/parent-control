@@ -130,7 +130,9 @@ for connection in connections:
                     deadline = time.monotonic() + 5
                     while time.monotonic() < deadline:
                         frame = protocol.read_frame(memory)
-                        if frame[1]['state'] == 'live' and frame[2] == pixels.encode():
+                        # A publication in progress has no consistent sample yet.
+                        if (frame is not None and frame[1]['state'] == 'live'
+                                and frame[2] == pixels.encode()):
                             break
                         time.sleep(.01)
                     else:
@@ -143,10 +145,11 @@ for connection in connections:
                     producer.wait(timeout=5)
                     deadline = time.monotonic() + 3
                     while time.monotonic() < deadline:
-                        if protocol.read_frame(memory)[1]['state'] == 'waiting':
+                        frame = protocol.read_frame(memory)
+                        if frame is not None and frame[1]['state'] == 'waiting':
                             break
                         time.sleep(.01)
-                    assert protocol.read_frame(memory)[1]['state'] == 'waiting'
+                    assert frame is not None and frame[1]['state'] == 'waiting'
                     assert child.poll() is None
             control.close()
             assert child.wait(timeout=5) == 0, (tmp_path / 'collector.log').read_text()

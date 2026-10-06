@@ -270,7 +270,8 @@ def category_status(category, categories):
 
 
 def run_loop(categories, test, repair, check_stop, *, selected=False, round_changed=lambda _: None,
-             verified=lambda _repair, _passed: None, rounds=1):
+             verified=lambda _repair, _passed: None, rounds=1, resume_test=None, completed=(), start_round=1,
+             verification_started=lambda _completed: None):
     """Keep each case's latest repair handoff until its category passes."""
     def finish_category(category, failure):
         handoffs = {}
@@ -294,7 +295,7 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
                               **({'previous': handoffs[target]} if target in handoffs else {}))
             handoffs[target] = previous
             check_stop()
-            failure = test(category)
+            failure = (resume_test(category, retry_case=target[1]) if resume_test else test(category))
             passed = verification_outcome(failure, target)
             if isinstance(previous, dict):
                 previous['verification'] = passed
@@ -310,23 +311,34 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
                 # return their observations for interpretation, even after a pass.
                 handoffs = {key: value for key, value in handoffs.items() if diagnostic(value)}
 
-    round_changed(1)
-    for category in categories:
-        check_stop()
-        finish_category(category, test(category))
-    for number in range(2, rounds + 1):
+    if start_round == 1:
+        round_changed(1)
+        for category in categories:
+            if category in completed:
+                continue
+            check_stop()
+            finish_category(category, test(category))
+    for number in range(max(2, start_round), rounds + 1):
         round_changed(number)
-        verify_round(categories, test, finish_category, check_stop, selected=selected)
+        verify_round(categories, test, finish_category, check_stop, selected=selected,
+                     completed=completed if number == start_round else (),
+                     resume_test=resume_test, verification_started=verification_started)
 
 
-def verify_round(categories, test, finish_category, check_stop, *, selected):
+def verify_round(categories, test, finish_category, check_stop, *, selected, completed=(),
+                 resume_test=None, verification_started=lambda _completed: None):
     """Repeat verification and repairs until this round has a clean pass."""
+    if not selected and all(category in completed for category in categories):
+        return
     if selected:
         # A later repair can break an earlier leaf. Require a whole selected
         # pass without repairs before finishing, never widening to all.
         while True:
+            verification_started(completed)
             clean = True
             for category in categories:
+                if category in completed:
+                    continue
                 check_stop()
                 failure = test(category)
                 if failure is not None:
@@ -334,7 +346,10 @@ def verify_round(categories, test, finish_category, check_stop, *, selected):
                     finish_category(category, failure)
             if clean:
                 return
+            completed = ()
     while True:
+        verification_started(completed)
+        completed = ()
         check_stop()
         failure = test('all')
         if failure is None:
@@ -346,15 +361,18 @@ def verify_round(categories, test, finish_category, check_stop, *, selected):
         # Each category is repaired against fresh evidence after the first one.
         for index, category in enumerate(dict.fromkeys(failed)):
             check_stop()
-            finish_category(category, failure if index == 0 else test(category))
+            finish_category(category, failure if index == 0 else
+                            (resume_test(category) if resume_test else test(category)))
 
 
 def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
     if kind == 'test':
         from vm_selection import execution_arguments, selected
         vm_args = execution_arguments() if selected(required=False) is not None else []
-        command = [str(root / 'tools/run-tests'), '--stop-on-error', category,
-                   *json.loads(test_args), *vm_args]
+        options = json.loads(test_args)
+        resume = '--resume' in options
+        command = [str(root / 'tools/run-tests'), *(['--resume'] if resume else []),
+                   '--stop-on-error', category, *[arg for arg in options if arg != '--resume'], *vm_args]
     elif kind == 'recovery':
         from vm_selection import execution_arguments, execution_binding
         options = execution_arguments() if execution_binding() is not None else ['--host-only']
@@ -379,7 +397,7 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
     return detached_launcher.supervise(root, run, owner, kind, command)
 
 
-def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1'):
+def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1', resume='false'):
     from launcher_progress import publish_progress, publish_repair_status, read_progress, repair_progress
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     round_number = 1
@@ -387,13 +405,30 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     case_sessions = {}
     case_results = {}
     case_tiers = {}
+    checkpoint = None
+    resuming = resume == 'true'
+    pending = None
 
     def round_changed(number):
         nonlocal round_number
         round_number = number
+        if checkpoint is not None:
+            if number > checkpoint.state.get('round', 1):
+                for entry in checkpoint.state['categories'].values():
+                    entry['complete'] = False
+            checkpoint.state['round'] = number
+            checkpoint.save()
 
     def progress(category, status, *, model=None):
         publish_repair_status(run, round_number, category, categories, status, model=model)
+
+    def verification_started(completed):
+        # A repair requires another whole clean pass. Persist the new pass's
+        # queued work before it starts, so cancellation cannot reuse old passes.
+        for kind in categories:
+            if kind not in completed:
+                checkpoint.entry(kind)['complete'] = False
+        checkpoint.save()
 
     def cancel(*_):
         (run / 'cancel').touch(mode=0o600)
@@ -423,7 +458,17 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         check_stop()
         return status
 
-    def test(category):
+    def test(category, *, resume=False, retry_case=''):
+        nonlocal pending
+        resume = resume or (resuming and (category == pending or
+                            (category == 'all' and pending is not None and round_number > 1)))
+        pending = category
+        if checkpoint is not None:
+            for kind in categories if category == 'all' else (category,):
+                if checkpoint.entry(kind) is not None:
+                    checkpoint.entry(kind)['complete'] = False
+            checkpoint.state['pending'] = category
+            checkpoint.save()
         def run_requested(requested, options, description):
             while True:
                 status = execute('test', requested, options)
@@ -442,11 +487,20 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             progress(category, 'Running tests')
             status_line = category_status(category, categories)
             print(f'\nfix-tests: running {category}', flush=True)
-            status = run_requested(category, inventory.get(category, {}).get('args', []),
+            options = [*inventory.get(category, {}).get('args', []), *(['--resume'] if resume else []),
+                       *(['--resume-case=' + retry_case] if resume and retry_case else [])]
+            status = run_requested(category, options,
                                    'the requested category')
             previous = repair_progress(run, read_progress(run))
             publish_progress(run, previous[-1]['key'], previous[-1]['lines'])
             if status == 0:
+                if checkpoint is not None:
+                    for kind in categories if category == 'all' else (category,):
+                        if checkpoint.entry(kind) is not None:
+                            checkpoint.entry(kind)['complete'] = True
+                    checkpoint.state['pending'] = None
+                    checkpoint.save()
+                pending = None
                 if status_line is not None:
                     print(status_line, flush=True)
                 return None
@@ -607,11 +661,21 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         requested = json.loads(requested)
         inventory = requested_inventory(root, requested, inventory=category_inventory(listing.stdout))
         categories = list(inventory)
+        from test_checkpoint import Checkpoint
+        checkpoint = Checkpoint(root, [(name, spec['args']) for name, spec in inventory.items()],
+                                resume=resuming, namespace='fix-tests')
+        pending = checkpoint.state.get('pending')
+        completed = [kind for kind in categories if checkpoint.complete(kind)]
+        start_round = checkpoint.state.get('round', 1) if resuming else 1
+        if start_round > int(rounds):
+            raise ValueError('resume round exceeds --rounds; retain the original round count')
         rounds = int(rounds)
         print(f'fix-tests: category pass, then {rounds - 1} verification round(s)', flush=True)
         print('fix-tests: categories: ' + ', '.join(categories), flush=True)
         run_loop(categories, test, repair, check_stop, selected=bool(requested), rounds=rounds,
                  round_changed=round_changed,
+                 completed=completed, resume_test=lambda category, **options: test(category, resume=True, **options),
+                 start_round=start_round, verification_started=verification_started,
                  verified=verified)
         print('\nfix-tests: ' + ('all selected categories passed.' if requested else
               'all categories passed.' if rounds == 1 else
@@ -633,7 +697,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     return status
 
 
-def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=(), rounds=1):
+def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=(), rounds=1, resume=False):
     from vm_selection import execution_binding, check_binding, save_binding
     from test_commands import repair_host_only_request
     name = execution_binding()
@@ -653,12 +717,17 @@ def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()
         default_model, app_model = available_models(selected_model, selected_effort)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                 '--worker', str(root), str(run), str(owner), default_model,
-                selected_effort, app_model, json.dumps(categories), str(rounds)]
+                selected_effort, app_model, json.dumps(categories), str(rounds), *(['true'] if resume else [])]
 
     kind = 'fix-tests-host' if repair_host_only_request(root, categories) else 'fix-tests'
+    def started(run):
+        save_binding(run, name)
+        from test_checkpoint import request_record
+        request_record(root, 'fix-tests', dict(categories=list(categories), rounds=rounds,
+                                             vm=name))
     return detached_launcher.select(root, kind, command, stop=stop,
         on_attach=lambda run: check_binding(run, name, stopping=stop),
-        on_start=lambda run: save_binding(run, name))
+        on_start=started)
 
 
 def follow(run, stream=None):
@@ -670,8 +739,10 @@ def main(argv=None):
     from vm_selection import SELECTOR_HELP
     parser.add_argument('--vm', help=SELECTOR_HELP)
     parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
+    parser.add_argument('--resume', action='store_true',
+                        help='resume passed categories and the failed/interrupted test checkpoint')
     parser.add_argument('--model', help='initial repair model (default: gpt-6.1-sol)')
-    parser.add_argument('--rounds', type=int, default=1, metavar='X',
+    parser.add_argument('--rounds', type=int, metavar='X',
                         help='run round 1 once, then round 2 X-1 times (default: 1)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
                         default=DEFAULT_EFFORT, help='initial reasoning effort (default: medium; escalates through Sol high and Astra high/xhigh)')
@@ -681,10 +752,22 @@ def main(argv=None):
                      'Omitting categories selects every leaf. Host and VM workflows have '
                      'separate sessions; attach or stop using the same scope.')
     args, categories = parser.parse_known_args(argv)
+    root = Path(__file__).resolve().parents[1]
+    if args.resume and not categories and not args.stop:
+        from test_checkpoint import request_record
+        previous_request = request_record(root, 'fix-tests')
+        if previous_request is not None:
+            categories = previous_request['categories']
+            if args.rounds is None:
+                args.rounds = previous_request['rounds']
+            if args.vm is None:
+                binding = previous_request['vm']
+                args.vm = ','.join(binding['vms']) if isinstance(binding, dict) else binding
     args.categories = categories
+    if args.rounds is None:
+        args.rounds = 1
     if args.rounds < 1:
         parser.error('--rounds must be a positive integer')
-    root = Path(__file__).resolve().parents[1]
     run = None
     requested = args.stop
 
@@ -713,7 +796,8 @@ def main(argv=None):
             os.environ.pop(BATCH, None)
         requested_inventory(root, args.categories)
         run, started = select(root, stop=requested, model=args.model, effort=args.effort,
-                              categories=args.categories, rounds=args.rounds)
+                              categories=args.categories, rounds=args.rounds,
+                              **({'resume': True} if args.resume else {}))
         if run is None:
             print('fix-tests: no active launcher.')
             return 0

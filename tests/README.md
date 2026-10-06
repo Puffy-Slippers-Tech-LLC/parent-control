@@ -258,6 +258,30 @@ parallel scheduling, for example `tools/run-tests --stop-on-error unit`.
 Ordinary selected commands keep their existing failure policy. The option
 conflicts with `--continue-on-errors`.
 
+### Resuming test execution
+
+`tools/run-tests --resume` restores the latest public selection and retries its
+failed or interrupted category and cases. It can also accompany the original
+categories and selectors, for example `tools/run-tests --resume --stop-on-error
+unit 'tests/unit/test_core.py' -q`. A new execution without `--resume` resets the
+checkpoint and starts that selection from the beginning. Attachment to a live
+owner keeps that owner's options; inspection never changes checkpoints.
+
+Only completed cases without a reported failure are retained as passes. Failed
+cases, interrupted cases and queued work run again; parallel workers retain
+their independent completions. Pytest passes commit after teardown. An abrupt
+owner/machine failure can lose the last one-second checkpoint interval, causing
+those cases to run again. A failed final controller/cleanup audit repeats a case
+so an empty selection cannot certify recovery. Changed selectors refuse resume;
+start without the option to reset. Host and individual VM checkpoints remain
+separate, and a retry can narrow an aggregate to an original category.
+
+Preparation, ownership recovery and validated package inputs still run. System
+upgrade and removal/repair lifecycle cases replay their state-changing predecessors when
+needed to reach the failed phase. Commands without case events remain one atomic
+test operation and resume at their category boundary. Small private checkpoints
+use the shared storage/state route; retained reports keep their normal lifetime.
+
 ### Scripted repair loop
 
 Launcher agents and sessions use `tools/prepare-baseline --vm NAME --mode auto --y`
@@ -272,7 +296,10 @@ or with `--vm NAME` for one registered VM, to start or attach to the scripted
 repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit
 arguments, until each passes. After a failure, a fresh Codex process receives
 that run's generated investigation prompt, applies a repair, exits, and the
-script reruns that category. `--rounds X` defaults to 1, running only round 1.
+script reruns that category with `run-tests --resume`, retrying the repaired case
+and remaining cases without repeating its completed passes. Each newly entered
+category and each fresh verification pass starts without `--resume`.
+`--rounds X` defaults to 1, running only round 1.
 With X >= 2, it repeats verification X-1 times, labeled rounds 2 through X
 in the top frame. Each verification round runs `run-tests all`; failures trigger
 repair/category retries before another complete `all` run. Only a passing
@@ -348,9 +375,14 @@ are not required. Lower-tier stalls escalate within the same budget. Missing pre
 and permissions use their maintained repair/blocker routes, not model escalation
 by themselves. These are session limits, not token budgets.
 
-Detaching preserves the live loop; after a stopped/dead owner, a new run starts fresh,
-with fresh case budgets, without loading old repair conversations or assuming
-old verification applies.
+Detaching preserves the live loop. After a stopped/dead owner, `fix-tests --resume`
+restores the latest selection, completed categories, current round and pending
+runner checkpoint. Explicit categories retain their original selectors. Without
+`--resume`, a new run starts from its first category. Both paths use fresh case
+budgets without loading old repair conversations; new verification rounds still
+execute the complete requested selection. After a repair within verification,
+the next clean pass clears previous category completions before queuing work;
+an interruption can resume only that pass's completions.
 An answered blocker keeps its current model/phase and is not a failed repair.
 Ownership recovery remains the existing scripted `cleanup-e2e` operation; a
 normal cleanup failure handoff enters the same repair policy, while refusal

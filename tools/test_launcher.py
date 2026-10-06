@@ -123,6 +123,10 @@ def environment(root, *, scratch=True):
                'XDG_RUNTIME_DIR', 'XDG_SESSION_TYPE', 'XDG_CURRENT_DESKTOP',
                'PYTEST_DISABLE_PLUGIN_AUTOLOAD')
     result = {key: os.environ[key] for key in allowed if key in os.environ}
+    from test_checkpoint import EXCLUDE, completed_cases
+    if EXCLUDE in os.environ:
+        completed_cases(os.environ[EXCLUDE])
+        result[EXCLUDE] = os.environ[EXCLUDE]
     result.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', PYTHONDONTWRITEBYTECODE='1',
                   PYTHONNOUSERSITE='1',
                   PYTHONPATH=f'{root}/broker:{root}/kiosk:{root}')

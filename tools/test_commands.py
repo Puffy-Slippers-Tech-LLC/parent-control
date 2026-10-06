@@ -156,6 +156,16 @@ def repair_host_only_request(root, requested):
 
 def execution_arguments(argv):
     """The leading coordinator option does not alter category arguments."""
+    resume = '--resume' in argv
+    replay = [arg.partition('=')[2] for arg in argv if arg.startswith('--resume-case=')]
+    if replay:
+        from regression_events import completed_cases
+        if not resume or len(replay) != 1:
+            raise ValueError('--resume-case requires --resume and one case')
+        completed_cases(json.dumps(replay))
+    argv = [arg for arg in argv if arg != '--resume' and not arg.startswith('--resume-case=')]
+    if resume and not argv:
+        argv = ['all']
     stop = argv[:1] == ['--stop-on-error']
     args = argv[1:] if stop else argv
     if stop and (not args or '--continue-on-errors' in args):
@@ -180,7 +190,7 @@ def usage():
     listing = '\n'.join(f'  {name:<{width}}  {CATEGORIES[name].description}' for name in inventory)
     helpers = '\n'.join(f'  {name:<{width}}  {spec.description}'
                         for name, spec in CATEGORIES.items() if name not in inventory)
-    return f'''Usage: tools/run-tests [--vm NAME] [--stop-on-error] [category [args ...]] ...
+    return f'''Usage: tools/run-tests [--vm NAME] [--resume] [--stop-on-error] [category [args ...]] ...
        tools/run-tests --help
        tools/run-tests --list
        tools/run-tests --stop
@@ -189,6 +199,10 @@ With no categories, start the all aggregate. An active run or
 unread result takes precedence over new execution categories. Attach to a
 configured queue without --vm; narrowed runs require their original --vm NAME.
 Help, listing and collection return immediately without attaching.
+--resume reuses the last matching category/test checkpoint, skipping completed
+cases and retrying failed or interrupted cases. Without it, a new execution
+resets the checkpoint. Keep the original selectors; a changed selection refuses
+resume. Required preparation and lifecycle prerequisites still run.
 --stop requests cancellation of the active run and waits for owned cleanup.
 VM categories read config/test-vm.json and execute every entry with enabled
 equal to the string "true", using at most concurrency VMs simultaneously.
@@ -716,8 +730,10 @@ def plan(root, category, argv):
     raise ValueError('unknown test category; use --help or --list')
 
 
-def _main(argv=None, *, detached=False):
+def _main(argv=None, *, detached=False, checkpoint=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    if is_inspection(argv):
+        argv = [arg for arg in argv if arg != '--resume']
     try:
         argv, _ = vm_request(argv)
     except ValueError as error:
@@ -744,7 +760,7 @@ def _main(argv=None, *, detached=False):
         phases = phase_arguments(argv)
         if phases is not None:
             from regression import main as regression_main
-            return regression_main(root, **phases)
+            return regression_main(root, **phases, **({'checkpoint': checkpoint} if checkpoint else {}))
         if detached:
             selected = selections(root, argv)
             serial_host = (len(selected) == 1 and selected[0][0] in ('unit', 'component', 'ui')
@@ -754,6 +770,7 @@ def _main(argv=None, *, detached=False):
                     for _, args in selected):
                 from regression import main as regression_main
                 return regression_main(root, selections=selected,
+                                       **({'checkpoint': checkpoint} if checkpoint else {}),
                                        **({'stop_on_error': True} if stop_on_error else {}))
         category, args = argv[0], argv[1:]
         if category in AGGREGATES:
@@ -761,8 +778,9 @@ def _main(argv=None, *, detached=False):
             from regression import main as regression_main
             options = {'continue_on_errors': True} if '--continue-on-errors' in args else {}
             if category == 'host-builds':
-                return regression_main(root, phases=('host',), serial_builds='--serial-builds' in args, **options)
-            return regression_main(root, **options)
+                return regression_main(root, phases=('host',), serial_builds='--serial-builds' in args,
+                                       **options, **({'checkpoint': checkpoint} if checkpoint else {}))
+            return regression_main(root, **options, **({'checkpoint': checkpoint} if checkpoint else {}))
         if detached:
             from regression_process import host_run, category_run
             options = args[1:] if args[:1] == ['--unattended'] else args
@@ -893,6 +911,7 @@ def host_only_request(argv):
     from vm_selection import extract_execution as extract
     args, _ = extract(argv, required=False)
     args = args or ['all']
+    args = [arg for arg in args if arg != '--resume' and not arg.startswith('--resume-case=')] or ['all']
     if args[:1] == ['--stop-on-error']:
         args = args[1:] or ['all']
     category = args[0]
@@ -933,6 +952,8 @@ def is_inspection(argv):
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     try:
+        from test_checkpoint import resume_arguments
+        argv = resume_arguments(Path(__file__).resolve().parents[1], argv)
         vm_request(argv)
     except ValueError as error:
         print('run-tests: ' + str(error), file=sys.stderr)

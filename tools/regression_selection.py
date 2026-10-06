@@ -76,7 +76,7 @@ class SelectedRun(Run):
         else:
             command = pytest_command(self.root, args, kind)
             options = command[command.index('no:cacheprovider') + 1:command.index('--')]
-        if serial_options(options):
+        if serial_options(options) and self.checkpoint is None:
             self.report.write(f'\n{kind.upper()} selection: serial execution preserves the requested failure limit.\n')
             inventory.branch = 1
             inventory.launch_order = self.sequence + 1
@@ -87,8 +87,16 @@ class SelectedRun(Run):
                                  collect=True, events=True)
         if self.control.stopped.is_set():
             return 130
-        if status or not inventory.total:
+        if status or (not inventory.total and inventory.state != 'Passed'):
             raise ValueError(f'{kind.upper()} collection failed or collected no tests')
+        if inventory.state == 'Passed' and not inventory.total:
+            inventory.retry_category = kind
+            return 0
+        if serial_options(options):
+            inventory.branch = 1
+            inventory.launch_order = self.sequence + 1
+            status, _ = self.execute(inventory, self.command(kind, *args), events=True)
+            return status or int(inventory.state != 'Passed')
         # The common builder validates the inventory before protected work.
         # Exact IDs retain partial files, parametrization, -k, -m and ignores.
         jobs = self.pytest_jobs(kind, inventory, options, exact=True)
@@ -109,6 +117,9 @@ class SelectedRun(Run):
             if self.control.stopped.is_set():
                 break
             self.dashboard.controller_category = (kind, index, len(self.selections))
+            item.retry_category = kind
+            if self.resume_category(item):
+                continue
             if item.host:
                 if self.dashboard.host_started is None:
                     self.dashboard.host_started = time.monotonic()

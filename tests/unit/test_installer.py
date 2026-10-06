@@ -110,8 +110,13 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
         assert not staged_copy.exists()
 
 
-@pytest.mark.parametrize('installed', [None, 'older', 'equal', 'newer'])
-@pytest.mark.parametrize('failure', [None, 'identity', 'dnf', 'package'])
+@pytest.mark.parametrize('installed,failure', [
+    (None, None), ('older', None), ('equal', None), ('newer', None),
+    (None, 'dnf'), ('older', 'dnf'), ('equal', 'dnf'), ('newer', 'dnf'),
+    # These failures precede the installed-identity query, so repeating them
+    # for each installed version exercises the same path.
+    (None, 'identity'), (None, 'package'),
+])
 def test_rpm_installer_resolves_dependencies_and_reinstalls_local_build(
     tmp_path, installed, failure,
 ):

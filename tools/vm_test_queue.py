@@ -28,7 +28,9 @@ def split(root, argv):
     host = [(kind, options) for kind, options in selected if kind not in ('system', 'e2e', 'integration')]
     guests = [(kind, options) for kind, options in selected if kind in ('system', 'e2e', 'integration')]
     def flatten(groups):
-        result = [*(['--stop-on-error'] if stop else []),
+        result = [*(['--resume'] if '--resume' in argv else []),
+                  *[arg for arg in argv if arg.startswith('--resume-case=')],
+                  *(['--stop-on-error'] if stop else []),
                   *(value for kind, options in groups for value in (kind, *options))]
         if '--continue-on-errors' in args and all(kind in ('host', 'system', 'e2e') and not options
                                                 for kind, options in groups):
@@ -38,13 +40,20 @@ def split(root, argv):
 
 
 def run(root, argv):
-    from test_commands import _main
+    from test_commands import _main, selections
+    from test_checkpoint import Checkpoint
     snapshot = json.loads(os.environ[BATCH])
     configured = vm_config.registry()
     vms = tuple(configured[name] for name in snapshot['vms'])
     host_args, guest_args = split(root, argv)
+    # Reset the entire requested queue before any category can fail or stop.
+    # Queued VMs must not inherit older passes merely because they never start.
+    guest_selection = selections(root, guest_args)
+    for vm in vms:
+        Checkpoint(root, guest_selection, resume='--resume' in argv, binding=vm.name)
     if host_args:
-        status = _main(host_args, detached=True)
+        status = _main(host_args, detached=True, checkpoint=Checkpoint(
+            root, selections(root, host_args), resume='--resume' in host_args))
         if status:
             return status
     with Control().installed() as control:
@@ -168,7 +177,16 @@ def worker(argv):
             from test_recovery import cleanup
             return cleanup(root)
         from test_commands import _main
-        return _main([*args, '--vm', name], detached=True)
+        from test_checkpoint import Checkpoint
+        from test_commands import selections
+        checkpoint = Checkpoint(root, selections(root, args), resume='--resume' in args)
+        replay = [arg.partition('=')[2] for arg in args if arg.startswith('--resume-case=')]
+        if replay:
+            groups = selections(root, args)
+            if len(groups) != 1:
+                raise ValueError('case retry requires one category')
+            checkpoint.event(groups[0][0], dict(kind='failure', nodeid=replay[0]), set())
+        return _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)
 
 
 if __name__ == '__main__':

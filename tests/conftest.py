@@ -23,7 +23,8 @@ def configured_vm_fixture(monkeypatch):
     vm_config.select(vm_name())
 
 from tools.regression_events import (pytest_collection_finish, pytest_collectreport,
-                                     pytest_runtest_logreport)
+                                     pytest_runtest_logreport, pytest_sessionfinish,
+                                     pytest_collection_modifyitems as resume_collection)
 
 # Generated broker tests must be reproducible in CI and on a developer's
 # machine. Keep the profile bounded because installed-system behavior belongs
@@ -105,9 +106,10 @@ CONTRACT_MODULES = frozenset(
 )
 
 
-def pytest_collection_modifyitems(items):
+def pytest_collection_modifyitems(session, config, items):
     """Give every collected test one explicit, understandable test layer."""
 
+    resume_collection(session, config, items)
     for item in items:
         path = Path(str(item.path))
         layer = path.relative_to(Path(__file__).parent).parts[0]

@@ -110,7 +110,7 @@ def _select(root, argv):
                 broken = not result.exists() or int(result.read_text()) != 0
             except (ValueError, OSError):
                 broken = True
-            if same_vm and not (run / 'delivered').exists() and (not argv or not broken):
+            if '--resume' not in argv and same_vm and not (run / 'delivered').exists() and (not argv or not broken):
                 return run, False
             if broken and not (run / 'delivered').exists():
                 print(f'Previous test owner is idle; preserving its incomplete/failed output in {run}.',
@@ -157,6 +157,9 @@ def _select(root, argv):
                 # and further runner workers must not claim the agent's owner.
                 environment.pop(WORKFLOW_DIRECTORY, None)
                 with nested_operation(root, run):
+                    from test_checkpoint import request_record
+                    request_record(root, 'run-tests', {'argv': [arg for arg in requested
+                                   if not arg.startswith('--resume-case=')]})
                     subprocess.Popen(command, cwd=root, env=environment,
                                      stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
                                      start_new_session=True,
@@ -245,9 +248,17 @@ def worker(root, argv, run, owner):
             sys.stdout.controller('preparing', [
                 f'Category: {categories[0] if categories else "all"} (1/{len(categories) or 1}) | Preparing tests'])
             from vm_selection import BATCH
+            checkpoint = None
             if BATCH not in os.environ or host_only_selection([(kind, []) for kind in categories]):
+                from test_checkpoint import Checkpoint
+                checkpoint = Checkpoint(root, selections(root, argv or ['all']), resume='--resume' in argv)
+                replay = [arg.partition('=')[2] for arg in argv if arg.startswith('--resume-case=')]
+                if replay:
+                    if len(categories) != 1:
+                        raise ValueError('case retry requires one category')
+                    checkpoint.event(categories[0], dict(kind='failure', nodeid=replay[0]), set())
                 before_run(root, argv, categories=categories)
-            status = _main(argv, detached=True)
+            status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}))
     finally:
         finished.set()
         watcher.join()

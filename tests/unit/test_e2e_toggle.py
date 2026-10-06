@@ -433,20 +433,28 @@ def test_allowance_installed_sample_preserves_rejection_and_real_reopen_checks()
                            'ui:allowance-15-read']
     for value in (1,):
         assert stages.index(f'boundary-{value}-saved') < stages.index(f'boundary-{value}-reopen')
+        assert PLAN.screen_tags[f'boundary-{value}-saved'] == f'ui:custom-{value}-saved'
+        assert PLAN.screen_tags[f'boundary-{value}-reopen'] == f'ui:custom-{value}-reopen'
+    # Local rejection belongs to the boundary qualification, not case 158's
+    # preset-15/custom-1 persistence sample (E2E-035's documented recipe).
+    boundary_stages = list(BOUNDARY_SCREENS)
     for binding in ('over',):
         prefix = 'invalid-' + binding
-        assert PLAN.screen_tags[prefix + '-baseline-ready'] == 'ui:allowance-keyboard-15-click'
-        assert PLAN.screen_tags[prefix + '-baseline-confirm'] == 'ui:allowance-keyboard-15-selected'
-        assert PLAN.screen_tags[prefix + '-baseline-read'] == 'ui:allowance-15-read'
-        assert PLAN.screen_tags[prefix + '-unchanged'] == 'ui:allowance-15-read'
-        assert PLAN.screen_tags[prefix + '-reopen'] == 'ui:custom-15-reopen'
-        assert stages.index(prefix + '-rejected') < stages.index(prefix + '-unchanged')
+        assert BOUNDARY_SCREENS[prefix + '-baseline-ready'] == 'ui:allowance-keyboard-15-click'
+        assert BOUNDARY_SCREENS[prefix + '-baseline-confirm'] == 'ui:allowance-keyboard-15-selected'
+        assert BOUNDARY_SCREENS[prefix + '-baseline-read'] == 'ui:allowance-15-read'
+        assert BOUNDARY_SCREENS[prefix + '-rejected'] == 'ui:custom-invalid-over'
+        assert BOUNDARY_SCREENS[prefix + '-unchanged'] == 'ui:allowance-15-read'
+        assert BOUNDARY_SCREENS[prefix + '-reopen'] == 'ui:custom-15-reopen'
+        assert boundary_stages.index(prefix + '-rejected') < boundary_stages.index(prefix + '-unchanged')
     assert len(PLAN.screen_tags) < len(BOUNDARY_SCREENS)
     assert stages.index('initial-selection') < stages.index('persist-away-open')
     assert PLAN.settings_checks['persist-away-selected'] == SettingsObservation(
         'existing-fixture-child', False, ('0 minutes',))
     assert PLAN.settings_checks['persist-back-selected'] == SettingsObservation(
-        'fixture-child', True, ('15 minutes',))
+        'fixture-child', True, ('1 minutes',))
+    assert PLAN.screen_tags['persist-saved'] == 'ui:custom-1-reopen'
+    assert stages.index('persist-back-selected') < stages.index('persist-saved')
 
 
 def test_allowance_boundaries_uses_guarded_installed_envelope(monkeypatch, tmp_path):
@@ -651,11 +659,16 @@ def test_custom_reopen_checks_the_declared_reload_or_retained_selection(
     # In-memory public observations only; no additional shared resources.
     from accessible_ui import AccessibleUI, CHILD, UiError
     ui = Mock()
-    ui.snapshot_owned_target.return_value = None  # This branch tests reopening a hidden editor.
-    choice = ui.id_target.return_value
-    choice.get_description.return_value = (
-        'Daily allowance: Custom amount' if wrong_selection else
-        'Selected daily allowance: Custom amount')
+    # Reload canonicalizes 0/15 to presets, hiding the editor. Autosave keeps
+    # the active Custom editor (Frontends.md's successful-autosave contract).
+    ui.snapshot_owned_target.return_value = Mock() if action == 'reopen-current' else None
+    ui.has_state.return_value = True
+    selector = ui.id_target.return_value
+    label = Mock()
+    label.get_role_name.return_value = 'label'
+    label.get_name.return_value = '0 minutes' if wrong_selection else 'Custom value'
+    ui.nodes.return_value = [label]
+    ui.showing.return_value = True
     if wrong_selection:
         ui.allowance_preset.side_effect = UiError('ui:allowance-value')
         with pytest.raises(UiError):
@@ -671,7 +684,13 @@ def test_custom_reopen_checks_the_declared_reload_or_retained_selection(
             ui.allowance_preset.assert_called_once_with(CHILD, minutes, action='read')
         else:
             ui.allowance_preset.assert_not_called()
-            choice.get_description.assert_called_once_with()
+            ui.id_target.assert_called_once_with('parent-daily-limit-selector', sensitive=True)
+            ui.nodes.assert_called_once_with(selector, strict=True)
+            label.get_name.assert_called_once_with()
+    if action == 'reopen-current':
+        # Reobserve the retained result; never select Custom to repair it.
+        ui.allowance_keyboard.assert_not_called()
+        ui.activate_id.assert_not_called()
 
 
 def test_custom_allowance_selector_and_prerequisites(monkeypatch, tmp_path):

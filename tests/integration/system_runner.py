@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager, nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import fcntl
 import hashlib
 import importlib
@@ -354,6 +354,26 @@ def print_selection(selection, stream=None):
         print(f'    {name}:', file=stream)
         for case in cases:
             print(f'      {case}', file=stream)
+
+
+def resume_selection(selection, completed, *, fresh_install=False):
+    """Omit completed independent cases; reconstruct lifecycle prerequisites."""
+    identities = {item.phase + '::' + item.case_id for item in selection.executions}
+    require(completed <= identities, 'selection:resume-inventory-changed')
+    remaining = tuple(item for item in selection.executions
+                      if item.phase + '::' + item.case_id not in completed)
+    # A failed suite audit after the final case needs a real guarded attempt.
+    remaining = remaining or selection.executions[-1:]
+    if fresh_install or any(item.phase in REMOVAL_PHASES for item in remaining):
+        # Removal cases mutate the installation for the next phase. Replaying
+        # their predecessors is required to reach the failed lifecycle state.
+        # Upgrade attempts also reinstall from the baseline; their boot phases
+        # must run again before dependent areas can use the upgraded product.
+        lifecycle = ('installed', 'rebooted', *REMOVAL_PHASES)
+        remaining = tuple(item for item in selection.executions
+                          if item in remaining or item.phase in lifecycle)
+    phases = tuple(phase for phase in selection.phases if any(item.phase == phase for item in remaining))
+    return replace(selection, phases=phases, executions=remaining)
 
 
 def announce_selection(selection):
@@ -1729,6 +1749,7 @@ def main(argv=None):
                         help='verified prior package to install and reboot before upgrading')
     parser.add_argument('--area')
     parser.add_argument('--test')
+    parser.add_argument('--completed-cases')
     parser.add_argument('--list', action='store_true')
     parser.add_argument('--skip-backing-verification', action='store_true',
                         help='compatibility option; VM verification is always metadata-only')
@@ -1763,6 +1784,10 @@ def main(argv=None):
         selection = resolve_selection(args.area, args.test,
                                       qualification_failure=args.qualification_failure,
                                       fresh_install=args.previous_artifacts is not None)
+        if args.completed_cases is not None:
+            from tools.test_checkpoint import completed_cases
+            selection = resume_selection(selection, completed_cases(args.completed_cases),
+                                         fresh_install=args.previous_artifacts is not None)
         log(f'selection:scope={selection.scope} phases={len(selection.phases)} '
             f'executions={len(selection.executions)}')
         for name in HOST_EXECUTABLES:

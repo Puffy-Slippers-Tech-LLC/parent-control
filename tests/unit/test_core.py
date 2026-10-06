@@ -2,6 +2,7 @@ import threading
 import tempfile
 import unittest
 from pathlib import Path
+from dataclasses import replace
 from datetime import datetime
 from unittest import mock
 from zoneinfo import ZoneInfo
@@ -24,7 +25,6 @@ from tests.support.broker import (
 
 class CoreTests(unittest.TestCase):
     def test_kiosk_language_context_preserves_unset_preference_and_desktop_locale(self):
-        from dataclasses import replace
         accounts, preferences = Accounts(), Preferences()
         accounts.users[1001] = replace(accounts.users[1001], desktop_language='zh_CN.UTF-8')
         broker = make_broker(accounts=accounts, preferences=preferences)
@@ -548,37 +548,22 @@ class CoreTests(unittest.TestCase):
 
         self.assertFalse(any(event[0].startswith("set_") for event in accounts.events))
 
-    def test_revoke_termination_failure_keeps_strict_filter_and_old_grant(self):
-        accounts = Accounts()
-        accounts.extension = (123, 900)
-        running_apps = RunningApps(error=RuntimeError("partial termination"))
-
-        with self.assertRaises(BackendFailure):
-            make_broker(
-                accounts=accounts, running_apps=running_apps,
-            ).revoke_one_time_grant(1003, 1001)
-
-        self.assertEqual(accounts.extension, (123, 900))
-        self.assertEqual(
-            accounts.filter,
-            (False, ("/usr/bin/game", "org.example.Game")),
-        )
-
-    def test_revoke_failure_after_a_kill_keeps_strict_filter_and_old_grant(self):
-        accounts = Accounts()
-        accounts.fail_extension = True
-        running_apps = RunningApps(terminated=1)
-
-        with self.assertRaises(BackendFailure):
-            make_broker(
-                accounts=accounts, running_apps=running_apps,
-            ).revoke_one_time_grant(1003, 1001)
-
-        self.assertEqual(accounts.extension, (1, 2))
-        self.assertEqual(
-            accounts.filter,
-            (False, ("/usr/bin/game", "org.example.Game")),
-        )
+    def test_revoke_failure_keeps_strict_filter_and_old_grant(self):
+        for failure, old_grant in (("termination", (123, 900)), ("grant-write", (1, 2))):
+            with self.subTest(failure=failure):
+                accounts = Accounts()
+                accounts.extension = old_grant
+                accounts.fail_extension = failure == "grant-write"
+                running_apps = RunningApps(
+                    terminated=1,
+                    error=RuntimeError("partial termination") if failure == "termination" else None,
+                )
+                with self.assertRaises(BackendFailure):
+                    make_broker(
+                        accounts=accounts, running_apps=running_apps,
+                    ).revoke_one_time_grant(1003, 1001)
+                self.assertEqual(accounts.extension, old_grant)
+                self.assertEqual(accounts.filter, (False, ("/usr/bin/game", "org.example.Game")))
 
     def test_revoke_with_no_blocked_apps_skips_process_enumeration(self):
         preferences = Preferences()
@@ -1032,35 +1017,25 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(accounts.limit_type, 2)
         self.assertEqual(accounts.daily_limit, 0)
 
-    def test_account_change_during_authorization_causes_no_writes(self):
-        accounts = Accounts()
+    def test_identity_change_during_request_causes_no_writes(self):
+        for stage, uid, is_admin in (
+            ("authorization", 1001, True),
+            ("authorization", 1003, False),
+            ("usage-query", 1003, False),
+        ):
+            with self.subTest(stage=stage, uid=uid):
+                accounts = Accounts()
 
-        def promote():
-            old = accounts.users[1001]
-            accounts.users[1001] = UserAccount(
-                old.uid, old.username, old.label, True, old.is_system, old.is_local,
-            )
+                def change_role():
+                    accounts.users[uid] = replace(accounts.users[uid], is_admin=is_admin)
 
-        with self.assertRaises(AccessDenied):
-            make_broker(Authorizer(callback=promote), accounts).request_access(
-                991, ":1.2", 1001, 1003, 900, False,
-            )
-        self.assertEqual(accounts.events, [])
-
-    def test_approver_change_during_authorization_causes_no_writes(self):
-        accounts = Accounts()
-
-        def demote():
-            old = accounts.users[1003]
-            accounts.users[1003] = UserAccount(
-                old.uid, old.username, old.label, False, old.is_system, old.is_local,
-            )
-
-        with self.assertRaises(AccessDenied):
-            make_broker(Authorizer(callback=demote), accounts).request_access(
-                991, ":1.2", 1001, 1003, 900, False,
-            )
-        self.assertEqual(accounts.events, [])
+                authorizer = Authorizer(callback=change_role if stage == "authorization" else None)
+                usage = TimerUsage(callback=change_role if stage == "usage-query" else None)
+                with self.assertRaises(AccessDenied):
+                    make_broker(authorizer, accounts, timer_usage=usage).request_access(
+                        991, ":1.2", 1001, 1003, 900, False,
+                    )
+                self.assertEqual(accounts.events, [])
 
     def test_non_admin_approver_is_rejected_without_authorization(self):
         auth, accounts = Authorizer(), Accounts()
@@ -1087,13 +1062,17 @@ class CoreTests(unittest.TestCase):
 
     def test_denial_makes_no_writes_and_one_check(self):
         auth, accounts, timer_usage = Authorizer("denied"), Accounts(), TimerUsage()
-        result = make_broker(auth, accounts, timer_usage=timer_usage).request_access(
+        running_apps = RunningApps()
+        result = make_broker(
+            auth, accounts, timer_usage=timer_usage, running_apps=running_apps,
+        ).request_access(
             991, ":1.2", 1001, 1003, 900, False,
         )
         self.assertEqual(result[1], "denied")
         self.assertEqual(len(auth.calls), 1)
         self.assertEqual(timer_usage.as_calls, [])
         self.assertEqual(accounts.events, [])
+        self.assertEqual(running_apps.calls, [])
 
     def test_kiosk_usage_query_runs_as_authenticated_approver(self):
         timer_usage = TimerUsage()
@@ -1107,22 +1086,6 @@ class CoreTests(unittest.TestCase):
         accounts = Accounts()
         timer_usage = TimerUsage(error=RuntimeError("failed"))
         with self.assertRaises(BackendFailure):
-            make_broker(accounts=accounts, timer_usage=timer_usage).request_access(
-                991, ":1.2", 1001, 1003, 900, False,
-            )
-        self.assertEqual(accounts.events, [])
-
-    def test_approver_change_during_usage_query_makes_no_account_writes(self):
-        accounts = Accounts()
-
-        def demote():
-            old = accounts.users[1003]
-            accounts.users[1003] = UserAccount(
-                old.uid, old.username, old.label, False, old.is_system, old.is_local,
-            )
-
-        timer_usage = TimerUsage(callback=demote)
-        with self.assertRaises(AccessDenied):
             make_broker(accounts=accounts, timer_usage=timer_usage).request_access(
                 991, ":1.2", 1001, 1003, 900, False,
             )
@@ -1164,15 +1127,6 @@ class CoreTests(unittest.TestCase):
             ("preflight", 1001, expected_targets, ("/usr/bin/game-*",)),
             ("terminate", 1001, expected_targets, ("/usr/bin/game-*",)),
         ])
-
-    def test_denied_request_does_not_terminate_apps(self):
-        running_apps = RunningApps()
-        result = make_broker(
-            authorizer=Authorizer("denied"), running_apps=running_apps,
-        ).request_access(991, ":1.2", 1001, 1003, 900, False)
-
-        self.assertEqual(result[1], "denied")
-        self.assertEqual(running_apps.calls, [])
 
     def test_filter_precedes_extension_and_readback(self):
         accounts = Accounts()

@@ -5,6 +5,9 @@ explicitly owned children/descriptors. test_environment disables shared caches
 and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
+# Repair resume checks reuse fix_tests_cleanup_safety's private checkpoint trees
+# and recorded, waited test/agent doubles. They create no new shared cleanup
+# owner, VM, display or socket; compatible unit and cleanup scheduling holds.
 # Fresh child denial recorder/worker coverage uses only existing private pytest
 # evidence and waited Perl doubles. No new cleanup resource or live access;
 # challenges and installed-journey remain compatible in cleanup and unit scopes.

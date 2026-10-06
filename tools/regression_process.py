@@ -372,7 +372,7 @@ def host_run(root, category, argv, *, pipe=True):
         env['PYTHONUNBUFFERED'] = '1'
         if pipe:
             env['ONPC_REGRESSION_EVENTS'] = '1'
-        if category in ('unit', 'ui'):
+        if pipe:
             env['ONPC_REGRESSION_INVENTORY'] = '1'
         if category == 'ui':
             import test_retention

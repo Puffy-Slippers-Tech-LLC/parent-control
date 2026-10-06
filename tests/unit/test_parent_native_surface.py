@@ -33,6 +33,7 @@ def provider(monkeypatch):
     )
     application = bind_methods(SimpleNamespace(
         get_windows=Mock(return_value=[window]), _accessibility_registration_id=0,
+        _application_ui=Mock(spec=main.ApplicationUI),
     ), main.Application, (
         "do_dbus_register", "do_dbus_unregister", "_native_surface_transform",
         "_accessibility_method_call",

@@ -798,7 +798,7 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
                 active -= 1
             return 1 if name == 'guest-0' else 0
     monkeypatch.setattr(queue, 'Control', FakeControl)
-    assert queue.run(ROOT, requested) == 1
+    assert queue.run(tmp_path, requested) == 1
     assert hosts == expected_host
     assert calls[:len(vms)] == [('--recover', vm.name) for vm in vms]
     assert sorted(name for mode, name in calls if mode == '--execute') == [vm.name for vm in vms]

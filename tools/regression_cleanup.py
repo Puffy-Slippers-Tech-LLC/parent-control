@@ -5,6 +5,9 @@ explicitly owned children/descriptors. test_environment disables shared caches
 and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
+# ui_cleanup_safety's preview wait-cancellation checks use private tmp_path logs
+# and process-local Popen/clock doubles, without changing real signal handlers
+# or starting children. Its existing compatible unit/cleanup scheduling holds.
 # Repair resume checks reuse fix_tests_cleanup_safety's private checkpoint trees
 # and recorded, waited test/agent doubles. They create no new shared cleanup
 # owner, VM, display or socket; compatible unit and cleanup scheduling holds.

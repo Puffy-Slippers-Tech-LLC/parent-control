@@ -1623,11 +1623,15 @@ class AccessibleUI:
         if strict and prepare is not None:
             if self.application_ui is None:
                 external_roots = [root]
+            elif hasattr(root, 'ui_element'):
+                # Product projections also have a catalog, but only Desktop
+                # contains external providers that need AT-SPI preparation.
+                external_roots = []
             elif hasattr(root, 'catalog'):
                 external_roots = [node for node in root._children()
                                   if not hasattr(node, 'ui_element')]
             else:
-                external_roots = [] if hasattr(root, 'ui_element') else [root]
+                external_roots = [root]
             for external_root in external_roots:
                 prepare(external_root, descend=prepare_descend,
                     checkpoint=diagnostic.check if diagnostic is not None else None,
@@ -2503,7 +2507,10 @@ class AccessibleUI:
                 for identity in controls:
                     node = self.snapshot_owned_target(identity, root=root, observation=observation)
                     require(node is not None, 'ui:initial-control')
-                    name = node.get_name()
+                    # Initial presentation compares displayed button captions;
+                    # their accessible names describe the actions separately.
+                    name = (node.getText() if identity in
+                            ('kiosk-request-submit', 'kiosk-request-cancel') else node.get_name())
                     require(type(name) is str and 0 < len(name) <= 512, 'ui:initial-text')
                     texts[identity] = name
                 chinese = None
@@ -4185,6 +4192,14 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         node = self.snapshot_owned_target(identity, showing=False, check_prompt=True)
         require(node is not None, 'ui:text-entry')
+        # Hidden controls can remain in the public API inventory after Close.
+        # Prove the containing surface first: a closed dialog is a wrong entry,
+        # whereas a disabled control on an open surface is a disabled recipient.
+        surface = owned_surface_id(identity) or 'feedback-dialog'
+        root = self.snapshot_owned_target(surface, check_prompt=True)
+        require(root is not None and self.showing(root), 'ui:text-entry')
+        require(self.snapshot_owned_target(identity, root=root, showing=False) is not None,
+                'ui:text-entry')
         require(self.has_state(node, self.api.StateType.VISIBLE)
                 and self.has_state(node, self.api.StateType.SENSITIVE)
                 and not self.has_state(node, self.api.StateType.DEFUNCT),
@@ -4192,14 +4207,6 @@ class AccessibleUI:
         require(identity in {item[0] for item in TEXT_VALUES.values()}, 'ui:text-binding')
         require(node.get_role_name() != 'password text'
                 and self.has_state(node, self.api.StateType.EDITABLE), 'ui:text-editor')
-        surface = ('parent-match-rule-dialog' if identity == 'parent-match-rule-entry' else
-                   'kiosk-request-window' if identity == 'kiosk-custom-duration' else
-                   'parent-window' if identity in ('parent-custom-daily-limit', 'parent-app-search')
-                   else 'feedback-dialog')
-        root = self.snapshot_owned_target(surface, check_prompt=True)
-        require(root is not None and self.showing(root), 'ui:text-entry')
-        require(self.snapshot_owned_target(identity, root=root, showing=False) is not None,
-                'ui:text-entry')
         if identity == 'parent-custom-daily-limit':
             self.allowance_entry(child)
         if identity == 'parent-app-search':
@@ -4635,8 +4642,13 @@ class AccessibleUI:
                 continue
             target = self.snapshot_owned_target(identity, root=root, observation=observation,
                                                 showing=False)
+            # About links publish a purpose label separately from their
+            # displayed caption. Keep both checks against independent literals.
+            expected_name = (PARENT_DIALOG_TEXT[language]['about-privacy-label']
+                             + ': ' + expected if identity == 'about-privacy-value'
+                             else expected)
             require(target is not None and self.has_state(target, self.api.StateType.VISIBLE)
-                    and target.get_name() == expected, 'ui:dialog-label')
+                    and target.get_name() == expected_name, 'ui:dialog-label')
             # The editable reply value is checked by feedback_snapshot; its
             # accessible name is the translated field label, never its draft.
             if identity != 'feedback-reply-email':
@@ -4651,8 +4663,12 @@ class AccessibleUI:
             labels[identity] = expected
         if surface == 'about':
             self.read_label(root, 'about-product', maximum=80)
-            require(self.id_target('about-license-value', root=root).get_name()
-                    == 'GNU General Public License v3.0', 'ui:dialog-application-name')
+            license_link = self.id_target('about-license-value', root=root)
+            license_text = 'GNU General Public License v3.0'
+            license_label = {'en': 'License', 'he': 'רישיון'}[language]
+            require(license_link.getText() == license_text
+                    and license_link.get_name() == license_label + ': ' + license_text,
+                    'ui:dialog-application-name')
         return {'surface': surface, 'language': language, 'labels': labels}
 
     def parent_dialog_operation(self, operation, version):
@@ -6165,6 +6181,14 @@ class AccessibleUI:
         row = target(app, target('parent-app-rows', page))
         button = target(app + ('-match-rule' if access is None else '-access-' + access), row)
         if not editor:
+            if hasattr(root, 'ui_element'):
+                # API sensitivity describes the control itself; a visible
+                # modal surface separately blocks input to the Parent form.
+                # Use the same complete, owner-scoped observation before input.
+                require(not any(node != root and facts[node]['modal']
+                                and facts[node]['showing']
+                                and node.get_application() == root.get_application()
+                                for node in nodes), 'ui:match-inactive')
             require(self.surface_available(root)
                     and self.has_state(button, self.api.StateType.SENSITIVE), 'ui:match-inactive')
             return button
@@ -6390,7 +6414,18 @@ class AccessibleUI:
         require(len(labels) <= 32 and sum(map(len, labels)) <= 4096, 'ui:legend-bound')
         expected = (*LEGEND_HEADINGS, *(value for _, title, text in LEGEND_RULES
                                       for value in (title, text)))
-        require(all(labels.count(value) == 1 for value in expected), 'ui:legend-explanations')
+        if hasattr(content, 'ui_element'):
+            # The API joins child labels with newlines, but a label can also
+            # contain a newline (the Pattern Match explanation does). Match
+            # each complete literal across whitespace, retaining line boundaries
+            # and exact-once checks rather than treating each line as a label.
+            text = '\n'.join(labels)
+            complete = all(len(re.findall(
+                '^' + r'\s+'.join(re.escape(word) for word in value.split()) + '$',
+                text, flags=re.MULTILINE)) == 1 for value in expected)
+        else:
+            complete = all(labels.count(value) == 1 for value in expected)
+        require(complete, 'ui:legend-explanations')
         return {'headings': list(LEGEND_HEADINGS), 'rules': [list(rule) for rule in LEGEND_RULES]}
 
     def expand_policy_legend(self, child):

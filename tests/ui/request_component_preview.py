@@ -54,6 +54,11 @@ class Broker:
         self.preferences = copy.deepcopy(PREFERENCES)
         self.language = LanguageFixture(self.record)
         self.child_languages = {uid: LanguageFixture(self.record) for uid, *_ in USERS}
+        if self.scenario == "estimate-unavailable":
+            # This fault opens a modal report during startup. Language setup is
+            # a prerequisite, not part of the footer failure scenario.
+            self.language.language = "en"
+            self.child_languages[1001].language = "en"
         if self.scenario != 'language-switch':
             self.child_languages[1002].language = self.child_languages[1002].language or 'en'
         if self.scenario == "two-hours-grant-only":
@@ -108,6 +113,21 @@ class Broker:
             if self.pending_slow_reply is not None:
                 raise RuntimeError("duplicate pending request reply")
             self.pending_slow_reply = callback, reply
+            release = Path(os.environ["ONPC_REQUEST_COMPONENT_REQUEST_RELEASE"])
+            deadline = time.monotonic() + 60
+
+            def finish_request():
+                if release.is_file():
+                    self.record("slow-reply", released=self.release_slow_reply())
+                elif time.monotonic() >= deadline:
+                    self.pending_slow_reply = None
+                    self.record("request-release-timeout")
+                    callback(self, Reply(error=TimeoutError("request fixture was not released")))
+                else:
+                    return GLib.SOURCE_CONTINUE
+                return GLib.SOURCE_REMOVE
+
+            GLib.timeout_add(20, finish_request)
             return
         if self.scenario == "loading" and method == "GetPreferences":
             # Hold the response until the test has observed the public disabled
@@ -291,8 +311,6 @@ class ComponentWindow(RequestWindow):
     def _escape_pressed(self, *args):
         handled = super()._escape_pressed(*args)
         BROKER.record("escape", handled=handled, in_flight=self._state.in_flight)
-        if BROKER.scenario == "slow-request":
-            BROKER.record("slow-reply", released=BROKER.release_slow_reply())
         return handled
 
     def _show_result(self, title, detail):

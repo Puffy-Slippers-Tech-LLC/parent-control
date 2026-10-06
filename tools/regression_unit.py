@@ -1,5 +1,9 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Preview wait-cancellation checks in ui_cleanup_safety use private tmp_path logs
+and process-local Popen/clock doubles. They add no process, signal handler, bus
+or display; its existing compatible unit and cleanup classifications still apply.
+
 VM artifact-selection regressions in test_test_launchers, test_regression,
 test_system_guest and test_system_runner use private pytest files and process-local package/VM command
 doubles only. No live VM, build, cache or new cleanup owner is introduced; their

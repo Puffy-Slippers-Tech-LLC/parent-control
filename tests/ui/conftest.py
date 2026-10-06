@@ -67,6 +67,26 @@ def pytest_sessionfinish(session, exitstatus):
         UI_TIMINGS.close()
 
 
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    """Pair API ownership refusals with launch evidence before fixture cleanup."""
+    from tests.support.application_ui import UIClientError
+
+    if call.excinfo is None:
+        return
+    error = call.excinfo.value
+    if not isinstance(error, UIClientError) or error.code != 'Denied':
+        return
+    launch = item.funcargs.get('launch_ui')
+    diagnostic = getattr(launch, 'ownership_diagnostic', None)
+    if diagnostic is None:
+        return
+    ui = item.funcargs.get('automation')
+    catalog = ui.reader.application_ui if ui is not None else None
+    for note in diagnostic(catalog):
+        error.add_note(note)
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_setup(item):
     with _timed_phase(item, 'setup'):
@@ -331,12 +351,40 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
     if UI_TIMINGS is not None:
         manager = UI_TIMINGS.lifecycle(manager, 'preview')
     with manager as launch:
+        launches = []
+        history = getattr(hermetic_ui_session, '_onpc_launch_diagnostics', None)
+        if history is None:
+            history = []
+            hermetic_ui_session._onpc_launch_diagnostics = history
+
+        def ownership_diagnostic(catalog):
+            # Read only our recorded handles. Never discover/adopt/signal other
+            # processes, or disclose bus addresses, UI text or the environment.
+            yield f'UI preview ownership: recorded_launch_count={len(launches)}'
+            for process, log_path, bus_address in history:
+                reader_bus_matches = (None if catalog is None else
+                                      catalog._connection_address == bus_address)
+                yield ('UI preview launch: '
+                       f'launched_pid={process.pid}, returncode={process.poll()}, '
+                       f'current_case={any(record[0] is process for record in launches)}, '
+                       f'observer_bus_matches_launch={os.environ.get("DBUS_SESSION_BUS_ADDRESS") == bus_address}, '
+                       f'catalog_bus_matches_launch={reader_bus_matches}, '
+                       f'launch_bus_matches_session={bus_address == hermetic_ui_session.bus_address}, '
+                       f'preview_log={log_path}')
+
         def launch_ready(name, **kwargs):
             complete_language_setup = kwargs.pop('complete_language_setup', True)
             start = launch
             if UI_TIMINGS is not None:
                 start = UI_TIMINGS.wrap(start, 'preview.launch')
             result = start(name, **kwargs)
+            process, log_path = result
+            overrides = kwargs.get('environment_overrides') or {}
+            bus_address = overrides.get('DBUS_SESSION_BUS_ADDRESS',
+                hermetic_ui_session.environment.get('DBUS_SESSION_BUS_ADDRESS'))
+            launches.append((process, log_path, bus_address))
+            history.append(launches[-1])
+            del history[:-16]
             if complete_language_setup and name in ("parent_preview", "parent_component_preview", "kiosk_preview",
                         "child_overlay_preview", "request_component_preview"):
                 import gi
@@ -344,6 +392,7 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
                 from gi.repository import Atspi, GLib
                 from tests.e2e.public_atspi import PublicAtspi
                 from tests.support.automation import Automation
+                from tests.support.application_ui import UIClientError
                 api = PublicAtspi(Atspi)
                 ui = None
                 try:
@@ -360,6 +409,14 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
                         ui.complete_parent_language_setup()
                     else:
                         ui.complete_request_language_setup()
+                except UIClientError as error:
+                    # Pair endpoint refusal evidence with this launch's exact
+                    # owned handle and retained log, before fixture cleanup.
+                    process, log_path = result
+                    error.add_note('UI preview language setup: '
+                                   f'launched_pid={process.pid}, returncode={process.poll()}, '
+                                   f'preview_log={log_path}')
+                    raise
                 finally:
                     try:
                         if ui is not None:
@@ -371,6 +428,7 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
         for name in ("owner_pids", "application_ids", "application_owners", "application_owner_history",
                      "application_ui_endpoints"):
             setattr(launch_ready, name, getattr(launch, name))
+        launch_ready.ownership_diagnostic = ownership_diagnostic
         yield launch_ready
 
 

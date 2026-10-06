@@ -4,6 +4,10 @@ Known modules have private compositor/bus/settings and per-attempt evidence.
 Keep nested Shell in one job because it also publishes stable latest evidence.
 New modules remain included, but run exclusively until their isolation is reviewed.
 
+Preview cleanup defers wait cancellation within its existing deadlines and
+Popen ownership, then propagates it before another case can start. It adds no
+process, signal handler, shared bus or storage; private-display buckets still apply.
+
 Child-desktop defaults and delayed upgrade replies in language_settings reuse
 the owned request preview/display/bus and tmp_path events. Agent preparation is
 a process-local transport double; no host agent/service/locale is touched.
@@ -117,6 +121,8 @@ GROUPS = (
     # No host locale/settings mutation, network, new service or cleanup owner.
     # Request loading also gates its existing preview's preference callback on
     # a tmp_path release file; bounded main-loop polling adds no resource owner.
+    # Slow authentication uses the same tmp_path gate and bounded callback poll;
+    # the case releases it in finally. No shared resource or cleanup owner changes.
     ('Request behavior', ('test_request_form_component.py', 'test_language_settings.py'), 6),
     # App Limits language-review frames reuse the worker's spectator feed and
     # registered retention allocations; no new display, process or cleanup owner.

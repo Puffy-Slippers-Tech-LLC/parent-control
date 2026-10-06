@@ -165,9 +165,10 @@ def test_request_error_review_restrictions_and_submission(
 
 def test_parent_discovery_error_opens_prefilled_feedback(
         launch_ui, automation, wait_for_accessible_state):
+    # Fatal discovery replaces language setup with the error report.
     launch_ui("parent_component_preview", environment_overrides={
         "ONPC_PARENT_COMPONENT_SCENARIO": "unavailable",
-    }, wait_for_application=False)
+    }, wait_for_application=False, complete_language_setup=False)
     ui = automation
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
                               "parent discovery error report opens")

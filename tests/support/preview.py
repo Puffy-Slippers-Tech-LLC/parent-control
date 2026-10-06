@@ -5,8 +5,22 @@ import json
 import subprocess
 import sys
 import tempfile
+import time
 
 from tests.support.paths import ROOT
+
+
+def _wait_preview_exit(process, timeout, interruptions):
+    """Finish the owned wait before forwarding cancellation, without extending it."""
+    deadline = time.monotonic() + timeout
+    remaining = timeout
+    while True:
+        try:
+            return process.wait(timeout=remaining)
+        except KeyboardInterrupt as error:
+            if not interruptions:
+                interruptions.append(error)
+            remaining = max(0, deadline - time.monotonic())
 
 
 def boot_preview_session(session):
@@ -127,18 +141,29 @@ def preview_applications(session, directory):
         yield launch
     finally:
         failures = []
+        interruptions = []
         for process, log_file in reversed(processes):
             try:
                 if process.poll() is None:
                     process.terminate()
                     try:
-                        process.wait(timeout=5)
+                        _wait_preview_exit(process, 5, interruptions)
                     except subprocess.TimeoutExpired:
                         process.kill()
-                        process.wait(timeout=5)
+                        _wait_preview_exit(process, 5, interruptions)
+            except KeyboardInterrupt as error:
+                if not interruptions:
+                    interruptions.append(error)
             except BaseException as error:
                 failures.append(error)
             finally:
                 log_file.close()
+        if interruptions:
+            # Pytest must see cancellation itself, not a teardown error that
+            # permits another case to start against a leftover endpoint.
+            if failures:
+                raise interruptions[0] from BaseExceptionGroup(
+                    "Preview process cleanup failed", failures)
+            raise interruptions[0]
         if failures:
             raise BaseExceptionGroup("Preview process cleanup failed", failures)

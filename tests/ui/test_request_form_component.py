@@ -100,11 +100,12 @@ def request_ui(automation):
 
 
 def open_request(launch_ui, tmp_path, ui, wait, *, overlay, scenario="normal",
-                 selections_path=None, loading_release=None):
+                 selections_path=None, loading_release=None, request_release=None):
     _process, path = launch_request(
         launch_ui, tmp_path, overlay=overlay, scenario=scenario,
         selections_path=selections_path, wait_for_application=False,
         loading_release=loading_release,
+        request_release=request_release,
     )
     wait(lambda: ui.find("kiosk-request-window") is not None,
          "request window publishes its ID")
@@ -416,19 +417,27 @@ def test_service_failure_shows_only_redacted_public_copy(
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_single_flight_refuses_cancel_while_authentication_is_active(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    release = tmp_path / "request-release"
     path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
-                        overlay=overlay, scenario="slow-request")
+                        overlay=overlay, scenario="slow-request", request_release=release)
     ready(request_ui, wait_for_accessible_state)
-    request_ui.activate("kiosk-request-submit")
-    wait_for_accessible_state(
-        lambda: not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE),
-        "single-flight request is disabled")
-    method = "RequestOwnAccess" if overlay else "RequestAccess"
-    wait_for_accessible_state(lambda: len(calls(path, method)) == 1,
-                              "one in-flight request")
-    from tests.support.automation import AutomationError
-    with pytest.raises(AutomationError, match='application-ui:Unavailable'):
-        request_ui.activate("kiosk-request-cancel")
+    try:
+        request_ui.activate("kiosk-request-submit")
+        wait_for_accessible_state(
+            lambda: not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE),
+            "single-flight request is disabled")
+        method = "RequestOwnAccess" if overlay else "RequestAccess"
+        wait_for_accessible_state(lambda: len(calls(path, method)) == 1,
+                                  "one in-flight request")
+        from tests.support.automation import AutomationError
+        with pytest.raises(AutomationError, match='application-ui:Unavailable'):
+            request_ui.activate("kiosk-request-cancel")
+        assert not events(path, "result")
+        assert not events(path, "logout")
+        assert not events(path, "close_overlay")
+    finally:
+        # Complete the synthetic authentication only after checking refusal.
+        release.touch()
     wait_for_accessible_state(lambda: bool(events(path, "result")), "completed request")
     assert not events(path, "logout")
     assert not events(path, "close_overlay")
@@ -512,6 +521,15 @@ def test_footer_special_cases_keep_requests_available(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay, scenario, expected):
     path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
                         overlay=overlay, scenario=scenario)
+    if scenario == "estimate-unavailable":
+        # Dismiss the normal error report before checking the underlying form's
+        # availability; the public API correctly blocks input behind a modal.
+        wait_for_accessible_state(lambda: request_ui.showing("feedback-dialog"),
+                                  "estimate error report opens")
+        request_ui.activate("feedback-close")
+        wait_for_accessible_state(
+            lambda: request_ui.absent("feedback-dialog", within="kiosk-request-window"),
+            "estimate error report closes")
     status(request_ui, wait_for_accessible_state, expected)
     assert request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
     if scenario == "rest-of-day":

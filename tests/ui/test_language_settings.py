@@ -507,7 +507,10 @@ def test_language_history_nondefault_requests_restore_through_real_gtk(
 def assert_surface_language(ui, wait, surface, language):
     identity = 'parent-screen-limit-toggle' if surface == 'parent' else 'kiosk-request-submit'
     expected = LANGUAGES[language][5 if surface == 'parent' else 6]
-    wait(lambda: ui.text(identity) == expected, 'surface uses the committed language')
+    # The request button's displayed caption differs from its accessible name.
+    # Parent's switch is checked by its accessible label, not button text.
+    read_text = ui.text if surface == 'parent' else ui.getText
+    wait(lambda: read_text(identity) == expected, 'surface uses the committed language')
 
 
 @pytest.mark.parametrize('surface', SURFACES)

@@ -61,6 +61,7 @@ class ApplicationUI:
         self.endpoints = endpoints
         self._owns_connection = False
         self._closed = False
+        self._connection_address = None
 
     def _connect(self):
         """Bind this catalog to its caller's session, never Gio's cached bus."""
@@ -76,6 +77,7 @@ class ApplicationUI:
                 Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
             self.connection.set_exit_on_close(False)
             self._owns_connection = True
+            self._connection_address = address
         return self.connection
 
     def close(self):
@@ -135,15 +137,26 @@ class ApplicationUI:
             name = ENDPOINTS.get(frontend) if isinstance(frontend, str) else frontend[0]
             if allowed is not None and name is not None and name not in allowed:
                 continue
+            cached = frontend in self.clients
             client = self.client(frontend)
             identity = (client.owner, client.object_path)
             if identity in seen:
                 continue
             seen.add(identity)
             if pids is not None and client.pid not in pids:
-                raise UIClientError('Denied')
+                error = UIClientError('Denied')
+                # Numeric process evidence only: retain the refusal without
+                # exposing bus paths, UI text or the caller's environment.
+                error.add_note('Application UI PID guard: '
+                               f'endpoint_pid={client.pid}, live_owner_count={len(pids)}, '
+                               f'live_owner_pids={sorted(pids)[:16]}, client_cached={cached}')
+                raise error
             if owners is not None and client.pid not in owners.get(client.application_id, ()):
-                raise UIClientError('Denied')
+                error = UIClientError('Denied')
+                error.add_note('Application UI application-owner guard: '
+                               f'endpoint_pid={client.pid}, '
+                               f'live_owner_count={len(owners.get(client.application_id, ()))}')
+                raise error
             result.append(self._application(client))
         return result
 

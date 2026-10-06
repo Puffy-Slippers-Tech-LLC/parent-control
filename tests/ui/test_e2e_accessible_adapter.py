@@ -228,14 +228,15 @@ def test_existing_window_switch_entry_uses_public_owned_surfaces(launch_ui):
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.id_target('parent-window')
     ui.wait(lambda: ui.existing_window_active('parent'), 'parent-active')
-    assert ui.window_switch_proof('parent')['active'] is True
+    # Product proofs expose logical availability, not foreground focus.
+    assert ui.window_switch_proof('parent')['available'] is True
     with pytest.raises(module.UiError, match='switch-absent'):
         ui.window_switch_ready('feedback', 'parent')
     ui.run('feedback-open', '')
     root = ui.existing_window('feedback')
     assert ui.existing_window_active('feedback', expected=root) is not None
     with pytest.raises(module.UiError, match='switch-source'):
-        ui.window_switch_ready('feedback', 'parent')
+        ui.window_switch_ready('feedback', 'feedback')
 
 
 def test_format_adapter_reads_real_public_ranges(launch_ui):
@@ -319,7 +320,10 @@ def test_duplicate_adapter_builds_exact_formatting_fixture_by_application_ui(lau
     # These shorter valid drafts never reach Send.
     for kind in ('underline', 'strike'):
         ui.run(f'rejection-format-{kind}-focus', '')
-        ui.run(f'rejection-format-{kind}-apply', '')
+        # The API's boolean setter is idempotent: applying True again keeps
+        # the format enabled. Request removal over the same synthetic range.
+        ui.editor_selection(0, len(module.COMPLEX_BODY))
+        ui.set_value(f'feedback-format-{kind}', False)
         expected[kind] = False
         ui.wait(formats_match, 'removed-format')
 

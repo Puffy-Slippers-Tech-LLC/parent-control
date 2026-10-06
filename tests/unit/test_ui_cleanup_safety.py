@@ -428,3 +428,65 @@ def test_cleanup_failure_does_not_abandon_other_owned_previews(tmp_path, monkeyp
     first.terminate.assert_called_once()
     first.wait.assert_called_once_with(timeout=5)
     assert all(call.kwargs["stdout"].closed for call in popen.call_args_list)
+
+
+@pytest.mark.parametrize('forced', [False, True])
+def test_interrupted_preview_wait_reaps_every_owner_before_cancelling(
+        tmp_path, monkeypatch, forced):
+    cancellation = KeyboardInterrupt('preview cleanup interrupted')
+    first = Mock(poll=Mock(return_value=None))
+    second = Mock(poll=Mock(return_value=None))
+    second.wait.side_effect = ([subprocess.TimeoutExpired('preview', 5)] if forced else []) + [
+        cancellation, 0]
+    popen = Mock(side_effect=[first, second])
+    monkeypatch.setattr(preview.subprocess, 'Popen', popen)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        with preview.preview_applications(SimpleNamespace(environment={}), tmp_path) as launch:
+            launch('parent_preview')
+            launch('kiosk_preview')
+    assert caught.value is cancellation
+    second.terminate.assert_called_once()
+    assert second.kill.call_count == int(forced)
+    assert second.wait.call_count == 2 + int(forced)
+    assert 0 <= second.wait.call_args.kwargs['timeout'] <= 5
+    first.terminate.assert_called_once()
+    first.wait.assert_called_once_with(timeout=5)
+    assert all(call.kwargs['stdout'].closed for call in popen.call_args_list)
+
+
+def test_repeated_preview_wait_interrupts_preserve_the_original_deadline(tmp_path, monkeypatch):
+    cancellation = KeyboardInterrupt('first cancellation')
+    process = Mock(poll=Mock(return_value=None))
+    process.wait.side_effect = [cancellation, KeyboardInterrupt('second cancellation'),
+                               subprocess.TimeoutExpired('preview', 0), 0]
+    popen = Mock(return_value=process)
+    monkeypatch.setattr(preview.subprocess, 'Popen', popen)
+    monkeypatch.setattr(preview, 'time', SimpleNamespace(
+        monotonic=Mock(side_effect=[100, 103, 106, 106])))
+    with pytest.raises(KeyboardInterrupt) as caught:
+        with preview.preview_applications(SimpleNamespace(environment={}), tmp_path) as launch:
+            launch('parent_preview')
+    assert caught.value is cancellation
+    assert [call.kwargs['timeout'] for call in process.wait.call_args_list] == [5, 2, 0, 5]
+    process.terminate.assert_called_once()
+    process.kill.assert_called_once()
+    assert popen.call_args.kwargs['stdout'].closed
+
+
+def test_preview_cancellation_keeps_other_cleanup_failures_as_evidence(tmp_path, monkeypatch):
+    cancellation = KeyboardInterrupt('preview cleanup interrupted')
+    failure = OSError('cleanup refused')
+    first = Mock(poll=Mock(return_value=None), terminate=Mock(side_effect=failure))
+    second = Mock(poll=Mock(return_value=None))
+    second.wait.side_effect = [cancellation, 0]
+    popen = Mock(side_effect=[first, second])
+    monkeypatch.setattr(preview.subprocess, 'Popen', popen)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        with preview.preview_applications(SimpleNamespace(environment={}), tmp_path) as launch:
+            launch('parent_preview')
+            launch('kiosk_preview')
+    assert caught.value is cancellation
+    assert caught.value.__cause__.exceptions == (failure,)
+    first.terminate.assert_called_once()
+    assert second.wait.call_count == 2
+    assert all(call.kwargs['stdout'].closed for call in popen.call_args_list)

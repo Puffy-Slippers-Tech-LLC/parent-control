@@ -122,6 +122,8 @@ class TimerUsage(Protocol):
 
 
 class RunningApps(Protocol):
+    def has_running(self, target_uid: int, targets: tuple[str, ...],
+                    patterns: tuple[str, ...]) -> bool: ...
     def preflight(self, target_uid: int, targets: tuple[str, ...],
                   patterns: tuple[str, ...]) -> None: ...
     def terminate(self, target_uid: int, targets: tuple[str, ...],
@@ -409,6 +411,27 @@ class Broker:
         if caller_uid != target.uid and not self._can_manage_or_kiosk(config, caller_uid):
             raise AccessDenied("caller cannot inspect time for this account")
         return self._time_status(target.uid, additional_seconds)
+
+    def has_running_soft_blocked_apps(self, caller_uid: int, target_uid: int) -> bool:
+        config = self._load_config()
+        if not self._is_admin(caller_uid):
+            raise AccessDenied("administrator access is required")
+        target = self._target(config, target_uid)
+        preferences = self._load_request_preferences(target.uid)
+        soft_preferences = {"apps": {
+            app_id: entry for app_id, entry in preferences["apps"].items()
+            if entry["state"] == "conditional"
+        }}
+        targets = blocked_targets(soft_preferences, False)
+        patterns = blocked_patterns(soft_preferences, False)
+        if not (targets or patterns):
+            return False
+        if self._running_apps is None:
+            raise BackendFailure("running application status is unavailable")
+        try:
+            return self._running_apps.has_running(target.uid, targets, patterns)
+        except Exception as error:
+            raise BackendFailure("running application status is unavailable") from error
 
     def _time_status(self, target_uid: int, additional_seconds: int) -> TimeStatus:
         if self._preferences is None or self._timer_usage is None:

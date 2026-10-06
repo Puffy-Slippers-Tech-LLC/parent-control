@@ -127,6 +127,7 @@ the broker resolves and revalidates it.
 | `GetPolicyWarnings` | own | selected child | selected child |
 | `ListApplications` | - | - | selected child |
 | `GetTimeStatus` | own | selected child | selected child |
+| `HasRunningSoftBlockedApps` | - | - | selected child |
 | `CalculateRemainingTime` | own | selected child | selected child |
 | `CalculateOwnRemainingTime` | own | - | - |
 | `PrepareOwnSession` | own | - | - |
@@ -293,6 +294,15 @@ restores the complete old account state. Once termination may have changed a
 process, that side effect cannot be rolled back; failure instead restores the
 old time values, keeps the strict filter active, and reports the failure. A
 rollback read-back failure is reported distinctly.
+
+`HasRunningSoftBlockedApps` is an administrator-only read for an eligible child.
+It resolves saved soft-block targets and patterns through the same native,
+AppImage, desktop-scope, descendant, Snap and Flatpak discovery as termination,
+without signaling or changing policy. Parent queries it when remaining time is
+zero and refreshes the result with time status every 30 seconds and after
+revocation. A positive result enables Revoke even in a locked child desktop.
+The broker and Parent changes load on process restart; no data migration is
+required.
 
 App-policy save rollback has a different persistence boundary: before termination,
 failure restores the old preference record and filter; once termination starts,

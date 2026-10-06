@@ -78,12 +78,18 @@ class BrokerClient:
         except Exception as error:
             LOG.warning("parent-client.001", error_type=error_code(error))
             raise
-        return {
+        status = {
             "daily_allowance_remaining_seconds": daily,
             "one_time_grant_remaining_seconds": grant,
             "additional_one_time_grant_seconds": additional,
             "calculated_active_extension_seconds": calculated,
         }
+        if calculated == 0:
+            running, = self._call(
+                "HasRunningSoftBlockedApps", GLib.Variant("(u)", (uid,)), "(b)",
+            )
+            status["has_running_soft_blocked_apps"] = running
+        return status
 
     def set_preferences(self, uid, value):
         encoded, = self._call(

@@ -390,6 +390,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._time_status_retry_id = 0
         self._time_status_retry_count = 0
         self._remaining_time_seconds = None
+        self._has_running_soft_blocked_apps = False
         self._app_catalog = None
         self._app_catalog_uid = None
         self._apps_loading = False
@@ -1640,6 +1641,7 @@ class ParentWindow(Adw.ApplicationWindow):
         # Do not carry a previous child's grant state into this selection while
         # its authoritative time status is still loading.
         self._remaining_time_seconds = None
+        self._has_running_soft_blocked_apps = False
         set_text(self._time_status_value, 'label', m.LOADING)
         set_text(self._time_explanation, 'label', "—")
         LOG.info("parent.008")
@@ -1804,6 +1806,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._remaining_time_seconds = max(
             0, int(status["calculated_active_extension_seconds"]),
         )
+        self._has_running_soft_blocked_apps = status.get("has_running_soft_blocked_apps", False)
         set_text(self._time_status_value, 'label', format_duration(status["calculated_active_extension_seconds"])
         )
         set_text(self._time_explanation, 'label', _time_status_subtitle(status))
@@ -1938,7 +1941,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self._revoke.set_sensitive(
             idle and self._selected_uid() is not None and
             getattr(self, "_remaining_time_seconds", None) is not None and
-            self._remaining_time_seconds > 0
+            (self._remaining_time_seconds > 0 or
+             getattr(self, "_has_running_soft_blocked_apps", False))
         )
         self._enabled.set_sensitive(idle and self._selected_uid() is not None)
         active_save = getattr(self, "_active_save", None)

@@ -1011,7 +1011,7 @@ class ParentWindowTests(unittest.TestCase):
             "warning.set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)", source,
         )
 
-    def test_revoke_is_disabled_when_authoritative_remaining_time_is_zero(self):
+    def test_revoke_at_zero_time_tracks_running_soft_apps_and_idle_state(self):
         class Label:
             def set_label(self, _label):
                 pass
@@ -1037,15 +1037,29 @@ class ParentWindowTests(unittest.TestCase):
             window, sensitive,
         )
 
-        ParentWindow._time_status_loaded(window, 1001, {
+        status = {
             "daily_allowance_remaining_seconds": 0,
             "one_time_grant_remaining_seconds": 0,
             "additional_one_time_grant_seconds": 0,
             "calculated_active_extension_seconds": 0,
-        })
-
+        }
+        ParentWindow._time_status_loaded(window, 1001, status)
         self.assertEqual(window._remaining_time_seconds, 0)
         self.assertFalse(window._revoke.sensitive)
+        status["has_running_soft_blocked_apps"] = True
+        ParentWindow._time_status_loaded(window, 1001, status)
+        self.assertTrue(window._revoke.sensitive)
+        for busy_field in ("_loading", "_save_in_progress"):
+            setattr(window, busy_field, True)
+            window._set_apps_sensitive(True)
+            self.assertFalse(window._revoke.sensitive)
+            setattr(window, busy_field, False)
+        status["has_running_soft_blocked_apps"] = False
+        ParentWindow._time_status_loaded(window, 1001, status)
+        self.assertFalse(window._revoke.sensitive)
+        status["calculated_active_extension_seconds"] = 60
+        ParentWindow._time_status_loaded(window, 1001, status)
+        self.assertTrue(window._revoke.sensitive)
 
     def test_transient_time_status_failure_retries_before_showing_unavailable(self):
         class Label:

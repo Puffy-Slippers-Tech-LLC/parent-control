@@ -127,6 +127,10 @@ INTROSPECTION_XML = f"""
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="applications" type="a(ssssasas)" direction="out"/>
     </method>
+    <method name="HasRunningSoftBlockedApps">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="running" type="b" direction="out"/>
+    </method>
     <method name="GetTimeStatus">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="additional_one_time_grant_seconds" type="u" direction="in"/>
@@ -555,6 +559,10 @@ class Service:
                      list(app["targets"]), list(app.get("suggested_patterns", ())))
                     for app in applications
                 ],)))
+            elif method == "HasRunningSoftBlockedApps":
+                target_uid, = parameters.unpack()
+                running = self.broker.has_running_soft_blocked_apps(caller_uid, target_uid)
+                invocation.return_value(GLib.Variant("(b)", (running,)))
             elif method == "GetTimeStatus":
                 target_uid, additional = parameters.unpack()
                 status = self.broker.get_time_status(

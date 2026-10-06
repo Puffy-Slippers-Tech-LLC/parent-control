@@ -308,6 +308,19 @@ def signatures(xml):
 
 
 class ServiceContractTests(unittest.TestCase):
+    def test_running_soft_apps_dispatch_uses_authenticated_caller(self):
+        service = Service.__new__(Service)
+        service.credentials = mock.Mock()
+        service.credentials.uid.return_value = 1003
+        service.broker = mock.Mock()
+        service.broker.has_running_soft_blocked_apps.return_value = True
+        from oh_no_parent_control.service import GLib
+        invocation = mock.Mock()
+        service._method_call(None, ':1.42', None, None, 'HasRunningSoftBlockedApps',
+                             GLib.Variant('(u)', (1001,)), invocation)
+        service.broker.has_running_soft_blocked_apps.assert_called_once_with(1003, 1001)
+        self.assertEqual(invocation.return_value.call_args.args[0].unpack(), (True,))
+
     def test_child_language_dispatch_passes_authenticated_caller_and_target(self):
         service = Service.__new__(Service)
         service.credentials = mock.Mock()

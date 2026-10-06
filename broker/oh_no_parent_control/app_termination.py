@@ -110,6 +110,33 @@ class RunningAppTerminator:
                 not os.access(self._flatpak, os.X_OK)):
             raise AppTerminationError("Flatpak is unavailable")
 
+    def has_running(self, target_uid: int, targets: tuple[str, ...],
+                    patterns: tuple[str, ...]) -> bool:
+        """Observe matching child apps without changing policy or signaling."""
+        identity = self._identity(target_uid)
+        flatpak_targets = _flatpak_targets(targets)
+        if flatpak_targets and self._flatpak_instance_root(identity).is_dir():
+            if any(ref in flatpak_targets or ref.split("/", 3)[1] in flatpak_targets
+                   for _instance, ref in self._flatpak_instances(identity)):
+                return True
+        native_targets = _native_targets(targets)
+        snap_labels = _snap_security_labels(targets)
+        if not (native_targets or snap_labels or patterns):
+            return False
+        if self._pidfd_open is None:
+            raise AppTerminationError("pidfd discovery is unavailable")
+        matches = self._matching_native_processes(
+            target_uid, native_targets, patterns, snap_labels,
+            self._application_ids(target_uid, targets, patterns),
+        )
+        try:
+            # A process can exit after discovery; readable pidfds mean it exited.
+            exited, _, _ = select.select([fd for _pid, fd in matches], (), (), 0)
+            return any(fd not in exited for _pid, fd in matches)
+        finally:
+            for _pid, descriptor in matches:
+                os.close(descriptor)
+
     def terminate(self, target_uid: int, targets: tuple[str, ...],
                   patterns: tuple[str, ...]) -> int:
         """Kill blocked apps for *target_uid* and return the number terminated."""

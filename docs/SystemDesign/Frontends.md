@@ -460,8 +460,11 @@ and requires no saved-data migration. The allowance picker and custom editor are
 screen-time control is off; the saved value remains displayed. Time status uses
 `GetTimeStatus` with no direct cross-account AccountsService read, and retries
 temporary failures before showing unavailable.
-Revocation is enabled when the last loaded calculated total is positive and
-the form is idle, even if the grant balance itself is zero. The broker still
+Revocation is enabled while the form is idle when the last loaded calculated
+total is positive or the broker detects running soft-blocked apps for the
+selected child, including in a locked desktop with zero time. At zero time,
+Parent includes `HasRunningSoftBlockedApps` in its periodic status refresh.
+The grant balance itself may be zero. The broker still
 restores strict app policy and terminates blocked apps in that case, leaving
 daily time unchanged.
 

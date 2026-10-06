@@ -153,8 +153,10 @@ does not imply retaining its soft-app exception:
 | Prepare session with an active grant or zero-duration record | Unchanged | Unchanged | No termination |
 
 The broker's revocation method does not require an active grant. The Parent
-button uses its last loaded positive **total** remaining time and idle state,
-so daily-only time can make it available. Failure/rollback behavior is specified
+button is available while idle when its last loaded **total** remaining time is
+positive or soft-blocked apps are still running as the selected child, including
+in a locked desktop with zero time. Daily-only time can also make it available.
+Failure/rollback behavior is specified
 in [Broker transactions](SystemDesign/Broker.md#authorization-and-grant-transactions).
 
 ## Runtime flows and verification limits

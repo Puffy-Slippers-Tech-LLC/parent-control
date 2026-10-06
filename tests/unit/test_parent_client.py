@@ -46,6 +46,8 @@ class FakeConnection:
             if self.error is not None:
                 raise self.error
             return GLib.Variant("(uuuu)", self.status)
+        if name == BUS_NAME and method == "HasRunningSoftBlockedApps":
+            return GLib.Variant("(b)", (True,))
         raise AssertionError(f"unexpected call: {name} {method}")
 
 
@@ -104,13 +106,16 @@ class ParentClientTests(unittest.TestCase):
 
         self.assertEqual(client.get_time_status(1001)["calculated_active_extension_seconds"], 60)
         connection.status = (0, 0, 0, 0)
-        self.assertEqual(client.get_time_status(1001)["calculated_active_extension_seconds"], 0)
+        status = client.get_time_status(1001)
+        self.assertEqual(status["calculated_active_extension_seconds"], 0)
+        self.assertTrue(status["has_running_soft_blocked_apps"])
         connection.status = (0, 300, 0, 300)
         self.assertEqual(client.get_time_status(1002)["calculated_active_extension_seconds"], 300)
 
         self.assertEqual([call[3:5] for call in connection.calls], [
             ("GetTimeStatus", (1001, 0)),
             ("GetTimeStatus", (1001, 0)),
+            ("HasRunningSoftBlockedApps", (1001,)),
             ("GetTimeStatus", (1002, 0)),
         ])
 

@@ -24,6 +24,46 @@ from tests.support.broker import (
 
 
 class CoreTests(unittest.TestCase):
+    def test_running_soft_apps_query_is_authorized_scoped_and_read_only(self):
+        accounts, preferences = Accounts(), Preferences()
+        preferences.values[1001]["apps"]["soft.desktop"]["patterns"] = ["/usr/bin/game-*"]
+        running_apps = mock.Mock()
+        running_apps.has_running.return_value = True
+        broker = make_broker(accounts=accounts, preferences=preferences, running_apps=running_apps)
+        self.assertTrue(broker.has_running_soft_blocked_apps(1003, 1001))
+        running_apps.has_running.assert_called_once_with(
+            1001, ("/usr/bin/game",), ("/usr/bin/game-*",),
+        )
+        self.assertEqual(accounts.events, [])
+        for caller in (991, 1001, 1002):
+            with self.assertRaises(AccessDenied):
+                broker.has_running_soft_blocked_apps(caller, 1001)
+        accounts.users[1003] = replace(accounts.users[1003], is_admin=False)
+        with self.assertRaises(AccessDenied):
+            broker.has_running_soft_blocked_apps(1003, 1001)
+        self.assertEqual(running_apps.has_running.call_count, 1)
+
+    def test_running_soft_apps_query_skips_empty_policy_and_reports_discovery_failure(self):
+        preferences = Preferences()
+        running_apps = mock.Mock()
+        broker = make_broker(preferences=preferences, running_apps=running_apps)
+        running_apps.has_running.side_effect = RuntimeError("discovery failed")
+        with self.assertRaises(BackendFailure):
+            broker.has_running_soft_blocked_apps(1003, 1001)
+        self.assertFalse(broker.has_running_soft_blocked_apps(1003, 1002))
+        self.assertEqual(running_apps.has_running.call_count, 1)
+
+    def test_revoke_empty_grant_still_stops_blocked_apps(self):
+        accounts = Accounts()
+        accounts.extension = (0, 0)
+        running_apps = RunningApps(terminated=1)
+        make_broker(accounts=accounts, running_apps=running_apps).revoke_one_time_grant(1003, 1001)
+        self.assertEqual(accounts.extension, (0, 0))
+        self.assertEqual(running_apps.calls[-1], (
+            "terminate", 1001, ("/usr/bin/game", "org.example.Game"), (),
+        ))
+        self.assertEqual(accounts.daily_limit, 3600)
+
     def test_kiosk_notifications_require_kiosk_and_eligible_selected_child(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)

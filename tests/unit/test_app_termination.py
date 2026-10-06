@@ -13,6 +13,50 @@ from oh_no_parent_control.app_termination import (
 
 
 class RunningAppTerminatorTests(unittest.TestCase):
+    def test_running_query_reuses_uid_matching_closes_descriptors_and_never_signals(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc_root = Path(directory)
+            uid = os.getuid()
+            self._process(proc_root, 101, uid, "/usr/bin/game")
+            self._process(proc_root, 102, uid + 1, "/usr/bin/game")
+            terminator = RunningAppTerminator(proc_root=proc_root)
+            opened = []
+            writers = []
+
+            def pidfd_open(_pid, _flags):
+                reader, writer = os.pipe()
+                opened.append(reader)
+                writers.append(writer)
+                return reader
+
+            terminator._pidfd_open = pidfd_open
+            terminator._pidfd_send_signal = mock.Mock()
+            try:
+                with mock.patch.object(terminator, "_identity"):
+                    self.assertTrue(terminator.has_running(uid, ("/usr/bin/game",), ()))
+                    self.assertFalse(terminator.has_running(uid, ("/usr/bin/other",), ()))
+                terminator._pidfd_send_signal.assert_not_called()
+                for descriptor in opened:
+                    with self.assertRaises(OSError):
+                        os.fstat(descriptor)
+            finally:
+                for writer in writers:
+                    os.close(writer)
+
+    def test_running_query_flatpak_refs_and_empty_policy_do_not_scan_native_processes(self):
+        terminator = RunningAppTerminator()
+        with (mock.patch.object(terminator, "_identity") as identity,
+              mock.patch.object(terminator, "_flatpak_instance_root") as root,
+              mock.patch.object(terminator, "_flatpak_instances") as instances,
+              mock.patch.object(terminator, "_matching_native_processes") as native):
+            root.return_value.is_dir.return_value = True
+            instances.return_value = (("123", "app/org.example.Game/x86_64/stable"),)
+            self.assertTrue(terminator.has_running(1001, ("org.example.Game",), ()))
+            self.assertFalse(terminator.has_running(1001, ("org.example.Other",), ()))
+            instances.assert_called_with(identity.return_value)
+            self.assertFalse(terminator.has_running(1001, (), ()))
+            native.assert_not_called()
+
     @staticmethod
     def _scope(uid, unit):
         return (f"0::/user.slice/user-{uid}.slice/user@{uid}.service/"

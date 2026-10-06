@@ -1600,6 +1600,9 @@ msgstr "Lời nhắc"
 msgid "Add"
 msgstr "Thêm"
 
+msgid "See screen top"
+msgstr "Xem phía trên màn hình"
+
 msgid "Preview"
 msgstr "Xem trước"
 

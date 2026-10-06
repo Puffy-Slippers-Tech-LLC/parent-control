@@ -1612,6 +1612,9 @@ msgstr "Mementouri"
 msgid "Add"
 msgstr "Adaugă"
 
+msgid "See screen top"
+msgstr "Priviți în partea de sus a ecranului"
+
 msgid "Preview"
 msgstr "Previzualizare"
 

@@ -1606,6 +1606,9 @@ msgstr "Recordatoris"
 msgid "Add"
 msgstr "Afegeix"
 
+msgid "See screen top"
+msgstr "Mireu la part superior de la pantalla"
+
 msgid "Preview"
 msgstr "Previsualització"
 

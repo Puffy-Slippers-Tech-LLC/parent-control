@@ -1606,6 +1606,9 @@ msgstr "Rampèls"
 msgid "Add"
 msgstr "Apondre"
 
+msgid "See screen top"
+msgstr "Agachatz en naut de l’ecran"
+
 msgid "Preview"
 msgstr "Apercebut"
 

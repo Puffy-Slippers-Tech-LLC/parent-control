@@ -1604,6 +1604,9 @@ msgstr "Erinnerungen"
 msgid "Add"
 msgstr "Hinzufügen"
 
+msgid "See screen top"
+msgstr "Am oberen Bildschirmrand ansehen"
+
 msgid "Preview"
 msgstr "Vorschau"
 

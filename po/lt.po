@@ -1612,6 +1612,9 @@ msgstr "Priminimai"
 msgid "Add"
 msgstr "Pridėti"
 
+msgid "See screen top"
+msgstr "Žiūrėkite ekrano viršuje"
+
 msgid "Preview"
 msgstr "Peržiūra"
 

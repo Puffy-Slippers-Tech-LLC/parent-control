@@ -67,6 +67,9 @@ msgstr "Reminders"
 msgid "Add"
 msgstr "Add"
 
+msgid "See screen top"
+msgstr "See screen top"
+
 msgid "Preview"
 msgstr "Preview"
 

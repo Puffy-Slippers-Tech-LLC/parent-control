@@ -1600,6 +1600,9 @@ msgstr "การแจ้งเตือน"
 msgid "Add"
 msgstr "เพิ่ม"
 
+msgid "See screen top"
+msgstr "ดูด้านบนของหน้าจอ"
+
 msgid "Preview"
 msgstr "ดูตัวอย่าง"
 

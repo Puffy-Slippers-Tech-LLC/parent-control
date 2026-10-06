@@ -1606,6 +1606,9 @@ msgstr "स्मरणपत्रे"
 msgid "Add"
 msgstr "जोडा"
 
+msgid "See screen top"
+msgstr "स्क्रीनच्या वर पहा"
+
 msgid "Preview"
 msgstr "पूर्वावलोकन"
 

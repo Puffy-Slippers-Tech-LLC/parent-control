@@ -21,11 +21,13 @@ export function reminderSeconds(reminder) {
     return reminder.value * (reminder.unit === 'minute' ? 60 : 1);
 }
 
-export function reminderText(reminder, translations, allowSoftApps = false) {
+export function reminderText(reminder, translations, allowSoftApps = false, remaining = null) {
     if (reminder.text.trim()) return reminder.text;
-    const time = translations.text(reminder.unit === 'minute' ? 'MINUTE_COUNT' : 'SECOND_COUNT',
-        {count: reminder.value});
-    const key = reminderSeconds(reminder) < 60 && allowSoftApps
+    const seconds = remaining ?? reminderSeconds(reminder);
+    const minutes = reminder.unit === 'minute' && seconds >= 60;
+    const count = remaining === null ? reminder.value : minutes ? Math.ceil(seconds / 60) : seconds;
+    const time = translations.text(minutes ? 'MINUTE_COUNT' : 'SECOND_COUNT', {count});
+    const key = seconds < 60 && allowSoftApps
         ? 'TIME_REMAINING_SAVE_GAMES_NOTIFICATION' : 'TIME_REMAINING_NOTIFICATION';
     return translations.text(key, {time});
 }

@@ -1606,6 +1606,9 @@ msgstr "Напомняния"
 msgid "Add"
 msgstr "Добавяне"
 
+msgid "See screen top"
+msgstr "Вижте горната част на екрана"
+
 msgid "Preview"
 msgstr "Преглед"
 

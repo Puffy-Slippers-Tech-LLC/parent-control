@@ -1600,6 +1600,9 @@ msgstr "Peringatan"
 msgid "Add"
 msgstr "Tambah"
 
+msgid "See screen top"
+msgstr "Lihat bahagian atas skrin"
+
 msgid "Preview"
 msgstr "Pratonton"
 

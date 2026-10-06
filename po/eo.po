@@ -1606,6 +1606,9 @@ msgstr "Memorigoj"
 msgid "Add"
 msgstr "Aldoni"
 
+msgid "See screen top"
+msgstr "Rigardu la supron de la ekrano"
+
 msgid "Preview"
 msgstr "Antaŭrigardo"
 

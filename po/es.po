@@ -1604,6 +1604,9 @@ msgstr "Recordatorios"
 msgid "Add"
 msgstr "Añadir"
 
+msgid "See screen top"
+msgstr "Mira la parte superior de la pantalla"
+
 msgid "Preview"
 msgstr "Vista previa"
 

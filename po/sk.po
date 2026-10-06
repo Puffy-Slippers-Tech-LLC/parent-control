@@ -1612,6 +1612,9 @@ msgstr "Pripomenutia"
 msgid "Add"
 msgstr "Pridať"
 
+msgid "See screen top"
+msgstr "Pozrite sa na hornú časť obrazovky"
+
 msgid "Preview"
 msgstr "Náhľad"
 

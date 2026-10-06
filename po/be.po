@@ -1612,6 +1612,9 @@ msgstr "Напаміны"
 msgid "Add"
 msgstr "Дадаць"
 
+msgid "See screen top"
+msgstr "Глядзіце ўверсе экрана"
+
 msgid "Preview"
 msgstr "Перадпрагляд"
 

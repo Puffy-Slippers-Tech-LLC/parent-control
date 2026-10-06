@@ -1610,6 +1610,9 @@ msgstr "Przypomnienia"
 msgid "Add"
 msgstr "Dodaj"
 
+msgid "See screen top"
+msgstr "Spójrz na górę ekranu"
+
 msgid "Preview"
 msgstr "Podgląd"
 

@@ -1618,6 +1618,9 @@ msgstr "Podsetnici"
 msgid "Add"
 msgstr "Dodaj"
 
+msgid "See screen top"
+msgstr "Pogledajte vrh ekrana"
+
 msgid "Preview"
 msgstr "Pregled"
 

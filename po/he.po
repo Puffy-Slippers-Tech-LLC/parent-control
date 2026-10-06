@@ -1606,6 +1606,9 @@ msgstr "תזכורות"
 msgid "Add"
 msgstr "הוספה"
 
+msgid "See screen top"
+msgstr "ראו בראש המסך"
+
 msgid "Preview"
 msgstr "תצוגה מקדימה"
 

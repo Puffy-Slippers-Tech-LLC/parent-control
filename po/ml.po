@@ -1606,6 +1606,9 @@ msgstr "ഓർമ്മപ്പെടുത്തലുകൾ"
 msgid "Add"
 msgstr "ചേർക്കുക"
 
+msgid "See screen top"
+msgstr "സ്ക്രീനിന്റെ മുകളിൽ നോക്കൂ"
+
 msgid "Preview"
 msgstr "പ്രിവ്യൂ"
 

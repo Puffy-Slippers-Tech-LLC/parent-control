@@ -1612,6 +1612,9 @@ msgstr "Atgādinājumi"
 msgid "Add"
 msgstr "Pievienot"
 
+msgid "See screen top"
+msgstr "Skatieties ekrāna augšdaļā"
+
 msgid "Preview"
 msgstr "Priekšskatījums"
 

@@ -1600,6 +1600,9 @@ msgstr "Еске салғыштар"
 msgid "Add"
 msgstr "Қосу"
 
+msgid "See screen top"
+msgstr "Экранның жоғарғы жағына қараңыз"
+
 msgid "Preview"
 msgstr "Алдын ала қарау"
 

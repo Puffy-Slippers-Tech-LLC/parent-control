@@ -350,6 +350,9 @@ from that comparison. Editor Save updates only the preferences draft; Cancel
 discards that edit. Preview beside the text field sends the current literal text
 or translated default duration through the child extension's reminder-preview
 service, using the same `reminderBanner.js` renderer as real countdown reminders.
+Pressing Preview changes its icon to an up arrow and its translated label to
+“See screen top” for three seconds, then restores Preview. Another press restarts
+the three seconds; closing the editor cancels the label timer.
 The dedicated kiosk uses its own freedesktop notification provider. Both use
 the product logo and Critical urgency even when the fullscreen
 preference is disabled. It does not save the draft. Invalid timing disables

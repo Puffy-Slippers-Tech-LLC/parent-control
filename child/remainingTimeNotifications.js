@@ -59,7 +59,7 @@ export class RemainingTimeNotifications {
                             this.current.notification.urgency = this.preferences.show_in_fullscreen
                                 ? MessageTray.Urgency.CRITICAL : MessageTray.Urgency.HIGH;
                             this.current.notification.body = reminderText(saved, this.translations,
-                                this.current.allowSoftApps);
+                                this.current.allowSoftApps, this.current.seconds);
                         }
                     }
                     this.changed();
@@ -72,7 +72,7 @@ export class RemainingTimeNotifications {
 
     update(remaining, active) {
         if (this.closed) return;
-        if (!active) {
+        if (!active || remaining <= 0) {
             this.clear();
             this.schedule.previous = null;
             return;
@@ -81,9 +81,16 @@ export class RemainingTimeNotifications {
         if (this.schedule.previous !== null && remaining > this.schedule.previous + 2)
             this.clear(); // A renewed allowance makes the previous warning stale.
         const reminder = this.schedule.update(this.preferences.reminders, remaining, active);
-        if (!reminder) return;
         try {
-            this.show(reminder);
+            if (reminder) this.show(reminder);
+            else if (this.current) {
+                const current = this.current;
+                if (!current.reminder.text.trim() && current.seconds >= 60 && remaining < 60)
+                    this.querySoftApps(current.reminder, current);
+                current.seconds = remaining;
+                current.notification.body = reminderText(current.reminder, this.translations,
+                    current.allowSoftApps, remaining);
+            }
         } catch (error) {
             // Notification failures must never interrupt countdown or locking.
             this.clear();
@@ -92,6 +99,11 @@ export class RemainingTimeNotifications {
     }
 
     nextDelay(remaining, fallback) {
+        // Second-based defaults must keep counting even above one minute.
+        // Pending deliveries also retain fresh time while the policy read runs.
+        if (this.deliveryReminder || (this.current && !this.current.reminder.text.trim() &&
+            (this.current.reminder.unit === 'second' || remaining <= 60)))
+            fallback = Math.min(fallback, 1);
         return this.preferences
             ? this.schedule.nextDelay(this.preferences.reminders, remaining, fallback) : fallback;
     }
@@ -102,6 +114,10 @@ export class RemainingTimeNotifications {
             this.present(reminder, false);
             return;
         }
+        this.querySoftApps(reminder);
+    }
+
+    querySoftApps(reminder, current = null) {
         this.deliveryReminder = reminder;
         const delivery = this.delivery;
         Gio.DBus.system.call(BUS, '/com/puffyslippers/OhNoParentControl1', BUS,
@@ -116,7 +132,14 @@ export class RemainingTimeNotifications {
                     this.onError?.(error);
                 }
                 try {
-                    this.present(reminder, allowSoftApps);
+                    if (current) {
+                        if (this.current !== current) return;
+                        current.allowSoftApps = allowSoftApps;
+                        current.notification.body = reminderText(reminder, this.translations,
+                            allowSoftApps, current.seconds);
+                    } else {
+                        this.present(reminder, allowSoftApps);
+                    }
                 } catch (error) {
                     this.clear();
                     this.onError?.(error);
@@ -125,7 +148,8 @@ export class RemainingTimeNotifications {
     }
 
     present(reminder, allowSoftApps) {
-        const body = reminderText(reminder, this.translations, allowSoftApps);
+        const seconds = this.schedule.previous ?? reminderSeconds(reminder);
+        const body = reminderText(reminder, this.translations, allowSoftApps, seconds);
         const urgency = this.preferences.show_in_fullscreen ? 'critical' : 'high';
         const {source, notification} = showReminderBanner(this.title, this.icon, body,
             urgency === 'critical' ? MessageTray.Urgency.CRITICAL : MessageTray.Urgency.HIGH);
@@ -133,7 +157,7 @@ export class RemainingTimeNotifications {
         source.connect('destroy', () => {
             if (this.source === source) this.source = null;
         });
-        this.current = {notification, reminder, urgency, allowSoftApps, seconds: reminderSeconds(reminder)};
+        this.current = {notification, reminder, urgency, allowSoftApps, seconds};
         notification.connect('destroy', () => {
             if (this.current?.notification === notification) this.current = null;
         });

@@ -1618,6 +1618,9 @@ msgstr "Подсетници"
 msgid "Add"
 msgstr "Додај"
 
+msgid "See screen top"
+msgstr "Погледајте врх екрана"
+
 msgid "Preview"
 msgstr "Преглед"
 

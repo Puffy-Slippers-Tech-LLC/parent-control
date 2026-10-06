@@ -45,6 +45,12 @@ when these are identical, it uses the remembered choice with an active grant.
 Policy-read failure reports the error and retains the plain time warning.
 Locking, renewed time, preference changes and shutdown invalidate pending
 deliveries. Custom text bypasses translation and markup parsing.
+While a default reminder remains open, its body follows the verified live balance
+without replacing or reissuing the notification. Minute reminders round up to
+whole minutes, then switch to seconds below one minute; second reminders update
+each second. The soft-app policy is also queried when an open minute reminder
+crosses below one minute. Delayed policy replies use the latest balance, and
+language refresh retains that balance. Editor previews retain their draft duration.
 The [Application UI API](../TestAutomation/Application-UI-API.md#child-panel)
 exposes current notification content and urgency; it does not claim native
 banner visibility. Installed acceptance is queued, not implemented.

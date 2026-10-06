@@ -1606,6 +1606,9 @@ msgstr "Emlékeztetők"
 msgid "Add"
 msgstr "Hozzáadás"
 
+msgid "See screen top"
+msgstr "Nézze meg a képernyő tetejét"
+
 msgid "Preview"
 msgstr "Előnézet"
 

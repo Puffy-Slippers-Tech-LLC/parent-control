@@ -126,6 +126,7 @@ class ReminderDialog(Gtk.Window):
         self._saved, self._closed_callback = saved, closed
         self._notified_closed = False
         self._preview_pending = False
+        self._preview_hint_source = None
         self._preview_id = 0
         self._preview_connection = None
         self._preview_overlay = bool(getattr(parent.get_transient_for(), '_child_overlay', False))
@@ -177,8 +178,10 @@ class ReminderDialog(Gtk.Window):
         text_row.append(text_input)
         self._preview_button = Gtk.Button(css_classes=['reminder-preview'], valign=Gtk.Align.START)
         preview_content = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
-        preview_content.append(Gtk.Image.new_from_icon_name('media-playback-start-symbolic'))
-        preview_content.append(localized(Gtk.Label, label=m.PREVIEW))
+        self._preview_icon = Gtk.Image.new_from_icon_name('media-playback-start-symbolic')
+        self._preview_label = localized(Gtk.Label, label=m.PREVIEW)
+        preview_content.append(self._preview_icon)
+        preview_content.append(self._preview_label)
         self._preview_button.set_child(preview_content)
         describe_control(self._preview_button, m.PREVIEW, m.PREVIEW,
                          automation_id='reminder-editor-preview')
@@ -293,6 +296,12 @@ class ReminderDialog(Gtk.Window):
         value = self._duration()
         if value is None or self._preview_pending:
             return
+        if self._preview_hint_source is not None:
+            GLib.source_remove(self._preview_hint_source)
+        self._preview_icon.set_from_icon_name('go-up-symbolic')
+        set_text(self._preview_label, 'label', m.SEE_SCREEN_TOP)
+        describe_control(self._preview_button, m.SEE_SCREEN_TOP, m.SEE_SCREEN_TOP)
+        self._preview_hint_source = GLib.timeout_add(3000, self._restore_preview_label)
         text = self._text.get_text()
         if not text.strip():
             text = PreferencesDialog._trigger_message(
@@ -346,6 +355,13 @@ class ReminderDialog(Gtk.Window):
 
         Gio.bus_get(Gio.BusType.SESSION, None, connected)
 
+    def _restore_preview_label(self):
+        self._preview_hint_source = None
+        self._preview_icon.set_from_icon_name('media-playback-start-symbolic')
+        set_text(self._preview_label, 'label', m.PREVIEW)
+        describe_control(self._preview_button, m.PREVIEW, m.PREVIEW)
+        return GLib.SOURCE_REMOVE
+
     def _close_preview(self):
         if not self._preview_id or self._preview_connection is None:
             return
@@ -385,6 +401,9 @@ class ReminderDialog(Gtk.Window):
     def _notify_closed(self):
         if not self._notified_closed:
             self._notified_closed = True
+            if self._preview_hint_source is not None:
+                GLib.source_remove(self._preview_hint_source)
+                self._preview_hint_source = None
             self._close_preview()
             self._closed_callback()
 

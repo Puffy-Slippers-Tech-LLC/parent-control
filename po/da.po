@@ -1606,6 +1606,9 @@ msgstr "Påmindelser"
 msgid "Add"
 msgstr "Tilføj"
 
+msgid "See screen top"
+msgstr "Se øverst på skærmen"
+
 msgid "Preview"
 msgstr "Forhåndsvisning"
 

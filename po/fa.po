@@ -1606,6 +1606,9 @@ msgstr "یادآوری‌ها"
 msgid "Add"
 msgstr "افزودن"
 
+msgid "See screen top"
+msgstr "بالای صفحه را ببینید"
+
 msgid "Preview"
 msgstr "پیش‌نمایش"
 

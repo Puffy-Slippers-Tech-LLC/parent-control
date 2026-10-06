@@ -1606,6 +1606,9 @@ msgstr "Muistutukset"
 msgid "Add"
 msgstr "Lisää"
 
+msgid "See screen top"
+msgstr "Katso näytön yläreunaa"
+
 msgid "Preview"
 msgstr "Esikatselu"
 

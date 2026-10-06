@@ -35,6 +35,9 @@ from types import SimpleNamespace
 from kiosk.oh_no_parent_control_kiosk import preference_dialog as dialog
 
 class State:
+    def set_from_icon_name(self, value):
+        self.icon = value
+
     def set_sensitive(self, value):
         self.sensitive = value
 
@@ -62,12 +65,16 @@ monkeypatch.setattr(dialog.Gio, 'bus_get', lambda bus, cancel, callback: callbac
 monkeypatch.setattr(dialog.Gio, 'bus_get_finish', lambda result: connection)
 monkeypatch.setattr(dialog, 'context_for', lambda widget:
                     SimpleNamespace(translations=gettext.NullTranslations()))
+monkeypatch.setattr(dialog, 'set_text', lambda widget, prop, value: setattr(widget, prop, value))
+monkeypatch.setattr(dialog, 'describe_control', lambda *args, **kwargs: None)
 editor = SimpleNamespace(
     _duration=lambda: value, _unit_token=lambda: unit,
     _text=SimpleNamespace(get_text=lambda: text),
     _preview_pending=False, _preview_id=0, _notified_closed=False,
     _preview_overlay=overlay, _preview_connection=None,
-    _preview_button=State(), _error=State())
+    _preview_button=State(), _preview_label=State(), _preview_icon=State(),
+    _preview_hint_source=None, _error=State())
+editor._restore_preview_label = lambda: dialog.ReminderDialog._restore_preview_label(editor)
 editor._close_preview = lambda: dialog.ReminderDialog._close_preview(editor)
 dialog.ReminderDialog._preview(editor)
 payload = calls[0][4].unpack()

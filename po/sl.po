@@ -1618,6 +1618,9 @@ msgstr "Opomniki"
 msgid "Add"
 msgstr "Dodaj"
 
+msgid "See screen top"
+msgstr "Poglejte na vrh zaslona"
+
 msgid "Preview"
 msgstr "Predogled"
 

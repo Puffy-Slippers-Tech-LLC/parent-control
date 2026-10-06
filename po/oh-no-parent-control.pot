@@ -1605,6 +1605,9 @@ msgstr ""
 msgid "Add"
 msgstr ""
 
+msgid "See screen top"
+msgstr ""
+
 msgid "Preview"
 msgstr ""
 

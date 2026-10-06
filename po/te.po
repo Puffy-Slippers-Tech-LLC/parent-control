@@ -1606,6 +1606,9 @@ msgstr "గుర్తుచేసే సూచనలు"
 msgid "Add"
 msgstr "జోడించు"
 
+msgid "See screen top"
+msgstr "స్క్రీన్ పైభాగంలో చూడండి"
+
 msgid "Preview"
 msgstr "ముందస్తు వీక్షణ"
 

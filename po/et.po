@@ -1606,6 +1606,9 @@ msgstr "Meeldetuletused"
 msgid "Add"
 msgstr "Lisa"
 
+msgid "See screen top"
+msgstr "Vaata ekraani ülaossa"
+
 msgid "Preview"
 msgstr "Eelvaade"
 

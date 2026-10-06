@@ -1600,6 +1600,9 @@ msgstr "ئەسكەرتىشلەر"
 msgid "Add"
 msgstr "قوشۇش"
 
+msgid "See screen top"
+msgstr "ئېكراننىڭ ئۈستىگە قاراڭ"
+
 msgid "Preview"
 msgstr "ئالدىن كۆرۈش"
 

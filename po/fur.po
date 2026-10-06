@@ -1606,6 +1606,9 @@ msgstr "Memoris"
 msgid "Add"
 msgstr "Zonte"
 
+msgid "See screen top"
+msgstr "Cjale la part alte dal schermi"
+
 msgid "Preview"
 msgstr "Anteprime"
 

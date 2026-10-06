@@ -1604,6 +1604,9 @@ msgstr "Promemoria"
 msgid "Add"
 msgstr "Aggiungi"
 
+msgid "See screen top"
+msgstr "Guarda in cima allo schermo"
+
 msgid "Preview"
 msgstr "Anteprima"
 

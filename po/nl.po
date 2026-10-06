@@ -1606,6 +1606,9 @@ msgstr "Herinneringen"
 msgid "Add"
 msgstr "Toevoegen"
 
+msgid "See screen top"
+msgstr "Kijk bovenaan het scherm"
+
 msgid "Preview"
 msgstr "Voorbeeld"
 

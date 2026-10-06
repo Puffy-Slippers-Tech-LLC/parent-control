@@ -1606,6 +1606,9 @@ msgstr "Lembranzas"
 msgid "Add"
 msgstr "Engadir"
 
+msgid "See screen top"
+msgstr "Mira a parte superior da pantalla"
+
 msgid "Preview"
 msgstr "Vista previa"
 

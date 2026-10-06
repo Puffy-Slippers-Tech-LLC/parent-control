@@ -1604,6 +1604,9 @@ msgstr "Rappels"
 msgid "Add"
 msgstr "Ajouter"
 
+msgid "See screen top"
+msgstr "Regardez en haut de l’écran"
+
 msgid "Preview"
 msgstr "Aperçu"
 

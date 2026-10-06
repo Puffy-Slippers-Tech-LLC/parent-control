@@ -1606,6 +1606,9 @@ msgstr "Áminningar"
 msgid "Add"
 msgstr "Bæta við"
 
+msgid "See screen top"
+msgstr "Sjá efst á skjánum"
+
 msgid "Preview"
 msgstr "Forskoðun"
 

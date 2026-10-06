@@ -94,6 +94,10 @@ function harness() {
         MessageTray: {Source, Notification: SignalObject, Urgency: {CRITICAL: 3, HIGH: 2}, PrivacyScope: {USER: 0}},
         ReminderSchedule, notificationPreferences, reminderSeconds, reminderText,
     });
+    const bannerSource = readFileSync(new URL('../../child/reminderBanner.js', import.meta.url), 'utf8')
+        .replace(/^import[\s\S]*?;\n/gm, '')
+        .replace('export function showReminderBanner', 'function showReminderBanner');
+    vm.runInContext(bannerSource, context);
     const source = readFileSync(new URL('../../child/remainingTimeNotifications.js', import.meta.url), 'utf8')
         .replace(/^import[\s\S]*?;\n/gm, '')
         .replace('export class RemainingTimeNotifications', 'globalThis.RemainingTimeNotifications = class');
@@ -122,6 +126,7 @@ test('production notification uses Shell urgency, logo, literal text and owned r
     assert.equal(first.icon.file, '/logo.png');
     assert.equal(first.notification.privacyScope, 0);
     h.notifier.update(16, true);
+    h.policyReply(false);
     h.notifier.update(15, true);
     h.policyReply(false);
     assert.equal(first.destroyed, true);
@@ -137,6 +142,65 @@ test('production notification uses Shell urgency, logo, literal text and owned r
     h.notifier.close();
     assert.equal(h.cancelled.length, 1);
     assert.deepEqual(h.errors, []);
+});
+
+test('default banners follow live time without replacement and custom text stays literal', () => {
+    const h = harness();
+    h.notifier.preferences = {show_in_fullscreen: true, reminders: [reminders[0]]};
+    h.notifier.update(601, true);
+    h.notifier.update(600, true);
+    const notification = h.notifier.current.notification;
+    for (const [seconds, expected] of [[599, '10 minutes left'], [540, '9 minutes left'],
+        [60, '1 minute left'], [59, '59 seconds left']]) {
+        h.notifier.update(seconds, true);
+        assert.equal(notification.body, expected);
+        assert.equal(h.notifier.current.notification, notification);
+        assert.equal(h.notifier.current.seconds, seconds);
+    }
+    h.policyReply(true);
+    h.notifier.update(58, true);
+    assert.equal(notification.body, '58 seconds left, save your games!');
+    h.notifier.refresh();
+    h.reply({show_in_fullscreen: true, reminders: [reminders[0]]});
+    assert.equal(notification.body, '58 seconds left, save your games!');
+    assert.equal(h.sources.length, 1);
+    h.notifier.update(1, true);
+    assert.equal(notification.body, '1 second left, save your games!');
+    h.notifier.update(0, true);
+    assert.equal(h.notifier.current, null);
+
+    const custom = {...reminders[0], text: ' <b>Save now</b> '};
+    const literal = harness();
+    literal.notifier.preferences = {show_in_fullscreen: true, reminders: [custom]};
+    literal.notifier.update(600, true);
+    literal.notifier.update(59, true);
+    assert.equal(literal.notifier.current.notification.body, custom.text);
+    assert.equal(literal.callbacks.length, 0);
+});
+
+test('second defaults schedule live ticks and delayed policy replies use the latest balance', () => {
+    const h = harness();
+    const seconds = {...reminders[3], value: 75};
+    h.notifier.preferences = {show_in_fullscreen: true, reminders: [seconds]};
+    h.notifier.update(75, true);
+    assert.equal(h.notifier.nextDelay(75, 15), 1);
+    h.notifier.update(74, true);
+    assert.equal(h.notifier.current.notification.body, '74 seconds left');
+    h.notifier.update(59, true);
+    h.notifier.update(57, true);
+    h.policyReply(true);
+    assert.equal(h.notifier.current.notification.body, '57 seconds left, save your games!');
+    assert.equal(h.sources.length, 1);
+    h.notifier.clear();
+    assert.equal(h.notifier.nextDelay(57, 30), 30);
+
+    const delayed = harness();
+    delayed.notifier.preferences = {show_in_fullscreen: true, reminders: [reminders[3]]};
+    delayed.notifier.update(15, true);
+    assert.equal(delayed.notifier.nextDelay(15, 10), 1);
+    delayed.notifier.update(12, true);
+    delayed.policyReply(false);
+    assert.equal(delayed.notifier.current.notification.body, '12 seconds left');
 });
 
 test('compact reminder hides both headings and centers its small logo without changing other banners', () => {

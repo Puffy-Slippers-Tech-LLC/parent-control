@@ -1600,6 +1600,9 @@ msgstr "Hatırlatıcılar"
 msgid "Add"
 msgstr "Ekle"
 
+msgid "See screen top"
+msgstr "Ekranın üst kısmına bakın"
+
 msgid "Preview"
 msgstr "Önizleme"
 

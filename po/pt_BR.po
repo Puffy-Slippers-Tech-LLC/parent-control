@@ -1604,6 +1604,9 @@ msgstr "Lembretes"
 msgid "Add"
 msgstr "Adicionar"
 
+msgid "See screen top"
+msgstr "Veja a parte superior da tela"
+
 msgid "Preview"
 msgstr "Prévia"
 

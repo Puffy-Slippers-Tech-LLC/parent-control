@@ -1606,6 +1606,9 @@ msgstr "सम्झाउने सूचनाहरू"
 msgid "Add"
 msgstr "थप्नुहोस्"
 
+msgid "See screen top"
+msgstr "स्क्रिनको माथि हेर्नुहोस्"
+
 msgid "Preview"
 msgstr "पूर्वावलोकन"
 

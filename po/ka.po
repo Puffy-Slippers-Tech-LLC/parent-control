@@ -1600,6 +1600,9 @@ msgstr "შეხსენებები"
 msgid "Add"
 msgstr "დამატება"
 
+msgid "See screen top"
+msgstr "შეხედეთ ეკრანის ზედა ნაწილს"
+
 msgid "Preview"
 msgstr "წინასწარი ხედი"
 

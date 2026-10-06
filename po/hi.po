@@ -1606,6 +1606,9 @@ msgstr "अनुस्मारक"
 msgid "Add"
 msgstr "जोड़ें"
 
+msgid "See screen top"
+msgstr "स्क्रीन के ऊपर देखें"
+
 msgid "Preview"
 msgstr "पूर्वावलोकन"
 

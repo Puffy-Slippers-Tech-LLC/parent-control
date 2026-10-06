@@ -1606,6 +1606,9 @@ msgstr "অনুস্মারক"
 msgid "Add"
 msgstr "যোগ করুন"
 
+msgid "See screen top"
+msgstr "স্ক্রিনের উপরে দেখুন"
+
 msgid "Preview"
 msgstr "পূর্বরূপ"
 

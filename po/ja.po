@@ -1598,6 +1598,9 @@ msgstr "リマインダー"
 msgid "Add"
 msgstr "追加"
 
+msgid "See screen top"
+msgstr "画面上部を見てください"
+
 msgid "Preview"
 msgstr "プレビュー"
 

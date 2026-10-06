@@ -1606,6 +1606,9 @@ msgstr "Υπενθυμίσεις"
 msgid "Add"
 msgstr "Προσθήκη"
 
+msgid "See screen top"
+msgstr "Δείτε στο πάνω μέρος της οθόνης"
+
 msgid "Preview"
 msgstr "Προεπισκόπηση"
 

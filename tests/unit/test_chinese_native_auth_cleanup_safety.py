@@ -165,7 +165,10 @@ def test_nondefault_chinese_request_uses_public_identity_and_translation():
     child = ui.find_id('kiosk-child-selector')
     child.description = '已选择的账户：Jordan (Child)。'
     approver = ui.find_id('kiosk-approver-selector')
+    approver.value = '1000'
+    approver.choices = ['1000']
     approver.children[0].identity = 'kiosk-approver-selected-1000'
+    approver.children[0].name = 'Jamie (Parent)'
     approver.description = '已选择的账户：Jamie (Parent)。'
     durations[2].states.discard('pressed'); durations[-1].states.add('pressed')
     custom = Node(identity='kiosk-custom-duration', states=('showing', 'visible', 'sensitive', 'editable'))

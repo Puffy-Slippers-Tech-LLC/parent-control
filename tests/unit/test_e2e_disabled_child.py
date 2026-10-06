@@ -22,7 +22,8 @@ def test_selection_reads_disabled_result_without_activating_unavailable_controls
     observed = RequestObservation.from_request(after['request'], operation='kiosk-disabled-form')
     assert observed.child == 'fixture-child'
     assert not observed.approver_selector_enabled and not observed.request_enabled
-    assert selector.action.do_action.call_count == 1
+    selector.setValue.assert_called_once_with('1001')
+    selector.action.do_action.assert_not_called()
     for identity in ('kiosk-approver-selector', 'kiosk-request-submit'):
         ui.find_id(identity).action.do_action.assert_not_called()
 
@@ -31,15 +32,24 @@ def test_selection_reads_disabled_result_without_activating_unavailable_controls
 def test_inspection_refuses_unsafe_list(fault):
     ui, selector, choices, _ = disabled_accounts_form()
     if fault == 'hidden':
-        choices.children[0].states.discard('visible')
+        # The canonical setter targets the selector, even with its popup closed.
+        selector.states.discard('visible')
     elif fault == 'wrong-owner':
         ui.owner_pids = lambda: {999}
     elif fault == 'prompt':
         ui.system_prompt_kind = Mock(return_value='polkit')
     elif fault == 'extra-choice':
-        choices.children[1].identity = 'kiosk-child-choice-9999'
-    with pytest.raises(UiError):
+        # Account selection validates canonical UIDs, not popup row IDs.
+        selector.choices[1] = '9999'
+    with pytest.raises(UiError) as error:
         ui.run('kiosk-disabled-child-select', '')
+    if fault == 'hidden':
+        assert str(error.value) == 'ui:kiosk-account-unavailable'
+        selector.getChoices.assert_not_called()
+        selector.setValue.assert_not_called()
+    if fault == 'extra-choice':
+        selector.getChoices.assert_called_with()
+        selector.setValue.assert_not_called()
     for node in choices.children:
         node.action.do_action.assert_not_called()
 

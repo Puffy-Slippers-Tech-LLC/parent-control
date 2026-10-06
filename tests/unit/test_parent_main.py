@@ -156,6 +156,7 @@ class ParentWindowTests(unittest.TestCase):
                                              ("xx-future", False, False), ("fr", True, True)):
             with self.subTest(language=language, requested=requested):
                 window = SimpleNamespace(_closed=False, _language_requested=requested,
+                    _fatal_discovery_error=False,
                     _language_readiness=object(), _open_language_dialog=mock.Mock(),
                     _apply_language=mock.Mock(return_value=True),
                     _finish_startup=mock.Mock(), _language_shade=mock.Mock())
@@ -335,6 +336,7 @@ class ParentWindowTests(unittest.TestCase):
 
     def test_policy_warning_is_visible_without_repeated_dialogs_and_recovers(self):
         window = mock.Mock()
+        window._language_dialog = None
         window._selected_uid.return_value = 1001
         window._policy_warnings_closed = False
         window._reported_policy_warnings = {}
@@ -365,6 +367,7 @@ class ParentWindowTests(unittest.TestCase):
 
     def test_warning_query_errors_and_discovery_outages_do_not_close_loaded_window(self):
         window = mock.Mock()
+        window._language_dialog = None
         window._policy_warnings_closed = False
         window._policy_warning_query_failed = False
         window._selected_uid.return_value = 1001

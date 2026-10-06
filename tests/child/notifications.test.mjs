@@ -71,6 +71,7 @@ function harness() {
     class SignalObject {
         constructor(params) { Object.assign(this, params); this.handlers = {}; }
         connect(name, fn) { (this.handlers[name] ??= []).push(fn); }
+        connectObject(name, fn) { this.connect(name, fn); }
         destroy() { this.destroyed = true; for (const fn of this.handlers.destroy ?? []) fn(this); }
     }
     class Source extends SignalObject {
@@ -88,6 +89,7 @@ function harness() {
             DBusCallFlags: {NONE: 0}, DBus: {system: {call: (...args) => callbacks.push(args.at(-1))}}},
         GLib: {VariantType: class {}},
         Clutter: {ActorAlign: {CENTER: 2}},
+        Pango: {WrapMode: {WORD_CHAR: 2}, EllipsizeMode: {NONE: 0}},
         Main: {messageTray: {add: source => sources.push(source), get_children: () => banners}},
         MessageTray: {Source, Notification: SignalObject, Urgency: {CRITICAL: 3, HIGH: 2}, PrivacyScope: {USER: 0}},
         ReminderSchedule, notificationPreferences, reminderSeconds, reminderText,
@@ -145,6 +147,9 @@ test('compact reminder hides both headings and centers its small logo without ch
     const actor = (style, children = []) => ({
         visible: true, y_align: 0, classes: new Set([style]),
         get_children: () => children,
+        get_parent() { return this.parent; },
+        remove_child(child) { children.splice(children.indexOf(child), 1); child.parent = null; },
+        add_child(child) { children.push(child); child.parent = this; },
         has_style_class_name(name) { return this.classes.has(name); },
         add_style_class_name(name) { this.classes.add(name); },
         hide() { this.visible = false; },
@@ -152,8 +157,13 @@ test('compact reminder hides both headings and centers its small logo without ch
     const header = actor('message-header');
     const title = actor('message-title');
     const body = actor('message-body');
+    body.clutter_text = {set_text(text) { this.text = text; }};
+    const bin = actor('body-bin', [body]);
+    const content = actor('message-content', [title, bin]);
+    body.parent = bin;
+    bin.parent = content;
     const icon = actor('message-icon');
-    const owned = actor('notification-banner', [header, icon, actor('message-content', [title, body])]);
+    const owned = actor('notification-banner', [header, icon, content]);
     owned.notification = notification;
     const otherHeader = actor('message-header');
     const other = actor('notification-banner', [otherHeader]);
@@ -164,6 +174,14 @@ test('compact reminder hides both headings and centers its small logo without ch
     assert.equal(header.visible, false);
     assert.equal(title.visible, false);
     assert.equal(body.visible, true);
+    assert.equal(body.parent, content);
+    assert.equal(bin.visible, false);
+    assert.equal(body.clutter_text.line_wrap, true);
+    assert.equal(body.clutter_text.ellipsize, 0);
+    notification.body = 'Save now\n' + 'verylongword'.repeat(30);
+    for (const callback of notification.handlers['notify::body']) callback();
+    assert.equal(body.clutter_text.text, notification.body);
+    assert.equal(owned.x_expand, false);
     assert.equal(icon.y_align, 2);
     assert(owned.classes.has('screen-time-reminder'));
     assert.equal(otherHeader.visible, true);

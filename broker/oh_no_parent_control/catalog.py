@@ -199,6 +199,10 @@ def _application(filename: Path, desktop_id: str, home: Path):
         "id": desktop_id,
         "name": entry.get("Name") or desktop_id,
         "description": entry.get("Comment") or desktop_id,
+        "localized_names": {key[5:-1].casefold(): value for key, value in entry.items()
+                            if key.startswith("name[") and key.endswith("]")},
+        "localized_descriptions": {key[8:-1].casefold(): value for key, value in entry.items()
+                                   if key.startswith("comment[") and key.endswith("]")},
         "icon": entry.get("Icon", ""),
         "targets": (target,),
         "suggested_patterns": suggested_patterns(target) if target.startswith("/") else (),

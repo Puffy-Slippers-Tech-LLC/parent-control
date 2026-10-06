@@ -2,6 +2,14 @@
   font-weight: 600;
 }
 
+.screen-time-reminder.notification-banner {
+  width: auto;
+  min-width: 0;
+  max-width: 34em;
+  min-height: 0;
+  padding: 6px 10px;
+}
+
 .screen-time-reminder .message-icon {
   -st-icon-style: regular;
   icon-size: 20px;
@@ -11,6 +19,16 @@
 
 .screen-time-reminder .message-box {
   margin: 0;
+  padding: 0;
+  spacing: 8px;
+}
+
+.screen-time-reminder .message-icon {
+  margin: 0;
+}
+
+.screen-time-reminder .message-content {
+  spacing: 0;
 }
 
 .screen-time-tooltip {

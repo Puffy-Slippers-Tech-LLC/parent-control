@@ -139,6 +139,10 @@ msgstr "ئەپ چەكلىمىلىرى"
 msgid "Search installed apps"
 msgstr "ئورنىتىلغان ئەپلەرنى ئىزدەش"
 
+#. Revoke confirmation: only currently running apps with a temporary soft block.
+msgid "These running soft blocked apps will be closed:"
+msgstr "ۋاقىتلىق چەكلەنگەن بۇ ئىجرا بولۇۋاتقان ئەپلەر تاقىلىدۇ:"
+
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
 msgid "Grant %(target)s access?\nRequested time: %(duration)s."

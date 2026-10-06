@@ -65,6 +65,12 @@ class BrokerClient:
             for app_id, name, description, icon, targets, patterns in applications
         ]
 
+    def list_running_soft_blocked_apps(self, uid):
+        applications, = self._call(
+            "ListRunningSoftBlockedApps", GLib.Variant("(u)", (uid,)), "(as)",
+        )
+        return applications
+
     def get_time_status(self, uid, additional_seconds=0):
         # AccountsService's cross-account grant read requires separate Polkit
         # authentication. The broker already authorizes the caller and target,

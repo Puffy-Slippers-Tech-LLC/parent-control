@@ -139,6 +139,10 @@ msgstr "செயலி வரம்புகள்"
 msgid "Search installed apps"
 msgstr "நிறுவப்பட்ட செயலிகளைத் தேடவும்"
 
+#. Revoke confirmation: only currently running apps with a temporary soft block.
+msgid "These running soft blocked apps will be closed:"
+msgstr "தற்காலிகமாகத் தடுக்கப்பட்டு இயங்கிக்கொண்டிருக்கும் இந்தச் செயலிகள் மூடப்படும்:"
+
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
 msgid "Grant %(target)s access?\nRequested time: %(duration)s."

@@ -128,6 +128,7 @@ the broker resolves and revalidates it.
 | `ListApplications` | - | - | selected child |
 | `GetTimeStatus` | own | selected child | selected child |
 | `HasRunningSoftBlockedApps` | - | - | selected child |
+| `ListRunningSoftBlockedApps` | - | - | selected child |
 | `CalculateRemainingTime` | own | selected child | selected child |
 | `CalculateOwnRemainingTime` | own | - | - |
 | `PrepareOwnSession` | own | - | - |

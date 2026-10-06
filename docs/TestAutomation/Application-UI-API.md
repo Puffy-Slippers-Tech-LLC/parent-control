@@ -158,6 +158,9 @@ injects attachments into application state.
 | `parent-time-remaining`, `parent-time-explanation` | Public current remaining-time text and explanation |
 | `parent-revoke-button` | Open ordinary revocation confirmation |
 | `parent-revoke-dialog`, `parent-revoke-warning`, `parent-revoke-cancel`, `parent-revoke-confirm` | Confirmation surface, explanation and native response actions |
+| `parent-revoke-apps-heading`, `parent-revoke-apps` | Running soft-app explanation and canonical catalogue-ID list; present only for a nonempty list |
+| `parent-revoke-app-KEY`, `parent-revoke-app-KEY-bullet`, `parent-revoke-app-KEY-icon` | Catalogue name, bullet and canonical icon source; `KEY` uses the app-row desktop-ID hash |
+| `parent-app-KEY-icon` | App Limits icon, using the same renderer/source as revoke confirmation |
 | `parent-app-search` | Literal search text |
 | `parent-filter-match-rule`, `parent-filter-access-rule` | Get/set list of canonical category keys; choices from live selector; empty list selects none |
 | `parent-filter-<kind>-<key>` | Actual filter checkbox; selector setter also works with popup closed |

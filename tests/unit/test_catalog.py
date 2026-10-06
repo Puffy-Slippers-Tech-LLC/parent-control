@@ -10,6 +10,22 @@ from oh_no_parent_control.core import UserAccount
 
 
 class CatalogTests(unittest.TestCase):
+    def test_catalog_preserves_os_names_and_desktop_entry_translations(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            executable = home / "game"
+            executable.touch()
+            launcher = home / "game.desktop"
+            launcher.write_text(
+                "[Desktop Entry]\nType=Application\nName=OS Game\nName[de]=Spiel\n"
+                "Name[pt_BR]=Jogo\nName[zh_TW]=遊戲\nComment=Default\nComment[de]=Beschreibung\n"
+                f"Exec={executable}\nIcon=game\n", encoding="utf-8")
+            app = _application(launcher, "game.desktop", home)
+        self.assertEqual(app["name"], "OS Game")
+        self.assertEqual(app["localized_names"], {"de": "Spiel", "pt_br": "Jogo", "zh_tw": "遊戲"})
+        self.assertEqual(app["localized_descriptions"], {"de": "Beschreibung"})
+        self.assertEqual(app["icon"], "game")
+
     def test_appimage_desktop_launcher_uses_its_absolute_executable_path(self):
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary)

@@ -705,11 +705,12 @@ def test_rejected_parent_rule_report_review_and_confirmed_policy(
                for record in read_events(tmp_path / 'report-events.jsonl'))
 
 
+@pytest.mark.parametrize("running", (True, False), ids=("running-apps", "no-running-apps"))
 def test_parent_app_search_rule_edit_and_revocation_confirmation(
-        launch_ui, automation, wait_for_accessible_state, tmp_path):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, running):
     path = tmp_path / "app-events.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
-                      events_path=path)
+                      events_path=path, scenario="normal" if running else "no-running-apps")
     wait_parent_ready(ui, wait_for_accessible_state)
     ui.activate("parent-page-app-limits")
     wait_for_accessible_state(
@@ -717,6 +718,10 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
         and search.get_state_set().contains(ui.api.StateType.SENSITIVE),
         "app catalogue loads",
     )
+    icons = {}
+    for app_id in ("com.mojang.Minecraft.desktop", "steam.desktop"):
+        app_key = hashlib.sha256(app_id.encode()).hexdigest()[:16]
+        icons[app_id] = ui.getValue(f"parent-app-{app_key}-icon")
     ui.setText("parent-app-search", "thunderbird")
     key = hashlib.sha256(b"thunderbird_thunderbird.desktop").hexdigest()[:16]
     wait_for_accessible_state(lambda: ui.showing(f"parent-app-{key}"),
@@ -739,6 +744,17 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
                               "revoke confirmation opens")
     assert audit_product_controls(ui, "parent-revoke-dialog")
     assert "Riley (Child)" in ui.text("parent-revoke-warning")
+    if running:
+        assert ui.text("parent-revoke-apps-heading") == "These running soft blocked apps will be closed:"
+        assert ui.getValue("parent-revoke-apps") == ["com.mojang.Minecraft.desktop", "steam.desktop"]
+        for app_id, name in (("com.mojang.Minecraft.desktop", "Minecraft"), ("steam.desktop", "Steam")):
+            app_key = hashlib.sha256(app_id.encode()).hexdigest()[:16]
+            assert ui.text(f"parent-revoke-app-{app_key}") == name
+            assert ui.text(f"parent-revoke-app-{app_key}-bullet") == "•"
+            assert ui.getValue(f"parent-revoke-app-{app_key}-icon") == icons[app_id]
+    else:
+        assert ui.find("parent-revoke-apps-heading") is None
+        assert ui.find("parent-revoke-apps") is None
     ui.activate("parent-revoke-confirm")
     wait_for_accessible_state(
         lambda: any(record["event"] == "revoke_one_time_grant"

@@ -15,7 +15,13 @@ Implementation: [parent main.py](../../parent/oh_no_parent_control_parent/main.p
    child's newly blocked running applications in every retained session.
    Screen-time changes go through
    `SetParentControl`; revocation goes through `RevokeOneTimeGrant` after a
-   confirmation that running blocked apps will close.
+   confirmation that running blocked apps will close. Opening confirmation
+   queries the selected child's running soft-blocked policy IDs. The dialog
+   shows matching catalogue entries as bullets with icons beneath “These
+   running soft blocked apps will be closed:”; the section is omitted when
+   none are running. Names and icons reuse App Limits' loaded catalogue and
+   icon renderer, including replacement-launcher policy matching. The confirmed
+   action stays bound to the child whose apps were reviewed.
    While the window remains open it refreshes the broker's current managed-user
    list every five seconds. Overlapping reads are coalesced, an unchanged list
    does not rebuild the picker, and a newly created account does not disturb the
@@ -353,7 +359,12 @@ saved value is preserved while disabled. Notification urgency belongs to the
 notification backend, not the dialog.
 
 Child reminder banners show only the logo and reminder text, without the product
-title or source header. The 20-pixel logo is centered beside the text. Shell
+title or source header. The 20-pixel logo is centered beside the text. The
+banner width follows the content up to 34em and the available monitor width,
+with 6-pixel vertical and 10-pixel horizontal padding. Longer text wraps at
+word or character boundaries with natural height, without ellipsizing, a line
+cap or a scroll container. The body bypasses Shell's capped label-expansion
+bin while retaining that bin for Shell's animation lifecycle. Shell
 notification urgency, dismissal and literal translated/custom text are retained.
 The layout applies only to the extension's current notification and activates
 with the next child graphical session (`session-renewal`).

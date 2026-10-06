@@ -139,6 +139,10 @@ msgstr "Alkalmazáskorlátok"
 msgid "Search installed apps"
 msgstr "Telepített alkalmazások keresése"
 
+#. Revoke confirmation: only currently running apps with a temporary soft block.
+msgid "These running soft blocked apps will be closed:"
+msgstr "Ezek a futó, ideiglenesen blokkolt alkalmazások bezáródnak:"
+
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
 msgid "Grant %(target)s access?\nRequested time: %(duration)s."

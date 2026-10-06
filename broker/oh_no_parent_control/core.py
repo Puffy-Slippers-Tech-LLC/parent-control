@@ -6,6 +6,7 @@ from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_c
 from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.localization import load_translations
+from common.oh_no_parent_control_ui.languages import desktop_language_candidates
 import gettext
 from .grant_diagnostics import GrantDiagnostics
 from .execution_policy import ExecutionPolicyError
@@ -433,6 +434,31 @@ class Broker:
         except Exception as error:
             raise BackendFailure("running application status is unavailable") from error
 
+    def list_running_soft_blocked_apps(self, caller_uid: int, target_uid: int) -> tuple[str, ...]:
+        """Return saved policy IDs for running soft apps, without changing state."""
+        config = self._load_config()
+        if not self._is_admin(caller_uid):
+            raise AccessDenied("administrator access is required")
+        target = self._target(config, target_uid)
+        preferences = self._load_request_preferences(target.uid)
+        running = []
+        for app_id, entry in preferences["apps"].items():
+            if entry["state"] != "conditional":
+                continue
+            policy = {"apps": {app_id: entry}}
+            targets = blocked_targets(policy, False)
+            patterns = blocked_patterns(policy, False)
+            if not (targets or patterns):
+                continue
+            if self._running_apps is None:
+                raise BackendFailure("running application status is unavailable")
+            try:
+                if self._running_apps.has_running(target.uid, targets, patterns):
+                    running.append(app_id)
+            except Exception as error:
+                raise BackendFailure("running application status is unavailable") from error
+        return tuple(sorted(running))
+
     def _time_status(self, target_uid: int, additional_seconds: int) -> TimeStatus:
         if self._preferences is None or self._timer_usage is None:
             raise BackendFailure("remaining-time status is unavailable")
@@ -780,7 +806,18 @@ class Broker:
         if self._application_catalog is None:
             raise BackendFailure("application catalog is unavailable")
         try:
-            return self._application_catalog(target)
+            applications = self._application_catalog(target)
+            candidates = desktop_language_candidates(self.get_own_language(caller_uid))
+            localized = []
+            for application in applications:
+                app = dict(application)
+                for field, translations in (("name", "localized_names"),
+                                            ("description", "localized_descriptions")):
+                    values = app.get(translations, {})
+                    app[field] = next((values[locale] for locale in candidates
+                                       if values.get(locale)), app[field])
+                localized.append(app)
+            return tuple(sorted(localized, key=lambda app: app["name"].casefold()))
         except Exception as error:
             raise BackendFailure("application catalog is unavailable") from error
 

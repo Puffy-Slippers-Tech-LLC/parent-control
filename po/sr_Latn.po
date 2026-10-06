@@ -139,6 +139,10 @@ msgstr "Ograničenja aplikacija"
 msgid "Search installed apps"
 msgstr "Pretraži instalirane aplikacije"
 
+#. Revoke confirmation: only currently running apps with a temporary soft block.
+msgid "These running soft blocked apps will be closed:"
+msgstr "Ove pokrenute aplikacije sa privremenom blokadom biće zatvorene:"
+
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
 msgid "Grant %(target)s access?\nRequested time: %(duration)s."

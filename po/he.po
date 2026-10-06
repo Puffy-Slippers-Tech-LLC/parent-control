@@ -139,6 +139,10 @@ msgstr "מגבלות יישומים"
 msgid "Search installed apps"
 msgstr "חיפוש יישומים מותקנים"
 
+#. Revoke confirmation: only currently running apps with a temporary soft block.
+msgid "These running soft blocked apps will be closed:"
+msgstr "היישומים הפעילים האלה עם חסימה זמנית ייסגרו:"
+
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
 msgid "Grant %(target)s access?\nRequested time: %(duration)s."

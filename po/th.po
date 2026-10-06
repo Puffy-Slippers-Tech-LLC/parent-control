@@ -139,6 +139,10 @@ msgstr "ขีดจำกัดแอป"
 msgid "Search installed apps"
 msgstr "ค้นหาแอปที่ติดตั้ง"
 
+#. Revoke confirmation: only currently running apps with a temporary soft block.
+msgid "These running soft blocked apps will be closed:"
+msgstr "แอปที่ถูกบล็อกชั่วคราวและกำลังทำงานต่อไปนี้จะถูกปิด:"
+
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
 msgid "Grant %(target)s access?\nRequested time: %(duration)s."

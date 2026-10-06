@@ -103,6 +103,7 @@ APP_NAME_S_ACCESS_RULE_STATE_LABEL_S = gettext('%(app_name)s access rule: %(stat
 SET_THE_SELECTED_CHILD_S_ACCESS_RULE_FOR_APP_NAME_S_TO_STATE_LAB = gettext("Set the selected child's access rule for %(app_name)s to %(state_label)s.")
 APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI = gettext('App limit status could not be checked. Other controls remain available.')
 REVOKE_ONE_TIME_GRANT = gettext('Revoke one-time grant?')
+THESE_RUNNING_SOFT_BLOCKED_APPS_WILL_BE_CLOSED = gettext('These running soft blocked apps will be closed:')
 THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED = gettext('This will revoke one-time screen time and access to soft blocked apps granted to %(child_name)s, close their running blocked apps, and lock their desktop when no time remains. Their remaining daily time allowance is not impacted.')
 KEEP_THE_CURRENT_ONE_TIME_GRANT = gettext('Keep the current one-time grant.')
 REVOKE_THE_SELECTED_CHILD_S_ONE_TIME_GRANT = gettext("Revoke the selected child's one-time grant.")

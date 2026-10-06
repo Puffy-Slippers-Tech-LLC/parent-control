@@ -453,8 +453,11 @@ Reopening the overlay retains the selection for that preview's lifetime.
 About, help labels, feedback controls, validation, request results and user-facing
 error explanations inherit the caller's context. Error categories and diagnostic
 payloads stay stable. User-written reports, account names, filenames and external
-application names remain data. Product locale does not relabel the desktop's
-application catalogue, GDM or other system-owned UI. The broker translates only
+application names remain data. Parent's shared App Limits/revoke catalogue uses
+desktop-entry name and comment translations for the calling parent's saved
+language, falling back to the OS entry when absent. The selected child's language
+does not select those translations. Product locale does not relabel GDM or other
+system-owned UI. The broker also translates
 the product-owned PolicyKit approval message through the supported
 `polkit.message` detail. Complete prompts cover requested time, rest-of-day and
 optional soft-app access; duration units use shared gettext plural rules and a

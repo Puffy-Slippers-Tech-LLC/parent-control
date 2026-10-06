@@ -996,20 +996,42 @@ class ParentWindowTests(unittest.TestCase):
         ))
 
     def test_revoke_confirmation_discloses_that_the_child_is_locked(self):
-        source = inspect.getsource(ParentWindow._confirm_revoke)
+        source = inspect.getsource(ParentWindow._show_revoke_dialog)
 
         self.assertIn('m.THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED', source)
         warning = m.THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED.source
         self.assertIn("close their running blocked apps", warning)
         self.assertIn("lock their desktop when no time remains", warning)
 
+    def test_language_change_reloads_the_shared_catalogue_and_supersedes_old_load(self):
+        window = type("WindowHarness", (), {})()
+        window._applied_language = "en"
+        window._apps_loading = True
+        window._app_catalog = None
+        window._selected_uid = lambda: 1001
+        window._ensure_apps_load = mock.Mock()
+        with mock.patch("parent.oh_no_parent_control_parent.main.context_for") as context:
+            self.assertTrue(ParentWindow._apply_language(window, "de"))
+            context.return_value.apply.assert_called_once_with("de")
+        self.assertFalse(window._apps_loading)
+        window._ensure_apps_load.assert_called_once_with(1001)
+        window._ensure_apps_load.reset_mock()
+        with mock.patch("parent.oh_no_parent_control_parent.main.context_for") as context:
+            self.assertTrue(ParentWindow._apply_language(window, "de"))
+            context.assert_not_called()
+        window._ensure_apps_load.assert_not_called()
+
     def test_revoke_confirmation_constrains_and_word_wraps_its_warning(self):
-        source = inspect.getsource(ParentWindow._confirm_revoke)
+        source = inspect.getsource(ParentWindow._show_revoke_dialog)
 
         self.assertIn("wrap=True, max_width_chars=72", source)
         self.assertIn(
             "warning.set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)", source,
         )
+
+    def test_running_app_reply_does_not_open_a_dialog_after_parent_closes(self):
+        window = type("WindowHarness", (), {"_closed": True})()
+        ParentWindow._show_revoke_dialog(window, 1001, ["soft.desktop"])
 
     def test_revoke_at_zero_time_tracks_running_soft_apps_and_idle_state(self):
         class Label:

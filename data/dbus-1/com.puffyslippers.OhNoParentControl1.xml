@@ -82,6 +82,10 @@
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="applications" type="a(ssssasas)" direction="out"/>
     </method>
+    <method name="ListRunningSoftBlockedApps">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="application_ids" type="as" direction="out"/>
+    </method>
     <method name="HasRunningSoftBlockedApps">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="running" type="b" direction="out"/>

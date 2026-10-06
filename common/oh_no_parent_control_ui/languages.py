@@ -78,3 +78,15 @@ def selected_language(saved_language: str, language_names) -> str:
     """Resolve a chooser's saved value or session default for every frontend."""
     return (supported_language(saved_language) if saved_language
             else session_language(language_names))
+
+
+def desktop_language_candidates(saved_language: str) -> tuple[str, ...]:
+    """Desktop-entry locale keys for an explicit product language selection."""
+    if not saved_language:
+        return ()
+    language = supported_language(saved_language)
+    locale = {"zh-Hans": "zh_CN", "zh-Hant": "zh_TW",
+              "sr-Latn": "sr@latin"}.get(language, language.replace("-", "_"))
+    base = locale.split("_", 1)[0].split("@", 1)[0]
+    # Also accept script spellings supplied by some desktop entries.
+    return tuple(dict.fromkeys((locale.casefold(), language.replace("-", "_").casefold(), base)))

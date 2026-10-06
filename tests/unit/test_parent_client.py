@@ -48,10 +48,17 @@ class FakeConnection:
             return GLib.Variant("(uuuu)", self.status)
         if name == BUS_NAME and method == "HasRunningSoftBlockedApps":
             return GLib.Variant("(b)", (True,))
+        if name == BUS_NAME and method == "ListRunningSoftBlockedApps":
+            return GLib.Variant("(as)", (["soft.desktop"],))
         raise AssertionError(f"unexpected call: {name} {method}")
 
 
 class ParentClientTests(unittest.TestCase):
+    def test_running_soft_app_list_reads_only_selected_child_ids(self):
+        connection = FakeConnection()
+        self.assertEqual(BrokerClient(connection).list_running_soft_blocked_apps(1001), ["soft.desktop"])
+        self.assertEqual(connection.calls[0][3:6], ("ListRunningSoftBlockedApps", (1001,), "(as)"))
+
     def test_reboot_required_requires_exact_broker_error_identity(self):
         for name in (f'{BUS_NAME}.Error.RebootRequired', f'{BUS_NAME}.Error.Failed',
                      'org.freedesktop.DBus.Error.RebootRequired'):

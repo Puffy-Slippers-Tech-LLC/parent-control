@@ -140,6 +140,10 @@ msgstr "Limites de aplicações"
 msgid "Search installed apps"
 msgstr "Pesquisar aplicações instaladas"
 
+#. Revoke confirmation: only currently running apps with a temporary soft block.
+msgid "These running soft blocked apps will be closed:"
+msgstr "Estas aplicações em execução com bloqueio temporário serão fechadas:"
+
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
 msgid "Grant %(target)s access?\nRequested time: %(duration)s."

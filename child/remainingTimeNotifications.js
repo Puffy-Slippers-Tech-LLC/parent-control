@@ -1,6 +1,7 @@
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Pango from 'gi://Pango';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {ReminderSchedule, notificationPreferences, reminderSeconds, reminderText} from './notificationLogic.mjs';
@@ -157,13 +158,34 @@ export class RemainingTimeNotifications {
         const visit = actor => {
             if (actor.notification === notification) {
                 actor.add_style_class_name('screen-time-reminder');
+                actor.x_expand = false;
+                actor.x_align = Clutter.ActorAlign.CENTER;
                 const compact = child => {
                     if (child.has_style_class_name?.('message-header') ||
                         child.has_style_class_name?.('message-title'))
                         child.hide();
                     if (child.has_style_class_name?.('message-icon'))
                         child.y_align = Clutter.ActorAlign.CENTER;
-                    for (const descendant of child.get_children()) compact(descendant);
+                    if (child.has_style_class_name?.('message-body')) {
+                        // Shell's LabelExpanderLayout caps even expanded text.
+                        // Keep its bin for Shell's animation lifecycle, but let
+                        // the body participate directly in natural box sizing.
+                        const bin = child.get_parent();
+                        const content = bin.get_parent();
+                        if (!content.has_style_class_name('message-content')) return;
+                        bin.remove_child(child);
+                        bin.hide();
+                        content.add_child(child);
+                        child.clutter_text.line_wrap = true;
+                        child.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+                        child.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+                        // Preserve literal newlines, including on language or
+                        // saved-text updates, after Shell's body binding runs.
+                        const update = () => child.clutter_text.set_text(notification.body);
+                        notification.connectObject('notify::body', update, child);
+                        update();
+                    }
+                    for (const descendant of [...child.get_children()]) compact(descendant);
                 };
                 compact(actor);
                 return;

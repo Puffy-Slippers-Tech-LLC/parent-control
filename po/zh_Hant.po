@@ -140,6 +140,10 @@ msgstr "應用程式限制"
 msgid "Search installed apps"
 msgstr "搜尋已安裝的應用程式"
 
+#. Revoke confirmation: only currently running apps with a temporary soft block.
+msgid "These running soft blocked apps will be closed:"
+msgstr "以下正在執行的軟封鎖應用程式將被關閉："
+
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
 msgid "Grant %(target)s access?\nRequested time: %(duration)s."

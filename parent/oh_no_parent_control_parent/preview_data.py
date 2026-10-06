@@ -108,6 +108,10 @@ class PreviewBrokerClient:
     def list_apps(self, _uid):
         return copy.deepcopy(PREVIEW_APPS)
 
+    def list_running_soft_blocked_apps(self, uid):
+        return [app_id for app_id, policy in self._preferences[uid]["apps"].items()
+                if policy["state"] == "conditional"]
+
     def get_time_status(self, _uid):
         return {
             "daily_allowance_remaining_seconds": 47 * 60,

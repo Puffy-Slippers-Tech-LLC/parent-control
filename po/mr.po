@@ -139,6 +139,10 @@ msgstr "ॲप मर्यादा"
 msgid "Search installed apps"
 msgstr "स्थापित ॲप शोधा"
 
+#. Revoke confirmation: only currently running apps with a temporary soft block.
+msgid "These running soft blocked apps will be closed:"
+msgstr "तात्पुरते अवरोधित केलेले हे चालू अ‍ॅप्स बंद केले जातील:"
+
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
 msgid "Grant %(target)s access?\nRequested time: %(duration)s."

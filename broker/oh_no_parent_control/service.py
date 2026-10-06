@@ -127,6 +127,10 @@ INTROSPECTION_XML = f"""
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="applications" type="a(ssssasas)" direction="out"/>
     </method>
+    <method name="ListRunningSoftBlockedApps">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="application_ids" type="as" direction="out"/>
+    </method>
     <method name="HasRunningSoftBlockedApps">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="running" type="b" direction="out"/>
@@ -559,6 +563,10 @@ class Service:
                      list(app["targets"]), list(app.get("suggested_patterns", ())))
                     for app in applications
                 ],)))
+            elif method == "ListRunningSoftBlockedApps":
+                target_uid, = parameters.unpack()
+                applications = self.broker.list_running_soft_blocked_apps(caller_uid, target_uid)
+                invocation.return_value(GLib.Variant("(as)", (list(applications),)))
             elif method == "HasRunningSoftBlockedApps":
                 target_uid, = parameters.unpack()
                 running = self.broker.has_running_soft_blocked_apps(caller_uid, target_uid)

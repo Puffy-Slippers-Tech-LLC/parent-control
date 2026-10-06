@@ -1386,6 +1386,11 @@ class ParentWindow(Adw.ApplicationWindow):
             self._show_error(error)
             return False
         self._applied_language = language
+        if getattr(self, "_app_catalog", None) is not None or getattr(self, "_apps_loading", False):
+            # Reload the one shared catalogue after changing the parent's language.
+            # Supersede any response started with the previous language.
+            self._apps_loading = False
+            self._ensure_apps_load(self._selected_uid())
         return True
 
     def _show_feedback(self, *_args):
@@ -1420,19 +1425,12 @@ class ParentWindow(Adw.ApplicationWindow):
         row.app = app
         bind_ui(row, get_value=lambda: row.app["id"])
         row.search_text = f'{app["name"]} {app["description"]} {app["id"]}'.casefold()
-        if app["icon"]:
-            try:
-                icon = Gio.Icon.new_for_string(app["icon"])
-            except GLib.Error:
-                icon = None
-            if icon is not None:
-                icon_cell = Gtk.Box(
-                    width_request=80, halign=Gtk.Align.CENTER,
-                    valign=Gtk.Align.CENTER,
-                    css_classes=["app-icon-cell"],
-                )
-                icon_cell.append(Gtk.Image(gicon=icon, pixel_size=36))
-                row.add_prefix(icon_cell)
+        icon_cell = Gtk.Box(
+            width_request=80, halign=Gtk.Align.CENTER,
+            valign=Gtk.Align.CENTER, css_classes=["app-icon-cell"],
+        )
+        icon_cell.append(self._application_icon(app, f"parent-app-{automation_key}-icon"))
+        row.add_prefix(icon_cell)
         row.policy_buttons = {}
         row.match_rule_button = localized(Gtk.Button, 
             tooltip_text=m.EDIT_MATCH_RULE, valign=Gtk.Align.CENTER,
@@ -1940,6 +1938,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._account.set_sensitive(idle)
         self._revoke.set_sensitive(
             idle and self._selected_uid() is not None and
+            getattr(self, "_app_catalog", []) is not None and
             getattr(self, "_remaining_time_seconds", None) is not None and
             (self._remaining_time_seconds > 0 or
              getattr(self, "_has_running_soft_blocked_apps", False))
@@ -1969,6 +1968,33 @@ class ParentWindow(Adw.ApplicationWindow):
             search.set_sensitive(sensitive and table_ready)
 
     def _confirm_revoke(self, *_args):
+        uid = self._selected_uid()
+        if uid is None or self._loading or self._save_in_progress or self._app_catalog is None:
+            return
+        self._loading = True
+        self._set_apps_sensitive(False)
+        self._run(
+            lambda: self._client.list_running_soft_blocked_apps(uid),
+            lambda applications: self._show_revoke_dialog(uid, applications),
+        )
+
+    def _application_icon(self, app, automation_id):
+        try:
+            icon = Gio.Icon.new_for_string(app["icon"] or "application-x-executable")
+        except GLib.Error:
+            icon = Gio.ThemedIcon.new("application-x-executable")
+        image = Gtk.Image(gicon=icon, pixel_size=36)
+        set_automation_id(image, automation_id)
+        bind_ui(image, get_value=lambda: app["icon"])
+        return image
+
+    def _show_revoke_dialog(self, uid, applications):
+        if self._closed:
+            return
+        self._loading = False
+        self._set_apps_sensitive(True)
+        if uid != self._selected_uid():
+            return
         selected = self._account.get_selected()
         if selected >= len(self._users):
             return
@@ -1989,6 +2015,40 @@ class ParentWindow(Adw.ApplicationWindow):
         warning.set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)
         set_automation_id(warning, "parent-revoke-warning")
         dialog.get_content_area().append(warning)
+        replacements = replacement_policy_ids(self._preferences["apps"], self._app_catalog)
+        running = set(applications)
+        apps = [app for app in self._app_catalog
+                if replacements.get(app["id"], app["id"]) in running]
+        if apps:
+            heading = localized(
+                Gtk.Label, label=m.THESE_RUNNING_SOFT_BLOCKED_APPS_WILL_BE_CLOSED,
+                wrap=True, max_width_chars=72, xalign=0,
+                margin_start=18, margin_end=18, margin_bottom=8,
+            )
+            set_automation_id(heading, "parent-revoke-apps-heading")
+            dialog.get_content_area().append(heading)
+            app_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
+                               margin_start=18, margin_end=18, margin_bottom=18)
+            set_automation_id(app_list, "parent-revoke-apps")
+            bind_ui(app_list, get_value=lambda: [app["id"] for app in apps])
+            for app in apps:
+                identity = f"parent-revoke-app-{_app_automation_key(app['id'])}"
+                row = Gtk.Box(spacing=8)
+                bullet = Gtk.Label(label="•")
+                set_automation_id(bullet, identity + "-bullet")
+                row.append(bullet)
+                row.append(self._application_icon(app, identity + "-icon"))
+                name = Gtk.Label(label=app["name"], xalign=0, wrap=True,
+                                 max_width_chars=60, hexpand=True)
+                set_automation_id(name, identity)
+                row.append(name)
+                app_list.append(row)
+            scroll = Gtk.ScrolledWindow(
+                hscrollbar_policy=Gtk.PolicyType.NEVER,
+                propagate_natural_height=True, max_content_height=240,
+            )
+            scroll.set_child(app_list)
+            dialog.get_content_area().append(scroll)
         add_dialog_button(
             dialog, m.CANCEL, Gtk.ResponseType.CANCEL, "parent-revoke-cancel",
             description=m.KEEP_THE_CURRENT_ONE_TIME_GRANT,
@@ -1999,15 +2059,14 @@ class ParentWindow(Adw.ApplicationWindow):
             css_class="destructive-action",
         )
         dialog.set_default_response(Gtk.ResponseType.CANCEL)
-        dialog.connect("response", self._revoke_response)
+        dialog.connect("response", self._revoke_response, uid)
         dialog.present()
 
-    def _revoke_response(self, dialog, response):
+    def _revoke_response(self, dialog, response, uid):
         dialog.destroy()
         if response != Gtk.ResponseType.OK:
             return
-        uid = self._selected_uid()
-        if uid is None:
+        if uid != self._selected_uid():
             return
         self._loading = True
         self._set_apps_sensitive(False)

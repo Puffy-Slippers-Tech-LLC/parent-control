@@ -23,6 +23,13 @@ The broker discovers launchers from the selected child's user XDG directories
 before system directories, so the catalog reflects that child's app grid. The
 first file for each desktop ID takes precedence even if it is hidden or cannot
 be listed; a lower-priority launcher does not replace that child's override.
+`ListApplications` selects desktop-entry name and description translations using
+the calling parent's saved language, with language fallback and the unlocalized
+OS entry as the final fallback. The selected child's language does not affect
+these names. Chinese script choices map to `zh_CN`/`zh_TW`, and Serbian Latin
+maps to `sr@latin`. Changing Parent's language reloads its shared catalogue;
+App Limits and revoke confirmation use the same names and icons. This does not
+change the desktop session language or launch targets.
 Relative native commands use an explicit absolute desktop `Path`, when present,
 then the selected child's `.local/bin` and `bin`. Bare command names fall back
 to `/usr/local/bin`, `/usr/bin`, and `/bin`, in that order, without inheriting

@@ -139,6 +139,10 @@ msgstr "Forritatakmarkanir"
 msgid "Search installed apps"
 msgstr "Leita að uppsettum forritum"
 
+#. Revoke confirmation: only currently running apps with a temporary soft block.
+msgid "These running soft blocked apps will be closed:"
+msgstr "Þessum keyrandi forritum með tímabundna lokun verður lokað:"
+
 #. Complete product-owned PolicyKit authorization prompt.
 #, python-format
 msgid "Grant %(target)s access?\nRequested time: %(duration)s."

@@ -24,6 +24,71 @@ from tests.support.broker import (
 
 
 class CoreTests(unittest.TestCase):
+    def test_running_soft_app_list_excludes_hard_allowed_and_stopped_apps(self):
+        preferences = Preferences()
+        soft = preferences.values[1001]["apps"]["soft.desktop"]
+        soft["patterns"] = ["/usr/bin/game-*"]
+        preferences.values[1001]["apps"]["stopped.desktop"] = {
+            **soft, "targets": ["/usr/bin/stopped"], "patterns": [],
+        }
+        preferences.values[1001]["apps"]["allowed.desktop"] = {
+            **soft, "state": "allowed",
+        }
+        accounts, running_apps = Accounts(), mock.Mock()
+        running_apps.has_running.side_effect = [True, False]
+        broker = make_broker(accounts=accounts, preferences=preferences, running_apps=running_apps)
+        self.assertEqual(broker.list_running_soft_blocked_apps(1003, 1001), ("soft.desktop",))
+        self.assertEqual(running_apps.has_running.call_args_list, [
+            mock.call(1001, ("/usr/bin/game",), ("/usr/bin/game-*",)),
+            mock.call(1001, ("/usr/bin/stopped",), ()),
+        ])
+        self.assertEqual(accounts.events, [])
+        running_apps.terminate.assert_not_called()
+        running_apps.preflight.assert_not_called()
+        for caller in (991, 1001, 1002):
+            with self.assertRaises(AccessDenied):
+                broker.list_running_soft_blocked_apps(caller, 1001)
+        with self.assertRaises(AccessDenied):
+            broker.list_running_soft_blocked_apps(1003, 1003)
+        self.assertEqual(running_apps.has_running.call_count, 2)
+
+    def test_running_soft_app_list_reports_discovery_failure_and_empty_policy(self):
+        running_apps = mock.Mock()
+        running_apps.has_running.side_effect = RuntimeError("discovery failed")
+        broker = make_broker(running_apps=running_apps)
+        with self.assertRaises(BackendFailure):
+            broker.list_running_soft_blocked_apps(1003, 1001)
+        self.assertEqual(broker.list_running_soft_blocked_apps(1003, 1002), ())
+        self.assertEqual(running_apps.has_running.call_count, 1)
+
+    def test_application_names_use_parent_language_with_os_fallback(self):
+        preferences = Preferences()
+        preferences.update_language(1003, "pt-BR")
+        preferences.update_language(1001, "de")
+        source = ({"id": "game.desktop", "name": "OS Game", "description": "OS description",
+                   "localized_names": {"pt_br": "Jogo", "pt": "Jogo português", "de": "Spiel"},
+                   "localized_descriptions": {"pt": "Descrição"}, "icon": "game", "targets": ()},
+                  {"id": "other.desktop", "name": "Untranslated", "description": "Default",
+                   "icon": "other", "targets": ()})
+        broker = make_broker(preferences=preferences, application_catalog=lambda _user: source)
+        apps = broker.list_applications(1003, 1001)
+        self.assertEqual([(app["name"], app["description"]) for app in apps],
+                         [("Jogo", "Descrição"), ("Untranslated", "Default")])
+        self.assertEqual(source[0]["name"], "OS Game")
+        for language, expected in (("pt", "Jogo português"), ("de", "Spiel"), ("", "OS Game")):
+            preferences.update_language(1003, language)
+            self.assertEqual(broker.list_applications(1003, 1001)[0]["name"], expected)
+
+    def test_application_names_support_chinese_and_serbian_script_choices(self):
+        preferences = Preferences()
+        app = {"id": "game.desktop", "name": "Default", "description": "Default",
+               "localized_names": {"zh_cn": "简体", "zh_tw": "繁體", "sr@latin": "Igra", "sr": "Игра"}}
+        broker = make_broker(preferences=preferences, application_catalog=lambda _user: (app,))
+        for language, expected in (("zh-Hans", "简体"), ("zh-Hant", "繁體"),
+                                   ("sr-Latn", "Igra"), ("sr", "Игра"), ("fr", "Default")):
+            preferences.update_language(1003, language)
+            self.assertEqual(broker.list_applications(1003, 1001)[0]["name"], expected)
+
     def test_running_soft_apps_query_is_authorized_scoped_and_read_only(self):
         accounts, preferences = Accounts(), Preferences()
         preferences.values[1001]["apps"]["soft.desktop"]["patterns"] = ["/usr/bin/game-*"]

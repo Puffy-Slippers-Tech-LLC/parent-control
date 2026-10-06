@@ -103,6 +103,13 @@ class ScriptedParentBroker:
                     for role, filename, name, description, match in ASSETS]
         return copy.deepcopy(PREVIEW_APPS)
 
+    def list_running_soft_blocked_apps(self, uid):
+        self._record("list_running_soft_blocked_apps", uid=uid)
+        if self._mode == "no-running-apps":
+            return []
+        return [app_id for app_id, policy in self._preferences[uid]["apps"].items()
+                if policy["state"] == "conditional"]
+
     def get_time_status(self, _uid):
         self._status_attempts += 1
         self._record("get_time_status", attempt=self._status_attempts)

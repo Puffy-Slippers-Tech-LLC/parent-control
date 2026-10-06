@@ -1632,5 +1632,5 @@ msgstr "Quand mostrar"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Lo rampèl serà afichat quand lo temps restant arribarà a :"
 
-msgid "Duplicate reminder detected"
-msgstr "Rampèl duplicat detectat"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Causissètz una autra valor per «Quand mostrar» per evitar de rampèls duplicats."

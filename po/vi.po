@@ -1626,5 +1626,5 @@ msgstr "Khi nào hiển thị"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Lời nhắc sẽ hiển thị khi thời gian còn lại đạt:"
 
-msgid "Duplicate reminder detected"
-msgstr "Phát hiện lời nhắc trùng lặp"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Chọn giá trị khác cho “Khi nào hiển thị” để tránh lời nhắc trùng lặp."

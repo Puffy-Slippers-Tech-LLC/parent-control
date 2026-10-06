@@ -1638,5 +1638,5 @@ msgstr "Kdy zobrazit"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Připomenutí se zobrazí, když zbývající čas dosáhne:"
 
-msgid "Duplicate reminder detected"
-msgstr "Zjištěno duplicitní připomenutí"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Vyberte jinou hodnotu „Kdy zobrazit“, abyste předešli duplicitním připomenutím."

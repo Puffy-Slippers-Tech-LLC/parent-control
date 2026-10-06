@@ -1632,5 +1632,5 @@ msgstr "Noiz erakutsi"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Abisua erakutsiko da geratzen den denbora honetara iristean:"
 
-msgid "Duplicate reminder detected"
-msgstr "Abisu bikoiztua hauteman da"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Aukeratu beste balio bat «Noiz erakutsi» eremuan, abisu bikoiztuak saihesteko."

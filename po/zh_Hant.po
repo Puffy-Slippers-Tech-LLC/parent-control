@@ -1627,5 +1627,5 @@ msgstr "何時顯示"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "剩餘時間達到以下數值時顯示提醒："
 
-msgid "Duplicate reminder detected"
-msgstr "偵測到重複提醒"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "請選擇不同的「何時顯示」，以避免重複提醒。"

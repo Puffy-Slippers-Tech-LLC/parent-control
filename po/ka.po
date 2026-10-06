@@ -1626,5 +1626,5 @@ msgstr "როდის გამოჩნდეს"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "შეხსენება გამოჩნდება, როცა დარჩენილი დრო მიაღწევს:"
 
-msgid "Duplicate reminder detected"
-msgstr "აღმოჩენილია დუბლირებული შეხსენება"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "აირჩიეთ სხვა მნიშვნელობა ველისთვის „როდის გამოჩნდეს“, რათა თავიდან აიცილოთ დუბლირებული შეხსენებები."

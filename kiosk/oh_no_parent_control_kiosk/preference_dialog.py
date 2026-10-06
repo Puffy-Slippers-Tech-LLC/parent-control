@@ -1,7 +1,10 @@
 """Child preferences, retaining the request screens' language chooser contract."""
 
 import copy
+import math
 import uuid
+
+import cairo
 
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.translation_widgets import (
@@ -27,23 +30,76 @@ from .chrome import ArmoredButton, MetalBoard
 
 
 class PreferenceTab(Gtk.ToggleButton):
-    """Angled cyan/purple tabs on the same metal board as the actions."""
+    """Stepped cyan/purple plates spanning the complete tab header."""
 
     def do_snapshot(self, snapshot):
         width, height = self.get_width(), self.get_height()
         cr = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
-        cr.move_to(1, height - 1)
-        cr.line_to(10, 1)
-        cr.line_to(width - 10, 1)
-        cr.line_to(width - 1, height - 1)
-        cr.close_path()
         active = self.get_active()
-        cr.set_source_rgba(*((0.04, 0.40, 0.36, 0.8) if active else (0.23, 0.19, 0.36, 0.8)))
+        top = 1 if active else 3
+        cr.move_to(1, height - 1)
+        for x, y in ((1, height - 5), (5, height - 5), (5, height - 10),
+                     (9, height - 10), (9, top + 8), (13, top + 8),
+                     (13, top + 4), (19, top + 4), (19, top),
+                     (width - 19, top), (width - 19, top + 4),
+                     (width - 13, top + 4), (width - 13, top + 8),
+                     (width - 9, top + 8), (width - 9, height - 10),
+                     (width - 5, height - 10), (width - 5, height - 5),
+                     (width - 1, height - 5), (width - 1, height - 1)):
+            cr.line_to(x, y)
+        cr.close_path()
+        fill = cairo.LinearGradient(0, 0, 0, height)
+        rgb = (0.04, 0.40, 0.36) if active else (0.23, 0.19, 0.36)
+        fill.add_color_stop_rgba(0, *rgb, 0.95)
+        fill.add_color_stop_rgba(1, *rgb, 0.65)
+        cr.set_source(fill)
         cr.fill_preserve()
         cr.set_source_rgb(*((0.16, 0.91, 0.79) if active else (0.57, 0.43, 0.78)))
         cr.set_line_width(2)
         cr.stroke()
         Gtk.ToggleButton.do_snapshot(self, snapshot)
+
+
+class PreferenceTabIcon(Gtk.Widget):
+    """Theme-independent globe and filled bell matching the tab plates."""
+
+    def __init__(self, name):
+        super().__init__(valign=Gtk.Align.CENTER)
+        self._name = name
+
+    def do_measure(self, orientation, for_size):
+        return 20, 20, -1, -1
+
+    def do_snapshot(self, snapshot):
+        cr = snapshot.append_cairo(Graphene.Rect().init(0, 0, 20, 20))
+        cr.scale(20 / 26, 20 / 26)
+        color = self.get_style_context().get_color()
+        cr.set_source_rgba(color.red, color.green, color.blue, color.alpha)
+        cr.set_line_width(2)
+        if self._name == 'language':
+            cr.arc(13, 13, 11, 0, math.tau)
+            cr.stroke()
+            cr.save()
+            cr.translate(13, 13)
+            cr.scale(0.45, 1)
+            cr.arc(0, 0, 11, 0, math.tau)
+            cr.restore()
+            cr.stroke()
+            for y, inset in ((7, 4), (13, 2), (19, 4)):
+                cr.move_to(inset, y)
+                cr.line_to(26 - inset, y)
+            cr.stroke()
+        else:
+            cr.move_to(3, 21)
+            cr.curve_to(7, 17, 6, 15, 6, 10)
+            cr.curve_to(6, 2, 20, 2, 20, 10)
+            cr.curve_to(20, 15, 19, 17, 23, 21)
+            cr.close_path()
+            cr.fill()
+            cr.arc(13, 3, 2, 0, math.tau)
+            cr.fill()
+            cr.arc(13, 22, 3, 0, math.pi)
+            cr.fill()
 
 
 class ReminderDialog(Gtk.Window):
@@ -56,6 +112,14 @@ class ReminderDialog(Gtk.Window):
         self._other_times = {
             r['value'] * (60 if r['unit'] == 'minute' else 1)
             for r in reminders if record is None or r['id'] != record['id']}
+        timing_record = record
+        if record is None:
+            largest = max(reminders, key=lambda r: r['value'] *
+                          (60 if r['unit'] == 'minute' else 1), default=None)
+            timing_record = ({'value': min(largest['value'] * 2,
+                                          4294967295 // (60 if largest['unit'] == 'minute' else 1)),
+                              'unit': largest['unit']} if largest else
+                             {'value': 1, 'unit': 'minute'})
         self._saved, self._closed_callback = saved, closed
         self._notified_closed = False
         self.add_css_class('oh-no-parent-control-language-dialog')
@@ -77,7 +141,8 @@ class ReminderDialog(Gtk.Window):
         header.append(icon)
         header.append(localized(Gtk.Label, label=title, xalign=0, hexpand=True,
                                 css_classes=['oh-no-parent-control-language-title']))
-        close = Gtk.Button(label='×', css_classes=['preferences-close'])
+        close = ArmoredButton(label='×', armor_kind='cancel', css_classes=['preferences-close'],
+                              halign=Gtk.Align.CENTER, valign=Gtk.Align.START)
         describe_control(close, m.CLOSE, m.CANCEL, automation_id='reminder-editor-close')
         close.connect('clicked', self._cancel)
         header.append(close)
@@ -88,10 +153,13 @@ class ReminderDialog(Gtk.Window):
                                 css_classes=['preferences-section-title']))
         fields.append(localized(Gtk.Label, label=m.REMINDER_TEXT_HELP, xalign=0,
                                 wrap=True, css_classes=['reminder-trigger']))
-        self._text = Gtk.Entry(hexpand=True)
+        original_text = record.get('text', '') if record else ''
+        # Keep legacy text intact, but prevent input from growing beyond its
+        # existing length. Normal reminders are capped by GTK for all input.
+        self._text = Gtk.Entry(hexpand=True, max_length=max(50, len(original_text)))
         describe_control(self._text, m.REMINDER_TEXT, m.REMINDER_TEXT_HELP,
                          automation_id='reminder-text')
-        self._text.set_text(record.get('text', '') if record else '')
+        self._text.set_text(original_text)
         fields.append(self._text)
         self._count = Gtk.Label(xalign=1, css_classes=['reminder-trigger'])
         set_automation_id(self._count, 'reminder-text-count')
@@ -104,7 +172,7 @@ class ReminderDialog(Gtk.Window):
         number = Gtk.Box(spacing=0, css_classes=['reminder-number'])
         self._value = Gtk.Entry(input_purpose=Gtk.InputPurpose.DIGITS, width_chars=10,
                                 max_width_chars=10, max_length=10, hexpand=True)
-        self._value.set_text(str(record['value'] if record else 1))
+        self._value.set_text(str(timing_record['value']))
         describe_control(self._value, m.WHEN_TO_SHOW, m.REMINDER_TIMING_HELP,
                          automation_id='reminder-value')
         number.append(self._value)
@@ -118,7 +186,7 @@ class ReminderDialog(Gtk.Window):
         number.append(steps)
         timing.append(number)
         self._unit = Gtk.DropDown(model=Gtk.StringList.new(['', '']))
-        self._unit.set_selected(1 if record and record['unit'] == 'second' else 0)
+        self._unit.set_selected(1 if timing_record['unit'] == 'second' else 0)
         describe_control(self._unit, m.WHEN_TO_SHOW, m.REMINDER_TIMING_HELP,
                          automation_id='reminder-unit')
         bind_ui(self._unit, get_value=lambda: self._unit_token(),
@@ -131,11 +199,12 @@ class ReminderDialog(Gtk.Window):
         set_automation_id(self._error, 'reminder-editor-error')
         content.append(fields)
         self._duplicate = localized(Gtk.Label, label=m.DUPLICATE_REMINDER, wrap=True,
-                                    visible=False, css_classes=['error'])
+                                    visible=False, css_classes=['error', 'reminder-duplicate-warning'])
         set_automation_id(self._duplicate, 'reminder-duplicate-warning')
         content.append(self._duplicate)
         content.append(self._error)
         actions = Gtk.Box(spacing=20, homogeneous=True)
+        actions.add_css_class('reminder-editor-actions')
         fixed_direction(actions, Gtk.TextDirection.LTR)
         for identity, message, callback in (
                 ('cancel', m.CANCEL, self._cancel), ('save', m.SAVE, self._submit)):
@@ -181,6 +250,8 @@ class ReminderDialog(Gtk.Window):
 
     def _update_validation(self, *_args):
         text = self._text.get_text()
+        if len(text) <= 50:
+            self._text.set_max_length(50)
         self._count.set_text(f'{len(text)}/50')
         value = self._duration()
         trigger = (PreferencesDialog._trigger_message({'value': value, 'unit': self._unit_token()})
@@ -189,6 +260,10 @@ class ReminderDialog(Gtk.Window):
         duplicate = (value is not None and value * (60 if self._unit_token() == 'minute' else 1)
                      in self._other_times)
         self._duplicate.set_visible(duplicate)
+        if duplicate:
+            self._value.add_css_class('reminder-duplicate')
+        else:
+            self._value.remove_css_class('reminder-duplicate')
         self._save_button.set_sensitive(not duplicate)
         self._error.set_visible(False)
 
@@ -278,7 +353,9 @@ class PreferencesDialog(Gtk.Window):
         self._account_row.append(self._account_label)
         self._heading.append(self._account_row)
         header.append(self._heading)
-        self._close = localized(Gtk.Button, label='×', css_classes=['preferences-close'])
+        self._close = localized(ArmoredButton, label='×', armor_kind='cancel',
+                                css_classes=['preferences-close'],
+                                halign=Gtk.Align.CENTER, valign=Gtk.Align.START)
         describe_control(self._close, m.CLOSE, m.CANCEL, automation_id='preferences-close')
         self._close.connect('clicked', self._dismiss)
         header.append(self._close)
@@ -291,11 +368,11 @@ class PreferencesDialog(Gtk.Window):
         describe_control(tabs, m.PREFERENCES, m.PREFERENCES, automation_id='preferences-tabs')
         bind_ui(tabs, get_value=lambda: self._pages.get_visible_child_name(),
                 set_value=self._ui_select_tab, choices=['language', 'reminders'])
-        for name, message, icon in (('language', m.LANGUAGE, 'network-workgroup-symbolic'),
-                                    ('reminders', m.REMINDERS, 'preferences-system-notifications-symbolic')):
-            tab = PreferenceTab(css_classes=['preferences-tab'])
-            child = Gtk.Box(spacing=10, halign=Gtk.Align.CENTER)
-            child.append(Gtk.Image.new_from_icon_name(icon))
+        for name, message in (('language', m.LANGUAGE), ('reminders', m.REMINDERS)):
+            tab = PreferenceTab(css_classes=['preferences-tab'], hexpand=True)
+            child = Gtk.Box(spacing=10, halign=Gtk.Align.CENTER,
+                            margin_start=22, margin_end=22, margin_top=7, margin_bottom=7)
+            child.append(PreferenceTabIcon(name))
             child.append(localized(Gtk.Label, label=message))
             tab.set_child(child)
             describe_control(tab, message, message, automation_id=f'preferences-tab-{name}')

@@ -1632,5 +1632,5 @@ msgstr "מתי להציג"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "התזכורת תוצג כשהזמן שנותר יגיע לערך:"
 
-msgid "Duplicate reminder detected"
-msgstr "זוהתה תזכורת כפולה"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "בחרו ערך אחר עבור „מתי להציג” כדי להימנע מתזכורות כפולות."

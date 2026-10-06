@@ -1632,5 +1632,5 @@ msgstr "Hvenær á að birta"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Áminningin birtist þegar tíminn sem eftir er nær:"
 
-msgid "Duplicate reminder detected"
-msgstr "Tvítekin áminning fannst"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Veldu annað gildi fyrir „Hvenær á að birta“ til að forðast tvíteknar áminningar."

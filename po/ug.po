@@ -1626,5 +1626,5 @@ msgstr "قاچان كۆرسىتىش"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "قالغان ۋاقىت تۆۋەندىكى قىممەتكە يەتكەندە ئەسكەرتىش كۆرسىتىلىدۇ:"
 
-msgid "Duplicate reminder detected"
-msgstr "تەكرار ئەسكەرتىش بايقالدى"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "تەكرار ئەسكەرتىشلەردىن ساقلىنىش ئۈچۈن «قاچان كۆرسىتىش» ئۈچۈن باشقا قىممەت تاللاڭ."

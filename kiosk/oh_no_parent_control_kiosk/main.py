@@ -38,7 +38,7 @@ from common.oh_no_parent_control_ui.errors import (
 )
 
 from .model import RequestState, public_error
-from .language_dialog import PreferencesDialog
+from .preference_dialog import PreferencesDialog
 from .agent_locale import KioskAgentLocale
 from common.oh_no_parent_control_ui.languages import selected_language
 from .request_content import RequestContent

@@ -1644,5 +1644,5 @@ msgstr "Коли показувати"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Нагадування з’явиться, коли час, що залишився, досягне:"
 
-msgid "Duplicate reminder detected"
-msgstr "Виявлено повторне нагадування"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Виберіть інше значення «Коли показувати», щоб уникнути повторних нагадувань."

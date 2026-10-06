@@ -1626,5 +1626,5 @@ msgstr "Қашан көрсету керек"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Қалған уақыт мына мәнге жеткенде еске салғыш көрсетіледі:"
 
-msgid "Duplicate reminder detected"
-msgstr "Қайталанатын еске салғыш анықталды"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Қайталанатын еске салғыштарды болдырмау үшін «Қашан көрсету керек» өрісінде басқа мәнді таңдаңыз."

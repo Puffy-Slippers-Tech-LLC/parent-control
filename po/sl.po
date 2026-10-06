@@ -1644,5 +1644,5 @@ msgstr "Kdaj prikazati"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Opomnik se prikaže, ko preostali čas doseže:"
 
-msgid "Duplicate reminder detected"
-msgstr "Zaznan je podvojen opomnik"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Izberite drugo vrednost za »Kdaj prikazati«, da se izognete podvojenim opomnikom."

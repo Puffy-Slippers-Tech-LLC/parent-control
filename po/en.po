@@ -93,5 +93,5 @@ msgstr "When to show"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "The reminder will be shown when the remaining time reaches:"
 
-msgid "Duplicate reminder detected"
-msgstr "Duplicate reminder detected"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Choose a different \"When to show\" to avoid duplicate reminders."

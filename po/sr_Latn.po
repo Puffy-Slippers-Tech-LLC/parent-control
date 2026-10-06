@@ -1644,5 +1644,5 @@ msgstr "Kada prikazati"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Podsetnik će se prikazati kada preostalo vreme dostigne:"
 
-msgid "Duplicate reminder detected"
-msgstr "Otkriven je dupli podsetnik"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Izaberite drugu vrednost za „Kada prikazati“ da biste izbegli duple podsetnike."

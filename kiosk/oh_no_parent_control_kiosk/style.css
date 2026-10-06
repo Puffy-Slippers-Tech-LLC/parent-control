@@ -576,14 +576,16 @@ button.oh-no-parent-control-request-button:disabled {
   color: #cccccc;
 }
 
-.preferences-tabs { margin-bottom: -8px; }
+.preferences-tabs { margin-bottom: 0; }
 .oh-no-parent-control-language-dialog button.preferences-tab {
   background: transparent;
   border: none;
   border-radius: 0;
   box-shadow: none;
-  padding: 8px 16px;
+  padding: 0;
+  min-height: 35px;
   color: #bba4ed;
+  font-size: 14px;
   font-weight: bold;
 }
 .oh-no-parent-control-language-dialog button.preferences-tab:checked { color: #a4fff0; }
@@ -599,14 +601,23 @@ button.oh-no-parent-control-request-button:disabled {
 }
 .preferences-section-title { font-size: 18px; font-weight: bold; }
 .oh-no-parent-control-language-dialog button.preferences-close {
-  min-height: 28px;
-  min-width: 28px;
+  min-height: 36px;
+  min-width: 36px;
   padding: 0;
   font-size: 26px;
-  border: 1px solid #82929f;
+  border: none;
   border-radius: 0;
-  background: #293743;
+  background-color: #293743;
+  background-image: linear-gradient(to bottom, #43525d, #202b35);
   color: #f4f4f4;
+  box-shadow: inset 2px 2px #839098, inset -2px -2px #111a20;
+}
+.oh-no-parent-control-language-dialog button.preferences-close:hover,
+.oh-no-parent-control-language-dialog button.preferences-close:focus-visible {
+  background-image: linear-gradient(to bottom, #566875, #2c3c49);
+}
+.oh-no-parent-control-language-dialog button.preferences-close:active {
+  background-image: linear-gradient(to bottom, #1c2730, #394955);
 }
 .reminder-row {
   padding: 8px 12px;
@@ -634,6 +645,13 @@ button.oh-no-parent-control-request-button:disabled {
   font-size: 18px;
 }
 .reminder-number entry { border-radius: 6px 0 0 6px; }
+@keyframes reminder-duplicate-flash {
+  0%, 100% { border-color: #ff3535; }
+  50% { border-color: #83c9e0; }
+}
+.reminder-dialog entry.reminder-duplicate {
+  animation: reminder-duplicate-flash 1s ease-in-out infinite;
+}
 .reminder-dialog dropdown button {
   background: #2b3b4c;
   border: 1px solid #6674a1;
@@ -648,6 +666,10 @@ button.oh-no-parent-control-request-button:disabled {
 }
 .reminder-dialog .reminder-text { font-size: 18px; font-weight: bold; }
 .reminder-dialog .reminder-trigger { font-size: 15px; }
+.reminder-dialog .reminder-duplicate-warning,
+.reminder-dialog .reminder-editor-actions button {
+  font-size: 18px;
+}
 .oh-no-parent-control-language-dialog button.reminder-edit,
 .oh-no-parent-control-language-dialog button.reminder-delete {
   min-height: 24px;

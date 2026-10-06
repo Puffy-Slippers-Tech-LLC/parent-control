@@ -22,7 +22,7 @@ Implementation entry points: [localization.py](../../common/oh_no_parent_control
 [broker core](../../broker/oh_no_parent_control/core.py),
 [D-Bus service](../../broker/oh_no_parent_control/service.py),
 [Parent chooser](../../parent/oh_no_parent_control_parent/language_dialog.py),
-[request chooser](../../kiosk/oh_no_parent_control_kiosk/language_dialog.py),
+[request chooser](../../kiosk/oh_no_parent_control_kiosk/preference_dialog.py),
 and [Makefile](../../Makefile).
 
 ## Responsibilities and language ownership

@@ -1632,5 +1632,5 @@ msgstr "कब दिखाएँ"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "शेष समय इस मान पर पहुँचने पर अनुस्मारक दिखाया जाएगा:"
 
-msgid "Duplicate reminder detected"
-msgstr "डुप्लिकेट अनुस्मारक मिला"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "दोहराए गए अनुस्मारकों से बचने के लिए “कब दिखाएँ” का कोई दूसरा मान चुनें।"

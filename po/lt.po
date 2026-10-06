@@ -1638,5 +1638,5 @@ msgstr "Kada rodyti"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Priminimas bus rodomas, kai likęs laikas pasieks:"
 
-msgid "Duplicate reminder detected"
-msgstr "Aptiktas pasikartojantis priminimas"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Pasirinkite kitą „Kada rodyti“ reikšmę, kad išvengtumėte pasikartojančių priminimų."

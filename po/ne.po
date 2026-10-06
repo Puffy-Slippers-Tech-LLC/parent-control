@@ -1632,5 +1632,5 @@ msgstr "कहिले देखाउने"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "बाँकी समय यो मानमा पुगेपछि सम्झाउने सूचना देखाइनेछ:"
 
-msgid "Duplicate reminder detected"
-msgstr "दोहोरिएको सम्झाउने सूचना भेटियो"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "दोहोरिएका सम्झाउने सूचनाहरूबाट बच्न “कहिले देखाउने” का लागि अर्को मान छान्नुहोस्।"

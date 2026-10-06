@@ -1632,5 +1632,5 @@ msgstr "Millal kuvada"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Meeldetuletus kuvatakse, kui järelejäänud aeg jõuab väärtuseni:"
 
-msgid "Duplicate reminder detected"
-msgstr "Tuvastati korduv meeldetuletus"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Valige väljale „Millal kuvada” teine väärtus, et vältida korduvaid meeldetuletusi."

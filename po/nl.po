@@ -1632,5 +1632,5 @@ msgstr "Wanneer tonen"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "De herinnering wordt getoond wanneer de resterende tijd dit bereikt:"
 
-msgid "Duplicate reminder detected"
-msgstr "Dubbele herinnering gevonden"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Kies een andere waarde voor “Wanneer tonen” om dubbele herinneringen te voorkomen."

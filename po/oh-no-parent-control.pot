@@ -1631,5 +1631,5 @@ msgstr ""
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr ""
 
-msgid "Duplicate reminder detected"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr ""

@@ -1630,5 +1630,5 @@ msgstr "Quand afficher"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Le rappel sera affiché lorsque le temps restant atteindra :"
 
-msgid "Duplicate reminder detected"
-msgstr "Rappel en double détecté"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Choisissez une autre valeur pour « Quand afficher » afin d’éviter les rappels en double."

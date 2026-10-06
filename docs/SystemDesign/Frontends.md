@@ -256,7 +256,7 @@ desktop language and opening setup when unset.
 An empty value opens a modal language chooser. Parent retains its
 [own dialog UI](../../parent/oh_no_parent_control_parent/language_dialog.py);
 kiosk and child overlay use a separate
-[metal-board dialog](../../kiosk/oh_no_parent_control_kiosk/language_dialog.py).
+[metal-board dialog](../../kiosk/oh_no_parent_control_kiosk/preference_dialog.py).
 Both choosers belong to the owning GTK application, remain transient and modal,
 and restore chooser focus if an outside click activates their parent. Outside
 clicks and window-manager close requests do not dismiss them; Save and Cancel

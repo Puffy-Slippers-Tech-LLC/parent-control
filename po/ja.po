@@ -1624,5 +1624,5 @@ msgstr "表示するタイミング"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "残り時間が次の値になったときにリマインダーを表示します："
 
-msgid "Duplicate reminder detected"
-msgstr "重複するリマインダーが見つかりました"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "リマインダーの重複を避けるため、「表示するタイミング」を別の値にしてください。"

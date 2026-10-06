@@ -421,7 +421,7 @@ ADD_REMINDER = gettext('Add reminder')
 REMINDER_TEXT_HELP = gettext('What the child will see')
 WHEN_TO_SHOW = gettext('When to show')
 REMINDER_TIMING_HELP = gettext('The reminder will be shown when the remaining time reaches:')
-DUPLICATE_REMINDER = gettext('Duplicate reminder detected')
+DUPLICATE_REMINDER = gettext('Choose a different "When to show" to avoid duplicate reminders.')
 
 BY_SOURCE = {value.source: value for value in globals().copy().values()
              if hasattr(value, 'source')}

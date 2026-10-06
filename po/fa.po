@@ -1632,5 +1632,5 @@ msgstr "زمان نمایش"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "یادآوری هنگامی نمایش داده می‌شود که زمان باقی‌مانده به این مقدار برسد:"
 
-msgid "Duplicate reminder detected"
-msgstr "یادآوری تکراری شناسایی شد"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "برای جلوگیری از یادآوری‌های تکراری، مقدار دیگری برای «زمان نمایش» انتخاب کنید."

@@ -1632,5 +1632,5 @@ msgstr "Mikor jelenjen meg"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Az emlékeztető akkor jelenik meg, amikor a hátralévő idő eléri ezt:"
 
-msgid "Duplicate reminder detected"
-msgstr "Ismétlődő emlékeztető észlelve"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Válasszon másik értéket a „Mikor jelenjen meg” mezőben az ismétlődő emlékeztetők elkerüléséhez."

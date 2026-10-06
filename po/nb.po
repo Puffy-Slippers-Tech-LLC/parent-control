@@ -1632,5 +1632,5 @@ msgstr "Når den vises"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Påminnelsen vises når gjenværende tid når:"
 
-msgid "Duplicate reminder detected"
-msgstr "Duplisert påminnelse oppdaget"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Velg en annen verdi for «Når den vises» for å unngå dupliserte påminnelser."

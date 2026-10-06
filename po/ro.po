@@ -1638,5 +1638,5 @@ msgstr "Când să se afișeze"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Mementoul va fi afișat când timpul rămas ajunge la:"
 
-msgid "Duplicate reminder detected"
-msgstr "S-a detectat un memento duplicat"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Alegeți o altă valoare pentru „Când să se afișeze” pentru a evita mementourile duplicate."

@@ -1627,5 +1627,5 @@ msgstr "Qachon koʻrsatish"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Qolgan vaqt ushbu qiymatga yetganda eslatma koʻrsatiladi:"
 
-msgid "Duplicate reminder detected"
-msgstr "Takroriy eslatma aniqlandi"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Takroriy eslatmalarning oldini olish uchun “Qachon koʻrsatish” uchun boshqa qiymat tanlang."

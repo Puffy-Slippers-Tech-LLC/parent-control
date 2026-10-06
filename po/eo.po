@@ -1632,5 +1632,5 @@ msgstr "Kiam montri"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "La memorigo aperos kiam la restanta tempo atingos:"
 
-msgid "Duplicate reminder detected"
-msgstr "Duobla memorigo detektita"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Elektu alian valoron por «Kiam montri» por eviti duoblajn memorigojn."

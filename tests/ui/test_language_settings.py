@@ -222,6 +222,11 @@ def test_reminder_creation_validation_and_candidate_translation(
     ui.setValue('preferences-tabs', 'reminders')
     wait(lambda: ui.state('reminder-add', ui.api.StateType.SENSITIVE), 'backend reminders loaded')
     ui.activate('reminder-add')
+    assert ui.getText('reminder-value') == '20'
+    assert ui.getValue('reminder-unit') == 'minute'
+    assert ui.absent('reminder-duplicate-warning', within='reminder-editor-dialog')
+    assert ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
+    ui.setText('reminder-value', '1')
     assert ui.showing('reminder-duplicate-warning')
     assert not ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
     ui.setText('reminder-value', '60')
@@ -239,8 +244,10 @@ def test_reminder_creation_validation_and_candidate_translation(
     assert ui.absent('reminder-duplicate-warning', within='reminder-editor-dialog')
     assert ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
     ui.setText('reminder-text', 'x' * 51)
-    ui.activate('reminder-editor-save')
-    assert ui.showing('reminder-editor-error')
+    assert ui.getText('reminder-text') == 'x' * 50
+    assert ui.getText('reminder-text-count') == '50/50'
+    ui.setText('reminder-text', '界' * 51)
+    assert ui.getText('reminder-text') == '界' * 50
     ui.setText('reminder-text', '   ')
     ui.activate('reminder-editor-save')
     reminders = ui.find('reminder-list').getValue()

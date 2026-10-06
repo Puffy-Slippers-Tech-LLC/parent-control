@@ -1626,5 +1626,5 @@ msgstr "Kapan ditampilkan"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Pengingat akan ditampilkan ketika waktu tersisa mencapai:"
 
-msgid "Duplicate reminder detected"
-msgstr "Pengingat duplikat terdeteksi"
+msgid "Choose a different \"When to show\" to avoid duplicate reminders."
+msgstr "Pilih nilai lain untuk “Kapan ditampilkan” agar pengingat tidak duplikat."

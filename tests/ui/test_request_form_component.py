@@ -397,21 +397,18 @@ def test_outcomes_are_actionable_and_redacted(launch_ui, request_ui,
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_service_failure_shows_only_redacted_public_copy(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
-    path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
-                        overlay=overlay, scenario="service-failure")
+    open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
+                 overlay=overlay, scenario="service-failure")
     ready(request_ui, wait_for_accessible_state)
     request_ui.activate("kiosk-request-submit")
-    wait_for_accessible_state(lambda: bool(events(path, "result")), "public failure result")
-    result = events(path, "result")[0]
-    assert result["title"] == "Request unavailable"
-    assert "org.example" not in result["detail"]
-    assert "/private/path" not in result["detail"]
     wait_for_accessible_state(
-        lambda: request_ui.text("kiosk-result-title") == "Request unavailable",
+        lambda: request_ui.showing("kiosk-result-title")
+        and request_ui.getText("kiosk-result-title") == "Request unavailable",
         "redacted failure title is public",
     )
-    assert "org.example" not in request_ui.text("kiosk-result-detail")
-    assert "/private/path" not in request_ui.text("kiosk-result-detail")
+    detail = request_ui.getText("kiosk-result-detail")
+    assert "org.example" not in detail
+    assert "/private/path" not in detail
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
@@ -432,15 +429,21 @@ def test_single_flight_refuses_cancel_while_authentication_is_active(
         from tests.support.automation import AutomationError
         with pytest.raises(AutomationError, match='application-ui:Unavailable'):
             request_ui.activate("kiosk-request-cancel")
-        assert not events(path, "result")
-        assert not events(path, "logout")
-        assert not events(path, "close_overlay")
+        # Observe the real form after refusal, independently of the input and
+        # synthetic broker log. Hidden result controls may remain inventoried.
+        assert request_ui.showing("kiosk-request-window")
+        assert request_ui.showing("kiosk-request-submit")
+        assert not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
+        assert request_ui.absent("kiosk-result-title", within="kiosk-request-window")
     finally:
         # Complete the synthetic authentication only after checking refusal.
         release.touch()
-    wait_for_accessible_state(lambda: bool(events(path, "result")), "completed request")
-    assert not events(path, "logout")
-    assert not events(path, "close_overlay")
+    expected = "Time granted" if overlay else "Request approved"
+    wait_for_accessible_state(
+        lambda: request_ui.showing("kiosk-result-title")
+        and request_ui.getText("kiosk-result-title") == expected,
+        "completed request is public")
+    assert request_ui.showing("kiosk-request-window")
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
@@ -470,7 +473,10 @@ def test_result_action_uses_each_modes_exit_behavior(
                         overlay=overlay, scenario="service-failure")
     ready(request_ui, wait_for_accessible_state)
     request_ui.activate("kiosk-request-submit")
-    wait_for_accessible_state(lambda: bool(events(path, "result")), "failure result")
+    wait_for_accessible_state(
+        lambda: request_ui.showing("kiosk-result-title")
+        and request_ui.getText("kiosk-result-title") == "Request unavailable",
+        "failure result")
     wait_for_accessible_state(lambda: request_ui.find("kiosk-report-row") is not None,
                               "report choice published")
     request_ui.activate("kiosk-report-row")
@@ -486,12 +492,10 @@ def test_approval_uses_each_modes_result_exit_callback(
                         overlay=overlay)
     ready(request_ui, wait_for_accessible_state)
     request_ui.activate("kiosk-request-submit")
-    wait_for_accessible_state(lambda: bool(events(path, "result")), "approval result")
-    assert events(path, "result")[0]["title"] == (
-        "Time granted" if overlay else "Request approved"
-    )
     wait_for_accessible_state(
-        lambda: request_ui.text("kiosk-result-title") == events(path, "result")[0]["title"],
+        lambda: request_ui.showing("kiosk-result-title")
+        and request_ui.getText("kiosk-result-title") == (
+            "Time granted" if overlay else "Request approved"),
         "approval result is public",
     )
     expected = "close_overlay" if overlay else "logout"

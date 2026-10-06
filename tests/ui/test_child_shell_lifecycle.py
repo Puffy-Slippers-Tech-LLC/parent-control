@@ -146,7 +146,7 @@ def test_child_extension_lifecycle_in_isolated_shell(render_artifacts):
     )
     assert result.returncode == 0, diagnostic
     assert re.search(
-        r"accessible request name: Request time, 00:4[45], generation-one",
+        r"public request text: Request time, 00:4[45], generation-one",
         result.stdout,
     ), diagnostic
     logs = _assert_preview_evidence(artifact_root, 1, diagnostic)

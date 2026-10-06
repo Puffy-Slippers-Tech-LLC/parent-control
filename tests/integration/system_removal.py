@@ -6,11 +6,13 @@ The existing outer VM lease owns restoration, including failed transactions.
 """
 
 import ast
+import grp
 import hashlib
 import json
 import os
 from pathlib import Path
 import pwd
+import re
 import stat
 import time
 
@@ -265,9 +267,72 @@ def original_policy_diagnostics(record, stage):
                str(guest.commands.last_returncode))
 
 
+def purge_path_diagnostics(record, stage):
+    """Observe ownership and distro defaults without relaxing purge guards.
+
+    Only fixed paths, metadata and finite owner labels enter the retained XML.
+    Never expose group members or arbitrary configuration/account strings.
+    """
+    guest.guard()
+    groups = {'root': 0}
+    for name in ('syslog', 'adm'):
+        try:
+            groups[name] = grp.getgrnam(name).gr_gid
+        except (KeyError, OSError):
+            pass
+    paths = {}
+    for name in ('/', '/var', '/var/lib', '/var/log',
+                 '/var/lib/oh-no-parent-control', '/var/log/oh-no-parent-control'):
+        try:
+            info = Path(name).lstat()
+            paths[name] = {
+                'directory': stat.S_ISDIR(info.st_mode), 'root_owned': info.st_uid == 0,
+                'mode': f'{stat.S_IMODE(info.st_mode):04o}',
+                'group': next((label for label, gid in groups.items()
+                               if info.st_gid == gid), 'other'),
+                'device': info.st_dev, 'inode': info.st_ino, 'ctime_ns': info.st_ctime_ns,
+            }
+        except OSError as error:
+            paths[name] = {'errno': error.errno}
+    record(f'onpc.removal.purge-paths.{stage}', json.dumps(paths, sort_keys=True))
+    for directory in ('/usr/lib/tmpfiles.d', '/etc/tmpfiles.d', '/run/tmpfiles.d'):
+        for filename in ('var.conf', '00rsyslog.conf'):
+            path = Path(directory) / filename
+            value = {}
+            try:
+                descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                with os.fdopen(descriptor, 'rb') as stream:
+                    info = os.fstat(stream.fileno())
+                    if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or
+                            info.st_mode & 0o022 or info.st_nlink != 1 or info.st_size > 65536):
+                        value['read'] = 'unsafe-or-oversized'
+                    else:
+                        raw = stream.read(65537)
+                        if len(raw) > 65536:
+                            value['read'] = 'oversized'
+                        else:
+                            value['sha256'] = hashlib.sha256(raw).hexdigest()
+                            value['rules'] = []
+                            for line in raw.decode('utf-8', errors='replace').splitlines():
+                                fields = line.split()
+                                if (len(fields) >= 5 and not fields[0].startswith('#') and
+                                        fields[1] == '/var/log'):
+                                    value['rules'].append({
+                                        'action': fields[0] if fields[0] in ('d', 'z', 'Z') else 'other',
+                                        'mode': fields[2] if re.fullmatch(r'[0-7]{3,4}', fields[2]) else 'other',
+                                        'owner': fields[3] if fields[3] in ('root', 'syslog', '0', '-') else 'other',
+                                        'group': fields[4] if fields[4] in ('root', 'syslog', 'adm', '0', '-') else 'other',
+                                    })
+            except OSError as error:
+                value['errno'] = error.errno
+            record(f'onpc.removal.purge-default.{stage}.{directory}/{filename}',
+                   json.dumps(value, sort_keys=True))
+
+
 def remove(record):
     guest.guard()
     guest.enable_diagnostics()
+    purge_path_diagnostics(record, 'before-removal')
     accounts = provision_native()
     parent, child = accounts['parent'], accounts['child']
     other = account_digest(accounts['other'])
@@ -398,6 +463,7 @@ def reinstalled_rebooted(record):
     configure_restrictions(state['accounts'])
     state['purged_boot'] = boot()
     save_state(state)
+    purge_path_diagnostics(record, 'before-purge')
     output = guest.commands.run(['/usr/bin/oh-no-parent-control-purge', '--yes'],
                                 timeout=1800, merge_stderr=True)
     verify_removed(state, purged=True)

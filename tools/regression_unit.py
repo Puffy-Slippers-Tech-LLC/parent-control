@@ -391,6 +391,13 @@ from regression_ui import Bucket
 # Oversized-ID recovery uses private checkpoint JSON and bounded synthetic pytest
 # children; it adds no shared owner or resource and stays compatible. Progress
 # payload checks retain their existing resources, with short parameter IDs only.
+# Report I/O checks use one private synthetic inventory and private JSON files;
+# watch reader and session-frame checks use private files and synchronous doubles.
+# They add no shared owner, process, display, socket or cleanup resource and keep
+# regression, regression_session and watch_output compatible with host overlap.
+# Publication/barrier failure and rejected-metadata replay checks use private
+# files, process-local fsync doubles and in-memory displays; no live owner is
+# cancelled and these checks retain the same compatible resource classification.
 # Application UI projection tests use in-memory clients and tiny immutable
 # inventories only. No real bus, display, process, storage or cleanup owner.
 REVIEWED = frozenset("""

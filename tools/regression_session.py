@@ -23,14 +23,18 @@ from detached_launcher import FRAME_DIRECTORY, lock, busy
 class SessionOutput:
     def __init__(self, run, stream):
         self.run, self.stream = run, stream
+        self.last_frame = None
 
     def __getattr__(self, name):
         return getattr(self.stream, name)
 
     def frame(self, lines):
+        if lines == self.last_frame:
+            return
         temporary = self.run / 'frame.tmp'
         temporary.write_text(json.dumps(lines))
         temporary.replace(self.run / 'frame.json')
+        self.last_frame = list(lines)
 
     def controller(self, key, lines):
         from launcher_progress import publish_progress

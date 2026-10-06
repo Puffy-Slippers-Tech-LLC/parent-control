@@ -12,7 +12,7 @@ import pytest
 
 from test_storage import directory
 from tests.support.terminal_screen import Terminal
-from watch_output import Output, TerminalWriter, TAIL_BYTES
+from watch_output import Output, TerminalWriter, TAIL_BYTES, JsonReader
 from watch_viewer import viewer_entries
 
 
@@ -67,6 +67,68 @@ def running(root, kind, text=b'first\n'):
 def test_idle_observer_does_not_create_storage(tmp_path):
     assert Output(tmp_path).poll() == ('', False, False, b'')
     assert not list(tmp_path.iterdir())
+
+
+def test_unchanged_json_skips_payload_reads_and_cached_values_stay_private(tmp_path, monkeypatch):
+    import watch_output
+    reader = JsonReader()
+    path = tmp_path / 'frame.json'
+    path.write_text('[{"lines":["original"]}]')
+    original = watch_output.open_private
+    reads = []
+
+    @contextmanager
+    def tracked(path):
+        with original(path) as stream:
+            proxy = Mock(wraps=stream)
+            proxy.read.side_effect = lambda count: reads.append(count) or stream.read(count)
+            yield proxy
+
+    monkeypatch.setattr(watch_output, 'open_private', tracked)
+    reader.read(path)[0]['lines'][0] = 'display-only change'
+    for _ in range(20):
+        assert reader.read(path) == [{'lines': ['original']}]
+    assert len(reads) == 1
+    path.write_text('[{"lines":["modified"]}]')
+    assert reader.read(path) == [{'lines': ['modified']}]
+    replacement = tmp_path / 'replacement'
+    replacement.write_text('[{"lines":["replaced"]}]')
+    replacement.replace(path)
+    assert reader.read(path) == [{'lines': ['replaced']}]
+    assert len(reads) == 3
+    path.unlink()
+    with pytest.raises(FileNotFoundError):
+        reader.read(path)
+    path.symlink_to(replacement)
+    with pytest.raises(ValueError, match='symlink'):
+        reader.read(path)
+
+
+@pytest.mark.parametrize('replacement', ['hardlink', 'oversized', 'invalid'])
+def test_cached_json_still_refuses_changed_unsafe_or_invalid_files(tmp_path, replacement):
+    path = tmp_path / 'frame.json'
+    path.write_text('["safe"]')
+    reader = JsonReader()
+    assert reader.read(path) == ['safe']
+    if replacement == 'hardlink':
+        os.link(path, tmp_path / 'alias')
+    else:
+        path.write_text(' ' * 65537 if replacement == 'oversized' else '{')
+    with pytest.raises(ValueError):
+        reader.read(path)
+
+
+def test_cached_json_rechecks_limits_and_same_size_edits_with_restored_mtime(tmp_path):
+    path = tmp_path / 'frame.json'
+    path.write_text('["first"]')
+    reader = JsonReader()
+    assert reader.read(path) == ['first']
+    before = path.stat()
+    with pytest.raises(ValueError, match='oversized'):
+        reader.read(path, limit=4)
+    path.write_text('["other"]')
+    os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert reader.read(path) == ['other']
 
 
 def test_checkout_discovery_reads_branches_spaces_and_detached_worktrees(tmp_path):

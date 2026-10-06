@@ -1,6 +1,6 @@
 """Run established suites, with a quiet dashboard and durable streaming report."""
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, fields
 import codecs
 from datetime import datetime, timezone
 import html
@@ -386,6 +386,9 @@ class Report:
         self.last_sync = time.monotonic()
         self.last_snapshot = -float('inf')
         self.pending_categories = None
+        self.inventory = None
+        self.inventory_revision = 0
+        self.progress = None
         self.write('# Established regression run\n\nStarted: ' + name +
                    '\n\nLive output follows. A missing final result means an incomplete run.\n'
                    'Counts are pytest cases, registered VM executions/E2E variants, and '
@@ -401,16 +404,41 @@ class Report:
         if not force and now - self.last_snapshot < 1:
             self.pending_categories = categories
             return
-        path = self.directory / 'progress.json'
-        temporary = self.directory / 'progress.tmp'
+        # Inventories are immutable tuples during execution. Keep their bytes
+        # separate from ticking counts, rather than copying thousands of case
+        # IDs through asdict and rewriting them on every progress publication.
+        inventory = tuple((item.name, item.nodeids, item.resumed_nodeids) for item in categories)
+        if inventory != self.inventory:
+            revision = self.inventory_revision + 1
+            # A status reader may still hold the previous snapshot. Retain its
+            # immutable inventory so atomic replacement cannot cross its IDs.
+            self.publish(f'inventory-{revision:03d}.json',
+                         [dict(name=name, nodeids=nodes, resumed_nodeids=resumed)
+                          for name, nodes, resumed in inventory])
+            self.inventory = inventory
+            self.inventory_revision = revision
+        progress = [dict(
+            {field.name: getattr(item, field.name) for field in fields(item)
+             if field.name not in ('nodeids', 'resumed_nodeids')},
+            done=item.progress_done, total=item.progress_total,
+            inventory_file=f'inventory-{self.inventory_revision:03d}.json', inventory_index=index)
+            for index, item in enumerate(categories)]
+        # Forced calls still synchronize through checkpoint, but need not
+        # replace an identical status file at every scheduling pass.
+        if progress != self.progress:
+            self.publish('progress.json', progress)
+            self.progress = progress
+        self.last_snapshot = now
+        self.pending_categories = None
+
+    def publish(self, name, value):
+        path = self.directory / name
+        temporary = path.with_suffix('.tmp')
         with temporary.open('w', encoding='utf-8') as stream:
-            json.dump([dict(asdict(item), done=item.progress_done, total=item.progress_total)
-                       for item in categories], stream, indent=2)
+            json.dump(value, stream, separators=(',', ':'))
             stream.flush()
         os.replace(temporary, path)
         self.dirty.add(path)
-        self.last_snapshot = now
-        self.pending_categories = None
 
     def resources(self, sample):
         path = self.directory / 'resources.jsonl'
@@ -435,17 +463,28 @@ class Report:
         now = time.monotonic()
         if not force and now - self.last_sync < 5:
             return
-        for path in sorted(self.dirty):
+        inventories = {path for path in self.dirty if path.name.startswith('inventory-')}
+        for path in sorted(inventories):
+            with path.open('rb') as stream:
+                os.fsync(stream.fileno())
+        if inventories:
+            # Persist both immutable payloads and their directory entries before
+            # status can become durable with references to these revisions.
+            self.sync_directory()
+        for path in sorted(self.dirty - inventories):
             with path.open('rb') as stream:
                 os.fsync(stream.fileno())
         if self.dirty:
-            descriptor = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY)
-            try:
-                os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
+            self.sync_directory()
         self.dirty.clear()
         self.last_sync = time.monotonic()
+
+    def sync_directory(self):
+        descriptor = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
 
     def close(self):
         try:

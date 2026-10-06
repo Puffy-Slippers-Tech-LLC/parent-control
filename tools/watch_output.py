@@ -2,6 +2,7 @@
 
 import fcntl
 import codecs
+import copy
 import io
 import json
 import os
@@ -35,9 +36,34 @@ def read_json(path, limit=65536):
     return json.loads(data)
 
 
-def snapshot(path, *, steps=False):
+class JsonReader:
+    """Reuse unchanged publications, rechecking path and file safety each poll."""
+
+    def __init__(self):
+        self.cache = {}
+
+    def read(self, path, limit=65536):
+        with open_private(path) as stream:
+            info = os.fstat(stream.fileno())
+            identity = (info.st_dev, info.st_ino, info.st_size,
+                        info.st_mtime_ns, info.st_ctime_ns, limit)
+            cached = self.cache.get(path)
+            if cached is not None and cached[0] == identity:
+                # repair_progress modifies nested lines for its display only.
+                return copy.deepcopy(cached[1])
+            data = stream.read(limit + 1)
+        if len(data) > limit:
+            raise ValueError('watch-output: oversized metadata')
+        value = json.loads(data)
+        if len(self.cache) >= 8:
+            self.cache.clear()
+        self.cache[path] = identity, value
+        return copy.deepcopy(value)
+
+
+def snapshot(path, *, steps=False, reader=None):
     try:
-        value = read_json(path)
+        value = reader.read(path) if reader is not None else read_json(path)
     except FileNotFoundError:
         return []
     def lines(items):
@@ -51,8 +77,9 @@ def snapshot(path, *, steps=False):
     return value
 
 
-def active_run(base, *, workflow=False):
-    name = read_json(base / 'current.json', 4096)['run']
+def active_run(base, *, workflow=False, reader=None):
+    name = (reader.read(base / 'current.json', 4096) if reader is not None
+            else read_json(base / 'current.json', 4096))['run']
     if not isinstance(name, str) or not re.fullmatch('[0-9a-f]{32}', name):
         raise ValueError('watch-output: invalid run')
     run = base / name
@@ -80,6 +107,7 @@ class Output:
         self.offset = 0
         self.display = None
         self.line_start = True
+        self.reader = JsonReader()
 
     def progress(self, active, data=b''):
         from launcher_progress import repair_progress
@@ -91,11 +119,11 @@ class Output:
         if self.terminal_size is not None and data:
             self.display.write(self.decoder.decode(data))
         try:
-            steps = snapshot(self.run / 'controller.json', steps=True)
+            steps = snapshot(self.run / 'controller.json', steps=True, reader=self.reader)
             if self.label == 'fix-tests':
                 steps = repair_progress(self.run, steps,
-                    child_steps=snapshot(self.run / 'test-controller.json', steps=True))
-            details = snapshot(self.run / 'frame.json') if active else []
+                    child_steps=snapshot(self.run / 'test-controller.json', steps=True, reader=self.reader))
+            details = snapshot(self.run / 'frame.json', reader=self.reader) if active else []
             if steps:
                 details = [line for line in details if not clean(line).startswith('Overall - ')]
             self.display.update(steps, details)
@@ -128,7 +156,7 @@ class Output:
                             ('sessions', 'run-tests')):
             try:
                 base = directory(kind, root=self.root, create=False)
-                run = active_run(base, workflow=kind in ('fix-tests', 'fix-tests-host'))
+                run = active_run(base, workflow=kind in ('fix-tests', 'fix-tests-host'), reader=self.reader)
                 if run is not None:
                     return run, label
             except (OSError, ValueError, KeyError, TypeError):

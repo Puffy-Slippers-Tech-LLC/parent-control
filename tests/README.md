@@ -962,10 +962,20 @@ aligned; controller headers wrap without clipping. The lower frame fits the
 space beneath the header, using the output terminal's actual
 dimensions instead of potentially stale `LINES`/`COLUMNS` environment values.
 The saved final summary retains the full text of all rows. Full output is continuously
-appended and flushed to `docs/TestAutomation/Evidence/test-all-runs/<run>/report.md`.
+appended and flushed to the run's retained `report.md`.
 The accompanying `progress.json` records the latest category counts, states,
-branch assignments and launch order. The final report includes the same branch
-summary. Percentages describe completed checks, not estimated time remaining.
+branch assignments and launch order. Case IDs and retained-pass inventories live
+in adjacent immutable `inventory-NNN.json` files; each progress row names its file
+and entry index. The inventory is published only when categories or their inventories
+change, and identical progress snapshots and session frames are not rewritten.
+Live terminal/watch readers reuse unchanged JSON payloads after checking the
+current file's identity, timestamps and safety on every poll; changed or replaced
+files are read again. Log readers continue reading only appended bytes.
+Rejected metadata does not stop attached log replay or final-result delivery and
+is never forwarded to a supervising launcher. Checkpoints synchronize new
+inventory contents and directory entries before synchronizing referring status.
+The final report includes the same branch summary. Percentages describe completed
+checks, not estimated time remaining.
 Each run gets a new private directory. Aggregate retention keeps the last three runs;
 registered output older than that window is removed when the next run starts.
 Output is flushed for live readers on every fragment. Routine progress snapshots

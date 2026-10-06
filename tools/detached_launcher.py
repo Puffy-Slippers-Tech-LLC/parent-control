@@ -380,8 +380,10 @@ def follow(run, stream=None, *, label='launcher'):
 
 def follow_output(run, stream, display, *, label='launcher', test_session=False,
                   destination=None, owner_busy=None):
-    from launcher_progress import read_progress, repair_progress
+    from launcher_progress import repair_progress
     from launcher_render import clean
+    from watch_output import JsonReader, snapshot
+    reader = JsonReader()
     decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
     forwarded = None
     with lock((run if test_session else run.parent) / 'owner') as owner, (run / 'output').open('rb') as output:
@@ -402,18 +404,26 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
                 output.seek(0)
                 decoder.reset()
                 display.pending = ''
-            steps = read_progress(run)
-            frame = run / 'frame.json'
-            lines = json.loads(frame.read_text()) if frame.exists() else []
-            if destination is not None:
+            try:
+                steps = snapshot(run / 'controller.json', steps=True, reader=reader)
+                lines = snapshot(run / 'frame.json', reader=reader)
+                if destination is None and label == 'fix-tests':
+                    steps = repair_progress(run, steps,
+                        child_steps=snapshot(run / 'test-controller.json', steps=True, reader=reader))
+            except (OSError, ValueError, KeyError, TypeError):
+                # Refused metadata must not prevent draining the complete log
+                # or delivering the owner's final result. Never forward it.
+                steps = lines = None
+            if steps is None:
+                if destination is None:
+                    display.draw()
+            elif destination is not None:
                 if (steps, lines) != forwarded:
                     atomic(destination / 'frame.json', lines)
                     atomic(destination / 'test-controller.json', steps)
                     forwarded = (steps, lines)
             else:
-                if label == 'fix-tests':
-                    steps = repair_progress(run, steps)
-                elif label == 'write-e2e':
+                if label == 'write-e2e':
                     from write_e2e import task_progress
                     steps = task_progress(run, steps)
                 # Overall progress belongs to the controller pane, not the

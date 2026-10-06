@@ -45,6 +45,55 @@ def test_supervised_progress_is_forwarded_without_log_frames(tmp_path, monkeypat
     assert json.loads((destination / 'frame.json').read_text()) == []
 
 
+def test_identical_session_frames_do_not_replace_the_file(tmp_path):
+    output = session.SessionOutput(tmp_path, io.StringIO())
+    lines = ['Waiting for I/O pressure to recover']
+    output.frame(lines)
+    frame = tmp_path / 'frame.json'
+    first = frame.stat()
+    for _ in range(20):
+        output.frame(list(lines))
+    assert frame.stat() == first
+    lines[0] = 'Running tests'
+    output.frame(lines)
+    assert json.loads(frame.read_text()) == lines
+    output.frame([])
+    assert json.loads(frame.read_text()) == []
+
+
+@pytest.mark.parametrize('metadata,supervised', [
+    ('frame.json', False), ('frame.json', True),
+    ('controller.json', False), ('controller.json', True),
+    ('test-controller.json', False)])
+@pytest.mark.parametrize('fault', ['oversized', 'invalid', 'hardlink'])
+def test_rejected_metadata_does_not_block_log_replay(tmp_path, metadata, fault, supervised):
+    import detached_launcher
+    from launcher_render import LauncherDisplay
+    run = tmp_path / 'runner'
+    run.mkdir()
+    transcript = 'first log line\n' + 'x' * 70000 + '\nlast log line\n'
+    (run / 'output').write_text(transcript)
+    (run / 'result').write_text('0')
+    (run / 'controller.json').write_text(json.dumps([
+        dict(key='unit', lines=['Category: unit', 'Status: Running tests'])]))
+    path = run / metadata
+    path.write_text(' ' * 65537 if fault == 'oversized' else '{' if fault == 'invalid' else '[]')
+    if fault == 'hardlink':
+        os.link(path, run / 'alias')
+    destination = tmp_path / 'supervisor' if supervised else None
+    if destination is not None:
+        destination.mkdir()
+    output = io.StringIO()
+    with LauncherDisplay(output) as display:
+        assert detached_launcher.follow_output(
+            run, output, display, label='fix-tests', test_session=True,
+            destination=destination, owner_busy=lambda _: False) == 0
+    assert transcript in output.getvalue()
+    assert (run / 'delivered').exists()
+    if destination is not None:
+        assert not list(destination.iterdir())
+
+
 @pytest.mark.parametrize('chunk_size', [1, 7, 65536])
 def test_cleanup_frames_survive_pipes_without_scrollback(tmp_path, chunk_size):
     wire = io.StringIO()

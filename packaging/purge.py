@@ -29,7 +29,19 @@ def secure(path, *, directory=True, missing=False):
     for parent in reversed(path.parents):
         info = parent.lstat()
         if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
-            raise ValueError('purge:unsafe-ancestor')
+            # Report only fixed system locations and metadata from the failed
+            # check. Keep arbitrary paths and account identities out of errors.
+            location = str(parent)
+            if location not in (
+                    '/', '/usr', '/usr/share', '/usr/share/oh-no-parent-control',
+                    '/usr/share/oh-no-parent-control/lifecycle', '/var', '/var/lib',
+                    '/var/lib/oh-no-parent-control', '/var/log', '/run'):
+                location = 'other'
+            raise ValueError(
+                f'purge:unsafe-ancestor: location={location}'
+                f' type={stat.S_IFMT(info.st_mode):06o}'
+                f' root-owned={int(info.st_uid == 0)}'
+                f' mode={stat.S_IMODE(info.st_mode):04o}')
     try:
         info = path.lstat()
     except FileNotFoundError:

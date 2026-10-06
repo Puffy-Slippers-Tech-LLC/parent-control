@@ -419,7 +419,10 @@ def test_event_burst_keeps_output_live_without_per_case_disk_barriers(report, tm
     assert not synced
     now[0] += 4
     report.checkpoint()
-    assert {Path(path).name for path in synced} >= {'category-001.log', 'report.md', 'progress.json'}
+    names = [Path(path).name for path in synced]
+    assert set(names) >= {'category-001.log', 'report.md', 'progress.json', 'inventory-001.json'}
+    assert names.index('inventory-001.json') < names.index('progress.json')
+    assert names.index('inventory-001.json') < names.index(report.directory.name) < names.index('progress.json')
     before = len(synced)
     report.checkpoint()
     assert len(synced) == before
@@ -437,6 +440,106 @@ def test_checkpoint_error_closes_stream_and_does_not_claim_persistence(report, m
             report.close()
     assert report.stream.closed
     assert report.dirty
+
+
+def test_inventory_directory_sync_failure_prevents_status_sync_and_can_retry(report, monkeypatch):
+    report.snapshot([regression.Category('Inventory', 1, nodeids=('case',))])
+    synced = []
+
+    def sync(fd):
+        path = Path(os.readlink(f'/proc/self/fd/{fd}'))
+        synced.append(path.name)
+        if path == report.directory:
+            raise OSError('directory unavailable')
+
+    with monkeypatch.context() as patch:
+        patch.setattr(regression.os, 'fsync', sync)
+        with pytest.raises(OSError, match='directory unavailable'):
+            report.checkpoint(force=True)
+    assert 'inventory-001.json' in synced
+    assert 'progress.json' not in synced
+    assert report.directory / 'inventory-001.json' in report.dirty
+    assert report.directory / 'progress.json' in report.dirty
+    report.checkpoint(force=True)
+    assert not report.dirty
+
+
+def test_large_inventory_is_not_rewritten_with_live_counts(report, monkeypatch):
+    item = regression.Category('Large', 2000, nodeids=tuple(
+        f'test.py::case[{index}-' + 'x' * 200 + ']' for index in range(2000)))
+    publications = []
+    publish = report.publish
+
+    def record(name, value):
+        publications.append((name, len(json.dumps(value).encode())))
+        publish(name, value)
+
+    monkeypatch.setattr(report, 'publish', record)
+    report.snapshot([item])
+    legacy_bytes = len(json.dumps(dict(vars(item), done=item.progress_done,
+                                     total=item.progress_total), indent=2).encode())
+    for count in range(1, 21):
+        item.done = count
+        report.snapshot([item])
+        legacy_bytes += len(json.dumps(dict(vars(item), done=item.progress_done,
+                                           total=item.progress_total), indent=2).encode())
+    assert sum(name.startswith('inventory-') for name, _ in publications) == 1
+    assert sum(size for name, size in publications if name == 'progress.json') < 20000
+    optimized_bytes = sum(size for _, size in publications)
+    assert optimized_bytes < legacy_bytes / 10
+    print(f'Report I/O benchmark: legacy={legacy_bytes} optimized={optimized_bytes} bytes')
+    progress, = json.loads((report.directory / 'progress.json').read_text())
+    inventory, = json.loads((report.directory / progress['inventory_file']).read_text())
+    assert progress['inventory_index'] == 0 and progress['done'] == 20
+    assert 'nodeids' not in progress and 'resumed_nodeids' not in progress
+    assert inventory['nodeids'] == list(item.nodeids)
+    before = list(publications)
+    report.snapshot([item])
+    assert publications == before
+    item.resumed_nodeids = ('previous-pass',)
+    item.failed_nodeids = (item.nodeids[0],)
+    item.failures = 1
+    report.snapshot([item])
+    progress, = json.loads((report.directory / 'progress.json').read_text())
+    inventory, = json.loads((report.directory / progress['inventory_file']).read_text())
+    assert progress['done'] == 21 and progress['total'] == 2001
+    assert progress['failed_nodeids'] == [item.nodeids[0]]
+    assert inventory['resumed_nodeids'] == ['previous-pass']
+    assert sum(name.startswith('inventory-') for name, _ in publications) == 2
+    original, = json.loads((report.directory / 'inventory-001.json').read_text())
+    assert original['resumed_nodeids'] == []
+
+
+@pytest.mark.parametrize('failed_publication', ['inventory-002.json', 'progress.json'])
+def test_inventory_revisions_preserve_saved_status_through_failed_publication(report, monkeypatch,
+                                                                            failed_publication):
+    items = [regression.Category('First', 1, nodeids=('first',)),
+             regression.Category('Second', 1, nodeids=('second',), resumed_nodeids=('retained',))]
+    report.snapshot(items)
+    status = report.directory / 'progress.json'
+    original = status.read_bytes()
+    saved = json.loads(original)
+    publish = report.publish
+
+    def fail(name, value):
+        if name == failed_publication:
+            raise OSError('publication unavailable')
+        publish(name, value)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(report, 'publish', fail)
+        with pytest.raises(OSError, match='publication unavailable'):
+            report.snapshot(items[::-1])
+    assert status.read_bytes() == original
+    report.snapshot(items[::-1])
+    for rows, expected in [(saved, items), (json.loads(status.read_text()), items[::-1])]:
+        for row, item in zip(rows, expected):
+            inventory = json.loads((report.directory / row['inventory_file']).read_text())
+            entry = inventory[row['inventory_index']]
+            assert entry == dict(name=item.name, nodeids=list(item.nodeids),
+                                 resumed_nodeids=list(item.resumed_nodeids))
+    assert {row['inventory_file'] for row in saved} == {'inventory-001.json'}
+    assert {row['inventory_file'] for row in json.loads(status.read_text())} == {'inventory-002.json'}
 
 
 @pytest.mark.parametrize('collect_only', [False, True])

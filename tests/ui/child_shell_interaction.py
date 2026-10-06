@@ -217,6 +217,40 @@ def _review_language_changes(oracles):
         print("Child panel localization reviewed: " + language, flush=True)
 
 
+def _reminder_preview():
+    _open_overlay(1)
+    overlay = _overlay_automation()
+    _complete_language_setup(overlay)
+    overlay.setValue('kiosk-menu-button', 'preferences')
+    overlay.setValue('preferences-tabs', 'reminders', surface_id='language-dialog')
+    _wait(lambda: overlay.getElementById('reminder-fifteen-seconds-edit',
+          surface_id='language-dialog').enabled, 'reminders loaded')
+    overlay.setValue('reminder-show-in-fullscreen', False, surface_id='language-dialog')
+    overlay.activate('reminder-fifteen-seconds-edit', surface_id='language-dialog')
+    overlay.setText('reminder-text', '  Save <games> & work!  ', surface_id='reminder-editor-dialog')
+    overlay.activate('reminder-editor-preview', surface_id='reminder-editor-dialog')
+
+    def preview_body(expected):
+        return (any(s['id'] == 'child-reminder-preview' and s['visible'] for s in _panel().listSurfaces())
+                and _panel().getText('child-reminder-preview-message',
+                                    surface_id='child-reminder-preview') == expected)
+
+    _wait(lambda: preview_body('  Save <games> & work!  '), 'real Shell literal reminder preview')
+    assert _panel().getValue('child-reminder-preview-message', surface_id='child-reminder-preview') == 'critical'
+    assert _panel().getText('child-reminder-preview', surface_id='child-reminder-preview') == ''
+    overlay.setText('reminder-text', '   ', surface_id='reminder-editor-dialog')
+    overlay.activate('reminder-editor-preview', surface_id='reminder-editor-dialog')
+    _wait(lambda: preview_body('15 seconds left'), 'real Shell default reminder preview')
+    overlay.activate('reminder-editor-cancel', surface_id='reminder-editor-dialog')
+    _wait(lambda: not any(s['id'] == 'child-reminder-preview' for s in _panel().listSurfaces()),
+          'editor cancellation dismisses the real preview')
+    assert overlay.getText('reminder-fifteen-seconds-text', surface_id='language-dialog') == '15 seconds left'
+    overlay.activate('language-cancel', surface_id='language-dialog')
+    _activate_overlay_cancel()
+    _wait(lambda: _overlay_closed(1), 'preview overlay closes')
+    print('Real Shell reminder preview and unsaved draft cancellation passed', flush=True)
+
+
 def main():
     try:
         _wait(_find_request_button, "the Shell request action")
@@ -229,6 +263,9 @@ def main():
         if _launch_records() or windows or cancel:
             raise AssertionError("The interaction preview opened an overlay before activation")
         print("interaction stage=initially-closed", flush=True)
+        if os.environ.get('ONPC_CHILD_REMINDER_PREVIEW') == '1':
+            _reminder_preview()
+            return 0
         localization = os.environ.get("ONPC_CHILD_LOCALIZATION_ORACLES")
         if localization:
             _review_language_changes(json.loads(localization))

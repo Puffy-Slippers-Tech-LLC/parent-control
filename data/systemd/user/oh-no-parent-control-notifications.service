@@ -1,0 +1,11 @@
+[Unit]
+Description=Oh No! Parent Control kiosk system notifications
+BindsTo=org.gnome.Kiosk@wayland.service
+PartOf=gnome-session@oh-no-parent-control.target
+After=org.gnome.Kiosk@wayland.service
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.Notifications
+ExecStart=/usr/bin/gnome-service-client --tag=gnome-kiosk-notification /usr/bin/python3 /usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/notifications.py
+Restart=on-failure

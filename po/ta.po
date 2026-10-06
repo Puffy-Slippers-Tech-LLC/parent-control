@@ -1606,6 +1606,9 @@ msgstr "நினைவூட்டல்கள்"
 msgid "Add"
 msgstr "சேர்"
 
+msgid "Preview"
+msgstr "முன்னோட்டம்"
+
 msgid "Edit reminder"
 msgstr "நினைவூட்டலைத் திருத்து"
 

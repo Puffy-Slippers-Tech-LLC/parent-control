@@ -9,6 +9,114 @@ from tests.support.localization_review import public_label_names
 
 pytestmark = pytest.mark.ui
 SURFACES = ('parent', 'kiosk', 'overlay')
+
+
+@pytest.mark.parametrize('text,unit,value,expected', [
+    ('  Save <work> & play!  ', 'second', 15, '  Save &lt;work&gt; &amp; play!  '),
+    ('   ', 'second', 15, '15 seconds left'),
+    ('', 'minute', 1, '1 minute left'),
+])
+@pytest.mark.parametrize('overlay', [False, True])
+def test_reminder_preview_sends_critical_literal_notification(text, unit, value, expected, overlay):
+    """Isolate GTK 4 from the observer's GTK 3; no host notification is used."""
+    import subprocess
+    import sys
+    from tests.support.paths import ROOT
+
+    script = '''
+import sys
+import pytest
+text, unit, value, expected, overlay = sys.argv[1:]
+overlay = overlay == 'True'
+value = int(value)
+monkeypatch = pytest.MonkeyPatch()
+import gettext
+from types import SimpleNamespace
+from kiosk.oh_no_parent_control_kiosk import preference_dialog as dialog
+
+class State:
+    def set_sensitive(self, value):
+        self.sensitive = value
+
+    def set_visible(self, value):
+        self.visible = value
+
+calls = []
+pending = []
+
+class Connection:
+    defer = False
+
+    def call(self, *args):
+        calls.append(args)
+        if self.defer and args[3] in ('Preview', 'Notify'):
+            pending.append(args[-1])
+        else:
+            args[-1](self, None)
+
+    def call_finish(self, result):
+        return dialog.GLib.Variant('(u)', (42,))
+
+connection = Connection()
+monkeypatch.setattr(dialog.Gio, 'bus_get', lambda bus, cancel, callback: callback(None, None))
+monkeypatch.setattr(dialog.Gio, 'bus_get_finish', lambda result: connection)
+monkeypatch.setattr(dialog, 'context_for', lambda widget:
+                    SimpleNamespace(translations=gettext.NullTranslations()))
+editor = SimpleNamespace(
+    _duration=lambda: value, _unit_token=lambda: unit,
+    _text=SimpleNamespace(get_text=lambda: text),
+    _preview_pending=False, _preview_id=0, _notified_closed=False,
+    _preview_overlay=overlay, _preview_connection=None,
+    _preview_button=State(), _error=State())
+editor._close_preview = lambda: dialog.ReminderDialog._close_preview(editor)
+dialog.ReminderDialog._preview(editor)
+payload = calls[0][4].unpack()
+if overlay:
+    assert calls[0][:4] == (dialog.SHELL_PREVIEW_NAME, dialog.SHELL_PREVIEW_PATH,
+                           dialog.SHELL_PREVIEW_NAME, 'Preview')
+    assert payload == (text if text.strip() else expected, 0)
+else:
+    assert calls[0][:4] == ('org.freedesktop.Notifications', '/org/freedesktop/Notifications',
+                           'org.freedesktop.Notifications', 'Notify')
+    assert payload[3:5] == ('', expected)
+    assert payload[6]['urgency'] == 2
+    assert payload[2].endswith('app_logo.png')
+assert editor._preview_id == 42
+assert editor._preview_button.sensitive
+dialog.ReminderDialog._preview(editor)
+assert calls[1][4].unpack()[1] == 42
+editor._close_preview()
+assert calls[2][3] == ('Close' if overlay else 'CloseNotification')
+assert calls[2][4].unpack() == (42,)
+assert editor._preview_id == 0
+
+# An editor may close while delivery is in flight. Close the returned ID,
+# without enabling or touching controls on the disposed window.
+connection.defer = True
+dialog.ReminderDialog._preview(editor)
+editor._notified_closed = True
+pending.pop()(connection, None)
+assert calls[-1][3] == ('Close' if overlay else 'CloseNotification')
+assert calls[-1][4].unpack() == (42,)
+assert editor._preview_id == 0
+assert not editor._preview_pending
+assert not editor._preview_button.sensitive
+
+# If disposal wins before connecting, no notification should be sent.
+editor._notified_closed = False
+monkeypatch.setattr(dialog.Gio, 'bus_get', lambda bus, cancel, callback: pending.append(callback))
+count = len(calls)
+dialog.ReminderDialog._preview(editor)
+editor._notified_closed = True
+pending.pop()(None, None)
+assert len(calls) == count
+assert not editor._preview_pending
+'''
+    result = subprocess.run([sys.executable, '-c', script, text, unit, str(value), expected, str(overlay)],
+                            cwd=ROOT, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 # Independent text oracles: do not load the same catalogue as the app to predict it.
 LANGUAGES = {
     'en': ('en_US.UTF-8', 'English', 'Choose your language', 'Save',
@@ -67,6 +175,58 @@ def launch_language(launch_ui, tmp_path, surface, *, language='', session='en',
     launch_ui('parent_component_preview' if surface == 'parent' else 'request_component_preview',
               complete_language_setup=False, environment_overrides=environment)
     return path
+
+
+def test_reminder_preview_real_session_provider_retains_unsaved_edit(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    from common.oh_no_parent_control_ui.application_ui_client import UIClientError
+
+    process, _log = launch_ui('kiosk_notification_preview')
+    clients = []
+
+    def notification_ready():
+        try:
+            client = automation.reader.application_ui.client(
+                'com.puffyslippers.OhNoParentControl.KioskNotifications')
+            client.surface_id = 'kiosk-system-notification'
+        except UIClientError:
+            return False
+        assert client.pid == process.pid
+        clients.append(client)
+        return True
+
+    wait_for_accessible_state(notification_ready, 'private notification provider registered')
+    client = clients[-1]
+    def body_is(expected):
+        # Notify is asynchronous: wait for its public surface before reading
+        # the body. Mutations remain outside this read-only predicate.
+        return (any(s['id'] == 'kiosk-system-notification' and s['visible']
+                    for s in client.listSurfaces())
+                and client.getText('kiosk-system-notification-message') == expected)
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'kiosk', language='en')
+    wait(lambda: ui.showing('kiosk-language-ready'), 'request ready')
+    ui.reader.open_language_preferences('kiosk')
+    ui.setValue('preferences-tabs', 'reminders')
+    wait(lambda: ui.showing('reminder-fifteen-seconds-edit'), 'reminders loaded')
+    ui.setValue('reminder-show-in-fullscreen', False)
+    ui.activate('reminder-fifteen-seconds-edit')
+    ui.setText('reminder-text', '  Save <games> & work!  ')
+    ui.activate('reminder-editor-preview')
+    wait(lambda: body_is('  Save <games> & work!  '),
+         'literal real notification body')
+    assert client.getValue('kiosk-system-notification-message') == 'critical'
+    client.activate('kiosk-system-notification-close')
+    ui.setText('reminder-text', '   ')
+    ui.activate('reminder-editor-preview')
+    wait(lambda: body_is('15 seconds left'),
+         'default real notification body')
+    assert client.getValue('kiosk-system-notification-message') == 'critical'
+    ui.activate('reminder-editor-cancel')
+    wait(lambda: not client.listSurfaces(), 'editor cancellation closes its preview')
+    assert ui.getText('reminder-fifteen-seconds-text') == '15 seconds left'
+    ui.activate('language-cancel')
+    assert not [e for e in read_events(path) if e['event'] == 'notifications-committed']
 
 
 @pytest.mark.parametrize('scenario', ('normal', 'reboot-required'))

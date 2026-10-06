@@ -17,7 +17,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Graphene", "1.0")
-from gi.repository import Gdk, GLib, Graphene, Gtk, Pango
+from gi.repository import Gdk, Gio, GLib, Graphene, Gtk, Pango
 
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from common.oh_no_parent_control_ui.application_ui import bind_ui
@@ -27,6 +27,9 @@ from common.oh_no_parent_control_ui.languages import (
 )
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon
 from .chrome import ArmoredButton, MetalBoard
+
+SHELL_PREVIEW_NAME = 'com.puffyslippers.OhNoParentControl.ReminderPreview'
+SHELL_PREVIEW_PATH = '/com/puffyslippers/OhNoParentControl/ReminderPreview'
 
 
 class PreferenceTab(Gtk.ToggleButton):
@@ -122,6 +125,10 @@ class ReminderDialog(Gtk.Window):
                              {'value': 1, 'unit': 'minute'})
         self._saved, self._closed_callback = saved, closed
         self._notified_closed = False
+        self._preview_pending = False
+        self._preview_id = 0
+        self._preview_connection = None
+        self._preview_overlay = bool(getattr(parent.get_transient_for(), '_child_overlay', False))
         self.add_css_class('oh-no-parent-control-language-dialog')
         self.add_css_class('reminder-dialog')
         set_automation_id(self, 'reminder-editor-dialog')
@@ -161,10 +168,23 @@ class ReminderDialog(Gtk.Window):
         describe_control(self._text, m.REMINDER_TEXT, text_help,
                          automation_id='reminder-text')
         self._text.set_text(original_text)
-        fields.append(self._text)
+        text_row = Gtk.Box(spacing=12)
+        text_input = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, hexpand=True)
+        text_input.append(self._text)
         self._count = Gtk.Label(xalign=1, css_classes=['reminder-trigger'])
         set_automation_id(self._count, 'reminder-text-count')
-        fields.append(self._count)
+        text_input.append(self._count)
+        text_row.append(text_input)
+        self._preview_button = Gtk.Button(css_classes=['reminder-preview'], valign=Gtk.Align.START)
+        preview_content = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        preview_content.append(Gtk.Image.new_from_icon_name('media-playback-start-symbolic'))
+        preview_content.append(localized(Gtk.Label, label=m.PREVIEW))
+        self._preview_button.set_child(preview_content)
+        describe_control(self._preview_button, m.PREVIEW, m.PREVIEW,
+                         automation_id='reminder-editor-preview')
+        self._preview_button.connect('clicked', self._preview)
+        text_row.append(self._preview_button)
+        fields.append(text_row)
         fields.append(localized(Gtk.Label, label=m.WHEN_TO_SHOW, xalign=0,
                                 css_classes=['preferences-section-title']))
         fields.append(localized(Gtk.Label, label=m.REMINDER_TIMING_HELP, xalign=0,
@@ -266,7 +286,82 @@ class ReminderDialog(Gtk.Window):
         else:
             self._value.remove_css_class('reminder-duplicate')
         self._save_button.set_sensitive(not duplicate)
+        self._preview_button.set_sensitive(value is not None and not self._preview_pending)
         self._error.set_visible(False)
+
+    def _preview(self, *_args):
+        value = self._duration()
+        if value is None or self._preview_pending:
+            return
+        text = self._text.get_text()
+        if not text.strip():
+            text = PreferencesDialog._trigger_message(
+                {'value': value, 'unit': self._unit_token()}).render(context_for(self).translations)
+        # Desktop previews use the extension's actual reminder renderer. The
+        # dedicated kiosk owns its freedesktop provider instead of GNOME Shell.
+        # Both always interrupt the fullscreen editor, without saving its draft.
+        parameters = (GLib.Variant('(su)', (text, self._preview_id)) if self._preview_overlay else
+                      GLib.Variant('(susssasa{sv}i)', (
+                          str(app_name()), self._preview_id, str(branding_asset_path('app_logo.png')),
+                          '', GLib.markup_escape_text(text), [],
+                          {'urgency': GLib.Variant('y', 2)}, -1)))
+        self._preview_pending = True
+        self._preview_button.set_sensitive(False)
+        self._error.set_visible(False)
+
+        def delivered(connection, result):
+            try:
+                notification_id, = connection.call_finish(result).unpack()
+                self._preview_id = notification_id
+                self._preview_connection = connection
+                if self._notified_closed:
+                    self._close_preview()
+            except GLib.Error:
+                if not self._notified_closed:
+                    set_text(self._error, 'label', m.PREVIEW_IS_NOT_AVAILABLE)
+                    self._error.set_visible(True)
+            finally:
+                self._preview_pending = False
+                if not self._notified_closed:
+                    self._preview_button.set_sensitive(self._duration() is not None)
+
+        def connected(_source, result):
+            try:
+                connection = Gio.bus_get_finish(result)
+                if self._notified_closed:
+                    self._preview_pending = False
+                    return
+                name = SHELL_PREVIEW_NAME if self._preview_overlay else 'org.freedesktop.Notifications'
+                path = SHELL_PREVIEW_PATH if self._preview_overlay else '/org/freedesktop/Notifications'
+                connection.call(name, path, name,
+                                'Preview' if self._preview_overlay else 'Notify', parameters,
+                                GLib.VariantType.new('(u)'), Gio.DBusCallFlags.NONE,
+                                5000, None, delivered)
+            except GLib.Error:
+                self._preview_pending = False
+                if not self._notified_closed:
+                    self._preview_button.set_sensitive(self._duration() is not None)
+                    set_text(self._error, 'label', m.PREVIEW_IS_NOT_AVAILABLE)
+                    self._error.set_visible(True)
+
+        Gio.bus_get(Gio.BusType.SESSION, None, connected)
+
+    def _close_preview(self):
+        if not self._preview_id or self._preview_connection is None:
+            return
+        identity, self._preview_id = self._preview_id, 0
+        name = SHELL_PREVIEW_NAME if self._preview_overlay else 'org.freedesktop.Notifications'
+        path = SHELL_PREVIEW_PATH if self._preview_overlay else '/org/freedesktop/Notifications'
+
+        def closed(connection, result):
+            try:
+                connection.call_finish(result)
+            except GLib.Error:
+                pass  # Disposal cannot restore a dismissed editor or change its draft.
+
+        self._preview_connection.call(name, path, name,
+            'Close' if self._preview_overlay else 'CloseNotification',
+            GLib.Variant('(u)', (identity,)), None, Gio.DBusCallFlags.NONE, 5000, None, closed)
 
     def _submit(self, *_args):
         text, value = self._text.get_text(), self._duration()
@@ -276,6 +371,7 @@ class ReminderDialog(Gtk.Window):
         if self._duplicate.get_visible():
             return
         if value is None or (len(text) > 50 and text != original_text):
+            set_text(self._error, 'label', m.INVALID_REMINDER)
             self._error.set_visible(True)
             return
         record = {'id': self._record['id'] if self._record else 'reminder-' + uuid.uuid4().hex,
@@ -289,6 +385,7 @@ class ReminderDialog(Gtk.Window):
     def _notify_closed(self):
         if not self._notified_closed:
             self._notified_closed = True
+            self._close_preview()
             self._closed_callback()
 
     def destroy(self):

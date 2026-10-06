@@ -1070,11 +1070,15 @@ def owned_surface_id(identity):
     fixture = re.match(r'^(onpc-fixture-(?:native|flatpak|snap|game)-(?:primary|secondary))(?:-|$)', identity)
     if fixture:
         return None if identity == fixture[1] else fixture[1]
+    for prefix, surface in (('kiosk-system-notification', 'kiosk-system-notification'),
+                            ('child-reminder-preview', 'child-reminder-preview')):
+        if identity == surface or identity.startswith(prefix + '-'):
+            return None if identity == surface else surface
     if identity.startswith('child-'):
         return None if identity == 'child-screen-time-indicator' else 'child-screen-time-indicator'
     if identity in (
             'reminder-editor-dialog', 'reminder-editor-save', 'reminder-editor-cancel',
-            'reminder-editor-close', 'reminder-editor-error', 'reminder-text',
+            'reminder-editor-close', 'reminder-editor-error', 'reminder-editor-preview', 'reminder-text',
             'reminder-text-count', 'reminder-value', 'reminder-value-increase',
             'reminder-value-decrease', 'reminder-unit', 'reminder-duplicate-warning'):
         return None if identity == 'reminder-editor-dialog' else 'reminder-editor-dialog'
@@ -1131,6 +1135,10 @@ def owned_applications(identity):
         return (f'com.puffyslippers.ONPCFixture.{fixture[1]}.{fixture[2]}',)
     if identity.startswith(('e2e-watch-', 'ui-watch-', 'watch-')):
         return (WATCH_APPLICATION,)
+    if identity.startswith('kiosk-system-notification'):
+        return ('com.puffyslippers.OhNoParentControl.KioskNotifications',)
+    if identity == 'child-reminder-preview' or identity.startswith('child-reminder-preview-'):
+        return (CHILD_PANEL_APPLICATION,)
     if identity.startswith('parent-'):
         return (PARENT_APPLICATION,)
     if identity.startswith(('kiosk-', 'preview-screen-', 'preferences-', 'reminder-')):

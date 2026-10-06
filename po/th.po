@@ -1600,6 +1600,9 @@ msgstr "การแจ้งเตือน"
 msgid "Add"
 msgstr "เพิ่ม"
 
+msgid "Preview"
+msgstr "ดูตัวอย่าง"
+
 msgid "Edit reminder"
 msgstr "แก้ไขการแจ้งเตือน"
 

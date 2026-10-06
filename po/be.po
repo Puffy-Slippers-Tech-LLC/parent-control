@@ -1612,6 +1612,9 @@ msgstr "Напаміны"
 msgid "Add"
 msgstr "Дадаць"
 
+msgid "Preview"
+msgstr "Перадпрагляд"
+
 msgid "Edit reminder"
 msgstr "Змяніць напамін"
 

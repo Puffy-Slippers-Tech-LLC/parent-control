@@ -1600,6 +1600,9 @@ msgstr "ئەسكەرتىشلەر"
 msgid "Add"
 msgstr "قوشۇش"
 
+msgid "Preview"
+msgstr "ئالدىن كۆرۈش"
+
 msgid "Edit reminder"
 msgstr "ئەسكەرتىشنى تەھرىرلەش"
 

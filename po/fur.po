@@ -1606,6 +1606,9 @@ msgstr "Memoris"
 msgid "Add"
 msgstr "Zonte"
 
+msgid "Preview"
+msgstr "Anteprime"
+
 msgid "Edit reminder"
 msgstr "Modifiche la memorie"
 

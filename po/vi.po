@@ -1600,6 +1600,9 @@ msgstr "Lời nhắc"
 msgid "Add"
 msgstr "Thêm"
 
+msgid "Preview"
+msgstr "Xem trước"
+
 msgid "Edit reminder"
 msgstr "Sửa lời nhắc"
 

@@ -19,6 +19,7 @@ ENDPOINTS = {
     'kiosk': 'com.puffyslippers.OhNoParentControl',
     'child-request': 'com.puffyslippers.OhNoParentControl.ChildRequest',
     'child-panel': 'com.puffyslippers.OhNoParentControl.ChildUI',
+    'kiosk-notifications': 'com.puffyslippers.OhNoParentControl.KioskNotifications',
 }
 PRODUCT_APPLICATIONS = frozenset(ENDPOINTS.values())
 

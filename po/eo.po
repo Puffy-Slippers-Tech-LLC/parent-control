@@ -1606,6 +1606,9 @@ msgstr "Memorigoj"
 msgid "Add"
 msgstr "Aldoni"
 
+msgid "Preview"
+msgstr "Antaŭrigardo"
+
 msgid "Edit reminder"
 msgstr "Redakti memorigon"
 

@@ -1606,6 +1606,9 @@ msgstr "अनुस्मारक"
 msgid "Add"
 msgstr "जोड़ें"
 
+msgid "Preview"
+msgstr "पूर्वावलोकन"
+
 msgid "Edit reminder"
 msgstr "अनुस्मारक संपादित करें"
 

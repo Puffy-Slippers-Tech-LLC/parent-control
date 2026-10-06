@@ -1618,6 +1618,9 @@ msgstr "Нагадування"
 msgid "Add"
 msgstr "Додати"
 
+msgid "Preview"
+msgstr "Попередній перегляд"
+
 msgid "Edit reminder"
 msgstr "Редагувати нагадування"
 

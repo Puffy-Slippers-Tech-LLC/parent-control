@@ -1601,6 +1601,9 @@ msgstr "Eslatmalar"
 msgid "Add"
 msgstr "Qoʻshish"
 
+msgid "Preview"
+msgstr "Oldindan ko‘rish"
+
 msgid "Edit reminder"
 msgstr "Eslatmani tahrirlash"
 

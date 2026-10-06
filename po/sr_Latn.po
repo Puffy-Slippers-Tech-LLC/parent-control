@@ -1618,6 +1618,9 @@ msgstr "Podsetnici"
 msgid "Add"
 msgstr "Dodaj"
 
+msgid "Preview"
+msgstr "Pregled"
+
 msgid "Edit reminder"
 msgstr "Uredi podsetnik"
 

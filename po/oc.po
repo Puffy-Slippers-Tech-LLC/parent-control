@@ -1606,6 +1606,9 @@ msgstr "Rampèls"
 msgid "Add"
 msgstr "Apondre"
 
+msgid "Preview"
+msgstr "Apercebut"
+
 msgid "Edit reminder"
 msgstr "Modificar lo rampèl"
 

@@ -1606,6 +1606,9 @@ msgstr "Muistutukset"
 msgid "Add"
 msgstr "Lisää"
 
+msgid "Preview"
+msgstr "Esikatselu"
+
 msgid "Edit reminder"
 msgstr "Muokkaa muistutusta"
 

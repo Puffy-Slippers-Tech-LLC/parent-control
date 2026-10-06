@@ -1606,6 +1606,9 @@ msgstr "תזכורות"
 msgid "Add"
 msgstr "הוספה"
 
+msgid "Preview"
+msgstr "תצוגה מקדימה"
+
 msgid "Edit reminder"
 msgstr "עריכת תזכורת"
 

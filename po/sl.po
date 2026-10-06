@@ -1618,6 +1618,9 @@ msgstr "Opomniki"
 msgid "Add"
 msgstr "Dodaj"
 
+msgid "Preview"
+msgstr "Predogled"
+
 msgid "Edit reminder"
 msgstr "Uredi opomnik"
 

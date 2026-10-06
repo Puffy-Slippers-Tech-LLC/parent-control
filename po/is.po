@@ -1606,6 +1606,9 @@ msgstr "Áminningar"
 msgid "Add"
 msgstr "Bæta við"
 
+msgid "Preview"
+msgstr "Forskoðun"
+
 msgid "Edit reminder"
 msgstr "Breyta áminningu"
 

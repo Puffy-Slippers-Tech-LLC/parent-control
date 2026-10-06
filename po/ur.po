@@ -1606,6 +1606,9 @@ msgstr "یاددہانیاں"
 msgid "Add"
 msgstr "شامل کریں"
 
+msgid "Preview"
+msgstr "پیش منظر"
+
 msgid "Edit reminder"
 msgstr "یاددہانی میں ترمیم کریں"
 

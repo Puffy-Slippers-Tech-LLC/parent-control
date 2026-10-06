@@ -9,6 +9,7 @@ import {canOpenRequest, requestCompletionState} from './indicatorLogic.mjs';
 import {TranslationContext} from './localization.js';
 import {ChildApplicationUi} from './applicationUi.js';
 import {GnomeApplicationUiAdapter} from './gnomeApplicationUiAdapter.js';
+import {ReminderPreview} from './reminderPreview.js';
 
 const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
 const SETTINGS_SCHEMA = 'com.puffyslippers.oh-no-parent-control.child';
@@ -38,7 +39,13 @@ export default class OhNoParentControlExtension extends Extension {
         this._openingRequest = false;
         this._translations = new TranslationContext(this.path);
         this._indicator = this._createIndicator();
-        this._applicationUiAdapter = new GnomeApplicationUiAdapter(this._indicator);
+        try {
+            this._reminderPreview = new ReminderPreview(this._appName, appLogoPath(this));
+        } catch (_error) {
+            // Preview availability must not disable countdown or locking.
+            this._errors.report(new Error('Reminder preview could not start'));
+        }
+        this._applicationUiAdapter = new GnomeApplicationUiAdapter(this._indicator, this._reminderPreview);
         try {
             this._applicationUi = new ChildApplicationUi(this._applicationUiAdapter);
         } catch (_error) {
@@ -73,6 +80,8 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     disable() {
+        this._reminderPreview?.close();
+        this._reminderPreview = null;
         this._applicationUi?.close();
         this._applicationUi = null;
         this._applicationUiAdapter?.close();

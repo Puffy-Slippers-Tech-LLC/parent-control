@@ -654,6 +654,16 @@ button.oh-no-parent-control-request-button:disabled {
   font-size: 18px;
 }
 .reminder-number entry { border-radius: 6px 0 0 6px; }
+.oh-no-parent-control-language-dialog button.reminder-preview {
+  border: 1px solid #69a6b9;
+  border-radius: 6px;
+  background: #243747;
+  color: #eef4fa;
+  padding: 8px 14px;
+  font-family: sans-serif;
+  font-size: 16px;
+}
+.reminder-preview image { color: #80c4e5; }
 @keyframes reminder-duplicate-flash {
   0%, 100% { border-color: #ff3535; }
   50% { border-color: #83c9e0; }

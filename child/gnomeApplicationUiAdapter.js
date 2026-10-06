@@ -11,8 +11,9 @@ const COUNTDOWN_ANIMATION_KEY = 'one-minute-countdown-animation';
  * UI operation callbacks. This adapter alone interprets Shell session/actors.
  */
 export class GnomeApplicationUiAdapter {
-    constructor(indicator) {
+    constructor(indicator, reminderPreview = null) {
         this._indicator = indicator;
+        this._reminderPreview = reminderPreview;
     }
 
     _state() {
@@ -35,6 +36,11 @@ export class GnomeApplicationUiAdapter {
         const surfaces = [{id: SURFACE_ID, application_id: APPLICATION_ID,
             type: 'child-panel', visible: state.visible, enabled: state.enabled,
             modal: false, parent_id: null}];
+        if (this._reminderPreview?.current) surfaces.push({
+            id: 'child-reminder-preview', application_id: APPLICATION_ID,
+            type: 'notification', visible: !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter,
+            enabled: !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter,
+            modal: false, parent_id: null});
         if (this._indicator._notifications?.current) surfaces.push({
             id: 'child-time-notification', application_id: APPLICATION_ID,
             type: 'notification', visible: !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter,
@@ -44,6 +50,21 @@ export class GnomeApplicationUiAdapter {
 
     elements(surfaceId) {
         const state = this._state();
+        if (surfaceId === 'child-reminder-preview' && state.available) {
+            const current = this._reminderPreview?.current;
+            if (!current) return null;
+            const visible = !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter;
+            const element = (id, type, operations) => ({id, type, visible, enabled: visible, ...operations});
+            return [
+                element(surfaceId, 'notification', {getText: () => current.notification.title}),
+                element('child-reminder-preview-message', 'label', {
+                    getText: () => current.notification.body, getValue: () => 'critical',
+                }),
+                element('child-reminder-preview-close', 'button', {
+                    activate: () => this._reminderPreview.dismiss(),
+                }),
+            ];
+        }
         if (surfaceId === 'child-time-notification' && state.available) {
             const current = this._indicator._notifications?.current;
             if (!current) return null;
@@ -107,5 +128,6 @@ export class GnomeApplicationUiAdapter {
 
     close() {
         this._indicator = null;
+        this._reminderPreview = null;
     }
 }

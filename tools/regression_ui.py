@@ -67,6 +67,9 @@ from pathlib import PurePosixPath
 # serial overlay launches, public input/result guards and retained screenshots.
 # It adds no process owner or persistent host settings; its finite nine-language
 # cycle has an explicit 600-second child deadline within the same Shell bucket.
+# Reminder preview delivery uses that same guardian, real Shell renderer and
+# private session bus. Its single preview source and sender watch are disposed
+# with the extension; no additional compositor, shared service or host setting.
 # Timing hooks retain bounded per-phase aggregates in the existing category
 # stream through one non-inheritable pipe duplicate closed at session end.
 # Wrappers/counters are worker-local, with no threads/files or UI reads; preview
@@ -128,6 +131,9 @@ GROUPS = (
     # the case releases it in finally. No shared resource or cleanup owner changes.
     # Reminder CRUD/retry uses the same owned request preview/display/bus,
     # process-local backend double and tmp_path events; no new shared resources.
+    # Preview notification checks add one owned GTK notification provider on
+    # that same private bus/display, reaped by the existing preview manager.
+    # Its bounded single-banner memory has no host services or persistent data.
     ('Request behavior', ('test_request_form_component.py', 'test_language_settings.py'), 6),
     # App Limits language-review frames reuse the worker's spectator feed and
     # registered retention allocations; no new display, process or cleanup owner.

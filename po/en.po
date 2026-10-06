@@ -67,6 +67,9 @@ msgstr "Reminders"
 msgid "Add"
 msgstr "Add"
 
+msgid "Preview"
+msgstr "Preview"
+
 msgid "Edit reminder"
 msgstr "Edit reminder"
 

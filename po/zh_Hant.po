@@ -1601,6 +1601,9 @@ msgstr "提醒"
 msgid "Add"
 msgstr "新增"
 
+msgid "Preview"
+msgstr "預覽"
+
 msgid "Edit reminder"
 msgstr "編輯提醒"
 

@@ -347,7 +347,15 @@ characters; existing longer backend text can be retained unchanged when editing
 its trigger. Equal trigger seconds, including minute/second equivalents, show a
 footer warning and disable editor Save. The edited reminder excludes its own ID
 from that comparison. Editor Save updates only the preferences draft; Cancel
-discards that edit. There is no preview panel. Main Cancel discards the draft;
+discards that edit. Preview beside the text field sends the current literal text
+or translated default duration through the child extension's reminder-preview
+service, using the same `reminderBanner.js` renderer as real countdown reminders.
+The dedicated kiosk uses its own freedesktop notification provider. Both use
+the product logo and Critical urgency even when the fullscreen
+preference is disabled. It does not save the draft. Invalid timing disables
+Preview; delivery failures retain the edit and show an error. Dismissal closes
+the preview, including a delivery reply arriving after editor disposal. Preview
+does not change reminder thresholds or saved settings. Main Cancel discards the draft;
 main Save persists changed reminders and then the language selection. If the
 subsequent language write fails, the reminder write has already committed; the
 dialog retains the language candidate for retry. Below the reminder list, a
@@ -357,6 +365,27 @@ It has a standard-font caption without a subtitle, and is disabled until the
 configuration loads, when the reminder list is empty, and while saving. Its
 saved value is preserved while disabled. Notification urgency belongs to the
 notification backend, not the dialog.
+
+The dedicated session starts `oh-no-parent-control-notifications.service`, a
+bounded freedesktop notification provider with one active banner. It uses GNOME
+Kiosk 50's documented `gnome-kiosk-notification` client tag to keep the banner
+above fullscreen windows without making it fullscreen. A transparent monitor-wide
+top strip centers its bounded banner card within the tagged surface; the default
+tag's top-left positioning does not position the card itself. This provider does not
+start in ordinary child desktops, where GNOME Shell owns notifications. The
+provider reads only the packaged logo, supports literal escaped body text,
+replacement and dismissal, and does not log reminder content. Its user unit
+and kiosk target changes activate with session renewal.
+
+The child extension owns `com.puffyslippers.OhNoParentControl.ReminderPreview`
+at `/com/puffyslippers/OhNoParentControl/ReminderPreview`. `Preview(s text, u replaces)`
+returns a preview ID; `Close(u id)` only dismisses that sender's current preview.
+The service validates session-bus Unix credentials, bounds text and concurrent
+credential lookups, refuses locked/greeter sessions, and closes on sender loss
+or extension disposal. It accepts literal rendered editor text, not saved policy.
+Desktop delivery never falls back to a generic Shell application notification.
+Countdown and preview share one banner slot: a new threshold replaces a preview
+immediately, and closing an old preview cannot close a newer countdown banner.
 
 Child reminder banners show only the logo and reminder text, without the product
 title or source header. The 20-pixel logo is centered beside the text. The
@@ -383,7 +412,7 @@ Public controls are `preferences-tabs` (canonical `language`/`reminders`),
 `reminder-editor-dialog`, `reminder-text`, `reminder-text-count`, `reminder-value`,
 `reminder-value-increase|decrease`, `reminder-unit` (canonical `minute`/`second`),
 `reminder-duplicate-warning`, `reminder-editor-error`, and
-`reminder-editor-save|cancel|close`. Stored IDs remain stable through edits;
+`reminder-editor-preview`, `reminder-editor-save|cancel|close`. Stored IDs remain stable through edits;
 new rows receive unique IDs. Host checks establish local behavior only; installed
 acceptance remains planned in the task queue.
 

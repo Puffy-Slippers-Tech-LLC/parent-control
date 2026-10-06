@@ -1600,6 +1600,9 @@ msgstr "Peringatan"
 msgid "Add"
 msgstr "Tambah"
 
+msgid "Preview"
+msgstr "Pratonton"
+
 msgid "Edit reminder"
 msgstr "Edit peringatan"
 

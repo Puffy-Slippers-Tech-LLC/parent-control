@@ -1612,6 +1612,9 @@ msgstr "Atgādinājumi"
 msgid "Add"
 msgstr "Pievienot"
 
+msgid "Preview"
+msgstr "Priekšskatījums"
+
 msgid "Edit reminder"
 msgstr "Rediģēt atgādinājumu"
 

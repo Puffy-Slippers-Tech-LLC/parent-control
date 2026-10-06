@@ -16,6 +16,8 @@ from .application_ui import INTERFACE, _decode, _encode, _ID
 # Stable logical endpoints, independent of distribution, compositor or toolkit.
 # A future desktop adapter implements these same buses, paths, scopes and IDs.
 _ENDPOINTS = {
+    "kiosk-notifications": ("com.puffyslippers.OhNoParentControl.KioskNotifications",
+                            "/com/puffyslippers/OhNoParentControl/KioskNotifications", "kiosk-system-notification"),
     "parent": ("com.puffyslippers.OhNoParentControl.Parent",
                "/com/puffyslippers/OhNoParentControl/Parent", "parent-window"),
     "kiosk": ("com.puffyslippers.OhNoParentControl",

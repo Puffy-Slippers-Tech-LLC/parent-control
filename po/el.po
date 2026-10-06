@@ -1606,6 +1606,9 @@ msgstr "Υπενθυμίσεις"
 msgid "Add"
 msgstr "Προσθήκη"
 
+msgid "Preview"
+msgstr "Προεπισκόπηση"
+
 msgid "Edit reminder"
 msgstr "Επεξεργασία υπενθύμισης"
 

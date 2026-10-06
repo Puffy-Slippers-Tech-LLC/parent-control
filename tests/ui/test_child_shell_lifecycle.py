@@ -217,6 +217,27 @@ def test_child_indicator_opens_one_shared_overlay_and_can_reopen(render_artifact
     _publish_success_artifacts(artifact_root, "interaction")
 
 
+def test_editor_preview_uses_real_shell_reminder_banner(render_artifacts):
+    artifact_root = _new_artifact_root('reminder-preview', render_artifacts)
+    environment = {
+        **os.environ,
+        'ONPC_CHILD_SHELL_ARTIFACT_DIR': str(artifact_root),
+        'ONPC_CHILD_SHELL_PYTHON': os.environ.get('PYTHON', sys.executable),
+        'ONPC_CHILD_SHELL_SCENARIO': 'indicator-interaction',
+        'ONPC_CHILD_REMINDER_PREVIEW': '1',
+        'ONPC_PREVIEW_READY_TIMEOUT_SECONDS': '30',
+    }
+    result = run_child_shell(environment, timeout=180)
+    retained = _preserve_attempt_artifacts(artifact_root, 'reminder-preview')
+    shell_path = artifact_root / 'logs/child-preview-generation-1.log'
+    shell_log = shell_path.read_text(encoding='utf-8', errors='replace') if shell_path.exists() else '(missing)'
+    diagnostic = f'Artifacts: {retained}\n{result.stdout}\n{result.stderr}\n{shell_log}'
+    assert result.returncode == 0, diagnostic
+    assert 'Real Shell reminder preview and unsaved draft cancellation passed' in result.stdout, diagnostic
+    logs = _assert_preview_evidence(artifact_root, 1, diagnostic)
+    assert not [failure for log in logs for failure in _extension_error_context(log)], diagnostic
+
+
 def test_child_panel_refreshes_language_after_overlay_save(render_artifacts):
     # Sample ordinary, RTL and complex-script changes through the complete
     # overlay-to-panel refresh. Catalogue parity covers every other language.

@@ -1612,6 +1612,9 @@ msgstr "Mementouri"
 msgid "Add"
 msgstr "Adaugă"
 
+msgid "Preview"
+msgstr "Previzualizare"
+
 msgid "Edit reminder"
 msgstr "Editează mementoul"
 

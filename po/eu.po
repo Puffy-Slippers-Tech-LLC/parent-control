@@ -1606,6 +1606,9 @@ msgstr "Abisuak"
 msgid "Add"
 msgstr "Gehitu"
 
+msgid "Preview"
+msgstr "Aurrebista"
+
 msgid "Edit reminder"
 msgstr "Editatu abisua"
 

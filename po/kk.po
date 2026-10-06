@@ -1600,6 +1600,9 @@ msgstr "Еске салғыштар"
 msgid "Add"
 msgstr "Қосу"
 
+msgid "Preview"
+msgstr "Алдын ала қарау"
+
 msgid "Edit reminder"
 msgstr "Еске салғышты өңдеу"
 

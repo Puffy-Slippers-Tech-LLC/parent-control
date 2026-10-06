@@ -214,7 +214,20 @@ screen-time control and absent accounts retain their existing restrictions.
 | `reminder-text`, `reminder-value`, `reminder-unit` | Literal editor text/time; canonical unit `minute` or `second` |
 | `reminder-text-count`, `reminder-duplicate-warning`, `reminder-editor-error` | Character count and normal refusal messages; duplicate seconds disable Save |
 | `reminder-value-increase`, `reminder-value-decrease` | Normal bounded time increment/decrement handlers |
-| `reminder-editor-save`, `reminder-editor-cancel`, `reminder-editor-close` | Save to the preferences draft or discard the current edit; no preview panel |
+| `reminder-editor-save`, `reminder-editor-cancel`, `reminder-editor-close` | Save to the preferences draft or discard the current edit |
+| `reminder-editor-preview` | Show current editor text or translated duration using the real reminder banner renderer with Critical urgency, without saving; editor dismissal closes the preview |
+
+The dedicated kiosk notification provider exports the same UI protocol at
+`com.puffyslippers.OhNoParentControl.KioskNotifications`, using its derived
+GApplication object path. Its `kiosk-system-notification` surface exposes
+`kiosk-system-notification-message` (plain body text and canonical urgency value)
+and `kiosk-system-notification-close` (normal dismissal). The provider runs only
+with the dedicated kiosk session. The child overlay calls the extension's
+reminder-preview service, which shares the countdown's banner renderer. Its
+`child-reminder-preview` surface at the existing ChildUI endpoint exposes
+`child-reminder-preview-message` (literal body and canonical `critical` urgency)
+and `child-reminder-preview-close` (normal dismissal). This repository-owned
+banner uses the Application UI API, not external-provider selectors.
 
 ## Shared information and feedback
 

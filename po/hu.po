@@ -1606,6 +1606,9 @@ msgstr "Emlékeztetők"
 msgid "Add"
 msgstr "Hozzáadás"
 
+msgid "Preview"
+msgstr "Előnézet"
+
 msgid "Edit reminder"
 msgstr "Emlékeztető szerkesztése"
 

@@ -1606,6 +1606,9 @@ msgstr "सम्झाउने सूचनाहरू"
 msgid "Add"
 msgstr "थप्नुहोस्"
 
+msgid "Preview"
+msgstr "पूर्वावलोकन"
+
 msgid "Edit reminder"
 msgstr "सम्झाउने सूचना सम्पादन गर्नुहोस्"
 

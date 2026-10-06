@@ -35,6 +35,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(SYSTEMD_SYSTEM_DIR)/onpc-execution-probe-.service.d/oh-no-parent-control-timeout.conf \
 	$(SYSTEMD_USER_DIR)/oh-no-parent-control-app.service \
 	$(SYSTEMD_USER_DIR)/oh-no-parent-control-polkit-agent.service \
+	$(SYSTEMD_USER_DIR)/oh-no-parent-control-notifications.service \
 	$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/session.conf \
 	$(DATADIR)/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service \
 	$(DATADIR)/dbus-1/interfaces/com.puffyslippers.OhNoParentControl1.xml \
@@ -63,15 +64,17 @@ endif
 CHILD_DIR := child
 EXTENSION_SOURCES := accessibility.js branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
 EXTENSION_SOURCES += gettext.mjs languages.mjs localization.js applicationUi.js gnomeApplicationUiAdapter.js
-EXTENSION_SOURCES += notificationLogic.mjs remainingTimeNotifications.js
+EXTENSION_SOURCES += notificationLogic.mjs remainingTimeNotifications.js reminderBanner.js reminderPreview.js
 # Explicit production modules prevent preview/test helpers from entering the package.
 COMMON_SOURCES := __init__.py about.py accessibility.py gtk_automation.py app_policy.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py languages.py languages.json localization.py
 COMMON_SOURCES += message.py messages.py translation_widgets.py reboot.py
 COMMON_SOURCES += application_ui.py application_ui_client.py
 KIOSK_SOURCES := __init__.py agent_locale.py chrome.py floating_islands.py preference_dialog.py lava.py lightning.py main.py model.py request_content.py selection_store.py snowflakes.py thunder.py
+KIOSK_SOURCES += notifications.py
 PARENT_SOURCES := __init__.py client.py main.py language_dialog.py
 BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py execution_probe.py extension_manager.py grant_diagnostics.py logs.py preferences.py probe_channel.py probe_generation.py service.py uninstall.py
 PRODUCT_USER_SERVICES := oh-no-parent-control-app.service oh-no-parent-control-polkit-agent.service
+PRODUCT_USER_SERVICES += oh-no-parent-control-notifications.service
 OBSOLETE_EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js parentalApproval.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js
 EXTENSION_SCHEMA := schemas/com.puffyslippers.oh-no-parent-control.child.gschema.xml
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;

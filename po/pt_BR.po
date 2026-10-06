@@ -1604,6 +1604,9 @@ msgstr "Lembretes"
 msgid "Add"
 msgstr "Adicionar"
 
+msgid "Preview"
+msgstr "Prévia"
+
 msgid "Edit reminder"
 msgstr "Editar lembrete"
 

@@ -1606,6 +1606,9 @@ msgstr "Recordatoris"
 msgid "Add"
 msgstr "Afegeix"
 
+msgid "Preview"
+msgstr "Previsualització"
+
 msgid "Edit reminder"
 msgstr "Edita el recordatori"
 

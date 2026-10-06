@@ -1612,6 +1612,9 @@ msgstr "Připomenutí"
 msgid "Add"
 msgstr "Přidat"
 
+msgid "Preview"
+msgstr "Náhled"
+
 msgid "Edit reminder"
 msgstr "Upravit připomenutí"
 

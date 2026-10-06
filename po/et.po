@@ -1606,6 +1606,9 @@ msgstr "Meeldetuletused"
 msgid "Add"
 msgstr "Lisa"
 
+msgid "Preview"
+msgstr "Eelvaade"
+
 msgid "Edit reminder"
 msgstr "Muuda meeldetuletust"
 

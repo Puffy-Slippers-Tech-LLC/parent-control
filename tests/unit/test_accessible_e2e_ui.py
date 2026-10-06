@@ -28,6 +28,7 @@ from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES
     ('reminder-unit-trigger', 'language-dialog'),
     ('reminder-editor-delete', 'language-dialog'),
     ('reminder-editor-save', 'reminder-editor-dialog'),
+    ('reminder-editor-preview', 'reminder-editor-dialog'),
     ('reminder-text', 'reminder-editor-dialog'),
     ('reminder-value-increase', 'reminder-editor-dialog'),
     ('reminder-unit', 'reminder-editor-dialog'),
@@ -37,6 +38,19 @@ def test_child_preference_controls_bind_to_their_public_surface(identity, surfac
     assert accessible_ui.owned_surface_id(identity) == surface
     assert accessible_ui.owned_applications(identity) == (
         accessible_ui.KIOSK_APPLICATION, accessible_ui.CHILD_APPLICATION)
+
+
+@pytest.mark.parametrize('identity,surface,application', (
+    ('kiosk-system-notification', None, 'com.puffyslippers.OhNoParentControl.KioskNotifications'),
+    ('kiosk-system-notification-message', 'kiosk-system-notification',
+     'com.puffyslippers.OhNoParentControl.KioskNotifications'),
+    ('child-reminder-preview', None, 'com.puffyslippers.OhNoParentControl.ChildUI'),
+    ('child-reminder-preview-close', 'child-reminder-preview',
+     'com.puffyslippers.OhNoParentControl.ChildUI'),
+))
+def test_reminder_banners_route_to_their_own_product_provider(identity, surface, application):
+    assert accessible_ui.owned_surface_id(identity) == surface
+    assert accessible_ui.owned_applications(identity) == (application,)
 
 
 def test_live_product_lookup_refuses_external_provider_projection():

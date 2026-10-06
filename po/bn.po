@@ -1606,6 +1606,9 @@ msgstr "অনুস্মারক"
 msgid "Add"
 msgstr "যোগ করুন"
 
+msgid "Preview"
+msgstr "পূর্বরূপ"
+
 msgid "Edit reminder"
 msgstr "অনুস্মারক সম্পাদনা করুন"
 

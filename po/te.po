@@ -1606,6 +1606,9 @@ msgstr "గుర్తుచేసే సూచనలు"
 msgid "Add"
 msgstr "జోడించు"
 
+msgid "Preview"
+msgstr "ముందస్తు వీక్షణ"
+
 msgid "Edit reminder"
 msgstr "సూచనను సవరించు"
 

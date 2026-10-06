@@ -1618,6 +1618,9 @@ msgstr "Подсетници"
 msgid "Add"
 msgstr "Додај"
 
+msgid "Preview"
+msgstr "Преглед"
+
 msgid "Edit reminder"
 msgstr "Уреди подсетник"
 

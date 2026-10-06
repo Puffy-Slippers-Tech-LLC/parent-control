@@ -1606,6 +1606,9 @@ msgstr "Herinneringen"
 msgid "Add"
 msgstr "Toevoegen"
 
+msgid "Preview"
+msgstr "Voorbeeld"
+
 msgid "Edit reminder"
 msgstr "Herinnering bewerken"
 

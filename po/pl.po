@@ -1610,6 +1610,9 @@ msgstr "Przypomnienia"
 msgid "Add"
 msgstr "Dodaj"
 
+msgid "Preview"
+msgstr "Podgląd"
+
 msgid "Edit reminder"
 msgstr "Edytuj przypomnienie"
 

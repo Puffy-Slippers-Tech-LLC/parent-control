@@ -1604,6 +1604,9 @@ msgstr "Promemoria"
 msgid "Add"
 msgstr "Aggiungi"
 
+msgid "Preview"
+msgstr "Anteprima"
+
 msgid "Edit reminder"
 msgstr "Modifica promemoria"
 

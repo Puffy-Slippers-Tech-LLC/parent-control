@@ -1606,6 +1606,9 @@ msgstr "ਯਾਦ-ਸੂਚਨਾਵਾਂ"
 msgid "Add"
 msgstr "ਜੋੜੋ"
 
+msgid "Preview"
+msgstr "ਝਲਕ"
+
 msgid "Edit reminder"
 msgstr "ਯਾਦ-ਸੂਚਨਾ ਸੋਧੋ"
 

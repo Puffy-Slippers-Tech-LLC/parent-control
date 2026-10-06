@@ -1600,6 +1600,9 @@ msgstr "Pengingat"
 msgid "Add"
 msgstr "Tambah"
 
+msgid "Preview"
+msgstr "Pratinjau"
+
 msgid "Edit reminder"
 msgstr "Edit pengingat"
 

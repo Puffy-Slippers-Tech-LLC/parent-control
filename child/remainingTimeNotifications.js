@@ -1,10 +1,8 @@
-import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import Pango from 'gi://Pango';
-import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {ReminderSchedule, notificationPreferences, reminderSeconds, reminderText} from './notificationLogic.mjs';
+import {showReminderBanner} from './reminderBanner.js';
 
 const BUS = 'com.puffyslippers.OhNoParentControl1';
 
@@ -128,71 +126,17 @@ export class RemainingTimeNotifications {
 
     present(reminder, allowSoftApps) {
         const body = reminderText(reminder, this.translations, allowSoftApps);
-        const source = new MessageTray.Source({title: this.title, icon: this.icon});
+        const urgency = this.preferences.show_in_fullscreen ? 'critical' : 'high';
+        const {source, notification} = showReminderBanner(this.title, this.icon, body,
+            urgency === 'critical' ? MessageTray.Urgency.CRITICAL : MessageTray.Urgency.HIGH);
         this.source = source;
         source.connect('destroy', () => {
             if (this.source === source) this.source = null;
         });
-        Main.messageTray.add(source);
-        const urgency = this.preferences.show_in_fullscreen ? 'critical' : 'high';
-        const notification = new MessageTray.Notification({source,
-            title: '', body,
-            gicon: this.icon, useBodyMarkup: false,
-            urgency: urgency === 'critical' ? MessageTray.Urgency.CRITICAL : MessageTray.Urgency.HIGH,
-            privacyScope: MessageTray.PrivacyScope.USER, isTransient: true});
         this.current = {notification, reminder, urgency, allowSoftApps, seconds: reminderSeconds(reminder)};
         notification.connect('destroy', () => {
             if (this.current?.notification === notification) this.current = null;
         });
-        // Shell acknowledges a banner after adding its complete actor tree,
-        // before showing it. Use public actor APIs and notification identity
-        // rather than changing Shell prototypes or another source's banner.
-        notification.connect('notify::acknowledged', () => {
-            if (notification.acknowledged && this.current?.notification === notification)
-                this.compactBanner(notification);
-        });
-        source.addNotification(notification);
-    }
-
-    compactBanner(notification) {
-        const visit = actor => {
-            if (actor.notification === notification) {
-                actor.add_style_class_name('screen-time-reminder');
-                actor.x_expand = false;
-                actor.x_align = Clutter.ActorAlign.CENTER;
-                const compact = child => {
-                    if (child.has_style_class_name?.('message-header') ||
-                        child.has_style_class_name?.('message-title'))
-                        child.hide();
-                    if (child.has_style_class_name?.('message-icon'))
-                        child.y_align = Clutter.ActorAlign.CENTER;
-                    if (child.has_style_class_name?.('message-body')) {
-                        // Shell's LabelExpanderLayout caps even expanded text.
-                        // Keep its bin for Shell's animation lifecycle, but let
-                        // the body participate directly in natural box sizing.
-                        const bin = child.get_parent();
-                        const content = bin.get_parent();
-                        if (!content.has_style_class_name('message-content')) return;
-                        bin.remove_child(child);
-                        bin.hide();
-                        content.add_child(child);
-                        child.clutter_text.line_wrap = true;
-                        child.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
-                        child.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
-                        // Preserve literal newlines, including on language or
-                        // saved-text updates, after Shell's body binding runs.
-                        const update = () => child.clutter_text.set_text(notification.body);
-                        notification.connectObject('notify::body', update, child);
-                        update();
-                    }
-                    for (const descendant of [...child.get_children()]) compact(descendant);
-                };
-                compact(actor);
-                return;
-            }
-            for (const child of actor.get_children()) visit(child);
-        };
-        visit(Main.messageTray);
     }
 
     clear() {

@@ -1606,6 +1606,9 @@ msgstr "Påminnelser"
 msgid "Add"
 msgstr "Lägg till"
 
+msgid "Preview"
+msgstr "Förhandsvisning"
+
 msgid "Edit reminder"
 msgstr "Redigera påminnelse"
 

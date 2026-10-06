@@ -72,7 +72,10 @@ def test_four_branch_tabs_grid_resize_stop_and_reconnect(
 def test_live_capture_detach_reattach_preserves_public_actions(
         hermetic_ui_session, launch_ui, automation, wait_for_accessible_state, tmp_path):
     ui, wait = automation, wait_for_accessible_state
-    _process, events = launch_request(launch_ui, tmp_path, overlay=False, wait_for_application=False)
+    release = tmp_path / 'request-release'
+    process, events = launch_request(
+        launch_ui, tmp_path, overlay=False, scenario='slow-request',
+        request_release=release, wait_for_application=False)
     wait(lambda: ui.showing('kiosk-request-submit'), 'test form publishes its control')
     wait(lambda: ui.state('kiosk-request-submit', ui.api.StateType.SENSITIVE), 'form is ready')
     feeds = Feeds()
@@ -99,10 +102,18 @@ def test_live_capture_detach_reattach_preserves_public_actions(
         feeds.next_scan = 0
         wait(live, 'reattachment observes the same continuing UI worker')
         assert observed['frame'][0] > before
-        wait(lambda: ui.showing('kiosk-result-action'), 'approval result remains reachable')
-        ui.activate('kiosk-result-action')
+        # Approval dismisses itself after three seconds. Finish the synthetic
+        # broker reply after reattachment, then read only the scoped action:
+        # a complete form inventory can itself outlast the success countdown.
+        client = ui.reader.application_ui.client('kiosk')
+        assert client.pid == process.pid
+        result_action = client.getElementById('kiosk-result-action')
+        release.touch()
+        wait(lambda: result_action.visible, 'approval result remains reachable')
+        result_action.activate()
         wait(lambda: bool(request_events(events, 'logout')), 'result action works after reattachment')
     finally:
+        release.touch()
         feeds.close()
 
 

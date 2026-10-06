@@ -98,6 +98,10 @@ from pathlib import PurePosixPath
 # pinned endpoint after failed input, retaining bounded public metadata in the
 # existing failure stream. No file, connection, process or cleanup owner is added;
 # the existing compatible UI buckets and resource reservations still apply.
+# Application UI request, bus, inventory projection and element snapshot timings
+# add four fixed aggregate names to the existing worker-local recorder. They
+# retain no arguments/results, add no RPCs, threads, files or process owners,
+# and preserve all input/ownership guards and existing UI bucket reservations.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

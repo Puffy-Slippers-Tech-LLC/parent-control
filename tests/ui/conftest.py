@@ -112,6 +112,7 @@ def ui_operation_timings():
         return
     from tests.e2e.public_atspi import PublicAtspi
     from tests.e2e.accessible_ui import AccessibleUI
+    from tests.support.application_ui import ApplicationUI, ApplicationNode, UIClient
     from tests.support import keyboard
     from tests.support import gui_blocks
     with pytest.MonkeyPatch.context() as patch:
@@ -133,6 +134,13 @@ def ui_operation_timings():
         patch.setattr(PublicAtspi, 'call', UI_TIMINGS.wrap_rpc(PublicAtspi.call))
         patch.setattr(PublicAtspi, 'read_many', UI_TIMINGS.wrap_batch(PublicAtspi.read_many))
         for owner, method, label in (
+                # Aggregate only fixed operation names and durations. Product
+                # RPCs otherwise appear as unaccounted traversal self time;
+                # never record their arguments, UI values or response text.
+                (UIClient, '_bus', 'application-ui.bus'),
+                (UIClient, '_request', 'application-ui.request'),
+                (ApplicationUI, '_application', 'application-ui.inventory-projection'),
+                (ApplicationNode, 'snapshot', 'application-ui.element-snapshot'),
                 (AccessibleUI, 'read_snapshot', 'reader.snapshot'),
                 (AccessibleUI, 'wait', 'reader.wait'),
                 (AccessibleUI, '_invoke_target', 'input.action'),

@@ -27,6 +27,8 @@ def test_language_chooser_previews_keep_owner_language_until_commit(
     ui, wait = automation, wait_for_accessible_state
     owner = 'parent-screen-limit-toggle' if frontend == 'parent' else 'kiosk-request-submit'
     owner_text = 'Screen time limit' if frontend == 'parent' else 'REQUEST'
+    # The Parent switch publishes an accessible label, not displayed child text.
+    read_owner_text = ui.text if frontend == 'parent' else ui.getText
     ui.reader.open_language_preferences(frontend)
     assert ui.target('language-dialog').surface_metadata['parent_id'] == (
         'parent-window' if frontend == 'parent' else 'kiosk-request-window')
@@ -54,13 +56,13 @@ def test_language_chooser_previews_keep_owner_language_until_commit(
         assert ui.getText('language-continue') == save
         assert ui.getText('language-cancel') == cancel
         assert ui.getValue('language-list') == language
-        assert ui.getText(owner) == owner_text, 'candidate escaped into owner'
+        assert read_owner_text(owner) == owner_text, 'candidate escaped into owner'
         assert not any(event['event'] == 'language-committed' for event in read_events(events))
     ui.activate('language-cancel')
     wait(lambda: ui.absent('language-dialog', within=(
         'parent-window' if frontend == 'parent' else 'kiosk-request-window')),
          'Cancel leaves the owner language unchanged')
-    assert ui.getText(owner) == owner_text
+    assert read_owner_text(owner) == owner_text
 
 
 

@@ -352,13 +352,23 @@ def test_parent_hebrew_public_text_and_saved_selection(
 
 
 def test_parent_dialog_inherited_text_and_retained_hebrew_draft(
-        launch_ui, automation, wait_for_accessible_state, tmp_path):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, capsys):
     import json
     from tests.support.paths import ROOT
     from tests.support.gui_blocks import run_block
+
+    def checkpoint(stage):
+        # Retain finite case stages even on success or interruption. Do not
+        # record UI contents, exception text or private preview state.
+        with capsys.disabled():
+            print('ONPC_PARENT_DIALOG_DIAGNOSTIC ' + json.dumps({'stage': stage}),
+                  flush=True)
+
     ui, wait = automation, wait_for_accessible_state
+    checkpoint('startup-begin')
     path = launch_language(launch_ui, tmp_path, 'parent', language='en', unicode_input=True)
     wait(lambda: ui.showing('parent-language-ready'), 'saved startup ready')
+    checkpoint('startup-ready')
     reader = ui.reader
     version = json.loads((ROOT / 'data/app.json').read_text())['version']
     reader.open_feedback()
@@ -381,12 +391,16 @@ def test_parent_dialog_inherited_text_and_retained_hebrew_draft(
     wait(lambda: reader.feedback_snapshot('synthetic-rtl'), 'seeded exact synthetic draft')
     ui.activate('feedback-close')
     wait(lambda: ui.absent('feedback-dialog', within='parent-window'), 'draft closes')
+    checkpoint('synthetic-draft-checked-and-closed')
     for language in ('en', 'he', 'en'):
+        checkpoint('language-' + language + '-begin')
         reader.open_language_preferences('parent')
         reader.choose_language('parent', language)
         reader.save_language('parent')
+        checkpoint('language-' + language + '-saved')
         for surface in ('about', 'feedback'):
             operation = f'parent-dialog-{surface}-{language}-'
+            checkpoint(operation + 'begin')
             opened = reader.parent_dialog_operation(operation + 'open', version)
             assert opened['dialog_presentation']['language'] == language
             reader.parent_dialog_operation(operation + 'read', version)
@@ -394,8 +408,10 @@ def test_parent_dialog_inherited_text_and_retained_hebrew_draft(
             ui.close(surface + '-dialog')
             reader.parent_dialog_operation(operation + 'closed', version)
             assert reader.parent_dialog_operation(operation + 'refused', version) == {'refused': True}
+            checkpoint(operation + 'checked')
     assert committed(path) == ['en', 'he', 'en']
     assert_no_policy_or_request_writes(path)
+    checkpoint('all-assertions-complete')
 
 
 def assert_no_policy_or_request_writes(path, *, expected_results=0):

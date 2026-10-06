@@ -54,13 +54,13 @@ def test_language_chooser_previews_keep_owner_language_until_commit(
         assert ui.getText('language-continue') == save
         assert ui.getText('language-cancel') == cancel
         assert ui.getValue('language-list') == language
-        assert ui.text(owner) == owner_text, 'candidate escaped into owner'
+        assert ui.getText(owner) == owner_text, 'candidate escaped into owner'
         assert not any(event['event'] == 'language-committed' for event in read_events(events))
     ui.activate('language-cancel')
     wait(lambda: ui.absent('language-dialog', within=(
         'parent-window' if frontend == 'parent' else 'kiosk-request-window')),
          'Cancel leaves the owner language unchanged')
-    assert ui.text(owner) == owner_text
+    assert ui.getText(owner) == owner_text
 
 
 

@@ -147,7 +147,8 @@ injects attachments into application state.
 | ID or family | Values and operations |
 | --- | --- |
 | `parent-child-selector` | Get/set eligible UID string; choices are current eligible UIDs |
-| `parent-child-choice-<uid>`, `parent-child-selected-<uid>` | Actual choice buttons and selected-child identity; use the selector setter for a closed popup |
+| `parent-child-choice-<uid>` | Actual choice buttons; use the selector setter for a closed popup |
+| `parent-child-selected-<uid>` | Selected-child identity; `getText` reads the actual account-name label, excluding decorative avatar initials |
 | `parent-pages` | Get/set `screen-limits` or `app-limits` |
 | `parent-page-screen-limits`, `parent-page-app-limits` | Actual page toggles |
 | `parent-screen-limit-toggle` | Boolean get/set; normal policy save |

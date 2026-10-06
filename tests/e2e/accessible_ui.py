@@ -5580,7 +5580,7 @@ class AccessibleUI:
             return {'expanded': False}
         require(self.find_id('parent-time-explanation', showing=True) is None,
                 'ui:time-already-expanded')
-        self.activate_id('parent-time-status', action_name='row.activate')
+        self.set_value('parent-time-status', True)
         self.id_target('parent-time-explanation')
         return {'expanded': True}
 
@@ -5592,7 +5592,7 @@ class AccessibleUI:
         except UiError as error:
             if str(error) != 'ui:time-collapsed':
                 raise
-        self.activate_id('parent-time-status', action_name='row.activate')
+        self.set_value('parent-time-status', True)
         self.id_target('parent-time-explanation')
         return self.time_explanation(child, language=language)
 
@@ -5878,6 +5878,22 @@ class AccessibleUI:
             require(expected in CHILD_IDENTITIES and len(expected) <= maximum, 'ui:child-binding')
             if hasattr(root, 'ui_element'):
                 text = root.getText().strip()
+                if len(text) > maximum or text != expected:
+                    # Diagnose the existing exact-label refusal without retaining
+                    # account text or accepting a different projection. Structural
+                    # API text may include an avatar label as well as the name.
+                    lines = text.splitlines() if len(text) <= maximum else []
+                    print(json.dumps({
+                        'event': 'ui-child-label-observation',
+                        'child': CHILD_IDENTITIES[expected],
+                        'within_bound': len(text) <= maximum,
+                        'text_length': min(len(text), maximum + 1),
+                        'line_count': len(lines),
+                        'expected_line_count': lines.count(expected),
+                        'expected_final_line': bool(lines) and lines[-1] == expected,
+                        'other_fixture_label': any(
+                            text == label for label in CHILD_IDENTITIES if label != expected),
+                    }, sort_keys=True), file=sys.stderr, flush=True)
                 require(len(text) <= maximum and text == expected, 'ui:child-label')
                 return CHILD_IDENTITIES[expected]
             labels = [node.get_name() for node in self.nodes(root, strict=True)
@@ -8733,6 +8749,111 @@ class AccessibleUI:
                 'ui:kiosk-account-unavailable')
         return selector, form, observation
 
+    @staticmethod
+    def interactive_approver_uids():
+        """Independent OS oracle for ONPC-CORE-ACCOUNTS-003, not UI choices.
+
+        Baseline reconciliation preserves unrelated administrators. Enumerate
+        current NSS accounts, including accounts not yet cached by AccountsService,
+        then check their public OS eligibility without importing product logic.
+        """
+        from gi.repository import Gio, GLib
+        noninteractive = {'', '/bin/false', '/usr/bin/false',
+                          '/sbin/nologin', '/usr/sbin/nologin'}
+        deadline = time.monotonic() + 5
+        try:
+            candidates = sorted({entry.pw_uid for entry in pwd.getpwall()
+                if 1000 <= entry.pw_uid <= (1 << 32) - 1
+                and not 60578 <= entry.pw_uid <= 60705
+                and entry.pw_shell not in noninteractive})
+            bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+            eligible = set()
+
+            def call(path, interface, method, arguments, result_type):
+                remaining_ms = int((deadline - time.monotonic()) * 1000)
+                require(remaining_ms > 0, 'ui:approver-os-read-timeout')
+                return bus.call_sync('org.freedesktop.Accounts', path, interface,
+                    method, arguments, GLib.VariantType.new(result_type),
+                    Gio.DBusCallFlags.NO_AUTO_START, min(1000, remaining_ms), None).unpack()
+
+            for uid in candidates:
+                path = call('/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
+                    'FindUserById', GLib.Variant('(x)', (uid,)), '(o)')[0]
+                require(path == '/org/freedesktop/Accounts/User' + str(uid),
+                        'ui:approver-os-identity')
+                properties = call(path, 'org.freedesktop.DBus.Properties', 'GetAll',
+                    GLib.Variant('(s)', ('org.freedesktop.Accounts.User',)), '(a{sv})')[0]
+                require(type(properties.get('Uid')) is int and properties['Uid'] == uid,
+                        'ui:approver-os-identity')
+                require(all(type(properties.get(key)) is bool
+                            for key in ('LocalAccount', 'SystemAccount', 'Locked'))
+                        and type(properties.get('AccountType')) is int
+                        and type(properties.get('Shell')) is str
+                        and type(properties.get('UserName')) is str,
+                        'ui:approver-os-properties')
+                if (properties['LocalAccount'] and not properties['SystemAccount']
+                        and not properties['Locked'] and properties['AccountType'] == 1
+                        and properties['Shell'] not in noninteractive
+                        and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.-]*[$]?', properties['UserName'])):
+                    eligible.add(str(uid))
+            return eligible
+        except UiError:
+            raise
+        except Exception as error:
+            # Incomplete OS discovery cannot authorize accepting the UI list.
+            raise UiError('ui:approver-os-read-failed') from error
+
+    @staticmethod
+    def unexpected_approver_facts(choices):
+        """Bounded OS-only diagnostic; never supplies acceptance or input authority."""
+        facts = []
+        noninteractive = {'', '/bin/false', '/usr/bin/false',
+                          '/sbin/nologin', '/usr/sbin/nologin'}
+        for choice in sorted(choices)[:4]:
+            fact = {'canonical_uid': bool(re.fullmatch(r'[1-9][0-9]{0,9}', choice))}
+            facts.append(fact)
+            if not fact['canonical_uid']:
+                continue
+            uid = int(choice)
+            fact['managed_uid_range'] = 1000 <= uid <= (1 << 32) - 1
+            if not fact['managed_uid_range']:
+                continue
+            try:
+                account = pwd.getpwuid(uid)
+            except KeyError:
+                fact['nss_present'] = False
+            except (OSError, OverflowError):
+                fact['nss_present'] = None
+            else:
+                fact['nss_present'] = True
+                fact['nss_interactive'] = account.pw_shell not in noninteractive
+            try:
+                from gi.repository import Gio, GLib
+                bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+                properties = bus.call_sync(
+                    'org.freedesktop.Accounts', '/org/freedesktop/Accounts/User' + str(uid),
+                    'org.freedesktop.DBus.Properties', 'GetAll',
+                    GLib.Variant('(s)', ('org.freedesktop.Accounts.User',)),
+                    GLib.VariantType.new('(a{sv})'), Gio.DBusCallFlags.NO_AUTO_START,
+                    250, None).unpack()[0]
+                fact['account_properties_read'] = True
+                fact['uid_matches'] = properties.get('Uid') == uid
+                for key in ('LocalAccount', 'SystemAccount', 'Locked'):
+                    value = properties.get(key)
+                    fact[key] = value if type(value) is bool else None
+                value = properties.get('AccountType')
+                fact['administrator'] = value == 1 if type(value) is int else None
+                shell = properties.get('Shell')
+                fact['account_interactive'] = shell not in noninteractive if type(shell) is str else None
+                username = properties.get('UserName')
+                fact['safe_username'] = bool(re.fullmatch(
+                    r'[A-Za-z_][A-Za-z0-9_.-]*[$]?', username)) if type(username) is str else None
+            except Exception:
+                # Do not expose exception text, account names, UIDs, or shell paths.
+                # A failed diagnostic must still reach the original assertion.
+                fact['account_properties_read'] = False
+        return facts
+
     def select_kiosk_account(self, field, name, *, expected, enabled=True,
                              duration_seconds=1800, custom_text=None, overlay=False,
                              child=None, language='en', result_language=None):
@@ -8757,14 +8878,39 @@ class AccessibleUI:
             require(str(uid) not in bindings, 'ui:duplicate-choice-identity')
             bindings[str(uid)] = label
         self.complete_request_language_setup()
+        eligible_uids = (self.interactive_approver_uids()
+                         if overlay and field == 'approver' else set(bindings))
+        require(set(bindings) <= eligible_uids, 'ui:kiosk-fixture-eligibility')
 
         def offered():
             selector, _form, _observation = self.kiosk_account_snapshot(
                 field, overlay=overlay, child=child,
                 language=language if child is not None else None)
             choices = selector.getChoices()
+            if overlay and field == 'approver':
+                strings = type(choices) is list and all(type(value) is str for value in choices)
+                if not strings or len(choices) != len(eligible_uids) or set(choices) != eligible_uids:
+                    # Distinguish absent fixtures, extra accounts and malformed
+                    # API choices before the existing refusal. Never retain UIDs
+                    # or account text, and never authorize input from this trace.
+                    offered_uids = set(choices) if strings else set()
+                    print(json.dumps({
+                        'event': 'ui-overlay-approver-choices',
+                        'string_list': strings,
+                        'choice_count': min(len(choices), 65) if type(choices) is list else None,
+                        'unique_count': min(len(offered_uids), 65) if strings else None,
+                        'unexpected_count': min(len(offered_uids - eligible_uids), 65) if strings else None,
+                        'missing_count': min(len(eligible_uids - offered_uids), 65) if strings else None,
+                        'expected_count': min(len(eligible_uids), 65),
+                        'fixtures_present': {
+                            APPROVER_IDENTITIES[label]: uid in offered_uids
+                            for uid, label in bindings.items()
+                        },
+                        'unexpected_os_facts': self.unexpected_approver_facts(
+                            offered_uids - eligible_uids),
+                    }, sort_keys=True), file=sys.stderr, flush=True)
             require(type(choices) is list and all(type(value) is str for value in choices)
-                    and len(choices) == len(bindings) and set(choices) == set(bindings),
+                    and len(choices) == len(eligible_uids) and set(choices) == eligible_uids,
                     'ui:kiosk-eligible-set')
             return selector
 

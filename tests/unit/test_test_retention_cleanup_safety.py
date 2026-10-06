@@ -1069,7 +1069,9 @@ def test_root_replacement_during_deletion_never_erases_replacement(tmp_path, mon
 def test_dispatcher_groups_privileged_categories_by_aggregate(tmp_path, monkeypatch, dispatcher_vm):
     import test_storage
     monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: tmp_path / 'root-state')
-    import test_retention as dispatcher_retention
+    # Keep dispatcher scratch private without replacing the Store used by both
+    # scratch allocation and the real aggregate retention journal.
+    monkeypatch.setattr(test_storage, 'scratch_directory', lambda: tmp_path)
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
     run = dispatcher['run']
@@ -1078,11 +1080,10 @@ def test_dispatcher_groups_privileged_categories_by_aggregate(tmp_path, monkeypa
     caller = SimpleNamespace(pw_uid=os.geteuid(), pw_gid=os.getegid(),
                              pw_name='fixture', pw_dir=str(tmp_path))
     monkeypatch.setattr(dispatcher['os'], 'getgrouplist', lambda *args: [])
-    store = dispatcher_retention.Store(tmp_path / 'root-state')
-    monkeypatch.setattr(dispatcher_retention, 'Store', lambda path: store)
     owned = []
     def execute(command, **kwargs):
         if command == ['selected-controller']:
+            assert kwargs['env']['TMPDIR'] == str(tmp_path)
             assert kwargs['env']['ONPC_TEST_VM'] == dispatcher_vm
             assert kwargs['env'][retention.VARIABLE] == os.environ[retention.VARIABLE]
             owned.append(allocated(tmp_path, f'vm-{len(owned)}'))

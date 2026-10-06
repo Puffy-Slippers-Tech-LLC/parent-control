@@ -22,7 +22,8 @@ def test_child_preview_language_survives_overlay_cancel_and_reopen(
     assert language_file.read_text(encoding='utf-8') == 'de'
     ui.reconstruct('child-request')
     launch_ui('child_overlay_preview', environment_overrides=environment)
-    wait(lambda: ui.text('kiosk-request-submit') == 'ANFRAGEN',
+    # Read the displayed caption, not the separate accessible action name.
+    wait(lambda: ui.getText('kiosk-request-submit') == 'ANFRAGEN',
          'reopened overlay reads the shared preview language')
 
 
@@ -46,7 +47,8 @@ def test_translated_request_preserves_choices_and_custom_draft(
     assert ui.content('kiosk-custom-duration') == '2.75'
     visible = {'de': 'ANFRAGEN', 'zh-Hans': '提交请求',
                'he': 'בקשה', 'ta': 'கோரிக்கை'}
-    assert ui.text('kiosk-request-submit') == visible[language]
+    # Read the displayed caption, not the separate accessible action name.
+    assert ui.getText('kiosk-request-submit') == visible[language]
     review_frame('request-' + language + ('-overlay' if overlay else '-kiosk'))
     soft_label = ui.text('kiosk-soft-apps-label')
     ui.activate('kiosk-request-submit')

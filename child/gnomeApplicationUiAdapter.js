@@ -68,7 +68,8 @@ export class GnomeApplicationUiAdapter {
         return [
             element(SURFACE_ID, 'child-panel', {}),
             element('child-request-button', 'button', {
-                description: indicator._requestButton.accessible_description,
+                // describeControl updates the native accessibility object.
+                description: indicator._requestButton.get_accessible().get_description(),
                 getText: () => indicator._requestButton.accessible_name,
                 activate: () => indicator._requestAccess(),
             }),

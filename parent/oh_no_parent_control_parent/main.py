@@ -265,10 +265,15 @@ class ParentAccountSelector(Gtk.MenuButton):
                 pass
         avatar.set_custom_image(texture)
         row.append(avatar)
-        row.append(localized(Gtk.Label, 
+        name = localized(Gtk.Label,
             label=label, xalign=0, hexpand=True, ellipsize=3,
             css_classes=["account-name"],
-        ))
+        )
+        row.append(name)
+        # This account identity exposes the actual name label. Generic box
+        # text also collects the avatar's decorative initials when no image
+        # is available, making identity readback depend on the account icon.
+        bind_ui(row, get_text=name.get_text)
         return row
 
     def set_users(self, users, selected):

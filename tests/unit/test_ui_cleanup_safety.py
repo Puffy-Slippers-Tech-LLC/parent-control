@@ -202,9 +202,11 @@ def test_stalled():
         if cause == 'pidfd-refused':
             def refuse(pid):
                 assert pid == spawned[0].pid
-                # Establish the synthetic descendant's receipt before making
-                # the controller's own pidfd acquisition fail.
-                while descendant is None:
+                # Establish the descendant's receipt and observe worker readiness
+                # before faulting the controller's pidfd acquisition. The two
+                # flushed readiness messages can arrive in separate pipe reads;
+                # refusal cleanup closes the reader without draining later output.
+                while descendant is None or b'worker ready\n' not in observed:
                     receive(os.read(spawned[0].stdout.fileno(), 65536))
                 raise OSError('receipt unavailable')
             monkeypatch.setattr(os, 'pidfd_open', refuse)

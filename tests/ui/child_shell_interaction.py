@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import time
+import traceback
 
 from gi.repository import GLib
 
@@ -172,9 +173,14 @@ def _one_overlay(expected_launches):
 
 def _overlay_closed(expected_launches):
     records = _launch_records()
+    # Cancel unregisters the UI endpoint before the process finishes exiting.
+    # Wait for the recorded owner to exit before observing surface absence;
+    # querying its pinned client during shutdown correctly raises OwnerChanged.
+    if (len(records) != expected_launches or not records
+            or _process_exists(records[-1])):
+        return False
     windows, cancel = _overlay_surfaces()
-    return (len(records) == expected_launches and not windows and not cancel
-            and not _process_exists(records[-1]))
+    return not windows and not cancel
 
 
 def _open_overlay(expected_launches):
@@ -258,6 +264,21 @@ def main():
         return 0
     except Exception as error:
         print(f"Child indicator interaction failed: {error}", file=sys.stderr)
+        # Keep the failing operation visible without recording UI values,
+        # source lines or locals. Owner loss during a close observation must
+        # be distinguished from a failed or uncertain Cancel mutation.
+        frames = traceback.extract_tb(error.__traceback__, limit=12)
+        print("Interaction failure frames: " + " -> ".join(
+            f"{Path(frame.filename).name}:{frame.lineno}:{frame.name}"
+            for frame in frames), file=sys.stderr)
+        if isinstance(error, UIClientError):
+            print(f"Interaction UI failure code={error.code} "
+                  f"uncertain={error.uncertain}", file=sys.stderr)
+        print(f"Interaction Shell process exists={_process_exists(SHELL_PID)}",
+              file=sys.stderr)
+        if OVERLAY is not None:
+            print(f"Interaction pinned overlay process exists="
+                  f"{_process_exists(OVERLAY.pid)}", file=sys.stderr)
         try:
             capture_screenshot(
                 Path(os.environ["ONPC_CHILD_SHELL_SCREENSHOT_PATH"]).with_name("interaction-failure.png"),

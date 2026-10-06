@@ -39,7 +39,8 @@ def test_about_displays_release_notices(
         "about-copyright": "© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty.",
     }
     for identity, text in expected.items():
-        assert ui.text(identity) == text
+        # Link accessible names include the field label; check displayed copy.
+        assert ui.getText(identity) == text
     if launcher != 'kiosk_preview':
         for field in ('website', 'privacy', 'support', 'license', 'legal-notices'):
             assert ui.reader.clickable_link('about-' + field + '-value')

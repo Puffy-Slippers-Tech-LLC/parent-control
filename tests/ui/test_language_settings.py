@@ -529,7 +529,8 @@ def test_language_search_filters_choices_and_preserves_cancel(
     search = inventory['language-search']
     assert search.get_name() == 'Search languages'
     assert search.get_description() == 'Search languages'
-    assert search.get_role_name() == 'entry'
+    # Application UI exposes Gtk.SearchEntry's native role, not AT-SPI's entry role.
+    assert search.element.snapshot()['role'] == 'search-box'
     assert {'getText', 'setText'} <= set(search.element.snapshot()['operations'])
     ui.setText('language-search', 'PORT*BR')
     wait(lambda: ui.content('language-search') == 'PORT*BR'
@@ -569,7 +570,8 @@ def test_first_run_defaults_and_save_waits_for_commit(
     assert ui.text('language-title') == LANGUAGES[language][2]
     assert ui.text('language-continue') == LANGUAGES[language][3]
     assert ui.target('language-continue').get_description() == LANGUAGES[language][4]
-    assert LANGUAGES[language][3] in public_label_names(ui, 'language-dialog')
+    # A dialog's API text is its title; read the Save control's displayed label.
+    assert public_label_names(ui, 'language-continue') == [LANGUAGES[language][3]]
     assert ui.showing('language-cancel')
     assert not committed(path)
     if surface != 'parent':
@@ -700,7 +702,10 @@ def test_expanded_catalogue_choices_save_with_translated_text(
     ui.reader.save_language(scope)
     assert committed(path) == [language]
     identity = 'parent-screen-limit-toggle' if surface == 'parent' else 'kiosk-request-submit'
-    wait(lambda: ui.text(identity) == (screen if surface == 'parent' else request),
+    # Read request captions separately from their accessible action names,
+    # as in assert_surface_language; Parent's switch uses its accessible label.
+    read_text = ui.text if surface == 'parent' else ui.getText
+    wait(lambda: read_text(identity) == (screen if surface == 'parent' else request),
          'surface uses independently verified translated text')
     ui.reader.open_language_preferences(scope)
     assert ui.state(choice, ui.api.StateType.CHECKED)

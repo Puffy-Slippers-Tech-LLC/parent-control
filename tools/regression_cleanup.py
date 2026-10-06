@@ -5,6 +5,8 @@ explicitly owned children/descriptors. test_environment disables shared caches
 and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
+# Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
+# scratch; test_test_retention_cleanup_safety remains compatible in both inventories.
 # ui_cleanup_safety's preview wait-cancellation checks use private tmp_path logs
 # and process-local Popen/clock doubles, without changing real signal handlers
 # or starting children. Its existing compatible unit/cleanup scheduling holds.

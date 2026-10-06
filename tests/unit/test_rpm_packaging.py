@@ -67,6 +67,7 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
                            for path in sorted(extension.glob('*.mjs'))]
     assert {path.name for path in extension.glob('*.mjs')} == {
         'diagnosticEvents.mjs', 'indicatorLogic.mjs', 'gettext.mjs', 'languages.mjs',
+        'notificationLogic.mjs',
     }
     assert files[trust_path]['activation'] == 'none'
     manuals = payload / 'usr/share/man/man1'

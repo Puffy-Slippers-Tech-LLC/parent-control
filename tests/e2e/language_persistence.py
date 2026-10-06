@@ -167,6 +167,11 @@ for stage, tag in SCREENS.items():
 FORM_TEXT = {'en': ('Child', 'Approver', '30 minutes', 'REQUEST', 'CANCEL'),
     'de': ('Kind', 'Genehmigung durch', '30 Minuten', 'ANFRAGEN', 'Abbrechen'),
     'he': ('ילד', 'מאשר', '30 דקות', 'בקשה', 'ביטול')}
+# The reader's texts contain accessible names; labels contain visible captions.
+# Preserve the descriptive button names established by kiosk_language.FORM.
+FORM_NAMES = {'en': ('Request access', 'Cancel request'),
+    'de': ('Zugriff anfragen', 'Anfrage abbrechen'),
+    'he': ('בקשת גישה', 'ביטול הבקשה')}
 FORM_IDS = ('kiosk-child-account-caption', 'kiosk-approver-account-caption', 'kiosk-duration-label-1800',
     'kiosk-request-submit', 'kiosk-request-cancel')
 FORM_STAGES = {'jordan-original': ('jordan', 'en', 'jamie', False),
@@ -178,7 +183,8 @@ FORM_STAGES = {'jordan-original': ('jordan', 'en', 'jamie', False),
     **{stage: ('riley', 'he', 'casey', True) for stage in ('direct-form', 'relaunched-form', 'renewed-overlay-form')}}
 for stage, (child, language, approver, overlay) in FORM_STAGES.items():
     texts = FORM_TEXT[language]
-    CHECKS[stage] = public_language_value('language_form', {'texts': dict(zip(FORM_IDS, texts)),
+    CHECKS[stage] = public_language_value('language_form', {
+        'texts': dict(zip(FORM_IDS, (*texts[:3], *FORM_NAMES[language]))),
         'labels': {FORM_IDS[3]: texts[3], FORM_IDS[4]: texts[4]}, 'chooser_absent': True,
         'request': {'surface': 'child-overlay' if overlay else 'kiosk', 'form_count': 1,
             'child': 'fixture-child' if child == 'riley' else 'existing-fixture-child',

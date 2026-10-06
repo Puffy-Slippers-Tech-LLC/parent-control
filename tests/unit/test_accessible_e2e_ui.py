@@ -56,6 +56,82 @@ def test_product_route_guard_preserves_qualified_external_provider_actions():
     target.action.do_action.assert_called_once_with(0)
 
 
+@pytest.mark.parametrize('ineligible', [None, 'Locked', 'LocalAccount', 'SystemAccount',
+    'AccountType', 'Shell', 'UserName', 'nss-shell'])
+def test_overlay_approver_oracle_includes_unrelated_eligible_administrators(monkeypatch, ineligible):
+    from gi.repository import Gio
+
+    entries = [SimpleNamespace(pw_uid=uid, pw_shell='/bin/bash')
+               for uid in (1000, 1010, 4000, 60578)]
+    if ineligible == 'nss-shell':
+        entries[2].pw_shell = '/usr/sbin/nologin'
+    monkeypatch.setattr(accessible_ui.pwd, 'getpwall', lambda: entries)
+    records = {uid: {'Uid': uid, 'LocalAccount': True, 'SystemAccount': False,
+        'Locked': False, 'AccountType': 1, 'Shell': '/bin/bash',
+        'UserName': 'synthetic_admin_' + str(uid)} for uid in (1000, 1010, 4000)}
+    replacements = {'Locked': True, 'LocalAccount': False, 'SystemAccount': True,
+                    'AccountType': 0, 'Shell': '/bin/false', 'UserName': 'unsafe:name'}
+    if ineligible in replacements:
+        records[4000][ineligible] = replacements[ineligible]
+
+    def call(_service, path, _interface, method, arguments, _result_type, _flags, timeout, _cancel):
+        assert 0 < timeout <= 1000
+        if method == 'FindUserById':
+            uid = arguments.unpack()[0]
+            assert uid in records  # The dynamic greeter must never be queried.
+            return SimpleNamespace(unpack=lambda: ('/org/freedesktop/Accounts/User' + str(uid),))
+        assert method == 'GetAll'
+        uid = int(path.rsplit('User', 1)[1])
+        return SimpleNamespace(unpack=lambda: (records[uid],))
+
+    bus = SimpleNamespace(call_sync=Mock(side_effect=call))
+    monkeypatch.setattr(Gio, 'bus_get_sync', lambda *_args: bus)
+    expected = {'1000', '1010', '4000'} if ineligible is None else {'1000', '1010'}
+    assert accessible_ui.AccessibleUI.interactive_approver_uids() == expected
+
+
+@pytest.mark.parametrize('fault', [None, 'missing-admin', 'ineligible-extra', 'duplicate',
+                                  'malformed', 'ineligible-fixture', 'os-read-failed'])
+def test_overlay_account_selection_requires_the_complete_independent_eligible_set(fault):
+    from accessible_ui import PARENT, OTHER_PARENT, ACCOUNT_LANGUAGE_LABELS
+
+    choices = ['1000', '1010', '4000']
+    if fault == 'missing-admin':
+        choices.remove('4000')
+    elif fault == 'ineligible-extra':
+        choices.append('5000')
+    elif fault == 'duplicate':
+        choices.append('4000')
+    elif fault == 'malformed':
+        choices[-1] = '04000'
+    selector = Node(description=ACCOUNT_LANGUAGE_LABELS['en'][2] % PARENT,
+                    choices=choices, value='1000')
+    ui = ui_for(Node())
+    ui.complete_request_language_setup = Mock()
+    ui.kiosk_account_snapshot = Mock(return_value=(selector, None, None))
+    ui.kiosk_request_form = Mock(return_value={'approver': 'fixture-parent'})
+    ui.interactive_approver_uids = Mock(return_value=(
+        {'1010', '4000'} if fault == 'ineligible-fixture' else {'1000', '1010', '4000'}))
+    if fault == 'os-read-failed':
+        ui.interactive_approver_uids.side_effect = UiError('ui:approver-os-read-failed')
+    ui.unexpected_approver_facts = Mock(return_value=[])
+    ui.wait = Mock(side_effect=lambda predicate, *_args, **_kwargs: predicate())
+    if fault:
+        code = {'ineligible-fixture': 'ui:kiosk-fixture-eligibility',
+                'os-read-failed': 'ui:approver-os-read-failed'}.get(fault, 'ui:kiosk-eligible-set')
+        with pytest.raises(UiError, match=code):
+            ui.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT), overlay=True)
+        selector.setValue.assert_not_called()
+        ui.kiosk_request_form.assert_not_called()
+    else:
+        assert ui.select_kiosk_account('approver', PARENT,
+            expected=(PARENT, OTHER_PARENT), overlay=True) == {'approver': 'fixture-parent'}
+        selector.setValue.assert_called_once_with('1000')
+        ui.kiosk_request_form.assert_called_once_with(enabled=True,
+            expected_selection=('approver', 'fixture-parent'), duration_seconds=1800,
+            custom_text=None, overlay=True, language='en')
+
+
 def test_editor_append_preserves_existing_document_and_uses_utf16_selection(monkeypatch):
     source = 'bold 😀 text'
     monkeypatch.setitem(accessible_ui.TEXT_VALUES, 'append-source', ('feedback-editor-input', source))
@@ -603,19 +679,21 @@ def test_chinese_time_reader_keeps_owned_identity_and_language_through_expansion
     if fault == 'wrong-child': picker.children[0].identity = 'parent-child-selected-1002'
     if collapsed:
         explanation.states.clear(); collapse.states.clear()
-    def expand(identity, **kwargs):
-        assert identity == 'parent-time-status'
+    def expand(identity, value):
+        assert identity == 'parent-time-status' and value is True
         explanation.states.update({'visible', 'showing'})
         collapse.states.update({'visible', 'showing'})
-    ui.activate_id = Mock(side_effect=expand)
+    ui.set_value = Mock(side_effect=expand)
+    ui.activate_id = Mock()
     if fault:
         with pytest.raises(UiError): ui.reach_time_explanation(accessible_ui.CHILD, language=language)
-        assert ui.activate_id.call_count == (int(collapsed) if fault != 'wrong-child' else 0)
+        assert ui.set_value.call_count == (int(collapsed) if fault != 'wrong-child' else 0)
     else:
         value = ui.reach_time_explanation(accessible_ui.CHILD, language=language)
         assert value['child'] == 'fixture-child' and value['expanded'] is True
         assert [value[key]['seconds'] for key in ('daily', 'one_time', 'total')] == [3600, 0, 3600]
-        assert ui.activate_id.call_count == int(collapsed)
+        assert ui.set_value.call_count == int(collapsed)
+    ui.activate_id.assert_not_called()
 
 
 @pytest.mark.parametrize('present', [False, True])
@@ -693,15 +771,17 @@ def test_reach_time_explanation_expands_once_and_repeated_reads_never_collapse(c
         explanation.states.clear()
         collapse.states.clear()
 
-    def expand(identity, **kwargs):
-        assert identity == 'parent-time-status' and kwargs == {'action_name': 'row.activate'}
+    def expand(identity, value):
+        assert identity == 'parent-time-status' and value is True
         explanation.states.update({'showing', 'visible'})
         collapse.states.update({'showing', 'visible'})
 
-    ui.activate_id = Mock(side_effect=expand)
+    ui.set_value = Mock(side_effect=expand)
+    ui.activate_id = Mock()
     for _ in range(2):
         assert ui.reach_time_explanation(accessible_ui.CHILD)['daily']['seconds'] == 900
-    assert ui.activate_id.call_count == int(collapsed)
+    assert ui.set_value.call_count == int(collapsed)
+    ui.activate_id.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['child', 'malformed', 'duplicate'])
@@ -713,9 +793,11 @@ def test_reach_time_explanation_refuses_without_expanding(fault):
         explanation.name = 'Loading…'
     else:
         section.children.append(Node(explanation.name, 'label', identity='parent-time-explanation'))
+    ui.set_value = Mock()
     ui.activate_id = Mock()
     with pytest.raises(UiError):
         ui.reach_time_explanation(accessible_ui.CHILD)
+    ui.set_value.assert_not_called()
     ui.activate_id.assert_not_called()
 
 

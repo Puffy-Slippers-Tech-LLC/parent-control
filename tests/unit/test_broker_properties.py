@@ -194,6 +194,18 @@ def test_preference_migrations_preserve_current_blocking_meaning(state, suffix):
 
     assert changed
     assert migrated["version"] == 4
-    assert migrated["personal"] == {"language": ""}
+    # Current validation adds the specified reminder defaults to legacy records.
+    assert migrated["personal"] == {
+        "language": "",
+        "notifications": {
+            "show_in_fullscreen": True,
+            "reminders": [
+                {"id": "ten-minutes", "value": 10, "unit": "minute", "text": ""},
+                {"id": "five-minutes", "value": 5, "unit": "minute", "text": ""},
+                {"id": "one-minute", "value": 1, "unit": "minute", "text": ""},
+                {"id": "fifteen-seconds", "value": 15, "unit": "second", "text": ""},
+            ],
+        },
+    }
     assert (target in blocked_targets(migrated, False)) == (state != "allowed")
     assert blocked_patterns(migrated, False) == ()

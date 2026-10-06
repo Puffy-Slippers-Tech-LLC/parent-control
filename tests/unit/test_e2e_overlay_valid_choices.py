@@ -128,6 +128,10 @@ def test_valid_choices_round_trip_through_real_decoder_and_diagnostics(monkeypat
 @pytest.mark.parametrize('fault', [None, 'persistent', 'wrong-owner', 'prompt', 'disabled'])
 def test_overlay_approver_reacquires_stale_preflight_before_any_input(monkeypatch, fault):
     ui, application, child, _, _ = overlay(monkeypatch)
+    # Keep the OS oracle independent of UI choices and local to this synthetic
+    # fixture; the development host does not own these fixture accounts.
+    monkeypatch.setattr(ui, 'interactive_approver_uids',
+                        Mock(return_value={'1000', '1010'}))
     selector = ui.find_id('kiosk-approver-selector')
     choices = ui.find_id('kiosk-approver-choices', showing=False)
     for target in choices.children:

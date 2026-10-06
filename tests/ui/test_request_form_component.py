@@ -29,6 +29,9 @@ def test_overlay_about_license_shared_reader_and_unchanged_form(
         fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002, PARENT: 1000, OTHER_PARENT: 1010},
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     monkeypatch.setattr(reader, 'require_child_overlay_session', lambda: None)
+    # This preview declares synthetic approvers, independent of host OS accounts.
+    # Keep the shared reader's exact offered-account check against that fixture.
+    monkeypatch.setattr(reader, 'interactive_approver_uids', lambda: {'1000', '1010'})
     for operation in ('overlay-valid-approver-select', 'overlay-valid-custom-open'):
         reader.run(operation, '')
     run_block(reader, 'replace', 'overlay-fraction')
@@ -67,6 +70,9 @@ def test_shared_overlay_choice_adapter_and_fractional_text_on_native_gtk(
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     # Host preview identity is supplied by its process owner, not a guest login.
     monkeypatch.setattr(reader, 'require_child_overlay_session', lambda: None)
+    # This preview declares synthetic approvers, independent of host OS accounts.
+    # Keep the shared reader's exact offered-account check against that fixture.
+    monkeypatch.setattr(reader, 'interactive_approver_uids', lambda: {'1000', '1010'})
     reader.run('overlay-valid-refusals', '')
     for operation in ('overlay-valid-approver-select', 'overlay-valid-preset-select',
                       'overlay-valid-preset-read', 'overlay-valid-custom-open'):

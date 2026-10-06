@@ -690,3 +690,5 @@ def buckets(nodeids):
 # Completed-result discard tests use private pytest journals, local descriptor
 # locks and process-local dispatcher/VM doubles. No live VM or shared storage;
 # test_test_retention_cleanup_safety remains compatible in both inventories.
+# Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
+# scratch, preserving isolation without touching shared host scratch ownership.

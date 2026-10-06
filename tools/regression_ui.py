@@ -94,6 +94,10 @@ from pathlib import PurePosixPath
 # Request component previews disable interactive file watching so checkout edits
 # cannot replace their pinned endpoint or fixture state. The same owned process,
 # private display/bus and cleanup remain; existing compatible buckets still apply.
+# Parent language Save refusal diagnostics make two read-only calls on the same
+# pinned endpoint after failed input, retaining bounded public metadata in the
+# existing failure stream. No file, connection, process or cleanup owner is added;
+# the existing compatible UI buckets and resource reservations still apply.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

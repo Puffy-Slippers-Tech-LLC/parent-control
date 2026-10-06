@@ -6,6 +6,7 @@ external-provider assertions; it is not an AT-SPI input or discovery adapter.
 Every input resolves the live element, and failed mutations are never replayed.
 """
 
+import json
 import os
 from types import SimpleNamespace
 
@@ -304,8 +305,47 @@ class ApplicationNode:
         self.element.setText(text)
 
     def activate(self):
+        observed = self._snapshot or self.metadata
         self._snapshot = None
-        self.element.activate()
+        try:
+            self.element.activate()
+        except UIClientError as error:
+            if (error.code == 'Unavailable' and self.identity == 'language-continue'
+                    and self.client.application_id == ENDPOINTS['parent']):
+                # Diagnose the retained startup refusal through the same pinned
+                # endpoint, after input. Never replay it or change its uncertain
+                # result. Keep only public IDs, capability/state flags and PID;
+                # labels, values, drafts and environment data are excluded.
+                fields = ('id', 'surface_id', 'parent_id', 'visible', 'enabled',
+                          'operations')
+                evidence = {
+                    'endpoint_pid': self.client.pid,
+                    'observed_control': {key: observed.get(key) for key in fields},
+                }
+                try:
+                    surfaces = self.client.listSurfaces()
+                    evidence['surface_count'] = len(surfaces)
+                    evidence['surfaces_truncated'] = len(surfaces) > 16
+                    evidence['surfaces_after_refusal'] = [
+                        {key: surface.get(key) for key in (
+                            'id', 'parent_id', 'visible', 'enabled', 'modal')}
+                        for surface in surfaces[:16]
+                    ]
+                except Exception as diagnostic_error:
+                    evidence['surface_read_error'] = (
+                        diagnostic_error.code if isinstance(diagnostic_error, UIClientError)
+                        else type(diagnostic_error).__name__)
+                try:
+                    current = self.element.snapshot()
+                    evidence['control_after_refusal'] = {
+                        key: current.get(key) for key in fields}
+                except Exception as diagnostic_error:
+                    evidence['control_read_error'] = (
+                        diagnostic_error.code if isinstance(diagnostic_error, UIClientError)
+                        else type(diagnostic_error).__name__)
+                error.add_note('Parent language Save refusal public state: '
+                               + json.dumps(evidence, sort_keys=True))
+            raise
 
     def close(self):
         self._snapshot = None

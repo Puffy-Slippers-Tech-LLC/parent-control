@@ -508,8 +508,24 @@ class PreferencesDialog(Gtk.Window):
         self._retry.connect('clicked', lambda *_: self._request_notifications())
         self._retry.set_visible(False)
         page.append(self._retry)
+        fullscreen_row = Gtk.Box(spacing=16, css_classes=['reminder-fullscreen-row'])
+        fullscreen_row.append(localized(
+            Gtk.Label, label=m.SHOW_REMINDERS_IN_FULL_SCREEN_APPS, xalign=0,
+            hexpand=True, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
+            max_width_chars=28, css_classes=['reminder-text']))
+        self._fullscreen = Gtk.Switch(valign=Gtk.Align.CENTER, sensitive=False)
+        describe_control(self._fullscreen, m.SHOW_REMINDERS_IN_FULL_SCREEN_APPS,
+                         m.SHOW_REMINDERS_IN_FULL_SCREEN_APPS,
+                         automation_id='reminder-show-in-fullscreen')
+        self._fullscreen.connect('notify::active', self._fullscreen_changed)
+        fullscreen_row.append(self._fullscreen)
+        page.append(fullscreen_row)
         self._pages.add_named(page, 'reminders')
         self._add.set_sensitive(False)
+
+    def _fullscreen_changed(self, switch, _property):
+        if self._notifications is not None:
+            self._notifications['show_in_fullscreen'] = switch.get_active()
 
     def _switch_tab(self, tab, name):
         if not tab.get_active():
@@ -543,6 +559,7 @@ class PreferencesDialog(Gtk.Window):
             return
         self._notifications_loading = False
         self._notifications = copy.deepcopy(settings)
+        self._fullscreen.set_active(self._notifications['show_in_fullscreen'])
         self._render_reminders()
         self._original_notifications = copy.deepcopy(self._notifications)
 
@@ -595,6 +612,7 @@ class PreferencesDialog(Gtk.Window):
             self._reminder_choices.append(row)
         self._reminder_pages.set_visible_child_name('list')
         self._add.set_sensitive(len(records) < 64)
+        self._fullscreen.set_sensitive(bool(records) and not self._saving)
 
     def _delete_reminder(self, record):
         self._notifications['reminders'].remove(record)
@@ -734,6 +752,7 @@ class PreferencesDialog(Gtk.Window):
         self._reminder_pages.set_sensitive(False)
         self._add.set_sensitive(False)
         self._retry.set_sensitive(False)
+        self._fullscreen.set_sensitive(False)
         if self._notifications is not None and self._notifications != self._original_notifications:
             self._save_notifications(copy.deepcopy(self._notifications),
                                      self._notifications_saved, self._preferences_failure)
@@ -776,6 +795,8 @@ class PreferencesDialog(Gtk.Window):
         self._reminder_pages.set_sensitive(True)
         self._add.set_sensitive(self._notifications is not None and len(self._notifications['reminders']) < 64)
         self._retry.set_sensitive(True)
+        self._fullscreen.set_sensitive(self._notifications is not None
+                                       and bool(self._notifications['reminders']))
         set_text(self._error, 'label', m.YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN)
         self._error.set_visible(True)
         self._size_to_gateway(self)

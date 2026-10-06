@@ -88,6 +88,9 @@ from pathlib import PurePosixPath
 # catalog, including independent case readers, on success and failure. This
 # adds no process, file, host service or shared mutable state; existing whole-
 # module reservations and compatible bucket classifications remain appropriate.
+# Request component previews disable interactive file watching so checkout edits
+# cannot replace their pinned endpoint or fixture state. The same owned process,
+# private display/bus and cleanup remain; existing compatible buckets still apply.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

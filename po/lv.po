@@ -1639,5 +1639,8 @@ msgstr "Kad rādīt"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Atgādinājums tiks parādīts, kad atlikušais laiks sasniegs:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Rādīt atgādinājumus pilnekrāna lietotnēs (spēlēs, videoklipos u.c.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Izvēlieties citu vērtību laukā “Kad rādīt”, lai izvairītos no dublētiem atgādinājumiem."

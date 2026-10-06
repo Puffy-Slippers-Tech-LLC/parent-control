@@ -177,6 +177,8 @@ def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
         'fifteen-seconds', 'one-minute', 'five-minutes', 'ten-minutes'], 'backend defaults sorted')
     assert ui.getText('reminder-fifteen-seconds-text') == '15 seconds left'
     assert ui.getText('reminder-fifteen-seconds-trigger') == '15 seconds left'
+    assert ui.getValue('reminder-show-in-fullscreen') is True
+    ui.setValue('reminder-show-in-fullscreen', False)
     ui.activate('reminder-five-minutes-edit')
     ui.setText('reminder-value', '30')
     ui.setValue('reminder-unit', 'second')
@@ -189,7 +191,7 @@ def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
     wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'preferences saved')
     records = [e for e in read_events(path) if e['event'] == 'notifications-committed']
     assert len(records) == 1 and records[0]['uid'] == 1001
-    assert records[0]['settings']['show_in_fullscreen'] is True
+    assert records[0]['settings']['show_in_fullscreen'] is False
     assert records[0]['settings']['reminders'] == [
         {'id': 'fifteen-seconds', 'value': 15, 'unit': 'second', 'text': ''},
         {'id': 'five-minutes', 'value': 30, 'unit': 'second', 'text': '  Save <work>!  '},
@@ -197,19 +199,24 @@ def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
     ui.reader.open_language_preferences('kiosk')
     ui.setValue('preferences-tabs', 'reminders')
     wait(lambda: ui.getText('reminder-five-minutes-text') == '  Save <work>!  ', 'saved reminder reloads')
+    assert ui.getValue('reminder-show-in-fullscreen') is False
+    ui.setValue('reminder-show-in-fullscreen', True)
     ui.activate('reminder-five-minutes-delete')
     ui.activate('language-cancel')
     ui.reader.open_language_preferences('kiosk')
     ui.setValue('preferences-tabs', 'reminders')
     wait(lambda: ui.showing('reminder-five-minutes-text'), 'Cancel retained saved reminder')
+    assert ui.getValue('reminder-show-in-fullscreen') is False
     for identity in ('fifteen-seconds', 'five-minutes', 'one-minute'):
         ui.activate(f'reminder-{identity}-delete')
+    assert not ui.state('reminder-show-in-fullscreen', ui.api.StateType.SENSITIVE)
     ui.activate('language-continue')
     wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'empty list saved')
     ui.reader.open_language_preferences('kiosk')
     ui.setValue('preferences-tabs', 'reminders')
     wait(lambda: ui.showing('reminder-add') and ui.state('reminder-add', ui.api.StateType.SENSITIVE), 'empty list loaded')
     assert ui.find('reminder-list').getChoices() == []
+    assert not ui.state('reminder-show-in-fullscreen', ui.api.StateType.SENSITIVE)
     assert_no_policy_or_request_writes(path)
 
 
@@ -274,16 +281,21 @@ def test_reminder_load_and_save_failures_keep_draft_and_allow_retry(
     ui.setValue('preferences-tabs', 'reminders')
     wait(lambda: ui.showing('reminder-retry'), 'read failure offers retry')
     assert not ui.state('reminder-add', ui.api.StateType.SENSITIVE)
+    assert not ui.state('reminder-show-in-fullscreen', ui.api.StateType.SENSITIVE)
     ui.activate('reminder-retry')
     wait(lambda: ui.showing('reminder-one-minute-delete'), 'retry loaded backend reminders')
+    ui.setValue('reminder-show-in-fullscreen', False)
     ui.activate('reminder-one-minute-delete')
     ui.activate('language-continue')
     wait(lambda: ui.showing('language-error'), 'failed save retains preferences')
     assert 'one-minute' not in ui.find('reminder-list').getChoices()
+    assert ui.getValue('reminder-show-in-fullscreen') is False
     assert not [e for e in read_events(path) if e['event'] == 'notifications-committed']
     ui.activate('language-continue')
     wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'retry saved preferences')
     assert len([e for e in read_events(path) if e['event'] == 'notifications-committed']) == 1
+    assert next(e for e in read_events(path) if e['event'] == 'notifications-committed')[
+        'settings']['show_in_fullscreen'] is False
 
 
 def test_installed_parent_chooser_reader_observes_first_run_and_preferences(

@@ -1633,5 +1633,8 @@ msgstr "Noiz erakutsi"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Abisua erakutsiko da geratzen den denbora honetara iristean:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Erakutsi abisuak pantaila osoko aplikazioetan (jokoak, bideoak, etab.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Aukeratu beste balio bat «Noiz erakutsi» eremuan, abisu bikoiztuak saihesteko."

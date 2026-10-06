@@ -1628,5 +1628,8 @@ msgstr "Qachon koʻrsatish"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Qolgan vaqt ushbu qiymatga yetganda eslatma koʻrsatiladi:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Toʻliq ekranli ilovalarda eslatmalarni koʻrsatish (oʻyinlar, videolar va hokazo)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Takroriy eslatmalarning oldini olish uchun “Qachon koʻrsatish” uchun boshqa qiymat tanlang."

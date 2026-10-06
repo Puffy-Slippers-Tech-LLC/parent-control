@@ -1633,5 +1633,8 @@ msgstr "زمان نمایش"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "یادآوری هنگامی نمایش داده می‌شود که زمان باقی‌مانده به این مقدار برسد:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "نمایش یادآوری‌ها در برنامه‌های تمام‌صفحه (بازی‌ها، ویدیوها و غیره)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "برای جلوگیری از یادآوری‌های تکراری، مقدار دیگری برای «زمان نمایش» انتخاب کنید."

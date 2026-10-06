@@ -1637,5 +1637,8 @@ msgstr "Когда показывать"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Напоминание появится, когда оставшееся время достигнет:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Показывать напоминания в полноэкранных приложениях (игры, видео и т. д.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Выберите другое значение «Когда показывать», чтобы избежать повторяющихся напоминаний."

@@ -1627,5 +1627,8 @@ msgstr "Kapan ditampilkan"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Pengingat akan ditampilkan ketika waktu tersisa mencapai:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Tampilkan pengingat di aplikasi layar penuh (game, video, dll.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Pilih nilai lain untuk “Kapan ditampilkan” agar pengingat tidak duplikat."

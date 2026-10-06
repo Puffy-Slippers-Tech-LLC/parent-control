@@ -1633,5 +1633,8 @@ msgstr "Wanneer tonen"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "De herinnering wordt getoond wanneer de resterende tijd dit bereikt:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Herinneringen tonen in apps op volledig scherm (games, video's, enz.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Kies een andere waarde voor “Wanneer tonen” om dubbele herinneringen te voorkomen."

@@ -203,6 +203,7 @@ screen-time control and absent accounts retain their existing restrictions.
 | `preferences-tab-language`, `preferences-tab-reminders`, `preferences-close` | Request-screen preference tabs and ordinary draft cancellation |
 | `preferences-tabs` | Get/set canonical active page `language` or `reminders`; `getChoices` enumerates both; setter uses the normal tab handler |
 | `reminder-list` | Sorted draft records via `getValue`; stable stored reminder IDs via `getChoices` |
+| `reminder-show-in-fullscreen` | Get/set the selected child's account-wide boolean fullscreen preference in the reminder draft |
 | `reminder-add`, `reminder-retry`, `reminder-<id>-edit`, `reminder-<id>-delete` | Normal reminder CRUD/read-retry handlers; backend remains authoritative |
 | `reminder-status` | Public loading/error text while the reminder list is unavailable |
 | `reminder-<id>-text`, `reminder-<id>-trigger` | Literal/default body and independently translated fixed trigger description |

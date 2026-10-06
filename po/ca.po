@@ -1633,5 +1633,8 @@ msgstr "Quan mostrar-lo"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "El recordatori es mostrarà quan el temps restant arribi a:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Mostra recordatoris en aplicacions a pantalla completa (jocs, vídeos, etc.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Trieu un altre valor per a «Quan mostrar-lo» per evitar recordatoris duplicats."

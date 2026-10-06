@@ -1633,5 +1633,8 @@ msgstr "Milloin näytetään"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Muistutus näytetään, kun jäljellä oleva aika saavuttaa:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Näytä muistutukset koko näytön sovelluksissa (pelit, videot jne.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Valitse toinen arvo kohtaan ”Milloin näytetään”, jotta päällekkäisiä muistutuksia ei tule."

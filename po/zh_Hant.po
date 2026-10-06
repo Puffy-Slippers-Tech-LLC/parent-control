@@ -1628,5 +1628,8 @@ msgstr "何時顯示"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "剩餘時間達到以下數值時顯示提醒："
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "在全螢幕應用程式中顯示提醒（遊戲、影片等）"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "請選擇不同的「何時顯示」，以避免重複提醒。"

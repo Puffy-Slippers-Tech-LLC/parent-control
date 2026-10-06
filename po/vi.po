@@ -1627,5 +1627,8 @@ msgstr "Khi nào hiển thị"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Lời nhắc sẽ hiển thị khi thời gian còn lại đạt:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Hiển thị lời nhắc trong ứng dụng toàn màn hình (trò chơi, video, v.v.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Chọn giá trị khác cho “Khi nào hiển thị” để tránh lời nhắc trùng lặp."

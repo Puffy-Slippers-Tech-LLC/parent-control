@@ -1639,5 +1639,8 @@ msgstr "Kedy zobraziť"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Pripomenutie sa zobrazí, keď zostávajúci čas dosiahne:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Zobrazovať pripomenutia v aplikáciách na celú obrazovku (hry, videá atď.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Vyberte inú hodnotu „Kedy zobraziť“, aby ste predišli duplicitným pripomenutiam."

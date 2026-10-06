@@ -1633,5 +1633,8 @@ msgstr "Πότε να εμφανίζεται"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Η υπενθύμιση θα εμφανιστεί όταν ο χρόνος που απομένει φτάσει:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Εμφάνιση υπενθυμίσεων σε εφαρμογές πλήρους οθόνης (παιχνίδια, βίντεο κ.λπ.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Επιλέξτε διαφορετική τιμή για το «Πότε να εμφανίζεται» για να αποφύγετε διπλότυπες υπενθυμίσεις."

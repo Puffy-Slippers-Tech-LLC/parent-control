@@ -81,13 +81,14 @@ function harness() {
         addNotification(notification) { this.notification = notification; }
         destroy() { this.notification?.destroy(); super.destroy(); }
     }
-    const sources = [], errors = [], callbacks = [], cancelled = [];
+    const sources = [], errors = [], callbacks = [], cancelled = [], banners = [];
     const context = vm.createContext({
         Gio: {FileIcon: class {constructor(params) { Object.assign(this, params); }},
             File: {new_for_path: path => path}, Cancellable: class {cancel() { cancelled.push(true); }},
             DBusCallFlags: {NONE: 0}, DBus: {system: {call: (...args) => callbacks.push(args.at(-1))}}},
         GLib: {VariantType: class {}},
-        Main: {messageTray: {add: source => sources.push(source)}},
+        Clutter: {ActorAlign: {CENTER: 2}},
+        Main: {messageTray: {add: source => sources.push(source), get_children: () => banners}},
         MessageTray: {Source, Notification: SignalObject, Urgency: {CRITICAL: 3, HIGH: 2}, PrivacyScope: {USER: 0}},
         ReminderSchedule, notificationPreferences, reminderSeconds, reminderText,
     });
@@ -99,7 +100,7 @@ function harness() {
         error => errors.push(error), () => {});
     const reply = settings => callbacks.shift()({call_finish: () => ({deep_unpack: () => [JSON.stringify(settings)]})}, {});
     const policyReply = allowed => callbacks.shift()({call_finish: () => ({deep_unpack: () => [allowed]})}, {});
-    return {notifier, sources, errors, callbacks, cancelled, reply, policyReply};
+    return {notifier, sources, errors, callbacks, cancelled, banners, reply, policyReply};
 }
 
 test('production notification uses Shell urgency, logo, literal text and owned replacement/cleanup', () => {
@@ -115,6 +116,7 @@ test('production notification uses Shell urgency, logo, literal text and owned r
     assert.equal(first.notification.gicon.file, '/logo.png');
     assert.equal(first.notification.useBodyMarkup, false);
     assert.equal(first.notification.body, '1 minute left');
+    assert.equal(first.notification.title, '');
     assert.equal(first.icon.file, '/logo.png');
     assert.equal(first.notification.privacyScope, 0);
     h.notifier.update(16, true);
@@ -133,6 +135,45 @@ test('production notification uses Shell urgency, logo, literal text and owned r
     h.notifier.close();
     assert.equal(h.cancelled.length, 1);
     assert.deepEqual(h.errors, []);
+});
+
+test('compact reminder hides both headings and centers its small logo without changing other banners', () => {
+    const h = harness();
+    h.notifier.preferences = {show_in_fullscreen: true, reminders};
+    h.notifier.present(reminders[2], false);
+    const notification = h.notifier.current.notification;
+    const actor = (style, children = []) => ({
+        visible: true, y_align: 0, classes: new Set([style]),
+        get_children: () => children,
+        has_style_class_name(name) { return this.classes.has(name); },
+        add_style_class_name(name) { this.classes.add(name); },
+        hide() { this.visible = false; },
+    });
+    const header = actor('message-header');
+    const title = actor('message-title');
+    const body = actor('message-body');
+    const icon = actor('message-icon');
+    const owned = actor('notification-banner', [header, icon, actor('message-content', [title, body])]);
+    owned.notification = notification;
+    const otherHeader = actor('message-header');
+    const other = actor('notification-banner', [otherHeader]);
+    other.notification = {};
+    h.banners.push(actor('container', [other, owned]));
+    notification.acknowledged = true;
+    for (const callback of notification.handlers['notify::acknowledged']) callback();
+    assert.equal(header.visible, false);
+    assert.equal(title.visible, false);
+    assert.equal(body.visible, true);
+    assert.equal(icon.y_align, 2);
+    assert(owned.classes.has('screen-time-reminder'));
+    assert.equal(otherHeader.visible, true);
+    assert.equal(other.classes.has('screen-time-reminder'), false);
+    const css = readFileSync(new URL('../../child/stylesheet.css', import.meta.url), 'utf8');
+    assert.match(css, /\.screen-time-reminder \.message-icon\s*\{[^}]*icon-size: 20px;/);
+    h.notifier.clear();
+    owned.classes.delete('screen-time-reminder');
+    for (const callback of notification.handlers['notify::acknowledged']) callback();
+    assert.equal(owned.classes.has('screen-time-reminder'), false);
 });
 
 test('subminute delivery queries current policy and ignores stale replies', () => {

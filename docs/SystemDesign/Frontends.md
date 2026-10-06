@@ -344,8 +344,19 @@ from that comparison. Editor Save updates only the preferences draft; Cancel
 discards that edit. There is no preview panel. Main Cancel discards the draft;
 main Save persists changed reminders and then the language selection. If the
 subsequent language write fails, the reminder write has already committed; the
-dialog retains the language candidate for retry. The fullscreen notification
-field is preserved without adding a control to these reference layouts.
+dialog retains the language candidate for retry. Below the reminder list, a
+single “Show reminders in full screen apps (games, videos, etc.)” switch edits
+the selected child's account-wide `show_in_fullscreen` field in the same draft.
+It has a standard-font caption without a subtitle, and is disabled until the
+configuration loads, when the reminder list is empty, and while saving. Its
+saved value is preserved while disabled. Notification urgency belongs to the
+notification backend, not the dialog.
+
+Child reminder banners show only the logo and reminder text, without the product
+title or source header. The 20-pixel logo is centered beside the text. Shell
+notification urgency, dismissal and literal translated/custom text are retained.
+The layout applies only to the extension's current notification and activates
+with the next child graphical session (`session-renewal`).
 
 Read failures show a retry action without substituting defaults. Save failures
 retain the draft and allow retry. Dialog disposal and selected-child revisions
@@ -355,7 +366,8 @@ authorization boundary as its language methods.
 
 Public controls are `preferences-tabs` (canonical `language`/`reminders`),
 `preferences-tab-language`, `preferences-tab-reminders`,
-`preferences-close`, `reminder-list`, `reminder-status`, `reminder-add`, `reminder-retry`, and
+`preferences-close`, `reminder-list`, `reminder-status`, `reminder-add`, `reminder-retry`,
+`reminder-show-in-fullscreen` (boolean), and
 `reminder-<stored-id>-text|trigger|edit|delete`. The separate editor publishes
 `reminder-editor-dialog`, `reminder-text`, `reminder-text-count`, `reminder-value`,
 `reminder-value-increase|decrease`, `reminder-unit` (canonical `minute`/`second`),

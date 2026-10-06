@@ -1633,5 +1633,8 @@ msgstr "Når den vises"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Påminnelsen vises når gjenværende tid når:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Vis påminnelser i apper i fullskjerm (spill, videoer osv.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Velg en annen verdi for «Når den vises» for å unngå dupliserte påminnelser."

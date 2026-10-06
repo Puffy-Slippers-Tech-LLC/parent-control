@@ -1633,5 +1633,8 @@ msgstr "Kiam montri"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "La memorigo aperos kiam la restanta tempo atingos:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Montri memorigilojn en plenekranaj aplikaĵoj (ludoj, filmetoj ktp.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Elektu alian valoron por «Kiam montri» por eviti duoblajn memorigojn."

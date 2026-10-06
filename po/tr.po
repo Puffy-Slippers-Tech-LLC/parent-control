@@ -1627,5 +1627,8 @@ msgstr "Ne zaman gösterilsin"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Kalan süre şu değere ulaştığında hatırlatıcı gösterilecektir:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Tam ekran uygulamalarda hatırlatmaları göster (oyunlar, videolar vb.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Yinelenen hatırlatıcıları önlemek için “Ne zaman gösterilsin” alanında farklı bir değer seçin."

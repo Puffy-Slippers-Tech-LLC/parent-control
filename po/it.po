@@ -1631,5 +1631,8 @@ msgstr "Quando mostrare"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Il promemoria verrà mostrato quando il tempo rimanente raggiungerà:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Mostra promemoria nelle app a schermo intero (giochi, video, ecc.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Scegli un valore diverso per “Quando mostrare” per evitare promemoria duplicati."

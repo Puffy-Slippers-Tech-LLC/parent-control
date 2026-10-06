@@ -1633,5 +1633,8 @@ msgstr "מתי להציג"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "התזכורת תוצג כשהזמן שנותר יגיע לערך:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "הצגת תזכורות ביישומים במסך מלא (משחקים, סרטונים וכו׳)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "בחרו ערך אחר עבור „מתי להציג” כדי להימנע מתזכורות כפולות."

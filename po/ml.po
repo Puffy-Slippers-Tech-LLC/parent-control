@@ -1633,5 +1633,8 @@ msgstr "എപ്പോൾ കാണിക്കണം"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "ശേഷിക്കുന്ന സമയം ഈ മൂല്യത്തിൽ എത്തുമ്പോൾ ഓർമ്മപ്പെടുത്തൽ കാണിക്കും:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "പൂർണ്ണ സ്ക്രീൻ ആപ്പുകളിൽ ഓർമ്മപ്പെടുത്തലുകൾ കാണിക്കുക (ഗെയിമുകൾ, വീഡിയോകൾ മുതലായവ)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "ആവർത്തിച്ച ഓർമ്മപ്പെടുത്തലുകൾ ഒഴിവാക്കാൻ “എപ്പോൾ കാണിക്കണം” എന്നതിന് മറ്റൊരു മൂല്യം തിരഞ്ഞെടുക്കുക."

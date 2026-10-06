@@ -1645,5 +1645,8 @@ msgstr "Kada prikazati"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Podsetnik će se prikazati kada preostalo vreme dostigne:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Prikaži podsetnike u aplikacijama preko celog ekrana (igre, video-snimci itd.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Izaberite drugu vrednost za „Kada prikazati“ da biste izbegli duple podsetnike."

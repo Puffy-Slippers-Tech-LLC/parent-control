@@ -1627,5 +1627,8 @@ msgstr "Қашан көрсету керек"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Қалған уақыт мына мәнге жеткенде еске салғыш көрсетіледі:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Толық экранды қолданбаларда еске салғыштарды көрсету (ойындар, бейнелер және т.б.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Қайталанатын еске салғыштарды болдырмау үшін «Қашан көрсету керек» өрісінде басқа мәнді таңдаңыз."

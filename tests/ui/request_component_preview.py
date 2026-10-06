@@ -338,8 +338,16 @@ class ComponentWindow(RequestWindow):
         super()._show_result(title, detail)
 
 
+class ComponentApplication(Application):
+    def _watch_preview_files(self):
+        # Component checks pin one endpoint and retain in-progress fixture state.
+        # Developer edits must not relaunch it or reload assets during a check.
+        # Interactive development previews keep the production file watcher.
+        pass
+
+
 overlay = os.environ.get("ONPC_REQUEST_COMPONENT_OVERLAY") == "1"
 configure_logging(preview=True, component="child" if overlay else "kiosk")
-raise SystemExit(Application(
+raise SystemExit(ComponentApplication(
     preview=True, child_overlay=overlay, window_factory=ComponentWindow,
 ).run([sys.argv[0]]))

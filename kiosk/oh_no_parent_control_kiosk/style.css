@@ -626,6 +626,15 @@ button.oh-no-parent-control-request-button:disabled {
 }
 .reminder-row:last-child { border-bottom-color: transparent; }
 .reminder-text { font-size: 16px; font-family: sans-serif; }
+.reminder-fullscreen-row {
+  border: 1px solid #436366;
+  border-radius: 6px;
+  padding: 12px;
+}
+.reminder-fullscreen-row switch:checked {
+  background-color: #20cc78;
+  background-image: none;
+}
 .reminder-trigger { font-size: 13px; color: #9aa9b8; font-family: sans-serif; }
 .reminder-bell { color: #b484e3; }
 .reminder-editor-icon {

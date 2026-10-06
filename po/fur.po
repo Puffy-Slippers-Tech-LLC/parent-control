@@ -1633,5 +1633,8 @@ msgstr "Cuant mostrâ"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "La memorie e vignarà mostrade cuant che il timp restant al rive a:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Mostre i promemoriis tes aplicazions a plen schermi (zûcs, videos, e v.i.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Sielç un altri valôr par «Cuant mostrâ» par evitâ memoriis doplis."

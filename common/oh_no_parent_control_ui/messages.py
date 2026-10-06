@@ -422,6 +422,7 @@ REMINDER_TEXT_HELP = gettext('%(child_name)s, this is the default message you’
 WHEN_TO_SHOW = gettext('When to show')
 REMINDER_TIMING_HELP = gettext('The reminder will be shown when the remaining time reaches:')
 DUPLICATE_REMINDER = gettext('Choose a different "When to show" to avoid duplicate reminders.')
+SHOW_REMINDERS_IN_FULL_SCREEN_APPS = gettext('Show reminders in full screen apps (games, videos, etc.)')
 
 BY_SOURCE = {value.source: value for value in globals().copy().values()
              if hasattr(value, 'source')}

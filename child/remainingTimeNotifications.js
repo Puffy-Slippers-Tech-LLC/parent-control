@@ -1,3 +1,4 @@
+import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -134,7 +135,7 @@ export class RemainingTimeNotifications {
         Main.messageTray.add(source);
         const urgency = this.preferences.show_in_fullscreen ? 'critical' : 'high';
         const notification = new MessageTray.Notification({source,
-            title: this.title, body,
+            title: '', body,
             gicon: this.icon, useBodyMarkup: false,
             urgency: urgency === 'critical' ? MessageTray.Urgency.CRITICAL : MessageTray.Urgency.HIGH,
             privacyScope: MessageTray.PrivacyScope.USER, isTransient: true});
@@ -142,7 +143,34 @@ export class RemainingTimeNotifications {
         notification.connect('destroy', () => {
             if (this.current?.notification === notification) this.current = null;
         });
+        // Shell acknowledges a banner after adding its complete actor tree,
+        // before showing it. Use public actor APIs and notification identity
+        // rather than changing Shell prototypes or another source's banner.
+        notification.connect('notify::acknowledged', () => {
+            if (notification.acknowledged && this.current?.notification === notification)
+                this.compactBanner(notification);
+        });
         source.addNotification(notification);
+    }
+
+    compactBanner(notification) {
+        const visit = actor => {
+            if (actor.notification === notification) {
+                actor.add_style_class_name('screen-time-reminder');
+                const compact = child => {
+                    if (child.has_style_class_name?.('message-header') ||
+                        child.has_style_class_name?.('message-title'))
+                        child.hide();
+                    if (child.has_style_class_name?.('message-icon'))
+                        child.y_align = Clutter.ActorAlign.CENTER;
+                    for (const descendant of child.get_children()) compact(descendant);
+                };
+                compact(actor);
+                return;
+            }
+            for (const child of actor.get_children()) visit(child);
+        };
+        visit(Main.messageTray);
     }
 
     clear() {

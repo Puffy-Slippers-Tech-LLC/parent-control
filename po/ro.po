@@ -1639,5 +1639,8 @@ msgstr "Când să se afișeze"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "Mementoul va fi afișat când timpul rămas ajunge la:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Afișează mementouri în aplicațiile pe tot ecranul (jocuri, videoclipuri etc.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Alegeți o altă valoare pentru „Când să se afișeze” pentru a evita mementourile duplicate."

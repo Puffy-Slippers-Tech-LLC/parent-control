@@ -94,5 +94,8 @@ msgstr "When to show"
 msgid "The reminder will be shown when the remaining time reaches:"
 msgstr "The reminder will be shown when the remaining time reaches:"
 
+msgid "Show reminders in full screen apps (games, videos, etc.)"
+msgstr "Show reminders in full screen apps (games, videos, etc.)"
+
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Choose a different \"When to show\" to avoid duplicate reminders."

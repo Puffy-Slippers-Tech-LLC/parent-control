@@ -152,6 +152,16 @@ other packages' state, and reboot markers are not product-owned purge targets.
 Purge rejects substituted directory roots and mounted subtrees. Dependencies,
 their accounts, usage history, and shared desktop caches remain under their
 owning packages' control; removal never performs APT autoremove.
+Ubuntu's root-owned, `syslog`-group `/var/log` mode `0775` is supported without
+allowing writable product log directories or other writable ancestors. Shared
+APT/RPM cleanup pins directory identities, checks kernel mount identities
+(including same-filesystem bind mounts), then moves the verified log tree into
+a private directory before deleting contents through pinned descriptors.
+A replacement or interrupted move retains its holding directory under
+`/var/log/.oh-no-parent-control-purge-*`; later purge refuses until an
+administrator resolves that retained state. It never adopts or recursively
+deletes a holding directory by name. Log refusal retains saved preferences;
+ordinary remove does not run this saved-log deletion path.
 Activation, migration, ownership, and uninstall records are removed only after
 successful cleanup. Failed cleanup keeps the records needed for retry; aborted
 first unpack removes only its attempt's bookkeeping.

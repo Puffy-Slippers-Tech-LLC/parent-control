@@ -58,6 +58,193 @@ def test_owned_source_and_state_guards_refuse_substitutions(purge_module, fault)
         purge_module.secure(target, directory=False)
 
 
+@pytest.mark.parametrize('fault', [None, 'world-write', 'group', 'owner', 'product-root', 'other-parent'])
+def test_only_standard_syslog_parent_permissions_are_admitted(purge_module, monkeypatch, fault):
+    monkeypatch.setattr(purge_module.grp, 'getgrnam', lambda name: SimpleNamespace(gr_gid=321))
+    root = Path('/var/log/oh-no-parent-control')
+    def metadata(path):
+        mode, owner, group = 0o755, 0, 0
+        if path == Path('/var/log'):
+            mode, group = (0o777 if fault == 'world-write' else 0o775), (999 if fault == 'group' else 321)
+            owner = 1000 if fault == 'owner' else 0
+        elif path == root and fault == 'product-root':
+            mode = 0o775
+        elif path == Path('/var') and fault == 'other-parent':
+            mode, group = 0o775, 321
+        return SimpleNamespace(st_mode=stat.S_IFDIR | mode, st_uid=owner, st_gid=group)
+    monkeypatch.setattr(Path, 'lstat', metadata)
+    if fault:
+        with pytest.raises(ValueError, match='unsafe-'):
+            purge_module.secure(root)
+    else:
+        purge_module.secure(root)
+
+
+@pytest.fixture
+def saved_log_tree(purge_module, tmp_path, monkeypatch):
+    # Model root-owned directories with the current unprivileged fixture UID.
+    # The fixed root and its parents remain private even when /var/log is 0775.
+    machine = tmp_path / 'machine'
+    machine.mkdir(mode=0o700)
+    parent = machine / 'var/log'
+    parent.mkdir(parents=True)
+    parent.chmod(0o775)
+    root = parent / purge_module.PRODUCT
+    root.mkdir(mode=0o750)
+    broker = root / 'broker'
+    broker.mkdir(mode=0o750)
+    (broker / 'day.events').write_text('product log')
+    monkeypatch.setattr(purge_module, '_LOG_FILESYSTEM_ROOT', str(machine))
+    monkeypatch.setattr(purge_module, '_LOG_OWNER_UID', os.getuid())
+    monkeypatch.setattr(purge_module.grp, 'getgrnam', lambda name: SimpleNamespace(gr_gid=os.getgid()))
+    return parent, root
+
+
+def test_standard_log_parent_purge_removes_only_product_tree(purge_module, saved_log_tree):
+    parent, root = saved_log_tree
+    other = parent / 'unrelated'
+    other.mkdir()
+    protected = other / 'keep'
+    protected.write_text('unrelated log')
+    (root / 'linked').symlink_to(other, target_is_directory=True)
+    purge_module.remove_saved_logs(purge_module.saved_log_identity())
+    assert not root.exists()
+    assert protected.read_text() == 'unrelated log'
+    assert list(parent.iterdir()) == [other]
+    # A second purge is harmless and does not create a holding directory.
+    purge_module.remove_saved_logs(purge_module.saved_log_identity())
+
+
+@pytest.mark.parametrize('replacement', ['directory', 'symlink', 'missing-then-created'])
+def test_log_preflight_identity_preserves_later_replacement(
+    purge_module, saved_log_tree, replacement,
+):
+    parent, root = saved_log_tree
+    old = parent / 'original'
+    root.rename(old)
+    if replacement != 'missing-then-created':
+        old.rename(root)
+    expected = purge_module.saved_log_identity()
+    if root.exists():
+        root.rename(old)
+    if replacement == 'symlink':
+        root.symlink_to(old, target_is_directory=True)
+    else:
+        root.mkdir(mode=0o750)
+        (root / 'keep').write_text('replacement log')
+    with pytest.raises((OSError, ValueError)):
+        purge_module.remove_saved_logs(expected)
+    assert (old / 'broker/day.events').read_text() == 'product log'
+    if replacement != 'symlink':
+        assert (root / 'keep').read_text() == 'replacement log'
+    assert not list(parent.glob(purge_module._LOG_HOLDING_PREFIX + '*'))
+
+
+def test_log_swap_at_atomic_move_preserves_every_byte_and_blocks_retry(
+    purge_module, saved_log_tree, monkeypatch,
+):
+    parent, root = saved_log_tree
+    expected = purge_module.saved_log_identity()
+    old = parent / 'original'
+    rename = os.rename
+    def swapped(source, destination, **kwargs):
+        assert source == purge_module.PRODUCT and destination == 'logs'
+        rename(root, old)
+        root.mkdir(mode=0o750)
+        (root / 'keep').write_text('unrelated replacement')
+        rename(source, destination, **kwargs)
+    monkeypatch.setattr(purge_module.os, 'rename', swapped)
+    with pytest.raises(ValueError, match='log-directory-replaced'):
+        purge_module.remove_saved_logs(expected)
+    assert (old / 'broker/day.events').read_text() == 'product log'
+    holding, = parent.glob(purge_module._LOG_HOLDING_PREFIX + '*')
+    assert (holding / 'logs/keep').read_text() == 'unrelated replacement'
+    with pytest.raises(ValueError, match='pending-log-cleanup'):
+        purge_module.saved_log_identity()
+
+
+def test_interrupted_log_deletion_keeps_private_tree_and_refuses_retry(
+    purge_module, saved_log_tree, monkeypatch,
+):
+    parent, root = saved_log_tree
+    expected = purge_module.saved_log_identity()
+    removal = Mock(side_effect=OSError('injected deletion failure'))
+    removal.avoids_symlink_attacks = True
+    monkeypatch.setattr(purge_module.shutil, 'rmtree', removal)
+    with pytest.raises(OSError, match='injected deletion failure'):
+        purge_module.remove_saved_logs(expected)
+    holding, = parent.glob(purge_module._LOG_HOLDING_PREFIX + '*')
+    assert not root.exists()
+    assert (holding / 'logs/broker/day.events').read_text() == 'product log'
+    assert stat.S_IMODE(holding.stat().st_mode) == 0o700
+    with pytest.raises(ValueError, match='pending-log-cleanup'):
+        purge_module.saved_log_identity()
+
+
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+def test_shared_purge_replacement_refusal_retains_saved_preferences(tmp_path, distribution):
+    machine = Machine(tmp_path, distribution)
+    preference = machine.write('var/lib/oh-no-parent-control/preferences/1004.json', 'saved preference')
+    machine.write('var/log/oh-no-parent-control/broker/day.events', 'product log')
+    # This owned command double runs after postrm's preflight but before its
+    # final saved-data deletion. The real embedded callback must refuse it.
+    machine.write('usr/sbin/fapolicyd-cli', '''#!/bin/sh
+set -e
+if [ "$1" = --update ]; then
+    mv "$AUDIT_ROOT/var/log/oh-no-parent-control" "$AUDIT_ROOT/var/log/original"
+    mkdir -m 0750 "$AUDIT_ROOT/var/log/oh-no-parent-control"
+    printf '%s' 'unrelated replacement' > "$AUDIT_ROOT/var/log/oh-no-parent-control/keep"
+fi
+''').chmod(0o755)
+    result = machine.run('postrm', 'purge', SERVICE_ACTIVE='1')
+    assert result.returncode != 0
+    assert 'log-directory-replaced' in result.stderr
+    assert 'saved-state purge outcome=accepted' not in result.stderr
+    assert preference.read_text() == 'saved preference'
+    assert (tmp_path / 'var/log/original/broker/day.events').read_text() == 'product log'
+    assert (tmp_path / 'var/log/oh-no-parent-control/keep').read_text() == 'unrelated replacement'
+
+
+@pytest.mark.parametrize('mounted', ['root', 'directory', 'file'])
+def test_log_mount_identity_refuses_even_same_device_before_deletion(
+    purge_module, saved_log_tree, monkeypatch, mounted,
+):
+    parent, root = saved_log_tree
+    target = {'root': root, 'directory': root / 'broker',
+              'file': root / 'broker/day.events'}[mounted]
+    target_identity = target.stat().st_dev, target.stat().st_ino
+    mount_id = purge_module.log_mount_id
+    def mounted_id(fd):
+        info = os.fstat(fd)
+        return mount_id(fd) + (1 if (info.st_dev, info.st_ino) == target_identity else 0)
+    monkeypatch.setattr(purge_module, 'log_mount_id', mounted_id)
+    with pytest.raises(ValueError, match='mounted-log-'):
+        purge_module.saved_log_identity()
+    assert (root / 'broker/day.events').read_text() == 'product log'
+    assert list(parent.iterdir()) == [root]
+
+
+@pytest.mark.parametrize('fault', ['owner', 'group-write', 'world-write'])
+def test_log_subdirectories_must_remain_trusted(purge_module, saved_log_tree, monkeypatch, fault):
+    _, root = saved_log_tree
+    broker = root / 'broker'
+    if fault == 'owner':
+        real_stat = os.fstat
+        identity = broker.stat().st_dev, broker.stat().st_ino
+        def changed(fd):
+            info = real_stat(fd)
+            if (info.st_dev, info.st_ino) == identity:
+                return SimpleNamespace(st_mode=info.st_mode, st_uid=os.getuid() + 1,
+                                       st_dev=info.st_dev, st_ino=info.st_ino)
+            return info
+        monkeypatch.setattr(purge_module.os, 'fstat', changed)
+    else:
+        broker.chmod(0o775 if fault == 'group-write' else 0o757)
+    with pytest.raises(ValueError, match='unsafe-log-directory'):
+        purge_module.saved_log_identity()
+    assert (broker / 'day.events').read_text() == 'product log'
+
+
 @pytest.mark.parametrize('fault', [None, 'erase', 'still-installed', 'pam', 'cleanup', 'interruption'])
 def test_fedora_public_purge_runs_cleanup_only_in_native_callback_and_preserves_retry_data(
     purge_module, tmp_path, monkeypatch, capsys, fault,

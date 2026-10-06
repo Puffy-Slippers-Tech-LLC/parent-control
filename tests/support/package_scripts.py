@@ -7,8 +7,10 @@ Their differing command models stay explicit; they share path relocation.
 import os
 import re
 import runpy
+import shlex
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 from tests.support.paths import ROOT
@@ -141,8 +143,17 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
         source = re.sub(
             r"/usr/bin/python3 -B - <<'ONPC_NATIVE_PURGE_INTENT'\n.*?\nONPC_NATIVE_PURGE_INTENT",
             'native_purge_phase', source, flags=re.DOTALL)
+        # Run the real log deletion/identity/mount guards in the private tree.
+        # This unprivileged machine models root ownership with its own UID;
+        # no production guard, filesystem action or assertion is omitted.
+        source = source.replace(
+            '/usr/bin/python3 -B - "$@"', 'ONPC_FIXTURE_PYTHON -B - "$@"')
         # Redirect every absolute system prefix, including executable paths.
         source = relocate_system_paths(source, self.root)
+        source = source.replace('ONPC_FIXTURE_PYTHON', shlex.quote(sys.executable))
+        source = source.replace("_LOG_FILESYSTEM_ROOT = '/'",
+                                '_LOG_FILESYSTEM_ROOT = ' + repr(str(self.root)))
+        source = source.replace('_LOG_OWNER_UID = 0', '_LOG_OWNER_UID = ' + str(os.getuid()))
         for command in ("deb-systemd-invoke", "invoke-rc.d", "pam-auth-update"):
             source = source.replace(command, command.replace("-", "_").replace(".", "_"))
         mocks = r'''

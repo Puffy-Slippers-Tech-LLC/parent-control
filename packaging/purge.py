@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+from contextlib import ExitStack
+import grp
 import os
 from pathlib import Path
 import platform
 import stat
+import secrets
+import shutil
 import subprocess
 import sys
 
@@ -14,6 +18,151 @@ PRODUCT = 'oh-no-parent-control'
 CLEANUP = Path('/usr/share/oh-no-parent-control/lifecycle/postrm')
 INTENT = Path('/run/oh-no-parent-control-purge-intent.json')
 INTENT_PURPOSE = 'onpc-native-rpm-purge-v1'
+_LOG_FILESYSTEM_ROOT = '/'
+_LOG_OWNER_UID = 0
+_LOG_HOLDING_PREFIX = '.oh-no-parent-control-purge-'
+_DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+
+def standard_log_parent(info):
+    """Ubuntu rsyslog permits its group to rename entries, but not /var/log."""
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != _LOG_OWNER_UID or
+            stat.S_IMODE(info.st_mode) != 0o775):
+        return False
+    try:
+        return info.st_gid == grp.getgrnam('syslog').gr_gid
+    except KeyError:
+        return False
+
+
+def log_directory(info, *, parent=False):
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != _LOG_OWNER_UID or
+            (info.st_mode & 0o022 and not (parent and standard_log_parent(info)))):
+        raise ValueError('purge:unsafe-log-directory')
+
+
+def log_descriptor(stack, name, *, parent=None, flags=_DIRECTORY_FLAGS):
+    descriptor = os.open(name, flags, dir_fd=parent)
+    stack.callback(os.close, descriptor)
+    return descriptor
+
+
+def log_parent_descriptor(stack):
+    # / and /var cannot be replaced by members of the syslog group. Open each
+    # component without following links; all later operations use these pins.
+    descriptor = log_descriptor(stack, _LOG_FILESYSTEM_ROOT)
+    log_directory(os.fstat(descriptor))
+    for name in ('var', 'log'):
+        try:
+            descriptor = log_descriptor(stack, name, parent=descriptor)
+        except FileNotFoundError:
+            return None
+        log_directory(os.fstat(descriptor), parent=name == 'log')
+    return descriptor
+
+
+def log_mount_id(descriptor):
+    # Device identity alone misses bind mounts on the same filesystem. The
+    # kernel's fdinfo ABI reports the mount of the exact opened object.
+    with open(f'/proc/self/fdinfo/{descriptor}', encoding='ascii') as stream:
+        for line in stream:
+            if line.startswith('mnt_id:'):
+                return int(line.split(':', 1)[1])
+    raise ValueError('purge:log-mount-identity-unavailable')
+
+
+def check_log_contents(descriptor, mount):
+    log_directory(os.fstat(descriptor))
+    if log_mount_id(descriptor) != mount:
+        raise ValueError('purge:mounted-log-directory')
+    for name in os.listdir(descriptor):
+        with ExitStack() as stack:
+            entry = log_descriptor(stack, name, parent=descriptor,
+                                   flags=os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC)
+            if log_mount_id(entry) != mount:
+                raise ValueError('purge:mounted-log-entry')
+            if stat.S_ISDIR(os.fstat(entry).st_mode):
+                child = log_descriptor(stack, name, parent=descriptor)
+                if not os.path.samestat(os.fstat(entry), os.fstat(child)):
+                    raise ValueError('purge:log-directory-replaced')
+                check_log_contents(child, mount)
+
+
+def saved_log_descriptors(stack):
+    parent = log_parent_descriptor(stack)
+    if parent is None:
+        return None, None, 'absent'
+    if any(name.startswith(_LOG_HOLDING_PREFIX) for name in os.listdir(parent)):
+        # Never certify a retry while a refused/interrupted move still retains
+        # logs. Unknown holding directories need administrator recovery, not
+        # prefix-based adoption or deletion.
+        raise ValueError('purge:pending-log-cleanup; private holding directory requires recovery')
+    parent_info = os.fstat(parent)
+    token = f'{parent_info.st_dev}:{parent_info.st_ino}'
+    try:
+        root = log_descriptor(stack, PRODUCT, parent=parent)
+    except FileNotFoundError:
+        return parent, None, token + ':absent'
+    info = os.fstat(root)
+    check_log_contents(root, log_mount_id(parent))
+    return parent, root, token + f':{info.st_dev}:{info.st_ino}'
+
+
+def saved_log_identity():
+    with ExitStack() as stack:
+        return saved_log_descriptors(stack)[2]
+
+
+def remove_saved_logs(expected):
+    """Retire the validated tree into a private directory before traversal.
+
+    /var/log may be group-writable. A rename race must never make a different
+    tree a deletion target. On refusal, keep the holding directory and every
+    moved byte for administrator recovery; never recursively clean by its name.
+    """
+    with ExitStack() as stack:
+        parent, root, identity = saved_log_descriptors(stack)
+        if identity != expected:
+            raise ValueError('purge:log-directory-replaced')
+        if root is None:
+            return
+        if not shutil.rmtree.avoids_symlink_attacks:
+            raise ValueError('purge:secure-log-removal-unavailable')
+        holding_name = _LOG_HOLDING_PREFIX + secrets.token_hex(16)
+        os.mkdir(holding_name, mode=0o700, dir_fd=parent)
+        holding = log_descriptor(stack, holding_name, parent=parent)
+        holding_info = os.fstat(holding)
+        log_directory(holding_info)
+        if stat.S_IMODE(holding_info.st_mode) != 0o700 or os.listdir(holding):
+            raise ValueError('purge:unsafe-log-holding-directory')
+        os.rename(PRODUCT, 'logs', src_dir_fd=parent, dst_dir_fd=holding)
+        retired = log_descriptor(stack, 'logs', parent=holding)
+        if not os.path.samestat(os.fstat(root), os.fstat(retired)):
+            raise ValueError('purge:log-directory-replaced; logs retained in private holding directory')
+        # Validate all mounts and directory ownership again after the atomic
+        # move, before deleting any file. Only root can rename entries here.
+        check_log_contents(retired, log_mount_id(parent))
+        shutil.rmtree('logs', dir_fd=holding)
+        # An empty holding directory may have been renamed by the log group.
+        # Never traverse its public name, or remove a substituted directory.
+        if not os.path.samestat(holding_info, os.stat(
+                holding_name, dir_fd=parent, follow_symlinks=False)):
+            raise ValueError('purge:log-holding-directory-replaced')
+        os.rmdir(holding_name, dir_fd=parent)
+        try:
+            os.stat(PRODUCT, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        raise ValueError('purge:saved-data-remains')
+
+
+def log_cleanup_main():
+    if sys.argv[1:] == ['check']:
+        print(saved_log_identity())
+    elif len(sys.argv) == 3 and sys.argv[1] == 'remove':
+        remove_saved_logs(sys.argv[2])
+    else:
+        raise ValueError('purge:invalid-log-cleanup-action')
 
 
 def distribution(release):
@@ -28,7 +177,9 @@ def distribution(release):
 def secure(path, *, directory=True, missing=False):
     for parent in reversed(path.parents):
         info = parent.lstat()
-        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or
+                (info.st_mode & 0o022 and not (
+                    parent == Path('/var/log') and standard_log_parent(info)))):
             # Report only fixed system locations and metadata from the failed
             # check. Keep arbitrary paths and account identities out of errors.
             location = str(parent)

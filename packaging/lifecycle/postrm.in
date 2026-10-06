@@ -2,6 +2,7 @@
 set -e
 
 @notice_cleanup@
+@log_tree_cleanup@
 check_tree() {
     # Only fixed product paths below. Never follow links or cross filesystems.
     if [ -L "$1" ]; then
@@ -202,7 +203,10 @@ restore_child_trust_backend() {
 if [ "$1" = remove ] || [ "$1" = purge ]; then
     # Check every recursively removed root before any irreversible cleanup.
     check_tree /var/lib/oh-no-parent-control
-    if [ "$1" = purge ]; then check_tree /var/log/oh-no-parent-control; fi
+    if [ "$1" = purge ]; then
+        check_tree /var/log/oh-no-parent-control
+        log_cleanup_identity=$(log_tree_cleanup check)
+    fi
     if [ -L /etc/fapolicyd ]; then
         echo 'oh-no-parent-control: refusing substituted child trust directory' >&2
         exit 1
@@ -272,8 +276,10 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
 fi
 
 if [ "$1" = purge ]; then
+    # Remove the pinned log tree first. A replacement refusal must retain the
+    # saved preferences as well, rather than partially accepting the purge.
+    log_tree_cleanup remove "$log_cleanup_identity"
     remove_tree /var/lib/oh-no-parent-control
-    remove_tree /var/log/oh-no-parent-control
     echo 'oh-no-parent-control: saved-state purge outcome=accepted' >&2
 fi
 

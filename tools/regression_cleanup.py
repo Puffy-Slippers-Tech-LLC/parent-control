@@ -139,6 +139,10 @@ from regression_resources import HOST_WORKERS
 # package/PAM/ownership doubles; the one shared-cleanup shell is relocated,
 # bounded and waited. No host package, identity, service or shared path changes.
 # Compatible in both unit and cleanup inventories.
+# Log-purge identity/mount refusal cases use private pytest trees and metadata
+# doubles; relocated shells wait for their two short Python callbacks. No real
+# mounts, shared paths/caches or host package operation; package_purge retains
+# its compatible cleanup and unit classifications.
 # Parent Hebrew text/focus refusals use the existing private node/recorder
 # fixtures and waited Perl worker probes. No new protected operation or owner;
 # parent_language stays compatible in cleanup and unit inventories.

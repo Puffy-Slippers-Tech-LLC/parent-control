@@ -373,6 +373,11 @@ from regression_ui import Bucket
 # package/PAM/ownership doubles; their relocated shared-cleanup shell is bounded
 # and waited. No live package, account, service, bus, display or shared path is
 # changed. package_purge_cleanup_safety is compatible in unit and cleanup scopes.
+# Log-purge replacement/mount checks add only private tmp_path entries and
+# process-local metadata doubles. Package-machine shells run two short, waited
+# Python callbacks on that same tree, with fixture UID ownership and no shared
+# cache, mount mutation, service or live package operation. Existing purge,
+# removal and RPM packaging compatible classifications remain appropriate.
 # Parent Hebrew observations add private text/focus doubles, recorder files and
 # synchronously waited bounded Perl children to parent_language_cleanup_safety.
 # No VM, shared bus/path or new resource owner; its compatible classification stays.

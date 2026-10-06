@@ -43,6 +43,7 @@ def fragments(root: Path, distribution: str) -> dict[str, str]:
         for name in ('execution_policy_install', 'execution_policy_check_remove',
                      'execution_policy_remove_rule'):
             values[name] = ''
+    values['log_tree_cleanup'] = embedded_log_cleanup(root)
     return values
 
 
@@ -57,6 +58,14 @@ def embedded_purge_phase(root: Path) -> str:
     return ("onpc_remove_phase=$(\n/usr/bin/python3 -B - <<'ONPC_NATIVE_PURGE_INTENT'\n" +
             source + "\ntry:\n    print(rpm_removal_phase())\nexcept (OSError, ValueError, subprocess.CalledProcessError) as error:\n    print(f'purge: {error}', file=sys.stderr)\n    sys.exit(1)\nONPC_NATIVE_PURGE_INTENT\n)\n" +
             'case "$onpc_remove_phase" in remove|purge) set -- "$onpc_remove_phase" ;; *) exit 1 ;; esac\n')
+
+
+def embedded_log_cleanup(root: Path) -> str:
+    # APT postrm and RPM postun must retain the same guards after the payload
+    # has been erased. Do not import a removed product module or helper.
+    source = (root / 'packaging/purge.py').read_text().split("if __name__ == '__main__':", 1)[0]
+    return ("log_tree_cleanup() {\n/usr/bin/python3 -B - \"$@\" <<'ONPC_LOG_TREE_CLEANUP'\n" +
+            source + "\ntry:\n    log_cleanup_main()\nexcept OSError as error:\n    print(f'purge:log-cleanup-os-error errno={error.errno}', file=sys.stderr)\n    sys.exit(1)\nexcept ValueError as error:\n    print(f'purge: {error}', file=sys.stderr)\n    sys.exit(1)\nONPC_LOG_TREE_CLEANUP\n}\n")
 
 
 def render(root: Path, distribution: str, phase: str) -> str:

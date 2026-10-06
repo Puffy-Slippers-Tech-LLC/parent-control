@@ -1594,5 +1594,10 @@ msgstr "%(count)g ore"
 
 #. Shared message: TIME_REMAINING_NOTIFICATION
 #, python-format
-msgid "%(time)s remaining"
+msgid "%(time)s left"
 msgstr "Timp rămas: %(time)s"
+
+#. Shared message: TIME_REMAINING_SAVE_GAMES_NOTIFICATION
+#, python-format
+msgid "%(time)s left, save your games!"
+msgstr "Timp rămas: %(time)s, salvează-ți jocurile!"

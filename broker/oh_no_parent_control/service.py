@@ -45,6 +45,9 @@ CONFIG_PATH = os.environ.get("OH_NO_PARENT_CONTROL_CONFIG", "/etc/oh-no-parent-c
 INTROSPECTION_XML = f"""
 <node>
   <interface name="{INTERFACE}">
+    <method name="GetOwnSessionAllowsSoftApps">
+      <arg name="allow_soft_blocked_apps" type="b" direction="out"/>
+    </method>
     <method name="GetOwnNotifications">
       <arg name="notifications_json" type="s" direction="out"/>
     </method>
@@ -442,7 +445,10 @@ class Service:
                     f"{BUS_NAME}.Error.RebootRequired", "product activation requires a reboot",
                 )
                 return
-            if method == "GetOwnNotifications":
+            if method == "GetOwnSessionAllowsSoftApps":
+                allowed = self.broker.get_own_session_allows_soft_apps(caller_uid)
+                invocation.return_value(GLib.Variant("(b)", (allowed,)))
+            elif method == "GetOwnNotifications":
                 saved = self.broker.get_own_notifications(caller_uid)
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
             elif method == "SetOwnNotifications":

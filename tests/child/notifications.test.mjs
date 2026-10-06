@@ -13,7 +13,9 @@ const reminders = [
     {id: 'seconds', value: 15, unit: 'second', text: ''},
 ];
 const translations = {text: (key, values) => key === 'TIME_REMAINING_NOTIFICATION'
-    ? `${values.time} remaining` : `${values.count} ${key === 'MINUTE_COUNT' ? 'minute' : 'second'}${values.count === 1 ? '' : 's'}`};
+    ? `${values.time} left` : key === 'TIME_REMAINING_SAVE_GAMES_NOTIFICATION'
+        ? `${values.time} left, save your games!`
+        : `${values.count} ${key === 'MINUTE_COUNT' ? 'minute' : 'second'}${values.count === 1 ? '' : 's'}`};
 
 test('thresholds are deduplicated and rearmed by renewed usable time', () => {
     const schedule = new ReminderSchedule();
@@ -44,11 +46,25 @@ test('custom minute/second thresholds schedule earlier ticks and literal custom 
     assert.equal(reminderSeconds(custom), 75);
     assert.equal(schedule.nextDelay([custom], 90, 30), 15);
     assert.equal(schedule.nextDelay([custom], 75, 15), 15);
-    assert.equal(reminderText(custom, translations), '75 seconds remaining');
+    assert.equal(reminderText(custom, translations, true), '75 seconds left');
     assert.equal(reminderText({...custom, unit: 'minute', value: 15, text: '\t\n\u2003'}, translations),
-        '15 minutes remaining');
+        '15 minutes left');
     assert.equal(reminderText({...custom, text: ' <b>Save now</b> '}, {text() { assert.fail(); }}),
         ' <b>Save now</b> ');
+});
+
+test('default wording respects singulars and the strict subminute soft-app boundary', () => {
+    for (const allow of [false, true]) {
+        assert.equal(reminderText(reminders[0], translations, allow), '10 minutes left');
+        assert.equal(reminderText(reminders[2], translations, allow), '1 minute left');
+        assert.equal(reminderText({...reminders[3], value: 60}, translations, allow), '60 seconds left');
+        for (const value of [1, 15, 59]) {
+            const time = `${value} second${value === 1 ? '' : 's'}`;
+            assert.equal(reminderText({...reminders[3], value}, translations, allow),
+                `${time} left${allow ? ', save your games!' : ''}`);
+        }
+        assert.equal(reminderText({...reminders[3], text: 'Save my work'}, translations, allow), 'Save my work');
+    }
 });
 
 function harness() {
@@ -82,7 +98,8 @@ function harness() {
     const notifier = new context.RemainingTimeNotifications('Product', '/logo.png', translations,
         error => errors.push(error), () => {});
     const reply = settings => callbacks.shift()({call_finish: () => ({deep_unpack: () => [JSON.stringify(settings)]})}, {});
-    return {notifier, sources, errors, callbacks, cancelled, reply};
+    const policyReply = allowed => callbacks.shift()({call_finish: () => ({deep_unpack: () => [allowed]})}, {});
+    return {notifier, sources, errors, callbacks, cancelled, reply, policyReply};
 }
 
 test('production notification uses Shell urgency, logo, literal text and owned replacement/cleanup', () => {
@@ -97,11 +114,12 @@ test('production notification uses Shell urgency, logo, literal text and owned r
     assert.equal(first.notification.urgency, 3);
     assert.equal(first.notification.gicon.file, '/logo.png');
     assert.equal(first.notification.useBodyMarkup, false);
-    assert.equal(first.notification.body, '1 minute remaining');
+    assert.equal(first.notification.body, '1 minute left');
     assert.equal(first.icon.file, '/logo.png');
     assert.equal(first.notification.privacyScope, 0);
     h.notifier.update(16, true);
     h.notifier.update(15, true);
+    h.policyReply(false);
     assert.equal(first.destroyed, true);
     assert.equal(h.sources.length, 2);
     h.notifier.refresh();
@@ -115,6 +133,40 @@ test('production notification uses Shell urgency, logo, literal text and owned r
     h.notifier.close();
     assert.equal(h.cancelled.length, 1);
     assert.deepEqual(h.errors, []);
+});
+
+test('subminute delivery queries current policy and ignores stale replies', () => {
+    for (const allowed of [false, true]) {
+        const h = harness();
+        h.notifier.preferences = {show_in_fullscreen: true, reminders};
+        h.notifier.update(16, true);
+        h.notifier.update(15, true);
+        assert.equal(h.sources.length, 0);
+        h.policyReply(allowed);
+        assert.equal(h.notifier.current.notification.body,
+            `15 seconds left${allowed ? ', save your games!' : ''}`);
+        h.notifier.refresh();
+        h.reply({show_in_fullscreen: true, reminders});
+        assert.equal(h.notifier.current.notification.body,
+            `15 seconds left${allowed ? ', save your games!' : ''}`);
+    }
+    for (const stop of [h => h.notifier.update(0, false),
+        h => h.notifier.update(180, true), h => h.notifier.close()]) {
+        const h = harness();
+        h.notifier.preferences = {show_in_fullscreen: true, reminders};
+        h.notifier.update(16, true);
+        h.notifier.update(15, true);
+        stop(h);
+        h.policyReply(true);
+        assert.equal(h.sources.length, 0);
+    }
+    const h = harness();
+    h.notifier.preferences = {show_in_fullscreen: true, reminders};
+    h.notifier.update(16, true);
+    h.notifier.update(15, true);
+    h.callbacks.shift()({call_finish() { throw new Error('unavailable'); }}, {});
+    assert.equal(h.notifier.current.notification.body, '15 seconds left');
+    assert.equal(h.errors.length, 1);
 });
 
 test('failed reads retain custom preferences, late replies are ignored and emission failures stay bounded', () => {
@@ -201,6 +253,7 @@ test('notification UI adapter exposes actual current text and canonical urgency 
     h.notifier.preferences = {show_in_fullscreen: false, reminders};
     h.notifier.update(16, true);
     h.notifier.update(15, true);
+    h.policyReply(false);
     const indicator = {_notifications: h.notifier,
         container: {visible: true}, _requestButton: {visible: true, reactive: true, get_parent: () => null}};
     const adapter = new context.Adapter(indicator);

@@ -1588,5 +1588,10 @@ msgstr "%(count)g óra"
 
 #. Shared message: TIME_REMAINING_NOTIFICATION
 #, python-format
-msgid "%(time)s remaining"
+msgid "%(time)s left"
 msgstr "Hátralévő idő: %(time)s"
+
+#. Shared message: TIME_REMAINING_SAVE_GAMES_NOTIFICATION
+#, python-format
+msgid "%(time)s left, save your games!"
+msgstr "Hátralévő idő: %(time)s, mentsd el a játékaidat!"

@@ -36,8 +36,15 @@ its [message tray API](https://raw.githubusercontent.com/GNOME/gnome-shell/50.0/
 Notifications use the product logo, user privacy scope, plain text and transient
 lifetime. A later reminder replaces the previous product notification so an
 undismissed critical banner cannot obstruct later reminders. Default content
-combines shared localized minute/second plurals with `%(time)s remaining` in all
-supported languages; custom text bypasses translation and markup parsing.
+combines shared localized minute/second plurals with `%(time)s left` in all
+supported languages. For thresholds below 60 seconds, the controller queries
+`GetOwnSessionAllowsSoftApps()` before delivery and uses
+`%(time)s left, save your games!` when soft apps are currently allowed.
+The broker compares the live filter with the saved hard-only and strict filters;
+when these are identical, it uses the remembered choice with an active grant.
+Policy-read failure reports the error and retains the plain time warning.
+Locking, renewed time, preference changes and shutdown invalidate pending
+deliveries. Custom text bypasses translation and markup parsing.
 The [Application UI API](../TestAutomation/Application-UI-API.md#child-panel)
 exposes current notification content and urgency; it does not claim native
 banner visibility. Installed acceptance is queued, not implemented.

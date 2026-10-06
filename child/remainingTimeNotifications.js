@@ -20,6 +20,7 @@ export class RemainingTimeNotifications {
         this.current = null;
         this.closed = false;
         this.pending = false;
+        this.delivery = 0;
         this.cancellable = new Gio.Cancellable();
     }
 
@@ -45,6 +46,9 @@ export class RemainingTimeNotifications {
                     this.schedule.delivered = new Set([...this.schedule.delivered]
                         .filter(id => unchanged.has(id)));
                     this.preferences = preferences;
+                    if (this.deliveryReminder && !preferences.reminders.some(reminder =>
+                        JSON.stringify(reminder) === JSON.stringify(this.deliveryReminder)))
+                        this.clear();
                     if (this.current) {
                         const saved = this.preferences.reminders.find(reminder =>
                             reminder.id === this.current.reminder.id);
@@ -54,7 +58,8 @@ export class RemainingTimeNotifications {
                             this.current.urgency = this.preferences.show_in_fullscreen ? 'critical' : 'high';
                             this.current.notification.urgency = this.preferences.show_in_fullscreen
                                 ? MessageTray.Urgency.CRITICAL : MessageTray.Urgency.HIGH;
-                            this.current.notification.body = reminderText(saved, this.translations);
+                            this.current.notification.body = reminderText(saved, this.translations,
+                                this.current.allowSoftApps);
                         }
                     }
                     this.changed();
@@ -92,8 +97,35 @@ export class RemainingTimeNotifications {
     }
 
     show(reminder) {
-        const body = reminderText(reminder, this.translations);
         this.clear();
+        if (reminderSeconds(reminder) >= 60 || reminder.text.trim()) {
+            this.present(reminder, false);
+            return;
+        }
+        this.deliveryReminder = reminder;
+        const delivery = this.delivery;
+        Gio.DBus.system.call(BUS, '/com/puffyslippers/OhNoParentControl1', BUS,
+            'GetOwnSessionAllowsSoftApps', null, new GLib.VariantType('(b)'),
+            Gio.DBusCallFlags.NONE, 5000, this.cancellable, (connection, result) => {
+                if (this.closed || delivery !== this.delivery) return;
+                this.deliveryReminder = null;
+                let allowSoftApps = false;
+                try {
+                    [allowSoftApps] = connection.call_finish(result).deep_unpack();
+                } catch (error) {
+                    this.onError?.(error);
+                }
+                try {
+                    this.present(reminder, allowSoftApps);
+                } catch (error) {
+                    this.clear();
+                    this.onError?.(error);
+                }
+            });
+    }
+
+    present(reminder, allowSoftApps) {
+        const body = reminderText(reminder, this.translations, allowSoftApps);
         const source = new MessageTray.Source({title: this.title, icon: this.icon});
         this.source = source;
         source.connect('destroy', () => {
@@ -106,7 +138,7 @@ export class RemainingTimeNotifications {
             gicon: this.icon, useBodyMarkup: false,
             urgency: urgency === 'critical' ? MessageTray.Urgency.CRITICAL : MessageTray.Urgency.HIGH,
             privacyScope: MessageTray.PrivacyScope.USER, isTransient: true});
-        this.current = {notification, reminder, urgency, seconds: reminderSeconds(reminder)};
+        this.current = {notification, reminder, urgency, allowSoftApps, seconds: reminderSeconds(reminder)};
         notification.connect('destroy', () => {
             if (this.current?.notification === notification) this.current = null;
         });
@@ -114,6 +146,8 @@ export class RemainingTimeNotifications {
     }
 
     clear() {
+        this.delivery++;
+        this.deliveryReminder = null;
         const source = this.source;
         this.source = null;
         this.current = null;

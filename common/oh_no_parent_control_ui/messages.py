@@ -407,7 +407,8 @@ def retry_seconds(count):
 SAVE_GRANT_FAILED = gettext('Could not save the one-time grant. Please try again later.')
 SAVE_SCREEN_TIME_FAILED = gettext('Could not save screen-time settings. Please try again later.')
 SAVE_APP_ACCESS_FAILED = gettext('Could not save app access. Please try again later.')
-TIME_REMAINING_NOTIFICATION = gettext('%(time)s remaining')
+TIME_REMAINING_NOTIFICATION = gettext('%(time)s left')
+TIME_REMAINING_SAVE_GAMES_NOTIFICATION = gettext('%(time)s left, save your games!')
 
 BY_SOURCE = {value.source: value for value in globals().copy().values()
              if hasattr(value, 'source')}

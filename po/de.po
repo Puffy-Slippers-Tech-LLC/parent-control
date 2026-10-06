@@ -1586,5 +1586,10 @@ msgstr "Für %(name)s"
 
 #. Shared message: TIME_REMAINING_NOTIFICATION
 #, python-format
-msgid "%(time)s remaining"
+msgid "%(time)s left"
 msgstr "Noch %(time)s"
+
+#. Shared message: TIME_REMAINING_SAVE_GAMES_NOTIFICATION
+#, python-format
+msgid "%(time)s left, save your games!"
+msgstr "Noch %(time)s, speichere deine Spiele!"

@@ -621,6 +621,31 @@ class Broker:
         except (PreferencesError, OSError) as error:
             raise BackendFailure("notifications are unavailable") from error
 
+    def get_own_session_allows_soft_apps(self, caller_uid: int) -> bool:
+        """Read current policy, independently of the next request's checkbox."""
+        target = self._target(self._load_config(), caller_uid)
+        if not self._acquire_request_lock():
+            raise Busy("another request is already in progress")
+        try:
+            preferences = self._load_request_preferences(target.uid)
+            try:
+                live = self._accounts.get_filter(target.uid)
+                hard = (False, blocked_targets(preferences, True))
+                strict = (False, blocked_targets(preferences, False))
+                if live != hard:
+                    return False
+                if hard != strict:
+                    return True
+                # With no distinct soft targets the filters are identical.
+                # The active grant and its remembered choice supply the intent.
+                issued, duration = self._accounts.get_extension(target.uid)
+                return (duration > 0 and issued + duration > int(self._now().timestamp())
+                        and preferences["request"]["allow_soft_blocked_apps"])
+            except Exception as error:
+                raise BackendFailure("session application policy is unavailable") from error
+        finally:
+            self._request_lock.release()
+
     def set_own_notifications(self, caller_uid: int, notifications: object) -> dict:
         self._target(self._load_config(), caller_uid)
         try:

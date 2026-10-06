@@ -24,6 +24,47 @@ from tests.support.broker import (
 
 
 class CoreTests(unittest.TestCase):
+    def test_session_soft_app_status_uses_live_policy_instead_of_next_request_choice(self):
+        accounts, preferences = Accounts(), Preferences()
+        broker = make_broker(accounts=accounts, preferences=preferences)
+        accounts.filter = (False, ("org.example.Game",))
+        self.assertFalse(preferences.load(1001)["request"]["allow_soft_blocked_apps"])
+        self.assertTrue(broker.get_own_session_allows_soft_apps(1001))
+        preferences.update_request(1001, "900", 15, True)
+        accounts.filter = (False, ("/usr/bin/game", "org.example.Game"))
+        self.assertFalse(broker.get_own_session_allows_soft_apps(1001))
+        accounts.filter = (True, ("org.example.Game",))
+        self.assertFalse(broker.get_own_session_allows_soft_apps(1001))
+        self.assertTrue(all(event[0] == "get_filter" for event in accounts.events))
+
+    def test_session_soft_app_status_without_distinct_targets_requires_active_grant(self):
+        accounts, preferences = Accounts(), Preferences()
+        preferences.values[1001]["apps"] = {}
+        preferences.update_request(1001, "900", 15, True)
+        accounts.filter = (False, ())
+        broker = make_broker(accounts=accounts, preferences=preferences)
+        issued = int(broker._now().timestamp())
+        for extension, expected in [((issued, 60), True), ((issued - 60, 60), False), ((0, 0), False)]:
+            accounts.extension = extension
+            self.assertEqual(broker.get_own_session_allows_soft_apps(1001), expected)
+
+    def test_session_soft_app_status_is_own_only_and_preserves_read_failure(self):
+        accounts = Accounts()
+        broker = make_broker(accounts=accounts)
+        for uid in (991, 1003, 1004, 1005):
+            with self.assertRaises(AccessDenied):
+                broker.get_own_session_allows_soft_apps(uid)
+        self.assertEqual(accounts.events, [])
+        with mock.patch.object(accounts, "get_filter", side_effect=OSError("unavailable")):
+            with self.assertRaises(BackendFailure):
+                broker.get_own_session_allows_soft_apps(1001)
+        self.assertTrue(broker._request_lock.acquire(blocking=False))
+        try:
+            with self.assertRaises(Busy):
+                broker.get_own_session_allows_soft_apps(1001)
+        finally:
+            broker._request_lock.release()
+
     def test_child_notification_api_is_own_only_persistent_and_has_no_policy_effects(self):
         accounts, authorizer = Accounts(), Authorizer()
         with tempfile.TemporaryDirectory() as directory:

@@ -117,6 +117,7 @@ the broker resolves and revalidates it.
 | `SetOwnLanguage` | own | own | own |
 | `GetOwnNotifications` | own | - | - |
 | `SetOwnNotifications` | own | - | - |
+| `GetOwnSessionAllowsSoftApps` | own | - | - |
 | `GetChildLanguage` | - | selected child | - |
 | `GetChildLanguageContext` | - | selected child | - |
 | `SetChildLanguage` | - | selected child | - |
@@ -151,6 +152,11 @@ The own-notification methods accept only eligible child callers and no target
 UID. They persist personal reminder choices through the same store without
 changing time limits, grants or application policy; see the
 [notification storage contract](State.md#persistent-and-derived-state).
+
+`GetOwnSessionAllowsSoftApps()` is an eligible-child-only, read-only boolean
+query for reminder wording. It reads live application policy under the shared
+transaction lock and never writes policy or request preferences; the
+[notification controller](Screen-Time.md#remaining-time-notifications) owns delivery.
 
 `ExportDiagnosticLogs` is a separate, read-only permission for all three product
 roles. It takes no arguments and returns the bounded ZIP of all four components

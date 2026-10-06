@@ -1612,5 +1612,10 @@ msgstr "%(count)g ساعة"
 
 #. Shared message: TIME_REMAINING_NOTIFICATION
 #, python-format
-msgid "%(time)s remaining"
+msgid "%(time)s left"
 msgstr "الوقت المتبقي: %(time)s"
+
+#. Shared message: TIME_REMAINING_SAVE_GAMES_NOTIFICATION
+#, python-format
+msgid "%(time)s left, save your games!"
+msgstr "الوقت المتبقي: %(time)s, احفظ ألعابك!"

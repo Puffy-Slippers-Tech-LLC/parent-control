@@ -54,9 +54,24 @@ def test_notification_dispatch_uses_bus_uid_and_rejects_duplicate_or_oversized_j
 
 
 def test_notification_dbus_contract_has_no_target_uid():
+    assert signatures(INTROSPECTION_XML)["GetOwnSessionAllowsSoftApps"] == (("allow_soft_blocked_apps", "b", "out"),)
     assert signatures(INTROSPECTION_XML)["GetOwnNotifications"] == (("notifications_json", "s", "out"),)
     assert signatures(INTROSPECTION_XML)["SetOwnNotifications"] == (
         ("notifications_json", "s", "in"), ("saved_notifications_json", "s", "out"))
+
+
+def test_session_soft_apps_dispatch_uses_authenticated_caller():
+    from oh_no_parent_control.service import GLib
+    service = Service.__new__(Service)
+    service.credentials = mock.Mock()
+    service.credentials.uid.return_value = 1001
+    service.broker = mock.Mock()
+    service.broker.get_own_session_allows_soft_apps.return_value = True
+    invocation = mock.Mock()
+    service._method_call(None, ":1.42", None, None, "GetOwnSessionAllowsSoftApps",
+                         GLib.Variant("()", ()), invocation)
+    service.broker.get_own_session_allows_soft_apps.assert_called_once_with(1001)
+    assert invocation.return_value.call_args.args[0].unpack() == (True,)
 
 
 @pytest.mark.parametrize('permissive', [False, True])

@@ -1,5 +1,8 @@
 <node>
   <interface name="com.puffyslippers.OhNoParentControl1">
+    <method name="GetOwnSessionAllowsSoftApps">
+      <arg name="allow_soft_blocked_apps" type="b" direction="out"/>
+    </method>
     <method name="GetOwnNotifications">
       <arg name="notifications_json" type="s" direction="out"/>
     </method>

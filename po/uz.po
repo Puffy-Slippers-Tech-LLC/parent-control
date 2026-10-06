@@ -1618,8 +1618,9 @@ msgstr "Qayta urinish"
 msgid "Add reminder"
 msgstr "Eslatma qoʻshish"
 
-msgid "What the child will see"
-msgstr "Bola koʻradigan matn"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, bu sen ko‘radigan standart xabar. Uni o‘zgartirish uchun quyida o‘z xabaringni yoz:"
 
 msgid "When to show"
 msgstr "Qachon koʻrsatish"

@@ -1623,8 +1623,9 @@ msgstr "Saiatu berriro"
 msgid "Add reminder"
 msgstr "Gehitu abisua"
 
-msgid "What the child will see"
-msgstr "Haurrak ikusiko duena"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, hau da ikusiko duzun mezu lehenetsia. Aldatzeko, idatzi zure mezua behean:"
 
 msgid "When to show"
 msgstr "Noiz erakutsi"

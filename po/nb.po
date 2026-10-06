@@ -1623,8 +1623,9 @@ msgstr "Prøv igjen"
 msgid "Add reminder"
 msgstr "Legg til påminnelse"
 
-msgid "What the child will see"
-msgstr "Hva barnet vil se"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, dette er standardmeldingen du vil se. Skriv din egen nedenfor for å endre den:"
 
 msgid "When to show"
 msgstr "Når den vises"

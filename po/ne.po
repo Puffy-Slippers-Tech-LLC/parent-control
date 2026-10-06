@@ -1623,8 +1623,9 @@ msgstr "फेरि प्रयास गर्नुहोस्"
 msgid "Add reminder"
 msgstr "सम्झाउने सूचना थप्नुहोस्"
 
-msgid "What the child will see"
-msgstr "बालबालिकाले देख्ने कुरा"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, यो तिमीले देख्ने पूर्वनिर्धारित सन्देश हो। यसलाई बदल्न तल आफ्नो सन्देश लेख:"
 
 msgid "When to show"
 msgstr "कहिले देखाउने"

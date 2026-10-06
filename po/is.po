@@ -1623,8 +1623,9 @@ msgstr "Reyna aftur"
 msgid "Add reminder"
 msgstr "Bæta við áminningu"
 
-msgid "What the child will see"
-msgstr "Það sem barnið mun sjá"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, þetta eru sjálfgefnu skilaboðin sem þú munt sjá. Skrifaðu þín eigin hér að neðan til að breyta þeim:"
 
 msgid "When to show"
 msgstr "Hvenær á að birta"

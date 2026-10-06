@@ -1623,8 +1623,9 @@ msgstr "మళ్లీ ప్రయత్నించు"
 msgid "Add reminder"
 msgstr "సూచనను జోడించు"
 
-msgid "What the child will see"
-msgstr "పిల్లలకు కనిపించే వచనం"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, నీకు కనిపించే డిఫాల్ట్ సందేశం ఇది. దీన్ని మార్చడానికి, కింద నీ సొంత సందేశాన్ని రాయి:"
 
 msgid "When to show"
 msgstr "ఎప్పుడు చూపించాలి"

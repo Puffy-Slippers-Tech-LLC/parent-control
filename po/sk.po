@@ -1629,8 +1629,9 @@ msgstr "Skúsiť znova"
 msgid "Add reminder"
 msgstr "Pridať pripomenutie"
 
-msgid "What the child will see"
-msgstr "Čo dieťa uvidí"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, toto je predvolená správa, ktorú uvidíš. Ak ju chceš zmeniť, napíš nižšie vlastnú:"
 
 msgid "When to show"
 msgstr "Kedy zobraziť"

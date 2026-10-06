@@ -1617,8 +1617,9 @@ msgstr "다시 시도"
 msgid "Add reminder"
 msgstr "알림 추가"
 
-msgid "What the child will see"
-msgstr "아이가 볼 내용"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, 이것은 표시될 기본 메시지입니다. 변경하려면 아래에 원하는 메시지를 작성하세요:"
 
 msgid "When to show"
 msgstr "표시 시점"

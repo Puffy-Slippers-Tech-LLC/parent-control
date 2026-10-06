@@ -1623,8 +1623,9 @@ msgstr "Δοκιμάστε ξανά"
 msgid "Add reminder"
 msgstr "Προσθήκη υπενθύμισης"
 
-msgid "What the child will see"
-msgstr "Τι θα δει το παιδί"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, αυτό είναι το προεπιλεγμένο μήνυμα που θα δεις. Για να το αλλάξεις, γράψε το δικό σου παρακάτω:"
 
 msgid "When to show"
 msgstr "Πότε να εμφανίζεται"

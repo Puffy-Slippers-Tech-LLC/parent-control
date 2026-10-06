@@ -1623,8 +1623,9 @@ msgstr "Tentar de novo"
 msgid "Add reminder"
 msgstr "Engadir lembranza"
 
-msgid "What the child will see"
-msgstr "O que verá a crianza"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, esta é a mensaxe predeterminada que verás. Para cambiala, escribe a túa abaixo:"
 
 msgid "When to show"
 msgstr "Cando mostrar"

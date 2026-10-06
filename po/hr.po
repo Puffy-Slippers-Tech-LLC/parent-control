@@ -1629,8 +1629,9 @@ msgstr "Pokušaj ponovno"
 msgid "Add reminder"
 msgstr "Dodaj podsjetnik"
 
-msgid "What the child will see"
-msgstr "Što će dijete vidjeti"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, ovo je zadana poruka koju ćeš vidjeti. Za promjenu napiši vlastitu ispod:"
 
 msgid "When to show"
 msgstr "Kada prikazati"

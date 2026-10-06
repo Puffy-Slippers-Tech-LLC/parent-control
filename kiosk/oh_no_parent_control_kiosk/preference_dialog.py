@@ -151,13 +151,14 @@ class ReminderDialog(Gtk.Window):
                          css_classes=['preferences-page', 'reminder-editor-fields'])
         fields.append(localized(Gtk.Label, label=m.REMINDER_TEXT, xalign=0,
                                 css_classes=['preferences-section-title']))
-        fields.append(localized(Gtk.Label, label=m.REMINDER_TEXT_HELP, xalign=0,
+        text_help = m.REMINDER_TEXT_HELP % {'child_name': parent._account[1]}
+        fields.append(localized(Gtk.Label, label=text_help, xalign=0,
                                 wrap=True, css_classes=['reminder-trigger']))
         original_text = record.get('text', '') if record else ''
         # Keep legacy text intact, but prevent input from growing beyond its
         # existing length. Normal reminders are capped by GTK for all input.
         self._text = Gtk.Entry(hexpand=True, max_length=max(50, len(original_text)))
-        describe_control(self._text, m.REMINDER_TEXT, m.REMINDER_TEXT_HELP,
+        describe_control(self._text, m.REMINDER_TEXT, text_help,
                          automation_id='reminder-text')
         self._text.set_text(original_text)
         fields.append(self._text)
@@ -667,6 +668,7 @@ class PreferencesDialog(Gtk.Window):
             self.present()
 
     def set_account(self, account):
+        self._account = account
         if account is not None:
             _uid, label, icon_file = account
             apply_gtk_user_icon(self._account_icon, icon_file, pixel_size=32)

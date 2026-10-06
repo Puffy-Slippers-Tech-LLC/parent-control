@@ -1623,8 +1623,9 @@ msgstr "Opnieuw proberen"
 msgid "Add reminder"
 msgstr "Herinnering toevoegen"
 
-msgid "What the child will see"
-msgstr "Wat het kind zal zien"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, dit is het standaardbericht dat je te zien krijgt. Schrijf hieronder je eigen bericht om het te wijzigen:"
 
 msgid "When to show"
 msgstr "Wanneer tonen"

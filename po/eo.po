@@ -1623,8 +1623,9 @@ msgstr "Reprovi"
 msgid "Add reminder"
 msgstr "Aldoni memorigon"
 
-msgid "What the child will see"
-msgstr "Kion la infano vidos"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, jen la defaŭlta mesaĝo, kiun vi vidos. Por ŝanĝi ĝin, skribu vian propran sube:"
 
 msgid "When to show"
 msgstr "Kiam montri"

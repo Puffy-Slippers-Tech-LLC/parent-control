@@ -1623,8 +1623,9 @@ msgstr "Proovi uuesti"
 msgid "Add reminder"
 msgstr "Lisa meeldetuletus"
 
-msgid "What the child will see"
-msgstr "Mida laps näeb"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, see on vaikesõnum, mida näed. Selle muutmiseks kirjuta allpool oma sõnum:"
 
 msgid "When to show"
 msgstr "Millal kuvada"

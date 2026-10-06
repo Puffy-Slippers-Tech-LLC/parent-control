@@ -1623,8 +1623,9 @@ msgstr "Torne prove"
 msgid "Add reminder"
 msgstr "Zonte une memorie"
 
-msgid "What the child will see"
-msgstr "Ce che il frut al viodarà"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, chest al è il messaç predefinît che tu viodarâs. Par cambiâlu, scrîf il to chi sot:"
 
 msgid "When to show"
 msgstr "Cuant mostrâ"

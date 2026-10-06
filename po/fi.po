@@ -1623,8 +1623,9 @@ msgstr "Yritä uudelleen"
 msgid "Add reminder"
 msgstr "Lisää muistutus"
 
-msgid "What the child will see"
-msgstr "Mitä lapsi näkee"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, tämä on oletusviesti, jonka näet. Voit muuttaa sitä kirjoittamalla oman viestisi alle:"
 
 msgid "When to show"
 msgstr "Milloin näytetään"

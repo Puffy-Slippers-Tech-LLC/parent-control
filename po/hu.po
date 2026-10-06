@@ -1623,8 +1623,9 @@ msgstr "Újrapróbálkozás"
 msgid "Add reminder"
 msgstr "Emlékeztető hozzáadása"
 
-msgid "What the child will see"
-msgstr "Amit a gyermek lát majd"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, ez az alapértelmezett üzenet, amelyet látni fogsz. A módosításához írd meg a sajátodat alább:"
 
 msgid "When to show"
 msgstr "Mikor jelenjen meg"

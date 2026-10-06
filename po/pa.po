@@ -1623,8 +1623,9 @@ msgstr "ਫਿਰ ਕੋਸ਼ਿਸ਼ ਕਰੋ"
 msgid "Add reminder"
 msgstr "ਯਾਦ-ਸੂਚਨਾ ਜੋੜੋ"
 
-msgid "What the child will see"
-msgstr "ਬੱਚੇ ਨੂੰ ਕੀ ਦਿਖੇਗਾ"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, ਇਹ ਡਿਫਾਲਟ ਸੁਨੇਹਾ ਹੈ ਜੋ ਤੈਨੂੰ ਦਿਸੇਗਾ। ਇਸ ਨੂੰ ਬਦਲਣ ਲਈ ਹੇਠਾਂ ਆਪਣਾ ਸੁਨੇਹਾ ਲਿਖ:"
 
 msgid "When to show"
 msgstr "ਕਦੋਂ ਦਿਖਾਉਣਾ ਹੈ"

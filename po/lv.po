@@ -1629,8 +1629,9 @@ msgstr "Mēģināt vēlreiz"
 msgid "Add reminder"
 msgstr "Pievienot atgādinājumu"
 
-msgid "What the child will see"
-msgstr "Ko bērns redzēs"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, šis ir noklusējuma ziņojums, ko redzēsi. Lai to mainītu, zemāk uzraksti savu:"
 
 msgid "When to show"
 msgstr "Kad rādīt"

@@ -1615,8 +1615,9 @@ msgstr "再試行"
 msgid "Add reminder"
 msgstr "リマインダーを追加"
 
-msgid "What the child will see"
-msgstr "お子様に表示される内容"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s、これは表示される既定のメッセージです。変更するには、下に自分のメッセージを書いてください："
 
 msgid "When to show"
 msgstr "表示するタイミング"

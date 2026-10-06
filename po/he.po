@@ -1623,8 +1623,9 @@ msgstr "ניסיון נוסף"
 msgid "Add reminder"
 msgstr "הוספת תזכורת"
 
-msgid "What the child will see"
-msgstr "מה שהילד יראה"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, זו הודעת ברירת המחדל שתופיע לך. כדי לשנות אותה, אפשר לכתוב הודעה משלך למטה:"
 
 msgid "When to show"
 msgstr "מתי להציג"

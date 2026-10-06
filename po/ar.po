@@ -1647,8 +1647,9 @@ msgstr "حاول مجددًا"
 msgid "Add reminder"
 msgstr "إضافة تذكير"
 
-msgid "What the child will see"
-msgstr "ما سيراه الطفل"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s، هذه هي الرسالة الافتراضية التي ستراها. لتغييرها، اكتب رسالتك الخاصة أدناه:"
 
 msgid "When to show"
 msgstr "وقت العرض"

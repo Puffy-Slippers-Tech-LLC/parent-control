@@ -1617,8 +1617,9 @@ msgstr "Қайталап көру"
 msgid "Add reminder"
 msgstr "Еске салғыш қосу"
 
-msgid "What the child will see"
-msgstr "Бала көретін мәтін"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, бұл — сен көретін әдепкі хабарлама. Оны өзгерту үшін төменде өз хабарламаңды жаз:"
 
 msgid "When to show"
 msgstr "Қашан көрсету керек"

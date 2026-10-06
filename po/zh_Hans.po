@@ -1615,8 +1615,9 @@ msgstr "重试"
 msgid "Add reminder"
 msgstr "添加提醒"
 
-msgid "What the child will see"
-msgstr "孩子将看到的内容"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s，这是你将看到的默认消息。要更改它，请在下方写下你自己的消息："
 
 msgid "When to show"
 msgstr "何时显示"

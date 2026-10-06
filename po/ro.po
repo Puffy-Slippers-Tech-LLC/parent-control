@@ -1629,8 +1629,9 @@ msgstr "Încearcă din nou"
 msgid "Add reminder"
 msgstr "Adaugă memento"
 
-msgid "What the child will see"
-msgstr "Ce va vedea copilul"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, acesta este mesajul implicit pe care îl vei vedea. Pentru a-l schimba, scrie propriul mesaj mai jos:"
 
 msgid "When to show"
 msgstr "Când să se afișeze"

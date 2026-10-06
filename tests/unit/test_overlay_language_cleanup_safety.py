@@ -82,20 +82,33 @@ def policy_value(daily=1800):
 
 def test_registration_installed_envelope_and_shared_fragments(monkeypatch, tmp_path):
     import e2e_worker
+    import package_inputs
+    import test_storage
+    import tools.package_inputs as packaged_inputs
+    import tools.test_storage as storage
     import tools.test_commands as commands
     from tools.test_storage import named_input
+    from tests.support.modules import load_module
     from parent_setup_qualification import OverlayLanguageQualification, KioskEntryQualification
     from journey_blocks import language_selection, overlay_entry
+    # Compare source-bound paths against one private source tree. The checkout
+    # may change between collection-time imports and this test's execution.
+    (tmp_path / 'package-input').write_text('stable qualification source')
+    for module in (storage, test_storage):
+        monkeypatch.setattr(module, 'ROOT', tmp_path)
+    for module in (packaged_inputs, package_inputs):
+        monkeypatch.setattr(module, 'paths', lambda _: [Path('package-input')])
+    entry = load_module('overlay_language_registration_fixture', Path(selector.__file__))
     launch = Mock(return_value=0)
-    monkeypatch.setattr(selector, 'smoke', launch)
-    assert selector.main() == 0
-    launch.assert_called_once_with(assets=selector.ASSETS, provision_credentials=True, overlay_language=True)
-    assert selector.ASSETS == named_input(package_source=True)
+    monkeypatch.setattr(entry, 'smoke', launch)
+    assert entry.main() == 0
+    launch.assert_called_once_with(assets=entry.ASSETS, provision_credentials=True, overlay_language=True)
+    assert entry.ASSETS == named_input(package_source=True)
     assert OverlayLanguageQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
     assert OverlayLanguageQualification.journey(SimpleNamespace(directory=tmp_path), Mock()).plan is language.PLAN
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
-    monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(selector.ASSETS)))
-    assert commands.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_overlay_language'])[-1] == str(selector.ASSETS)
+    monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(entry.ASSETS)))
+    assert commands.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_overlay_language'])[-1] == str(entry.ASSETS)
     assert set(language.PLAN.phases) == set(language.PLAN.stages)
     assert language.SCREENS['direct-form'] == 'ui:overlay-language-initial'
     assert language.SCREENS['initial-form'] == 'ui:overlay-language-form-en'

@@ -1617,8 +1617,9 @@ msgstr "Thử lại"
 msgid "Add reminder"
 msgstr "Thêm lời nhắc"
 
-msgid "What the child will see"
-msgstr "Nội dung trẻ sẽ thấy"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, đây là thông báo mặc định bạn sẽ thấy. Để thay đổi, hãy viết thông báo của riêng bạn bên dưới:"
 
 msgid "When to show"
 msgstr "Khi nào hiển thị"

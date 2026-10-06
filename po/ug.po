@@ -1617,8 +1617,9 @@ msgstr "قايتا سىناڭ"
 msgid "Add reminder"
 msgstr "ئەسكەرتىش قوشۇش"
 
-msgid "What the child will see"
-msgstr "بالا كۆرىدىغان مەزمۇن"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s، بۇ سەن كۆرىدىغان كۆڭۈلدىكى ئۇچۇر. ئۇنى ئۆزگەرتىش ئۈچۈن تۆۋەنگە ئۆز ئۇچۇرۇڭنى ياز:"
 
 msgid "When to show"
 msgstr "قاچان كۆرسىتىش"

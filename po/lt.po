@@ -1629,8 +1629,9 @@ msgstr "Bandyti dar kartą"
 msgid "Add reminder"
 msgstr "Pridėti priminimą"
 
-msgid "What the child will see"
-msgstr "Ką matys vaikas"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, tai numatytasis pranešimas, kurį matysi. Norėdamas jį pakeisti, žemiau parašyk savo:"
 
 msgid "When to show"
 msgstr "Kada rodyti"

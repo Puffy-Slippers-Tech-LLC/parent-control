@@ -1617,8 +1617,9 @@ msgstr "Cuba lagi"
 msgid "Add reminder"
 msgstr "Tambah peringatan"
 
-msgid "What the child will see"
-msgstr "Apa yang akan dilihat oleh kanak-kanak"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, ini ialah mesej lalai yang akan kamu lihat. Untuk mengubahnya, tulis mesej kamu sendiri di bawah:"
 
 msgid "When to show"
 msgstr "Bila ditunjukkan"

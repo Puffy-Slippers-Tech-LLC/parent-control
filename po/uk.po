@@ -1635,8 +1635,9 @@ msgstr "Спробувати знову"
 msgid "Add reminder"
 msgstr "Додати нагадування"
 
-msgid "What the child will see"
-msgstr "Що побачить дитина"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, це типове повідомлення, яке ти побачиш. Щоб змінити його, напиши власне нижче:"
 
 msgid "When to show"
 msgstr "Коли показувати"

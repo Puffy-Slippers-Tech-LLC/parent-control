@@ -1622,7 +1622,8 @@ msgstr ""
 msgid "Add reminder"
 msgstr ""
 
-msgid "What the child will see"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
 msgstr ""
 
 msgid "When to show"

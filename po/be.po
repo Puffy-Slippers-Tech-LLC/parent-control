@@ -1629,8 +1629,9 @@ msgstr "Паспрабаваць зноў"
 msgid "Add reminder"
 msgstr "Дадаць напамін"
 
-msgid "What the child will see"
-msgstr "Што ўбачыць дзіця"
+#, python-format
+msgid "%(child_name)s, this is the default message you’ll see. To change it, write your own below:"
+msgstr "%(child_name)s, гэта прадвызначанае паведамленне, якое ты ўбачыш. Каб змяніць яго, напішы сваё ніжэй:"
 
 msgid "When to show"
 msgstr "Калі паказваць"

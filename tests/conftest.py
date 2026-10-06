@@ -106,10 +106,10 @@ CONTRACT_MODULES = frozenset(
 )
 
 
+@pytest.hookimpl(hookwrapper=True)
 def pytest_collection_modifyitems(session, config, items):
     """Give every collected test one explicit, understandable test layer."""
 
-    resume_collection(session, config, items)
     for item in items:
         path = Path(str(item.path))
         layer = path.relative_to(Path(__file__).parent).parts[0]
@@ -119,3 +119,6 @@ def pytest_collection_modifyitems(session, config, items):
             item.add_marker(layer)
         elif layer == "fixtures":
             item.add_marker("fixture")
+    # Count retained passes only after pytest applies -k/-m and other selectors.
+    yield
+    resume_collection(session, config, items)

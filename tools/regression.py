@@ -13,7 +13,7 @@ import sys
 import time
 import uuid
 
-from regression_events import PREFIX
+from regression_events import PREFIX, completed_cases
 from regression_process import Control
 import test_launcher as host
 from regression_schedule import Job, run_jobs
@@ -66,6 +66,15 @@ class Category:
     phase: str = 'host'
     retry_category: str | None = None
     count_overall: bool = True
+    resumed_nodeids: tuple[str, ...] = ()
+
+    @property
+    def progress_done(self):
+        return self.done + len(self.resumed_nodeids)
+
+    @property
+    def progress_total(self):
+        return None if self.total is None else self.total + len(self.resumed_nodeids)
 
     def duration(self, now):
         seconds = self.elapsed + (now - self.started if self.started is not None else 0)
@@ -127,7 +136,7 @@ class Dashboard:
         return counts + f'{total})'
 
     def category(self, item, now):
-        total = '?' if item.total is None else str(item.total)
+        total = '?' if item.progress_total is None else str(item.progress_total)
         routine = (f'{HOST_WORKERS} host categories already running', 'waiting for required host jobs')
         reason = '' if item.wait_reason in routine else item.wait_reason
         if item.state == 'Pending':
@@ -135,17 +144,18 @@ class Dashboard:
                 suffix = ': ' + reason if reason else ''
                 return f'\033[33m[Waiting] {item.name}{suffix} ({total})\033[0m'
             return f'\033[90m[Pending] {item.name} ({total})\033[0m'
-        percent = '?' if item.total is None else str(int(100 * item.done / max(item.total, 1)))
+        percent = ('?' if item.progress_total is None else
+                   str(int(100 * item.progress_done / max(item.progress_total, 1))))
         label = {'Passed': '✓', 'Failed': '✗', 'Interrupted': '✗',
                  'Blocked': '✗'}.get(item.state, item.state)
         if item.state == 'Passed':
             return (f'\033[32m[{label}] {item.name} - {percent}% '
-                    f'({item.done}/{total}) - {item.duration(now)}'
+                    f'({item.progress_done}/{total}) - {item.duration(now)}'
                     + (f' ({reason})' if reason else '') + '\033[0m')
         color = {'Passed': '32', 'Failed': '31', 'Interrupted': '31',
                  'Blocked': '31', 'Running': '97;1', 'Pending': '90'}[item.state]
         return (f'\033[{color}m[{label}] {item.name} - {percent}% '
-                + self.counts(item.done, item.failures, total)
+                + self.counts(item.progress_done, item.failures, total)
                 + f' - {item.duration(now)}'
                 + (f' ({reason})' if reason else '') + '\033[0m')
 
@@ -212,9 +222,9 @@ class Dashboard:
             else:
                 lines.append(('│  ' if hosts else '') + self.category(item, now))
         counted = [item for item in self.categories if item.phase != 'cleanup' and item.count_overall]
-        done = sum(item.done for item in counted)
-        known = all(item.total is not None for item in counted)
-        total = sum(item.total or 0 for item in counted)
+        done = sum(item.progress_done for item in counted)
+        known = all(item.progress_total is not None for item in counted)
+        total = sum(item.progress_total or 0 for item in counted)
         percent = str(int(100 * done / max(total, 1))) if known else '?'
         color = '31' if any(c.state in ('Failed', 'Interrupted', 'Blocked') for c in self.categories) else (
             '32' if all(c.state == 'Passed' for c in self.categories) else '97;1')
@@ -394,7 +404,8 @@ class Report:
         path = self.directory / 'progress.json'
         temporary = self.directory / 'progress.tmp'
         with temporary.open('w', encoding='utf-8') as stream:
-            json.dump([asdict(item) for item in categories], stream, indent=2)
+            json.dump([dict(asdict(item), done=item.progress_done, total=item.progress_total)
+                       for item in categories], stream, indent=2)
             stream.flush()
         os.replace(temporary, path)
         self.dirty.add(path)
@@ -495,8 +506,21 @@ class Execution:
                     if item.nodeids is not None and set(ids) != set(item.nodeids):
                         raise ValueError('test inventory IDs changed after collection')
                     item.nodeids = ids
+                    if item.retry_category == 'system' and self.run.checkpoint is not None:
+                        # Lifecycle prerequisites may replay retained passes;
+                        # count only cases absent from this execution inventory.
+                        item.resumed_nodeids = tuple(sorted(
+                            self.run.checkpoint.passed('system') - set(ids)))
                 elif item.nodeids is not None:
                     raise ValueError('missing test inventory IDs')
+                if 'resumed_nodeids' in event:
+                    resumed = tuple(event['resumed_nodeids'])
+                    completed_cases(json.dumps(event['resumed_nodeids']))
+                    if set(resumed) & set(item.nodeids or ()):
+                        raise ValueError('invalid resumed test inventory IDs')
+                    if item.resumed_nodeids and set(resumed) != set(item.resumed_nodeids):
+                        raise ValueError('resumed test inventory IDs changed after collection')
+                    item.resumed_nodeids = resumed
             elif event['kind'] == 'finished' and not self.collect:
                 if event['nodeid'] in self.finished:
                     raise ValueError('duplicate test completion')
@@ -684,6 +708,8 @@ class Run:
         filtered.append('--id=' + ','.join(str(case['coverage_id']) for case in remaining))
         item.nodeids = tuple(case['case_id'] for case in remaining)
         item.total = len(remaining)
+        item.resumed_nodeids = tuple(case['case_id'] for case in plan['cases']
+                                    if case not in remaining)
         return [*command[:2], '--unattended', *filtered]
 
     def execute(self, item, command, *, collect=False, events=False, units=None):
@@ -853,16 +879,21 @@ class Run:
         """Share module isolation and scheduling across host and selected runs."""
         if inventory.state == 'Passed' and not inventory.total:
             return []
-        buckets = {'ui': ui_buckets, 'unit': unit_buckets}[kind](inventory.nodeids)
-        items = [Category(bucket.name, len(bucket.nodeids), nodeids=bucket.nodeids,
-                          retry_category=kind)
-                 for bucket in buckets]
+        buckets = {'ui': ui_buckets, 'unit': unit_buckets}[kind](
+            (*inventory.nodeids, *inventory.resumed_nodeids))
+        retained = set(inventory.resumed_nodeids)
+        items = []
+        for bucket in buckets:
+            pending = tuple(node for node in bucket.nodeids if node not in retained)
+            items.append(Category(bucket.name, len(pending), nodeids=pending,
+                                  resumed_nodeids=tuple(node for node in bucket.nodeids if node in retained),
+                                  retry_category=kind, state='Pending' if pending else 'Passed'))
         position = self.categories.index(inventory)
         self.categories[position:position + 1] = items
         return [Job(bucket.kind, item,
-                    self.command(kind, *args, *(bucket.nodeids if exact else bucket.paths)),
+                    self.command(kind, *args, *(item.nodeids if exact else bucket.paths)),
                     events=True, estimate=bucket.estimate)
-                for bucket, item in zip(buckets, items, strict=True)]
+                for bucket, item in zip(buckets, items, strict=True) if item.nodeids]
 
     def run(self):
         from test_commands import suite_inventory

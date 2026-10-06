@@ -7,6 +7,8 @@ import stat
 import sys
 from pathlib import Path
 
+import pytest
+
 PREFIX = 'ONPC-TEST-EVENT '
 
 
@@ -55,6 +57,7 @@ def emit(kind, **fields):
     write_event(sys.__stdout__, kind, **fields)
 
 
+@pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):
     value = os.environ.get('ONPC_TEST_COMPLETED_CASES')
     if value is None:
@@ -62,6 +65,7 @@ def pytest_collection_modifyitems(session, config, items):
     passed = completed_cases(value)
     omitted = [item for item in items if item.nodeid in passed]
     items[:] = [item for item in items if item.nodeid not in passed]
+    session.onpc_resumed_nodeids = tuple(item.nodeid for item in omitted)
     session.onpc_resume_empty = bool(omitted and not items)
     if omitted:
         config.hook.pytest_deselected(items=omitted)
@@ -99,6 +103,8 @@ def pytest_collection_finish(session):
                      if os.environ.get('ONPC_REGRESSION_INVENTORY') == '1' else {})
         emit('collection', total=len(session.items), collection_only=session.config.option.collectonly,
              **({'resume_empty': True} if getattr(session, 'onpc_resume_empty', False) else {}),
+             **({'resumed_nodeids': list(session.onpc_resumed_nodeids)}
+                if getattr(session, 'onpc_resumed_nodeids', ()) else {}),
              **inventory)
 
 

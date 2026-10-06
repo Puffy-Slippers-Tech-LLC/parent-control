@@ -267,6 +267,12 @@ unit 'tests/unit/test_core.py' -q`. A new execution without `--resume` resets th
 checkpoint and starts that selection from the beginning. Attachment to a live
 owner keeps that owner's options; inspection never changes checkpoints.
 
+Resumed category, bucket and overall counters include retained passes and keep
+the original selected total in the dashboard, controller header and saved progress.
+For example, after nine passes in a 100-case selection, completing the first retry
+shows `10/100`, not `1/91`. `fix-tests` uses the same counters for its resumed
+test runs and repair retries. A fresh verification pass starts its counts over.
+
 Only completed cases without a reported failure are retained as passes. Failed
 cases, interrupted cases and queued work run again; parallel workers retain
 their independent completions. Pytest passes commit after teardown. An abrupt

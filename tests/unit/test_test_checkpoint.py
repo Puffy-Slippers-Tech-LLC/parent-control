@@ -6,8 +6,10 @@ model sessions, displays, cleanup owners or shared launcher files.
 """
 
 import json
+import io
 import os
 import subprocess
+from contextlib import closing
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -155,6 +157,12 @@ def test_pending():
                             text=True, timeout=30)
     assert second.returncode == 0, second.stdout + second.stderr
     assert (tmp_path / 'calls').read_text().splitlines() == ['passed', 'retry', 'retry', 'pending']
+    events = [json.loads(line[len(regression_events.PREFIX):])
+              for line in second.stdout.splitlines() if line.startswith(regression_events.PREFIX)]
+    collection = next(value for value in events if value['kind'] == 'collection')
+    assert collection['total'] == 2
+    assert collection['resumed_nodeids'] == json.loads(environment[EXCLUDE])
+    assert collection['resumed_nodeids'][0].endswith('test_sample.py::test_passed')
 
 
 def test_all_completed_inventory_succeeds_but_genuinely_empty_inventory_does_not(monkeypatch):
@@ -188,6 +196,26 @@ def test_repository_pytest_configuration_registers_resume_hooks():
     events = [json.loads(line[len(regression_events.PREFIX):])
               for line in result.stdout.splitlines() if line.startswith(regression_events.PREFIX)]
     assert [value['nodeids'] for value in events if value['kind'] == 'collection'] == [[cases[1]]]
+    assert [value['resumed_nodeids'] for value in events if value['kind'] == 'collection'] == [[cases[0]]]
+
+
+@pytest.mark.parametrize('selector', [['-k', 'teardown'], ['-m', 'contract']])
+def test_resume_counts_only_completed_cases_matching_original_selectors(selector):
+    cases = ['tests/unit/test_test_checkpoint.py::' + name for name in (
+        'test_failed_teardown_revokes_an_earlier_completion',
+        'test_resume_keeps_only_finished_nonfailed_cases_and_fresh_run_resets')]
+    # This module is classified as unit; -m contract excludes both cases.
+    environment = dict(os.environ, PYTHONPATH=os.pathsep.join((str(ROOT), str(ROOT / 'tools'))),
+                       PYTEST_DISABLE_PLUGIN_AUTOLOAD='1', ONPC_REGRESSION_EVENTS='1',
+                       ONPC_REGRESSION_INVENTORY='1', **{EXCLUDE: json.dumps(cases)})
+    result = subprocess.run(['/usr/bin/python3', '-B', '-m', 'pytest',
+                             '-p', 'no:cacheprovider', '--collect-only', '-q', *selector, *cases],
+                            cwd=ROOT, env=environment, capture_output=True, text=True, timeout=30)
+    assert result.returncode == (0 if selector[0] == '-k' else 5), result.stdout + result.stderr
+    events = [json.loads(line[len(regression_events.PREFIX):])
+              for line in result.stdout.splitlines() if line.startswith(regression_events.PREFIX)]
+    collection = next(value for value in events if value['kind'] == 'collection')
+    assert collection.get('resumed_nodeids', []) == (cases[:1] if selector[0] == '-k' else [])
 
 
 def test_selected_run_skips_completed_category_and_retains_serial_failure_limit(tmp_path, monkeypatch):
@@ -361,4 +389,67 @@ def test_e2e_resume_filters_passed_cases_and_preserves_execution_options(tmp_pat
     resumed = regression.Run.resume_command(runner, item, command)
     assert resumed == [*command[:3], '--artifacts=/private/artifacts', '--vm', 'guest', '--id=2']
     assert item.nodeids == ('retry',) and item.total == 1
+    assert item.resumed_nodeids == ('passed',)
+    assert (item.progress_done, item.progress_total) == (1, 2)
     assert preflight.call_args.kwargs == dict(root=ROOT, allow_missing_artifacts=True)
+
+
+@pytest.mark.parametrize('kind', ['unit', 'system', 'e2e'])
+def test_resumed_dashboard_and_saved_progress_keep_original_counts(tmp_path, kind):
+    retained = tuple(f'case-{index}' for index in range(9))
+    pending = tuple(f'case-{index}' for index in range(9, 100))
+    with closing(regression.Report(tmp_path)) as report:
+        run = regression.Run(tmp_path, report, regression.Control(), host_only=True)
+        item = regression.Category('Resumed tests', retry_category=kind)
+        run.categories[:] = [item]
+        run.dashboard.stream = io.StringIO()
+        if kind == 'system':
+            run.checkpoint = Checkpoint(tmp_path, [(kind, [])])
+            run.checkpoint.entry(kind)['passed'] = list(retained)
+        elif kind == 'e2e':
+            item.resumed_nodeids = retained
+        execution = regression.Execution(run, item, events=True)
+        collection = dict(kind='collection', total=len(pending), nodeids=list(pending))
+        if kind == 'unit':
+            collection['resumed_nodeids'] = list(retained)
+        try:
+            execution.line((regression_events.PREFIX + json.dumps(collection)).encode())
+            assert (item.progress_done, item.progress_total) == (9, 100)
+            execution.line((regression_events.PREFIX + json.dumps(
+                dict(kind='finished', nodeid=pending[0]))).encode())
+            assert (item.done, item.total) == (1, 91)
+            frame = run.dashboard.ANSI.sub('', '\n'.join(run.dashboard.render(run.dashboard.started)))
+            assert 'Resumed tests - 10% (10/100)' in frame
+            assert 'Overall - 10% (10/100)' in frame
+            report.checkpoint(force=True)
+            progress = json.loads((report.directory / 'progress.json').read_text())
+            assert (progress[0]['done'], progress[0]['total']) == (10, 100)
+            for node in pending[1:]:
+                execution.line((regression_events.PREFIX + json.dumps(
+                    dict(kind='finished', nodeid=node))).encode())
+            execution.finish(0)
+            assert item.state == 'Passed' and item.progress_done == item.progress_total == 100
+        finally:
+            execution.close()
+
+
+@pytest.mark.parametrize('kind', ['unit', 'ui'])
+def test_parallel_resume_preserves_completed_buckets_without_executing_them(tmp_path, monkeypatch, kind):
+    retained = f'tests/{kind}/test_completed.py::test_passed'
+    pending = f'tests/{kind}/test_pending.py::test_retry'
+    bucket = lambda name, node: SimpleNamespace(
+        name=name, nodeids=(node,), paths=(node.split('::')[0],), kind=kind, estimate=1)
+    partition = Mock(return_value=[bucket('Completed bucket', retained), bucket('Pending bucket', pending)])
+    monkeypatch.setattr(regression, kind + '_buckets', partition)
+    with closing(regression.Report(tmp_path)) as report:
+        run = regression.Run(tmp_path, report, regression.Control(), host_only=True)
+        inventory = regression.Category('Inventory', 1, nodeids=(pending,), resumed_nodeids=(retained,))
+        run.categories[:] = [inventory]
+        jobs = run.pytest_jobs(kind, inventory, [], exact=True)
+        assert set(partition.call_args.args[0]) == {retained, pending}
+        assert len(jobs) == 1 and jobs[0].item.nodeids == (pending,)
+        assert pending in jobs[0].command and retained not in jobs[0].command
+        assert run.categories[0].state == 'Passed'
+        frame = run.dashboard.ANSI.sub('', '\n'.join(run.dashboard.render(run.dashboard.started)))
+        assert 'Completed bucket - 100% (1/1)' in frame
+        assert 'Overall - 50% (1/2)' in frame

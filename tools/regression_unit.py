@@ -380,6 +380,8 @@ from regression_ui import Bucket
 # synthetic pytest child. Repair-loop checks reuse the recorded process doubles;
 # they add no shared owner, VM, display, socket or expensive fixture. Both unit
 # and cleanup classifications of fix_tests_cleanup_safety remain compatible.
+# Resume counter/selector checks use the same private reports, checkpoint trees,
+# waited pytest children and scheduler doubles; compatible isolation is unchanged.
 REVIEWED = frozenset("""
 test_checkpoint
 parent_presentation_cleanup_safety

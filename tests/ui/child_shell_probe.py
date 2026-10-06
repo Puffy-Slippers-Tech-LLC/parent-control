@@ -12,7 +12,7 @@ import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
 
-from common.oh_no_parent_control_ui.application_ui_client import UIClient, UIClientError
+from tests.support.application_ui import ApplicationUI, UIClientError
 
 
 UUID = "oh-no-parent-control@tech.puffyslippers.com"
@@ -28,6 +28,7 @@ EXPECTED_MARKER = os.environ.get("ONPC_CHILD_SHELL_EXPECTED_MARKER", "")
 LAST_EXTENSION_INFO: object = "not queried"
 LAST_ACCESSIBLE_NAME = "not found"
 REQUEST_BUTTON_ID = "child-request-button"
+APPLICATIONS = ApplicationUI()
 UI = None
 
 
@@ -65,7 +66,7 @@ def _find_indicator():
     global LAST_ACCESSIBLE_NAME, UI
     try:
         if UI is None:
-            candidate = UIClient("child-panel")
+            candidate = APPLICATIONS.client("child-panel")
             expected_pid = os.environ.get("ONPC_CHILD_SHELL_PID")
             if expected_pid is not None and candidate.pid != int(expected_pid):
                 raise AssertionError("Child panel is not owned by the launched Shell")
@@ -107,7 +108,7 @@ def _application_ui_diagnostics() -> dict[str, object]:
     }
 
 
-def main() -> int:
+def _run() -> int:
     timeout_seconds = float(os.environ.get("ONPC_PREVIEW_READY_TIMEOUT_SECONDS", "30"))
     connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
     loop = GLib.MainLoop()
@@ -177,6 +178,13 @@ def main() -> int:
         return 1
     print(f"Child Shell ready; public request text: {LAST_ACCESSIBLE_NAME}")
     return 0
+
+
+def main() -> int:
+    try:
+        return _run()
+    finally:
+        APPLICATIONS.close()
 
 
 if __name__ == "__main__":

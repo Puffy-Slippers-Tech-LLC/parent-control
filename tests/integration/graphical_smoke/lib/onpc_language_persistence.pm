@@ -24,19 +24,19 @@ sub run {
     onpc_parent::launch($journey, $desktop, 'initial-language');
     $journey->seen('initial-save');
     for my $child ('riley', 'jordan') {
-        onpc_allowance_boundaries::select_child($journey, "$child-setup", 'keyboard');
+        onpc_allowance_boundaries::select_child($journey, "$child-setup");
         $journey->seen("$child-$_") for qw(enabled saved allowance before);
     }
     $journey->seen('offline-enter');
     onpc_parent::language_selection($journey, 'chinese');
     $journey->seen('chinese-save');
     for my $prefix ('parent-riley', 'parent-jordan', 'parent-riley-return') {
-        onpc_allowance_boundaries::select_child($journey, $prefix, 'keyboard');
+        onpc_allowance_boundaries::select_child($journey, $prefix);
         $journey->seen("$prefix-$_") for qw(state choice close);
     }
     onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
     $journey->seen($_) for qw(reopened-choice reopened-close);
-    onpc_allowance_boundaries::select_child($journey, 'riley-session', 'keyboard');
+    onpc_allowance_boundaries::select_child($journey, 'riley-session');
     $journey->seen($_) for qw(riley-session-before parent-switch parent-greeter);
     onpc_gdm::enter_station($journey, 'initial-');
     $journey->seen($_) for qw(station-initial-language station-initial-save jordan-jamie jordan-custom);
@@ -70,11 +70,11 @@ sub run {
     my $returned = onpc_gdm::sign_in_challenge($journey, 'return',
         'return-installed-greeter', 'return-parent-focused', 'return-desktop');
     onpc_parent::launch($journey, $returned, 'management', 'return-desktop');
-    onpc_allowance_boundaries::select_child($journey, 'final-jordan', 'keyboard');
+    onpc_allowance_boundaries::select_child($journey, 'final-jordan');
     $journey->seen('jordan-offline-final');
-    onpc_allowance_boundaries::select_child($journey, 'final-riley', 'keyboard');
+    onpc_allowance_boundaries::select_child($journey, 'final-riley');
     $journey->seen($_) for qw(riley-offline-final parent-final-choice parent-final-close offline-restore riley-online-final);
-    onpc_allowance_boundaries::select_child($journey, 'online-jordan', 'keyboard');
+    onpc_allowance_boundaries::select_child($journey, 'online-jordan');
     $journey->seen('jordan-online-final');
     $journey->finish();
 }

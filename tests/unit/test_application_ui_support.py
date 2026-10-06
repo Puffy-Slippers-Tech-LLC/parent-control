@@ -1,7 +1,9 @@
 """Public API projection guards, using private in-memory client doubles."""
 
 from copy import deepcopy
+import sys
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -146,3 +148,57 @@ def test_editor_offsets_use_utf16_without_splitting_a_scalar(offset, expected):
 def test_editor_offset_refuses_half_a_surrogate_pair():
     with pytest.raises(UIClientError):
         utf16_index('a😀b', 2)
+
+
+def test_catalog_binds_each_preview_bus_without_reusing_gio_session_cache(monkeypatch):
+    connections = [Mock(), Mock()]
+    connect = Mock(side_effect=connections)
+    gio = SimpleNamespace(
+        DBusConnection=SimpleNamespace(new_for_address_sync=connect),
+        DBusConnectionFlags=SimpleNamespace(AUTHENTICATION_CLIENT=1, MESSAGE_BUS_CONNECTION=2),
+        bus_get_sync=Mock(side_effect=AssertionError('cached session bus is forbidden')),
+    )
+    monkeypatch.setitem(sys.modules, 'gi.repository', SimpleNamespace(Gio=gio))
+    monkeypatch.setenv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/private/first/bus')
+    first = ApplicationUI()
+    assert first._connect() is connections[0]
+    monkeypatch.setenv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/private/second/bus')
+    second = ApplicationUI()
+    assert second._connect() is connections[1]
+    assert first._connect() is connections[0]
+    assert [call.args[0] for call in connect.call_args_list] == [
+        'unix:path=/private/first/bus', 'unix:path=/private/second/bus']
+    for ui, connection in zip((first, second), connections):
+        connection.set_exit_on_close.assert_called_once_with(False)
+        ui.close()
+        ui.close()
+        connection.close_sync.assert_called_once_with(None)
+        with pytest.raises(UIClientError):
+            ui._connect()
+        with pytest.raises(UIClientError):
+            ui.applications()
+
+
+def test_catalog_requires_explicit_session_address_and_preserves_borrowed_connection(monkeypatch):
+    monkeypatch.delenv('DBUS_SESSION_BUS_ADDRESS', raising=False)
+    with pytest.raises(UIClientError):
+        ApplicationUI()._connect()
+    connection = Mock()
+    ui = ApplicationUI(connection=connection)
+    assert ui._connect() is connection
+    ui.close()
+    connection.close_sync.assert_not_called()
+
+
+@pytest.mark.parametrize('role', ['switch', 'checkbox', 'radio', 'button'])
+@pytest.mark.parametrize('value', [False, True])
+def test_api_boolean_projection_preserves_readback_without_claiming_focus(role, value):
+    client = Client()
+    client.elements['parent-screen-limit-toggle'].update(role=role, value=value)
+    node = catalog(client).getElementById('parent-screen-limit-toggle')
+    assert node.getValue() is value
+    states = node.get_state_set()
+    for state in ('CHECKED', 'PRESSED', 'SELECTED'):
+        assert states.contains(state) is value
+    for state in ('FOCUSED', 'ACTIVE'):
+        assert not states.contains(state)

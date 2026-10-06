@@ -46,6 +46,14 @@ Briefs contain task-specific deltas. Use this format for new and revised briefs:
   individual widget behavior and local validation matrices to their UI owner.
   A capability brief states the named journey it enables and qualifies only
   the necessary operation/result and safety boundaries, not an extra UI matrix.
+- Bind product steps to the shared Application UI API facade: declare the
+  endpoint/surface, stable IDs, canonical values and independent results in the
+  owning shared operation. Reuse the same operation in host UI and installed
+  consumers. A brief's historical words such as click, type, Escape, focus or
+  menu selection describe the user function; they do not authorize native input
+  to product controls. Use `setValue`, `setText`, `activate`, editor operations
+  and surface `close` as appropriate. Keep actual graphical authentication and
+  system file chooser handoffs in their existing external-provider adapters.
 - Apply the [result-oriented UI scope](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
   to new briefs and revised completed or pending coverage. Keep one independent
   final observation per tested result; retain intermediate checks only for a
@@ -165,8 +173,11 @@ GDM/keyring exercises qualify harness safety separately from customer journeys.
 Necessary provider adapters are capability work for named consumers. Their scope and
 current qualification stay in the
 [provider catalogue](E2E-Building-Blocks.md#external-provider-qualification);
-their next action is always a row in this queue. Repository-owned UI and fixtures
-use the Application UI API with mandatory scoped public automation IDs.
+their next action is always a row in this queue. Product UI uses the Application
+UI API with mandatory scoped public automation IDs. Supporting fixture apps use
+their shared activity adapters and mandatory public IDs; owning their fixture
+source does not turn them into product API endpoints or grant the external
+provider exception.
 
 External IDs are optional. Spend at most ten minutes per provider surface once
 on an available tree and useful official source, then use the approved scoped

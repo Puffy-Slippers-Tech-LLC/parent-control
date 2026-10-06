@@ -13,7 +13,7 @@ import time
 
 from gi.repository import GLib
 
-from common.oh_no_parent_control_ui.application_ui_client import UIClient, UIClientError
+from tests.support.application_ui import ApplicationUI, UIClientError
 from child_shell_screenshot import capture_screenshot
 
 
@@ -28,6 +28,7 @@ COUNTDOWN_ANIMATION_ID = "child-countdown-animation-toggle"
 OVERLAY_WINDOW_ID = "kiosk-request-window"
 OVERLAY_CANCEL_ID = "kiosk-request-cancel"
 SHELL_PID = int(os.environ["ONPC_CHILD_SHELL_PID"])
+APPLICATIONS = ApplicationUI()
 UI = None
 OVERLAY = None
 
@@ -35,7 +36,7 @@ OVERLAY = None
 def _panel():
     global UI
     if UI is None:
-        candidate = UIClient("child-panel")
+        candidate = APPLICATIONS.client("child-panel")
         if candidate.pid != SHELL_PID:
             raise AssertionError("Child panel is not owned by the launched Shell")
         UI = candidate
@@ -70,7 +71,11 @@ def _overlay_automation():
         return None
     # Reconstruct only at the deliberate, recorded new-process boundary.
     if OVERLAY is None or OVERLAY.pid != active[0]:
-        candidate = UIClient("child-request")
+        if OVERLAY is not None:
+            if _process_exists(OVERLAY.pid):
+                raise AssertionError("Previous request overlay owner is still running")
+            APPLICATIONS.forget("child-request")
+        candidate = APPLICATIONS.client("child-request")
         if candidate.pid != active[0]:
             raise AssertionError("Request overlay has the wrong launch owner")
         OVERLAY = candidate
@@ -263,6 +268,8 @@ def main():
         print(f"Launch records: {_launch_records()!r}", file=sys.stderr)
         print(f"Redacted Application UI snapshot:\n{_snapshot()}", file=sys.stderr)
         return 1
+    finally:
+        APPLICATIONS.close()
 
 
 if __name__ == "__main__":

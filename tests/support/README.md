@@ -39,6 +39,14 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 ## Host and guest boundaries
 
+Synthetic implementation contracts remain separate from product UI operations.
+`tests/ui/test_translation_widget_contracts.py` constructs helper GTK objects to
+check translation weak-reference/context lifetime and native Pango attributes;
+it launches no product frontend and supplies no customer API acceptance. It
+reuses the existing private-display bucket without another compositor owner.
+Product surface observations and input continue to use the shared Application
+UI API under the [UI mandate](../../docs/Mandates/UI-Automation-Mandate.MD#application-ui-api).
+
 Parent inherited About/feedback observations use
 `AccessibleUI.parent_dialog_presentation` with explicit surface/language and
 public API text/name comparisons. The `synthetic-rtl` body/reply profile remains
@@ -204,7 +212,9 @@ neither is retried through another input route.
 For the retained Parent picker after session return, shared child selection
 sets `parent-child-selector` to the declared UID through the Application UI API
 and independently reads selected-child identity and ready policy controls.
-Retained route arguments are compatibility metadata; they do not inject keys.
+The shared Python recipe and Perl worker expose one selection route. Retained
+`open`/`focus`/`selected` stage names mean the canonical setter, selected-UID
+readback and ready-policy readback; they do not inject keys.
 No popup, semantic focus or native focus proof is required. Failure is terminal
 and never falls back to a different input route. Real GTK coverage preserves
 policy-page reads both alone and after work in another owned preview window.
@@ -344,17 +354,32 @@ for real graphical input, credentials, private collection and evidence gates.
 These development helpers activate on the next invocation; there is no product
 integration or saved-data migration.
 
-Complete public snapshots batch live `Accessible.Name` queries for already
+External-provider public snapshots batch live `Accessible.Name` queries for already
 discovered nodes. Those values live only within the same observation as the
 structural facts and expire on input, retry, reset and snapshot exit. Ordinary
 `get_name()` result reads remain uncached; provider `GetItems` names never supply
 these observations. Protected descendants are still excluded before querying.
 
-Live nodes absent from `GetItems` batch their fallback role and, when constructing
+External-provider nodes absent from `GetItems` batch their fallback role and, when constructing
 observation facts, state queries with identity/name reads. These fallback states
 expire with the snapshot; input guards continue using uncached `get_state_set()`.
 Query errors and malformed states still refuse the complete observation, and
 every pipeline remains bounded to 64 RPCs.
+
+Product snapshots instead come from the shared Application UI API inventory and
+element operations. Their names, text, canonical values and capabilities remain
+scoped to the pinned application/surface. Host and guest consumers must not
+consult the accessibility tree to fill a missing product value or retry an API
+refusal through a provider. Read waits may reacquire observations; input never
+runs inside those retry predicates.
+
+`ApplicationUI` opens its own connection to the current
+`DBUS_SESSION_BUS_ADDRESS`, preserving isolation between private preview buses
+and installed user sessions. Its idempotent `close()` closes only that owned
+connection; injected clients/connections remain caller-owned. Preview fixture
+teardown closes the catalog alongside its external provider reader. Endpoint
+owner/PID pins last for the catalog lifetime and require deliberate rebinding
+after a product restart.
 
 ## Extend without hiding the scenario
 

@@ -1023,10 +1023,11 @@ The private compositor fixture is explicitly required by the nested-Shell module
 so its outer Devkit viewer never depends on a prior module's display setup. The
 checkout `dogtail_config.ini` disables Dogtail's shared `/tmp` debug file through
 supported configuration; captured console output and existing per-test
-diagnostics remain available. Nested-Shell interaction resolves the owned
-`child-request-button` by its public automation ID, semantically focuses that
-control and reacquires it immediately before normal keyboard input. It does not
-set Shell overview state directly or derive input from an AT-SPI allocation.
+diagnostics remain available. Nested-Shell product interaction binds the owned
+`child-panel` Application UI API endpoint, resolves `child-request-button` in its
+surface and invokes its ordinary `activate` operation. Panel preferences use
+canonical boolean values and text observations use the same shared facade as
+installed E2E. No focus or native key/pointer input is required for these controls.
 Repeated activation still proves the launcher count, single-flight request
 handling, one overlay and clean reopen.
 Test fixture setup/teardown failures and pytest infrastructure failures stop further host scheduling and cancel owned

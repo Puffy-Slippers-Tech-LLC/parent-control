@@ -152,7 +152,7 @@ Large durations test selection and displayed arithmetic without waiting to expir
 | --- | --- |
 | Daily presets (158) | Select/read 15 minutes. UI samples 0, 60, 90 and 1410 through the shared API operation; canonical preset-list completeness remains lower-layer coverage. |
 | Daily custom (158) | Save custom 1 after preset 15; reopen and read the final saved 1. UI tests own invalid-input rejection, including preservation of the last saved value, and the complete custom boundary set. The API's 1440 allowance remains engineering coverage. |
-| Daily saving (159) | From Jordan's enabled zero, save 15, then custom 5 followed promptly by 6; final saved value is 6. Save Riley custom 7, return and read Jordan=6/Riley=7. Close/reopen and repeat the per-child read. Real save ordering stays here; singleton window, popup, focus, intermediate draft, Saving and temporary control availability belong to shared UI qualification. |
+| Daily saving (159) | From Jordan's enabled zero, save 15, then custom 5 followed promptly by 6; final saved value is 6. Save Riley custom 7, return and read Jordan=6/Riley=7. Close/reopen and repeat the per-child read. Real save ordering stays here; singleton-window and local validation coverage belong to shared UI. Popup, focus and per-keystroke presentation are not acceptance prerequisites. |
 | E2E-005 profiles | daily-only: positive daily, no grant; grant-only: zero daily with real 10-minute approval before edits; combined: positive daily plus a real 10-minute addition. Enabled edits: daily-only/combined 4→5→0 minutes; grant-only 0→4→0. Read saved allowance and original grant deadline after each edit; visit the child at the positive and zero access boundaries. At zero, daily-only must deny access while combined retains its grant. If navigation exhausts a required margin, fail preparation rather than inject usage. |
 | Request presets (38/41) | Select 5 minutes, read its footer and actual approval prompt, then approve. UI tests own all 5, 15, 30, 60, 120, 240 choices on both surfaces. |
 | Request custom (39/42) | Reject 0.09 locally, then request and approve 1.25 minutes (75 seconds). UI tests own valid 0.1, 0.5, 1.25, 1440 and invalid empty, abc, −1, 0, 0.09, 1440.1, comma decimal 1,5, including whole-second display conversion. |
@@ -361,9 +361,9 @@ Implementation status: All cases pending.
 
 Bindings: soft-apps = excluded / included; approver = first / second.
 
-REQUEST13 uses the shared `panel` entry to open the fixed-child request. Panel
-reveal, focus and any necessary Overview/Escape handling belong inside that
-shared input route. Repeated panel input and singleton-form qualification stay
+REQUEST13 uses the shared `child-panel` API to activate `child-request-button`
+and independently observe the fixed-child request. No panel reveal, focus or
+Overview/Escape sequence is required for product input. Repeated panel input and singleton-form qualification stay
 with child UI coverage; ordinary later entries use `command`.
 
 1. FLOW13(combined, soft included) → C → FLOW08(soft) → APP04 → REQUEST13 once (explicit panel entry) → REQUEST03(fixed child).
@@ -420,8 +420,8 @@ launch/use the native Allowed app by command and capture its immutable public
 window/draft. Open the overlay once and prepare the qualified Jamie/custom
 75-second/soft-included choices with `entry=open, initial=default`; independently
 bound the estimate by the earlier balance and elapsed time. Invoke Cancel once
-for case 44, or freshly qualify the owned Escape recipient and send one Escape
-for case 45. Require absent form and the original usable child desktop, and compare the exact
+for case 44, or invoke the owned request-surface API `close` for legacy exit
+binding `escape` in case 45. Require absent form and the original usable child desktop, and compare the exact
 window/draft with the capture before submitting the same draft again. Record the
 visible result only after that independent usable-app readback, then close the
 app normally. Qualification-only refusal and repeated-entry matrices stay in
@@ -439,7 +439,8 @@ and a new entry with remembered choices; see the
 `overlay_choices.PLAN` is the finite capability qualification, not a complete
 case wrapper. Cases 44/45 reuse `KioskRequestJourney`, shared declarations,
 `overlay_entry`, native activity endpoints and the normal installed-journey
-lifecycle, keeping their separate Cancel/Escape assertions. Mute and authenticated
+lifecycle, keeping their separate Cancel/normal-close result assertions. The
+stable `escape` binding names identify the latter API route. Mute and authenticated
 overlay outcomes remain outside that slice.
 
 Case 49 uses `kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved', ...)`, the shared
@@ -469,7 +470,7 @@ the public balance before switching to GDM, using the shared
 Enter the station once, then use
 FLOW04 with `entry=open`, `initial=default`, explicit fixture child/parent,
 custom `1.25` minutes and soft apps included. Independently compare the estimate
-with that balance before Cancel (47) or one guarded Escape (48); require the
+with that balance before Cancel (47) or one guarded API surface close (48); require the
 absent form and usable GDM.
 
 ### E2E-016
@@ -575,7 +576,7 @@ including capture reconciliation, collection, owned cleanup and baseline
 restoration. Wrong-entry refusal is qualification-only.
 
 1. Account profile is the declared setup. Enable available targets with FLOW16 except disabled-child and no-parent. No-parent keeps default limits off: first enter the request station and observe a listed parent, detect all eligible parents through the OS account service, temporarily lock that detected set regardless of names/count, Cancel to GDM and reopen the station. The observed parent must belong to the detected set. Preserve children/station and restore accounts through outer cleanup. No inaccessible administrator setup or hidden enabled-policy fixture is needed. Other profiles use G → REQUEST01.
-2. Read each enabled selector's exact eligible set, then REQUEST04 for representative child/approver pairs covering both identities. Independently read the selected accounts and loaded child settings; the matching real approval prompt verifies the selected approver's effect. List opening/closing is shared navigation, with no collapse or unchanged-selection acceptance. Escape closes the request form. Disabled/empty uses UI02/03 without input.
+2. Read each enabled selector's exact eligible set, then REQUEST04 for representative child/approver pairs covering both identities. Independently read the selected accounts and loaded child settings; the matching real approval prompt verifies the selected approver's effect. Use canonical selector values without popup/focus navigation. The API surface close ends the request form, including retained `escape` bindings. Disabled/empty uses UI02/03 without input.
 3. REQUEST03 → REQUEST08. Available: REQUEST09 → AUTH01 → AUTH02(cancel) → REQUEST11. Unavailable: UI02(disabled) → UI11(prompt). No-parent specifically requires the missing-eligible-parent explanation and empty parent list; it makes no isolated screen-time enforcement claim with its also-disabled child.
 
 ### E2E-018

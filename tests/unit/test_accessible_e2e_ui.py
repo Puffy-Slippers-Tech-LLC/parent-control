@@ -18,6 +18,76 @@ from tests.support.accessible_ui import Node, TEST_PROMPT_CONTRACTS, ui_for
 from common.oh_no_parent_control_ui.languages import SUPPORTED_LANGUAGES
 
 
+def test_live_product_lookup_refuses_external_provider_projection():
+    target = Node(identity='parent-screen-limit-toggle')
+    ui = ui_for(Node(identity='parent-window', children=[target]))
+    observation = ui.read_snapshot()
+    ui.application_ui = object()
+    with pytest.raises(UiError, match='ui:product-api-required'):
+        ui.snapshot_owned_target('parent-screen-limit-toggle', observation=observation)
+    target.action.do_action.assert_not_called()
+
+
+def test_live_product_inventory_refuses_external_provider_projection():
+    target = Node(identity='parent-screen-limit-toggle')
+    ui = ui_for(Node(identity='parent-window', children=[target]))
+    ui.application_ui = object()
+    with pytest.raises(UiError, match='ui:product-api-required'):
+        ui.read_snapshot()
+    target.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('identity', ['parent-screen-limit-toggle', 'child-request-button'])
+def test_live_product_action_refuses_external_provider_input(identity):
+    target = Node(identity=identity)
+    ui = ui_for(target)
+    ui.application_ui = object()
+    with pytest.raises(UiError, match='ui:product-api-required'):
+        ui._invoke_target(target)
+    target.action.do_action.assert_not_called()
+    assert not ui.input_uncertain
+
+
+def test_product_route_guard_preserves_qualified_external_provider_actions():
+    target = Node(identity='test-external-confirm')
+    ui = ui_for(target)
+    ui.application_ui = object()
+    ui._invoke_target(target)
+    target.action.do_action.assert_called_once_with(0)
+
+
+def test_editor_append_preserves_existing_document_and_uses_utf16_selection(monkeypatch):
+    source = 'bold 😀 text'
+    monkeypatch.setitem(accessible_ui.TEXT_VALUES, 'append-source', ('feedback-editor-input', source))
+    monkeypatch.setitem(accessible_ui.TEXT_VALUES, 'append-result', ('feedback-editor-input', source + '!'))
+    selection = SimpleNamespace(setValue=Mock())
+    insertion = SimpleNamespace(setText=Mock())
+    ui = ui_for(Node())
+    ui.read_synthetic_text = Mock()
+    ui.id_target = Mock(side_effect=lambda identity, **_kwargs: {
+        'feedback-editor-selection': selection, 'feedback-editor-insert': insertion}[identity])
+
+    ui.append_text_operation('append-result', 'caret', 'append-source', '!')
+
+    ui.read_synthetic_text.assert_called_once_with('append-source')
+    selection.setValue.assert_called_once_with({'index': 12, 'length': 0})
+    insertion.setText.assert_called_once_with('!')
+    assert not ui.input_uncertain
+
+
+def test_uncertain_editor_insertion_is_never_replayed():
+    from tests.support.application_ui import UIClientError
+
+    ui = ui_for(Node())
+    insertion = SimpleNamespace(setText=Mock(side_effect=UIClientError('Transport', uncertain=True)))
+    ui.id_target = Mock(return_value=insertion)
+    with pytest.raises(UIClientError):
+        ui.set_text('feedback-editor-insert', '😀')
+    with pytest.raises(UiError, match='ui:uncertain-input'):
+        ui.set_text('feedback-editor-insert', '😀')
+    insertion.setText.assert_called_once_with('😀')
+
+
 def test_observer_payload_runs_without_checkout_imports(tmp_path):
     """Exercise the real stdin payload with the guest's isolated Python route."""
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({

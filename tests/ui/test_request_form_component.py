@@ -17,7 +17,6 @@ def test_overlay_about_license_shared_reader_and_unchanged_form(
     from gi.repository import GLib
     from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
     from tests.support.gui_blocks import run_block
-    from tests.support.keyboard import key_combo
     from tests.support.paths import ROOT
 
     launch_ui('child_overlay_preview')
@@ -45,7 +44,7 @@ def test_overlay_about_license_shared_reader_and_unchanged_form(
     reader.run('overlay-support-read', version)
     reader.run('overlay-legal-notices-read', version)
     reader.run('overlay-about-close-ready', version)
-    key_combo(reader, 'about-dialog', '<Alt>F4', state=reader.api.StateType.ACTIVE)
+    reader.close_id('about-dialog')
     reader.run('overlay-about-closed', version)
     assert reader.run('overlay-valid-fraction-soft-read', '')['valid_choice']['request'] == before
 
@@ -247,15 +246,11 @@ def test_shared_custom_duration_preserves_fractional_minute_precision(
 @pytest.mark.parametrize("seconds", (1800, 2700), ids=("30-minute-preset", "45-minute-custom"))
 def test_custom_45_minutes_and_30_minute_preset_submit_distinct_durations(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay, seconds):
-    from tests.support.keyboard import key_combo, type_text
-
     ui = request_ui
     path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
                         overlay=overlay, scenario="remembered")
     ready(ui, wait_for_accessible_state)
-    ui.focus("kiosk-custom-duration")
-    key_combo(ui, "kiosk-custom-duration", "<Control>a", state=ui.api.StateType.FOCUSED)
-    type_text(ui, "kiosk-custom-duration", "45")
+    ui.setText("kiosk-custom-duration", "45")
     wait_for_accessible_state(
         lambda: any(call["values"][1:3] == ["custom", 45.0]
                     for call in calls(path, "UpdateRequestPreferences")),
@@ -539,7 +534,6 @@ def test_footer_estimate_changes_with_selected_child(
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_footer_estimate_tracks_custom_edits_and_preserves_validation(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
-    from tests.support.keyboard import key_combo, type_text
     ui = request_ui
     open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
                  overlay=overlay, scenario="remembered")
@@ -550,8 +544,5 @@ def test_footer_estimate_tracks_custom_edits_and_preserves_validation(
         ("0.09", "Enter a number from 0.1 to 1440 minutes."),
         ("5", "Estimated time remaining if approved: 52m"),
     ):
-        ui.focus("kiosk-custom-duration")
-        key_combo(ui, "kiosk-custom-duration", "<Control>a",
-                  state=ui.api.StateType.FOCUSED)
-        type_text(ui, "kiosk-custom-duration", value)
+        ui.setText("kiosk-custom-duration", value)
         status(ui, wait_for_accessible_state, expected)

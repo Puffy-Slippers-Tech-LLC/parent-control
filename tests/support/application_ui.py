@@ -6,6 +6,7 @@ external-provider assertions; it is not an AT-SPI input or discovery adapter.
 Every input resolves the live element, and failed mutations are never replayed.
 """
 
+import os
 from types import SimpleNamespace
 
 from common.oh_no_parent_control_ui.application_ui_client import (
@@ -58,22 +59,51 @@ class ApplicationUI:
         self.clients = dict(clients or {})
         self.explicit_clients = clients is not None
         self.endpoints = endpoints
+        self._owns_connection = False
+        self._closed = False
+
+    def _connect(self):
+        """Bind this catalog to its caller's session, never Gio's cached bus."""
+        if self._closed:
+            raise UIClientError('Unavailable')
+        if self.connection is None:
+            from gi.repository import Gio
+            address = os.environ.get('DBUS_SESSION_BUS_ADDRESS')
+            if not address:
+                raise UIClientError('Unavailable')
+            self.connection = Gio.DBusConnection.new_for_address_sync(
+                address, Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
+                Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
+            self.connection.set_exit_on_close(False)
+            self._owns_connection = True
+        return self.connection
+
+    def close(self):
+        """Release only this catalog's connection; supplied clients stay owned by callers."""
+        if self._closed:
+            return
+        self._closed = True
+        self.clients.clear()
+        if self._owns_connection:
+            self.connection.close_sync(None)
 
     def forget(self, frontend):
         self.clients.pop(frontend, None)
 
     def client(self, frontend):
+        if self._closed:
+            raise UIClientError('Unavailable')
         if frontend not in self.clients:
-            self.clients[frontend] = UIClient(frontend, connection=self.connection)
+            self.clients[frontend] = UIClient(frontend, connection=self._connect())
         return self.clients[frontend]
 
     def _available(self):
+        if self._closed:
+            raise UIClientError('Unavailable')
         if self.explicit_clients:
             return list(self.clients)
         from gi.repository import Gio, GLib
-        if self.connection is None:
-            self.connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-        names, = self.connection.call_sync(
+        names, = self._connect().call_sync(
             'org.freedesktop.DBus', '/org/freedesktop/DBus',
             'org.freedesktop.DBus', 'ListNames', None, GLib.VariantType.new('(as)'),
             Gio.DBusCallFlags.NONE, 15000, None).unpack()
@@ -97,7 +127,7 @@ class ApplicationUI:
             if key not in self.clients:
                 self.clients[key] = UIClient(receipt['application_id'],
                     owner=receipt['owner'], object_path=receipt['object_path'],
-                    connection=self.connection)
+                    connection=self._connect())
             if self.clients[key].pid != receipt['pid']:
                 raise UIClientError('Denied')
             available.append(key)
@@ -185,7 +215,7 @@ class ApplicationUI:
     def refresh(self, node, *, owner_pids=None, application_owners=None,
                 application_ids=None):
         """Reacquire the original process and surface without global discovery."""
-        if not isinstance(node, ApplicationNode) or node.catalog is not self:
+        if self._closed or not isinstance(node, ApplicationNode) or node.catalog is not self:
             raise UIClientError('Denied')
         owners = application_owners() if callable(application_owners) else application_owners
         pids = owner_pids() if callable(owner_pids) else owner_pids

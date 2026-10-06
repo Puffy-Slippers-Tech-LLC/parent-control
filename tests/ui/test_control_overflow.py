@@ -30,7 +30,6 @@ def open_parent(launch_ui, ui, wait, *, environment=None):
 def test_language_switch_preserves_parent_selection_numeric_draft_and_filters(
         launch_ui, automation, wait_for_accessible_state, request_display_scale,
         dpi_scale, language):
-    from tests.support.keyboard import key_combo, type_text, press_key
     from tests.support.localization_review import switch_language, review_frame
     ui, wait = automation, wait_for_accessible_state
     open_parent(launch_ui, ui, wait)
@@ -152,7 +151,6 @@ def test_about_content_remains_semantically_reachable(
                               "application menu publishes its ID")
     ui.setValue(menu, "about")
     wait_for_accessible_state(lambda: ui.showing("about-dialog"), "About opens")
-    ui.reveal("about-copyright")
     assert ui.text("about-copyright") == (
         "© 2026 Puffy Slippers Tech LLC\nGPL-3.0-only · No warranty."
     )

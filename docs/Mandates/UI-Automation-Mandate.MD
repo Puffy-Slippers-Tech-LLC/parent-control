@@ -68,7 +68,9 @@ qualifications remain separate from product journeys.
 
 All existing and future host UI tests, installed E2E tests and their task briefs
 must use the [Application UI API](../TestAutomation/Application-UI-API.md) for
-repository-owned product controls. Stable-ID setters and actions operate the actual controls through their
+repository-owned product reads and input, including test setup and result
+observations. The rule includes Parent, both request surfaces, shared dialogs,
+the feedback editor and child panel. Stable-ID setters and actions operate the actual controls through their
 normal handlers, with current ownership, effective sensitivity, logical
 visibility, modal and validation guards. Canonical values are independent of
 language/locale. Transport and consumers remain distro/desktop-neutral;
@@ -79,7 +81,8 @@ branches to API consumers or customer cases.
 Use the same shared test facade and operation helpers in host UI and installed
 E2E tests. Cases supply finite values and expected outcomes; shared helpers own
 endpoint binding, surface discovery, control operations, waits and refusal
-guards. Direct selector values do not require popup, accessibility, focus,
+guards. Extend those helpers before adding a second host or guest implementation;
+compatibility callable names do not permit a legacy input route. Direct selector values do not require popup, accessibility, focus,
 scrolling or native-input qualification. The fixed editor API is required for
 product editor operations;
 arbitrary caller-supplied JavaScript, private backend edits and credential
@@ -94,8 +97,22 @@ actions, and the surface `close` operation for normal close requests. Discover
 dialog surfaces and resolve every operation against its current owner and
 surface. Pin the unique endpoint owner/PID; deliberately bind a new client after
 a restart. The bounded runtime inventory owns dynamically constructed controls.
-Never substitute toolkit calls, private widget state, AT-SPI product actions,
+Never substitute toolkit calls, private widget state, AT-SPI product reads/actions,
 native key/pointer injection or an alternate transport after refusal.
+
+Read-only waits may reacquire current API state within the original deadline.
+Mutations stay outside retry predicates. A successful setter and a returned
+control value do not establish save completion, approval, persistence or policy
+effects when those are the requested outcome. Editor assertions read the public
+document delta independently of toolbar state; selection offsets use UTF-16.
+
+Isolated implementation tests may inspect synthetic adapter or helper objects
+directly to verify their own contracts, such as weak-reference cleanup,
+translation-context disposal or native text attributes. These tests do not
+launch or operate a product surface and establish no customer or Application UI
+API acceptance. Reuse the lowest effective existing fixture scope. This does
+not permit private observations, toolkit input or alternate transports in any
+product UI test, its setup or its result assertions.
 
 ## Route selection
 
@@ -168,8 +185,8 @@ native key/pointer injection or an alternate transport after refusal.
   the current user's system default handler. In-app About and Privacy disclosure
   checks, kiosk external-action restrictions and explicitly authorized feedback
   submission remain separate product features.
-  Rich-editor link formatting is a separate owned editing feature: its synthetic
-  link values may be checked through public text attributes without navigation.
+  Rich-editor link formatting is a separate owned editing feature: check its
+  synthetic link values in the API's public document delta without navigation.
 ### Ordinary app entry
 
 Use the shared command block for setup and reopening. Both commands run as the
@@ -210,8 +227,11 @@ and independent result checks apply to both routes.
   theme to identify a target, route input, establish readiness or decide
   acceptance. These constraints apply when GUI interaction is necessary;
   they never require replacing a system command with GUI setup.
-- Add a missing ID to repository-owned application or fixture code and expose it
-  through the Application UI API before implementing its consumer.
+- Add a missing ID to repository-owned application or fixture code before
+  implementing its consumer. Product controls expose it through the Application
+  UI API. Supporting fixture apps retain their shared activity adapters and
+  mandatory public IDs; they do not need product API endpoints and do not gain
+  the external-provider exception.
   Documentation-only work records the requirement without claiming implementation
   or qualification.
 - **Approved external-provider exception:** For dependencies outside this

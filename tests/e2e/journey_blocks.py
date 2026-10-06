@@ -30,7 +30,7 @@ def custom_allowance(prefix, minutes):
 
 
 def allowance_selection(prefix, values):
-    """PARENT06: one native click, typed choice, Enter and saved-value readback."""
+    """PARENT06: one canonical API selection and independent saved-value readback."""
     from accessible_ui import PRESETS
     require(type(values) is tuple and len(values) == 1
             and all(value == 'custom' or type(value) is int and value in PRESETS for value in values),
@@ -118,18 +118,16 @@ def filter_screens(kind, mask, prefix):
             for action in ('open', *FILTER_OPTIONS[kind])}
 
 
-def custom_child_selection(prefix, child, *, route='action'):
-    """Public selector checkpoints; choose the input route before execution."""
+def custom_child_selection(prefix, child):
+    """Shared canonical UID selection and independent result checkpoints."""
     require(child in ('child', 'existing'), 'journey:custom-child')
-    require(route in ('action', 'keyboard'), 'journey:child-picker-route')
     operations = (('child-picker-opened', 'child-choice-highlighted', 'parent-selected')
                   if child == 'child' else ('existing-child-picker-opened',
                       'existing-child-choice-highlighted', 'existing-returned'))
-    if route == 'keyboard':
-        operations = (operations[0].replace('-opened', '-presented'), *operations[1:])
-    return {**({f'{prefix}-ready': 'ui:parent-child-picker-ready'} if route == 'keyboard' else {}),
-            **{f'{prefix}-{suffix}': 'ui:' + operation
-               for suffix, operation in zip(('open', 'focus', 'selected'), operations)}}
+    # Stable recorder stage names retain their bindings; they mean one API
+    # setter, selected UID readback and policy readback, never popup or focus.
+    return {f'{prefix}-{suffix}': 'ui:' + operation
+            for suffix, operation in zip(('open', 'focus', 'selected'), operations)}
 
 
 def custom_save_entry(prefix, child):

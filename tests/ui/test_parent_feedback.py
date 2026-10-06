@@ -3,6 +3,7 @@
 import pytest
 from tests.support.automation_ids import audit_product_controls
 from tests.support.gui_blocks import run_block
+from tests.support.application_ui import utf16_length
 from tests.support.feedback import (
     dismiss_feedback_dialog,
     feedback_editor,
@@ -18,13 +19,11 @@ pytestmark = pytest.mark.ui
 @pytest.mark.parametrize('language', ['de', 'zh-Hans', 'he', 'ta'])
 def test_language_switch_preserves_feedback_draft_reply_and_undo(
         launch_ui, automation, wait_for_accessible_state, language):
-    from tests.support.keyboard import type_text, key_combo
     from tests.support.localization_review import switch_language, review_frame, public_label_names
     ui, wait = automation, wait_for_accessible_state
     editor, _log = open_feedback(launch_ui, ui, wait)
     type_feedback(ui, 'A retained draft', wait)
-    ui.focus('feedback-reply-email')
-    type_text(ui, 'feedback-reply-email', 'review@example.com')
+    ui.setText('feedback-reply-email', 'review@example.com')
     ui.activate('feedback-close')
     wait(lambda: ui.absent('feedback-dialog', within='parent-window'), 'draft closes')
     switch_language(ui, wait, 'parent', language)
@@ -37,10 +36,11 @@ def test_language_switch_preserves_feedback_draft_reply_and_undo(
     expected = {'de': 'Fett', 'zh-Hans': '粗体', 'he': 'מודגש', 'ta': 'தடித்த'}
     wait(lambda: ui.text('feedback-format-bold') == expected[language], 'toolbar relabels')
     review_frame('feedback-' + language)
-    ui.focus(editor)
-    type_text(ui, editor, '!')
+    end = utf16_length(ui.getText(editor))
+    ui.setValue('feedback-editor-selection', {'index': end, 'length': 0})
+    ui.setText('feedback-editor-insert', '!')
     wait(lambda: ui.content(editor).strip() == 'A retained draft!', 'draft remains editable')
-    key_combo(ui, editor, '<Control>z', state=ui.api.StateType.FOCUSED)
+    ui.activate('feedback-undo')
     wait(lambda: ui.content(editor).strip() == 'A retained draft', 'undo survives switch')
     files = {'de': 'Dateien hinzufügen', 'zh-Hans': '添加文件',
              'he': 'הוספת קבצים', 'ta': 'கோப்புகளைச் சேர்க்கவும்'}
@@ -50,30 +50,6 @@ def test_language_switch_preserves_feedback_draft_reply_and_undo(
     assert headings[language] in public_label_names(ui, 'feedback-content')
 
 
-def block_semantic_tree(node):
-    """Retain bounded public-tree diagnostics for the declared synthetic editor."""
-    remaining = 128
-
-    def describe(item, depth):
-        nonlocal remaining
-        remaining -= 1
-        assert remaining >= 0 and depth < 12
-        text = item.get_text_iface()
-        length = text.get_character_count() if text else 0
-        assert 0 <= length <= 128
-        count = item.get_child_count()
-        assert 0 <= count <= 32
-        attrs = item.get_attributes()
-        return {'role': item.get_role_name(),
-                'attributes': {key: attrs[key] for key in ('level', 'xml-roles', 'roledescription')
-                               if key in attrs},
-                'text': text.get_text(0, length) if text else None,
-                'children': [describe(item.get_child_at_index(i), depth + 1)
-                             for i in range(count)]}
-
-    return describe(node, 0)
-
-
 def test_feedback_restored_block_semantics(launch_ui, automation, wait_for_accessible_state):
     from tests.e2e.block_semantics import FORMATS, projection
     open_feedback(launch_ui, automation, wait_for_accessible_state,
@@ -81,8 +57,7 @@ def test_feedback_restored_block_semantics(launch_ui, automation, wait_for_acces
     wait_for_accessible_state(
         lambda: automation.reader.block_semantics() == projection(FORMATS),
         'restored delta exposes current public block meanings')
-    print('BLOCK_SEMANTICS_RESTORED', block_semantic_tree(
-        automation.target('feedback-editor-input')), flush=True)
+    print('BLOCK_SEMANTICS_RESTORED', automation.reader.editor_document(), flush=True)
 
 
 def test_feedback_restored_link_semantics(launch_ui, automation, wait_for_accessible_state):
@@ -97,21 +72,16 @@ def test_link_action_labels_follow_editing_mode_and_language(
         launch_ui, automation, wait_for_accessible_state):
     from tests.e2e import feedback_formats as formats
     from tests.e2e.accessible_ui import require
-    from tests.support.keyboard import key_combo
     from tests.support.localization_review import switch_language
     ui, wait = automation, wait_for_accessible_state
     editor, _ = open_feedback(launch_ui, ui, wait, scenario='feedback-restored-link')
-    # The public WebKit text projection may include Quill's final newline.
-    original = ui.content(editor).rstrip('\n')
+    original = ui.getText(editor)
     ui.activate('feedback-close')
     wait(lambda: ui.absent('feedback-dialog', within='parent-window'), 'draft closes')
     switch_language(ui, wait, 'parent', 'de')
     ui.activate('parent-feedback-button')
     feedback_editor(ui, wait)
-    ui.focus(editor)
-    key_combo(ui, editor, '<Control>End', state=ui.api.StateType.FOCUSED)
-    key_combo(ui, editor, 'Home', state=ui.api.StateType.FOCUSED)
-    key_combo(ui, editor, 'Right', state=ui.api.StateType.FOCUSED)
+    ui.setValue('feedback-editor-selection', {'index': formats.START + 1, 'length': 0})
     wait(lambda: ui.showing('feedback-link-save'), 'existing link action appears')
     assert ui.text('feedback-link-save') == 'Link bearbeiten'
     assert ui.content('feedback-link-save') == 'Link bearbeiten'
@@ -122,15 +92,12 @@ def test_link_action_labels_follow_editing_mode_and_language(
     assert ui.text('feedback-link-save') == 'Link speichern'
     assert ui.content('feedback-link-save') == 'Link speichern'
     ui.activate('feedback-link-save')
-    # Saving closes Quill's tooltip; moving the caret back inside the existing
-    # link opens its preview action again.
-    ui.focus(editor)
-    key_combo(ui, editor, '<Control>End', state=ui.api.StateType.FOCUSED)
-    key_combo(ui, editor, 'Home', state=ui.api.StateType.FOCUSED)
-    key_combo(ui, editor, 'Right', state=ui.api.StateType.FOCUSED)
+    # Re-selecting inside the retained link makes its edit action available.
+    ui.setValue('feedback-editor-selection', {'index': formats.END, 'length': 0})
+    ui.setValue('feedback-editor-selection', {'index': formats.START + 1, 'length': 0})
     wait(lambda: ui.showing('feedback-link-save'), 'saved link preview opens')
     wait(lambda: ui.text('feedback-link-save') == 'Link bearbeiten', 'link preview returns')
-    assert ui.content(editor).rstrip('\n') == original
+    assert ui.getText(editor) == original
     assert formats.read(ui.reader, require, 'linked-kept-reopen') == formats.expected('linked-kept-reopen')
 
 
@@ -138,7 +105,6 @@ def test_feedback_block_semantics(
         launch_ui, automation, wait_for_accessible_state):
     """Real product semantics, shared reader, independent reopen and removal."""
     from tests.e2e.block_semantics import BODY, FORMATS, RANGES, projection
-    from tests.support.keyboard import key_combo
     ui = automation
     editor, _log = open_feedback(launch_ui, ui, wait_for_accessible_state)
     run_block(ui.reader, 'replace', 'body-blocks')
@@ -154,16 +120,14 @@ def test_feedback_block_semantics(
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"), "feedback reopened")
     feedback_editor(ui, wait_for_accessible_state)
     assert ui.reader.block_semantics() == projection(FORMATS)
-    print('BLOCK_SEMANTICS_REOPEN', block_semantic_tree(ui.target(editor)), flush=True)
-    ui.focus(editor)
-    key_combo(ui, editor, '<Control>a', state=ui.api.StateType.FOCUSED)
+    print('BLOCK_SEMANTICS_REOPEN', ui.reader.editor_document(), flush=True)
+    ui.setValue('feedback-editor-selection', {'index': 0, 'length': utf16_length(BODY)})
     ui.activate('feedback-format-clear')
     wait_for_accessible_state(lambda: ui.reader.block_semantics() == [], 'block roles removed')
-    ui.focus(editor)
-    key_combo(ui, editor, '<Control>z', state=ui.api.StateType.FOCUSED)
+    ui.activate('feedback-undo')
     wait_for_accessible_state(lambda: ui.reader.block_semantics() == projection(FORMATS),
                              'undo restores every meaning')
-    key_combo(ui, editor, '<Control><Shift>z', state=ui.api.StateType.FOCUSED)
+    ui.activate('feedback-redo')
     wait_for_accessible_state(lambda: ui.reader.block_semantics() == [], 'redo removes every meaning')
 
 
@@ -174,7 +138,6 @@ def test_feedback_block_semantics(
 def test_feedback_complete_format_sequence(launch_ui, automation, wait_for_accessible_state, linked):
     # Same private preview/display/bus and owned cleanup as block qualification.
     from tests.e2e import feedback_formats as formats
-    from tests.support.keyboard import key_combo
     from tests.e2e.accessible_ui import UiError, require
     ui = automation
     editor, _log = open_feedback(launch_ui, ui, wait_for_accessible_state)
@@ -195,10 +158,9 @@ def test_feedback_complete_format_sequence(launch_ui, automation, wait_for_acces
     for action in ('close', 'wrong-entry', 'reopen'):
         operation('formats-kept-' + action)
     run_block(ui.reader, 'inline', 'clear')
-    ui.focus(editor)
-    key_combo(ui, editor, '<Control>z', state=ui.api.StateType.FOCUSED)
+    ui.activate('feedback-undo')
     formats.read(ui.reader, require, 'linked-kept-reopen' if linked else 'formats-kept-reopen')
-    key_combo(ui, editor, '<Control><Shift>z', state=ui.api.StateType.FOCUSED)
+    ui.activate('feedback-redo')
     formats.read(ui.reader, require, 'formats-clear-read')
     for action in ('close', 'wrong-entry', 'reopen'):
         operation('formats-cleared-' + action)
@@ -220,7 +182,6 @@ def test_feedback_basic_installed_edit_sequence(
 def test_feedback_unicode_and_hidden_character_validation(
         launch_ui, automation, wait_for_accessible_state):
     """Non-ASCII, combining marks and multi-scalar emoji remain exact in the GUI."""
-    from tests.support.keyboard import key_combo, type_text
     editor, _ = open_feedback(launch_ui, automation, wait_for_accessible_state)
     ui = automation
     value = 'é' + 'e\u0301' + '漢' + '😀' + '👍🏽' + '👩\u200d💻'
@@ -408,7 +369,6 @@ def test_collection_progress_disables_send_but_allows_editing(
 def test_feedback_submission_outcomes(
         launch_ui, automation, wait_for_accessible_state,
         collect_application_logs, status):
-    from tests.support.keyboard import key_combo, type_text
     ui = automation
     editor, log_path = open_feedback(
         launch_ui, ui, wait_for_accessible_state, status=status,

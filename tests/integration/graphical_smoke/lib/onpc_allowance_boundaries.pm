@@ -25,13 +25,11 @@ sub reload_child {
 
 sub select_child {
     onpc_progress::operation('Selecting and independently reading the declared child');
-    my ($journey, $prefix, $route) = @_;
-    $route //= 'action';
-    die 'allowance:selection-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
-        && $prefix =~ /\A[a-z][a-z0-9-]*\z/ && ($route eq 'action' || $route eq 'keyboard');
-    if ($route eq 'keyboard') {
-        seen($journey, "$prefix-ready");
-    }
+    my ($journey, $prefix) = @_;
+    die 'allowance:selection-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    # These retained stage names bind canonical UID input and independent
+    # selection/policy readback through the same block as host UI tests.
     seen($journey, "$prefix-$_") for ('open', 'focus');
     seen($journey, "$prefix-selected");
 }

@@ -99,6 +99,23 @@ def test_keyboard_chord_pacing_restores_defaults_and_preserves_single_use(
         assert deliveries == expected
     if fault != 'uncertain':
         ui.id_target.assert_called_once_with('owned-popup')
+    else:
+        ui.id_target.assert_not_called()
+
+
+def test_native_delivery_refuses_product_control_without_sending(monkeypatch):
+    from unittest.mock import Mock
+    from tests.support import keyboard
+
+    node, send = Mock(), Mock()
+    ui = SimpleNamespace(input_uncertain=False, id_target=Mock(return_value=node))
+    monkeypatch.setattr(keyboard, 'is_product_node', lambda value: value is node)
+    with pytest.raises(AssertionError, match='require Application UI'):
+        keyboard.deliver(ui, 'feedback-editor-input', 'focused', send)
+    ui.id_target.assert_called_once_with('feedback-editor-input')
+    node.get_state_set.assert_not_called()
+    send.assert_not_called()
+    assert not ui.input_uncertain
 
 
 @pytest.mark.parametrize('delay', [-1, 1, float('nan'), True, '0.05'])

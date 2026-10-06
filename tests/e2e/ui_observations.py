@@ -334,7 +334,7 @@ OPERATION_LABELS.update({operation: 'Saving or independently observing the persi
                          for operation in accessible_ui.CHINESE_LANGUAGE_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Reading or changing the owned Parent language through public controls'
                          for operation in accessible_ui.PARENT_LANGUAGE_OPERATIONS})
-OPERATION_LABELS.update({operation: 'Reading inherited Parent dialog text, focus and retained synthetic draft'
+OPERATION_LABELS.update({operation: 'Reading inherited Parent dialog text and retained synthetic draft'
                          for operation in accessible_ui.PARENT_DIALOG_BINDINGS})
 RESPONSE_BYTE_LIMITS.update({operation: 32768
                             for operation in accessible_ui.PARENT_LANGUAGE_OPERATIONS})

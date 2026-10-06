@@ -21,7 +21,7 @@ sub run {
         'installed-greeter', 'parent-focused', 'desktop');
     onpc_parent::launch($journey, $desktop, 'initial-language');
     $journey->seen('initial-save');
-    onpc_allowance_boundaries::select_child($journey, 'riley-setup', 'keyboard');
+    onpc_allowance_boundaries::select_child($journey, 'riley-setup');
     $journey->seen($_) for qw(riley-enabled riley-saved riley-allowance policy-captured feedback-empty);
     onpc_text::replace_text($journey, $_) for qw(body-rtl reply-rtl);
     $journey->seen('draft-captured');

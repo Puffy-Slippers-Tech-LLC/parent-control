@@ -7,7 +7,7 @@ use onpc_progress ();
 # PARENT06: identical ordered observations/input for host UI and installed E2E.
 # Values and preservation assertions belong to the caller, never to VM metadata.
 sub select {
-    onpc_progress::operation('Clicking, typing and confirming the daily allowance');
+    onpc_progress::operation('Setting and confirming the canonical daily allowance');
     my ($journey, $prefix, $values, $response) = @_;
     die 'allowance:keyboard-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
         && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/
@@ -17,8 +17,8 @@ sub select {
         && ($value eq 'custom' || $value =~ /\A(?:0|15|30|45)\z/
             || $value =~ /\A[1-9][0-9]{1,3}\z/
                 && $value >= 60 && $value <= 1410 && $value % 30 == 0);
-    # The ID-owned shared block performs click, typing and Enter together;
-    # only the saved value is observed after input, never popup/highlight state.
+    # The shared block sets the selector's canonical value through the App UI
+    # API, then independently reads the saved value or available Custom editor.
     $journey->consume_observation("$prefix-ready", $journey->seen("$prefix-ready"));
     return $journey->consume_observation("$prefix-confirm", $journey->seen("$prefix-confirm"));
 }

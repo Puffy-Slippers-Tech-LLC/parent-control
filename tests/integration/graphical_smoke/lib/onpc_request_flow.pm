@@ -456,12 +456,11 @@ sub kiosk_language_restoration {
     $journey->declare_challenges($challenges);
     my $returned_desktop = onpc_gdm::sign_in_challenge(
         $journey, 'return-parent', 'return-greeter', 'return-focused', 'return-desktop');
-    # Desktop discovery does not establish that the retained Parent window is
-    # active. Use ordinary app entry once, then independently bind that window
-    # before policy reads or a popup requiring compositor focus.
+    # Desktop discovery does not bind the retained Parent endpoint. Use ordinary
+    # app entry once, then independently bind its API surface before policy reads.
     onpc_parent::launch($journey, $returned_desktop, 'management', 'return-desktop');
     $journey->seen('jordan-policy-after');
-    onpc_allowance_boundaries::select_child($journey, 'riley-final', 'keyboard');
+    onpc_allowance_boundaries::select_child($journey, 'riley-final');
     $journey->seen($_) for ('riley-policy-after', 'parent-english-open', 'parent-english-close');
     $journey->finish();
 }

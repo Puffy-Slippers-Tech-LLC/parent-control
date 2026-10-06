@@ -85,6 +85,11 @@ needed.
 
 ## Public automation identities
 
+The following accessibility metadata remains available to assistive technology
+and identified harness fixtures. Product UI and E2E tests use the
+[Application UI API](#application-ui-api) for both observations and input;
+these compatibility interfaces are not alternate product automation routes.
+
 The custom daily allowance entry publishes validation rejection in its public
 accessible description, alongside the existing visual error. Accepted custom
 input restores the ordinary instruction description. This metadata changes with
@@ -112,9 +117,10 @@ the internal buttons by translated names, roles, order or geometry.
 ID-addressable GTK menu buttons also publish a `menu.popup` action through
 their public widget action group. GTK's generic menu-button AT-SPI interface
 does not expose its activate signal as a click action and may list inherited
-application actions. Consumers explicitly select the unique `menu.popup`
-action after ID lookup, then observe the opened menu. They never select an
-arbitrary inherited action or target the internal toggle by tree position.
+application actions. Accessibility clients can select the unique `menu.popup`
+action after ID lookup. Product tests instead set a canonical menu command
+through the UI API; when opening a menu is necessary, its ordinary API
+`activate` operation owns it.
 This accessibility addition activates with the next frontend process (`none`)
 and requires no saved-data migration.
 
@@ -122,9 +128,8 @@ Identified list rows publish `row.activate` through the same widget-action
 mechanism. It emits GTK's documented native
 [row activation signal](https://docs.gtk.org/gtk4/signal.ListBoxRow.activate.html)
 while the row is sensitive. The preview resolution selector uses this action;
-consumers still reveal the row by ID and independently observe the selected
-result. Inherited actions or an unsupported AT-SPI focus operation are not
-substitutes for row activation. This also activates on the next frontend process
+its harness consumers resolve the row by ID and independently observe the result.
+Product selector tests use canonical API values. This also activates on the next frontend process
 (`none`) and changes no saved data.
 
 Identified native windows/dialogs publish `focus.<automation-id>` actions for
@@ -132,9 +137,9 @@ their contained controls. GTK Entry's specialized AT-SPI Action interface does
 not expose arbitrary inserted action groups, and GTK's Component provider does
 not implement `GrabFocus`/`ScrollTo`. The owning surface action requests normal
 GTK focus, including scrolling into view, only for its mapped, visible, sensitive
-control in the active native window. Consumers reacquire the ID and verify focus
-and reachability before keyboard input; failed or uncertain readback cannot
-authorize replay. WebKit controls retain their supported public Component route.
+control in the active native window. These actions remain accessibility
+compatibility features. Product tests use API text/value setters and ordinary
+activation; keyboard focus and the WebKit Component interface do not gate them.
 
 Parent also publishes the read-only session-bus interface
 `com.puffyslippers.OhNoParentControl.Accessibility1` at its existing application
@@ -151,25 +156,20 @@ The interface registers and unregisters with the application; it exposes no
 policy data or input operation and needs no new service or saved-data migration.
 
 GTK's AT-SPI WINDOW bounds omit this native offset, including window shadows.
-The allowance adapter binds the session-bus unique owner's PID to the AT-SPI
-window, rechecks that owner, window, selector bounds and transform around native
-stream binding, and adds the offset once to its widget-relative click point.
-This follows [GTK's native event conversion](https://github.com/GNOME/gtk/blob/4.22.5/gtk/gtkmain.c),
-which subtracts the transform before widget picking. It is a public coordinate
-bridge, not a replacement for ID resolution or the final saved-value check.
+The interface remains compatibility metadata and supplies no permitted route for
+product tests. Parent allowance selection uses the scoped API canonical value
+and independent saved-value readback, with no geometry or native stream binding.
 
 Dialogs publish their originating window/dialog through `CONTROLS`, using the
 public [Gtk.AccessibleList](https://docs.gtk.org/gtk4/struct.AccessibleList.html)
 boxed value required by the language binding. GTK supplies the inverse AT-SPI
-`CONTROLLED_BY`; unmapping removes the relation. Readers require actual
-containment or this public owner chain within the identified application.
-Preview readers additionally bind each application ID to its live recorded
-launch process. Closure requires a complete fresh negative observation and a
-positive identified surrounding surface. Read-only waits discard incomplete
-trees and repeat the whole observation within the original deadline; a partial
-tree never proves presence or absence, persistent incompleteness fails, and
-input is not replayed. External terminal return remains
-unqualified until its own provider identity contract is available. These GTK
+`CONTROLLED_BY`; unmapping removes the relation. The UI API reports the owning
+surface through `parent_id`; product readers use the pinned application/PID and
+that explicit surface scope. Preview readers also bind the application to its
+recorded launch process. Closure requires a complete fresh negative observation
+and a positive identified surrounding surface. Read-only waits discard
+incomplete inventories and reacquire within the original deadline; incomplete
+reads never prove absence and input is not replayed. These GTK
 metadata changes activate on the next frontend process (`none`) without a
 saved-data migration.
 
@@ -183,10 +183,9 @@ keeps the public control state consistent with actual interaction availability;
 it does not change widget sensitivity or management policy. It activates on the
 next frontend process (`none`) and changes no saved data.
 
-The Parent child selector additionally publishes `child.focus-<uid>` actions.
-Consumers first resolve `parent-child-choice-<uid>` using the declared fixture
-account UID, then verify its label, request focus through the matching action
-and reacquire the focused ID. Enter commits selection separately;
+The Parent child selector additionally publishes `child.focus-<uid>` actions for
+accessibility compatibility. Product tests set `parent-child-selector` to the
+declared account UID through the UI API;
 `parent-child-selected-<uid>` supplies independent selected-child readback.
 Menu and filter identifiers are explicit semantic keys, independent of their
 display labels.
@@ -214,23 +213,22 @@ changes activate with the next frontend process (`none` package activation).
 Child panel metadata activates with the next graphical session
 (`session-renewal`). Neither requires a saved-data migration.
 
-The ID provider does not establish compliance for every consumer. Setup/login
-and retained legacy tests still require migration where they use unscoped names,
-roles, structure or geometry. Repository-owned UI requires public stable IDs.
+The ID provider does not establish compliance for every consumer. Product tests
+resolve stable IDs through the UI API, independent of AT-SPI ID exposure.
 External GDM, authentication dialogs, GTK file choosers and document viewers
 instead follow the provider-specific exception in `AGENTS.md`: prefer available
 IDs, then qualify scoped public accessibility semantics and ordinary keyboard
 navigation with ownership, ambiguity, input and result guards. Geometry or image
 matching is confined to an explicit provider adapter when accessibility actions
-and keyboard navigation cannot work reliably. GTK versions that do not publish
-Builder IDs cannot qualify the owned GTK ID adapter, but missing IDs alone do
-not block an external-provider adapter. Existing passing tests do not waive
-those qualification gaps.
+and keyboard navigation cannot work reliably. Missing IDs alone do not block an
+external-provider adapter. Existing passing tests do not waive its qualification
+requirements.
 
 The child panel publishes `child-request-button` for the primary request action
 and `child-countdown-animation-toggle` for its context-menu setting. The latter
-is also reachable with the standard keyboard context-menu action, so automation
-can resolve and focus both controls by ID without pointer coordinates.
+is also reachable with the standard keyboard context-menu action. Product tests
+use the `child-panel` API to activate the request action, set/read the animation
+boolean and read countdown/tooltip text without native gestures or focus.
 
 The feedback editor publishes the GTK-level `feedback-webview` identity. Its
 in-memory document also assigns stable DOM IDs and accessible labels to the
@@ -240,15 +238,14 @@ link editor. WebKitGTK publishes those explicit IDs in the public AT-SPI
 property instead holds a transient accessibility object number; looking for
 DOM IDs there incorrectly reports missing descendants even when the tree is
 present. See the [WebKitGTK provider implementation](https://github.com/WebKit/WebKit/blob/webkitgtk-2.52.6/Source/WebCore/accessibility/atspi/AccessibilityObjectAtspi.cpp).
-The preview and standalone guest readers share `public_automation_id`, which
-normalizes this provider contract to the same control IDs used by consumers.
-It reads only public AT-SPI metadata; missing IDs and duplicate matches still
-refuse input. A provider that truly exposes only the outer WebView remains
-blocked on that AT-SPI route. AT-SPI consumers must not substitute DOM structure,
-labels, roles, arbitrary JavaScript evaluation or geometry. The separately defined
-[Application UI API](#application-ui-api) uses a finite packaged editor adapter.
-The ID-reader correction itself is test-only
-and requires no product installation, package activation or saved-data migration.
+The shared `public_automation_id` reader retains this provider normalization for
+accessibility compatibility. Product preview and installed consumers use the
+finite packaged editor adapter in the [Application UI API](#application-ui-api).
+They set plain text, retained selection, formatting and history through fixed
+operations and independently read the public document delta. An outer-only
+WebView accessibility tree is no longer a product-test blocker. Missing API
+capabilities still refuse; arbitrary DOM selectors, caller-supplied JavaScript,
+HTML injection and geometry are not alternate routes.
 
 ## Personal language selection
 

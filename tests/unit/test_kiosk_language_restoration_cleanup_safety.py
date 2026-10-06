@@ -393,8 +393,6 @@ def test_actual_worker_order_titles_and_no_input_after_refusal(monkeypatch, faul
     worker = worker.replace("if $stage eq 'station-branch';", "if $stage =~ /(?:initial|renewed)-station-branch$/;")
     worker = worker.replace("station_destination => 'default-request-form'", "station_destination => 'initial-request-window'")
     worker = worker.replace('return {observed => $stage};', r'''
-        return {observed => $stage, ui_focused => JSON::PP::true}
-            if $stage eq 'riley-final-ready';
         if ($stage eq 'return-qualified' || $stage eq 'return-rechecked') {
             return {observed => $stage, challenge => {id => 'return-parent', role => 'parent',
                 surface => 'gdm', check => $stage eq 'return-qualified' ? 'qualified' : 'rechecked'}};
@@ -411,19 +409,11 @@ def test_actual_worker_order_titles_and_no_input_after_refusal(monkeypatch, faul
         'kiosk-language-restoration-' + stage for stage in expected]
     assert ['power', 'off'] in result['events'] if not fault else ['power', 'off'] not in result['events']
     events = result['events']
-    if ['stage', 'riley-final-ready'] in events:
-        ready = events.index(['stage', 'riley-final-ready'])
-        if fault == 'riley-final-ready':
-            assert events[ready + 1:] == []
-        else:
-            assert events[ready + 1:ready + 3] == [
-                ['title', 'kiosk-language-restoration-riley-final-open'],
-                ['stage', 'riley-final-open']]
     if fault:
         assert events[-1] == ['stage', fault]
 
 
-@pytest.mark.parametrize('fault', ['', 'ready', 'open', 'focus', 'selected'])
+@pytest.mark.parametrize('fault', ['', 'open', 'focus', 'selected'])
 def test_shared_semantic_selection_stops_at_each_failed_observation(fault):
     worker = WORKER.split('require onpc_kiosk_eligible_choices;')[0] + r'''
 require onpc_allowance_boundaries;
@@ -434,12 +424,12 @@ my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange =
     FAULT
     return {observed => $stage};
 });
-my $ok = eval { onpc_allowance_boundaries::select_child($journey, 'another', 'keyboard'); 1; };
+my $ok = eval { onpc_allowance_boundaries::select_child($journey, 'another'); 1; };
 print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
 '''
     replacement = f"die 'observation refused' if $stage eq 'another-{fault}';" if fault else ''
     result = json.loads(run_perl(worker.replace('FAULT', replacement)).stdout)
-    expected = [['stage', 'another-' + phase] for phase in ('ready', 'open', 'focus', 'selected')]
+    expected = [['stage', 'another-' + phase] for phase in ('open', 'focus', 'selected')]
     if fault:
         assert not result['ok'] and 'observation refused' in result['error']
         assert result['events'] == expected[:expected.index(['stage', 'another-' + fault]) + 1]
@@ -452,11 +442,11 @@ def test_return_requires_app_entry_and_independent_available_window_before_polic
     stages = list(recipe.SCREENS)
     start = stages.index('return-desktop')
     assert stages[start:start + 6] == ['return-desktop', 'return-parent-command',
-        'return-parent-window', 'jordan-policy-after', 'riley-final-ready', 'riley-final-open']
+        'return-parent-window', 'jordan-policy-after', 'riley-final-open', 'riley-final-focus']
     assert recipe.SCREENS['return-parent-command'] == 'ui:parent-command-launch'
     assert recipe.SCREENS['return-parent-window'] == 'ui:switch-parent'
-    assert recipe.SCREENS['riley-final-ready'] == 'ui:parent-child-picker-ready'
-    assert recipe.SCREENS['riley-final-open'] == 'ui:child-picker-presented'
+    assert recipe.SCREENS['riley-final-open'] == 'ui:child-picker-opened'
+    assert recipe.SCREENS['riley-final-focus'] == 'ui:child-choice-highlighted'
 
 
 @pytest.mark.parametrize('fault', ['', 'hidden', 'wrong-owner', 'unavailable-reply'])

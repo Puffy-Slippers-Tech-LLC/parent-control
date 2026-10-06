@@ -13,13 +13,13 @@ ROOT = pathlib.Path(__file__).parents[2]
 class ChildPreviewTests(unittest.TestCase):
     def interaction_wait(self):
         # Load just the wait boundary: importing the live worker would bind
-        # a real AT-SPI bus, Shell PID and input backend in a unit test.
-        from tests.support.automation import AutomationError
+        # the launch-owned Shell PID and artifact paths in a unit test.
+        from tests.support.application_ui import UIClientError
 
         path = ROOT / "tests/ui/child_shell_interaction.py"
         tree = ast.parse(path.read_text(), filename=str(path))
         functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)
-                     and node.name in ("_wait", "_wait_for_complete_read")]
+                     and node.name == "_wait"]
         clock = SimpleNamespace(now=0.0)
 
         def sleep(duration):
@@ -30,54 +30,39 @@ class ChildPreviewTests(unittest.TestCase):
             "time": SimpleNamespace(monotonic=lambda: clock.now, sleep=sleep),
             "GLib": SimpleNamespace(Error=LookupError,
                                     MainContext=SimpleNamespace(default=lambda: context)),
-            "AutomationError": AutomationError,
+            "UIClientError": UIClientError,
             "TIMEOUT_SECONDS": 0.15,
-            "_WAIT_ACTIVE": False,
             "_launch_records": lambda: [],
             "_snapshot": Mock(return_value="redacted tree"),
         }
         exec(compile(ast.Module(body=functions, type_ignores=[]), str(path), "exec"), namespace)
         return namespace, clock, context
 
-    def test_child_nested_read_retries_the_whole_result_with_one_deadline(self):
+    def test_child_read_wait_retries_unavailable_api_observations_with_one_deadline(self):
         namespace, clock, _context = self.interaction_wait()
-        reads, results = [], []
+        reads = []
 
         def read():
             reads.append(clock.now)
             if len(reads) == 1:
-                raise namespace["AutomationError"]("automation:incomplete-tree")
-            return True
-
-        def result():
-            results.append(clock.now)
-            namespace["_wait_for_complete_read"](read, "complete tree")
+                raise namespace["UIClientError"]("Unavailable")
             return "ready"
 
-        self.assertEqual(namespace["_wait"](result, "result"), "ready")
-        # The enclosing predicate must be retried, rather than allowing its
-        # partial observation to survive a nested read's independent retry.
-        self.assertEqual(reads, results)
-        self.assertEqual(len(results), 2)
-        self.assertFalse(namespace["_WAIT_ACTIVE"])
+        self.assertEqual(namespace["_wait"](read, "result"), "ready")
+        self.assertEqual(reads, [0, .05])
 
     def test_child_incomplete_reads_expire_without_extending_the_outer_wait(self):
         namespace, clock, _context = self.interaction_wait()
 
         def incomplete():
-            raise namespace["AutomationError"]("automation:incomplete-tree")
-
-        def result():
-            namespace["_wait_for_complete_read"](incomplete, "complete tree")
-            self.fail("An incomplete tree cannot establish the result")
+            raise namespace["UIClientError"]("Unavailable")
 
         with self.assertRaisesRegex(AssertionError, "Timed out waiting for result"):
-            namespace["_wait"](result, "result")
+            namespace["_wait"](incomplete, "result")
         self.assertAlmostEqual(clock.now, namespace["TIMEOUT_SECONDS"])
         namespace["_snapshot"].assert_called_once_with()
-        self.assertFalse(namespace["_WAIT_ACTIVE"])
 
-    def test_child_read_wait_preserves_falsey_accessibles_and_standalone_retries(self):
+    def test_child_read_wait_preserves_falsey_element_references(self):
         namespace, _clock, _context = self.interaction_wait()
 
         class Accessible:
@@ -86,24 +71,20 @@ class ChildPreviewTests(unittest.TestCase):
 
         node = Accessible()
         self.assertIs(namespace["_wait"](lambda: node, "accessible"), node)
-        read = Mock(side_effect=[namespace["AutomationError"]("automation:incomplete-tree"), True])
-        self.assertTrue(namespace["_wait_for_complete_read"](read, "complete tree"))
-        self.assertEqual(read.call_count, 2)
-        self.assertFalse(namespace["_WAIT_ACTIVE"])
 
     def test_child_read_wait_propagates_input_refusal_and_cancellation(self):
-        for failure in (RuntimeError("uncertain-input"), KeyboardInterrupt()):
+        from tests.support.application_ui import UIClientError
+
+        for failure in (UIClientError("Unavailable", uncertain=True),
+                        UIClientError("OwnerChanged"), UIClientError("Denied"),
+                        RuntimeError("uncertain-input"), KeyboardInterrupt()):
             with self.subTest(failure=type(failure).__name__):
                 namespace, _clock, _context = self.interaction_wait()
                 read = Mock(side_effect=failure)
                 with self.assertRaises(type(failure)) as caught:
-                    namespace["_wait"](
-                        lambda: namespace["_wait_for_complete_read"](read, "complete tree"),
-                        "result",
-                    )
+                    namespace["_wait"](read, "result")
                 self.assertIs(caught.exception, failure)
                 self.assertEqual(read.call_count, 1)
-                self.assertFalse(namespace["_WAIT_ACTIVE"])
                 namespace["_snapshot"].assert_not_called()
 
     def run_orchestration(self, script, *, timeout=5):
@@ -477,12 +458,13 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertNotIn('view-more-symbolic', indicator)
         self.assertIn("refreshEstimate()", indicator)
         self.assertIn(".screen-time-request-button {", stylesheet)
-        self.assertIn("MutterInputBackend", interaction)
-        self.assertIn("Automation", interaction)
-        self.assertIn("audit_owned_controls", interaction)
-        self.assertIn("UI.focus(REQUEST_BUTTON_ID)", interaction)
-        self.assertIn("_press_recipient_key(input_backend, REQUEST_BUTTON_ID, X_KEYCODE_SPACE)",
-                      interaction)
+        self.assertIn("from tests.support.application_ui import ApplicationUI", interaction)
+        self.assertIn("_panel().activate(REQUEST_BUTTON_ID)", interaction)
+        self.assertIn("_panel().setValue(COUNTDOWN_ANIMATION_ID, True)", interaction)
+        self.assertIn("_panel().getValue(COUNTDOWN_ANIMATION_ID) is True", interaction)
+        self.assertNotIn("MutterInputBackend", interaction)
+        self.assertNotIn("grab_focus", interaction)
+        self.assertNotIn("X_KEYCODE", interaction)
         self.assertNotIn("set_overview", interaction)
         self.assertNotIn("OverviewActive", interaction)
         self.assertNotIn("get_extents", interaction)
@@ -498,8 +480,11 @@ class ChildPreviewTests(unittest.TestCase):
             'export ONPC_CHILD_SHELL_PID="$onpc_preview_shell_pid"', runner
         )
         self.assertIn('SHELL_PID = int(os.environ["ONPC_CHILD_SHELL_PID"])', interaction)
-        self.assertIn("application.get_process_id() == SHELL_PID", interaction)
-        self.assertIn("UI = Automation(Atspi, _shell_application", interaction)
+        self.assertIn("candidate.pid != SHELL_PID", interaction)
+        self.assertIn('APPLICATIONS.client("child-panel")', interaction)
+        self.assertIn('APPLICATIONS.client("child-request")', interaction)
+        self.assertIn('APPLICATIONS.forget("child-request")', interaction)
+        self.assertIn("APPLICATIONS.close()", interaction)
 
     def test_request_icon_uses_the_product_logo(self):
         branding = (ROOT / "child" / "branding.js").read_text()

@@ -155,10 +155,8 @@ def _record_parent_public_state(ui, module, log_path):
                     'enabled': ui.has_state(node, ui.api.StateType.SENSITIVE),
                     'checked': ui.has_state(node, ui.api.StateType.CHECKED),
                     'defunct': ui.has_state(node, ui.api.StateType.DEFUNCT),
-                    'controlled_by': [module.public_automation_id(relation.get_target(index))
-                                      for relation in node.get_relation_set()
-                                      if relation.get_relation_type() == ui.api.RelationType.CONTROLLED_BY
-                                      for index in range(relation.get_n_targets())],
+                    'surface': node.surface_id,
+                    'parent_surface': node.surface_metadata.get('parent_id'),
                 } for node in matches]
             evidence['complete_snapshot'] = result
             # Use the normal ownership reader independently of this diagnostic
@@ -211,9 +209,7 @@ def test_feedback_read_adapter_uses_real_public_editor(launch_ui):
         print('Feedback duplicate public IDs:',
               {identity: count for identity, count in counts.items() if identity and count > 1})
         for identity in ('feedback-editor-input', 'feedback-reply-email'):
-            node = ui.id_target(identity)
-            text = node.get_text_iface()
-            count = text.get_character_count()
+            count = len(ui.id_target(identity).getText())
             print('Synthetic field character count:', identity, count)
         raise
 
@@ -247,7 +243,6 @@ def test_format_adapter_reads_real_public_ranges(launch_ui):
     # adapter tests; no new shared resource or scheduler exclusion.
     from gi.repository import Atspi, GLib
     from tests.e2e import accessible_ui as module
-    from tests.support.keyboard import key_combo, type_text
 
     launch_ui('parent_component_preview', wait_for_application=False)
     ui = module.AccessibleUI(
@@ -268,13 +263,11 @@ def test_format_adapter_reads_real_public_ranges(launch_ui):
     try:
         result = ui.run('format-read', '')['formatting']
     except module.UiError:
-        # Only declared synthetic offsets and semantic weights; no draft dump.
-        node = ui.text_recipient(identity)
-        text = node.get_text_iface()
-        for offset in (0, 8, 9, 10, 22):
-            attributes, start, end = text.get_attribute_run(offset, True)
-            print('Synthetic public weight run:', offset, start, end,
-                  attributes.get('weight'), text.get_character_count())
+        # Only declared synthetic ranges and formats; no draft dump.
+        from tests.e2e.block_semantics import document_runs
+        for start, end, _text, attributes in document_runs(
+                ui.text_recipient(identity), module.require):
+            print('Synthetic public bold run:', start, end, bool(attributes.get('bold')))
         raise
     ui.run('format-close', '')
     ui.run('format-wrong-entry', '')
@@ -285,7 +278,6 @@ def test_duplicate_adapter_builds_exact_formatting_fixture_by_application_ui(lau
     # Editing stays in the existing preview on this test's private bus.
     from gi.repository import Atspi, GLib
     from tests.e2e import accessible_ui as module
-    from tests.support.keyboard import key_combo, type_text
 
     launch_ui('parent_component_preview', wait_for_application=False)
     ui = module.AccessibleUI(
@@ -298,19 +290,22 @@ def test_duplicate_adapter_builds_exact_formatting_fixture_by_application_ui(lau
     ui.run('feedback-open', '')
     from tests.support.gui_blocks import run_block
     run_block(ui, 'complex')
-    expected = {'weight': '700', 'style': 'italic', 'underline': 'single',
-                'strikethrough': 'true'}
+    expected = {'bold': True, 'italic': True, 'underline': True, 'strike': True}
     def formats_match():
+        from tests.e2e.block_semantics import document_runs
         ui.read_synthetic_text('body-complex')
-        text = ui.text_recipient(identity).get_text_iface()
-        offset = 0
-        while offset < len(module.COMPLEX_BODY):
-            attributes, first, last = text.get_attribute_run(offset, True)
-            if not (0 <= first <= offset < last <= len(module.COMPLEX_BODY) + 1
-                    and {key: attributes.get(key) for key in expected} == expected):
+        covered = 0
+        for first, last, text, attributes in document_runs(
+                ui.text_recipient(identity), module.require):
+            if first >= len(module.COMPLEX_BODY):
+                break
+            # Quill stores inline formatting on characters, not the paragraph
+            # newline; inspect every synthetic character independently.
+            count = len(text.replace('\n', ''))
+            if count and {key: bool(attributes.get(key)) for key in expected} != expected:
                 return False
-            offset = last + last % 2
-        return True
+            covered += count
+        return covered == module.COMPLEX_LINES
     ui.wait(formats_match, 'combined-formats')
     ui.rejection_formatting()
     ui.run('rejection-complex-send', '')
@@ -322,27 +317,19 @@ def test_duplicate_adapter_builds_exact_formatting_fixture_by_application_ui(lau
     assert ui.run('rejection-reopened-read', '')['feedback_state']['validation'] == 'format-invalid'
     # A public attribute must also disappear when its real format is removed.
     # These shorter valid drafts never reach Send.
-    for kind, attribute, value in (
-            ('underline', 'underline', 'none'), ('strike', 'strikethrough', 'false')):
+    for kind in ('underline', 'strike'):
         ui.run(f'rejection-format-{kind}-focus', '')
         ui.run(f'rejection-format-{kind}-apply', '')
-        expected[attribute] = value
+        expected[kind] = False
         ui.wait(formats_match, 'removed-format')
 
 
 def test_length_adapter_reads_full_ascii_and_non_bmp_boundaries(launch_ui):
-    # Existing owned preview/private display and bus; no shared resources or
-    # external submission. Clipboard ownership stays in this private editor;
-    # the short typed remainder and scalar append retain the public guards.
+    # Existing owned preview/private display and bus; editor text and Unicode
+    # scalars use the same fixed public editing operations as installed cases.
     from gi.repository import Atspi, GLib
     from tests.e2e import accessible_ui as module
-    from tests.support.keyboard import key_combo, type_text
-
-    # The private compositor has no desktop input-method daemon. Select GTK's
-    # built-in numeric Unicode input, scoped to this owned preview process.
-    # https://docs.gtk.org/gtk4/class.IMContextSimple.html
-    launch_ui('parent_component_preview', wait_for_application=False,
-              environment_overrides={'GTK_IM_MODULE': 'gtk-im-context-simple'})
+    launch_ui('parent_component_preview', wait_for_application=False)
     ui = module.AccessibleUI(
         Atspi, timeout=20, query_errors=(GLib.Error,),
         application_ids=(module.PARENT_APPLICATION,),
@@ -373,7 +360,6 @@ def test_rejection_adapter_reads_real_empty_and_malformed_explanations(launch_ui
     # resources. Only proven invalid bodies/replies reach the real Send control.
     from gi.repository import Atspi, GLib
     from tests.e2e import accessible_ui as module
-    from tests.support.keyboard import key_combo, type_text
 
     launch_ui('parent_component_preview', wait_for_application=False)
     ui = module.AccessibleUI(
@@ -401,7 +387,6 @@ def test_rejection_adapter_reads_real_empty_and_malformed_explanations(launch_ui
 def test_text_replacement_adapter_uses_real_body_and_native_reply(launch_ui):
     from gi.repository import Atspi, GLib
     from tests.e2e import accessible_ui as module
-    from tests.support.keyboard import key_combo, press_key, type_text
 
     launch_ui('parent_component_preview', wait_for_application=False)
     ui = module.AccessibleUI(
@@ -430,7 +415,7 @@ def test_text_replacement_adapter_uses_real_body_and_native_reply(launch_ui):
             ui.run('feedback-close', '')
             ui.run('feedback-reopen', '')
         replace(binding)
-    # FEED09 uses the same private preview and public keyboard route; no new
+    # FEED09 uses the same private preview and public editing operations; no new
     # processes/displays or shared resources beyond this reviewed UI fixture.
     assert ui.run('feedback-state-empty', '')['feedback_state']['send_enabled'] is True
     for binding, operation in (
@@ -476,7 +461,7 @@ def test_standard_user_startup_denial_has_specific_public_result(launch_ui, auto
     if dismissal == 'close':
         ui.activate_id('parent-access-denied-close')
     else:
-        ui.id_target('parent-access-denied-window').close()
+        ui.close_id('parent-access-denied-window')
     ui.wait(lambda: automation.absent('parent-access-denied-window', within='kiosk-request-window'),
             'denial-dismissed')
 
@@ -626,7 +611,7 @@ def test_parent_functional_adapter_at_display_scales(
             _record_parent_public_state(ui, module, _log)
         ui.about_footer()
         ui.window_ready_to_close('about')
-        ui.id_target('about-dialog').close()
+        ui.close_id('about-dialog')
         assert ui.run('parent-returned', version)['settings'] == disabled
     except Exception:
         print('Parent preview diagnostics:', _log)

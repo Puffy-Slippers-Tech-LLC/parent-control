@@ -194,10 +194,11 @@ readiness.
 These are in-process building blocks behind registered public-UI checkpoints,
 not a new remotely executable scripting API. The existing adapter's shared
 system-prompt handling and guarded recorder remain middleware for every block.
-UI rows that name `automation-id` define the repository-owned and ID-capable
-provider route. An explicit external-provider adapter may supply the same
-consumer operation through its qualified resolution method while retaining the
-row's ownership, ambiguity, focus, input and independent-result guards.
+UI rows that name `automation-id` resolve product controls through the shared
+Application UI API. Supporting fixture apps retain their shared public-ID
+activity adapters. An explicit external-provider adapter may supply an external
+operation through its qualified resolution method while retaining ownership,
+ambiguity, required recipient focus, input and independent-result guards.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
@@ -208,11 +209,11 @@ row's ownership, ambiguity, focus, input and independent-result guards.
 | UI05 | A | Send one declared key/chord only to a qualified external provider or supporting-tool recipient. Product controls use API operations with explicit handlers instead. | `testapi::send_key` retains fresh recipient proofs for Shell/GDM/authentication and external tools; product Enter maps to normal activation and product close to surface `close`. | ready |
 | UI06 | A | Enter one nonsecret string into a qualified external provider with a fresh recipient proof. Product text uses UI16 and the Application UI API. | External `testapi::type_string`, including `onpc_parent::enter_search_query`; product text is shared `setText`. | ready |
 | UI07 | A | **Retired.** Geometry-based resolution has no executable route. Use UI01 and semantic input; no execution exemption. | Retained `AccessibleUI.pointer_target`, `pointer_glyph` and `stable_pointer` entry points refuse before traversal or geometry access. | retired; safely refused |
-| UI08 | A | **Retired.** Coordinate clicking has no executable route. Use UI04 or qualified ID-addressed keyboard input; uncertain input still refuses. | Retained `onpc_journey::click_target` and `onpc_pointer::click` entry points refuse before backend, image or input access. | retired; safely refused |
+| UI08 | A | **Retired.** Coordinate clicking has no executable route. Use product API UI04 or qualified external-provider input; uncertain input still refuses. | Retained `onpc_journey::click_target` and `onpc_pointer::click` entry points refuse before backend, image or input access. | retired; safely refused |
 | UI10 | A | Wait for a read-only API/provider predicate under one bounded deadline. Reacquire current scoped observations without replaying mutations. | `AccessibleUI.wait`; predicates contain no input. | ready |
 | UI11 | A | Observe absence of an explicit `automation-id` within an otherwise positively ID-addressed surface. Bind `snapshot` or `stable` mode explicitly. Both require complete fresh reads; stable mode additionally requires its declared finite interval and deadline. | Existing absence/window-closure paths must use registered IDs for both the absent target and surrounding surface. Incomplete/defunct reads cannot prove absence; stable reads restart their interval. [Search contracts](#search-and-standard-sign-in-contracts), [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
 | UI12 | A | Compare explicit sanitized observations with an explicit expected value or earlier observation; report the differing approved fields. No hidden initial/new-child slots. | `SettingsObservation.from_settings` freezes sanitized values; `compare_settings(observed, expected)` compares explicit immutable observations and reports only differing field names. `JourneyPlan.settings_checks` owns expectations and prior-stage references. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
-| UI13 | A | Observe a bounded public collection of children first resolved by stable public IDs: canonical identities/order, matching window count, or displayed row set. Inputs declare the ID-addressed root, projection, maximum and expected cardinality (including zero). Order may be verified as a result but never used as identity or to calculate input. Require complete fresh traversal for exclusion/count claims; reject duplicate IDs and unknown requested targets. | `AccessibleUI.app_rows` / `AppRowsObservation` qualify complete App Limits collections through `check_e2e_app_row_observations`; see [app-row observations](#app-row-observations). Case 159 qualified `AccessibleUI.parent_window_count` as a strict complete-tree projection of exactly one owned Parent management window after a second direct launch in `20260929T070054Z-c0f58f19`; duplicate/absent windows refuse. Existing `choice_order`, greeter and child-picker collection paths require migration wherever names, roles or positions discover children. Harness and [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
+| UI13 | A | Observe a bounded public collection of children first resolved by stable public IDs: canonical identities/order, matching window count, or displayed row set. Inputs declare the ID-addressed root, projection, maximum and expected cardinality (including zero). Order may be verified as a result but never used as identity or to calculate input. Require complete fresh traversal for exclusion/count claims; reject duplicate IDs and unknown requested targets. | `AccessibleUI.app_rows` / `AppRowsObservation` qualify complete App Limits collections through `check_e2e_app_row_observations`; see [app-row observations](#app-row-observations). Case 159 qualified `AccessibleUI.parent_window_count` as a strict complete-tree projection of exactly one owned Parent management window after a second direct launch in `20260929T070054Z-c0f58f19`; duplicate/absent windows refuse. Product choice collections use API canonical identities; greeter and supporting fixture collections retain their separately scoped public adapters. Harness and [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | UI19 | A | Type one fixture secret once through the unchanged secret-safe API for one challenge whose surface, recipient and empty masked field were freshly resolved by owned public IDs or a qualified external-provider adapter. Accept a registered secret reference and explicit recipient proof, never plaintext in stage data. Do not submit or infer authentication success. Capture remains sealed and uncertainty/failure forbids replay. | `onpc_password::type_fixture_secret` consumes one proof from `enter_gdm_challenge`; distinct Parent GDM challenges are qualified by `check_e2e_challenges`, and the explicit child challenge by [fresh child qualification](#fresh-child-success-qualification). Used identities and the terminal failure latch never reset. Serial retains its separate proof binding; other graphical surfaces remain pending. [Challenge contract](#refactoring-the-established-cases). | ready |
 | UI20 | A | Native double-click: unsupported and excluded from automation; do not implement or schedule consumers. | See the [unsupported native-gesture rule](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures). Public mouse synthesis requires geometry; semantic activation is not the gesture. No compliant callable or qualification. E2E-014 cases 38–43 remain uncovered and unscheduled. | excluded; no active task or queue blocker |
 | UI23 | A | Make logically collapsed product content available through its declared API value/action only when the required result needs it. Clipping requires no action. | `AccessibleUI.reveal_id` and the shared API facade; `parent-time-status` and declared disclosures use their ordinary handlers. | ready |
@@ -474,8 +475,10 @@ The retained Parent return uses `onpc_parent::launch` with a fresh desktop recei
 and `switch-parent`'s independent window proof. Final Riley selection uses
 `journey_blocks.custom_child_selection` and
 `onpc_allowance_boundaries::select_child` through UI15's canonical API setter
-on `parent-child-selector`. Retained route arguments do not select keyboard
-input. The shared helper independently reads selected UID and loaded controls.
+on `parent-child-selector`. There is one product selection route. Retained
+`open`/`focus`/`selected` stage names mean offered-choice observation, API value
+selection and independent selected-result observation; they require no popup
+or keyboard focus. The shared helper reads selected UID and loaded controls.
 Real GTK coverage preserves the retained-window boundary after input to another
 owned preview, refusal and terminal uncertain input, without popup/focus steps.
 
@@ -655,8 +658,8 @@ scoped unit/safety/source checks passed. This capability supplies no complete-ca
 The completed evidence below describes the original history. Current case 256
 uses one necessary dialog visit per language, saves only the actual Hebrew and
 English changes, and preserves the original policy and draft. Chooser
-reopen/Cancel, keyboard traversal and link-control matrices remain UI or harness
-qualification; they are not repeated customer acceptance requirements.
+reopen/Cancel and link-control matrices remain UI coverage; product keyboard
+traversal is no longer an acceptance requirement in either layer.
 
 Task 307 completed E2E-055 `parent-hebrew`, case 256, on Ubuntu 26.04 in
 run `20261005T195414Z-0e17bba7` (subject to runner retention).
@@ -809,11 +812,10 @@ Filter inputs and policy-edit journeys remain pending under their own tasks.
 calls `onpc_text::replace_text` and consumes the caller's independent complete
 row observation. Bindings are finite: `catalogue-name` (`ONPC Allowed Fixture`),
 `catalogue-absent` (`ONPC Absent Catalogue Fixture 077b`) and `catalogue-clear`.
-`AccessibleUI.text_recipient` checks the owned active Parent, selected child's
-public ID, usable App Limits page and editable search field before input.
-`focus_text` invokes the window's public `focus.parent-app-search` action and
-independently proves focus. Every keyboard batch gets a fresh recipient proof;
-exact bounded text readback follows input.
+`AccessibleUI.text_recipient` checks the owned Parent API surface, selected
+child's public ID, usable App Limits page and editable search field before
+input. The shared text operation calls `setText` on `parent-app-search` once;
+exact bounded API text readback and the debounced row result follow separately.
 
 `AccessibleUI.CATALOGUE_ROW_OPERATIONS` binds complete result/reopening reads
 to Jordan. Each checks exact query readback and waits for the complete expected
@@ -838,7 +840,7 @@ Allowed/precise readback, empty results, refusals, private collection, owned
 cleanup and baseline restoration. Host checks cover complete traversal,
 nondefault child input/refusal, delayed results, controller transport, worker
 stop boundaries and real recorder startup/comparison. The preview checks real
-focus, replacement, clear and wrong-child/page refusal. This qualifies only the
+API replacement, clear and wrong-child/page refusal. This qualifies only the
 declared search slice. The representative query/filter UI results and installed
 combined-filter sample are qualified under [catalogue filters](#catalogue-filters);
 case 184 retains its separate complete acceptance.
@@ -849,11 +851,11 @@ case 184 retains its separate complete acceptance.
 [accessible_ui.py](../../tests/e2e/accessible_ui.py) binds `match-rule` to
 `pattern/precise` and `access-rule` to `allowed/conditional/permanent`.
 Bitmasks select each option explicitly, including none and all. Before each
-input it checks the owned active Parent, selected child and usable App Limits
-page. Public `parent-filter-<kind>` actions and identified choice controls
-use UI17's one-use action. Selection, Escape and popup readiness stay inside the
-shared operation; the caller independently reads the complete resulting rows.
-Popup presentation and dismissal are not separate acceptance assertions.
+input it checks the owned Parent API surface, selected child and usable App
+Limits page. It sets the complete canonical key list on
+`parent-filter-match-rule` or `parent-filter-access-rule` through UI15 once;
+the caller independently reads the complete resulting rows. Selection requires
+no popup, Escape or focus step.
 Wrong-child/page entry, missing/duplicate options and uncertain input refuse.
 
 `onpc_app_rows::filter(journey, kind, mask, prefix)` in
@@ -912,7 +914,7 @@ Boolean result. The app/child proof and independent opened-editor readback
 remain required, and Open dispatch stays outside the retry boundary.
 
 `onpc_text::replace_text` supplies the finite precise/wildcard drafts through the
-same public focused entry. The row's public match-button description supplies
+same scoped `parent-match-rule-entry.setText` operation. The row's public match-button value supplies
 the saved rule; no preference or broker reads are used. The qualified absolute
 values are `/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage` and
 `/opt/onpc-test-fixtures/Applications/Exact*.AppImage`, with their basename input
@@ -932,8 +934,8 @@ rule; Reset closes and immediately saves the detected default, independently
 read in the row and reopened editor. Editing clears the rejection description.
 The shared post-selection text observation, independent match-rule reader and
 match-response recipient proof retry only incomplete/query reads under their
-configured deadlines; no keyboard
-input or response action is repeated when a toast or animation disappears
+configured deadlines; no API
+text input or response action is repeated when a toast or animation disappears
 during traversal. Every fresh proof rechecks the owned child and editor.
 Persistent incomplete reads and changed recipients refuse before input;
 action query/dispatch errors retain the uncertain-input guard and expose the
@@ -997,7 +999,7 @@ ordered review mechanics and immutable draft comparisons across Privacy.
 `AccessibleUI.parent_report_operation` observes the already-open report and
 action availability without invoking them. Guarded editor Save never replays
 an uncertain action or implicitly closes the report. Shared text preflights
-retry incomplete/query reads only; focus and keyboard input stay single-use.
+retry incomplete/query reads only; API text input stays single-use.
 The precise/wildcard GTK matrix and recorder/ownership/refusal checks passed.
 Affected `check_e2e_match_editor`, `check_e2e_text` and
 `check_e2e_feedback_privacy` regressions passed in `20261001T100734Z-e823553a`,
@@ -1153,7 +1155,7 @@ are unnecessary.
 | REQUEST09 | C | Activate an enabled Request once and observe the declared result: authentication for valid input or validation for invalid custom input. | UI01 → UI02(enabled) → UI04; valid then AUTH01, invalid then REQUEST03 → UI11(no prompt). `AccessibleUI.kiosk_mate_cancel` / `mate_prompt.PLAN` qualify the fixed valid kiosk submission through `check_e2e_auth_prompt`; `overlay_shell_cancel_ready` qualifies the fixed valid overlay submission through [Shell prompt qualification](#overlay-shell-prompt-and-cancel-qualification). `AccessibleUI.kiosk_invalid_choice` / `request_duration.PLAN` qualify enabled kiosk submission, exact validation, preserved form and no authentication for every finite invalid custom value; see [qualification](#invalid-kiosk-choice-qualification). `overlay-invalid-below-*` shares the same single-submit/no-prompt mechanics with explicit overlay/fixed-child guards; see [overlay invalid submission](#overlay-flow04-invalid-submission-and-escape-qualification). Missing accounts, unloaded preferences or disabled limits instead require the disabled state and no activation. | kiosk invalid-custom/fixed valid-authentication and representative overlay invalid-custom/fixed valid-authentication branches ready; other bindings pending |
 | REQUEST10 | C | Native double-click Request and one-prompt observation: excluded on both kiosk and overlay. | Requires unsupported UI20; see the [UI mandate](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures). Do not substitute two activations or recreate capability/consumer tasks. Ordinary REQUEST09 and independent public observations remain separate capabilities. | excluded; no active task or queue blocker |
 | REQUEST11 | C | Observe success confirmation, rejection, cancellation without an error, or validation feedback, with the explicitly expected preserved choices. | UI01 → UI03 → REQUEST03 where the form remains → UI12. Capture brief success before waiting for automatic exit. `AccessibleUI.kiosk_gdm_returned` is installed-qualified through `check_e2e_request_exit` for Cancel/Escape from the fixed disabled-child kiosk form: usable GDM and absent request/error UI. Case 54 also validates Cancel from the no-child form through `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run`. `AccessibleUI.kiosk_approval_success` qualifies explicit success before automatic or immediate exit; see [kiosk approval](#kiosk-approval-qualification). `kiosk_rejection.PLAN` independently compares preserved choices after explicit rejection and Cancel; see [kiosk rejection](#kiosk-rejection-qualification). Normal overlay Cancel and exact original usable-app activity passed the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). The [overlay FLOW04/invalid/Escape slice](#overlay-flow04-invalid-submission-and-escape-qualification) adds representative invalid validation with preserved choices/no prompt and an independent Escape/activity comparison. `OverlayPromptJourney` / `KioskRequestJourney` independently compare unchanged usable no-error overlay choices after password-free Shell Cancel; see [Shell prompt qualification](#overlay-shell-prompt-and-cancel-qualification). The child-owned Time granted result passed [overlay approval](#overlay-approval-and-automatic-return-qualification). Other bindings and overlay rejection remain pending. | pending; kiosk Cancel/Escape, fixed approval success and rejection/Cancel preserved form, declared overlay Cancel/Escape/invalid validation and fixed Shell Cancel preserved form and fixed overlay approval success ready |
-| REQUEST12 | C | Exit by Cancel, Escape, normal window close, the approved immediate exit action, or the already-approved automatic exit. Observe overlay disappearance plus child desktop, or kiosk disappearance plus GDM. No authentication prompt may be active for form Cancel/Escape. | UI04(Cancel or approved immediate exit), UI05, UI18, or no input for automatic exit → UI11 → DESK01 or GDM01. `RequestExitJourney` / `check_e2e_request_exit` uses shared direct station entry for each fixed disabled-child Cancel/Escape attempt: `AccessibleUI.cancel_kiosk_request` invokes the owned-ID action directly; `onpc_request_exit::escape` composes `focus_kiosk_escape_recipient`, one ordinary Escape and `kiosk_gdm_returned` for independent destination observation. Both exits refuse active prompts. Case 54 independently validates the same Cancel action and GDM destination from the no-child form through `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run`. Cases 47/48 qualify Cancel/Escape from enabled custom/soft-included choices; see [prepared request qualification](#prepared-request-qualification). `kiosk_approval.PLAN` independently qualifies automatic approved return through `kiosk_gdm_returned`; see [kiosk approval](#kiosk-approval-qualification). `auth_result.PLAN` / `check_e2e_auth_result` qualifies immediate approved exit through the owned result action and independent GDM read; see [kiosk approval](#kiosk-approval-qualification). `cancel_kiosk_request(overlay=True)` shares the guarded owned Cancel action; `overlay_desktop` independently requires form absence and the usable child desktop, followed by exact `InstalledJourney.check_activity` comparison. See the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). `focus_kiosk_escape_recipient(overlay=True)` freshly qualifies the owned Cancel recipient without activating it; shared `onpc_request_exit::escape` sends one Escape before independent overlay-desktop/activity observations. See [overlay Escape qualification](#overlay-flow04-invalid-submission-and-escape-qualification). The fixed approved automatic overlay exit and exact original usable activity passed [overlay approval](#overlay-approval-and-automatic-return-qualification). Window close and overlay immediate approved exit remain pending. | pending; kiosk Cancel/Escape and fixed automatic/immediate approved exits and declared overlay Cancel/Escape and fixed automatic approved exit ready |
+| REQUEST12 | C | Exit through the normal API Cancel action, surface close, approved immediate exit action, or already-approved automatic exit. Observe overlay disappearance plus child desktop, or kiosk disappearance plus GDM. Form cancellation refuses an active authentication prompt. Legacy Escape bindings retain their normal-close user outcome. | UI04(Cancel or approved immediate exit), UI18, or no input for automatic exit → UI11 → DESK01 or GDM01. `AccessibleUI.cancel_kiosk_request` invokes the owned API action; `onpc_request_exit::escape` composes the scoped request-surface close with `kiosk_gdm_returned` or `overlay_desktop` for independent destination observation. Retained `focus_kiosk_escape_recipient` names supply guarded API close, with no native key or focus requirement. Cases 47/48 and 54 retain their choices and GDM assertions; see [prepared request qualification](#prepared-request-qualification). `kiosk_approval.PLAN` and `auth_result.PLAN` retain automatic/immediate approved exit; see [kiosk approval](#kiosk-approval-qualification). Overlay Cancel/close shares the request API and compares the original usable activity; see [valid overlay slice](#valid-overlay-choice-and-cancel-qualification), [overlay close history](#overlay-flow04-invalid-submission-and-escape-qualification) and [overlay approval](#overlay-approval-and-automatic-return-qualification). Historical native-Escape evidence does not require keyboard input in current consumers. | pending; kiosk Cancel/Escape and fixed automatic/immediate approved exits and declared overlay Cancel/Escape and fixed automatic approved exit ready |
 | REQUEST13 | C | Open the child overlay through the Shell panel only when the case explicitly tests that graphical launch route. Observe one usable form and fixed child identity. | DESK12(request entry) → UI04 → UI01 → UI02 → UI13(form count=1) → UI03(fixed child). Declare the exception in case metadata and recipe. Shared `overlay_entry` routes `panel` and `panel-reopen` qualify normal launch and deliberate repeated activation over the open form; see [overlay entry qualification](#overlay-entry-qualification). Gameplay fullscreen reveal remains separate. | normal launch and singleton ready; gameplay reveal pending |
 
 #### Overlay Shell prompt and Cancel qualification
@@ -2391,7 +2393,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | FLOW01 → PARENT09 → PARENT17 → PARENT18(confirm) only if revocation is declared → PARENT09 → UI12(no grant) → FLOW02(initial allowance) → DESK03. Grant profiles then FLOW06 → FLOW01(parent/window retained); daily-dominant adds PARENT06(larger allowance, still enabled) → PARENT08. All grant profiles finish PARENT09 → UI12(profile) → DESK03. | pending |
 | FLOW14 | C | Open apps/recognizable activities for a finite declared user list, retaining each desktop through Switch User. Inputs state each user's fresh/retained entry and usable-time/policy prerequisites. Start and finish at GDM. | For each user: FLOW15 → FLOW08 → APP04(capture) → DESK03. Earlier retained desktops must be revisited, not recreated. Multiple desktops for one identity require a supported customer route; see applicability notes. | pending |
 | FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | `onpc_parent::set_allowance(journey, source, parent, entry, window, child, initial, minutes, final)` composes FLOW01 → FLOW02. Qualified bindings: `gdm/parent/fresh/new/child/0/0/1`, `desktop/parent/same-user/new/child/1/15/1` and `gdm/parent/fresh/new/child/0/30/1`. `set_allowance.PLAN` binds zero/15-minute setup to `time-explanation-setup-zero-read` and `time-explanation-setup-positive-read`; `fresh_thirty_allowance.PLAN`, `FreshThirtyAllowanceQualification` and `onpc_fresh_thirty_allowance::run` bind fresh 30-minute setup to `time-explanation-setup-thirty-read`. FLOW02 owns Screen Limits navigation and saved-settings validation. `check_e2e_set_fresh_thirty_minute_allowance` passed saved enabled/30-minute settings, independent 1800/0/1800-second daily/grant/total reads and wrong-child/state/window refusals in `20260926T211055Z-daafbf03`. Existing zero/positive setup, independent rereads, persisted settings and wrong-child/window refusal passed `check_e2e_set_an_allowance_for_a_named_child` in `20260926T210708Z-8962d2d1`; affected Parent launch case 6 passed in `20260926T211422Z-3cda058b`. All passed collection, owned cleanup and baseline restoration. Setup finishes in Parent without implicit logout. Other allowances, enablement combinations, parents and retained-window bindings need separate qualification. Complete fresh-zero consumer E2E-036 case 161 retains its independent pass in `20260925T065641Z-c6d3948b`; complete 30-minute consumers remain separate. | pending; fresh-zero, fresh-thirty and same-user-positive bindings ready |
-| FLOW17 | C | Leave a request with authentication pending by one declared supported action, observe its destination, then return and read cancellation before a new request. | Lock: shared DESK05 shortcut/command → DESK06 → DESK08; switch: DESK03 → FLOW15(return retained); sign-out: DESK04 → FLOW15(fresh); close: UI04/UI05(app close) → UI11(app), followed by REQUEST01/02 as declared. REQUEST03 → UI11(old prompt). E2E-039; system commands work independently of modal menu access. An unavailable tested app-close control remains gated. | pending |
+| FLOW17 | C | Leave a request with authentication pending by one declared supported action, observe its destination, then return and read cancellation before a new request. | Lock: shared DESK05 shortcut/command → DESK06 → DESK08; switch: DESK03 → FLOW15(return retained); sign-out: DESK04 → FLOW15(fresh); close: UI18(API surface close) → UI11(app), followed by REQUEST01/02 as declared. REQUEST03 → UI11(old prompt). E2E-039; system commands work independently of modal menu access. An unavailable tested app-close control remains gated. | pending |
 | FLOW18 | C | Prepare positive daily time that outlasts a soft-app grant without resetting its launch exception. Finish on the child desktop with both balances positive and daily dominant. | FLOW13(combined, soft included) → FLOW15(child) → FLOW08(soft app) → APP04 → DESK03 → FLOW01(parent retained) → PARENT09 → TIME03(wait until the declared remaining-grant window while child is away) → PARENT09 → UI12(D>G>0) → DESK03 → FLOW15(child retained) → TIME01. No allowance edit or app save after approval. E2E-038. | pending |
 | FLOW19 | C | Configure a finite named app-rule set for one child and return to sign-in. Each match/access edit and save is explicit; no time approval or account preparation is hidden. | FLOW01(parent, explicit source/entry/window/child) → PARENT04(App Limits) → FLOW03 for each declared app/rule → DESK03. First consumers E2E-006/007; reused as AppSet in the recipes. | pending |
 | FLOW20 | C | Approve a specified interval on either request surface and continue as the named child. Accept explicit new/open form entry, child/parent, duration, soft choice, child fresh/retained entry and expected countdown. New overlay entry requires that child's unlocked desktop; new kiosk entry requires GDM. It does not create those preconditions or alter daily policy. | FLOW04(entry and all choices) → FLOW05 → FLOW15(child,declared entry) only for kiosk → TIME01 → UI12(expected interval). Overlay returns to its existing desktop. Reuse FLOW04/05/15 without another surface-specific approval implementation. E2E-048 immediate repeat and E2E-049/050/051. | pending |
@@ -2599,14 +2601,15 @@ This qualifies REQUEST12's enabled-choice Cancel consumer.
 
 Complete case 48 composes that same prepared binding through
 `kiosk_escape.PLAN` / `onpc_kiosk_escape::run`, using
-`onpc_request_exit::escape` for fresh recipient guarding, one Escape and
-independent GDM return. `tools/run-tests e2e --id '48'` passed in
+`onpc_request_exit::escape` for an owned request-surface API close and
+independent GDM return. The historical native-Escape implementation passed
+`tools/run-tests e2e --id '48'` in
 `20260926T052659Z-8144eb94`: independent Parent balance and estimate comparison,
 absent form and usable GDM, capture reconciliation, collection, owned cleanup
 and baseline restoration. The affected shared disabled-child Cancel/Escape
 qualification `check_e2e_request_exit` passed in `20260926T053454Z-d3ce9eca`,
 including both public returns, collection, owned cleanup and baseline restoration.
-Host checks cover worker order, single Escape and terminal refusal before input
+Host checks cover worker order, one API close and terminal refusal before input
 or after a failed result. Approved exits and overlay cases remain pending.
 
 ### Canonical reuse and implementation checkpoints
@@ -3147,8 +3150,8 @@ the plan participates in `test_installed_journey_cleanup_safety.py`.
 
 FIX03's no-approver profile starts with
 `AccessibleUI.kiosk_approver_baseline`: require at least one parent in the public
-form, without fixed parent names or counts. The showing selection proves
-presence even when disabled/collapsed choices are omitted from AT-SPI.
+form, without fixed parent names or counts. The API's selected canonical UID and
+owned selected-value control establish the account independently of popup state.
 `NoApproverFixture.prepare` privately passes that observed UID to
 `e2e_dynamic_account.prepare_no_approver`, which detects all eligible OS accounts
 before mutation, requires the observed parent in that set, then validates and
@@ -3851,10 +3854,11 @@ baseline restoration.
 The [recipe](../../tests/e2e/parent_about.py) and
 [worker](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) compose
 FLOW01, the product-information read and one guarded About close/return. Shared launch stops at `parent-window`
-before picker input; selection consumes its own fresh opened-list and highlighted
-replies. Setup reattachment stays outside the customer entry block.
+before picker input; selection consumes its own fresh offered-choice, canonical
+API setter and independent selected-result observations. Setup reattachment
+stays outside the customer entry block.
 The About blocks live in `onpc_about`; the worker only composes them. All three
-About/denial keyboard-close routes reuse `onpc_window::close` (UI18); the
+About/denial API close routes reuse `onpc_window::close` (UI18); the
 Parent→desktop binding also uses this helper.
 
 PARENT01 is [`onpc_parent::launch`](../../tests/integration/graphical_smoke/lib/onpc_parent.pm).
@@ -4085,7 +4089,8 @@ Shared harness, access and About regressions preserve compatibility.
 Apply the canonical [UI automation mandate](../Mandates/UI-Automation-Mandate.MD).
 Register each surface/control's shared ID contract before adding its consumer.
 Missing repository-owned IDs require code changes exposing them through the
-Application UI API. External surfaces may use the approved provider exception.
+Application UI API. Supporting fixture controls require public IDs in their
+shared activity adapters; external surfaces may use the approved provider exception.
 Documentation records requirements and gaps; it does not qualify a route.
 Do not dismiss unknown dialogs or bypass modal guards.
 
@@ -4095,7 +4100,7 @@ application/owner pins, explicit surface scope, canonical values and bounded
 inventory. Snapshot names/descriptions preserve translated accessibility-label
 assertions. Rich-editor text, selection, document formatting and history use
 the fixed packaged API; no caller JavaScript, arbitrary DOM, toolkit calls or
-AT-SPI product-input fallback is allowed. Qualification exercises public
+AT-SPI product-read/input fallback is allowed. Qualification exercises public
 input/readback as well as identity discovery.
 
 External provider gaps remain separate from the rich-editor adapter. The source mappings name logical consumer requirements, not IDs assigned by the
@@ -4105,6 +4110,9 @@ records its actual selectors and qualification separately.
 Repository-owned application fixtures have a separate implementation in
 [gui_application.py](../../tests/fixtures/gui_application.py), with public
 activity projections in [fixture_ui.py](../../tests/e2e/fixture_ui.py).
+These supporting apps retain their existing shared activity adapter and public
+IDs; they are not product Application UI API endpoints, and missing fixture IDs
+must be fixed in fixture source rather than through the external-provider exception.
 Native, Flatpak, Snap and game surfaces use
 `onpc-fixture-<kind>-<instance>` IDs, where the scenario explicitly declares
 `primary` or `secondary`; controls append `draft`, `edit`, `submit`, `submitted`,
@@ -4152,7 +4160,7 @@ established. Do not present semantic or visual selectors as provider-owned IDs.
 | Provider / surface | Current gap and route-specific return condition | Affected consumers |
 | --- | --- | --- |
 | Chinese kiosk MATE Polkit agent | `mate_prompt(language='zh-Hans')`, `kiosk_mate_approval` and the shared Chinese request/approval fragments qualified by `check_e2e_chinese_native_auth` in `20261004T073743Z-9a030ef1`. Ubuntu 26.04, MATE `1.26.1-6`, actual locale `zh_CN.utf8`, keyboard `xkb/us`. Two fresh kiosk sessions passed actual Chinese system buttons/explanation/password label, exact Jamie/Jordan/75-second/soft-included context, fresh agent/challenge identities, same-challenge empty masked recipient guards, refusal projections, real approval, Chinese granted result and normal GDM return. The second entry retained Chinese without a chooser. Collection, worker shutdown, owned cleanup and restoration passed; required English regression passed in `20261004T075449Z-01e10e04`. [Qualified scope and callables](#chinese-language-preparation-and-desktop-language-setup). | Fixed Chinese AUTH01/AUTH02 and normal REQUEST11/12 ready; other tuples and task 300's complete history remain separate |
-| GNOME Shell desktop, panel, app grid, sessions, notifications, lock | Shell `50.1-0ubuntu1.2` exposed no nonempty public IDs. On the pinned Ubuntu 26.04, English-GDM, baseline-keyboard image, `AccessibleUI.standard_shell_desktop(no_prompt=True)` qualified unique Activities control and complete prompt-free observations for the fresh Parent and standard fixture buses through `check_e2e_fresh_desktop`. `check_e2e_desktop_keyring` also qualified the independent standard desktop readback after the prepared gcr Cancel branch below. `AccessibleUI.shell_search_snapshot` qualified fresh Parent search, result focus and launched window in case 3 (run `20260922T212944Z-ad23b979`). The fresh Parent split-query/result-focus and Escape/empty-field/Super/dismissal slice passed `check_e2e_shell_search_results` in run `20260923T180845Z-4df4db55`. `check_e2e_shell_search` independently requalified administrator launch/close and standard-account split-query readback, exact web description and stable launcher/window absence in run `20260923T191129Z-64de2a7a`, with private collection and owned cleanup; see [exact scope](#search-and-standard-sign-in-contracts). Normal child panel launch and deliberate singleton activation with open-overlay reveal passed [overlay entry qualification](#overlay-entry-qualification). Other necessary lock, retained-session and gameplay-panel observations remain unqualified. Session, power and connectivity inputs use shared system commands. | Fresh DESK01 Parent/standard and prepared standard gcr return, Parent SEARCH01/02/03/04/05/06 and standard SEARCH01/03/04 branches ready; DESK12 normal request/open-overlay reveal ready; other necessary DESK01/06–08/12, SEARCH01–06 and PANEL01–03 GUI bindings pending; DESK03–05, DESK11 locked-session return and LIFE02/03/06 inputs are system helpers; DESK10 uses the [qualified shortcut](#same-desktop-window-activation) |
+| External GNOME Shell desktop, app grid, sessions, notifications, lock | Shell `50.1-0ubuntu1.2` exposed no nonempty public IDs. On the pinned Ubuntu 26.04, English-GDM, baseline-keyboard image, `AccessibleUI.standard_shell_desktop(no_prompt=True)` qualified unique Activities control and complete prompt-free observations for the fresh Parent and standard fixture buses through `check_e2e_fresh_desktop`. `check_e2e_desktop_keyring` also qualified the independent standard desktop readback after the prepared gcr Cancel branch below. `AccessibleUI.shell_search_snapshot` qualified fresh Parent search, result focus and launched window in case 3 (run `20260922T212944Z-ad23b979`). The fresh Parent split-query/result-focus and Escape/empty-field/Super/dismissal slice passed `check_e2e_shell_search_results` in run `20260923T180845Z-4df4db55`. `check_e2e_shell_search` independently requalified administrator launch/close and standard-account split-query readback, exact web description and stable launcher/window absence in run `20260923T191129Z-64de2a7a`, with private collection and owned cleanup; see [exact scope](#search-and-standard-sign-in-contracts). Normal child panel launch and deliberate singleton activation with open-overlay reveal passed [overlay entry qualification](#overlay-entry-qualification). The product child panel now uses the Application UI API under DESK12/REQUEST13/PANEL01–03; its scope and retained evidence live in those product rows. Other necessary lock and retained-session observations remain unqualified. Session, power and connectivity inputs use shared system commands. | Fresh DESK01 Parent/standard and prepared standard gcr return, Parent SEARCH01/02/03/04/05/06 and standard SEARCH01/03/04 branches ready; other necessary external DESK01/06–08 and SEARCH01–06 bindings retain their existing qualification scope; product panel operations are outside this provider row; DESK03–05, DESK11 locked-session return and LIFE02/03/06 inputs are system helpers; DESK10 uses the [qualified shortcut](#same-desktop-window-activation) |
 | GDM greeter | Historical installed/product-free list, recipient and Escape qualification remains harness evidence. Shared customer entry selects only the intended account, verifies two fresh recipient proofs, delivers once and independently observes the desktop or product denial. `onpc_gdm::sign_in_challenge` qualified two distinct Parent GDM challenges with independent desktops and shared DESK04 logout through `check_e2e_challenges` (run `20260924T192200Z-c833e973`), on the pinned Ubuntu 26.04 English-GDM, baseline-keyboard image. Its separate wrong-recipient exercise, durable assertions, reconciliation, private collection and owned cleanup passed. The intended child's [fresh success](#fresh-child-success-qualification) and [specific zero-time denial with normal return](#fresh-child-time-denial-and-return-qualification) are qualified on their recorded provider tuple. Wrong-account tours and keyring exercises remain harness-only. Retained locks, other challenge recipients and new account bindings remain pending. | GDM01–03/05–09 for unavoidable graphical entry; distinct Parent and fresh child success/zero-time denial with rejected-GDM return ready; GDM04 harness safety only |
 | Graphical VT6 getty/login | Retained routes refuse before image, secret or input access. Qualify a dedicated recipient/input adapter; serial proof cannot authorize graphical secret input. | Retained VT6 qualification modes |
 | MATE Polkit agent | `AccessibleUI.mate_prompt`, `mate_prompt_refusals`, `kiosk_mate_cancel` and `mate_prompt.PLAN` qualified REQUEST09/AUTH01's fixed kiosk binding through `check_e2e_auth_prompt` in run `20260926T064045Z-b4159145`. Recorded tuple: Ubuntu 26.04, mate-polkit `1.26.1-6`, actual provider locale `en_US.UTF-8`, keyboard sources `[["xkb", "us"]]` (system configuration when the kiosk per-user list is empty). The semantic adapter binds the kiosk agent service PID, unique live dialog, English PAM recipient label, exact displayed child/75-second/soft-app request, sole empty masked focused field and enabled Cancel. Two independent deliberate requests each passed fresh same-challenge reacquisition, one Cancel, independent disappearance and usable unchanged no-error form return. The controller records distinct single-use challenge IDs; these are evidence, never secret-delivery authority. Parent wrong-entry and projected wrong-provider/owner/parent/child/duration/apps, multiple/hidden/disabled/unfocused/nonempty/stale-field and replaced-challenge refusals passed. The same run passed enabled invalid `abc` submission, exact validation and no prompt; unavailable entry retained disabled Request. Private collection, owned cleanup and baseline restoration passed. No geometry, invented provider IDs, password submission or complete-scenario credit. Source discovery: upstream [dialog](https://github.com/mate-desktop/mate-polkit/blob/master/src/polkitmateauthenticationdialog.c) and [PAM recipient label](https://github.com/mate-desktop/mate-polkit/blob/master/src/polkitmateauthenticator.c). Missing displayed context refuses; broker state cannot replace it. Task 020a separately qualified the fixed correct-password submission and automatic approved exit in `20260926T065928Z-8c15b645`; see [kiosk approval](#kiosk-approval-qualification) for callables and limits. Task 020b separately qualified wrong-password rejection and password-free Cancel with preserved form in report run `20260926T154532Z-4ed66f34`; see [kiosk rejection](#kiosk-rejection-qualification). Other tuples and broader secret routes remain unqualified. | Fixed kiosk REQUEST09/AUTH01 proof/Cancel and AUTH02 correct-password approval with REQUEST11/12 automatic exit ready; rejection/Cancel ready; immediate approved exit ready through task 020's owned result action and independent GDM read |
@@ -4461,8 +4469,9 @@ incomplete read, then reacquires within that same deadline. Persistent stale
 state still refuses; a prompt-free stability interval restarts after a failed
 read. This covers application closure before same-user Parent reopening without
 using stale state as desktop or prompt-absence evidence.
-Fresh waits also dispatch a bounded batch of pending public accessibility events
-before each read, so queued focus/text/registry changes can be delivered.
+External-provider waits also dispatch a bounded batch of pending public
+accessibility events before each read, so queued focus/text/registry changes can
+be delivered. Product waits reacquire API observations under the same deadline.
 Functional station and desktop waits share
 `AccessibleUI.handle_system_prompt`. Before a surrounding public observation or
 input, one complete tree read classifies visible MATE Polkit, Shell Polkit,
@@ -4862,7 +4871,7 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | A fullscreen overlay hides Shell desktop controls, or Shell metadata goes stale after desktop readiness (048c) | Discover the unique top-level Shell application on the active child's public bus through `AccessibleUI.shell_prompt_owner`, preserving PID/UID/session and protected-field guards; do not require Activities visibility to identify the authentication provider. Desktop readiness does not freeze the next tree: `shell_provider_metadata` retries only a complete fresh metadata observation under the existing deadline. Regress missing/ambiguous/nested/foreign/stale owners before Request input and transient versus persistent query failure. Keep this provider behavior in the shared adapter. |
 | GDM scrolls its account list | Reuse the qualified GDM provider's direct account selection or bounded keyboard navigation with observed identity/focus under the UI mandate. Reacquire the intended recipient before secret input; list order and image absence are not recipient proof. |
 | Parent search shows only an online suggestion for a standard user | The [launcher contract](../SystemDesign/Broker.md#accounts-and-roles) intentionally restricts app-grid discovery to administrators. Match the exact query, web-only suggestion and empty application-result area. Do not press Enter on the suggestion or invent a denial dialog. Executable denial belongs to the separate direct-command variant. |
-| Keyboard assumptions select the wrong child or menu item | Use UI14's ID-addressed navigation, verify the intended highlighted row, then press Enter. Verify the selected child independently. Ordinary Parent launch/reopening uses PARENT01's direct command and independent window result; only explicit app-grid discovery cases use whole-query SEARCH05/06. |
+| Keyboard assumptions select the wrong child or menu item | Set the canonical UID or command through UI15 and independently verify the selected child/result. Product controls require no highlighted-row or Enter sequence. Ordinary Parent launch/reopening uses PARENT01's direct command and independent window result; only explicit app-grid discovery cases use whole-query SEARCH05/06. |
 | An acknowledged action has no durable evidence, or belongs to the wrong step | Store the observation and any required next-phase start before publishing the reply; guard ownership again after storage. An acknowledgement may immediately permit input. Storage or guard failure latches terminal failure. |
 | A stale observation appears to prove returning to the same child | Reconcile one fresh semantic result per ordered stage. Compare the returned child, switch state and allowance with the initial displayed settings. Missing, reused or reordered evidence refuses. Worker exit zero alone cannot pass. |
 | A complete accessibility traversal combines old readiness with a new account identity (300j) | Completeness is not atomicity. Confirm the selected UID and closed list, then discard that snapshot before the separate language-readiness/setup boundary. Regress the mixed-time traversal, saved/unset language and failed Save without input replay. Reuse the [shared account-selection implementation](../../tests/support/README.md#host-and-guest-boundaries), rather than adding sleeps or treating submitted values as results. |

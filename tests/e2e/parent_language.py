@@ -196,11 +196,11 @@ ISOLATION_SCREENS = {
     'parent-command': 'ui:parent-command-launch',
     'initial-language': 'ui:parent-language-initial',
     'initial-save': 'ui:parent-language-save',
-    **custom_child_selection('riley-setup', 'child', route='keyboard'),
+    **custom_child_selection('riley-setup', 'child'),
     'riley-enabled': 'ui:parent-toggle-enabled', 'riley-saved': 'ui:parent-save-enabled',
     'riley-allowance': 'ui:parent-language-riley-allowance',
     'riley-before': 'ui:parent-language-riley-enabled-en',
-    **custom_child_selection('jordan-setup', 'existing', route='keyboard'),
+    **custom_child_selection('jordan-setup', 'existing'),
     'jordan-enabled': 'ui:multiple-other-enable', 'jordan-saved': 'ui:multiple-other-saved',
     'jordan-allowance': 'ui:parent-language-jordan-allowance',
     'jordan-before': 'ui:parent-language-jordan-enabled-en',
@@ -209,7 +209,7 @@ ISOLATION_SCREENS = {
 for prefix, child in (('riley', 'child'), ('jordan', 'existing'), ('riley-return', 'child')):
     name = 'jordan' if child == 'existing' else 'riley'
     ISOLATION_SCREENS.update({
-        **custom_child_selection(prefix, child, route='keyboard'),
+        **custom_child_selection(prefix, child),
         prefix + '-selected': f'ui:parent-language-{name}-selected',
         prefix + '-state': f'ui:parent-language-{name}-enabled-zh-hans',
         prefix + '-choice': 'ui:parent-language-open',
@@ -226,7 +226,7 @@ for name, child in (('riley', 'child'), ('jordan', 'existing'), ('riley-return',
     prefix = 'reopened-' + name
     account = 'jordan' if child == 'existing' else 'riley'
     ISOLATION_SCREENS.update({
-        **custom_child_selection(prefix, child, route='keyboard'),
+        **custom_child_selection(prefix, child),
         prefix + '-selected': f'ui:parent-language-{account}-selected',
         prefix + '-state': f'ui:parent-language-{account}-enabled-zh-hans',
         prefix + '-choice': 'ui:parent-language-open',
@@ -250,7 +250,7 @@ HEBREW_POLICY_SCREENS = {
     'parent-command': 'ui:parent-command-launch',
     'initial-language': 'ui:parent-language-initial',
     'initial-save': 'ui:parent-language-save',
-    **custom_child_selection('riley-setup', 'child', route='keyboard'),
+    **custom_child_selection('riley-setup', 'child'),
     'riley-enabled': 'ui:parent-toggle-enabled', 'riley-saved': 'ui:parent-save-enabled',
     'riley-allowance': 'ui:parent-language-riley-allowance',
     'riley-before': 'ui:parent-language-riley-enabled-en',

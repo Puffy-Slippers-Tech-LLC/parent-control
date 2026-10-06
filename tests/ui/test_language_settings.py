@@ -228,7 +228,6 @@ def test_parent_dialog_inherited_text_and_retained_hebrew_draft(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     import json
     from tests.support.paths import ROOT
-    from tests.support.keyboard import key_combo
     from tests.support.gui_blocks import run_block
     ui, wait = automation, wait_for_accessible_state
     path = launch_language(launch_ui, tmp_path, 'parent', language='en', unicode_input=True)
@@ -241,11 +240,9 @@ def test_parent_dialog_inherited_text_and_retained_hebrew_draft(
     except Exception as error:
         # Bounded public diagnostic projects only the declared fixture alphabet;
         # unexpected text is represented by a closed marker, never returned.
-        node = reader.text_recipient('feedback-editor-input')
-        text = node.get_text_iface()
-        count = text.get_character_count()
-        if type(count) is int and 0 <= count <= 128:
-            actual = text.get_text(0, count)
+        actual = ui.getText('feedback-editor-input')
+        count = len(actual)
+        if count <= 128:
             alphabet = 'שלום Alex 75\n'
             error.add_note('Synthetic input diagnostic: ' + json.dumps({
                 'count': count, 'fixture_positions': [alphabet.index(character)
@@ -267,7 +264,7 @@ def test_parent_dialog_inherited_text_and_retained_hebrew_draft(
             assert opened['dialog_presentation']['language'] == language
             reader.parent_dialog_operation(operation + 'read', version)
             reader.parent_dialog_operation(operation + 'close', version)
-            key_combo(ui, surface + '-dialog', '<Alt>F4', state=ui.api.StateType.ACTIVE)
+            ui.close(surface + '-dialog')
             reader.parent_dialog_operation(operation + 'closed', version)
             assert reader.parent_dialog_operation(operation + 'refused', version) == {'refused': True}
     assert committed(path) == ['en', 'he', 'en']
@@ -290,7 +287,6 @@ def assert_no_policy_or_request_writes(path, *, expected_results=0):
 def test_enabled_parent_language_reader_keeps_real_gtk_names_and_numeric_balances(
         launch_ui, automation, wait_for_accessible_state, tmp_path, selected_language):
     from tests.e2e.accessible_ui import CHILD, EXISTING_CHILD
-    from tests.support.keyboard import key_combo
     ui, wait = automation, wait_for_accessible_state
     path = launch_language(launch_ui, tmp_path, 'parent', language='en')
     wait(lambda: ui.showing('parent-language-ready'), 'saved startup ready')
@@ -335,7 +331,6 @@ def test_enabled_parent_language_reader_keeps_real_gtk_names_and_numeric_balance
 def test_parent_child_picker_after_language_policy_reads(
         launch_ui, automation, wait_for_accessible_state, tmp_path, other_window):
     from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD
-    from tests.support.keyboard import key_combo
 
     ui, wait = automation, wait_for_accessible_state
     path = launch_language(launch_ui, tmp_path, 'parent', language='en')
@@ -521,7 +516,6 @@ def test_language_search_filters_choices_and_preserves_cancel(
         launch_ui, automation, wait_for_accessible_state, tmp_path, surface,
         request_display_scale, dpi_scale):
     from tests.support.automation_ids import audit_product_controls
-    from tests.support.keyboard import key_combo, type_text
 
     ui, wait = automation, wait_for_accessible_state
     path = launch_language(launch_ui, tmp_path, surface)
@@ -533,26 +527,22 @@ def test_language_search_filters_choices_and_preserves_cancel(
     assert search.get_name() == 'Search languages'
     assert search.get_description() == 'Search languages'
     assert search.get_role_name() == 'entry'
-    assert search.get_text_iface() is not None
-    assert search.get_state_set().contains(ui.api.StateType.EDITABLE)
-    ui.focus('language-search')
-    type_text(ui, 'language-search', 'PORT*BR')
+    assert {'getText', 'setText'} <= set(search.element.snapshot()['operations'])
+    ui.setText('language-search', 'PORT*BR')
     wait(lambda: ui.content('language-search') == 'PORT*BR'
          and ui.showing('language-choice-pt-br')
          and ui.absent('language-choice-en', within='language-dialog'),
-         'typing filters without Enter and removes hidden choices from accessibility')
+         'search changes filter the offered language choices')
     assert not committed(path)
     ui.activate('language-choice-pt-br')
     wait(lambda: ui.text('language-search') == 'Pesquisar idiomas',
          'selected language changes the chooser language')
-    ui.focus('language-search')
-    key_combo(ui, 'language-search', '<Control>a', state=ui.api.StateType.FOCUSED)
-    key_combo(ui, 'language-search', 'BackSpace', state=ui.api.StateType.FOCUSED)
+    ui.setText('language-search', '')
     wait(lambda: ui.content('language-search') == ''
          and ui.find('language-choice-fur') is not None,
          'clearing restores the complete accessible list')
     assert ui.state('language-choice-pt-br', ui.api.StateType.CHECKED)
-    type_text(ui, 'language-search', 'no such language')
+    ui.setText('language-search', 'no such language')
     wait(lambda: ui.absent('language-choice-pt-br', within='language-dialog'),
          'empty search result removes the selected row from accessibility')
     ui.reader.cancel_language(frontend(surface))
@@ -611,8 +601,6 @@ def test_first_run_defaults_and_save_waits_for_commit(
 @pytest.mark.parametrize('snap_environment', (False, True), ids=('desktop', 'vscode-snap'))
 def test_parent_development_preview_language_application_ui_input(
         launch_ui, automation, wait_for_accessible_state, snap_environment):
-    from tests.support.keyboard import press_key, type_text
-
     ui, wait = automation, wait_for_accessible_state
     environment = {'LANGUAGE': 'en_US.UTF-8', 'LC_ALL': 'C.UTF-8'}
     if snap_environment:

@@ -10,23 +10,20 @@ from tests.support.paths import ROOT
 pytestmark = pytest.mark.ui
 
 
-@pytest.mark.parametrize("launcher,menu,about", (
-    ("parent_component_preview", "parent-menu-button", "parent-menu-about"),
-    ("kiosk_preview", "kiosk-menu-button", "kiosk-menu-item-about"),
-    ("child_overlay_preview", "kiosk-menu-button", "kiosk-menu-item-about"),
+@pytest.mark.parametrize("launcher,menu", (
+    ("parent_component_preview", "parent-menu-button"),
+    ("kiosk_preview", "kiosk-menu-button"),
+    ("child_overlay_preview", "kiosk-menu-button"),
 ), ids=("parent", "kiosk", "child-overlay"))
 def test_about_displays_release_notices(
-        launch_ui, automation, wait_for_accessible_state, tmp_path, launcher, menu, about):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, launcher, menu):
     launch_ui(launcher, wait_for_application=False)
     ui = automation
     wait_for_accessible_state(lambda: ui.find(menu) is not None,
                               "application menu publishes its ID")
-    ui.activate(menu, action_name="menu.popup")
-    wait_for_accessible_state(lambda: ui.find(about) is not None,
-                              "About menu item publishes its ID")
     if launcher == 'parent_component_preview':
-        assert ui.reader.clickable_link('parent-menu-help')
-    ui.activate(about)
+        assert ui.reader.check_parent_help()
+    ui.setValue(menu, 'about')
     wait_for_accessible_state(lambda: ui.find("about-dialog") is not None,
                               "About dialog publishes its ID")
     version = json.loads((ROOT / "data/app.json").read_text())["version"]

@@ -31,8 +31,6 @@ def test_screen_choice_rejects_unsupported_values(arguments, message):
 @pytest.mark.parametrize("launcher", ("kiosk_preview", "child_overlay_preview"))
 def test_screen_dialog_reports_invalid_custom_dimensions_and_recovers(
         launch_ui, automation, wait_for_accessible_state, launcher):
-    from tests.support.keyboard import key_combo, type_text
-
     launch_ui(launcher, wait_for_application=False)
     ui = automation
     wait_for_accessible_state(lambda: ui.find("kiosk-menu-button") is not None,
@@ -40,7 +38,7 @@ def test_screen_dialog_reports_invalid_custom_dimensions_and_recovers(
     ui.setValue("kiosk-menu-button", "change-screens")
     wait_for_accessible_state(lambda: ui.showing("preview-screen-dialog"),
                               "screen dialog opens")
-    ui.activate("preview-screen-scale", action_name="menu.popup")
+    ui.activate("preview-screen-scale")
     wait_for_accessible_state(lambda: ui.showing("preview-screen-scale-125"),
                               "scale choices publish stable IDs")
     ui.activate("preview-screen-scale-125")
@@ -49,7 +47,7 @@ def test_screen_dialog_reports_invalid_custom_dimensions_and_recovers(
         "selected scale is readable",
     )
     audit_product_controls(ui, "preview-screen-dialog")
-    ui.activate("preview-screen-resolution-custom", action_name="row.activate")
+    ui.activate("preview-screen-resolution-custom")
     wait_for_accessible_state(lambda: ui.showing("preview-screen-width"),
                               "custom resolution reveals its dimension fields")
     ui.setText("preview-screen-width", "479")

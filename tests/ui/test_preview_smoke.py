@@ -88,13 +88,11 @@ def test_parent_preview_publishes_and_loads_management_controls(
 
 def test_parent_daily_allowance_custom_then_preset_saves(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
-    from tests.support.keyboard import key_combo, type_text
     events = tmp_path / "allowance-events.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state, events_path=events)
     wait_parent_ready(ui, wait_for_accessible_state)
     select_allowance(ui, ('custom',))
-    key_combo(ui, "parent-custom-daily-limit", "<Control>a", state=ui.api.StateType.FOCUSED)
-    type_text(ui, "parent-custom-daily-limit", "91")
+    ui.setText("parent-custom-daily-limit", "91")
     wait_parent_ready(ui, wait_for_accessible_state)
     select_allowance(ui, (45,))
     assert [record["daily_limit_minutes"] for record in read_events(events)
@@ -112,22 +110,12 @@ def test_parent_failed_discovery_disables_management_until_report_closes(
     ui = automation
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
                               "startup feedback opens")
-    from tests.e2e.accessible_ui import public_automation_id
     evidence = {}
     for identity in ("parent-child-selector", "parent-screen-limit-toggle", "parent-revoke-button"):
         node = ui.target(identity)
-        ancestors = []
-        seen = set()
-        while node is not None and node not in seen and len(seen) < 32:
-            seen.add(node)
-            node.clear_cache_single()
-            ancestors.append({
-                "id": public_automation_id(node),
-                "sensitive": node.get_state_set().contains(ui.api.StateType.SENSITIVE),
-                "defunct": node.get_state_set().contains(ui.api.StateType.DEFUNCT),
-            })
-            node = node.get_parent()
-        evidence[identity] = ancestors
+        snapshot = node.element.snapshot()
+        evidence[identity] = {key: snapshot[key] for key in (
+            'id', 'surface_id', 'parent_id', 'visible', 'enabled')}
     diagnostic = _log.with_name("parent-failed-discovery-public-state.json")
     diagnostic.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
     print("Failed-discovery public states:", diagnostic)
@@ -282,15 +270,11 @@ def test_parent_daily_preset_and_custom_limit_autosave(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     from gi.repository import GLib
     from tests.e2e.accessible_ui import AccessibleUI, CHILD
-    from tests.support.keyboard import key_combo, type_text
     path = tmp_path / "daily-limit-events.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       scenario="custom-limit", events_path=path)
     wait_parent_ready(ui, wait_for_accessible_state)
-    ui.focus("parent-custom-daily-limit")
-    key_combo(ui, "parent-custom-daily-limit", "<Control>a",
-              state=ui.api.StateType.FOCUSED)
-    type_text(ui, "parent-custom-daily-limit", "74")
+    ui.setText("parent-custom-daily-limit", "74")
     wait_for_accessible_state(
         lambda: any(record["event"] == "set_parent_control"
                     and record["daily_limit_minutes"] == 74
@@ -320,14 +304,13 @@ def test_parent_daily_preset_and_custom_limit_autosave(
             lambda: any(record["event"] == "set_parent_control"
                         and record["daily_limit_minutes"] == minutes
                         for record in read_events(path)), "ordinary preset saves")
-    # Exercise zero and both supported commit terminators; the recovery below
-    # checks the minimum positive value and maximum without ordinary-value repeats.
-    for minutes, terminator in ((0, ''), (2, '\n'), (3, '\t')):
+    # Exercise zero and the ordinary validation action; recovery below checks
+    # the minimum positive value and maximum without ordinary-value repeats.
+    for minutes, activate in ((0, False), (2, True)):
         reader.custom_allowance(CHILD, minutes, action='open')
-        reader.focus_text('parent-custom-daily-limit')
-        key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
-        # One recipient proof and bounded keyboard batch, as in the VM worker.
-        type_text(ui, 'parent-custom-daily-limit', str(minutes) + terminator)
+        ui.setText('parent-custom-daily-limit', str(minutes))
+        if activate:
+            ui.activate('parent-custom-daily-limit')
         wait_for_accessible_state(
             lambda: any(record['event'] == 'set_parent_control'
                         and record['daily_limit_minutes'] == minutes
@@ -336,34 +319,24 @@ def test_parent_daily_preset_and_custom_limit_autosave(
         assert reader.settings(CHILD)['allowance'] == [str(minutes) + ' minutes']
         reader.custom_allowance(CHILD, minutes, action='reopen-current')
 
-    # Match the live boundary-to-invalid transition: the reopened custom
-    # editor still owns focus when the next saved preset is requested.
+    # Match the live boundary-to-invalid transition after reopening the editor.
     reader.allowance_preset(CHILD, 15, action='select')
     reader.allowance_preset(CHILD, 15, action='read')
     reader.custom_allowance(CHILD, 15, action='open')
     from tests.e2e.allowance_values import INVALID, INVALID_DESCRIPTION
     for binding, value in INVALID.items():
-        reader.focus_text('parent-custom-daily-limit')
-        key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
-        if value:
-            type_text(ui, 'parent-custom-daily-limit', value)
-        else:
-            key_combo(ui, 'parent-custom-daily-limit', 'BackSpace', state=ui.api.StateType.FOCUSED)
+        ui.setText('parent-custom-daily-limit', value)
         assert reader.invalid_allowance(binding) == {'binding': binding, 'validation': 'rejected'}
         assert ui.target('parent-custom-daily-limit').get_description() == INVALID_DESCRIPTION
         saves = [record for record in read_events(path) if record['event'] == 'set_parent_control']
         assert saves[-1]['daily_limit_minutes'] == 15
-    reader.focus_text('parent-custom-daily-limit')
-    key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
-    type_text(ui, 'parent-custom-daily-limit', '1')
+    ui.setText('parent-custom-daily-limit', '1')
     reader.custom_allowance(CHILD, 1, action='saved')
     assert ui.target('parent-custom-daily-limit').get_description() == (
         'Enter a whole number of minutes from zero through 1439.')
     # Verify the maximum as a complete edit, without testing caret behavior
     # during intermediate autosaves.
-    reader.focus_text('parent-custom-daily-limit')
-    key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
-    type_text(ui, 'parent-custom-daily-limit', '1439')
+    ui.setText('parent-custom-daily-limit', '1439')
     reader.custom_allowance(CHILD, 1439, action='saved')
     assert reader.settings(CHILD)['allowance'] == ['1439 minutes']
 
@@ -372,7 +345,6 @@ def test_parent_rejected_custom_allowance_reloads_saved_value(
         launch_ui, automation, wait_for_accessible_state):
     from gi.repository import GLib
     from tests.e2e.accessible_ui import AccessibleUI, CHILD
-    from tests.support.keyboard import key_combo
 
     ui = start_parent(launch_ui, automation, wait_for_accessible_state)
     wait_parent_ready(ui, wait_for_accessible_state)
@@ -386,9 +358,7 @@ def test_parent_rejected_custom_allowance_reloads_saved_value(
     )
     reader.allowance_preset(CHILD, 15, action='select')
     reader.custom_allowance(CHILD, 15, action='open')
-    reader.focus_text('parent-custom-daily-limit')
-    key_combo(ui, 'parent-custom-daily-limit', '<Control>a', state=ui.api.StateType.FOCUSED)
-    key_combo(ui, 'parent-custom-daily-limit', 'BackSpace', state=ui.api.StateType.FOCUSED)
+    ui.setText('parent-custom-daily-limit', '')
     assert reader.invalid_allowance('empty') == {'binding': 'empty', 'validation': 'rejected'}
 
     # Match Task 040a's public reload: visit the other child and return before
@@ -405,11 +375,10 @@ def test_parent_rejected_custom_allowance_reloads_saved_value(
         'Enter a whole number of minutes from zero through 1439.')
 
 
-def test_catalogue_text_binding_focus_replacement_clear_and_wrong_child(
+def test_catalogue_text_binding_replacement_clear_and_wrong_child(
         launch_ui, automation, wait_for_accessible_state):
     from gi.repository import GLib
     from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, UiError
-    from tests.support.keyboard import key_combo, type_text
     ui = start_parent(launch_ui, automation, wait_for_accessible_state)
     wait_parent_ready(ui, wait_for_accessible_state)
     reader = AccessibleUI(ui.api, timeout=10, query_errors=ui.query_errors,
@@ -421,20 +390,11 @@ def test_catalogue_text_binding_focus_replacement_clear_and_wrong_child(
     reader.parent_page(CHILD, 'App Limits')
     original = reader.app_rows(CHILD)
     with pytest.raises(UiError, match='wrong-child'):
-        reader.focus_text('parent-app-search', child=EXISTING_CHILD)
+        reader.set_text('parent-app-search', 'Calculator', child=EXISTING_CHILD)
     for binding in ('catalogue-name', 'catalogue-absent', 'catalogue-clear'):
         from tests.e2e.accessible_ui import TEXT_VALUES
-        reader.focus_text('parent-app-search', child=CHILD)
-        key_combo(ui, 'parent-app-search', '<Control>a', state=ui.api.StateType.FOCUSED)
-        reader.text_recipient('parent-app-search', focused=True, child=CHILD)
-        value = TEXT_VALUES[binding][1]
-        if value:
-            type_text(ui, 'parent-app-search', value)
-        else:
-            key_combo(ui, 'parent-app-search', 'BackSpace', state=ui.api.StateType.FOCUSED)
-        # Search updates can remove a child between AT-SPI's child-count and
-        # children reads. Retry only the complete observation, never the keys;
-        # exact-text and recipient failures must still propagate.
+        reader.set_text('parent-app-search', TEXT_VALUES[binding][1], child=CHILD)
+        # Retry only the complete public observation, never the mutation.
         assert reader.wait(
             lambda: reader.read_synthetic_text(binding, child=CHILD),
             'catalogue-exact-text',
@@ -442,9 +402,9 @@ def test_catalogue_text_binding_focus_replacement_clear_and_wrong_child(
         wait_for_accessible_state(lambda: reader.app_rows(CHILD) == (
             original if binding == 'catalogue-clear' else ()), 'complete search result')
     reader.parent_page(CHILD, 'Screen Limits')
-    # GTK may omit the inactive page entirely from its complete public tree.
+    # Inactive pages cannot receive product input.
     with pytest.raises(UiError, match='text-entry|text-disabled|app-row-page'):
-        reader.focus_text('parent-app-search', child=CHILD)
+        reader.set_text('parent-app-search', '', child=CHILD)
 
 
 @pytest.mark.parametrize('binding,masks', (
@@ -745,7 +705,6 @@ def test_rejected_parent_rule_report_review_and_confirmed_policy(
 
 def test_parent_app_search_rule_edit_and_revocation_confirmation(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
-    from tests.support.keyboard import key_combo, type_text
     path = tmp_path / "app-events.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       events_path=path)
@@ -756,8 +715,7 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
         and search.get_state_set().contains(ui.api.StateType.SENSITIVE),
         "app catalogue loads",
     )
-    ui.focus("parent-app-search")
-    type_text(ui, "parent-app-search", "thunderbird")
+    ui.setText("parent-app-search", "thunderbird")
     key = hashlib.sha256(b"thunderbird_thunderbird.desktop").hexdigest()[:16]
     wait_for_accessible_state(lambda: ui.showing(f"parent-app-{key}"),
                               "matching app remains visible")
@@ -765,10 +723,7 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     wait_for_accessible_state(lambda: ui.showing("parent-match-rule-dialog"),
                               "match-rule dialog opens")
     assert audit_product_controls(ui, "parent-match-rule-dialog")
-    ui.focus("parent-match-rule-entry")
-    key_combo(ui, "parent-match-rule-entry", "<Control>a",
-              state=ui.api.StateType.FOCUSED)
-    type_text(ui, "parent-match-rule-entry", "/snap/bin/thunderbird")
+    ui.setText("parent-match-rule-entry", "/snap/bin/thunderbird")
     ui.activate("parent-match-rule-save")
     wait_for_accessible_state(
         lambda: any(record["event"] == "set_preferences" for record in read_events(path)),
@@ -803,11 +758,10 @@ def test_shared_request_preview_smoke(
                      "kiosk-request-cancel", "kiosk-menu-button"):
         assert ui.target(identity).get_accessible_id() == identity
     assert ui.absent("kiosk-mute-button", within="kiosk-request-window")
-    ui.activate("kiosk-menu-button", action_name="menu.popup")
-    if overlay:
-        assert ui.showing("kiosk-menu-item-help")
-    assert ui.showing("kiosk-menu-item-about")
-    ui.activate("kiosk-menu-item-change-screens")
+    commands = set(ui.getChoices('kiosk-menu-button'))
+    assert {'about', 'change-screens'} <= commands
+    assert ('help' in commands) is overlay
+    ui.setValue('kiosk-menu-button', 'change-screens')
     wait_for_accessible_state(lambda: ui.showing("preview-screen-dialog"),
                               "screen dialog opens")
     for identity in ("preview-screen-scale", "preview-screen-save",
@@ -843,7 +797,7 @@ def test_parent_remaining_time_explanation(
                               "collapsed explanation is not showing")
     with pytest.raises(UiError, match='ui:time-collapsed'):
         reader.time_explanation(CHILD)
-    ui.activate("parent-time-status", action_name="row.activate")
+    ui.setValue("parent-time-status", True)
     wait_for_accessible_state(lambda: ui.showing("parent-time-explanation"),
                               "explicit expansion shows the explanation")
     with pytest.raises(UiError, match='ui:wrong-child'):

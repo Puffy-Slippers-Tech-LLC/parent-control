@@ -39,8 +39,9 @@ from pathlib import PurePosixPath
 # spectator feed, close readers, and use registered retention allocations.
 # Sequential language matrices and bounded drafts retain the Layout/Feedback
 # reservations; no host settings, network, new process or shared mutable cache.
-# Native translation lifetime checks use one waited GTK 4 child and two unshown
-# windows on the Identity bucket's private display/bus; no extra session/service.
+# Synthetic translation-helper contracts live in test_translation_widget_contracts
+# and reuse the Identity bucket's private display/bus with one waited GTK 4 child.
+# Moving these engineering assertions adds no session, service or cleanup owner.
 # Chooser preview/modal checks use one waited GTK child, a NON_UNIQUE application
 # and two windows on that same private display/bus, including fullscreen focus.
 # They add no shared cache, setting, file, service or cleanup owner.
@@ -78,6 +79,11 @@ from pathlib import PurePosixPath
 # Missing-cache traversal roles/states share the existing private bus pipeline
 # (at most 64 RPCs). No threads, connections, processes or cleanup owners are
 # added; snapshot-local values retain the compatible UI bucket reservations.
+# Application UI catalogs open client connections to each worker's existing
+# private session bus, never a new bus server. The owning fixture closes every
+# catalog, including independent case readers, on success and failure. This
+# adds no process, file, host service or shared mutable state; existing whole-
+# module reservations and compatible bucket classifications remain appropriate.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e
@@ -129,7 +135,7 @@ GROUPS = (
     ('Nested Shell', ('test_child_shell_lifecycle.py',), 30),
     ('Accessible adapter', ('test_e2e_accessible_adapter.py',), 12),
     ('Test spectators', ('test_e2e_watch.py', 'test_ui_watch.py', 'test_watch.py'), 6),
-    ('Automation identity', ('test_automation_identity.py',), 12),
+    ('Automation identity', ('test_automation_identity.py', 'test_translation_widget_contracts.py'), 12),
     ('Fixture GUI', ('test_fixture_gui.py',), 30),
 )
 

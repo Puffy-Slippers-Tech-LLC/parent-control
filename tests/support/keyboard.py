@@ -12,12 +12,9 @@ from tests.support.application_ui import is_product_node, utf16_index, utf16_len
 
 
 def _target(ui, identity):
+    if ui.input_uncertain:
+        raise AssertionError("Keyboard input is uncertain")
     return ui.id_target(identity) if hasattr(ui, "id_target") else ui.target(identity)
-
-
-def _product(ui, identity):
-    node = _target(ui, identity)
-    return node if is_product_node(node) else None
 
 
 def _input(ui, node, operation, *arguments):
@@ -140,29 +137,37 @@ def _product_key(ui, node, key):
 
 def recipient(ui, identity, state):
     """Reacquire ``identity`` and require its declared input-recipient state."""
-    node = ui.id_target(identity) if hasattr(ui, "id_target") else ui.target(identity)
+    node = _target(ui, identity)
     if not node.get_state_set().contains(state):
         raise AssertionError(f"Keyboard recipient {identity!r} lacks {state!s}")
     return node
 
 
-def deliver(ui, identity, state, send):
-    """Deliver once; a backend exception permanently leaves input uncertain."""
+def _deliver_target(ui, identity, node, state, send):
+    """Validate the just-resolved external recipient and deliver exactly once."""
     if ui.input_uncertain:
         raise AssertionError("Keyboard input is uncertain")
-    recipient(ui, identity, state)
+    if is_product_node(node):
+        raise AssertionError("Product controls require Application UI input")
+    if not node.get_state_set().contains(state):
+        raise AssertionError(f"Keyboard recipient {identity!r} lacks {state!s}")
     ui.input_uncertain = True
     send()
     ui.input_uncertain = False
 
 
+def deliver(ui, identity, state, send):
+    """Deliver once; a backend exception permanently leaves input uncertain."""
+    _deliver_target(ui, identity, _target(ui, identity), state, send)
+
+
 def press_key(ui, identity, key, *, state):
     """Press one ordinary key after a fresh ID and recipient-state check."""
-    node = _product(ui, identity)
-    if node is not None:
+    node = _target(ui, identity)
+    if is_product_node(node):
         return _product_key(ui, node, key)
     from dogtail import rawinput
-    deliver(ui, identity, state, lambda: rawinput.pressKey(key))
+    _deliver_target(ui, identity, node, state, lambda: rawinput.pressKey(key))
 
 
 def key_combo(ui, identity, keys, *, state, post_delay=None):
@@ -170,8 +175,8 @@ def key_combo(ui, identity, keys, *, state, post_delay=None):
     if post_delay is not None and (type(post_delay) not in (int, float)
                                   or not 0 <= post_delay <= 0.25):
         raise ValueError('Keyboard post-action delay must be between 0 and 0.25 seconds')
-    node = _product(ui, identity)
-    if node is not None:
+    node = _target(ui, identity)
+    if is_product_node(node):
         return _product_key(ui, node, keys)
     from dogtail import rawinput
     def send():
@@ -185,7 +190,7 @@ def key_combo(ui, identity, keys, *, state, post_delay=None):
             rawinput.keyCombo(keys)
         finally:
             config.action_delay = previous
-    deliver(ui, identity, state, send)
+    _deliver_target(ui, identity, node, state, send)
 
 
 def repeat_cursor(ui, identity, keys, count):
@@ -197,8 +202,8 @@ def repeat_cursor(ui, identity, keys, count):
     """
     if keys not in ('Right', 'Left', '<Shift>Right') or type(count) is not int or not 0 <= count <= 128:
         raise ValueError('Invalid bounded cursor movement')
-    node = _product(ui, identity)
-    if node is not None:
+    node = _target(ui, identity)
+    if is_product_node(node):
         state = _edit_state(ui, node)
         value, start, end = _selection(node, state)
         if keys == '<Shift>Right':
@@ -217,15 +222,15 @@ def repeat_cursor(ui, identity, keys, count):
                 rawinput.keyCombo(keys)
         finally:
             config.action_delay = previous
-    deliver(ui, identity, ui.api.StateType.FOCUSED, send)
+    _deliver_target(ui, identity, node, ui.api.StateType.FOCUSED, send)
 
 
 def type_text(ui, identity, value, *, interval=0):
     """Type nonsecret text once into the freshly ID-resolved focused control."""
     if type(interval) not in (int, float) or not 0 <= interval <= 0.25:
         raise ValueError('Keyboard typing interval must be between 0 and 0.25 seconds')
-    node = _product(ui, identity)
-    if node is not None:
+    node = _target(ui, identity)
+    if is_product_node(node):
         return _insert(ui, node, value)
     from dogtail import rawinput
     def send():
@@ -237,4 +242,4 @@ def type_text(ui, identity, value, *, interval=0):
         for character in value:
             rawinput.pressKey(character)
             time.sleep(interval)
-    deliver(ui, identity, ui.api.StateType.FOCUSED, send)
+    _deliver_target(ui, identity, node, ui.api.StateType.FOCUSED, send)

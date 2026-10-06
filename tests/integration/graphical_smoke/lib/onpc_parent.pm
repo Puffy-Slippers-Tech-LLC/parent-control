@@ -272,7 +272,7 @@ sub dialog_visit {
 }
 
 # Opening the dialog already reads its public contents. A fresh close proof
-# still owns Alt-F4; no second content-only checkpoint is needed.
+# still owns the API close request; no second content-only checkpoint is needed.
 sub dialog_use {
     onpc_progress::operation('Reading the dialog and returning to Parent');
     my ($journey, $prefix) = @_;
@@ -292,7 +292,7 @@ sub qualify_hebrew_policy {
     my $desktop = login_functional($journey);
     $journey->consume_observation('initial-language', launch($journey, $desktop, 'initial-language'));
     $journey->consume_observation('initial-save', $journey->seen('initial-save'));
-    onpc_allowance_boundaries::select_child($journey, 'riley-setup', 'keyboard');
+    onpc_allowance_boundaries::select_child($journey, 'riley-setup');
     for my $stage (qw(riley-enabled riley-saved riley-allowance riley-before)) {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
@@ -315,7 +315,7 @@ sub qualify_language_isolation {
     $journey->consume_observation('initial-language', launch($journey, $desktop, 'initial-language'));
     $journey->consume_observation('initial-save', $journey->seen('initial-save'));
     for my $child ('riley', 'jordan') {
-        onpc_allowance_boundaries::select_child($journey, "$child-setup", 'keyboard');
+        onpc_allowance_boundaries::select_child($journey, "$child-setup");
         for my $suffix ('enabled', 'saved', 'allowance', 'before') {
             my $stage = "$child-$suffix";
             $journey->consume_observation($stage, $journey->seen($stage));
@@ -324,7 +324,7 @@ sub qualify_language_isolation {
     language_selection($journey, 'chinese');
     $journey->consume_observation('chinese-save', $journey->seen('chinese-save'));
     for my $prefix ('riley', 'jordan', 'riley-return') {
-        onpc_allowance_boundaries::select_child($journey, $prefix, 'keyboard');
+        onpc_allowance_boundaries::select_child($journey, $prefix);
         for my $suffix ('state', 'choice', 'close') {
             my $stage = "$prefix-$suffix";
             $journey->consume_observation($stage, $journey->seen($stage));
@@ -332,7 +332,7 @@ sub qualify_language_isolation {
     }
     onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
     for my $prefix ('reopened-riley', 'reopened-jordan', 'reopened-riley-return') {
-        onpc_allowance_boundaries::select_child($journey, $prefix, 'keyboard');
+        onpc_allowance_boundaries::select_child($journey, $prefix);
         for my $suffix ('state', 'choice', 'close') {
             my $stage = "$prefix-$suffix";
             $journey->consume_observation($stage, $journey->seen($stage));

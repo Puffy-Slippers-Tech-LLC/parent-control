@@ -19,7 +19,8 @@ for value in (1, 2, 3):
         stage = 'custom-' + str(value) + '-' + action
         SCREENS[stage] = 'ui:' + stage
     # Leave and reselect the child so reopened text comes from saved preferences,
-    # not the draft Entry. Each Enter consumes its own public focused proof.
+    # not the draft Entry. The shared API block validates the owning surface
+    # before activation and independently observes the committed allowance.
     for suffix, operation in (
         ('away-open', 'existing-child-picker-opened'),
         ('away-focus', 'existing-child-choice-highlighted'),

@@ -21,7 +21,13 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Compose only the overlay app-close branch with an already observed real AUTH01 prompt and explicit pre-request choices/balances. Use the supported normal requesting-app close action, then reopen through REQUEST02's direct child command. Cancel on the agent is not this route. Read REQUEST03 and require the old prompt absent; a later request must authenticate afresh.
+Compose only the overlay app-close branch with an already observed real AUTH01
+prompt and explicit pre-request choices/balances. Use the shared Application UI
+API surface `close` operation on the owned `kiosk-request-window`, preserving
+its normal busy/modal refusal, then reopen through REQUEST02's direct child
+command. Cancel on the agent is not this route. Read REQUEST03 through the same
+API facade and require the old external prompt absent; a later request must
+authenticate afresh.
 
 ## Live VM acceptance
 

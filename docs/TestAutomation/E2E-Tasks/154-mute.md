@@ -26,8 +26,10 @@ No old task document or VM state is required.
 
 ## Conditional live VM acceptance
 
-After restoration, qualify the real control on both installed VM forms: read
-initial state, set the explicit value and verify the specified surface-local
+After restoration, expose the real control's boolean value through the shared
+request-form Application UI API and use that same operation in host UI and
+installed consumers. On both installed VM forms, read initial state, set the
+explicit canonical value and verify the specified surface-local
 behavior and persistence through normal public exits/re-entry. Do not enable a
 test-only feature switch. Require independent entry and owned cleanup. Reassess
 the task under the [sizing contract](../E2E-Execution-Contracts.md#task-size-and-order)

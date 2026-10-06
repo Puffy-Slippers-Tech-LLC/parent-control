@@ -1661,6 +1661,7 @@ class AccessibleUI:
                 if (self.application_ui is not None and identity.startswith('child-')
                         and not hasattr(node, 'ui_element')):
                     continue
+                self.require_product_route(node, identity)
                 if identities is not None:
                     identities[node] = identity
                 if facts is not None:
@@ -1849,8 +1850,21 @@ class AccessibleUI:
             require(len(current) == 1 and current[0] == root, 'ui:wrong-scope')
             subtree = set(self.snapshot_scope(nodes, snapshot, root))
             scope = [node for node in scope if node in subtree]
-        return self.snapshot_matches(
+        target = self.snapshot_matches(
             identity, scope, showing=showing, show=self.showing, identities=identities)
+        if target is not None:
+            self.require_product_route(target, identity)
+        return target
+
+    def require_product_route(self, node, identity=None):
+        """Refuse a product control supplied by an alternate live provider."""
+        identity = public_automation_id(node) if identity is None else identity
+        product = (identity.startswith('child-')
+                   or bool(set(owned_applications(identity)) & set(PRODUCT_APPLICATIONS)))
+        if product and self.application_ui is not None:
+            require(getattr(node, 'catalog', None) is self.application_ui
+                    and getattr(node, 'ui_element', None) is not None,
+                    'ui:product-api-required')
 
     def snapshot_provider_target(self, provider, surface, control, *, showing=True,
                                  check_prompt=False):
@@ -2248,6 +2262,7 @@ class AccessibleUI:
     def _invoke_target(self, node, action_name=None):
         """Invoke an ID-qualified target without another public-tree traversal."""
         require(not self.input_uncertain, 'ui:uncertain-input')
+        self.require_product_route(node)
         if hasattr(node, 'ui_element'):
             require(action_name in (None, 'activate', 'click', 'row.activate', 'menu.popup'),
                     'ui:unsupported-product-action')
@@ -2316,8 +2331,12 @@ class AccessibleUI:
     def set_text(self, identity, value, *, child=CHILD, activate=False):
         """Use the real text widget's change and optional Enter handlers once."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        node = self.wait(lambda: self.text_recipient(identity, child=child),
-                         'text-recipient')
+        if identity == 'feedback-editor-insert':
+            require(not activate, 'ui:unsupported-product-action')
+            node = self.id_target(identity, sensitive=True, showing=False)
+        else:
+            node = self.wait(lambda: self.text_recipient(identity, child=child),
+                             'text-recipient')
         self.input_uncertain = True
         node.setText(value)
         self.input_uncertain = False
@@ -4271,14 +4290,14 @@ class AccessibleUI:
         return None
 
     def scalar_text_operation(self, operation):
-        """Prove the exact source and scalar caret before ordinary Unicode input."""
+        """Prove the exact source before inserting a Unicode scalar through the API."""
         require(operation in SCALAR_OPERATIONS, 'ui:scalar-operation')
         binding, action = SCALAR_OPERATIONS[operation]
         source, codepoint = TEXT_SCALARS[binding]
         return self.append_text_operation(binding, action, source, chr(int(codepoint, 16)))
 
     def suffix_text_operation(self, operation):
-        """Prove the clipboard-built source before typing its short remainder."""
+        """Prove the exact source before inserting its finite remaining suffix."""
         require(operation in SUFFIX_OPERATIONS, 'ui:suffix-operation')
         binding, action = SUFFIX_OPERATIONS[operation]
         source, suffix = TEXT_SUFFIXES[binding]
@@ -4292,7 +4311,10 @@ class AccessibleUI:
             return self.text_operation('text-' + binding + '-read')
         self.read_synthetic_text(source)
         if action == 'caret':
-            self.set_text(identity, value + suffix)
+            require(identity == 'feedback-editor-input', 'ui:scalar-binding')
+            offset = len(value.encode('utf-16-le')) // 2
+            self.editor_selection(offset, offset)
+            self.set_text('feedback-editor-insert', suffix)
         return None
 
     def open_feedback(self, projection='initial-empty', *, language=None):

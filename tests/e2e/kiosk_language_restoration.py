@@ -63,7 +63,7 @@ SCREENS.update({
     'return-parent-command': 'ui:parent-command-launch',
     'return-parent-window': 'ui:switch-parent',
     'jordan-policy-after': 'ui:kiosk-language-policy',
-    **custom_child_selection('riley-final', 'child', route='keyboard'),
+    **custom_child_selection('riley-final', 'child'),
     'riley-policy-after': 'ui:kiosk-riley-language-policy',
     'parent-english-open': 'ui:parent-language-open', 'parent-english-close': 'ui:parent-language-cancel',
 })

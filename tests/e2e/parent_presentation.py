@@ -9,7 +9,7 @@ ENTRY = fresh_desktop('parent')
 SETUP = {
     **ENTRY, 'parent-command': 'ui:parent-command-launch',
     'initial-language': 'ui:parent-language-initial', 'initial-save': 'ui:parent-language-save',
-    **custom_child_selection('riley-setup', 'child', route='keyboard'),
+    **custom_child_selection('riley-setup', 'child'),
     'riley-enabled': 'ui:parent-toggle-enabled', 'riley-saved': 'ui:parent-save-enabled',
     'riley-allowance': 'ui:parent-language-riley-allowance',
     'policy-captured': 'ui:parent-language-riley-enabled-en',

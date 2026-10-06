@@ -116,7 +116,7 @@ def ui_operation_timings():
                 (AccessibleUI, 'read_snapshot', 'reader.snapshot'),
                 (AccessibleUI, 'wait', 'reader.wait'),
                 (AccessibleUI, '_invoke_target', 'input.action'),
-                (keyboard, 'deliver', 'input.keyboard')):
+                (keyboard, '_deliver_target', 'input.keyboard')):
             patch.setattr(owner, method, UI_TIMINGS.wrap(getattr(owner, method), label))
         yield
 
@@ -289,6 +289,36 @@ def _display_scale(hermetic_ui_session, dpi_scale):
         connection.close_sync(None)
 
 
+@pytest.fixture(autouse=True)
+def application_ui_connections(monkeypatch):
+    """Close every catalog created by the case, including independent readers.
+
+    Readers share this worker's existing private session bus. Each catalog owns
+    only its client connection; it starts no process or additional bus server.
+    """
+    from tests.support.application_ui import ApplicationUI
+
+    catalogs = []
+    initialize = ApplicationUI.__init__
+
+    def tracked_initialize(catalog, *arguments, **keywords):
+        initialize(catalog, *arguments, **keywords)
+        catalogs.append(catalog)
+
+    monkeypatch.setattr(ApplicationUI, '__init__', tracked_initialize)
+    try:
+        yield
+    finally:
+        failures = []
+        for catalog in reversed(catalogs):
+            try:
+                catalog.close()
+            except Exception as error:
+                failures.append(error)
+        if failures:
+            raise ExceptionGroup('Application UI connection cleanup failed', failures)
+
+
 @pytest.fixture
 def launch_ui(hermetic_ui_session, wait_for_accessible_state):
     """Expose the shared owned-process launcher on this private compositor."""
@@ -315,6 +345,7 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
                 from tests.e2e.public_atspi import PublicAtspi
                 from tests.support.automation import Automation
                 api = PublicAtspi(Atspi)
+                ui = None
                 try:
                     ui = Automation(api, lambda: api.get_desktop(0), query_errors=(GLib.Error,),
                                     owner_pids=launch.owner_pids,
@@ -330,7 +361,11 @@ def launch_ui(hermetic_ui_session, wait_for_accessible_state):
                     else:
                         ui.complete_request_language_setup()
                 finally:
-                    api.reset()
+                    try:
+                        if ui is not None:
+                            ui.reader.application_ui.close()
+                    finally:
+                        api.reset()
             return result
 
         for name in ("owner_pids", "application_ids", "application_owners", "application_owner_history",
@@ -404,6 +439,7 @@ def automation(hermetic_ui_session, launch_ui, wait_for_accessible_state):
     from tests.e2e.public_atspi import PublicAtspi
 
     api = PublicAtspi(Atspi)
+    ui = None
     try:
         ui = Automation(api, lambda: api.get_desktop(0), query_errors=(GLib.Error,),
                         owner_pids=launch_ui.owner_pids,
@@ -416,7 +452,11 @@ def automation(hermetic_ui_session, launch_ui, wait_for_accessible_state):
         ui.reader.dispatch = lambda: GLib.MainContext.default().iteration(False)
         yield ui
     finally:
-        api.reset()
+        try:
+            if ui is not None:
+                ui.reader.application_ui.close()
+        finally:
+            api.reset()
 
 
 @pytest.fixture

@@ -8,14 +8,5 @@ version = 1
 ProductVersion = "1.4"
 Content = '''
 ## New features
-
-- **Language search:** Find a language by its English name or its localized name.
-- **Remaining time reminders:** Critical reminders now appear by default in child sessions. Reminders can appear over full-screen apps and can be customized in child preferences.
-- **Revoke preview:** The Parent App's revoke dialog lists the running soft-blocked apps that will close.
-- **What's new:** Release notes are now backed by version-specific metadata for parent and child views.
-
-## Bug fixes
-
-- Fixed overlapping app-grid column headers in the Parent App for some right-to-left languages.
-- Fixed the disabled Revoke button when remaining time is zero and soft-blocked apps are still running, so parents can close those apps after the child's session locks.
+- **Remaining time reminders:** Reminders now appear by default. Reminders can appear over full-screen apps and can be customized in preferences.
 '''

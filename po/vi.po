@@ -1651,6 +1651,10 @@ msgstr "Đóng"
 msgid "This notification will close in 5 seconds."
 msgstr "Thông báo này sẽ đóng sau 5 giây."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "Đây là những điều mới dành cho bạn. Các cập nhật dành cho cha mẹ không hiển thị ở đây."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "Có gì mới"

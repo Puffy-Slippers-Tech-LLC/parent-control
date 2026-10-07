@@ -1658,6 +1658,10 @@ msgstr "Dispensar"
 msgid "This notification will close in 5 seconds."
 msgstr "Esta notificação será fechada dentro de 5 segundos."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "Aqui estão as novidades para ti. As novidades para os pais não aparecem aqui."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "Novidades"

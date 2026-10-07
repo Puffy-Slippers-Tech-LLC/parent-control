@@ -1657,6 +1657,10 @@ msgstr "Bezárás"
 msgid "This notification will close in 5 seconds."
 msgstr "Ez az értesítés 5 másodperc múlva bezárul."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "Itt láthatod a neked szóló újdonságokat. A szülőknek szóló frissítések itt nem jelennek meg."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "Újdonságok"

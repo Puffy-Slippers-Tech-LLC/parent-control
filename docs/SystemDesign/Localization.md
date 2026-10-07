@@ -608,16 +608,28 @@ a latest-release record retires only its latest-version entries. Older version
 directories are never rewritten. Content edits preserve the
 [acknowledgement identity](State.md#whats-new-backend).
 
-Defaults are **GPT-6.1 Sol High, Standard speed**, eight pending languages per
-fresh session, and up to two read-only translator/reviewer subagents. High is
-recommended for semantic translation/review; independent language batches suit
-bounded delegation. Helpers receive disjoint assignments, return text and may
-not delegate further. Every `spawn_agent` call explicitly sets
-`fork_turns="none"`: the ephemeral coordinator has no stored rollout to fork.
+Defaults are **GPT-6.1 Sol High, Standard speed**, 24 pending languages per
+fresh session, and up to five read-only translator subagents alongside a
+translating coordinator. A full 61-language run uses three fresh sessions instead
+of eight. High is recommended for semantic translation/review; independent
+language batches suit
+bounded delegation. The launcher balances disjoint assignments by current and
+previous text size. The coordinator starts all assigned helpers before working
+on its own languages. Helpers translate and self-review; the coordinator reviews
+returned text as it arrives for meaning, policy terms, omissions, natural grammar,
+region/script and Markdown. There is no separate whole-batch reviewer wave;
+specific uncertainties can return to the same helper for bounded clarification.
+Accurate unchanged translated wording is preserved; formatting-only English edits
+need matching formatting and full semantic review without stylistic rewrites.
+Helpers return text and may not delegate further. Every `spawn_agent` call
+explicitly sets `fork_turns="none"`: the ephemeral coordinator has no stored
+rollout to fork.
 Assignments include all scope/read-only/data rules, exact records and English,
-relevant previous text and terminology paths; reviewers also receive candidate
-translations. The coordinator reviews meaning, policy terms, omissions,
-natural grammar, region/script and Markdown. `--subagents 0` selects serial work;
+relevant previous text, locale metadata, PO headers and up to 32 relevant existing
+application terminology entries per language. Agents use this supplied context
+directly; additional quoted reads of the exact PO path resolve concrete ambiguities
+without repeated source discovery or whole-document reads. The coordinator waits
+for returned agent IDs and closes completed helpers. `--subagents 0` selects serial work;
 `--batch-size`, `--model` and `--effort` override defaults. The selected pair must
 exist in the local CLI catalogue; no silent substitution occurs. Only
 `gpt-6.1-sol` is accepted for Sol. Existing CLI authentication is required.
@@ -663,10 +675,9 @@ The GTK-independent
 owning frontend's personal/session language, loads the versioned domain and
 translates broker English with `translate_content` before rendering. Missing,
 fuzzy or current-source-mismatched translations fall back to English. The
-Parent frontend uses this adapter for its
-[release-note dialog](Frontends.md#parent-release-notes); kiosk and child overlay
-frontend delivery remains pending under the
-[specification](../Specification.md#product-information).
+Parent, kiosk and child overlay use this adapter for their
+[release-note dialogs](Frontends.md#parent-release-notes), inheriting the owning
+frontend's resolved language after startup preference setup closes.
 
 Future-session prompt:
 

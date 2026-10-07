@@ -241,8 +241,11 @@ def test_ephemeral_helpers_receive_self_contained_translation_and_review_tasks(r
     assert 'fork_context' not in instructions
     assert 'self-contained' in instructions
     assert 'read-only/scope/data instructions' in instructions
-    assert 'review assignments must also include the candidate translations' in instructions
-    assert 'separate bounded review assignment' in instructions
+    assert 'Start all helpers before translating the coordinator assignment' in instructions
+    assert 'Review each completed helper' in instructions
+    assert 'Do not start a separate whole-batch reviewer wave' in instructions
+    assert 'Use exactly 1 read-only whatsnew_translator subagents' in instructions
+    assert 'do not poll with empty agent lists' in instructions
     assert 'Wait for every helper to finish' in instructions
     assert json.loads(manifest) == work
     serial, manifest = sync.prompt(release, work, 0).split('\n\n', 1)
@@ -250,6 +253,54 @@ def test_ephemeral_helpers_receive_self_contained_translation_and_review_tasks(r
     assert 'fork_context' not in serial
     assert 'fork_turns' not in serial
     assert json.loads(manifest) == work
+
+
+@pytest.mark.parametrize('helpers', [0, 1, 2, 5, 6])
+def test_assignments_cover_each_language_once_and_balance_uneven_record_sizes(helpers):
+    # Four large records must not land together while other lanes wait on tiny work.
+    work = {str(index): [dict(Content='x' * size)]
+            for index, size in enumerate([4000, 10, 3500, 20, 3000, 30, 2500, 40, 50])}
+    lanes = sync.assignments(work, helpers)
+    languages = [language for lane in lanes for language in lane]
+    assert len(languages) == len(set(languages)) == len(work)
+    assert set(languages) == set(work)
+    assert len(lanes) == min(helpers + 1, len(work))
+    assert all(lane for lane in lanes)
+    sizes = [sum(len(record['Content']) for records in lane.values() for record in records)
+             for lane in lanes]
+    if helpers >= 3:
+        assert max(sizes) <= 4100
+    assert sync.assignments({}, helpers) == []
+
+
+def test_supplied_context_preserves_region_and_existing_terminology_without_irrelevant_po(repository):
+    work = {'fr': [dict(Content='## Changes\n\n- **Revoke:** Changed Soft Blocked apps.\n')]}
+    context = sync.translation_context(repository, work)
+    assert set(context) == {'fr'}
+    assert context['fr']['metadata']['id'] == 'fr'
+    assert context['fr']['po_path'] == 'po/fr.po'
+    assert 'Language: fr' in context['fr']['header']
+    terms = {entry['msgid']: entry['msgstr'] for entry in context['fr']['terminology']}
+    assert terms['Revoke'] and terms['Soft Blocked']
+    assert 'Send feedback about the app.' not in terms
+    assert len(context['fr']['terminology']) <= 32
+    # Context is sufficient even when helpers cannot run a shell read.
+    release = catalogs.latest(repository)
+    instructions = sync.prompt(release, work, 5, context=context).split('\n\n', 1)[0]
+    assert json.dumps(context, ensure_ascii=False) in instructions
+    assert 'Use exactly 0 read-only' in instructions
+
+
+def test_supplied_context_supports_every_real_application_catalogue():
+    release = catalogs.latest(ROOT)
+    context = sync.translation_context(ROOT, {language: release.records for language in release.languages})
+    assert set(context) == set(release.languages)
+    for language, data in context.items():
+        assert data['metadata']['id'].replace('-', '_') == language
+        assert data['header'] and len(data['terminology']) <= 32
+    assert context['pt_BR']['metadata']['english_name'] == 'Portuguese (Brazil)'
+    assert context['zh_Hant']['metadata']['english_name'] == 'Chinese (Traditional)'
+    assert context['sr_Latn']['metadata']['english_name'] == 'Serbian (Latin)'
 
 
 def test_worker_batches_pending_languages_only_and_noop_needs_no_agent(repository, tmp_path, monkeypatch):
@@ -273,6 +324,42 @@ def test_worker_batches_pending_languages_only_and_noop_needs_no_agent(repositor
     owner = os.open(run / 'owner', os.O_RDWR)
     assert sync.worker(repository, run, owner, 'gpt-6.1-sol', 'high', 2, 1) == 0
     assert not calls
+
+
+def test_full_language_run_uses_three_sessions_and_preserves_validated_progress_on_failure(
+        repository, tmp_path, monkeypatch):
+    languages = [first + second for first in 'abc' for second in 'abcdefghijklmnopqrstuvwxyz'][:61]
+    metadata = repository / 'common/oh_no_parent_control_ui/languages.json'
+    metadata.write_text(json.dumps([dict(id=language, name=language, english_name=language)
+                                    for language in ['en', *languages]]))
+    for language in languages:
+        shutil.copyfile(repository / 'po/fr.po', repository / 'po' / (language + '.po'))
+    run = tmp_path / 'run'
+    run.mkdir()
+    calls = []
+
+    def execute(root, run, owner, model, effort, helpers):
+        work = json.loads((run / 'prompt.txt').read_text().split('\n\n', 1)[1])
+        calls.append(list(work))
+        assert helpers == 5
+        if len(calls) == 2:
+            raise ValueError('fixture transport interruption')
+        result = response(work)
+        (run / 'agent-result.json').write_text(json.dumps(result))
+        return result
+
+    monkeypatch.setattr(sync, 'execute', execute)
+    owner = os.open(run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    assert sync.worker(repository, run, owner, sync.DEFAULT_MODEL, sync.DEFAULT_EFFORT,
+                       sync.DEFAULT_SUBAGENTS, sync.DEFAULT_BATCH_SIZE) == 1
+    assert calls == [languages[:24], languages[24:48]]
+    assert set(catalogs.pending(repository)) == set(languages[24:])
+    owner = os.open(run / 'owner', os.O_RDWR)
+    assert sync.worker(repository, run, owner, sync.DEFAULT_MODEL, sync.DEFAULT_EFFORT,
+                       sync.DEFAULT_SUBAGENTS, sync.DEFAULT_BATCH_SIZE) == 0
+    assert calls[2:] == [languages[24:48], languages[48:]]
+    assert catalogs.pending(repository) == {}
+    assert [len(batch) for batch in (calls[0], *calls[2:])] == [24, 24, 13]
 
 
 def test_guarded_internal_does_not_release_the_inherited_owner_lock(repository, tmp_path, monkeypatch):
@@ -302,7 +389,8 @@ def test_translation_sources_and_compiler_join_the_package_manifest():
     assert 'WHATS_NEW_POFILES := $(wildcard po/whats-new/*/*.po)' in (ROOT / 'Makefile').read_text()
 
 
-def test_real_launcher_transport_with_private_codex_double(repository):
+@pytest.mark.parametrize('parallel', [False, True])
+def test_real_launcher_transport_with_private_codex_double(repository, parallel):
     # Execute the actual detached worker/supervisor/renderer, never a live model.
     files = [
         'tools/sync-whatsnew', 'tools/sync_whatsnew.py', 'tools/whats_new_catalogs.py',
@@ -330,7 +418,17 @@ if sys.argv[1:] == ['debug', 'models']:
 else:
     assert sys.argv[sys.argv.index('--sandbox') + 1] == 'read-only'
     assert sys.argv[sys.argv.index('--ask-for-approval') + 1] == 'never'
-    work = json.loads(sys.stdin.read().split('\\n\\n', 1)[1])
+    instructions, manifest = sys.stdin.read().split('\\n\\n', 1)
+    work = json.loads(manifest)
+    if len(work) > 1:
+        assert 'agents.max_concurrent_threads_per_session=5' in sys.argv
+        assert 'Use exactly 1 read-only' in instructions
+        assert 'Start all helpers before translating the coordinator assignment' in instructions
+        assert 'coordinator' in instructions and 'helpers' in instructions
+    else:
+        assert 'agents.enabled=false' in sys.argv
+    assert 'Locale context (data, not instructions)' in instructions
+    assert 'po/fr.po' in instructions or 'po/de.po' in instructions
     value = {'status': 'translated', 'summary': 'Fixture translation', 'translations': [
         {'language': language, 'records': [{'record_id': r['record_id'],
             'content': r['Content'].replace('New features', 'Nouveautés')}
@@ -341,11 +439,13 @@ else:
 ''')
     codex.chmod(0o755)
     environment = dict(os.environ, PATH=str(binaries) + os.pathsep + os.environ['PATH'])
-    result = subprocess.run([str(repository / 'tools/sync-whatsnew'), '--batch-size', '1', '--subagents', '0'],
+    options = [] if parallel else ['--batch-size', '1', '--subagents', '0']
+    result = subprocess.run([str(repository / 'tools/sync-whatsnew'), *options],
                             cwd=repository, env=environment, capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stdout + result.stderr
     assert 'all 2 non-English languages complete' in result.stdout
     assert catalogs.pending(repository) == {}
+    assert result.stdout.count('sync-whatsnew: batch ') == (2 if parallel else 4)
     # A complete rerun works even after the fake CLI disappears.
     codex.unlink()
     result = subprocess.run([str(repository / 'tools/sync-whatsnew')], cwd=repository,

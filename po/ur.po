@@ -1657,6 +1657,10 @@ msgstr "بند کریں"
 msgid "This notification will close in 5 seconds."
 msgstr "یہ اطلاع 5 سیکنڈ میں بند ہو جائے گی۔"
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "یہاں دیکھو تمہارے لیے کیا نیا ہے۔ والدین کے لیے اپ ڈیٹس یہاں نہیں دکھائی جاتیں۔"
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "کیا نیا ہے"

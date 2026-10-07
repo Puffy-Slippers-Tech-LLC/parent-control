@@ -1657,6 +1657,10 @@ msgstr "Stäng"
 msgid "This notification will close in 5 seconds."
 msgstr "Det här meddelandet stängs om 5 sekunder."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "Här ser du vad som är nytt för dig. Uppdateringar för föräldrar visas inte här."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "Nyheter"

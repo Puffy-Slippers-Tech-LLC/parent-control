@@ -1657,6 +1657,10 @@ msgstr "Pechar"
 msgid "This notification will close in 5 seconds."
 msgstr "Esta notificación pecharase en 5 segundos."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "Aquí tes as novidades para ti. As novidades para os pais non se mostran aquí."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "Novidades"

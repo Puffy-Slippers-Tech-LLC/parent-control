@@ -134,14 +134,17 @@ the separate technical checks described in the system design.
   “What's New in v[version]” for the dialog title.
   Content honors Markdown formatting; See More is present only when supplied and
   opens its link. Parent-only records never appear on kiosk or child overlay.
+  Both child dialogs explain below the title that only updates for the child
+  are shown, with updates for parents omitted.
 - [ONPC-CORE-WHATSNEW-004] Successfully displaying/closing a note records its
   acknowledgement and removes saved acknowledgements whose metadata records have
   been deleted. Other retained records remain independent. The current delivery
-  implements the [backend contract](SystemDesign/State.md#whats-new-backend);
-  Parent implements the menu, dialog, translated Markdown rendering and optional
-  link action. Its automatic dialog waits for first-time language setup to close:
-  Save uses the saved language; Cancel uses the session default. Kiosk and child
-  overlay frontend delivery remains pending.
+  implements the [backend contract](SystemDesign/State.md#whats-new-backend).
+  All frontends implement the menu, dialog and translated Markdown rendering.
+  Automatic dialogs wait for first-time language setup to close: Save uses the
+  saved language; Cancel uses the frontend default (the selected child's desktop
+  language in kiosk). Parent and child overlay expose supplied link actions;
+  kiosk retains its restriction on external launches.
 
 ### Feedback and error reports
 

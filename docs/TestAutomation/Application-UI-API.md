@@ -193,7 +193,7 @@ screen-time control and absent accounts retain their existing restrictions.
 | `kiosk-soft-apps-toggle` | Boolean get/set |
 | `kiosk-request-submit`, `kiosk-request-cancel` | Ordinary request/cancel actions; authentication remains external |
 | `kiosk-request-status`, `kiosk-screen-limit-notice` | Current estimate, progress or validation text |
-| `kiosk-menu-button` | `setValue` commands `preferences`/`about`, plus `help` in overlay; preview additionally offers `change-screens`; `getChoices` reflects actual availability |
+| `kiosk-menu-button` | `setValue` commands `preferences`/`about`, `whats-new` with current Child notes, plus `help` in overlay; preview additionally offers `change-screens`; `getChoices` reflects actual availability |
 | `kiosk-menu-item-<key>` | Actual menu item action |
 | `kiosk-result-title`, `kiosk-result-detail`, `kiosk-result-child-<uid>`, `kiosk-result-action` | Result readback and dismissal action |
 | `kiosk-report-toggle` | Boolean error-report choice |
@@ -241,8 +241,9 @@ Kiosk restrictions continue to remove unavailable external actions.
 | ID or family | Values and operations |
 | --- | --- |
 | `about-product-name`, `about-version`, `about-<detail>-value`, `about-integration-notice`, `about-copyright` | Read displayed information; link values expose ordinary activation when available |
-| `whats-new-title`, `whats-new-content`, `whats-new-block-<index>`, `whats-new-menu-hint` | Parent release-note title and displayed translated text; block IDs are scoped to the current document |
-| `whats-new-close`, `whats-new-dismiss`, `whats-new-see-more` | Ordinary Close and optional See More actions; `whats-new-dialog` also exposes normal surface close |
+| `whats-new-title`, `whats-new-content`, `whats-new-block-<index>`, `whats-new-menu-hint` | Release-note title and displayed translated text on Parent and both request surfaces; block IDs are scoped to the current document |
+| `whats-new-subtitle` | Translated child-audience explanation below the title on both request surfaces |
+| `whats-new-close`, `whats-new-dismiss`, `whats-new-see-more` | Ordinary Close (Continue on request surfaces), top close and optional See More actions; kiosk omits external actions; `whats-new-dialog` also exposes normal surface close |
 | `feedback-reply-email` | Literal reply address text |
 | `feedback-editor-input`, `feedback-webview` | Get/set plain editor text through Quill's user-edit path; draft and displayed document update together |
 | `feedback-editor-selection` | Get/set `{"index": 0, "length": 5}` using Quill UTF-16 offsets; retained selection is independent of focus |

@@ -990,6 +990,86 @@ def test_parent_first_run_shared_helper_saves_with_cancel_visible(
     assert_no_policy_or_request_writes(path)
 
 
+@pytest.mark.parametrize('surface,save,default', [
+    ('kiosk', True, 'en'), ('overlay', True, 'en'),
+    ('kiosk', False, 'de'), ('overlay', False, 'en'),
+])
+def test_child_upgrade_notes_wait_for_language_result_and_acknowledge_on_close(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, surface, save, default):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, surface, scenario='whats-new-upgrade',
+                           child_desktop='de_DE.UTF-8' if default == 'de' else '')
+    wait(lambda: ui.showing('language-dialog'), 'language setup is ready')
+    wait(lambda: any(event['event'] == 'whats-new-read' for event in read_events(path)),
+         'child metadata arrives behind language setup')
+    assert not ui.showing('whats-new-dialog')
+    assert not any(event['event'] == 'whats-new-acknowledge' for event in read_events(path))
+    ui.reader.choose_language('kiosk', 'de' if save else 'zh-Hans')
+    if save:
+        ui.reader.save_language('kiosk')
+    else:
+        ui.reader.cancel_language('kiosk')
+    language = 'de' if save else default
+    heading = 'Neue Funktionen' if language == 'de' else 'New features'
+    wait(lambda: ui.showing('whats-new-dialog'), 'eligible child upgrade notes are ready')
+    assert not ui.showing('language-dialog')
+    assert ui.text('whats-new-title') == (
+        'Was ist neu in v1.4?' if language == 'de' else "What's New in v1.4")
+    assert ui.text('whats-new-block-0') == heading
+    assert heading in ui.text('whats-new-content')
+    assert ui.text('whats-new-close') == ('Weiter' if language == 'de' else 'Continue')
+    assert ui.target('whats-new-close').get_name() == ui.text('whats-new-close')
+    if surface == 'overlay':
+        assert 'activate' in ui.target('whats-new-see-more').metadata['operations']
+    else:
+        assert ui.absent('whats-new-see-more', within='whats-new-dialog')
+    assert not any(event['event'] == 'whats-new-acknowledge' for event in read_events(path))
+    ui.activate('whats-new-close')
+    wait(lambda: len([event for event in read_events(path)
+                     if event['event'] == 'whats-new-acknowledge']) == 1,
+         'child acknowledgement is saved on Continue')
+    assert committed(path) == (['de'] if save else [])
+    wait(lambda: not ui.showing('whats-new-dialog'), 'release notes close')
+    assert ui.getChoices('kiosk-menu-button')[:4 if surface == 'overlay' else 3] == (
+        ['preferences', 'help', 'whats-new', 'about'] if surface == 'overlay' else
+        ['preferences', 'whats-new', 'about'])
+    ui.setValue('kiosk-menu-button', 'whats-new')
+    wait(lambda: ui.showing('whats-new-dialog'), 'acknowledged notes can reopen')
+    assert ui.text('whats-new-block-0') == heading
+    ui.activate('whats-new-dismiss')
+    wait(lambda: len([event for event in read_events(path)
+                     if event['event'] == 'whats-new-acknowledge']) == 2,
+         'top close also acknowledges notes')
+    assert_no_policy_or_request_writes(path)
+
+
+@pytest.mark.parametrize('surface', ('kiosk', 'overlay'))
+@pytest.mark.parametrize('scenario,available', [('normal', False), ('whats-new-manual', True)])
+def test_child_notes_menu_requires_current_metadata_and_preserves_request(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, surface, scenario, available):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, surface, language='en', scenario=scenario)
+    wait(lambda: ui.showing('kiosk-language-ready'), 'saved language startup is ready')
+    wait(lambda: any(event['event'] == 'whats-new-read' for event in read_events(path)),
+         'child notes query completes')
+    wait(lambda: ('whats-new' in ui.getChoices('kiosk-menu-button')) == available,
+         'menu follows current child metadata')
+    assert not ui.showing('whats-new-dialog')
+    if available:
+        child = ui.getValue('kiosk-child-selector')
+        duration = ui.getValue('kiosk-duration')
+        ui.setValue('kiosk-menu-button', 'whats-new')
+        wait(lambda: ui.showing('whats-new-dialog'), 'manual child notes open')
+        assert ui.text('whats-new-block-0') == 'New features'
+        ui.close('whats-new-dialog')
+        wait(lambda: not ui.showing('whats-new-dialog'), 'normal window close returns to request')
+        assert ui.getValue('kiosk-child-selector') == child
+        assert ui.getValue('kiosk-duration') == duration
+        wait(lambda: any(event['event'] == 'whats-new-acknowledge' for event in read_events(path)),
+             'manual close saves child acknowledgement')
+    assert_no_policy_or_request_writes(path)
+
+
 @pytest.mark.parametrize('save,expected_language', [(True, 'de'), (False, 'en')])
 def test_parent_upgrade_notes_wait_for_language_result_and_acknowledge_on_close(
         launch_ui, automation, wait_for_accessible_state, tmp_path, save, expected_language):

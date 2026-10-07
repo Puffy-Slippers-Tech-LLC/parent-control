@@ -39,6 +39,7 @@ from common.oh_no_parent_control_ui.errors import (
 
 from .model import RequestState, public_error
 from .preference_dialog import PreferencesDialog
+from .whats_new import WhatsNewPresenter
 from .agent_locale import KioskAgentLocale
 from common.oh_no_parent_control_ui.languages import selected_language
 from .request_content import RequestContent
@@ -952,6 +953,8 @@ class RequestWindow(Adw.ApplicationWindow):
         self._language_load_failed = False
         self._language_target_uid = None
         self._language_revision = 0
+        self._language_ready = False
+        self._whats_new = WhatsNewPresenter(self)
         self._preview_languages = {}
         self._agent_locale = None if child_overlay else KioskAgentLocale()
         self._state = RequestState()
@@ -989,6 +992,7 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _on_destroy(self, *_args):
         self._estimate_closed = True
+        self._whats_new.close()
         if self._agent_locale is not None:
             self._agent_locale.close()
         for source_id in (self._estimate_debounce_id, self._estimate_refresh_id):
@@ -1047,6 +1051,14 @@ class RequestWindow(Adw.ApplicationWindow):
             )
             menu_actions.append(help_item)
             menu_items["help"] = help_item
+        whats_new_item = self._hud_menu_item(m.WHATS_NEW, ABOUT, identity="whats-new")
+        describe_control(whats_new_item, m.WHATS_NEW, m.WHATS_NEW)
+        whats_new_item.set_visible(False)
+        whats_new_item.connect('clicked', lambda *_args: self._activate_help_menu(
+            help_popover, self._whats_new.show))
+        self._whats_new.menu_item = whats_new_item
+        menu_actions.append(whats_new_item)
+        menu_items['whats-new'] = whats_new_item
         about_item = self._hud_menu_item(m.ABOUT_2, ABOUT, identity="about")
         describe_control(
             about_item, m.ABOUT,
@@ -1108,7 +1120,8 @@ class RequestWindow(Adw.ApplicationWindow):
             if not item.get_visible() or not item.is_sensitive():
                 raise ValueError("request menu command is unavailable")
             item.emit("clicked")
-        bind_ui(menu_button, set_value=choose_menu, choices=lambda: list(menu_items))
+        bind_ui(menu_button, set_value=choose_menu, choices=lambda: [
+            name for name, item in menu_items.items() if item.get_visible()])
         menu_button.set_child(menu_icon)
         menu_button.add_css_class("oh-no-parent-control-hud-button")
         menu_button.add_css_class("oh-no-parent-control-menu-button")
@@ -1371,6 +1384,8 @@ class RequestWindow(Adw.ApplicationWindow):
         self._language_requested = False
         self._stack.set_sensitive(True)
         set_automation_id(self._language_readiness, "kiosk-language-ready")
+        self._language_ready = True
+        GLib.idle_add(self._whats_new.try_auto)
 
     def _save_language(self, language, success, failure):
         revision = self._language_revision
@@ -1420,6 +1435,8 @@ class RequestWindow(Adw.ApplicationWindow):
             return
         self._stack.set_sensitive(True)
         set_automation_id(self._language_readiness, "kiosk-language-ready")
+        self._language_ready = True
+        GLib.idle_add(self._whats_new.try_auto)
 
     def _apply_language(self, language):
         if not self._child_overlay:
@@ -1653,6 +1670,7 @@ class RequestWindow(Adw.ApplicationWindow):
     def _load_preferences(self, target_uid):
         if not self._child_overlay:
             self._select_language_child(target_uid)
+        self._whats_new.select_child(target_uid)
         self._queue_time_estimate()
         if self._preview and not self._interactive_preview:
             from .preview_data import PREVIEW_PREFERENCES
@@ -1677,6 +1695,7 @@ class RequestWindow(Adw.ApplicationWindow):
         )
 
     def _select_language_child(self, target_uid):
+        self._language_ready = False
         self._language_revision += 1
         self._language_target_uid = target_uid
         self._language_loading = False

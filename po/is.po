@@ -1657,6 +1657,10 @@ msgstr "Loka"
 msgid "This notification will close in 5 seconds."
 msgstr "Þessi tilkynning lokast eftir 5 sekúndur."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "Hér sérðu hvað er nýtt fyrir þig. Uppfærslur fyrir foreldra birtast ekki hér."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "Hvað er nýtt"

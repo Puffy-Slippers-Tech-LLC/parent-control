@@ -4,6 +4,9 @@ sync_whatsnew uses tiny private pytest Markdown/TOML/PO/catalogue trees, bounded
 gettext/Make subprocesses and a private Codex double under the existing detached
 worker/supervisor ownership. Children are reaped through that established owner;
 no model, VM, display, shared cache or new cleanup mechanic is exercised; compatible.
+Balanced translation lanes/context checks are process-local. Serial/default-parallel
+transport cases each keep their own private Codex double and waited detached child;
+the concurrency increase changes prompts/CLI configuration, not host test resources.
 
 What's New uses tiny private pytest Markdown/TOML/preference/installation files, account and
 transport doubles, and two finite joined threads. No live bus, display, service,
@@ -323,6 +326,10 @@ from regression_cleanup import ESTIMATES as CLEANUP_ESTIMATES, work_units
 # no live model, VM, display, shared cache or new cleanup authority is used.
 from regression_resources import HOST_WORKERS
 from regression_ui import Bucket
+
+# Request release-note concurrency checks use in-memory broker/window doubles
+# and mocked GLib scheduling only. Existing request_time_estimate compatible
+# classification applies: no display, bus, subprocess, shared state or cleanup.
 
 
 # Access-choice adapter/recorder additions retain process-local doubles and

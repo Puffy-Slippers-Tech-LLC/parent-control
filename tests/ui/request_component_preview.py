@@ -56,6 +56,7 @@ class Broker:
         self.language = LanguageFixture(self.record)
         self.child_languages = {uid: LanguageFixture(self.record) for uid, *_ in USERS}
         self.notifications = {uid: default_notifications() for uid, *_ in USERS}
+        self.whats_new_seen = set()
         self.notification_load_failures = int(os.environ.get('ONPC_NOTIFICATION_LOAD_FAILURES', '0'))
         self.notification_save_failures = int(os.environ.get('ONPC_NOTIFICATION_SAVE_FAILURES', '0'))
         if self.scenario == "estimate-unavailable":
@@ -177,6 +178,24 @@ class Broker:
                 'ListKioskUsers', 'GetChildLanguageContext'):
             return Reply(error=Gio.DBusError.new_for_dbus_error(
                 'com.puffyslippers.OhNoParentControl1.Error.RebootRequired', 'private detail'))
+        if method in ('GetOwnWhatsNew', 'GetChildWhatsNew',
+                      'AcknowledgeOwnWhatsNew', 'AcknowledgeChildWhatsNew'):
+            from broker.oh_no_parent_control.whats_new import read_metadata, validate_metadata
+            uid = USERS[0][0] if 'Own' in method else values[0]
+            if method.startswith('Acknowledge'):
+                self.record('whats-new-acknowledge', uid=uid, version=values[-1])
+                if self.scenario == 'whats-new-ack-fails':
+                    return Reply(error=RuntimeError('synthetic acknowledgement failure'))
+                self.whats_new_seen.add(uid)
+            records = [dict(record, auto_show=(self.scenario != 'whats-new-manual'
+                                               and uid not in self.whats_new_seen))
+                       for record in validate_metadata(read_metadata(
+                           Path(__file__).resolve().parents[2] / 'data/whats-new-child.toml'))
+                       if record['ProductVersion'] == '1.4' and self.scenario.startswith('whats-new')]
+            for record in records:
+                record['SeeMore'] = 'https://example.com/releases/1.4'
+            self.record('whats-new-read', uid=uid, count=len(records))
+            return Reply((json.dumps({'product_version': '1.4', 'records': records}),))
         if method in ('GetOwnNotifications', 'GetChildNotifications'):
             uid = USERS[0][0] if method == 'GetOwnNotifications' else values[0]
             if self.notification_load_failures:

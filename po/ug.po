@@ -1651,6 +1651,10 @@ msgstr "تاقاش"
 msgid "This notification will close in 5 seconds."
 msgstr "بۇ ئۇقتۇرۇش 5 سېكۇنتتىن كېيىن تاقىلىدۇ."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "بۇ يەردە ساڭا مۇناسىۋەتلىك يېڭىلىقلار بار. ئاتا-ئانىلارغا قارىتىلغان يېڭىلانمىلار بۇ يەردە كۆرسىتىلمەيدۇ."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "يېڭىلىقلار"

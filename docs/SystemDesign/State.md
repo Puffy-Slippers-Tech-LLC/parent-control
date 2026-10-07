@@ -191,8 +191,8 @@ in paths, queries and fragments are preserved. The document is bounded at 512 Ki
 64 records, 65,536 content characters per record and 2,048 URL characters.
 
 The API returns JSON and preserves Markdown content literally. The
-[Parent frontend](Frontends.md#parent-release-notes) owns rendering and external
-link opening; kiosk and child overlay frontend delivery remains pending.
+[frontends](Frontends.md#parent-release-notes) own translated rendering and link
+actions; the dedicated kiosk omits external launches.
 
 `GetOwnWhatsNew()` and `AcknowledgeOwnWhatsNew(product_version)` derive the UID
 from bus credentials. Administrators (including root) receive Parent records;

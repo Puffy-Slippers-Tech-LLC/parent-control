@@ -566,6 +566,53 @@ button.oh-no-parent-control-request-button:disabled {
   color: #f4f4f4;
 }
 
+/* Release notes share the session's iron hardware and pixel typography. */
+window.kiosk-whats-new-dialog {
+  background: #0e171d;
+  color: #edf0f7;
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 15px;
+}
+.kiosk-whats-new-board {
+  background-image: linear-gradient(to bottom, #142028, #0c1419);
+  box-shadow: inset 0 0 0 2px #24cdff;
+}
+.kiosk-whats-new-title { font-size: 24px; font-weight: 700; color: #fff; }
+.kiosk-whats-new-subtitle { font-size: 13px; color: #c7cdd9; }
+.kiosk-whats-new-content {
+  border: 2px solid #24cdff;
+  border-radius: 9px;
+  background: rgba(5, 12, 18, 0.5);
+}
+.kiosk-whats-new-heading { color: #24d4ff; font-size: 18px; font-weight: 700; }
+.kiosk-whats-new-star { color: #ffd05b; font-size: 26px; }
+.kiosk-whats-new-list { margin-left: 28px; }
+.kiosk-whats-new-quote { color: #b9c7d4; margin-left: 14px; }
+.kiosk-whats-new-code { font-size: 0.9em; }
+.kiosk-whats-new-hint { color: #c7cdd9; font-size: 13px; }
+.kiosk-whats-new-info { color: #28ceff; }
+.kiosk-whats-new-content separator { background: #78838b; min-height: 1px; }
+button.kiosk-whats-new-dismiss {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 2px;
+  border-radius: 0;
+  background-image: linear-gradient(to bottom, #454456, #171724);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+}
+button.kiosk-whats-new-continue {
+  min-width: 138px;
+  min-height: 38px;
+  padding: 6px 16px;
+  font-size: 18px;
+}
+window.kiosk-whats-new-dialog.onpc-readable-script,
+window.kiosk-whats-new-dialog.onpc-readable-script button {
+  font-family: "Noto Sans", sans-serif;
+}
+
 .oh-no-parent-control-language-title {
   color: #f4f4f4;
   font-size: 24px;

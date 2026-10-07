@@ -118,6 +118,10 @@ msgstr "Dismiss"
 msgid "This notification will close in 5 seconds."
 msgstr "This notification will close in 5 seconds."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "Here’s what’s new for you. Updates for parents aren’t shown here."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "What's New"

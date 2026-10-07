@@ -416,3 +416,148 @@ def test_estimate_refresh_preserves_higher_priority_footer_messages(state, expec
 def test_shared_duration_format_preserves_precision_and_omits_zero_minutes(seconds, expected):
     assert format_duration(seconds) == expected
     assert _time_estimate_label(seconds) == f"Estimated time remaining if approved: {expected}"
+
+
+def release_presenter(overlay):
+    from oh_no_parent_control_kiosk.whats_new import WhatsNewPresenter
+    window = SimpleNamespace(
+        _preview=False, _child_overlay=overlay, _bus_call=Mock(),
+        _language_ready=True, _language_loading=False, _language_dialog=None,
+        _state=SimpleNamespace(in_flight=False),
+        _stack=SimpleNamespace(get_visible_child_name=lambda: 'request'))
+    presenter = WhatsNewPresenter(window)
+    presenter.menu_item = Mock()
+    presenter._modal_blocked = Mock(return_value=False)
+    return presenter
+
+
+def release_reply(presenter, *, auto=True, version='1.4', audience='Child', error=None):
+    import json
+    record = {'record_id': version + ':' + audience, 'ProductVersion': version,
+              'Content': '## Updates', 'auto_show': auto}
+    connection = SimpleNamespace(call_finish=Mock(
+        side_effect=error, return_value=SimpleNamespace(unpack=lambda: (json.dumps({
+            'product_version': '1.4', 'records': [record]}),))))
+    presenter.window._bus_call.call_args.args[3](connection, object())
+
+
+@pytest.mark.parametrize('overlay', (False, True))
+def test_child_release_notes_acknowledge_only_displayed_close_on_matching_api(overlay):
+    presenter = release_presenter(overlay)
+    with patch('oh_no_parent_control_kiosk.whats_new.WhatsNewDialog') as dialog:
+        presenter.select_child(1001)
+        method, parameters, signature, _callback = presenter.window._bus_call.call_args.args
+        assert method == ('GetOwnWhatsNew' if overlay else 'GetChildWhatsNew')
+        assert parameters.unpack() == (() if overlay else (1001,))
+        assert signature == '(s)'
+        release_reply(presenter)
+        assert dialog.call_count == 1
+        closed = dialog.call_args.args[2]
+        assert presenter.window._bus_call.call_count == 1
+        closed(False)
+        assert presenter.window._bus_call.call_count == 1
+        closed(True)
+        method, parameters, _signature, _callback = presenter.window._bus_call.call_args.args
+        assert method == ('AcknowledgeOwnWhatsNew' if overlay else 'AcknowledgeChildWhatsNew')
+        assert parameters.unpack() == (('1.4',) if overlay else (1001, '1.4'))
+        release_reply(presenter, auto=False)
+        presenter.try_auto()
+        assert dialog.call_count == 1
+        presenter.show()
+        assert dialog.call_count == 2
+
+
+@pytest.mark.parametrize('blocker', ('language', 'chooser', 'modal', 'busy', 'result', 'reboot'))
+def test_release_notes_defer_for_language_modals_and_request_results(blocker):
+    presenter = release_presenter(False)
+    presenter.record = {'auto_show': True}
+    if blocker == 'language':
+        presenter.window._language_ready = False
+    elif blocker == 'chooser':
+        presenter.window._language_dialog = object()
+    elif blocker == 'modal':
+        presenter._modal_blocked.return_value = True
+    elif blocker == 'busy':
+        presenter.window._state.in_flight = True
+    elif blocker == 'result':
+        presenter.window._stack.get_visible_child_name = lambda: 'result'
+    else:
+        presenter.window._reboot_required = True
+    with (patch('oh_no_parent_control_kiosk.whats_new.GLib.timeout_add', return_value=7),
+          patch('oh_no_parent_control_kiosk.whats_new.GLib.source_remove'),
+          patch('oh_no_parent_control_kiosk.whats_new.WhatsNewDialog') as dialog):
+        presenter.try_auto()
+        dialog.assert_not_called()
+        assert presenter.wait_id == 7
+        presenter.close()
+        assert presenter.wait_id == 0
+
+
+@pytest.mark.parametrize('late', ('read', 'close', 'acknowledgement', 'shutdown'))
+def test_child_release_notes_discard_superseded_account_callbacks(late):
+    presenter = release_presenter(False)
+    with (patch('oh_no_parent_control_kiosk.whats_new.WhatsNewDialog') as dialog,
+          patch('oh_no_parent_control_kiosk.whats_new.GLib.timeout_add', return_value=7),
+          patch('oh_no_parent_control_kiosk.whats_new.GLib.source_remove')):
+        presenter.select_child(1001)
+        old = presenter.window._bus_call.call_args.args[3]
+        if late != 'read':
+            release_reply(presenter)
+            old = dialog.call_args.args[2]
+            if late == 'acknowledgement':
+                old(True)
+                old = presenter.window._bus_call.call_args.args[3]
+        presenter.select_child(1002)
+        count = presenter.window._bus_call.call_count
+        if late == 'shutdown':
+            presenter.close()
+        if late in ('close', 'shutdown'):
+            old(True)
+        else:
+            connection = Mock()
+            old(connection, object())
+            connection.call_finish.assert_not_called()
+        assert presenter.window._bus_call.call_count == count
+        assert presenter.record is None
+
+
+@pytest.mark.parametrize('version,audience', [('1.3', 'Child'), ('1.4', 'Parent')])
+def test_child_release_notes_refuse_old_and_parent_records(version, audience):
+    presenter = release_presenter(True)
+    presenter.select_child(1001)
+    release_reply(presenter, version=version, audience=audience)
+    assert presenter.record is None
+    presenter.menu_item.set_visible.assert_called_with(False)
+
+
+def test_release_note_failure_preserves_request_and_manual_acknowledgement_retry():
+    presenter = release_presenter(True)
+    presenter.select_child(1001)
+    release_reply(presenter, error=RuntimeError('private detail'))
+    assert presenter.record is None
+    assert presenter.window._language_ready
+    with patch('oh_no_parent_control_kiosk.whats_new.WhatsNewDialog') as dialog:
+        release_reply(presenter)
+        dialog.call_args.args[2](True)
+        release_reply(presenter, error=RuntimeError('private detail'))
+        assert presenter.record['auto_show']
+        presenter.show()
+        dialog.call_args.args[2](True)
+        release_reply(presenter, auto=False)
+        assert not presenter.record['auto_show']
+
+
+def test_manual_release_notes_can_reopen_from_request_result():
+    presenter = release_presenter(False)
+    presenter.window._stack.get_visible_child_name = lambda: 'result'
+    presenter.select_child(1001)
+    release_reply(presenter, auto=False)
+    with patch('oh_no_parent_control_kiosk.whats_new.WhatsNewDialog') as dialog:
+        presenter.show()
+        dialog.assert_called_once()
+
+
+def test_kiosk_markdown_keeps_link_labels_without_external_actions():
+    from common.oh_no_parent_control_ui.release_markdown import markdown_blocks
+    assert markdown_blocks('**[Read more](https://example.com)**', links_enabled=False) == [
+        ('paragraph', '<b>Read more</b>')]

@@ -1657,6 +1657,10 @@ msgstr "Sulge"
 msgid "This notification will close in 5 seconds."
 msgstr "See teavitus sulgub 5 sekundi pärast."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "Siin näed sinu jaoks mõeldud uuendusi. Lapsevanematele mõeldud uuendusi siin ei näidata."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "Mis on uut"

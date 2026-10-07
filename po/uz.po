@@ -1652,6 +1652,10 @@ msgstr "Yopish"
 msgid "This notification will close in 5 seconds."
 msgstr "Bu bildirishnoma 5 soniyadan keyin yopiladi."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "Bu yerda sen uchun yangiliklar bor. Ota-onalar uchun yangiliklar bu yerda ko‘rsatilmaydi."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "Yangiliklar"

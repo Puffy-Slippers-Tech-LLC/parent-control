@@ -1663,6 +1663,10 @@ msgstr "Zavřít"
 msgid "This notification will close in 5 seconds."
 msgstr "Toto oznámení se zavře za 5 sekund."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "Tady najdeš novinky pro tebe. Novinky pro rodiče se tu nezobrazují."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "Novinky"

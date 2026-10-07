@@ -1657,6 +1657,10 @@ msgstr "അടയ്ക്കുക"
 msgid "This notification will close in 5 seconds."
 msgstr "ഈ അറിയിപ്പ് 5 സെക്കൻഡിനുള്ളിൽ അടയ്ക്കും."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "നിനക്കുള്ള പുതിയ കാര്യങ്ങൾ ഇവിടെ കാണാം. മാതാപിതാക്കൾക്കുള്ള അപ്‌ഡേറ്റുകൾ ഇവിടെ കാണിക്കില്ല."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "പുതിയ വിശേഷങ്ങൾ"

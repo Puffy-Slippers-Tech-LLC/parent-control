@@ -366,7 +366,39 @@ builds headings, paragraphs, ordered/unordered lists, quotes, separators, fenced
 code and inline bold/italic/strike/code/HTTP(S) links. Raw HTML and image syntax
 stay literal and load no external resources. The optional See More action is
 shown only for a supplied HTTP(S) link and uses the system URI handler.
-Kiosk and child overlay UI remain outside this implementation.
+The shared parser also serves the child release-note dialog below.
+
+### Kiosk and child overlay release notes
+
+Both request surfaces use the
+[presenter](../../kiosk/oh_no_parent_control_kiosk/whats_new.py) and
+[metal-board dialog](../../kiosk/oh_no_parent_control_kiosk/whats_new_dialog.py).
+The overlay calls `GetOwnWhatsNew`/`AcknowledgeOwnWhatsNew`; kiosk calls
+`GetChildWhatsNew`/`AcknowledgeChildWhatsNew` for the selected child. Only matching
+current `:Child` records expose the menu item immediately before About.
+The broker owns upgrade eligibility and shared child acknowledgement.
+
+Automatic notes wait for completed language setup, the request page, an idle
+request and absence of another owned modal. Save applies the preference before
+presentation; Cancel retains the session default, or the selected child's
+desktop language in kiosk. Each child gets at most one automatic attempt per
+window; acknowledged notes remain manually available. Account switches invalidate
+outstanding reads and acknowledgements, dismiss old dialogs without acknowledging
+them and load the new child's notes. Shutdown cancels deferred presentation.
+Optional-note failures log only a classified error and leave request/setup usable;
+failed acknowledgements preserve eligibility and permit retry on manual close or
+next launch.
+
+The dialog inherits the request translation context and translates metadata
+Markdown with the versioned catalogue before using the
+[shared renderer](../../common/oh_no_parent_control_ui/release_markdown.py).
+Its riveted frame, pixel typography, cyan scrollable notes card and green armored
+Continue action share the session chrome. A translated subtitle below the title
+explains that these are updates for the child and parent updates are omitted.
+Continue, top close, Escape and normal
+window close acknowledge only a successfully mapped dialog. Kiosk displays link
+labels as text and omits See More; the overlay exposes supplied HTTP(S) links.
+Both reuse the Parent `whats-new-*` public dialog IDs.
 
 ## Child reminder preferences
 

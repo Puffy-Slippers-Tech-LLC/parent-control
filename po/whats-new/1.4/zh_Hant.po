@@ -9,5 +9,5 @@ msgstr "### 新功能\n- **語言對話框**：現在可以使用語言的英文
 
 #. Translate the complete Markdown; preserve structure, URLs, code and branding.
 msgctxt "whats-new:1.4:Child"
-msgid "## New features\n\n- **Language search:** Find a language by its English name or its localized name.\n- **Remaining time reminders:** Critical reminders now appear by default in child sessions. Reminders can appear over full-screen apps and can be customized in child preferences.\n- **Revoke preview:** The Parent App's revoke dialog lists the running soft-blocked apps that will close.\n- **What's new:** Release notes are now backed by version-specific metadata for parent and child views.\n\n## Bug fixes\n\n- Fixed overlapping app-grid column headers in the Parent App for some right-to-left languages.\n- Fixed the disabled Revoke button when remaining time is zero and soft-blocked apps are still running, so parents can close those apps after the child's session locks.\n"
-msgstr "## 新功能\n\n- **語言搜尋：** 使用語言的英文名稱或該語言的本地名稱進行搜尋。\n- **剩餘時間提醒：** 孩子的會話現在會預設顯示緊急提醒。提醒可顯示在全螢幕應用程式上方，並可在孩子的偏好設定中自訂。\n- **撤銷預覽：** 家長端的撤銷對話框會列出正在執行且將被關閉的可暫時解除封鎖的應用程式。\n- **新增功能：** 發行說明現在以各版本專屬的中繼資料為基礎，供家長端與孩子端檢視。\n\n## 錯誤修正\n\n- 修正家長端在部分由右至左書寫的語言中，應用程式格狀清單的欄位標題重疊的問題。\n- 修正剩餘時間為零且仍有可暫時解除封鎖的應用程式正在執行時，「撤銷」按鈕停用的問題，讓家長可以在孩子的會話鎖定後關閉這些應用程式。\n"
+msgid "## New features\n- **Remaining time reminders:** Reminders now appear by default. Reminders can appear over full-screen apps and can be customized in preferences.\n"
+msgstr "## 新功能\n- **剩餘時間提醒：** 提醒現在會預設顯示。提醒可顯示在全螢幕應用程式上方，並可在偏好設定中自訂。\n"

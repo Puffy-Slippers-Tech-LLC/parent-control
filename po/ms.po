@@ -1651,6 +1651,10 @@ msgstr "Tutup"
 msgid "This notification will close in 5 seconds."
 msgstr "Pemberitahuan ini akan ditutup dalam 5 saat."
 
+#. Shared message: WHATS_NEW_CHILD_SUBTITLE
+msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
+msgstr "Ini yang baharu untuk kamu. Kemas kini untuk ibu bapa tidak dipaparkan di sini."
+
 #. Shared message: WHATS_NEW
 msgid "What's New"
 msgstr "Apa yang Baharu"

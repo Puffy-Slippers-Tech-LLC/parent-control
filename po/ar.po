@@ -1672,3 +1672,11 @@ msgstr "إظهار التذكيرات في تطبيقات ملء الشاشة (�
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "اختر قيمة أخرى لـ «وقت العرض» لتجنب التذكيرات المكررة."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "إغلاق"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "سيُغلق هذا الإشعار بعد 5 ثوانٍ."

@@ -1660,3 +1660,11 @@ msgstr "Prikaži opomnike v celozaslonskih aplikacijah (igre, videoposnetki itd.
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Izberite drugo vrednost za »Kdaj prikazati«, da se izognete podvojenim opomnikom."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Zapri"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "To obvestilo se bo zaprlo čez 5 sekund."

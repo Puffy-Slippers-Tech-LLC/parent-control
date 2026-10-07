@@ -514,6 +514,15 @@ entry.oh-no-parent-control-custom-entry {
 }
 
 button.oh-no-parent-control-request-button,
+button.oh-no-parent-control-cancel-button,
+.oh-no-parent-control-secondary-page button.suggested-action {
+  font-family: "Monocraft", "Ubuntu Mono", monospace;
+  font-size: 0.92em;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+button.oh-no-parent-control-request-button,
 .oh-no-parent-control-secondary-page button.suggested-action {
   min-height: 26px;
   padding: 3px 6px;
@@ -527,10 +536,6 @@ button.oh-no-parent-control-request-button,
   border-bottom-color: #102f0e;
   border-radius: 0;
   color: white;
-  font-family: "Monocraft", "Ubuntu Mono", monospace;
-  font-size: 0.92em;
-  font-weight: 700;
-  letter-spacing: 1px;
   background-color: #4b9341;
   background-image: repeating-linear-gradient(to bottom,
       #67aa54 0px, #67aa54 2px, #4b8f40 2px, #4b8f40 4px);

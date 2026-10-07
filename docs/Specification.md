@@ -195,6 +195,15 @@ Technical interfaces, storage formats and verification limits are in the
   logo and reminder body without an application/source header. In kiosk it
   appears at the top center. Closing the editor dismisses its preview, and a
   subsequent real countdown reminder replaces it without waiting for dismissal.
+  All reminder banners use the kiosk/child overlay's pixel font and dark HUD
+  styling, with the product logo, cyan heading, rough violet/cyan frame with
+  lava-red corners, five-section countdown bar and Preferences/Dismiss actions.
+  One complete section goes dark each second. At delivery, remaining time
+  of at least one minute gives the banner a five-second auto-close countdown;
+  below one minute it stays open without a countdown until dismissed, replaced
+  or the session locks. Previews use the editor's selected duration. Preferences
+  opens the shared preferences dialog in the child overlay or kiosk; Dismiss
+  closes the banner. Any new reminder or preview dismisses the previous banner.
 
 - [ONPC-COMP-CHILD-003] Combines the current daily-time estimate with the current grant. A temporary read failure retains the last verified estimate while time continues to elapse.
 - [ONPC-COMP-CHILD-004] Opens one shared request overlay for the signed-in child, with eligible parent selection, remembered choices, time estimates, Help and About.

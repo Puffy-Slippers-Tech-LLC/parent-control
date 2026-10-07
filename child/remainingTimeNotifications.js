@@ -8,12 +8,13 @@ const BUS = 'com.puffyslippers.OhNoParentControl1';
 
 /** Own only this extension's Shell notifications, never other apps' banners. */
 export class RemainingTimeNotifications {
-    constructor(title, logoPath, translations, onError, changed) {
+    constructor(title, logoPath, translations, onError, changed, openPreferences) {
         this.title = title;
         this.icon = new Gio.FileIcon({file: Gio.File.new_for_path(logoPath)});
         this.translations = translations;
         this.onError = onError;
         this.changed = changed;
+        this.openPreferences = openPreferences;
         this.schedule = new ReminderSchedule();
         this.preferences = null;
         this.source = null;
@@ -151,13 +152,15 @@ export class RemainingTimeNotifications {
         const seconds = this.schedule.previous ?? reminderSeconds(reminder);
         const body = reminderText(reminder, this.translations, allowSoftApps, seconds);
         const urgency = this.preferences.show_in_fullscreen ? 'critical' : 'high';
-        const {source, notification} = showReminderBanner(this.title, this.icon, body,
-            urgency === 'critical' ? MessageTray.Urgency.CRITICAL : MessageTray.Urgency.HIGH);
+        const banner = showReminderBanner(this.title, this.icon, body,
+            urgency === 'critical' ? MessageTray.Urgency.CRITICAL : MessageTray.Urgency.HIGH,
+            seconds, this.translations, this.openPreferences);
+        const {source, notification} = banner;
         this.source = source;
         source.connect('destroy', () => {
             if (this.source === source) this.source = null;
         });
-        this.current = {notification, reminder, urgency, allowSoftApps, seconds};
+        this.current = {...banner, reminder, urgency, allowSoftApps, seconds};
         notification.connect('destroy', () => {
             if (this.current?.notification === notification) this.current = null;
         });

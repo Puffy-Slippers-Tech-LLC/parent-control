@@ -1646,3 +1646,11 @@ msgstr "Mostrar lembretes em aplicativos em tela cheia (jogos, vídeos, etc.)"
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Escolha outro valor para “Quando mostrar” para evitar lembretes duplicados."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Dispensar"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Esta notificação será fechada em 5 segundos."

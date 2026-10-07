@@ -52,7 +52,7 @@ class Connection:
 
     def call(self, *args):
         calls.append(args)
-        if self.defer and args[3] in ('Preview', 'Notify'):
+        if self.defer and args[3] in ('PreviewLocalized', 'Notify'):
             pending.append(args[-1])
         else:
             args[-1](self, None)
@@ -64,7 +64,7 @@ connection = Connection()
 monkeypatch.setattr(dialog.Gio, 'bus_get', lambda bus, cancel, callback: callback(None, None))
 monkeypatch.setattr(dialog.Gio, 'bus_get_finish', lambda result: connection)
 monkeypatch.setattr(dialog, 'context_for', lambda widget:
-                    SimpleNamespace(translations=gettext.NullTranslations()))
+                    SimpleNamespace(translations=gettext.NullTranslations(), language='en'))
 monkeypatch.setattr(dialog, 'set_text', lambda widget, prop, value: setattr(widget, prop, value))
 monkeypatch.setattr(dialog, 'describe_control', lambda *args, **kwargs: None)
 editor = SimpleNamespace(
@@ -80,13 +80,15 @@ dialog.ReminderDialog._preview(editor)
 payload = calls[0][4].unpack()
 if overlay:
     assert calls[0][:4] == (dialog.SHELL_PREVIEW_NAME, dialog.SHELL_PREVIEW_PATH,
-                           dialog.SHELL_PREVIEW_NAME, 'Preview')
-    assert payload == (text if text.strip() else expected, 0)
+                           dialog.SHELL_PREVIEW_NAME, 'PreviewLocalized')
+    assert payload == (text if text.strip() else expected, 0, value * (60 if unit == 'minute' else 1), 'en')
 else:
     assert calls[0][:4] == ('org.freedesktop.Notifications', '/org/freedesktop/Notifications',
                            'org.freedesktop.Notifications', 'Notify')
     assert payload[3:5] == ('', expected)
     assert payload[6]['urgency'] == 2
+    assert payload[6]['x-onpc-remaining-seconds'] == value * (60 if unit == 'minute' else 1)
+    assert payload[6]['x-onpc-language'] == 'en'
     assert payload[2].endswith('app_logo.png')
 assert editor._preview_id == 42
 assert editor._preview_button.sensitive
@@ -223,8 +225,26 @@ def test_reminder_preview_real_session_provider_retains_unsaved_edit(
     wait(lambda: body_is('  Save <games> & work!  '),
          'literal real notification body')
     assert client.getValue('kiosk-system-notification-message') == 'critical'
+    import time
+    started = time.monotonic()
+    wait(lambda: time.monotonic() - started >= 5.2 and body_is('  Save <games> & work!  '),
+         'subminute preview remains visible beyond five seconds')
+    client.activate('kiosk-system-notification-preferences')
+    wait(lambda: not client.listSurfaces(), 'Preferences dismisses the banner')
+    assert ui.getText('reminder-text') == '  Save <games> & work!  '
+    ui.activate('reminder-editor-preview')
+    wait(lambda: body_is('  Save <games> & work!  '), 'preview reopens with retained draft')
     client.activate('kiosk-system-notification-close')
+    wait(lambda: not client.listSurfaces(), 'Dismiss closes the banner')
+    ui.setText('reminder-value', '60')
+    ui.setValue('reminder-unit', 'second')
     ui.setText('reminder-text', '   ')
+    ui.activate('reminder-editor-preview')
+    wait(lambda: body_is('60 seconds left'), 'minute boundary preview')
+    assert client.getText('kiosk-system-notification-countdown') in ('5s', '4s')
+    wait(lambda: not client.listSurfaces(), 'minute preview auto closes after five seconds')
+    assert ui.getText('reminder-value') == '60'
+    ui.setText('reminder-value', '15')
     ui.activate('reminder-editor-preview')
     wait(lambda: body_is('15 seconds left'),
          'default real notification body')

@@ -109,3 +109,11 @@ msgstr "Show reminders in full screen apps (games, videos, etc.)"
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Choose a different \"When to show\" to avoid duplicate reminders."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Dismiss"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "This notification will close in 5 seconds."

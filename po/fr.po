@@ -1646,3 +1646,11 @@ msgstr "Afficher les rappels dans les applications en plein écran (jeux, vidéo
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Choisissez une autre valeur pour « Quand afficher » afin d’éviter les rappels en double."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Fermer"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Cette notification se fermera dans 5 secondes."

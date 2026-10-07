@@ -2031,7 +2031,7 @@ class RequestWindow(Adw.ApplicationWindow):
 
 class Application(Adw.Application):
     def __init__(self, *, preview=False, child_overlay=False,
-                 window_factory=None, report_error=None):
+                 window_factory=None, report_error=None, preferences=False):
         super().__init__(
             application_id=(
                 "com.puffyslippers.OhNoParentControl.ChildRequest"
@@ -2039,9 +2039,13 @@ class Application(Adw.Application):
                 "com.puffyslippers.OhNoParentControl"
             ),
             flags=(Gio.ApplicationFlags.NON_UNIQUE if report_error is not None
-                   else Gio.ApplicationFlags.DEFAULT_FLAGS),
+                   else Gio.ApplicationFlags.HANDLES_COMMAND_LINE),
         )
         self._report_error = report_error
+        self._preferences_requested = preferences
+        preferences_action = Gio.SimpleAction.new('preferences', None)
+        preferences_action.connect('activate', self._preferences_activated)
+        self.add_action(preferences_action)
         self._preview = preview
         self._child_overlay = child_overlay
         self._window_factory = window_factory or RequestWindow
@@ -2130,7 +2134,8 @@ class Application(Adw.Application):
         if self._report_error is not None:
             show_startup_error(self, "Child App", self._report_error)
             return
-        window = self.get_active_window() or self._window_factory(
+        window = next((window for window in self.get_windows()
+                       if isinstance(window, RequestWindow)), None) or self._window_factory(
             self, preview=self._preview,
             child_overlay=self._child_overlay,
         )
@@ -2144,6 +2149,18 @@ class Application(Adw.Application):
         if self._preview:
             self._watch_preview_files()
         window.present()
+        if self._preferences_requested:
+            self._preferences_requested = False
+            window._show_preferences()
+
+    def _preferences_activated(self, *_args):
+        self._preferences_requested = True
+        self.activate()
+
+    def do_command_line(self, command_line):
+        self._preferences_requested |= '--preferences' in command_line.get_arguments()
+        self.activate()
+        return 0
 
 
 def main(argv=None):
@@ -2157,6 +2174,10 @@ def main(argv=None):
     parser.add_argument(
         "--child-overlay", action="store_true",
         help="present the shared request GUI as a child-session overlay",
+    )
+    parser.add_argument(
+        '--preferences', action='store_true',
+        help='open Preferences in the shared request screen',
     )
     parser.add_argument(
         "--error-report-stdin", action="store_true",
@@ -2178,7 +2199,8 @@ def main(argv=None):
         preview=args.preview,
         child_overlay=args.child_overlay,
         report_error=report_error,
-    ).run([sys.argv[0]])
+        preferences=args.preferences,
+    ).run([sys.argv[0]] + (['--preferences'] if args.preferences else []))
 
 
 if __name__ == "__main__":

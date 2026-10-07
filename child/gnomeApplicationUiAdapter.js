@@ -38,13 +38,17 @@ export class GnomeApplicationUiAdapter {
             modal: false, parent_id: null}];
         if (this._reminderPreview?.current) surfaces.push({
             id: 'child-reminder-preview', application_id: APPLICATION_ID,
-            type: 'notification', visible: !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter,
-            enabled: !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter,
+            type: 'notification', visible: this._reminderPreview.current.card?.visible ??
+                (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter),
+            enabled: this._reminderPreview.current.card?.visible ??
+                (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter),
             modal: false, parent_id: null});
         if (this._indicator._notifications?.current) surfaces.push({
             id: 'child-time-notification', application_id: APPLICATION_ID,
-            type: 'notification', visible: !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter,
-            enabled: false, modal: false, parent_id: null});
+            type: 'notification', visible: this._indicator._notifications.current.card?.visible ??
+                (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter),
+            enabled: this._indicator._notifications.current.card?.visible ??
+                (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter), modal: false, parent_id: null});
         return surfaces;
     }
 
@@ -53,7 +57,7 @@ export class GnomeApplicationUiAdapter {
         if (surfaceId === 'child-reminder-preview' && state.available) {
             const current = this._reminderPreview?.current;
             if (!current) return null;
-            const visible = !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter;
+            const visible = current.card?.visible ?? (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter);
             const element = (id, type, operations) => ({id, type, visible, enabled: visible, ...operations});
             return [
                 element(surfaceId, 'notification', {getText: () => current.notification.title}),
@@ -63,14 +67,21 @@ export class GnomeApplicationUiAdapter {
                 element('child-reminder-preview-close', 'button', {
                     activate: () => this._reminderPreview.dismiss(),
                 }),
+                element('child-reminder-preview-preferences', 'button', {
+                    activate: () => current.preferences(),
+                }),
+                element('child-reminder-preview-countdown', 'label', {
+                    visible: visible && current.countdown?.() !== null,
+                    getValue: () => current.countdown?.() ?? null,
+                }),
             ];
         }
         if (surfaceId === 'child-time-notification' && state.available) {
             const current = this._indicator._notifications?.current;
             if (!current) return null;
-            const visible = !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter;
+            const visible = current.card?.visible ?? (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter);
             const element = (id, type, operations) =>
-                ({id, type, visible, enabled: false, ...operations});
+                ({id, type, visible, enabled: visible, ...operations});
             return [
                 element(surfaceId, 'notification', {getText: () => current.notification.title}),
                 element('child-time-notification-message', 'label', {
@@ -79,6 +90,12 @@ export class GnomeApplicationUiAdapter {
                 }),
                 element('child-time-notification-urgency', 'label', {
                     getValue: () => current.urgency,
+                }),
+                element('child-time-notification-close', 'button', {activate: () => current.dismiss()}),
+                element('child-time-notification-preferences', 'button', {activate: () => current.preferences()}),
+                element('child-time-notification-countdown', 'label', {
+                    visible: visible && current.countdown?.() !== null,
+                    getValue: () => current.countdown?.() ?? null,
                 }),
             ];
         }

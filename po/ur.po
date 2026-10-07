@@ -1648,3 +1648,11 @@ msgstr "فل اسکرین ایپس میں یاد دہانیاں دکھائیں (
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "دہری یاددہانیوں سے بچنے کے لیے «کب دکھانا ہے» کی کوئی دوسری قدر منتخب کریں۔"
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "بند کریں"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "یہ اطلاع 5 سیکنڈ میں بند ہو جائے گی۔"

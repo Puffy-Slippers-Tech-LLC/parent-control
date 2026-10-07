@@ -1648,3 +1648,11 @@ msgstr "Vis påminningar i appar i fullskjerm (spel, videoar osv.)"
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Vel ein annan verdi for «Når ho vert vist» for å unngå dupliserte påminningar."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Lukk"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Dette varselet vert lukka om 5 sekund."

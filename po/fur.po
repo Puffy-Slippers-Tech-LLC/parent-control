@@ -1648,3 +1648,11 @@ msgstr "Mostre i promemoriis tes aplicazions a plen schermi (zûcs, videos, e v.
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Sielç un altri valôr par «Cuant mostrâ» par evitâ memoriis doplis."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Siere"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Cheste notifiche si sierarà fra 5 seconts."

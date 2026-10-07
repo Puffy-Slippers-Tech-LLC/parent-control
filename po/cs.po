@@ -1654,3 +1654,11 @@ msgstr "Zobrazovat připomenutí v aplikacích na celou obrazovku (hry, videa at
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Vyberte jinou hodnotu „Kdy zobrazit“, abyste předešli duplicitním připomenutím."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Zavřít"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Toto oznámení se zavře za 5 sekund."

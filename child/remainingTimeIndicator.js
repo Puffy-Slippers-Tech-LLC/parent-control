@@ -151,7 +151,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._contextMenuInputGuard = false;
         this._destroyed = false;
         this._notifications = this._preview ? null : new RemainingTimeNotifications(
-            appName, logoPath, translations, onError, () => this._sync());
+            appName, logoPath, translations, onError, () => this._sync(),
+            () => onRequest(true));
         this._activeExtensionEnd = approvedGrantRemaining > 0
             ? Main.timeLimitsManager.getCurrentTime() + approvedGrantRemaining
             : 0;

@@ -1648,3 +1648,11 @@ msgstr "Показване на напомняния в приложения н�
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Изберете друга стойност за „Кога да се показва“, за да избегнете дублирани напомняния."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Затваряне"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Това известие ще се затвори след 5 секунди."

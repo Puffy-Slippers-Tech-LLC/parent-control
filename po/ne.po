@@ -1648,3 +1648,11 @@ msgstr "पूर्ण स्क्रिन एपहरूमा रिमा
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "दोहोरिएका सम्झाउने सूचनाहरूबाट बच्न “कहिले देखाउने” का लागि अर्को मान छान्नुहोस्।"
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "बन्द गर्नुहोस्"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "यो सूचना 5 सेकेन्डमा बन्द हुनेछ।"

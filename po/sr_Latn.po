@@ -1660,3 +1660,11 @@ msgstr "Prikaži podsetnike u aplikacijama preko celog ekrana (igre, video-snimc
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Izaberite drugu vrednost za „Kada prikazati“ da biste izbegli duple podsetnike."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Zatvori"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Ovo obaveštenje će se zatvoriti za 5 sekundi."

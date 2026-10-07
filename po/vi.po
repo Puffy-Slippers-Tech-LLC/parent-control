@@ -1642,3 +1642,11 @@ msgstr "Hiển thị lời nhắc trong ứng dụng toàn màn hình (trò chơ
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Chọn giá trị khác cho “Khi nào hiển thị” để tránh lời nhắc trùng lặp."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Đóng"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Thông báo này sẽ đóng sau 5 giây."

@@ -1654,3 +1654,11 @@ msgstr "Afișează mementouri în aplicațiile pe tot ecranul (jocuri, videoclip
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Alegeți o altă valoare pentru „Când să se afișeze” pentru a evita mementourile duplicate."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Închide"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Această notificare se va închide în 5 secunde."

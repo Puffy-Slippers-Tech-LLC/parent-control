@@ -1648,3 +1648,11 @@ msgstr "పూర్తి స్క్రీన్ యాప్‌లలో ర
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "నకిలీ సూచనలను నివారించడానికి “ఎప్పుడు చూపించాలి” కోసం వేరే విలువను ఎంచుకోండి."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "మూసివేయి"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "ఈ నోటిఫికేషన్ 5 సెకన్లలో మూసివేయబడుతుంది."

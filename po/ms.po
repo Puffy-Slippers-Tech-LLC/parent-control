@@ -1642,3 +1642,11 @@ msgstr "Tunjukkan peringatan dalam aplikasi skrin penuh (permainan, video, dll.)
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Pilih nilai lain untuk “Bila ditunjukkan” bagi mengelakkan peringatan pendua."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Tutup"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Pemberitahuan ini akan ditutup dalam 5 saat."

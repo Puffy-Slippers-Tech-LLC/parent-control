@@ -236,6 +236,8 @@ class ReminderDialog(Gtk.Window):
             if identity == 'save':
                 button.add_css_class('oh-no-parent-control-request-button')
                 self._save_button = button
+            else:
+                button.add_css_class('oh-no-parent-control-cancel-button')
             describe_control(button, message, message, automation_id=f'reminder-editor-{identity}')
             button.connect('clicked', callback)
             actions.append(button)
@@ -309,11 +311,15 @@ class ReminderDialog(Gtk.Window):
         # Desktop previews use the extension's actual reminder renderer. The
         # dedicated kiosk owns its freedesktop provider instead of GNOME Shell.
         # Both always interrupt the fullscreen editor, without saving its draft.
-        parameters = (GLib.Variant('(su)', (text, self._preview_id)) if self._preview_overlay else
+        seconds = value * (60 if self._unit_token() == 'minute' else 1)
+        parameters = (GLib.Variant('(suus)', (text, self._preview_id, seconds,
+                                            context_for(self).language)) if self._preview_overlay else
                       GLib.Variant('(susssasa{sv}i)', (
                           str(app_name()), self._preview_id, str(branding_asset_path('app_logo.png')),
                           '', GLib.markup_escape_text(text), [],
-                          {'urgency': GLib.Variant('y', 2)}, -1)))
+                          {'urgency': GLib.Variant('y', 2),
+                           'x-onpc-remaining-seconds': GLib.Variant('u', seconds),
+                           'x-onpc-language': GLib.Variant('s', context_for(self).language)}, -1)))
         self._preview_pending = True
         self._preview_button.set_sensitive(False)
         self._error.set_visible(False)
@@ -343,7 +349,7 @@ class ReminderDialog(Gtk.Window):
                 name = SHELL_PREVIEW_NAME if self._preview_overlay else 'org.freedesktop.Notifications'
                 path = SHELL_PREVIEW_PATH if self._preview_overlay else '/org/freedesktop/Notifications'
                 connection.call(name, path, name,
-                                'Preview' if self._preview_overlay else 'Notify', parameters,
+                                'PreviewLocalized' if self._preview_overlay else 'Notify', parameters,
                                 GLib.VariantType.new('(u)'), Gio.DBusCallFlags.NONE,
                                 5000, None, delivered)
             except GLib.Error:
@@ -561,7 +567,8 @@ class PreferencesDialog(Gtk.Window):
         actions = Gtk.Box(spacing=12, homogeneous=True)
         # Keep Save and Cancel in place while the candidate changes direction.
         fixed_direction(actions, Gtk.TextDirection.LTR)
-        self._cancel = localized(ArmoredButton, label=m.CANCEL)
+        self._cancel = localized(ArmoredButton, label=m.CANCEL,
+                                 css_classes=["oh-no-parent-control-cancel-button"])
         describe_control(self._cancel, m.CANCEL, m.CANCEL,
                          automation_id="language-cancel")
         self._cancel.connect("clicked", self._dismiss)

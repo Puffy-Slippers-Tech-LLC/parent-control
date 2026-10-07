@@ -1642,3 +1642,11 @@ msgstr "Tam ekran uygulamalarda hatırlatmaları göster (oyunlar, videolar vb.)
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Yinelenen hatırlatıcıları önlemek için “Ne zaman gösterilsin” alanında farklı bir değer seçin."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Kapat"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Bu bildirim 5 saniye içinde kapanacak."

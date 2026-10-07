@@ -1642,3 +1642,11 @@ msgstr "전체 화면 앱에서 알림 표시 (게임, 동영상 등)"
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "중복 알림을 방지하려면 “표시 시점”을 다른 값으로 선택하세요."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "닫기"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "이 알림은 5초 후에 닫힙니다."

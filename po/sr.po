@@ -1660,3 +1660,11 @@ msgstr "Прикажи подсетнике у апликацијама прек
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Изаберите другу вредност за „Када приказати“ да бисте избегли дупле подсетнике."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Затвори"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Ово обавештење ће се затворити за 5 секунди."

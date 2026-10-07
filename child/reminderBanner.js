@@ -1,64 +1,226 @@
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
 import Pango from 'gi://Pango';
+import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
+import {describeControl} from './accessibility.js';
 
-// Countdown and editor previews share one product banner. A real threshold
-// replaces a preview immediately instead of queuing behind a Critical banner.
+// Shell's tray times out noncritical banners after four seconds. Own only
+// this product's chrome and lifetime so fullscreen urgency stays independent.
 let activeSource = null;
+let fontLoaded = false;
 
-export function showReminderBanner(title, icon, body, urgency) {
+export function showReminderBanner(title, icon, body, urgency, seconds, translations, openPreferences) {
     activeSource?.destroy();
     const source = new MessageTray.Source({title, icon});
     activeSource = source;
+    try {
+        return createBanner(source, icon, body, urgency, seconds, translations, openPreferences);
+    } catch (error) {
+        source.destroy();
+        throw error;
+    }
+}
+
+function createBanner(source, icon, body, urgency, seconds, translations, openPreferences) {
+    let card = null;
+    let tooltip = null;
+    let tooltipChromeAdded = false;
+    let chromeAdded = false;
+    let timer = 0;
     source.connect('destroy', () => {
         if (activeSource === source) activeSource = null;
+        if (timer) GLib.source_remove(timer);
+        timer = 0;
+        if (tooltip) {
+            if (tooltipChromeAdded) Main.layoutManager.removeChrome(tooltip);
+            tooltipChromeAdded = false;
+            tooltip.destroy();
+            tooltip = null;
+        }
+        if (card) {
+            if (chromeAdded) Main.layoutManager.removeChrome(card);
+            chromeAdded = false;
+            card.destroy();
+            card = null;
+        }
     });
-    Main.messageTray.add(source);
     const notification = new MessageTray.Notification({source,
         title: '', body, gicon: icon, useBodyMarkup: false, urgency,
         privacyScope: MessageTray.PrivacyScope.USER, isTransient: true});
-    notification.connect('notify::acknowledged', () => {
-        if (notification.acknowledged && activeSource === source)
-            compactBanner(notification);
+    const assets = icon.get_file().get_parent();
+    card = new St.BoxLayout({style_class: 'screen-time-reminder', reactive: true,
+        x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.START});
+    // Horizontal BoxLayout defaults to width-for-height. This card has a
+    // monitor-bounded width and wrapped text, so measure its height at that
+    // width to keep the countdown inside the frame when the message wraps.
+    card.set_request_mode(Clutter.RequestMode.HEIGHT_FOR_WIDTH);
+    if (!fontLoaded) {
+        const bundled = assets.get_child('Monocraft.ttf');
+        const sourceFont = assets.get_parent().get_child('kiosk').get_child('oh_no_parent_control_kiosk')
+            .get_child('fonts').get_child('Monocraft.ttf');
+        const font = bundled.query_exists(null) ? bundled : sourceFont;
+        // Shell renders with Clutter's font map, not Cairo's default map.
+        fontLoaded = card.get_pango_context().get_font_map().add_font_file(font.get_path());
+    }
+    card.set_style(`border-image: url("${assets.get_child('reminder-frame.svg').get_path()}") 32;`);
+    card.set_text_direction(translations.direction === 'rtl' ? Clutter.TextDirection.RTL : Clutter.TextDirection.LTR);
+    card.add_child(new St.Icon({gicon: icon, icon_size: 56,
+        style_class: 'screen-time-reminder-logo', y_align: Clutter.ActorAlign.CENTER}));
+    const content = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
+        style_class: 'screen-time-reminder-content', x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER});
+    const message = new St.Label({text: body, style_class: 'screen-time-reminder-message'});
+    message.clutter_text.line_wrap = true;
+    message.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+    message.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+    content.add_child(message);
+    const countdown = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
+        style_class: 'screen-time-reminder-countdown', visible: seconds >= 60});
+    const caption = new St.Label({text: translations.text('REMINDER_AUTO_CLOSE'),
+        style_class: 'screen-time-reminder-caption'});
+    caption.clutter_text.line_wrap = true;
+    caption.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+    caption.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+    countdown.add_child(caption);
+    const progressRow = new St.BoxLayout({style_class: 'screen-time-reminder-progress-row'});
+    const track = new St.BoxLayout({
+        style_class: 'screen-time-reminder-track', x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER});
+    const segments = Array.from({length: 5}, () => {
+        const cell = new St.Widget({layout_manager: new Clutter.BinLayout(), x_expand: true,
+            style_class: 'screen-time-reminder-segment'});
+        const fill = new St.Widget({style_class: 'screen-time-reminder-fill',
+            x_expand: true, y_expand: true});
+        cell.add_child(fill);
+        track.add_child(cell);
+        return fill;
     });
-    source.addNotification(notification);
-    return {source, notification};
-}
-
-function compactBanner(notification) {
-    const visit = actor => {
-        if (actor.notification === notification) {
-            actor.add_style_class_name('screen-time-reminder');
-            actor.x_expand = false;
-            actor.x_align = Clutter.ActorAlign.CENTER;
-            const compact = child => {
-                if (child.has_style_class_name?.('message-header') ||
-                    child.has_style_class_name?.('message-title')) child.hide();
-                if (child.has_style_class_name?.('message-icon'))
-                    child.y_align = Clutter.ActorAlign.CENTER;
-                if (child.has_style_class_name?.('message-body')) {
-                    const bin = child.get_parent();
-                    const content = bin.get_parent();
-                    if (!content.has_style_class_name('message-content')) return;
-                    // Keep Shell's expansion bin for its animation lifecycle,
-                    // but let the literal body determine its natural height.
-                    bin.remove_child(child);
-                    bin.hide();
-                    content.add_child(child);
-                    child.clutter_text.line_wrap = true;
-                    child.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
-                    child.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
-                    const update = () => child.clutter_text.set_text(notification.body);
-                    notification.connectObject('notify::body', update, child);
-                    update();
-                }
-                for (const descendant of [...child.get_children()]) compact(descendant);
-            };
-            compact(actor);
+    const time = new St.Label({style_class: 'screen-time-reminder-time'});
+    progressRow.add_child(track);
+    progressRow.add_child(time);
+    countdown.add_child(progressRow);
+    content.add_child(countdown);
+    card.add_child(content);
+    const actions = [];
+    tooltip = new St.Label({style_class: 'dash-label screen-time-tooltip',
+        visible: false, reactive: false});
+    const syncTooltip = () => {
+        if (!tooltip || !card) return;
+        const action = actions.find(({control}) => control.hover && control.mapped);
+        const monitor = Main.layoutManager.primaryMonitor;
+        tooltip.visible = Boolean(action && card.visible && monitor);
+        if (!tooltip.visible) return;
+        tooltip.text = translations.text(action.key);
+        tooltip.set_text_direction(card.get_text_direction());
+        const [x, y] = action.control.get_transformed_position();
+        const [width, height] = action.control.get_transformed_size();
+        const [, tooltipWidth] = tooltip.get_preferred_width(-1);
+        const [, tooltipHeight] = tooltip.get_preferred_height(tooltipWidth);
+        const gap = 8 * St.ThemeContext.get_for_stage(global.stage).scale_factor;
+        const top = y + height + gap;
+        tooltip.set_position(
+            Math.max(monitor.x, Math.min(x + (width - tooltipWidth) / 2,
+                monitor.x + monitor.width - tooltipWidth)),
+            Math.max(monitor.y, top + tooltipHeight <= monitor.y + monitor.height
+                ? top : y - tooltipHeight - gap));
+    };
+    const actionRow = new St.BoxLayout({style_class: 'screen-time-reminder-actions',
+        x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER});
+    const button = (key, filename, callback) => {
+        const icon = new St.Icon({gicon: new Gio.FileIcon({file: assets.get_child(filename)}),
+            icon_size: 40, style_class: 'screen-time-reminder-action-icon',
+            x_align: Clutter.ActorAlign.CENTER});
+        const control = new St.Button({child: icon, can_focus: true,
+            reactive: true, track_hover: true,
+            style_class: 'screen-time-reminder-action', y_align: Clutter.ActorAlign.CENTER});
+        describeControl(control, `child-reminder-${key.toLowerCase()}`,
+            translations.text(key), translations.text(key));
+        control.connect('clicked', callback);
+        control.connect('notify::hover', syncTooltip);
+        control.connect('notify::mapped', syncTooltip);
+        control.connect('notify::allocation', syncTooltip);
+        actions.push({key, control});
+        actionRow.add_child(control);
+        return control;
+    };
+    const dismiss = () => { if (activeSource === source) source.destroy(); };
+    const preferences = () => {
+        if (activeSource !== source) return;
+        dismiss();
+        openPreferences();
+    };
+    card.add_child(new St.Widget({style_class: 'screen-time-reminder-divider', y_expand: true}));
+    button('PREFERENCES', 'reminder-preferences.svg', preferences);
+    button('DISMISS', 'reminder-dismiss.svg', dismiss);
+    card.add_child(actionRow);
+    card.connect('notify::allocation', syncTooltip);
+    let deadline = null;
+    const tick = () => {
+        const left = Math.max(0, (deadline - GLib.get_monotonic_time()) / 1000000);
+        // One complete block per second; never resize a partially filled block.
+        segments.forEach((fill, index) => { fill.visible = index < Math.ceil(left); });
+        time.text = translations.text('COMPACT_SECONDS', {count: Math.ceil(left)});
+        if (left === 0) {
+            timer = 0;
+            dismiss();
+            return GLib.SOURCE_REMOVE;
+        }
+        return GLib.SOURCE_CONTINUE;
+    };
+    const sync = () => {
+        if (Main.sessionMode.isLocked || Main.sessionMode.isGreeter) {
+            dismiss();
             return;
         }
-        for (const child of actor.get_children()) visit(child);
+        const monitor = Main.layoutManager.primaryMonitor;
+        card.visible = Boolean(monitor) && (notification.urgency === MessageTray.Urgency.CRITICAL ||
+            (!monitor.inFullscreen && source.policy.showBanners));
+        syncTooltip();
+        if (!monitor) return;
+        const scale = St.ThemeContext.get_for_stage(global.stage).scale_factor;
+        // Reserve the frame corners, logo, message and gaps independently of
+        // translated action widths. Let native layout move both buttons inward.
+        const actionWidth = actions.reduce((width, {control}) =>
+            width + control.get_preferred_width(-1)[1], 0);
+        card.width = Math.min(Math.max(517 * scale, 360 * scale + actionWidth),
+            monitor.width - 16 * scale);
+        card.set_position(monitor.x + (monitor.width - card.width) / 2, monitor.y + 8 * scale);
+        // Start on delivery, never while fullscreen suppresses the banner.
+        if (card.visible && seconds >= 60 && deadline === null) {
+            deadline = GLib.get_monotonic_time() + 5000000;
+            tick();
+            timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, tick);
+        }
     };
-    visit(Main.messageTray);
+    const relabel = () => {
+        message.text = notification.body;
+        caption.text = translations.text('REMINDER_AUTO_CLOSE');
+        card.set_text_direction(translations.direction === 'rtl' ? Clutter.TextDirection.RTL : Clutter.TextDirection.LTR);
+        const joining = ['ar', 'fa', 'he', 'ug', 'ur', 'bn', 'hi', 'mr', 'ne', 'ta', 'te', 'ml', 'pa', 'th', 'ka'];
+        card.set_style(`border-image: url("${assets.get_child('reminder-frame.svg').get_path()}") 32;` +
+            (joining.includes(translations.language?.split('-')[0]) ? ' font-family: sans-serif;' : ''));
+        for (const {key, control} of actions) {
+            const text = translations.text(key);
+            describeControl(control, `child-reminder-${key.toLowerCase()}`, text, text);
+        }
+        sync();
+    };
+    notification.connectObject('notify::body', relabel, card);
+    notification.connectObject('notify::urgency', sync, card);
+    Main.layoutManager.connectObject('monitors-changed', sync, card);
+    Main.sessionMode.connectObject('updated', sync, card);
+    global.display.connectObject('in-fullscreen-changed', sync, card);
+    relabel();
+    source.addNotification(notification);
+    Main.layoutManager.addChrome(card, {trackFullscreen: false});
+    chromeAdded = true;
+    Main.layoutManager.addChrome(tooltip, {trackFullscreen: false});
+    tooltipChromeAdded = true;
+    sync();
+    return {source, notification, card, dismiss, preferences,
+        countdown: () => deadline === null ? null : Math.max(0,
+            Math.ceil((deadline - GLib.get_monotonic_time()) / 1000000))};
 }

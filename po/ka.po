@@ -1642,3 +1642,11 @@ msgstr "შეხსენებების ჩვენება სრულ�
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "აირჩიეთ სხვა მნიშვნელობა ველისთვის „როდის გამოჩნდეს“, რათა თავიდან აიცილოთ დუბლირებული შეხსენებები."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "დახურვა"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "ეს შეტყობინება 5 წამში დაიხურება."

@@ -6,6 +6,7 @@ ordinary child desktops retain their own notification provider.
 """
 
 from pathlib import Path
+import math
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -19,6 +20,8 @@ from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.about import branding_asset_path
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from common.oh_no_parent_control_ui.application_ui import ApplicationUI, bind_ui
+from common.oh_no_parent_control_ui.translation_widgets import TranslationContext, set_text
+from .chrome import register_form_font
 
 
 INTERFACE = 'org.freedesktop.Notifications'
@@ -52,6 +55,7 @@ class NotificationApplication(Gtk.Application):
         self._serial = 0
         self._registration = 0
         self._name_owner = 0
+        self._deadline = None
 
     def do_dbus_register(self, connection, path):
         if not Gtk.Application.do_dbus_register(self, connection, path):
@@ -76,11 +80,28 @@ class NotificationApplication(Gtk.Application):
             self.get_dbus_connection(), INTERFACE, Gio.BusNameOwnerFlags.NONE,
             None, lambda *_: self.quit())
         css = Gtk.CssProvider()
+        register_form_font()
         css.load_from_string('''window.kiosk-notification { background: transparent; }
-            .kiosk-notification-card { background: #24313b; color: white;
-            border: 1px solid #698b9f; border-radius: 8px; padding: 6px 10px; }
-            .kiosk-notification label { font: 16px sans-serif; }
-            .kiosk-notification button { background: transparent; color: white; }''')
+            .kiosk-notification-card { background: transparent; color: #eeedf8;
+            border: 12px solid transparent; border-radius: 0; padding: 2px 6px;
+            border-image-source: url("FRAME"); border-image-slice: 32 fill; border-image-width: 32px; }
+            .kiosk-notification label { font: 8.5px "Monocraft", "Ubuntu Mono", monospace; }
+            .kiosk-notification .reminder-message { font-size: 15px; font-weight: bold; color: #83edff;
+            text-shadow: 1px 1px #24305b; }
+            .kiosk-notification .reminder-caption { font-size: 12px; color: #dddfef; }
+            .kiosk-notification .reminder-time { font-size: 12px; color: #c0efff; min-width: 14px; }
+            .kiosk-notification button { background: transparent; color: #eeedf8;
+            border: 0; border-radius: 0; padding: 0; box-shadow: none; min-width: 50px; }
+            .kiosk-notification button:hover, .kiosk-notification button:focus { background: #38304d; }
+            .kiosk-notification .reminder-divider { background: #676280; min-width: 1px; }
+            .kiosk-notification .reminder-track { border: 1px solid #483092;
+            border-radius: 1px; padding: 1px; background: #111125; }
+            .kiosk-notification progressbar trough { background: #181230; min-height: 9px; min-width: 0;
+            border: 0; border-radius: 0; }
+            .kiosk-notification progressbar progress { background: linear-gradient(#24efff, #02cde9);
+            min-height: 9px; min-width: 0; border: 0; border-radius: 0; }
+            .kiosk-notification.onpc-readable-script label { font-family: sans-serif; }
+            '''.replace('FRAME', str(branding_asset_path('reminder-frame.svg'))))
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         self._css = css
@@ -108,10 +129,14 @@ class NotificationApplication(Gtk.Application):
             invocation.return_value(None)
         elif method == 'Notify':
             app, replaces, icon, summary, body, actions, hints, timeout = parameters.unpack()
+            seconds = hints.get('x-onpc-remaining-seconds')
+            language = hints.get('x-onpc-language', '')
             # Bound input and storage. This provider owns one banner at a time,
             # reads only its packaged logo, and never logs user-written content.
             if (len(body) > 16384 or len(summary) > 4096 or actions or
-                    hints.get('urgency', 1) not in (0, 1, 2)):
+                    hints.get('urgency', 1) not in (0, 1, 2) or
+                    (seconds is not None and (type(seconds) is not int or not 0 <= seconds <= 0xFFFFFFFF)) or
+                    not isinstance(language, str) or len(language) > 32):
                 invocation.return_dbus_error(INTERFACE + '.InvalidArgument', 'Invalid notification')
                 return
             reuse = replaces == self._notification_id and sender == self._sender
@@ -119,29 +144,31 @@ class NotificationApplication(Gtk.Application):
             self._close(3, emit=not reuse)
             self._serial = max(self._serial, identity)
             self._notification_id, self._sender = identity, sender
-            self._show(summary, body, hints.get('urgency', 1))
-            milliseconds = (0 if hints.get('urgency') == 2 else 5000) if timeout < 0 else timeout
+            milliseconds = ((5000 if seconds >= 60 else 0) if seconds is not None else
+                            (0 if hints.get('urgency') == 2 else 5000) if timeout < 0 else timeout)
+            self._show(summary, body, hints.get('urgency', 1), milliseconds, language)
             if milliseconds > 0:
-                def expired():
-                    self._timer = 0
-                    self._close(1)
-                    return GLib.SOURCE_REMOVE
-                self._timer = GLib.timeout_add(min(milliseconds, 86400000), expired)
+                self._deadline = GLib.get_monotonic_time() + min(milliseconds, 86400000) * 1000
+                if self._tick() == GLib.SOURCE_CONTINUE:
+                    self._timer = GLib.timeout_add(50, self._tick)
             invocation.return_value(GLib.Variant('(u)', (identity,)))
 
-    def _show(self, summary, body, urgency):
+    def _show(self, summary, body, urgency, milliseconds, language):
         window = Gtk.ApplicationWindow(application=self, decorated=False, resizable=False,
                                        title='gnome-kiosk-notification',
                                        css_classes=['kiosk-notification'])
         set_automation_id(window, 'kiosk-system-notification')
-        row = Gtk.Box(spacing=10, margin_top=8, margin_bottom=8,
-                      margin_start=10, margin_end=10, halign=Gtk.Align.CENTER,
+        window._translation_context = TranslationContext(language)
+        row = Gtk.Box(spacing=11, margin_top=8, margin_bottom=8,
+                      margin_start=8, margin_end=8, halign=Gtk.Align.CENTER,
                       css_classes=['kiosk-notification-card'])
         row.append(Gtk.Image.new_from_gicon(Gio.FileIcon.new(
             Gio.File.new_for_path(str(branding_asset_path('app_logo.png'))))))
-        row.get_first_child().set_pixel_size(20)
+        row.get_first_child().set_pixel_size(56)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6,
+                          valign=Gtk.Align.CENTER, hexpand=True)
         message = Gtk.Label(wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
-                            max_width_chars=50, xalign=0)
+                            max_width_chars=20, xalign=0, css_classes=['reminder-message'])
         # The freedesktop body is markup. Invalid markup is displayed literally.
         try:
             Pango.parse_markup(body, -1, '\x00')
@@ -152,11 +179,44 @@ class NotificationApplication(Gtk.Application):
             message.set_text(summary + '\n' + message.get_text())
         set_automation_id(message, 'kiosk-system-notification-message')
         bind_ui(message, get_value=lambda: 'critical' if urgency == 2 else 'high' if urgency == 1 else 'low')
-        row.append(message)
-        close = Gtk.Button(icon_name='window-close-symbolic', valign=Gtk.Align.CENTER)
-        describe_control(close, m.CLOSE, m.CLOSE, automation_id='kiosk-system-notification-close')
-        close.connect('clicked', lambda *_: self._close(2))
-        row.append(close)
+        content.append(message)
+        countdown = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6,
+                            visible=milliseconds > 0)
+        caption = Gtk.Label(xalign=0, wrap=True, max_width_chars=42, css_classes=['reminder-caption'])
+        set_text(caption, 'label', m.REMINDER_AUTO_CLOSE)
+        countdown.append(caption)
+        progress_row = Gtk.Box(spacing=8, margin_end=17)
+        self._progress = Gtk.Box(spacing=3, hexpand=True, valign=Gtk.Align.CENTER,
+                                 css_classes=['reminder-track'])
+        self._segments = []
+        for index in range(5):
+            segment = Gtk.ProgressBar(hexpand=True)
+            set_automation_id(segment, f'kiosk-system-notification-progress-{index}')
+            self._segments.append(segment)
+            self._progress.append(segment)
+        self._countdown_label = Gtk.Label(css_classes=['reminder-time'])
+        set_automation_id(self._countdown_label, 'kiosk-system-notification-countdown')
+        progress_row.append(self._progress)
+        progress_row.append(self._countdown_label)
+        countdown.append(progress_row)
+        content.append(countdown)
+        row.append(content)
+        row.append(Gtk.Box(width_request=1, margin_top=5, margin_bottom=5,
+                           margin_start=3, margin_end=4,
+                           css_classes=['reminder-divider']))
+        action_row = Gtk.Box(spacing=11, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+        row.append(action_row)
+        for identity, filename, label, callback in (
+                ('preferences', 'reminder-preferences.svg', m.PREFERENCES, self._preferences),
+                ('close', 'reminder-dismiss.svg', m.DISMISS, lambda *_: self._close(2))):
+            image = Gtk.Image.new_from_file(str(branding_asset_path(filename)))
+            image.set_halign(Gtk.Align.CENTER)
+            image.set_pixel_size(40)
+            button = Gtk.Button(child=image, valign=Gtk.Align.CENTER)
+            set_text(button, 'tooltip-text', label)
+            describe_control(button, label, label, automation_id=f'kiosk-system-notification-{identity}')
+            button.connect('clicked', callback)
+            action_row.append(button)
         # Kiosk's notification tag anchors the surface at the monitor's top
         # left. Span that monitor with a transparent surface and center the
         # actual card inside it; Gtk.Window cannot position Wayland windows.
@@ -174,6 +234,29 @@ class NotificationApplication(Gtk.Application):
         self._banner = window
         window.present()
 
+    def _tick(self):
+        left = max(0, (self._deadline - GLib.get_monotonic_time()) / 1000000)
+        if left == 0:
+            self._timer = 0
+            self._close(1)
+            return GLib.SOURCE_REMOVE
+        for index, segment in enumerate(self._segments):
+            segment.set_fraction(1 if index < math.ceil(left) else 0)
+        set_text(self._countdown_label, 'label', m.COMPACT_SECONDS % {'count': math.ceil(left)})
+        return GLib.SOURCE_CONTINUE
+
+    def _preferences(self, *_args):
+        self._close(2)
+        def activated(connection, result):
+            try:
+                connection.call_finish(result)
+            except GLib.Error:
+                pass
+        self.get_dbus_connection().call(
+            'com.puffyslippers.OhNoParentControl', '/com/puffyslippers/OhNoParentControl',
+            'org.gtk.Actions', 'Activate', GLib.Variant('(sava{sv})', ('preferences', [], {})),
+            None, Gio.DBusCallFlags.NONE, 5000, None, activated)
+
     def _close_requested(self, *_):
         self._close(2)
         return True
@@ -182,6 +265,7 @@ class NotificationApplication(Gtk.Application):
         if self._timer:
             GLib.source_remove(self._timer)
             self._timer = 0
+        self._deadline = None
         if self._banner:
             self._banner.destroy()
             self._banner = None

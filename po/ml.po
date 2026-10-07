@@ -1648,3 +1648,11 @@ msgstr "പൂർണ്ണ സ്ക്രീൻ ആപ്പുകളിൽ ഓ
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "ആവർത്തിച്ച ഓർമ്മപ്പെടുത്തലുകൾ ഒഴിവാക്കാൻ “എപ്പോൾ കാണിക്കണം” എന്നതിന് മറ്റൊരു മൂല്യം തിരഞ്ഞെടുക്കുക."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "അടയ്ക്കുക"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "ഈ അറിയിപ്പ് 5 സെക്കൻഡിനുള്ളിൽ അടയ്ക്കും."

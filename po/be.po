@@ -1654,3 +1654,11 @@ msgstr "Паказваць напаміны ў поўнаэкранных пра
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Выберыце іншае значэнне «Калі паказваць», каб пазбегнуць паўторных напамінаў."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Закрыць"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Гэта апавяшчэнне закрыецца праз 5 секунд."

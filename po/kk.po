@@ -1642,3 +1642,11 @@ msgstr "Толық экранды қолданбаларда еске салғы
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Қайталанатын еске салғыштарды болдырмау үшін «Қашан көрсету керек» өрісінде басқа мәнді таңдаңыз."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Жабу"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Бұл хабарландыру 5 секундтан кейін жабылады."

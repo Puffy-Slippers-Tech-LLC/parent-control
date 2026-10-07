@@ -486,6 +486,7 @@ class RequestContent(MetalBoard):
 
         self._cancel = localized(ArmoredButton, 
             label=m.CANCEL_2, hexpand=True,
+            css_classes=["oh-no-parent-control-cancel-button"],
         )
         describe_control(
             self._cancel, m.CANCEL_REQUEST,

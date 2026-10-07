@@ -238,6 +238,21 @@ def _reminder_preview():
     _wait(lambda: preview_body('  Save <games> & work!  '), 'real Shell literal reminder preview')
     assert _panel().getValue('child-reminder-preview-message', surface_id='child-reminder-preview') == 'critical'
     assert _panel().getText('child-reminder-preview', surface_id='child-reminder-preview') == ''
+    _panel().activate('child-reminder-preview-preferences', surface_id='child-reminder-preview')
+    _wait(lambda: not any(s['id'] == 'child-reminder-preview' for s in _panel().listSurfaces()),
+          'banner Preferences dismisses preview')
+    assert overlay.getText('reminder-text', surface_id='reminder-editor-dialog') == '  Save <games> & work!  '
+    overlay.setText('reminder-value', '60', surface_id='reminder-editor-dialog')
+    overlay.setValue('reminder-unit', 'second', surface_id='reminder-editor-dialog')
+    overlay.setText('reminder-text', '', surface_id='reminder-editor-dialog')
+    overlay.activate('reminder-editor-preview', surface_id='reminder-editor-dialog')
+    _wait(lambda: preview_body('60 seconds left'), 'real Shell minute boundary preview')
+    assert _panel().getValue('child-reminder-preview-countdown', surface_id='child-reminder-preview') in (5, 4)
+    capture_screenshot(Path(os.environ['ONPC_CHILD_SHELL_SCREENSHOT_PATH']).with_name(
+        'reminder-countdown.png'))
+    _wait(lambda: not any(s['id'] == 'child-reminder-preview' for s in _panel().listSurfaces()),
+          'real Shell five-second auto close')
+    overlay.setText('reminder-value', '15', surface_id='reminder-editor-dialog')
     overlay.setText('reminder-text', '   ', surface_id='reminder-editor-dialog')
     overlay.activate('reminder-editor-preview', surface_id='reminder-editor-dialog')
     _wait(lambda: preview_body('15 seconds left'), 'real Shell default reminder preview')

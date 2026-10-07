@@ -1648,3 +1648,11 @@ msgstr "पूर्ण स्क्रीन ॲपमध्ये स्मर
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "दुबार स्मरणपत्रे टाळण्यासाठी “कधी दाखवायचे” साठी वेगळे मूल्य निवडा."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "बंद करा"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "ही सूचना 5 सेकंदांत बंद होईल."

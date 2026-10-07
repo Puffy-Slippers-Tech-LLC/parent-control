@@ -51,6 +51,9 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/oh-no-parent-control/kiosk_account_icon.png \
 	$(DATADIR)/oh-no-parent-control/app_logo_titlebar.png \
 	$(DATADIR)/oh-no-parent-control/app_logo_gnome_launcher.png \
+	$(DATADIR)/oh-no-parent-control/reminder-frame.svg \
+	$(DATADIR)/oh-no-parent-control/reminder-preferences.svg \
+	$(DATADIR)/oh-no-parent-control/reminder-dismiss.svg \
 	$(DATADIR)/pam-configs/oh-no-parent-control-session-limits \
 	$(DATADIR)/pam-configs/oh-no-parent-control-kiosk-only \
 	$(DATADIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
@@ -80,12 +83,16 @@ EXTENSION_SCHEMA := schemas/com.puffyslippers.oh-no-parent-control.child.gschema
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
 # app_logo_gnome_launcher.png is the full-resolution GNOME launcher asset.
 BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_icon_32.png
+REMINDER_ASSETS := data/reminder-frame.svg data/reminder-preferences.svg data/reminder-dismiss.svg
+BRANDING_ASSETS += $(REMINDER_ASSETS)
 PARENT_TITLEBAR_ASSET := data/app_logo_titlebar.png
 EXTENSION_BRANDING_ASSETS := data/brand.json data/app_logo_gnome_launcher.png
+EXTENSION_BRANDING_ASSETS += $(REMINDER_ASSETS)
 # gnome-extensions resolves extra sources relative to CHILD_DIR.
 EXTENSION_PACK_ASSETS := $(EXTENSION_BRANDING_ASSETS:data/%=../data/%) ../common/oh_no_parent_control_ui/diagnostic_catalog.json ../common/oh_no_parent_control_ui/languages.json ../LICENSE ../COPYRIGHT ../NOTICE
 MESSAGE_ASSET := common/oh_no_parent_control_ui/messages.json
 EXTENSION_PACK_ASSETS += ../$(MESSAGE_ASSET) ../common/oh_no_parent_control_ui/locale
+EXTENSION_PACK_ASSETS += ../kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf ../kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt
 EXTENSION_BASE ?= $(HOME)/.local/share
 EXTENSION_DIR := $(EXTENSION_BASE)/gnome-shell/extensions/$(UUID)
 SYSTEM_EXTENSION_DIR := $(DATADIR)/gnome-shell/extensions/$(UUID)
@@ -455,6 +462,7 @@ _install-development-extension:
 	rm -f $(foreach file,$(OBSOLETE_EXTENSION_SOURCES),"$(EXTENSION_DIR)/$(file)")
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES)) "$(EXTENSION_DIR)/"
 	install -m 0644 $(EXTENSION_BRANDING_ASSETS) common/oh_no_parent_control_ui/diagnostic_catalog.json common/oh_no_parent_control_ui/languages.json LICENSE COPYRIGHT NOTICE "$(EXTENSION_DIR)/"
+	install -m 0644 kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt "$(EXTENSION_DIR)/"
 	$(PYTHON) tools/export_messages.py --output "$(EXTENSION_DIR)/messages.json"
 	$(MAKE) translations LOCALE_OUTPUT="$(EXTENSION_DIR)/locale"
 	install -m 0644 "$(CHILD_DIR)/$(EXTENSION_SCHEMA)" "$(EXTENSION_DIR)/schemas/"
@@ -517,6 +525,7 @@ endif
 	# controls per-child activation through that child's GNOME settings.
 	install -m 0644 $(addprefix $(CHILD_DIR)/,metadata.json stylesheet.css extension.js $(EXTENSION_SOURCES)) "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
 	install -m 0644 $(EXTENSION_BRANDING_ASSETS) common/oh_no_parent_control_ui/diagnostic_catalog.json common/oh_no_parent_control_ui/languages.json LICENSE COPYRIGHT NOTICE "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
+	install -m 0644 kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/"
 	$(PYTHON) tools/export_messages.py --output "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/messages.json"
 	$(MAKE) translations LOCALE_OUTPUT="$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/locale"
 	install -m 0644 "$(CHILD_DIR)/$(EXTENSION_SCHEMA)" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas/"

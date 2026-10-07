@@ -2,34 +2,39 @@
   font-weight: 600;
 }
 
-.screen-time-reminder.notification-banner {
-  width: auto;
-  min-width: 0;
-  max-width: 34em;
-  min-height: 0;
-  padding: 6px 10px;
+.screen-time-reminder {
+  background-color: transparent;
+  color: #eeedf8;
+  font-family: Monocraft;
+  border: 12px solid transparent;
+  border-radius: 0;
+  padding: 2px 6px;
+  spacing: 11px;
+  box-shadow: 0 2px 8px rgba(23, 9, 64, 0.55);
 }
-
-.screen-time-reminder .message-icon {
-  -st-icon-style: regular;
-  icon-size: 20px;
-  width: 20px;
-  height: 20px;
-}
-
-.screen-time-reminder .message-box {
-  margin: 0;
+.screen-time-reminder-logo { -st-icon-style: regular; }
+.screen-time-reminder-content { spacing: 6px; min-width: 160px; }
+.screen-time-reminder-message { font-size: 15px; font-weight: bold; color: #83edff; text-shadow: 1px 1px #24305b; }
+/* Keep fallback glyphs, including dense CJK scripts, readable at native scale. */
+.screen-time-reminder-caption { font-size: 12px; color: #dddfef; }
+.screen-time-reminder-time { font-size: 12px; color: #c0efff; min-width: 14px; }
+.screen-time-reminder-countdown { spacing: 6px; }
+.screen-time-reminder-progress-row { spacing: 8px; margin-right: 17px; }
+.screen-time-reminder-track { height: 9px; border: 1px solid #483092; border-radius: 1px; padding: 1px; spacing: 3px; background-color: #111125; }
+.screen-time-reminder-segment { min-width: 0; background-color: #181230; }
+.screen-time-reminder-fill { background-gradient-direction: vertical; background-gradient-start: #24efff; background-gradient-end: #02cde9; }
+.screen-time-reminder-divider { width: 1px; background-color: #676280; margin: 5px 4px 5px 3px; }
+.screen-time-reminder-action {
+  color: #eeedf8;
   padding: 0;
-  spacing: 8px;
+  border-radius: 0;
+  font-size: 8.5px;
+  min-width: 50px;
 }
-
-.screen-time-reminder .message-icon {
-  margin: 0;
-}
-
-.screen-time-reminder .message-content {
-  spacing: 0;
-}
+.screen-time-reminder-actions { spacing: 11px; }
+.screen-time-reminder-action-icon { -st-icon-style: regular; }
+.screen-time-reminder-action:hover, .screen-time-reminder-action:focus { background-color: #38304d; }
+.screen-time-reminder-action:active { background-color: #43345f; }
 
 .screen-time-tooltip {
   text-align: left;

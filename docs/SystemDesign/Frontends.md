@@ -350,6 +350,9 @@ from that comparison. Editor Save updates only the preferences draft; Cancel
 discards that edit. Preview beside the text field sends the current literal text
 or translated default duration through the child extension's reminder-preview
 service, using the same `reminderBanner.js` renderer as real countdown reminders.
+Desktop previews pass the editor's language through `PreviewLocalized` and use
+a private translation context for controls and countdown captions, independent
+of the panel's cached language. Legacy preview methods remain supported.
 Pressing Preview changes its icon to an up arrow and its translated label to
 “See screen top” for three seconds, then restores Preview. Another press restarts
 the three seconds; closing the editor cancels the label timer.
@@ -376,13 +379,15 @@ above fullscreen windows without making it fullscreen. A transparent monitor-wid
 top strip centers its bounded banner card within the tagged surface; the default
 tag's top-left positioning does not position the card itself. This provider does not
 start in ordinary child desktops, where GNOME Shell owns notifications. The
-provider reads only the packaged logo, supports literal escaped body text,
+provider reads only packaged logo/HUD artwork, supports literal escaped body text,
 replacement and dismissal, and does not log reminder content. Its user unit
 and kiosk target changes activate with session renewal.
 
 The child extension owns `com.puffyslippers.OhNoParentControl.ReminderPreview`
 at `/com/puffyslippers/OhNoParentControl/ReminderPreview`. `Preview(s text, u replaces)`
-returns a preview ID; `Close(u id)` only dismisses that sender's current preview.
+returns a persistent preview ID for legacy callers. `PreviewTimed(s text,
+u replaces, u seconds)` includes the editor's selected duration; `Close(u id)`
+only dismisses that sender's current preview.
 The service validates session-bus Unix credentials, bounds text and concurrent
 credential lookups, refuses locked/greeter sessions, and closes on sender loss
 or extension disposal. It accepts literal rendered editor text, not saved policy.
@@ -390,16 +395,42 @@ Desktop delivery never falls back to a generic Shell application notification.
 Countdown and preview share one banner slot: a new threshold replaces a preview
 immediately, and closing an old preview cannot close a newer countdown banner.
 
-Child reminder banners show only the logo and reminder text, without the product
-title or source header. The 20-pixel logo is centered beside the text. The
-banner width follows the content up to 34em and the available monitor width,
-with 6-pixel vertical and 10-pixel horizontal padding. Longer text wraps at
-word or character boundaries with natural height, without ellipsizing, a line
-cap or a scroll container. The body bypasses Shell's capped label-expansion
-bin while retaining that bin for Shell's animation lifecycle. Shell
-notification urgency, dismissal and literal translated/custom text are retained.
-The layout applies only to the extension's current notification and activates
-with the next child graphical session (`session-renewal`).
+Child and kiosk reminders share packaged pixel SVG rails/action icons, the
+request form's Monocraft font, dark HUD face, cyan heading and five-segment
+countdown. The armored rails have cyan/violet beveled plates and orange corner
+accents, six-sided corner plates with straight outer chamfers and thin rails;
+the 15-pixel bold cyan heading sits above the
+12-pixel caption and progress bar. The countdown also uses 12 pixels so fallback
+glyphs, including dense Chinese and Japanese scripts, remain readable.
+The product logo is 56 pixels and action icons
+are 40 pixels; the Shell card starts at 517 logical pixels and grows with the
+translated action widths, bounded by the monitor width. Both renderers retain
+compact inner spacing and centered action icons.
+Height follows the content. Literal reminder
+text wraps naturally.
+Action caption widgets are removed; their translations remain for tooltips
+and accessibility. The icon buttons
+share a centered horizontal action row and retain translated accessible names.
+Hovering either icon shows its translated caption in a tooltip; Shell tooltip
+chrome is owned and destroyed with the banner, and kiosk uses native GTK tooltips.
+Each countdown segment represents one second and empties as a whole block;
+the bar never drains continuously within a segment.
+Shell registers Monocraft with the actor's Clutter font map, so it is available
+to the actual text renderer rather than only Cairo's separate default map.
+The child renderer owns only its own Shell chrome and notification model,
+without registering it with the message tray: the tray's fixed noncritical
+timeout cannot express persistence independently of fullscreen urgency.
+High urgency waits outside fullscreen; Critical appears above fullscreen.
+An unlocked visible delivery at 60 seconds or more starts a five-second
+monotonic deadline and countdown; shorter deliveries persist without a bar.
+New banners dispose the old source, actor, signals and timer. Locking, extension
+disposal and editor dismissal also retire the owned banner. Old preview IDs
+cannot dismiss a newer banner. Preferences dismisses the banner and activates
+the existing request application's `preferences` action, or launches the child
+overlay with `--preferences` when needed. Dismiss retires only that banner.
+The kiosk provider receives the duration/language in bounded notification
+hints and uses the same timing rule and shared application action.
+These payload changes activate with session renewal and need no migration.
 
 Read failures show a retry action without substituting defaults. Save failures
 retain the draft and allow retry. Dialog disposal and selected-child revisions

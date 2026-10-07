@@ -1654,3 +1654,11 @@ msgstr "Rādīt atgādinājumus pilnekrāna lietotnēs (spēlēs, videoklipos u.
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Izvēlieties citu vērtību laukā “Kad rādīt”, lai izvairītos no dublētiem atgādinājumiem."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Aizvērt"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Šis paziņojums tiks aizvērts pēc 5 sekundēm."

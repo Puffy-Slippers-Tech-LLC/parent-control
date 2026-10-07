@@ -1646,3 +1646,11 @@ msgstr "Mostra promemoria nelle app a schermo intero (giochi, video, ecc.)"
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Scegli un valore diverso per “Quando mostrare” per evitare promemoria duplicati."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Chiudi"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Questa notifica si chiuderà tra 5 secondi."

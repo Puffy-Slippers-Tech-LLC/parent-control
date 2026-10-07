@@ -1643,3 +1643,11 @@ msgstr "Toʻliq ekranli ilovalarda eslatmalarni koʻrsatish (oʻyinlar, videolar
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Takroriy eslatmalarning oldini olish uchun “Qachon koʻrsatish” uchun boshqa qiymat tanlang."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Yopish"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Bu bildirishnoma 5 soniyadan keyin yopiladi."

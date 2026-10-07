@@ -1648,3 +1648,11 @@ msgstr "முழுத்திரை செயலிகளில் நின�
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "நகல் நினைவூட்டல்களைத் தவிர்க்க, “எப்போது காட்ட வேண்டும்” என்பதற்கு வேறு மதிப்பைத் தேர்ந்தெடுக்கவும்."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "மூடு"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "இந்த அறிவிப்பு 5 வினாடிகளில் மூடப்படும்."

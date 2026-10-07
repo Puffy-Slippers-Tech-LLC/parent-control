@@ -1,5 +1,6 @@
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 
 import {appLogoPath, appName} from './branding.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
@@ -40,7 +41,8 @@ export default class OhNoParentControlExtension extends Extension {
         this._translations = new TranslationContext(this.path);
         this._indicator = this._createIndicator();
         try {
-            this._reminderPreview = new ReminderPreview(this._appName, appLogoPath(this));
+            this._reminderPreview = new ReminderPreview(this._appName, appLogoPath(this),
+                this._translations, () => this._showRequest(true));
         } catch (_error) {
             // Preview availability must not disable countdown or locking.
             this._errors.report(new Error('Reminder preview could not start'));
@@ -68,7 +70,7 @@ export default class OhNoParentControlExtension extends Extension {
 
     _createIndicator() {
         return new RemainingTimeIndicator(
-            () => this._showRequest(),
+            preferences => this._showRequest(preferences),
             0,
             false,
             this._appName,
@@ -96,7 +98,17 @@ export default class OhNoParentControlExtension extends Extension {
         logInfo('child.disabled');
     }
 
-    _showRequest() {
+    _showRequest(preferences = false) {
+        if (preferences && this._requestProcess) {
+            Gio.DBus.session.call('com.puffyslippers.OhNoParentControl.ChildRequest',
+                '/com/puffyslippers/OhNoParentControl/ChildRequest', 'org.gtk.Actions', 'Activate',
+                new GLib.Variant('(sava{sv})', ['preferences', [], {}]), null,
+                Gio.DBusCallFlags.NONE, 5000, null, (connection, result) => {
+                    try { connection.call_finish(result); }
+                    catch (error) { this._errors?.report(error); }
+                });
+            return;
+        }
         if (!canOpenRequest(Boolean(this._requestProcess), this._openingRequest))
             return;
 
@@ -104,6 +116,7 @@ export default class OhNoParentControlExtension extends Extension {
         this._indicator?.setRequestActive(true);
         try {
             const argv = this._requestAppArgv();
+            if (preferences) argv.push('--preferences');
             logInfo('child.overlay-opened');
             this._requestProcess = Gio.Subprocess.new(
                 argv, Gio.SubprocessFlags.NONE);

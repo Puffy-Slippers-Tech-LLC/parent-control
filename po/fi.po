@@ -1648,3 +1648,11 @@ msgstr "Näytä muistutukset koko näytön sovelluksissa (pelit, videot jne.)"
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Valitse toinen arvo kohtaan ”Milloin näytetään”, jotta päällekkäisiä muistutuksia ei tule."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Sulje"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Tämä ilmoitus sulkeutuu 5 sekunnin kuluttua."

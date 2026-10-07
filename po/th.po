@@ -1642,3 +1642,11 @@ msgstr "แสดงการเตือนในแอปแบบเต็ม
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "เลือกค่า “เมื่อใดที่จะแสดง” ที่ต่างออกไปเพื่อหลีกเลี่ยงการแจ้งเตือนซ้ำ"
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "ปิด"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "การแจ้งเตือนนี้จะปิดในอีก 5 วินาที"

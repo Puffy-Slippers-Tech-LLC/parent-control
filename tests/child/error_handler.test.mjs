@@ -94,6 +94,7 @@ test('production extension uses live state while the separate preview supplies f
         ChildErrorHandler: class { report(error) { throw error; } },
         GnomeApplicationUiAdapter: class { close() {} },
         ChildApplicationUi: class { close() {} },
+        ReminderPreview: class { close() {} },
         TranslationContext: class {
             constructor(directory) {
                 this.directory = directory;

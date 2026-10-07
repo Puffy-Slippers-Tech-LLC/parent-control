@@ -70,6 +70,12 @@ from pathlib import PurePosixPath
 # Reminder preview delivery uses that same guardian, real Shell renderer and
 # private session bus. Its single preview source and sender watch are disposed
 # with the extension; no additional compositor, shared service or host setting.
+# Reminder banner lifetime/action checks reuse language_settings' private
+# notification process, display/bus and unsaved editor. Its bounded timers and
+# packaged pixel assets add no process owner, cache, service or cleanup resource;
+# retain the compatible Request behavior and nested Shell classifications.
+# The countdown capture uses the same private Shell screenshot client and
+# existing registered attempt allocation; it adds no process or storage owner.
 # Timing hooks retain bounded per-phase aggregates in the existing category
 # stream through one non-inheritable pipe duplicate closed at session end.
 # Wrappers/counters are worker-local, with no threads/files or UI reads; preview

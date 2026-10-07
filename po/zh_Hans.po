@@ -1640,3 +1640,11 @@ msgstr "在全屏应用中显示提醒（游戏、视频等）"
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "请选择不同的“何时显示”，以避免重复提醒。"
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "关闭"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "此通知将在 5 秒后关闭。"

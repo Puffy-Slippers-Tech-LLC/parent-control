@@ -1648,3 +1648,11 @@ msgstr "Erakutsi abisuak pantaila osoko aplikazioetan (jokoak, bideoak, etab.)"
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Aukeratu beste balio bat «Noiz erakutsi» eremuan, abisu bikoiztuak saihesteko."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Itxi"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Jakinarazpen hau 5 segundo barru itxiko da."

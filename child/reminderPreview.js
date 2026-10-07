@@ -3,19 +3,27 @@ import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {showReminderBanner} from './reminderBanner.js';
+import {TranslationContext} from './localization.js';
 
 const NAME = 'com.puffyslippers.OhNoParentControl.ReminderPreview';
 const PATH = '/com/puffyslippers/OhNoParentControl/ReminderPreview';
 const XML = `<node><interface name="${NAME}">
 <method name="Preview"><arg type="s" direction="in"/><arg type="u" direction="in"/>
 <arg type="u" direction="out"/></method>
+<method name="PreviewTimed"><arg type="s" direction="in"/><arg type="u" direction="in"/>
+<arg type="u" direction="in"/><arg type="u" direction="out"/></method>
+<method name="PreviewLocalized"><arg type="s" direction="in"/><arg type="u" direction="in"/>
+<arg type="u" direction="in"/><arg type="s" direction="in"/>
+<arg type="u" direction="out"/></method>
 <method name="Close"><arg type="u" direction="in"/></method>
 </interface></node>`;
 
 /** Same-user editor delivery through the real countdown banner renderer. */
 export class ReminderPreview {
-    constructor(title, logoPath) {
+    constructor(title, logoPath, translations, openPreferences) {
         this.title = title;
+        this.translations = translations;
+        this.openPreferences = openPreferences;
         this.icon = new Gio.FileIcon({file: Gio.File.new_for_path(logoPath)});
         this.current = null;
         this.serial = 0;
@@ -40,7 +48,20 @@ export class ReminderPreview {
     }
 
     PreviewAsync([body, replaces], invocation) {
-        if (body.length > 8192 || Array.from(body).length > 4096 || body.includes('\0')) {
+        this.PreviewTimedAsync([body, replaces, 0], invocation);
+    }
+
+    PreviewTimedAsync([body, replaces, seconds], invocation) {
+        this._preview(body, replaces, seconds, null, invocation);
+    }
+
+    PreviewLocalizedAsync([body, replaces, seconds, language], invocation) {
+        this._preview(body, replaces, seconds, language, invocation);
+    }
+
+    _preview(body, replaces, seconds, language, invocation) {
+        if (body.length > 8192 || Array.from(body).length > 4096 || body.includes('\0') ||
+            (language !== null && (language.length > 32 || language.includes('\0')))) {
             invocation.return_dbus_error(`${NAME}.InvalidArgument`, 'Invalid preview');
             return;
         }
@@ -49,11 +70,20 @@ export class ReminderPreview {
                 throw new Error('Unavailable');
             const identity = this.current?.sender === sender && this.current.id === replaces
                 ? replaces : ++this.serial;
+            // The editor can have a newer language than the panel's cache.
+            // Keep this preview's context private so unsaved choices cannot
+            // change the panel or real reminders.
+            let translations = this.translations;
+            if (language !== null) {
+                translations = new TranslationContext(this.translations.directory);
+                translations.apply(language);
+            }
             this.dismiss();
-            const banner = showReminderBanner(this.title, this.icon, body, MessageTray.Urgency.CRITICAL);
+            const banner = showReminderBanner(this.title, this.icon, body, MessageTray.Urgency.CRITICAL,
+                seconds, translations, this.openPreferences);
             this.current = {...banner, sender, id: identity};
             banner.source.connect('destroy', () => {
-                if (this.current?.source === banner.source) this.dismiss();
+                if (this.current?.source === banner.source) this.dismiss(false);
             });
             this.watch = Gio.bus_watch_name_on_connection(this.connection, sender,
                 Gio.BusNameWatcherFlags.NONE, null, () => {
@@ -93,12 +123,12 @@ export class ReminderPreview {
         this.pending++;
     }
 
-    dismiss() {
+    dismiss(destroySource = true) {
         const current = this.current;
         this.current = null;
         if (this.watch) Gio.bus_unwatch_name(this.watch);
         this.watch = 0;
-        current?.source.destroy();
+        if (destroySource) current?.source.destroy();
     }
 
     close() {

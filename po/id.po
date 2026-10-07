@@ -1642,3 +1642,11 @@ msgstr "Tampilkan pengingat di aplikasi layar penuh (game, video, dll.)"
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Pilih nilai lain untuk “Kapan ditampilkan” agar pengingat tidak duplikat."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Tutup"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Notifikasi ini akan ditutup dalam 5 detik."

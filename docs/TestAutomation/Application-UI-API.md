@@ -221,12 +221,16 @@ The dedicated kiosk notification provider exports the same UI protocol at
 `com.puffyslippers.OhNoParentControl.KioskNotifications`, using its derived
 GApplication object path. Its `kiosk-system-notification` surface exposes
 `kiosk-system-notification-message` (plain body text and canonical urgency value)
-and `kiosk-system-notification-close` (normal dismissal). The provider runs only
+and `kiosk-system-notification-close` (normal dismissal), plus
+`kiosk-system-notification-preferences` (shared preferences action) and
+`kiosk-system-notification-countdown` (displayed auto-close seconds). The provider runs only
 with the dedicated kiosk session. The child overlay calls the extension's
 reminder-preview service, which shares the countdown's banner renderer. Its
 `child-reminder-preview` surface at the existing ChildUI endpoint exposes
 `child-reminder-preview-message` (literal body and canonical `critical` urgency)
-and `child-reminder-preview-close` (normal dismissal). This repository-owned
+and `child-reminder-preview-close` (normal dismissal), plus
+`child-reminder-preview-preferences` and `child-reminder-preview-countdown`
+(canonical auto-close seconds, hidden for persistent banners). This repository-owned
 banner uses the Application UI API, not external-provider selectors.
 
 ## Shared information and feedback
@@ -277,7 +281,7 @@ DOM selectors, supply HTML or bypass attachment/submission validation. It uses
 Panel input refuses while locked, on the greeter, hidden, or while a request
 is active. Setting the animation option changes no policy or time grant.
 
-The read-only `child-time-notification` surface exists while the extension owns
+The `child-time-notification` surface exists while the extension owns
 a current system notification. IDs are stable across language and reminder
 configuration changes:
 
@@ -286,14 +290,14 @@ configuration changes:
 | `child-time-notification` | `getText`: actual notification title |
 | `child-time-notification-message` | `getText`: actual plain notification body; `getValue`: configured threshold in seconds |
 | `child-time-notification-urgency` | `getValue`: `critical` or `high` |
+| `child-time-notification-close` | `activate`: dismiss the current banner |
+| `child-time-notification-preferences` | `activate`: open the shared overlay preferences |
+| `child-time-notification-countdown` | `getValue`: auto-close seconds, hidden for persistent banners |
 
-These observations expose the notification supplied to Shell, including its
-current text after preference/language refresh. Logical visibility means an
-owned notification on the unlocked child desktop; it does not assert that Shell
-is currently presenting a banner. Native banner accessibility, dismissal and
-fullscreen inhibition belong to GNOME's external provider under the
-[provider exception](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception).
-No private Shell actor traversal or alternate product input route is provided.
+These observations expose the product-owned Shell banner, including current
+text after preference/language refresh. Logical visibility follows the unlocked
+desktop and fullscreen urgency. Actions invoke the banner's ordinary handlers;
+no alternate product input route is provided.
 Installed banner/provider qualification remains pending. The reminder
 preferences dialog publishes its own guarded public IDs and normal handlers;
 these read-only observations provide no settings input or backend-edit bypass.

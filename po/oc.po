@@ -1648,3 +1648,11 @@ msgstr "Afichar los rapèls dins las aplicacions en ecran complet (jòcs, vidèo
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Causissètz una autra valor per «Quand mostrar» per evitar de rampèls duplicats."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Tampar"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Aquesta notificacion se tamparà dins 5 segondas."

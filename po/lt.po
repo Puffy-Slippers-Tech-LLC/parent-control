@@ -1654,3 +1654,11 @@ msgstr "Rodyti priminimus viso ekrano programose (žaidimuose, vaizdo įrašuose
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Pasirinkite kitą „Kada rodyti“ reikšmę, kad išvengtumėte pasikartojančių priminimų."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Uždaryti"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "Šis pranešimas bus uždarytas po 5 sekundžių."

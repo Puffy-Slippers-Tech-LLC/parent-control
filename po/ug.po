@@ -1642,3 +1642,11 @@ msgstr "پۈتۈن ئېكران ئەپلىرىدە ئەسكەرتىشلەرنى 
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "تەكرار ئەسكەرتىشلەردىن ساقلىنىش ئۈچۈن «قاچان كۆرسىتىش» ئۈچۈن باشقا قىممەت تاللاڭ."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "تاقاش"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "بۇ ئۇقتۇرۇش 5 سېكۇنتتىن كېيىن تاقىلىدۇ."

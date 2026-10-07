@@ -1648,3 +1648,11 @@ msgstr "পূর্ণ স্ক্রিন অ্যাপে অনুস্
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "একই অনুস্মারক এড়াতে “কখন দেখাতে হবে”-এর জন্য অন্য একটি মান বেছে নিন।"
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "বন্ধ করুন"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "এই বিজ্ঞপ্তিটি ৫ সেকেন্ড পরে বন্ধ হবে।"

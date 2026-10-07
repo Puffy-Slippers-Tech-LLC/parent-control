@@ -132,7 +132,8 @@ onpc_preview_prepare_environment() {
         done
         ln -s "$onpc_preview_source_dir/extension.js" "$extension_dir/productionExtension.js"
         ln -sf "$onpc_preview_source_dir/previewExtension.js" "$extension_dir/extension.js"
-        for source in "$repo_root"/data/{app_logo.png,app_logo_gnome_launcher.png,company_icon_32.png,brand.json,app.json} \
+        for source in "$repo_root"/data/{app_logo.png,app_logo_gnome_launcher.png,company_icon_32.png,brand.json,app.json,reminder-frame.svg,reminder-preferences.svg,reminder-dismiss.svg} \
+                "$repo_root"/kiosk/oh_no_parent_control_kiosk/fonts/{Monocraft.ttf,OFL.txt} \
                 "$repo_root"/{LICENSE,COPYRIGHT,NOTICE}; do
             ln -s "$source" "$extension_dir/${source##*/}"
         done

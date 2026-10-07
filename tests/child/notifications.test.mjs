@@ -15,6 +15,9 @@ const reminders = [
 const translations = {text: (key, values) => key === 'TIME_REMAINING_NOTIFICATION'
     ? `${values.time} left` : key === 'TIME_REMAINING_SAVE_GAMES_NOTIFICATION'
         ? `${values.time} left, save your games!`
+        : key === 'COMPACT_SECONDS' ? `${values.count}s`
+        : key === 'REMINDER_AUTO_CLOSE' ? 'This notification will close in 5 seconds.'
+        : key === 'PREFERENCES' ? 'Preferences' : key === 'DISMISS' ? 'Dismiss'
         : `${values.count} ${key === 'MINUTE_COUNT' ? 'minute' : 'second'}${values.count === 1 ? '' : 's'}`};
 
 test('thresholds are deduplicated and rearmed by renewed usable time', () => {
@@ -78,19 +81,62 @@ function harness() {
         constructor(params) {
             super(params);
             assert.deepEqual(Object.keys(params).sort(), ['icon', 'title']);
+            this.policy = {showBanners: true};
+            sources.push(this);
         }
         addNotification(notification) { this.notification = notification; }
         destroy() { this.notification?.destroy(); super.destroy(); }
     }
-    const sources = [], errors = [], callbacks = [], cancelled = [], banners = [];
+    const sources = [], errors = [], callbacks = [], cancelled = [], banners = [], chrome = [];
+    const timers = new Map();
+    let now = 0, serial = 0, preferencesOpened = 0;
+    class Actor extends SignalObject {
+        constructor(params = {}) {
+            super({width: 100, visible: true, ...params});
+            this.children = [];
+            this.clutter_text = {};
+        }
+        add_child(child) { this.children.push(child); }
+        set_style(style) { this.style = style; }
+        set_request_mode(mode) { this.request_mode = mode; }
+        get_style() { return this.style; }
+        set_position(x, y) { this.x = x; this.y = y; }
+        get_preferred_width() { return [this.width, this.width]; }
+        set_text_direction(value) { this.direction = value; }
+        get_text_direction() { return this.direction; }
+        get_transformed_position() { return [this.x ?? 0, this.y ?? 0]; }
+        get_transformed_size() { return [this.width, 40]; }
+        get_preferred_height() { return [20, 20]; }
+        get_pango_context() { return {get_font_map: () => ({add_font_file: () => true})}; }
+    }
+    const file = path => ({get_path: () => path, get_parent: () => file(path + '/..'),
+        get_child: name => file(path + '/' + name), query_exists: () => true});
+    const sessionMode = new SignalObject({isLocked: false, isGreeter: false});
+    const layoutManager = new SignalObject({primaryMonitor: {x: 0, y: 0, width: 1920, inFullscreen: false},
+        addChrome: actor => {
+            chrome.push(actor);
+            if (actor.style_class === 'screen-time-reminder') banners.push(actor);
+        }, removeChrome: actor => {
+            chrome.splice(chrome.indexOf(actor), 1);
+            if (banners.includes(actor)) banners.splice(banners.indexOf(actor), 1);
+        }});
     const context = vm.createContext({
-        Gio: {FileIcon: class {constructor(params) { Object.assign(this, params); }},
+        Gio: {FileIcon: class {constructor(params) { Object.assign(this, params); }
+                get_file() { return file(this.file); }},
             File: {new_for_path: path => path}, Cancellable: class {cancel() { cancelled.push(true); }},
             DBusCallFlags: {NONE: 0}, DBus: {system: {call: (...args) => callbacks.push(args.at(-1))}}},
-        GLib: {VariantType: class {}},
-        Clutter: {ActorAlign: {CENTER: 2}},
+        GLib: {VariantType: class {}, get_monotonic_time: () => now,
+            timeout_add: (_priority, _interval, callback) => { timers.set(++serial, callback); return serial; },
+            source_remove: id => timers.delete(id), SOURCE_REMOVE: false, SOURCE_CONTINUE: true},
+        Clutter: {ActorAlign: {CENTER: 2, START: 1}, Orientation: {VERTICAL: 1}, BinLayout: class {},
+            RequestMode: {HEIGHT_FOR_WIDTH: 0, WIDTH_FOR_HEIGHT: 1},
+            TextDirection: {LTR: 0, RTL: 1}},
+        St: {BoxLayout: Actor, Label: Actor, Icon: Actor, Button: Actor, Widget: Actor,
+            ThemeContext: {get_for_stage: () => ({scale_factor: 1})}},
+        describeControl: () => {},
+        global: {stage: {}, display: new SignalObject()},
         Pango: {WrapMode: {WORD_CHAR: 2}, EllipsizeMode: {NONE: 0}},
-        Main: {messageTray: {add: source => sources.push(source), get_children: () => banners}},
+        Main: {sessionMode, layoutManager},
         MessageTray: {Source, Notification: SignalObject, Urgency: {CRITICAL: 3, HIGH: 2}, PrivacyScope: {USER: 0}},
         ReminderSchedule, notificationPreferences, reminderSeconds, reminderText,
     });
@@ -103,10 +149,15 @@ function harness() {
         .replace('export class RemainingTimeNotifications', 'globalThis.RemainingTimeNotifications = class');
     vm.runInContext(source, context);
     const notifier = new context.RemainingTimeNotifications('Product', '/logo.png', translations,
-        error => errors.push(error), () => {});
+        error => errors.push(error), () => {}, () => preferencesOpened++);
     const reply = settings => callbacks.shift()({call_finish: () => ({deep_unpack: () => [JSON.stringify(settings)]})}, {});
     const policyReply = allowed => callbacks.shift()({call_finish: () => ({deep_unpack: () => [allowed]})}, {});
-    return {notifier, sources, errors, callbacks, cancelled, banners, reply, policyReply};
+    const advance = milliseconds => {
+        now += milliseconds * 1000;
+        for (const [id, callback] of [...timers]) if (!callback()) timers.delete(id);
+    };
+    return {notifier, sources, errors, callbacks, cancelled, banners, chrome, reply, policyReply,
+        advance, timers, sessionMode, layoutManager, context, preferencesOpened: () => preferencesOpened};
 }
 
 test('production notification uses Shell urgency, logo, literal text and owned replacement/cleanup', () => {
@@ -203,59 +254,121 @@ test('second defaults schedule live ticks and delayed policy replies use the lat
     assert.equal(delayed.notifier.current.notification.body, '12 seconds left');
 });
 
-test('compact reminder hides both headings and centers its small logo without changing other banners', () => {
+test('minute banners expire after five seconds and subminute banners persist until dismissed', () => {
+    for (const seconds of [59, 60, 61]) {
+        const h = harness();
+        h.notifier.preferences = {show_in_fullscreen: true, reminders};
+        h.notifier.schedule.previous = seconds;
+        h.notifier.present(reminders[2], false);
+        const current = h.notifier.current;
+        assert.equal(current.countdown(), seconds >= 60 ? 5 : null);
+        h.advance(4900);
+        assert.equal(h.notifier.current, current);
+        h.advance(100);
+        assert.equal(h.notifier.current, seconds >= 60 ? null : current);
+        if (seconds < 60) {
+            h.advance(60000);
+            assert.equal(h.notifier.current, current);
+            current.dismiss();
+        }
+        assert.equal(h.notifier.current, null);
+        assert.equal(h.banners.length, 0);
+        assert.equal(h.timers.size, 0);
+    }
+});
+
+test('new banners retire previous timers and Preferences uses the shared overlay action', () => {
     const h = harness();
     h.notifier.preferences = {show_in_fullscreen: true, reminders};
     h.notifier.present(reminders[2], false);
-    const notification = h.notifier.current.notification;
-    const actor = (style, children = []) => ({
-        visible: true, y_align: 0, classes: new Set([style]),
-        get_children: () => children,
-        get_parent() { return this.parent; },
-        remove_child(child) { children.splice(children.indexOf(child), 1); child.parent = null; },
-        add_child(child) { children.push(child); child.parent = this; },
-        has_style_class_name(name) { return this.classes.has(name); },
-        add_style_class_name(name) { this.classes.add(name); },
-        hide() { this.visible = false; },
+    const old = h.notifier.current;
+    h.advance(3000);
+    h.notifier.schedule.previous = 15;
+    h.notifier.present(reminders[3], false);
+    const current = h.notifier.current;
+    assert.equal(old.source.destroyed, true);
+    assert.equal(h.timers.size, 0);
+    h.advance(10000);
+    old.dismiss();
+    assert.equal(h.notifier.current, current);
+    current.preferences();
+    assert.equal(h.notifier.current, null);
+    assert.equal(h.preferencesOpened(), 1);
+});
+
+test('fullscreen preference controls delivery without changing persistence or touching other chrome', () => {
+    const h = harness();
+    h.notifier.preferences = {show_in_fullscreen: false, reminders};
+    h.layoutManager.primaryMonitor.inFullscreen = true;
+    h.notifier.present(reminders[2], false);
+    const current = h.notifier.current;
+    assert.equal(current.card.visible, false);
+    assert.equal(h.timers.size, 0);
+    h.layoutManager.primaryMonitor.inFullscreen = false;
+    for (const sync of h.context.global.display.handlers['in-fullscreen-changed']) sync();
+    assert.equal(current.card.visible, true);
+    assert.equal(current.countdown(), 5);
+    h.sessionMode.isLocked = true;
+    for (const sync of h.sessionMode.handlers.updated) sync();
+    assert.equal(h.notifier.current, null);
+    assert.equal(h.timers.size, 0);
+});
+
+test('preview source destruction releases its sender watch without recursive destruction', () => {
+    const h = harness();
+    let unwatched = 0;
+    h.context.Gio.bus_watch_name_on_connection = () => 1;
+    h.context.Gio.bus_unwatch_name = () => unwatched++;
+    h.context.Gio.BusNameWatcherFlags = {NONE: 0};
+    h.context.GLib.Variant = class {};
+    const source = readFileSync(new URL('../../child/reminderPreview.js', import.meta.url), 'utf8')
+        .replace(/^import[\s\S]*?;\n/gm, '')
+        .replace('export class ReminderPreview', 'globalThis.Preview = class');
+    vm.runInContext(source, h.context);
+    const preview = Object.assign(Object.create(h.context.Preview.prototype), {
+        title: 'Product', icon: new h.context.Gio.FileIcon({file: '/logo.png'}),
+        translations, openPreferences: () => {}, serial: 0, watch: 0,
+        _dispatch: (_invocation, operation) => operation('sender'),
     });
-    const header = actor('message-header');
-    const title = actor('message-title');
-    const body = actor('message-body');
-    body.clutter_text = {set_text(text) { this.text = text; }};
-    const bin = actor('body-bin', [body]);
-    const content = actor('message-content', [title, bin]);
-    body.parent = bin;
-    bin.parent = content;
-    const icon = actor('message-icon');
-    const owned = actor('notification-banner', [header, icon, content]);
-    owned.notification = notification;
-    const otherHeader = actor('message-header');
-    const other = actor('notification-banner', [otherHeader]);
-    other.notification = {};
-    h.banners.push(actor('container', [other, owned]));
-    notification.acknowledged = true;
-    for (const callback of notification.handlers['notify::acknowledged']) callback();
-    assert.equal(header.visible, false);
-    assert.equal(title.visible, false);
-    assert.equal(body.visible, true);
-    assert.equal(body.parent, content);
-    assert.equal(bin.visible, false);
-    assert.equal(body.clutter_text.line_wrap, true);
-    assert.equal(body.clutter_text.ellipsize, 0);
-    notification.body = 'Save now\n' + 'verylongword'.repeat(30);
-    for (const callback of notification.handlers['notify::body']) callback();
-    assert.equal(body.clutter_text.text, notification.body);
-    assert.equal(owned.x_expand, false);
-    assert.equal(icon.y_align, 2);
-    assert(owned.classes.has('screen-time-reminder'));
-    assert.equal(otherHeader.visible, true);
-    assert.equal(other.classes.has('screen-time-reminder'), false);
-    const css = readFileSync(new URL('../../child/stylesheet.css', import.meta.url), 'utf8');
-    assert.match(css, /\.screen-time-reminder \.message-icon\s*\{[^}]*icon-size: 20px;/);
-    h.notifier.clear();
-    owned.classes.delete('screen-time-reminder');
-    for (const callback of notification.handlers['notify::acknowledged']) callback();
-    assert.equal(owned.classes.has('screen-time-reminder'), false);
+    preview.PreviewTimedAsync(['Save now', 0, 60], {});
+    const current = preview.current;
+    let destructions = 0;
+    current.source.connect('destroy', () => destructions++);
+    current.dismiss();
+    assert.equal(destructions, 1);
+    assert.equal(unwatched, 1);
+    assert.equal(preview.current, null);
+    assert.equal(h.banners.length, 0);
+    assert.equal(h.timers.size, 0);
+    h.context.TranslationContext = class {
+        apply(language) { this.language = language; }
+        text(key) {
+            assert.equal(this.language, 'zh-Hans');
+            return {PREFERENCES: '偏好设置', DISMISS: '关闭',
+                REMINDER_AUTO_CLOSE: '此通知将在 5 秒后关闭。', COMPACT_SECONDS: '5 秒'}[key];
+        }
+    };
+    preview.PreviewLocalizedAsync(['还剩 20 秒', 0, 20, 'zh-Hans'], {});
+    const texts = actor => [actor.text, ...actor.children.flatMap(texts),
+        ...(actor.child ? texts(actor.child) : [])];
+    assert(!texts(preview.current.card).includes('偏好设置'));
+    assert(!texts(preview.current.card).includes('关闭'));
+    assert.equal(preview.translations, translations);
+    const tooltip = h.chrome.find(actor => actor.style_class === 'dash-label screen-time-tooltip');
+    const controls = preview.current.card.children.at(-1).children;
+    for (const [index, expected] of ['偏好设置', '关闭'].entries()) {
+        controls[index].mapped = true;
+        controls[index].hover = true;
+        controls[index].handlers['notify::hover'][0]();
+        assert.equal(tooltip.text, expected);
+        assert.equal(tooltip.visible, true);
+        controls[index].hover = false;
+        controls[index].handlers['notify::hover'][0]();
+        assert.equal(tooltip.visible, false);
+    }
+    preview.current.dismiss();
+    assert.equal(tooltip.destroyed, true);
+    assert.equal(h.chrome.length, 0);
 });
 
 test('subminute delivery queries current policy and ignores stale replies', () => {
@@ -386,8 +499,10 @@ test('notification UI adapter exposes actual current text and canonical urgency 
         h.notifier.current.notification.body);
     assert.equal(elements.find(element => element.id === 'child-time-notification-message').getValue(), 15);
     assert.equal(elements.find(element => element.id === 'child-time-notification-urgency').getValue(), 'high');
-    assert(elements.every(element => !element.enabled && !element.activate && !element.setValue));
+    assert(elements.find(element => element.id === 'child-time-notification-close').activate);
+    assert(elements.find(element => element.id === 'child-time-notification-preferences').activate);
     Main.sessionMode.isLocked = true;
+    h.notifier.current.card.visible = false;
     assert(adapter.elements('child-time-notification').every(element => !element.visible));
     h.notifier.clear();
     assert.equal(adapter.elements('child-time-notification'), null);

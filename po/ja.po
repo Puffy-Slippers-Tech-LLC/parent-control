@@ -1640,3 +1640,11 @@ msgstr "全画面アプリでリマインダーを表示する（ゲーム、動
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "リマインダーの重複を避けるため、「表示するタイミング」を別の値にしてください。"
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "閉じる"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "この通知は5秒後に閉じます。"

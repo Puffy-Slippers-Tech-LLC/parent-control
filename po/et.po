@@ -1648,3 +1648,11 @@ msgstr "Näita meeldetuletusi täisekraanirakendustes (mängud, videod jne)"
 
 msgid "Choose a different \"When to show\" to avoid duplicate reminders."
 msgstr "Valige väljale „Millal kuvada” teine väärtus, et vältida korduvaid meeldetuletusi."
+
+#. Shared message: DISMISS
+msgid "Dismiss"
+msgstr "Sulge"
+
+#. Shared message: REMINDER_AUTO_CLOSE
+msgid "This notification will close in 5 seconds."
+msgstr "See teavitus sulgub 5 sekundi pärast."

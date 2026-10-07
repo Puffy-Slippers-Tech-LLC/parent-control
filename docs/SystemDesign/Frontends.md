@@ -42,9 +42,13 @@ Implementation: [parent main.py](../../parent/oh_no_parent_control_parent/main.p
 4. **Kiosk request:** The dedicated GNOME session lists eligible children and
    approvers, loads the selected child's request choices, and calls
    `RequestAccess`. The GNOME session is declared as a kiosk session, which
-   disables every XDG autostart desktop file; its complete application set is
-   instead the kiosk compositor, request station, and authentication agent
-   declared by the session's systemd target. It remains request-only. Cancel or
+   disables every XDG autostart desktop file. Its systemd target starts the kiosk
+   compositor, request station, notification provider, and authentication agent.
+   The target also conflicts with Ubuntu's `update-notifier-crash.path` and
+   `update-notifier-crash.service`: those systemd units bypass XDG autostart and
+   could otherwise open Apport above the station. This exclusion applies only
+   to the kiosk user's session; ordinary desktops retain crash reporting.
+   It remains request-only. Cancel or
    Escape returns to the sign-in screen, and approval does so after a brief
    confirmation.
 

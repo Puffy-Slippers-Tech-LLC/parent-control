@@ -1,5 +1,12 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Kiosk notification startup in systemd_unit uses one bounded, synchronously
+waited Python child with private tmp_path HOME/cache and bytecode disabled.
+It loads GTK modules without creating a window, bus connection or main loop;
+Apport is disabled in that child. Unit dependency checks only read checkout
+files. The module retains compatible unit scheduling, with no live service,
+shared cache, session mutation or additional cleanup owner.
+
 Preview wait-cancellation checks in ui_cleanup_safety use private tmp_path logs
 and process-local Popen/clock doubles. They add no process, signal handler, bus
 or display; its existing compatible unit and cleanup classifications still apply.

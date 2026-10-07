@@ -1,4 +1,6 @@
 import configparser
+import shlex
+import subprocess
 import unittest
 
 
@@ -11,6 +13,44 @@ DISPLAY_MANAGER_DROP_IN = (
     ROOT / "data/systemd/display-manager.service.d/oh-no-parent-control.conf"
 )
 FAPOLICYD_FALLBACK = ROOT / "data/fapolicyd/99-oh-no-parent-control-allow.rules"
+
+
+def test_kiosk_notification_script_loads_without_a_package_context(tmp_path):
+    unit = configparser.ConfigParser(interpolation=None)
+    unit.read(ROOT / 'data/systemd/user/oh-no-parent-control-notifications.service')
+    command = shlex.split(unit['Service']['ExecStart'])
+    interpreter, installed_script = command[2:]
+    script = ROOT / installed_script.removeprefix('/usr/lib/oh-no-parent-control/')
+    # Match direct-file execution's empty package context without opening a
+    # window or bus. Disable Apport in this owned child so a regression cannot
+    # generate a host crash report. Real imports catch launch-only failures
+    # which the preview's package import does not exercise.
+    result = subprocess.run(
+        [interpreter, '-I', '-B', '-c',
+         'import runpy, sys; sys.excepthook = sys.__excepthook__; '
+         'runpy.run_path(sys.argv[1])', str(script)],
+        cwd=tmp_path,
+        env={'PATH': '/usr/bin:/bin', 'HOME': str(tmp_path),
+             'XDG_CACHE_HOME': str(tmp_path / 'cache'), 'LC_ALL': 'C.UTF-8'},
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_kiosk_excludes_systemd_crash_notifier_with_stop_ordering():
+    source = (ROOT / 'data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf').read_text()
+    settings = {}
+    for line in source.splitlines():
+        key, separator, value = line.partition('=')
+        if separator:
+            settings.setdefault(key, set()).update(value.split())
+    notifier = {'update-notifier-crash.path', 'update-notifier-crash.service'}
+    assert notifier <= settings['Conflicts']
+    assert notifier <= settings['After']
+    # Suppression must leave the request form and its notification provider
+    # in the kiosk transaction, rather than disabling notifications globally.
+    assert 'oh-no-parent-control-app.service' in settings['Requires']
+    assert 'oh-no-parent-control-notifications.service' in settings['Wants']
 
 
 class BrokerServiceUnitTests(unittest.TestCase):

@@ -202,8 +202,9 @@ Technical interfaces, storage formats and verification limits are in the
   of at least one minute gives the banner a five-second auto-close countdown;
   below one minute it stays open without a countdown until dismissed, replaced
   or the session locks. Previews use the editor's selected duration. Preferences
-  opens the shared preferences dialog in the child overlay or kiosk; Dismiss
-  closes the banner. Any new reminder or preview dismisses the previous banner.
+  opens the shared preferences dialog on its Reminders tab in the child overlay
+  or kiosk; Dismiss closes the banner. Any new reminder or preview dismisses the
+  previous banner.
 
 - [ONPC-COMP-CHILD-003] Combines the current daily-time estimate with the current grant. A temporary read failure retains the last verified estimate while time continues to elapse.
 - [ONPC-COMP-CHILD-004] Opens one shared request overlay for the signed-in child, with eligible parent selection, remembered choices, time estimates, Help and About.

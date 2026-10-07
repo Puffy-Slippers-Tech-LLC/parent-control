@@ -431,7 +431,10 @@ New banners dispose the old source, actor, signals and timer. Locking, extension
 disposal and editor dismissal also retire the owned banner. Old preview IDs
 cannot dismiss a newer banner. Preferences dismisses the banner and activates
 the existing request application's `preferences` action, or launches the child
-overlay with `--preferences` when needed. Dismiss retires only that banner.
+overlay with `--preferences` when needed. Both banner entry paths select the
+Reminders tab, including in an already-open Preferences dialog. The request
+screen's menu and startup language setup open Language. Dismiss retires only
+that banner.
 The kiosk provider receives the duration/language in bounded notification
 hints and uses the same timing rule and shared application action.
 These payload changes activate with session renewal and need no migration.

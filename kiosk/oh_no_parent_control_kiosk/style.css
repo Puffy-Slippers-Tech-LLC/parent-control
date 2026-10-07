@@ -96,16 +96,16 @@ popover.oh-no-parent-control-hud-menu > contents {
 }
 
 button.oh-no-parent-control-hud-menu-item {
-  min-height: 82px;
-  padding: 8px 14px;
+  min-height: 48px;
+  padding: 6px 14px;
   margin: 0;
   border: 0;
   border-radius: 0;
   color: rgba(236, 236, 230, 0.94);
   font-family: "Monocraft", "Ubuntu Mono", monospace;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0;
   background-color: #3a3943;
   background-image: linear-gradient(to bottom, #46454f, #34333d);
   box-shadow: none;

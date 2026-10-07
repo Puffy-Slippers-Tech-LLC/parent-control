@@ -807,9 +807,9 @@ class HudIconFrame(Gtk.Overlay):
 
     __gtype_name__ = "OhNoHudIconFrame"
 
-    def __init__(self, pixels, *, display_size=28):
+    def __init__(self, pixels, *, display_size=22):
         super().__init__(halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
-        self.set_size_request(54, 54)
+        self.set_size_request(44, 44)
         self.add_css_class("oh-no-parent-control-hud-menu-icon")
         icon = PixelIcon(pixels, display_size=display_size, label="")
         icon.set_halign(Gtk.Align.CENTER)

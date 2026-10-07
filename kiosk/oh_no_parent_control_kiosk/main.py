@@ -26,7 +26,7 @@ gi.require_version("Gdk", "4.0")
 gi.require_version("Graphene", "1.0")
 gi.require_version("Gsk", "4.0")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Graphene, Gsk, Gtk, Pango
 
 from common.oh_no_parent_control_ui.about import AboutDialog, app_name, open_help
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
@@ -948,6 +948,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._language_dialog = None
         self._language_loading = False
         self._language_requested = False
+        self._preferences_tab_requested = None
         self._language_load_failed = False
         self._language_target_uid = None
         self._language_revision = 0
@@ -1303,9 +1304,10 @@ class RequestWindow(Adw.ApplicationWindow):
             set_text(self._result_detail, 'label', m.YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO)
             self._result_detail.set_visible(True)
 
-    def _show_preferences(self, *_args):
+    def _show_preferences(self, *_args, tab='language'):
         if self._estimate_closed:
             return
+        self._preferences_tab_requested = tab
         self._language_requested = True
         self._load_language()
 
@@ -1317,6 +1319,9 @@ class RequestWindow(Adw.ApplicationWindow):
                 account=self._request_content.selected_child_account(),
                 load_notifications=self._load_notifications,
                 save_notifications=self._save_notifications)
+        if self._preferences_tab_requested is not None:
+            self._language_dialog._ui_select_tab(self._preferences_tab_requested)
+            self._preferences_tab_requested = None
         self._language_dialog.present()
 
     def _load_notifications(self, success, failure):
@@ -1441,12 +1446,16 @@ class RequestWindow(Adw.ApplicationWindow):
         item = localized(ArmoredButton, hexpand=True, armor_kind="hud-menu-item")
         set_automation_id(item, "kiosk-menu-item-" + identity)
         item.add_css_class("oh-no-parent-control-hud-menu-item")
-        content = Gtk.Box(spacing=18, valign=Gtk.Align.CENTER)
+        content = Gtk.Box(spacing=12, valign=Gtk.Align.CENTER)
         set_automation_id(content, "kiosk-menu-item-content-" + identity)
         icon = HudIconFrame(icon_pixels)
         set_automation_id(icon, "kiosk-menu-icon-" + identity)
         content.append(icon)
-        menu_label = localized(Gtk.Label, label=label, xalign=0, hexpand=True)
+        # Long translated captions must fit the popup's available width.
+        menu_label = localized(
+            Gtk.Label, label=label, xalign=0, hexpand=True,
+            wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
+        )
         set_automation_id(menu_label, "kiosk-menu-label-" + identity)
         content.append(menu_label)
         item.set_child(content)
@@ -2151,7 +2160,7 @@ class Application(Adw.Application):
         window.present()
         if self._preferences_requested:
             self._preferences_requested = False
-            window._show_preferences()
+            window._show_preferences(tab='reminders')
 
     def _preferences_activated(self, *_args):
         self._preferences_requested = True

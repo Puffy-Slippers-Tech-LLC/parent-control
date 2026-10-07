@@ -295,7 +295,11 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
                               **({'previous': handoffs[target]} if target in handoffs else {}))
             handoffs[target] = previous
             check_stop()
-            failure = (resume_test(category, retry_case=target[1]) if resume_test else test(category))
+            # A non-case failure has no identity to invalidate in the saved
+            # checkpoint. Replay its original category selection so diagnostics
+            # and repairs cannot be certified by already completed passes.
+            failure = (resume_test(category, retry_case=target[1], fresh=not target[1])
+                       if resume_test else test(category))
             passed = verification_outcome(failure, target)
             if isinstance(previous, dict):
                 previous['verification'] = passed
@@ -458,10 +462,10 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         check_stop()
         return status
 
-    def test(category, *, resume=False, retry_case=''):
+    def test(category, *, resume=False, retry_case='', fresh=False):
         nonlocal pending
-        resume = resume or (resuming and (category == pending or
-                            (category == 'all' and pending is not None and round_number > 1)))
+        resume = not fresh and (resume or (resuming and (category == pending or
+                            (category == 'all' and pending is not None and round_number > 1))))
         pending = category
         if checkpoint is not None:
             for kind in categories if category == 'all' else (category,):

@@ -460,7 +460,7 @@ def test_category_arguments_survive_worker_repairs_and_verification(checkout, op
     tests = [call for call in calls if call['kind'] == 'test']
     assert len(tests) == 5  # Initial attempt, two repair retries, two verification rounds.
     assert [call['args'] for call in tests] == [
-        [*(['--resume'] if index in (1, 2) else []), '--stop-on-error', 'unit',
+        ['--stop-on-error', 'unit',
          *options, '--vm', vm_name()] for index in range(5)]
     assert len([call for call in calls if call['kind'] == 'agent']) == 2
 
@@ -670,7 +670,7 @@ def test_diagnostic_experiment_retains_evidence_and_selectors_without_repair_cla
     retries = ['A', '', 'A'] if len(observations) == 4 else ['A', 'A']
     assert [call['args'] for call in tests] == [
         ['--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()],
-        *[['--resume', '--stop-on-error', 'unit', '-k', 'selected', '-q',
+        *[[*(['--resume'] if case else []), '--stop-on-error', 'unit', '-k', 'selected', '-q',
            *(['--resume-case=' + case] if case else []), '--vm', vm_name()]
           for case in retries]]
     rows = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
@@ -683,6 +683,37 @@ def test_diagnostic_experiment_retains_evidence_and_selectors_without_repair_cla
         assert evidence.parent == run
         assert json.loads(evidence.read_text())['output_tail']
     assert diagnostics[-1]['evidence_path'] in agents[-1]['prompt']
+
+
+@pytest.mark.parametrize('resuming', [False, True])
+def test_category_diagnostics_and_repairs_replay_without_saved_passes(checkout, resuming):
+    root, _ = checkout
+    (root / 'tests/ui').mkdir(parents=True)
+    (root / 'tests/ui/test_selected.py').write_text('def test_selected(): pass\n')
+    (root / '.venv/onpc-ui-tests/bin').mkdir(parents=True)
+    (root / '.venv/onpc-ui-tests/bin/python').symlink_to(sys.executable)
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps({
+        'agents': ['diagnostic_ready', 'fixed'], 'tests': ['', None, None]}))
+    if resuming:
+        from test_checkpoint import Checkpoint
+        checkpoint = Checkpoint(root, [('ui', ['--timeout', '1800s', '-m', 'not live_e2e'])],
+                                namespace='fix-tests')
+        checkpoint.state['pending'] = 'ui'
+        checkpoint.save()
+    run, _ = fix_tests.select(root, categories=('ui', '--timeout', '1800s', '-m', 'not live_e2e'),
+                             resume=resuming)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0, output.getvalue()
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    tests = [call for call in calls if call['kind'] == 'test']
+    original = ['--stop-on-error', 'ui', '--timeout', '1800s', '-m', 'not live_e2e',
+                '--vm', vm_name()]
+    assert [call['args'] for call in tests] == [
+        [*(['--resume'] if resuming else []), *original], original, original]
+    agents = [call for call in calls if call['kind'] == 'agent']
+    assert len(agents) == 2
+    assert 'Launcher-owned diagnostic execution outcome:' in agents[1]['prompt']
 
 
 def test_astra_blocker_continuation_keeps_tier_and_counts_diagnostic_session(checkout, monkeypatch):

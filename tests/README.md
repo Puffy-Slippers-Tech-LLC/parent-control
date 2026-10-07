@@ -174,6 +174,14 @@ repeated or poorly batched reads from remote waiting and output overhead; correl
 them with the existing resource samples before choosing a correction. They add no
 UI reads, input, poller or files and retain no bus/object addresses or query values.
 
+Product tree discovery uses each fresh API inventory's native roles, topology
+and logical availability. It observes labels on demand through scoped element
+snapshots, while document aliases retain their precise readiness and capability
+reads. Mutations and independent value/text result reads still resolve the live
+control. Character and format-run inspection shares one text/document read within
+its immutable projection, which is rebuilt at the next observation and invalidated
+before input. External-provider complete observations and input guards are unchanged.
+
 `tools/run-tests unit` collects only the selected unit inventory and balances
 reviewed modules across up to four branches. The [unit buckets](../tools/regression_unit.py)
 are shared with `host`; each module and its fixtures stay in one worker. Workers
@@ -306,7 +314,9 @@ repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit
 arguments, until each passes. After a failure, a fresh Codex process receives
 that run's generated investigation prompt, applies a repair, exits, and the
 script reruns that category with `run-tests --resume`, retrying the repaired case
-and remaining cases without repeating its completed passes. Each newly entered
+and remaining cases without repeating its completed passes. Failures without a
+case ID replay the original category selection without saved passes, including
+diagnostic execution and its subsequent repair verification. Each newly entered
 category and each fresh verification pass starts without `--resume`.
 `--rounds X` defaults to 1, running only round 1.
 With X >= 2, it repeats verification X-1 times, labeled rounds 2 through X

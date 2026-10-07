@@ -8,6 +8,7 @@ Every input resolves the live element, and failed mutations are never replayed.
 
 import json
 import os
+from collections.abc import Mapping
 from types import SimpleNamespace
 
 from common.oh_no_parent_control_ui.application_ui_client import (
@@ -45,6 +46,40 @@ def utf16_index(text, offset):
     if units == offset:
         return len(text)
     raise UIClientError('InvalidResponse')
+
+
+class _ObservationFacts(Mapping):
+    """Immutable inventory facts with on-demand public label observation.
+
+    Native inventory already supplies topology, role and logical availability.
+    A complete ID lookup needs those facts, not every unrelated control's text,
+    value and choices. Labels are read through the same scoped snapshot when a
+    consumer actually requests them; each facts record retains that observation.
+    """
+
+    def __init__(self, node):
+        self.node = node
+        self._name_read = False
+        self._name = None
+        self.fields = {
+            'identity': node.identity, 'role': node.get_role_name(),
+            'showing': bool(node.metadata.get('visible')),
+            'modal': bool(node.surface_metadata.get('modal')),
+        }
+
+    def __iter__(self):
+        return iter((*self.fields, 'name'))
+
+    def __len__(self):
+        return len(self.fields) + 1
+
+    def __getitem__(self, key):
+        if key != 'name':
+            return self.fields[key]
+        if not self._name_read:
+            self._name = self.node.get_name()
+            self._name_read = True
+        return self._name
 
 
 class ApplicationUI:
@@ -267,6 +302,8 @@ class ApplicationNode:
         self.children = []
         self.surface_metadata = {}
         self._snapshot = None
+        self._read_text = None
+        self._read_document = None
         self.bus = client.owner
         # A stable logical reference, never an AT-SPI object or routing path.
         self.path = client.object_path + '/' + (surface_id or 'application').replace('-', '_') + '/' + self.identity.replace('-', '_').replace('.', '_')
@@ -297,16 +334,16 @@ class ApplicationNode:
         return self.element.choices
 
     def setValue(self, value):
-        self._snapshot = None
+        self._invalidate_reads()
         self.element.setValue(value)
 
     def setText(self, text):
-        self._snapshot = None
+        self._invalidate_reads()
         self.element.setText(text)
 
     def activate(self):
         observed = self._snapshot or self.metadata
-        self._snapshot = None
+        self._invalidate_reads()
         try:
             self.element.activate()
         except UIClientError as error:
@@ -348,8 +385,18 @@ class ApplicationNode:
             raise
 
     def close(self):
-        self._snapshot = None
+        self._invalidate_reads()
         self.element.close()
+
+    def _invalidate_reads(self):
+        self._snapshot = self._read_text = self._read_document = None
+
+    def _observed_text(self):
+        # Character and format-run reads share this immutable projection, not
+        # a client-wide cache. Public getText/getValue remain independent reads.
+        if self._read_text is None:
+            self._read_text = self.text
+        return self._read_text
 
     def getValue(self):
         return self.value
@@ -376,7 +423,10 @@ class ApplicationNode:
         return self.snapshot().get('description', '')
 
     def get_role_name(self):
-        role = self.snapshot().get('role', '') or self.metadata.get('type', '')
+        # Document aliases refine their host widget role through their public
+        # snapshot. Native roles are already present in the fresh inventory.
+        data = self.snapshot() if self.metadata.get('type') == 'document-element' else self.metadata
+        role = data.get('role', '') or self.metadata.get('type', '')
         return {'checkbox': 'check box', 'check-box': 'check box', 'radio': 'radio button',
                 'textbox': 'entry', 'text-box': 'entry', 'button': 'push button',
                 'switch': 'toggle button', 'combobox': 'combo box', 'combo-box': 'combo box',
@@ -385,6 +435,20 @@ class ApplicationNode:
                 'tab': 'page tab', 'menuitem': 'menu item', 'menu-item': 'menu item',
                 'menu-item-checkbox': 'check menu item',
                 'menu-item-radio': 'radio menu item'}.get(role, role)
+
+    def observation_facts(self):
+        if self.metadata.get('type') != 'document-element':
+            return _ObservationFacts(self)
+        # Virtual controls must retain document readiness, precise capabilities
+        # and visibility rather than using their WebKit host's inventory state.
+        states = self.get_state_set()
+        return {
+            'identity': self.identity, 'role': self.get_role_name(),
+            'name': self.get_name(),
+            'showing': (states.contains(self.catalog.api.StateType.SHOWING)
+                        and states.contains(self.catalog.api.StateType.VISIBLE)),
+            'modal': states.contains(self.catalog.api.StateType.MODAL),
+        }
 
     def get_state_set(self):
         data = self.snapshot()
@@ -460,21 +524,23 @@ class ApplicationNode:
         return None
 
     def get_character_count(self):
-        return len(self.text)
+        return len(self._observed_text())
 
     def get_text(self, start, end):
-        text = self.text
+        text = self._observed_text()
         return text[start:] if end == -1 else text[start:end]
 
     def get_character_at_offset(self, offset):
-        return ord(self.text[offset])
+        return ord(self._observed_text()[offset])
 
     def get_attribute_run(self, offset, include_defaults=True):
         """Project the public document's format runs in Python text offsets."""
-        text = self.text
+        text = self._observed_text()
         if type(offset) is not int or not 0 <= offset <= len(text):
             raise UIClientError('InvalidArgument')
-        document = self.document()
+        if self._read_document is None:
+            self._read_document = self.document()
+        document = self._read_document
         if type(document) is not dict or type(document.get('ops')) is not list:
             raise UIClientError('InvalidResponse')
         start = 0

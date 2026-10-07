@@ -16,7 +16,11 @@ pytestmark = pytest.mark.ui
 
 def start_parent(launch_ui, ui, wait, *, launcher="parent_component_preview",
                  scenario="normal", events_path=None, loading_release=None):
-    environment = {"ONPC_PARENT_COMPONENT_SCENARIO": scenario}
+    # These cases exercise management after language setup. Script the saved
+    # language so immediate error reports cannot race an unrelated first-run
+    # chooser; first-run save/cancel coverage belongs to language_settings.
+    environment = {"ONPC_PARENT_COMPONENT_SCENARIO": scenario,
+                   "ONPC_LANGUAGE_INITIAL": "en"}
     if events_path is not None:
         environment["ONPC_PARENT_COMPONENT_EVENTS_PATH"] = str(events_path)
     if loading_release is not None:

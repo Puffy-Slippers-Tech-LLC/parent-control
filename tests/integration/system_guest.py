@@ -35,9 +35,11 @@ def require(condition, category):
         raise GuestError(category)
 
 
-def run(argv, timeout=120):
+def run(argv, timeout=120, *, diagnostic_stdout=None):
     if argv[0] not in ('apt-get', 'dnf'):
-        return commands.run(argv, timeout=timeout, merge_stderr=False).decode('utf-8').strip()
+        options = {} if diagnostic_stdout is None else {'diagnostic_stdout': diagnostic_stdout}
+        return commands.run(argv, timeout=timeout, merge_stderr=False,
+                            **options).decode('utf-8').strip()
     # Only package operations expose text. Identity/account probes and their
     # replies remain in private artifacts. Flush both APT streams over SSH while
     # it runs; the host spectator applies its normal redaction and size bounds.

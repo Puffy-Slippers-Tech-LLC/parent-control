@@ -1,6 +1,7 @@
 """Native enforcement witnesses, used only inside the guarded installed guest."""
 
 import errno
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -232,8 +233,21 @@ def trust_future():
     # retained VM evidence shows a successful refresh taking about 40 seconds;
     # allow the guest command budget while still requiring the exact DB entry.
     deadline = time.monotonic() + 120
+
+    def trust_diagnostic(raw):
+        # Each Ubuntu database dump is about 26 MB and collection retains
+        # several copies. Keep every row for this exact path (including wrong
+        # sizes/digests) and a fingerprint of the full observed database.
+        # Interrupted output can end inside a UTF-8 path. Diagnostic decoding
+        # must not replace the original interruption with a decoding error.
+        rows = [line for line in raw.decode('utf-8', errors='replace').splitlines()
+                if len(line.split()) >= 2 and line.split()[1] == str(target)]
+        header = f'database_bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()}\n'
+        return (header + '\n'.join(rows) + '\n').encode('utf-8')
+
     while True:
-        rows = [row.split() for row in guest.run(['fapolicyd-cli', '--dump-db']).splitlines()]
+        rows = [row.split() for row in guest.run(
+            ['fapolicyd-cli', '--dump-db'], diagnostic_stdout=trust_diagnostic).splitlines()]
         if any(len(row) == 4 and row[1:] == expected for row in rows):
             return
         guest.require(time.monotonic() < deadline, 'enforcement:future-not-trusted')

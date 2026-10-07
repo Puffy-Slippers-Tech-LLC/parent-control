@@ -9,6 +9,18 @@ import pytest
 import system_guest as guest
 
 
+def test_probe_diagnostic_filter_does_not_change_returned_database(monkeypatch):
+    commands = Mock()
+    commands.run.return_value = b' full independent database\n'
+    monkeypatch.setattr(guest, 'commands', commands)
+    transform = Mock(return_value=b'only relevant diagnostics')
+    assert guest.run(['fapolicyd-cli', '--dump-db'], diagnostic_stdout=transform) == (
+        'full independent database')
+    commands.run.assert_called_once_with(['fapolicyd-cli', '--dump-db'], timeout=120,
+                                         merge_stderr=False, diagnostic_stdout=transform)
+    transform.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'version', 'files', 'selinux', 'configuration', 'broker', 'boot-gate'])
 def test_fedora_snapshot_requires_exact_rpm_and_completed_configuration(tmp_path, monkeypatch, fault):
     (tmp_path / 'package.rpm').write_bytes(b'package')

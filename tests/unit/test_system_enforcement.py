@@ -829,6 +829,22 @@ def test_future_trust_is_fixed_owned_and_independently_observed(monkeypatch, tmp
         else:
             sleep.assert_not_called()
         assert [item.args[0] for item in run.call_args_list] == expected_commands
+    if fault in (None, 'delayed-refresh', 'wrong-digest'):
+        transform = run.call_args.kwargs['diagnostic_stdout']
+        # Even a large dump retains only this exact path, including a bad
+        # digest/malformed entry needed to diagnose a failed trust check.
+        malformed = f'filedb {target} wrong-size wrong-digest extra-column'
+        unrelated = f'filedb {target}.unrelated 1 ' + 'c' * 64
+        database = ((unrelated + '\n') * 10000 + row + '\n' + malformed + '\n').encode()
+        diagnostic = transform(database).decode()
+        assert diagnostic.splitlines() == [
+            f'database_bytes={len(database)} sha256={hashlib.sha256(database).hexdigest()}',
+            row, malformed]
+        assert len(diagnostic) < 1024
+        partial = database + b'filedb /unrelated/partial-\xc3'
+        assert transform(partial).decode().splitlines() == [
+            f'database_bytes={len(partial)} sha256={hashlib.sha256(partial).hexdigest()}',
+            row, malformed]
 
 
 @pytest.mark.parametrize('fault', ['allow-missing', 'allow-after-deny', 'deny-missing', 'wrong-uid',

@@ -33,7 +33,7 @@ class Commands:
         self.watch_command = None
 
     def run(self, args, *, timeout=120, check=True, input=None, merge_stderr=True,
-            on_output=None, terminal=False):
+            on_output=None, terminal=False, diagnostic_stdout=None):
         # The guest payload also uses this module without host spectator code.
         try:
             import watch_activity
@@ -44,12 +44,14 @@ class Commands:
         try:
             return self._run(args, timeout=timeout, check=check, input=input,
                              merge_stderr=merge_stderr, on_output=on_output,
-                             terminal=terminal, watch=watch)
+                             terminal=terminal, watch=watch,
+                             diagnostic_stdout=diagnostic_stdout)
         finally:
             if watch is not None:
                 watch.finish(self.last_returncode)
 
-    def _run(self, args, *, timeout, check, input, merge_stderr, on_output, terminal, watch):
+    def _run(self, args, *, timeout, check, input, merge_stderr, on_output, terminal, watch,
+             diagnostic_stdout):
         require(not terminal or input is None, 'command:terminal-input-unsupported')
         self.sequence += 1
         sequence = self.sequence
@@ -158,7 +160,10 @@ class Commands:
                 if self.directory:
                     path = self.directory / f'command-{sequence:04d}.txt'
                     with path.open('xb') as stream:
-                        stream.write(raw)
+                        # A narrow probe may retain only relevant diagnostic
+                        # rows. Its return value and live output remain complete;
+                        # stderr and command failure handling are unchanged.
+                        stream.write(raw if diagnostic_stdout is None else diagnostic_stdout(raw))
                     path.chmod(0o600)
                     if error_bytes:
                         path = self.directory / f'command-{sequence:04d}-stderr.txt'

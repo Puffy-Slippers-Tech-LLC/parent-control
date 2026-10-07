@@ -25,6 +25,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # to challenges/installed-journey; both unit and cleanup overlap remain compatible.
 # The approval observer rendezvous uses the same attempt-private input/ack files
 # and synchronous transport doubles; it adds no independent cleanup lifetime.
+# system_runner diagnostic-filter checks use bounded in-memory output, private
+# pytest logs and mocked children/pidfds. Existing interruption ownership and
+# compatible cleanup/unit scheduling remain; no real process or VM is started.
 
 # Explicit VM-name forwarding retains private journals and process-local API
 # doubles; cleanup checks add no real guest, desktop, socket or shared cache.

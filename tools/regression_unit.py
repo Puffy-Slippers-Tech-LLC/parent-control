@@ -49,6 +49,11 @@ shared pytest/Hypothesis caches and aggregate retention in every unit worker.
 Unknown modules fail closed to exclusive execution; new modules must receive an
 isolation/resource review and classification before their work is complete.
 
+Trust-dump diagnostic regressions in system_enforcement, system_guest and
+system_runner_cleanup_safety use bounded in-memory databases, pytest-private
+logs and process/pidfd doubles. No real child, guest, shared path or cache is
+added; existing compatible unit and cleanup classifications remain valid.
+
 Child trust upgrade/retry/boot regressions use tiny private pytest machine trees,
 synthetic boot IDs, and synchronously waited relocated maintainer-script/helper
 children. They read immutable unit/launcher sources and mock every live service

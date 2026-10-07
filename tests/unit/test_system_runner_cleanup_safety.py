@@ -160,6 +160,54 @@ def test_dead_pidfd_never_falls_back_to_a_reused_pid():
     raw_kill.assert_not_called()
 
 
+@pytest.mark.parametrize('outcome', ['passed', 'failed', 'interrupted'])
+@pytest.mark.parametrize('filtered', [False, True])
+def test_command_diagnostic_filter_preserves_results_errors_and_owned_cleanup(
+        monkeypatch, tmp_path, outcome, filtered):
+    raw = b'unrelated database row\n' * 50000 + b'exact target row\n'
+    errors = b'command stderr\n'
+    child = Mock(pid=97531, returncode=1 if outcome == 'failed' else 0)
+
+    def spawn(args, **options):
+        options['stdout'].write(raw)
+        options['stdout'].flush()
+        options['stderr'].write(errors)
+        options['stderr'].flush()
+        return child
+
+    if outcome == 'interrupted':
+        child.communicate.side_effect = KeyboardInterrupt
+    monkeypatch.setattr(runner.subprocess, 'Popen', spawn)
+    monkeypatch.setattr(runner.os, 'pidfd_open', Mock(return_value=41))
+    close = Mock()
+    monkeypatch.setattr(runner.os, 'close', close)
+    send = Mock()
+    monkeypatch.setattr(runner.signal, 'pidfd_send_signal', send)
+    commands = runner.Commands()
+    commands.directory = tmp_path
+    transform = Mock(return_value=b'exact target row\n')
+    options = {'merge_stderr': False, **({'diagnostic_stdout': transform} if filtered else {})}
+    if outcome == 'passed':
+        assert commands.run(['probe'], **options) == raw
+    else:
+        with pytest.raises(KeyboardInterrupt if outcome == 'interrupted' else runner.CommandError):
+            commands.run(['probe'], **options)
+    assert (tmp_path / 'command-0001.txt').read_bytes() == (
+        b'exact target row\n' if filtered else raw)
+    assert (tmp_path / 'command-0001-stderr.txt').read_bytes() == errors
+    if filtered:
+        transform.assert_called_once_with(raw)
+    else:
+        transform.assert_not_called()
+    assert commands.last_returncode == child.returncode
+    close.assert_called_once_with(41)
+    if outcome == 'interrupted':
+        send.assert_called_once_with(41, signal.SIGINT)
+        child.wait.assert_called_once_with(timeout=30)
+    else:
+        send.assert_not_called()
+
+
 @pytest.mark.parametrize('category', ['guard:domain-replaced', 'guard:run-identity', 'guard:source-changed'])
 def test_cleanup_refuses_replaced_domain_before_shutdown_or_destroy(category, local_preparation_source):
     lease = runner.Lease(Mock(), Mock(), Mock())

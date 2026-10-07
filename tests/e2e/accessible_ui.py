@@ -2400,7 +2400,25 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         node = self.id_target(identity, sensitive=True, showing=False)
         self.input_uncertain = True
-        node.setValue(value)
+        try:
+            node.setValue(value)
+        except Exception as error:
+            if identity == 'parent-child-selector':
+                # Read the same pinned public control after the first failure.
+                # Retain only whether the requested choice is now offered;
+                # never retain account values, wait for success or replay input.
+                state = 'unavailable'
+                try:
+                    choices = node.getChoices()
+                    if type(choices) is list and len(choices) <= 256 and all(
+                            type(choice) is str for choice in choices):
+                        state = 'offered' if value in choices else 'missing'
+                    else:
+                        state = 'invalid'
+                except Exception:
+                    pass  # Diagnostic failure cannot replace the first refusal.
+                error.add_note('ui:child-choice-after-failure:' + state)
+            raise
         self.input_uncertain = False
         return node
 
@@ -9668,6 +9686,12 @@ class AccessibleUI:
         """
         stable_since = None
         semantic_shell = not self.provider_contracts['gnome-shell']['application_id']
+        # Fixed counters from the actual predicate snapshots, before any later
+        # failure-only reread. They never establish acceptance or route input.
+        self.search_absence_diagnostic = {
+            'event': 'ui-search-check-diagnostic', 'observation': 'during-check',
+            'query_matched_reads': 0, 'no_results_reads': 0,
+            'suggestion_reads': 0, 'incomplete_reads': 0}
         if not semantic_shell:
             self.require_provider_contract(
                 'gnome-shell', 'app-grid',
@@ -9695,6 +9719,13 @@ class AccessibleUI:
                     if not fields or not self.shell_query_matches(fields[0], product):
                         stable_since = None
                         return False
+                    diagnostic = self.search_absence_diagnostic
+                    diagnostic['query_matched_reads'] = min(
+                        10000, diagnostic['query_matched_reads'] + 1)
+                    if any(facts[node]['showing'] and facts[node]['role'] == 'label'
+                           and facts[node]['name'] == 'No results' for node in scoped):
+                        diagnostic['no_results_reads'] = min(
+                            10000, diagnostic['no_results_reads'] + 1)
                     description = 'Search "' + product + '" on the web'
                     buttons = [node for node in scoped
                                if facts[node]['role'] in ('button', 'push button')
@@ -9707,6 +9738,9 @@ class AccessibleUI:
                                        and facts[child]['name'] == description
                                        for child in self.snapshot_scope(nodes, snapshot, node)))]
                     require(len(suggestions) <= 1, 'ui:shell-suggestion-ambiguous')
+                    if suggestions:
+                        diagnostic['suggestion_reads'] = min(
+                            10000, diagnostic['suggestion_reads'] + 1)
                     self.search_status = 'suggestion-missing'
                     if not suggestions:
                         stable_since = None
@@ -9768,6 +9802,9 @@ class AccessibleUI:
                     stable_since = now
                 return now - stable_since >= stable_seconds
             except (UiError, *self.query_errors):
+                diagnostic = self.search_absence_diagnostic
+                diagnostic['incomplete_reads'] = min(
+                    10000, diagnostic['incomplete_reads'] + 1)
                 stable_since = None
                 self.search_status = 'incomplete-read'
                 raise
@@ -9784,7 +9821,66 @@ class AccessibleUI:
             raise
 
     def search_diagnostic(self):
-        """Fixed ID-presence diagnostic; it never becomes target identity."""
+        """Failure-only public search facts; never target identity or acceptance."""
+        if not self.provider_contracts['gnome-shell']['application_id']:
+            # The semantic Shell route has no provider IDs. Read once through
+            # that same guarded adapter instead of refusing its ID contract.
+            # Keep only fixed categories, never arbitrary labels or field text.
+            owner, nodes, snapshot, facts = self.shell_search_snapshot()
+            diagnostic = {'event': 'ui-search-diagnostic', 'route': 'semantic-shell',
+                          'observation': 'after-refusal',
+                          'provider_surface': 'identified' if owner is not None else 'absent'}
+            if owner is None:
+                return diagnostic
+            scoped = self.snapshot_scope(nodes, snapshot, owner)
+            fields = [node for node in scoped
+                      if facts[node]['role'] in ('text', 'entry')
+                      and facts[node]['showing']
+                      and self.has_state(node, self.api.StateType.SENSITIVE)
+                      and self.has_state(node, self.api.StateType.EDITABLE)]
+            diagnostic['usable_fields'] = len(fields)
+            diagnostic['query_matches'] = (self.shell_query_matches(fields[0], PRODUCT)
+                                           if len(fields) == 1 else None)
+            labels = {
+                'Search "' + PRODUCT + '" on the web': 'expected-web-description',
+                'Search “' + PRODUCT + '” on the web': 'curly-quoted-web-description',
+                'Search the web for "' + PRODUCT + '"': 'web-for-quoted-query',
+                'Search the web for “' + PRODUCT + '”': 'web-for-curly-quoted-query',
+                'Search the web for ' + PRODUCT: 'web-for-query',
+                PRODUCT: 'product-name',
+                'Search the web': 'web-search',
+                'Search online': 'search-online',
+                'No results': 'no-results',
+                'Searching': 'searching',
+                'Firefox': 'browser',
+                'Firefox Web Browser': 'browser',
+                'Web': 'browser',
+            }
+            button_descendants = set()
+            for node in scoped:
+                if (facts[node]['showing']
+                        and facts[node]['role'] in ('button', 'push button')
+                        and self.has_state(node, self.api.StateType.SENSITIVE)):
+                    button_descendants.update(self.snapshot_scope(nodes, snapshot, node))
+            markers = []
+            for node in scoped:
+                if not facts[node]['showing']:
+                    continue
+                label = labels.get(facts[node]['name'])
+                if label is None:
+                    continue
+                role = facts[node]['role']
+                markers.append({'label': label, 'role': role if role in (
+                    'label', 'button', 'push button', 'text', 'entry') else 'other',
+                    'sensitive': self.has_state(node, self.api.StateType.SENSITIVE),
+                    'within_sensitive_button': node in button_descendants})
+            diagnostic['markers'] = markers[:32]
+            diagnostic['markers_truncated'] = len(markers) > 32
+            diagnostic['management_present'] = any(
+                facts[node]['showing'] and facts[node]['identity'] in (
+                    'parent-window', 'parent-access-denied-window',
+                    'kiosk-request-window', 'startup-error-window') for node in nodes)
+            return diagnostic
         surface, registered = self.provider_surface(
             'gnome-shell', 'app-grid',
             ('search', 'result::parent', 'web-suggestion::parent'), showing=False)
@@ -10003,8 +10099,11 @@ class AccessibleUI:
                 raise error
         except self.query_errors as error:
             refusal = UiError('ui:system-prompt-observation-failed')
+            # Keep the original query available only for finite diagnostic
+            # classification. The wrapped refusal and retry guards stay intact.
+            refusal.public_query_error = error
             for note in getattr(error, '__notes__', ()):
-                if note.startswith('public-atspi-query:'):
+                if note.startswith(('public-atspi-query:', 'public-atspi-cache-')):
                     refusal.add_note(note)
             raise refusal from None
         finally:
@@ -11335,7 +11434,7 @@ def main():
     # These probes preserve traversal, retry/input policy and the first failure.
     ui.api.provider_diagnostics = sys.argv[1] in (
         'switch-parent-before', 'attachment-remaining',
-        'denied-export-save-chooser-open')
+        'denied-export-save-chooser-open', 'standard-parent-unavailable')
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)
     except ui.query_errors as error:
@@ -11368,6 +11467,9 @@ def main():
             print(json.dumps(allowance_failure_diagnostic(ui), sort_keys=True),
                   file=sys.stderr, flush=True)
         if sys.argv[1] in STANDARD_OPERATIONS:
+            check_diagnostic = getattr(ui, 'search_absence_diagnostic', None)
+            if check_diagnostic is not None:
+                print(json.dumps(check_diagnostic, sort_keys=True), file=sys.stderr, flush=True)
             try:
                 print(json.dumps(ui.search_diagnostic(), sort_keys=True), file=sys.stderr, flush=True)
             except Exception:
@@ -11400,6 +11502,7 @@ def adapter_failure_diagnostic(error):
     """
     locations, queries, absence_reads, match_targets = [], [], [], []
     cache_provider = {}
+    child_choice_after_failure = None
     trace = error.__traceback__
     while trace is not None:
         frame = trace.tb_frame
@@ -11413,6 +11516,9 @@ def adapter_failure_diagnostic(error):
         if type(note) is not str:
             continue
         parts = note.split(':')
+        if (len(parts) == 3 and parts[:2] == ['ui', 'child-choice-after-failure']
+                and parts[2] in ('offered', 'missing', 'unavailable', 'invalid')):
+            child_choice_after_failure = parts[2]
         if (len(parts) == 4 and parts[:2] == ['ui', 'match-target']
                 and parts[2] in (
                     'parent-child-selector', 'parent-app-limits-page',
@@ -11464,6 +11570,15 @@ def adapter_failure_diagnostic(error):
         diagnostic['match_targets'] = match_targets[-4:]
     if cache_provider:
         diagnostic['cache_provider'] = cache_provider
+    if child_choice_after_failure is not None:
+        diagnostic['child_choice_after_failure'] = child_choice_after_failure
+    if (type(error).__name__ == 'UIClientError'
+            and getattr(error, 'code', None) in (
+                'InvalidArgument', 'Unavailable', 'Unsupported', 'Denied', 'Failed',
+                'Timeout', 'Transport', 'OwnerChanged', 'InvalidResponse')
+            and type(getattr(error, 'uncertain', None)) is bool):
+        diagnostic['application_ui_failure'] = {
+            'code': error.code, 'uncertain': error.uncertain}
     native_result = getattr(error, 'native_execution_result', None)
     if (type(native_result) is dict and set(native_result) == {
             'returncode', 'stdout_bytes', 'stderr_bytes', 'stdout_markers', 'stderr_markers'}
@@ -11517,7 +11632,8 @@ def adapter_failure_diagnostic(error):
     # This is evidence only: the original exception and refusal stay unchanged.
     try:
         from gi.repository import Gio, GLib
-        if isinstance(error, GLib.Error):
+        query_error = getattr(error, 'public_query_error', error)
+        if isinstance(query_error, GLib.Error):
             kind = 'other-query-error'
             for code, label in (
                     (Gio.DBusError.UNKNOWN_OBJECT, 'unknown-object'),
@@ -11530,7 +11646,7 @@ def adapter_failure_diagnostic(error):
                     (Gio.DBusError.TIMED_OUT, 'timeout'),
                     (Gio.DBusError.DISCONNECTED, 'disconnected'),
                     (Gio.DBusError.ACCESS_DENIED, 'access-denied')):
-                if error.matches(Gio.dbus_error_quark(), code):
+                if query_error.matches(Gio.dbus_error_quark(), code):
                     kind = label
                     break
             else:
@@ -11538,7 +11654,7 @@ def adapter_failure_diagnostic(error):
                         (Gio.IOErrorEnum.TIMED_OUT, 'timeout'),
                         (Gio.IOErrorEnum.CLOSED, 'connection-closed'),
                         (Gio.IOErrorEnum.CANCELLED, 'cancelled')):
-                    if error.matches(Gio.io_error_quark(), code):
+                    if query_error.matches(Gio.io_error_quark(), code):
                         kind = label
                         break
             diagnostic['query_failure_kind'] = kind

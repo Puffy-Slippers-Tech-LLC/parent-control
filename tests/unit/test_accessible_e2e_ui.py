@@ -4720,6 +4720,73 @@ def test_search_failure_diagnostic_redacts_window_names_and_text():
     assert result == {'provider_surface': 'identified', 'identified_controls': ['search']}
 
 
+@pytest.mark.parametrize('label,category', [
+    ('No results', 'no-results'),
+    ('Search “' + accessible_ui.PRODUCT + '” on the web', 'curly-quoted-web-description'),
+])
+def test_semantic_search_failure_diagnostic_scopes_and_redacts_labels(label, category):
+    field = Node('private-field-canary', 'text', states=(
+        'showing', 'visible', 'sensitive', 'editable'))
+    field.value = accessible_ui.PRODUCT
+    field.get_text_iface = lambda: field
+    marker = Node(label, 'label')
+    button = Node('private-button-canary', 'push button', children=[marker])
+    shell = Node('gnome-shell', 'application', children=[field, button])
+    outside = Node('unrelated application', 'application', children=[
+        Node('Search "' + accessible_ui.PRODUCT + '" on the web', 'label')])
+    ui = ui_for(Node(children=[shell, outside]))
+    ui.api.Text = SimpleNamespace(get_character_count=lambda text: len(text.value),
+                                 get_text=lambda text, start, end: text.value[start:end])
+    result = ui.search_diagnostic()
+    assert result['route'] == 'semantic-shell'
+    assert result['observation'] == 'after-refusal'
+    assert result['usable_fields'] == 1 and result['query_matches'] is True
+    assert result['markers'] == [{'label': category, 'role': 'label',
+                                 'sensitive': True, 'within_sensitive_button': True}]
+    assert result['markers_truncated'] is False
+    assert result['management_present'] is False
+    assert 'private' not in json.dumps(result)
+    assert accessible_ui.PRODUCT not in json.dumps(result)
+    button.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('suggestion_present', [False, True])
+def test_search_check_diagnostic_retains_predicate_facts_before_query_failure(
+        monkeypatch, suggestion_present):
+    field = Node('private-field-canary', 'text', states=(
+        'showing', 'visible', 'sensitive', 'editable'))
+    field.value = accessible_ui.PRODUCT
+    field.get_text_iface = lambda: field
+    result = (Node('private-button-canary', 'push button', children=[
+        Node('Search "' + accessible_ui.PRODUCT + '" on the web', 'label')])
+        if suggestion_present else Node('No results', 'label'))
+    shell = Node('gnome-shell', 'application', children=[field, result])
+    ui = ui_for(Node(children=[shell]))
+    ui.query_errors = (LookupError,)
+    ui.api.Text = SimpleNamespace(get_character_count=lambda text: len(text.value),
+                                 get_text=lambda text, start, end: text.value[start:end])
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: 0.0)
+
+    def observe_then_fail(predicate, code, **kwargs):
+        assert predicate() is False
+        assert predicate() is False
+        # A later broken read must not erase complete observations or turn
+        # them into acceptance. No diagnostic reread supplies these counts.
+        ui.shell_search_snapshot = Mock(side_effect=LookupError('private-error-canary'))
+        return predicate()
+
+    ui.wait_search = observe_then_fail
+    with pytest.raises(LookupError):
+        ui.search_absence(accessible_ui.PRODUCT, stable_seconds=2)
+    assert ui.search_absence_diagnostic == {
+        'event': 'ui-search-check-diagnostic', 'observation': 'during-check',
+        'query_matched_reads': 2, 'no_results_reads': 0 if suggestion_present else 2,
+        'suggestion_reads': 2 if suggestion_present else 0, 'incomplete_reads': 1}
+    assert 'private' not in json.dumps(ui.search_absence_diagnostic)
+    assert accessible_ui.PRODUCT not in json.dumps(ui.search_absence_diagnostic)
+    result.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'disabled', 'hidden', 'unfocused', 'unmasked',
                                   'nonempty',
                                   'missing-recipient', 'missing-secret', 'missing-confirm',

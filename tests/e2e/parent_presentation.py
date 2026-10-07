@@ -94,7 +94,9 @@ for stage, selected in POLICY_LANGUAGES.items():
         'limit_enabled': True, 'allowance_minutes': 60, 'chooser_absent': True,
         'management': TEXT[selected][3]}, capture='original-policy' if stage == 'policy-captured' else None,
         same=None if stage == 'policy-captured' else 'original-policy', max_elapsed_seconds=600,
-        labels=LABELS[selected], absent_labels=LABELS['he' if selected == 'en' else 'en'])
+        labels=LABELS[selected], absent_labels=LABELS['he' if selected == 'en' else 'en'],
+        app_names_capture='hebrew-app-names' if stage == 'hebrew-state' else None,
+        app_names_same='hebrew-app-names' if stage == 'hebrew-final' else None)
 CHECKS['draft-captured'] = public_language_value('feedback', DRAFT, capture='original-draft')
 
 

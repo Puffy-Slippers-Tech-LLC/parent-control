@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {"type": "string", "enum": ["translated", "blocked"]},
+    "summary": {"type": "string"},
+    "translations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "language": {"type": "string"},
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "record_id": {"type": "string"},
+                "content": {"type": "string"}
+              },
+              "required": ["record_id", "content"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["language", "records"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["status", "summary", "translations"],
+  "additionalProperties": false
+}

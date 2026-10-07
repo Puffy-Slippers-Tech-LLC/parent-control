@@ -144,18 +144,25 @@ application without changing persistence, authorization or policy ownership.
 
 ## What's New backend
 
-The broker reads immutable [release metadata](../../data/whats-new.toml) from
-`/usr/share/oh-no-parent-control/whats-new.toml`. Authors edit TOML with a
-top-level `version = 1` and one `[[records]]` block per release/audience
-combination. Each record requires `ProductVersion`, `ShowIn` and `Content`;
-`SeeMore` is optional. For example:
+The broker reads Parent notes from the matching release section in
+[`VersionHistory.md`](../VersionHistory.md), installed at
+`/usr/share/oh-no-parent-control/VersionHistory.md`. A `## v<version>` heading
+with an optional draft separator or date starts each release. The following
+Markdown body is preserved literally, excluding the release heading, until the
+next release heading. Release-like headings inside fenced code are content.
+
+Kiosk and child overlay notes come from
+[`whats-new-child.toml`](../../data/whats-new-child.toml), installed at
+`/usr/share/oh-no-parent-control/whats-new-child.toml`. Authors edit TOML with a
+top-level `version = 1` and at most one `[[records]]` block per release.
+Each record requires `ProductVersion` and `Content`; `SeeMore` is optional.
+The source determines the audience; there is no `ShowIn` field. For example:
 
 ```toml
 version = 1
 
 [[records]]
 ProductVersion = "1.4"
-ShowIn = "Parent,Child"
 SeeMore = "https://example.com/releases/1.4"
 Content = '''
 ## New features
@@ -173,10 +180,10 @@ For an empty catalogue, use `version = 1` and `records = []`.
 
 Versions are numeric dotted product versions, independent of DEB/RPM revisions.
 Comparison is numeric (`1.10` follows `1.9`); trailing zero components normalize
-(`1.4.0` equals `1.4`). `ShowIn` accepts `Parent`, `Child`, or both in either order,
-with whitespace around tokens allowed. Records for one version must have disjoint
-component sets: separate Parent and Child records are valid, but Parent plus
-Parent,Child is rejected. Duplicate TOML keys, missing required fields, unknown
+(`1.4.0` equals `1.4`). Duplicate versions within either source are rejected.
+The child catalogue may omit the installed version; this returns no child notes,
+without falling back to Parent notes or an older child release. Duplicate TOML
+keys, missing required fields, unknown
 fields, empty content and unsafe SeeMore URLs are rejected. SeeMore accepts
 absolute ASCII HTTP(S) links without credentials, backslashes or percent-encoded
 authorities; bracketed IP addresses must occupy the complete host. Percent escapes
@@ -184,8 +191,7 @@ in paths, queries and fragments are preserved. The document is bounded at 512 Ki
 64 records, 65,536 content characters per record and 2,048 URL characters.
 
 The API returns JSON and preserves Markdown content literally; rendering and
-external link opening belong to the future frontend implementation. The shipped
-catalogue contains a sample v1.4 record shared by Parent and Child. No dialogs,
+external link opening belong to the future frontend implementation. No dialogs,
 menus, title translations or rendering are implemented by this backend change.
 
 `GetOwnWhatsNew()` and `AcknowledgeOwnWhatsNew(product_version)` derive the UID
@@ -206,11 +212,12 @@ upgrade from a lower version sets it true for unseen current records. Installati
 origin is recorded during [package configuration](Data-Migration.md#whats-new-installation-history),
 so this decision works even when a user never opened the old app.
 
-The stable record identity combines canonical version and sorted ShowIn, such as
-`1.4:Parent` or `1.4:Child,Parent`. Separate Parent and Child records at the same
+The stable record identity combines canonical version and source audience, such as
+`1.4:Parent` or `1.4:Child`. Parent and Child records at the same
 version have independent acknowledgements, including if a UID's role changes.
-Editing content, SeeMore or ShowIn token order preserves identity; changing its
-component set creates a different record. Acknowledge selects the unique current
+Editing content or SeeMore preserves identity. Former combined `Child,Parent`
+acknowledgements remain valid for both audiences and are retained while either
+source still contains that version. Acknowledge selects the unique current
 record for the caller's component and supplied version; past, future, unknown and
 wrong-component records are refused. Frontends must acknowledge after successful
 display/close, including manual opening, and persist successfully before treating

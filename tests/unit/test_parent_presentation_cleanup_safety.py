@@ -24,7 +24,8 @@ def policy(selected='en', elapsed=0):
     value = dict(child='fixture-child', account_name='Riley (Child)', limit_enabled=True,
         allowance_minutes=60, chooser_absent=True, management=case.TEXT[selected][3],
         management_labels=list(case.LABELS[selected]), rows=[[row, 'allowed', 'precise']],
-        app_names=[[row, 'Fixture application']], balances=dict(child='fixture-child', expanded=True,
+        app_names=[[row, 'יישום לדוגמה' if selected == 'he' else 'Fixture application']],
+        balances=dict(child='fixture-child', expanded=True,
             observed_monotonic_ns=(100 + elapsed) * 10**9))
     for key, seconds in (('daily', 3600), ('one_time', 0), ('total', 3600)):
         value['balances'][key] = public.duration_projection(
@@ -91,6 +92,7 @@ def test_real_decoder_and_recorder_compare_before_reply(tmp_path, stage, fault):
     journey = shared.language_journey(checks=case.CHECKS)(SimpleNamespace(directory=tmp_path), Mock(), case.PLAN)
     original_policy = policy()
     journey.check_settings('policy-captured', {'ui': {'language_state': original_policy}})
+    journey.check_settings('hebrew-state', {'ui': {'language_state': policy('he', 5)}})
     draft = deepcopy(case.DRAFT)
     journey.check_settings('draft-captured', {'ui': {'feedback': draft}})
     original_policy['app_names'][0][1] = 'changed caller-owned input'
@@ -143,3 +145,38 @@ def test_shared_public_capture_supports_renamed_endpoints_and_refuses_mutation(t
     journey.public_captures.clear()
     with pytest.raises(EvidenceError, match='missing-public-capture'):
         compare(journey, {'ui': {'feedback': {'nested': ['synthetic']}}})
+
+
+@pytest.mark.parametrize('stage', ['hebrew-final', 'english-return-state', 'english-return-final'])
+@pytest.mark.parametrize('fault', ['', 'name', 'policy', 'account', 'grant', 'elapsed', 'missing-names'])
+def test_language_names_and_original_policy_remain_exact_before_reply(tmp_path, stage, fault):
+    journey = shared.language_journey(checks=case.CHECKS)(
+        SimpleNamespace(directory=tmp_path), Mock(), case.PLAN)
+    english = policy()
+    hebrew = policy('he', 10)
+    journey.check_settings('policy-captured', {'ui': {'language_state': english}})
+    journey.check_settings('hebrew-state', {'ui': {'language_state': hebrew}})
+    english['app_names'][0][1] = 'mutated English input'
+    hebrew['app_names'][0][1] = 'mutated Hebrew input'
+    assert journey.public_captures['original-policy'][0]['app_names'][0][1] == 'Fixture application'
+    assert journey.public_captures['hebrew-app-names'][0][1] == 'יישום לדוגמה'
+    value = policy('he' if stage == 'hebrew-final' else 'en', 20)
+    if fault == 'name': value['app_names'][0][1] = 'different application'
+    if fault == 'policy': value['rows'][0][1] = 'permanent'
+    if fault == 'account': value['account_name'] = 'different account'
+    if fault == 'grant': value['balances']['one_time']['seconds'] = 1
+    if fault == 'elapsed': value['balances']['observed_monotonic_ns'] += 601 * 10**9
+    if fault == 'missing-names':
+        journey.public_captures.pop('hebrew-app-names' if stage == 'hebrew-final' else 'original-policy')
+    journey.boot = 'a' * 64
+    journey.steps = [{'stage': item} for item in case.PLAN.stages[:case.PLAN.stages.index(stage)]]
+    journey.ui = SimpleNamespace(boot_proof=journey.boot,
+        observe=Mock(return_value={'language_state': value}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+        with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).is_file()

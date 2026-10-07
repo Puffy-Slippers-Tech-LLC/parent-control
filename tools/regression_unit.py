@@ -1,6 +1,11 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
-What's New uses tiny private pytest preference/installation files, account and
+sync_whatsnew uses tiny private pytest Markdown/TOML/PO/catalogue trees, bounded waited
+gettext/Make subprocesses and a private Codex double under the existing detached
+worker/supervisor ownership. Children are reaped through that established owner;
+no model, VM, display, shared cache or new cleanup mechanic is exercised; compatible.
+
+What's New uses tiny private pytest Markdown/TOML/preference/installation files, account and
 transport doubles, and two finite joined threads. No live bus, display, service,
 shared cache or cleanup inventory is added; whats_new is compatible. Release
 preinst checks reuse the package_removal relocated, waited shell fixture on both
@@ -528,7 +533,7 @@ terminal_cleanup_safety test_account_password test_activity test_artifacts test_
 test_retention_cleanup_safety test_runner_policy test_storage_cleanup_safety thunder ui_artifacts_cleanup_safety
 ui_cleanup_safety ui_watch ui_watch_cleanup_safety uninstall unit_test_launcher usage_query_retry verify_test_traceability
 vm_config vm_control_cleanup_safety vm_transport vm_watch_session_cleanup_safety watch_activity watch_output
-write_e2e write_e2e_cleanup_safety whats_new
+write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 """.split())
 
 # Interrupted write-e2e close-out recovery reuses private pytest checkouts and

@@ -77,6 +77,7 @@ EXTENSION_SOURCES += wellbeingLogic.mjs wellbeingSuppression.js wellbeingService
 COMMON_SOURCES := __init__.py about.py accessibility.py gtk_automation.py app_policy.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py languages.py languages.json localization.py
 COMMON_SOURCES += message.py messages.py translation_widgets.py reboot.py
 COMMON_SOURCES += application_ui.py application_ui_client.py
+COMMON_SOURCES += whats_new.py
 KIOSK_SOURCES := __init__.py agent_locale.py chrome.py floating_islands.py preference_dialog.py lava.py lightning.py main.py model.py request_content.py selection_store.py snowflakes.py thunder.py
 KIOSK_SOURCES += notifications.py
 PARENT_SOURCES := __init__.py client.py main.py language_dialog.py
@@ -90,7 +91,7 @@ EXTENSION_SCHEMA := schemas/com.puffyslippers.oh-no-parent-control.child.gschema
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
 # app_logo_gnome_launcher.png is the full-resolution GNOME launcher asset.
 BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_icon_32.png
-BRANDING_ASSETS += data/whats-new.toml
+BRANDING_ASSETS += data/whats-new-child.toml docs/VersionHistory.md
 REMINDER_ASSETS := data/reminder-frame.svg data/reminder-preferences.svg data/reminder-dismiss.svg
 BRANDING_ASSETS += $(REMINDER_ASSETS)
 PARENT_TITLEBAR_ASSET := data/app_logo_titlebar.png
@@ -110,6 +111,7 @@ MANPAGES := oh-no-parent-control.1 oh-no-parent-control-parent.1 oh-no-parent-co
 # Compilation during package staging writes only into that private DESTDIR.
 GETTEXT_DOMAIN := oh-no-parent-control
 POFILES := $(wildcard po/*.po)
+WHATS_NEW_POFILES := $(wildcard po/whats-new/*/*.po)
 LOCALE_OUTPUT ?= common/oh_no_parent_control_ui/locale
 MOFILES = $(patsubst po/%.po,$(LOCALE_OUTPUT)/%/LC_MESSAGES/$(GETTEXT_DOMAIN).mo,$(POFILES))
 I18N_PYTHON_SOURCES = $(filter %.py,$(addprefix common/oh_no_parent_control_ui/,$(COMMON_SOURCES)) $(addprefix parent/oh_no_parent_control_parent/,$(PARENT_SOURCES)) $(addprefix kiosk/oh_no_parent_control_kiosk/,$(KIOSK_SOURCES)))
@@ -119,7 +121,7 @@ POTFILE ?= po/$(GETTEXT_DOMAIN).pot
 # Source uploads and isolated binary builds share this product/build allowlist.
 # Development docs, tests, previews and operator tools are not package inputs.
 PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
-	$(POFILES) \
+	$(POFILES) $(WHATS_NEW_POFILES) tools/whats_new_catalogs.py \
 	$(addprefix packaging/man/,$(MANPAGES)) \
 	$(addprefix debian/,changelog control copyright rules preinst postinst prerm postrm package_activation.py check_package.py oh-no-parent-control.lintian-overrides source/format source/options) \
 	$(addprefix tools/,bump_version.py render_polkit_policy.py package_notice oh-no-parent-control-login-check execution_policy_ready.py execution_policy_probe execution_probe_gate.c execution_probe_witness.c execution_probe_protocol.h session_limit_check.py pam_oh_no_parent_control.c provision.py) \
@@ -436,6 +438,11 @@ $(MESSAGE_ASSET): common/oh_no_parent_control_ui/messages.py tools/export_messag
 	$(PYTHON) tools/export_messages.py --output "$@"
 
 translations: $(MOFILES)
+	@if test -d po/whats-new; then $(PYTHON) -IB tools/whats_new_catalogs.py compile --output "$(LOCALE_OUTPUT)"; fi
+
+.PHONY: check-whats-new-translations
+check-whats-new-translations:
+	$(PYTHON) -IB tools/whats_new_catalogs.py check
 
 $(LOCALE_OUTPUT)/%/LC_MESSAGES/$(GETTEXT_DOMAIN).mo: po/%.po
 	@mkdir -p "$(@D)"

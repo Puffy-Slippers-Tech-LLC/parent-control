@@ -10,7 +10,8 @@ import tomllib
 from urllib.parse import urlsplit
 
 PRODUCT_PATH = Path("/usr/share/oh-no-parent-control/app.json")
-METADATA_PATH = Path("/usr/share/oh-no-parent-control/whats-new.toml")
+METADATA_PATH = Path("/usr/share/oh-no-parent-control/whats-new-child.toml")
+HISTORY_PATH = Path("/usr/share/oh-no-parent-control/VersionHistory.md")
 INSTALLATION_PATH = Path("/var/lib/oh-no-parent-control/whats-new-installation.json")
 INSTALLATION_FORMAT_VERSION = 1
 MAX_RECORDS = 64
@@ -91,35 +92,69 @@ def read_metadata(path: Path) -> object:
 
 
 def validate_metadata(raw: object) -> tuple[dict, ...]:
+    """Validate child-only TOML; audience comes from the source, never a field."""
     if (not isinstance(raw, dict) or set(raw) != {"version", "records"} or
             type(raw["version"]) is not int or raw["version"] != 1 or
             not isinstance(raw["records"], list) or len(raw["records"]) > MAX_RECORDS):
         raise WhatsNewError("invalid release metadata document")
-    records, version_components = [], {}
-    for raw_record in raw["records"]:
+    return _validate_records(raw["records"], "Child")
+
+
+def read_history(path: Path) -> tuple[dict, ...]:
+    """Extract each release body verbatim from VersionHistory Markdown.
+
+    Release headings are not content. Headings inside fenced code are data;
+    draft and dated release headings use the same numeric identity.
+    """
+    sections, version, body, fence = [], None, [], None
+    for line in _read_text(path).splitlines(keepends=True):
+        delimiter = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line.rstrip("\r\n"))
+        if delimiter:
+            marker = delimiter[1]
+            if fence is None:
+                fence = marker
+            elif (marker[0] == fence[0] and len(marker) >= len(fence) and
+                  not delimiter[2].strip()):
+                fence = None
+            if version is not None:
+                body.append(line)
+            continue
+        if fence is None and line.startswith("## v"):
+            heading = re.fullmatch(
+                r"## v([0-9.]+)(?: (?:—|-)(?: [0-9]{4}-[0-9]{2}-[0-9]{2})?)?\s*", line)
+            if heading is None:
+                raise WhatsNewError("invalid VersionHistory release heading")
+            if version is not None:
+                sections.append({"ProductVersion": version, "Content": "".join(body)})
+            version, body = product_version(heading[1]), []
+        elif version is not None:
+            body.append(line)
+    if version is not None:
+        sections.append({"ProductVersion": version, "Content": "".join(body)})
+    if not sections:
+        raise WhatsNewError("VersionHistory has no release records")
+    return _validate_records(sections, "Parent")
+
+
+def _validate_records(raw_records: list, component: str) -> tuple[dict, ...]:
+    if len(raw_records) > MAX_RECORDS:
+        raise WhatsNewError("too many release records")
+    records, versions = [], set()
+    for raw_record in raw_records:
         if (not isinstance(raw_record, dict) or
-                not {"ProductVersion", "ShowIn", "Content"} <= set(raw_record) or
-                not set(raw_record) <= {"ProductVersion", "ShowIn", "Content", "SeeMore"}):
+                not {"ProductVersion", "Content"} <= set(raw_record) or
+                not set(raw_record) <= {"ProductVersion", "Content", "SeeMore"}):
             raise WhatsNewError("invalid release record keys")
         version = product_version(raw_record["ProductVersion"])
-        show_in = raw_record["ShowIn"]
-        if not isinstance(show_in, str):
-            raise WhatsNewError("invalid release components")
-        components = [part.strip() for part in show_in.split(",")]
-        if (not components or len(components) != len(set(components)) or
-                not set(components) <= {"Parent", "Child"}):
-            raise WhatsNewError("invalid release components")
-        occupied = version_components.setdefault(version, set())
-        if occupied & set(components):
-            raise WhatsNewError("overlapping release components for the same version")
-        occupied.update(components)
+        if version in versions:
+            raise WhatsNewError("duplicate release version")
+        versions.add(version)
         content = raw_record["Content"]
         if (not isinstance(content, str) or not content.strip() or len(content) > 65536 or
                 "\x00" in content or any(0xD800 <= ord(char) <= 0xDFFF for char in content)):
             raise WhatsNewError("invalid Markdown content")
-        show_in = ",".join(sorted(components))
-        record = {"ProductVersion": version, "ShowIn": show_in, "Content": content,
-                  "record_id": f"{version}:{show_in}"}
+        record = {"ProductVersion": version, "Content": content,
+                  "record_id": f"{version}:{component}"}
         if "SeeMore" in raw_record:
             link = raw_record["SeeMore"]
             if (not isinstance(link, str) or not link or len(link) > 2048 or "\\" in link or
@@ -163,7 +198,8 @@ class WhatsNewCatalog:
 
     @classmethod
     def load(cls, metadata_path: Path = METADATA_PATH, product_path: Path = PRODUCT_PATH,
-             installation_path: Path = INSTALLATION_PATH) -> WhatsNewCatalog:
+             installation_path: Path = INSTALLATION_PATH,
+             history_path: Path = HISTORY_PATH) -> WhatsNewCatalog:
         product = read_document(product_path)
         if not isinstance(product, dict) or set(product) != {"version"}:
             raise WhatsNewError("invalid product metadata")
@@ -172,20 +208,24 @@ class WhatsNewCatalog:
         if current != installation["current_version"]:
             raise WhatsNewError("installation history is not configured for this release")
         return cls(current, installation["first_version"],
-                   validate_metadata(read_metadata(metadata_path)))
+                   read_history(history_path) + validate_metadata(read_metadata(metadata_path)))
 
     @property
     def retained_records(self) -> set[str]:
         # Keep acknowledgement for every component, including future records.
-        return {record["record_id"] for record in self.records}
+        identities = {record["record_id"] for record in self.records}
+        # Preserve acknowledgements from the former shared-audience catalogue.
+        identities.update(f"{record['ProductVersion']}:Child,Parent" for record in self.records)
+        return identities
 
     def available(self, component: str, seen: list[str]) -> dict:
         records = []
         for record in self.records:
             version = record["ProductVersion"]
-            if (component in record["ShowIn"].split(",") and
+            if (record["record_id"] == f"{version}:{component}" and
                     version_key(version) == version_key(self.current_version)):
                 records.append({**record, "auto_show": record["record_id"] not in seen and
+                                f"{version}:Child,Parent" not in seen and
                                 version_key(self.first_version) < version_key(version)})
         return {"product_version": self.current_version, "records": records}
 

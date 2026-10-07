@@ -1,11 +1,11 @@
-# Add one [[records]] block per release/audience combination.
+# Child overlay and kiosk notes: add at most one [[records]] block per release.
+# Releases without child-facing changes may have no entry.
 # Content is literal Markdown: use normal line breaks, quotes and backslashes.
 # Optional SeeMore = "https://example.com/releases/1.4" goes before Content.
 version = 1
 
 [[records]]
 ProductVersion = "1.4"
-ShowIn = "Parent,Child"
 Content = '''
 ## New features
 

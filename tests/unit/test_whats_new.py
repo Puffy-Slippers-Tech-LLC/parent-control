@@ -13,21 +13,25 @@ from oh_no_parent_control.data_migration import MigrationError, migrate_all_stat
 from oh_no_parent_control.preferences import PreferenceStore, PreferencesError, default_preferences
 from oh_no_parent_control.whats_new import (
     METADATA_PATH, WhatsNewCatalog, WhatsNewError, read_document, read_metadata,
-    validate_metadata, version_key,
+    read_history, validate_metadata, version_key,
 )
 from tests.support.broker import Accounts, Authorizer
 from tests.support.configuration import valid_config
 
 
-def note(version="1.4", show_in="Parent,Child", **extra):
-    return {"ProductVersion": version, "ShowIn": show_in,
+def note(version="1.4", **extra):
+    return {"ProductVersion": version,
             "Content": "# New features\n\n- **Bold** and [a link](https://example.com)\n\n```\ncode\n```\n",
             **extra}
 
 
 def catalog(current="1.5", first="1.3", records=None):
-    return WhatsNewCatalog(current, first, validate_metadata(
-        {"version": 1, "records": records if records is not None else [note("1.4"), note("1.5")]}))
+    # Test catalogues declare their source directly, without author-facing ShowIn.
+    records = records if records is not None else [note("1.4"), note("1.5")]
+    return WhatsNewCatalog(current, first, tuple(
+        dict(record, record_id=record.get("record_id", record["ProductVersion"] + ":" + component))
+        for record in records for component in ("Parent", "Child")
+        if "record_id" not in record or record["record_id"].endswith(":" + component)))
 
 
 def make_backend(tmp_path, notes=None):
@@ -38,24 +42,23 @@ def make_backend(tmp_path, notes=None):
     return broker, store, accounts
 
 
-def test_metadata_preserves_markdown_and_normalizes_component_order():
-    original = note(show_in="Child, Parent", SeeMore="https://example.com/release?v=1.4#notes")
+def test_metadata_preserves_markdown_and_derives_child_identity():
+    original = note(SeeMore="https://example.com/release?v=1.4#notes")
     parsed, = validate_metadata({"version": 1, "records": [original]})
-    assert parsed["ShowIn"] == "Child,Parent"
+    assert parsed["record_id"] == "1.4:Child"
+    assert "ShowIn" not in parsed
     assert parsed["Content"] == original["Content"]
     assert parsed["SeeMore"] == original["SeeMore"]
-    assert original["ShowIn"] == "Child, Parent"
     assert "SeeMore" not in validate_metadata({"version": 1, "records": [note()]})[0]
 
 
-def test_toml_literal_markdown_survives_catalog_loading_for_both_audiences(tmp_path):
+def test_separate_sources_preserve_literal_markdown_for_both_audiences(tmp_path):
     metadata = tmp_path / METADATA_PATH.name
     metadata.write_text("""# Author comments are allowed.
 version = 1
 
 [[records]]
 ProductVersion = "1.4"
-ShowIn = "Parent,Child"
 SeeMore = "https://example.com/releases/1.4"
 Content = '''
 ## What's new — nouveautés
@@ -72,17 +75,23 @@ code
     installation = tmp_path / "installation.json"
     write_json(product, {"version": "1.4"})
     write_json(installation, {"version": 1, "first_version": "1.3", "current_version": "1.4"})
-    loaded = WhatsNewCatalog.load(metadata, product, installation)
+    history = tmp_path / "VersionHistory.md"
+    history.write_text("## v1.4 -\n### Parent changes\n- Parent only.\n\n## v1.3 — 2026-10-03\nOld notes\n")
+    loaded = WhatsNewCatalog.load(metadata, product, installation, history)
     expected = ("## What's new — nouveautés\n\n"
                 "- **Quoted:** \"Hello\" and 'welcome'.\n"
                 "  Indented Markdown with a literal \\n and \\path.\n\n"
                 "```text\ncode\n```\n")
-    for component in ("Parent", "Child"):
-        record, = loaded.available(component, [])["records"]
-        assert record["Content"] == expected
-        assert record["SeeMore"] == "https://example.com/releases/1.4"
-        assert record["record_id"] == "1.4:Child,Parent"
-        assert record["auto_show"] is True
+    record, = loaded.available("Child", [])["records"]
+    assert record["Content"] == expected
+    assert record["SeeMore"] == "https://example.com/releases/1.4"
+    assert record["record_id"] == "1.4:Child"
+    assert record["auto_show"] is True
+    parent, = loaded.available("Parent", [])["records"]
+    assert parent["Content"] == "### Parent changes\n- Parent only.\n\n"
+    assert parent["record_id"] == "1.4:Parent"
+    assert "ShowIn" not in parent and "SeeMore" not in parent
+    assert parent["auto_show"] is True
 
 
 @pytest.mark.parametrize("contents", [
@@ -103,13 +112,48 @@ def test_packaged_toml_catalogue_passes_release_validation():
     from tests.support.paths import ROOT
 
     validate_metadata(read_metadata(ROOT / "data" / METADATA_PATH.name))
+    read_history(ROOT / "docs/VersionHistory.md")
+
+
+def test_history_preserves_body_and_ignores_release_headings_in_fenced_code(tmp_path):
+    history = tmp_path / "VersionHistory.md"
+    body = "### Features\n\n```markdown\n## v99.0 -\n```\n- Literal notes.\n\n"
+    history.write_text("## v1.10.0 -\n" + body + "## v1.9 — 2026-10-01\nOlder notes\n")
+    records = read_history(history)
+    assert records[-1] == dict(ProductVersion="1.10", Content=body, record_id="1.10:Parent")
+
+
+@pytest.mark.parametrize("text", [
+    "No releases", "## v1.4 -\n  \n", "## vbad -\nNotes\n",
+    "## v1.4 -\nNotes\n## v1.4.0 -\nDuplicate\n",
+])
+def test_invalid_history_is_rejected(tmp_path, text):
+    path = tmp_path / "VersionHistory.md"
+    path.write_text(text)
+    with pytest.raises(WhatsNewError):
+        read_history(path)
+
+
+def test_current_child_entry_is_optional_and_never_falls_back_to_parent_or_old_child(tmp_path):
+    metadata, history = tmp_path / "child.toml", tmp_path / "VersionHistory.md"
+    product, installation = tmp_path / "app.json", tmp_path / "installation.json"
+    history.write_text("## v1.5 -\nParent notes\n")
+    write_json(product, {"version": "1.5"})
+    write_json(installation, {"version": 1, "first_version": "1.3", "current_version": "1.5"})
+    for text in ("version = 1\nrecords = []\n",
+                 "version = 1\n[[records]]\nProductVersion = '1.4'\nContent = 'Old child notes'\n"):
+        metadata.write_text(text)
+        loaded = WhatsNewCatalog.load(metadata, product, installation, history)
+        assert loaded.available("Parent", [])["records"][0]["Content"] == "Parent notes\n"
+        assert loaded.available("Child", [])["records"] == []
+        with pytest.raises(WhatsNewError):
+            loaded.acknowledgement("Child", "1.5")
 
 
 @pytest.mark.parametrize("change", [
     {"ProductVersion": ""}, {"ProductVersion": "v1.4"}, {"ProductVersion": "1.4-1"},
-    {"ProductVersion": "01.4"}, {"ProductVersion": True}, {"ShowIn": ""},
-    {"ShowIn": "Parent,"}, {"ShowIn": "Parent,Parent"}, {"ShowIn": "Kiosk"},
-    {"ShowIn": "parent"}, {"ShowIn": []}, {"Content": " "}, {"Content": None},
+    {"ProductVersion": "01.4"}, {"ProductVersion": True}, {"ShowIn": "Parent"},
+    {"Content": " "}, {"Content": None},
     {"Content": "bad\x00text"}, {"Content": "\ud800"}, {"Content": "x" * 65537},
     {"SeeMore": "javascript:alert(1)"}, {"SeeMore": "file:///etc/passwd"},
     {"SeeMore": "https://user:secret@example.com"}, {"SeeMore": "https://"},
@@ -124,7 +168,7 @@ def test_invalid_metadata_is_rejected(change):
         validate_metadata({"version": 1, "records": [note(**change)]})
 
 
-@pytest.mark.parametrize("field", ["ProductVersion", "ShowIn", "Content"])
+@pytest.mark.parametrize("field", ["ProductVersion", "Content"])
 def test_required_fields(field):
     value = note()
     del value[field]
@@ -155,20 +199,10 @@ def test_numeric_versions_duplicate_equivalence_and_read_guards(tmp_path):
             read_document(path)
 
 
-@pytest.mark.parametrize("components", [
-    ("Parent", "Parent"), ("Child", "Child"), ("Parent,Child", "Parent"),
-    ("Child,Parent", "Child"), ("Parent,Child", "Child,Parent"),
-])
-def test_same_version_overlapping_components_are_rejected(components):
-    with pytest.raises(WhatsNewError, match="overlapping"):
-        validate_metadata({"version": 1, "records": [
-            note("1.4", components[0]), note("1.4.0", components[1])]})
-
-
-def test_record_identity_is_stable_when_show_in_order_or_content_changes():
-    a = catalog(current="1.4", records=[note("1.4", "Parent,Child")])
-    b = catalog(current="1.4", records=[note("1.4", "Child,Parent", Content="Updated **Markdown**")])
-    assert a.retained_records == b.retained_records == {"1.4:Child,Parent"}
+def test_record_identity_is_stable_when_content_changes():
+    a = catalog(current="1.4", records=[note("1.4")])
+    b = catalog(current="1.4", records=[note("1.4", Content="Updated **Markdown**")])
+    assert a.retained_records == b.retained_records == {"1.4:Parent", "1.4:Child", "1.4:Child,Parent"}
     assert b.available("Child", list(a.retained_records))["records"][0]["auto_show"] is False
 
 
@@ -197,14 +231,14 @@ def test_independent_users_and_versions_survive_broker_restart(tmp_path):
     assert all(not record["auto_show"] for record in restarted.get_own_whats_new(1003)["records"])
     saved = json.loads((store.directory / "1003.json").read_text())
     assert set(saved) == {"version", "personal"}
-    assert saved["personal"]["whats_new_seen"] == ["1.4:Child,Parent", "1.5:Child,Parent"]
+    assert saved["personal"]["whats_new_seen"] == ["1.4:Parent", "1.5:Parent"]
     assert (store.directory.stat().st_mode & 0o777) == 0o700
     assert ((store.directory / "1003.json").stat().st_mode & 0o777) == 0o600
     assert accounts.events == []
 
 
 def test_kiosk_shares_selected_child_state_and_component_filtering(tmp_path):
-    notes = catalog(records=[note("1.5", "Parent"), note("1.5", "Child")])
+    notes = catalog(records=[note("1.5")])
     broker, _, accounts = make_backend(tmp_path, notes)
     assert [r["ProductVersion"] for r in broker.get_own_whats_new(1003)["records"]] == ["1.5"]
     assert [r["ProductVersion"] for r in broker.get_child_whats_new(991, 1001)["records"]] == ["1.5"]
@@ -244,7 +278,8 @@ def test_gc_runs_on_acknowledgement_preserves_other_components_and_personal_poli
     store.acknowledge_whats_new(1001, "1.5:Parent", {"1.4:Child", "1.5:Parent"})
     store.update_language(1001, "fr")
     store.update_notifications(1001, {"show_in_fullscreen": False, "reminders": []})
-    broker._whats_new_loader = lambda: catalog("2.0", records=[note("1.5", "Parent"), note("2.0", "Child")])
+    broker._whats_new_loader = lambda: catalog("2.0", records=[
+        note("1.5", record_id="1.5:Parent"), note("2.0", record_id="2.0:Child")])
     broker.get_own_whats_new(1001)
     assert store.load(1001)["personal"]["whats_new_seen"] == ["1.4:Child", "1.5:Parent"]
     broker.acknowledge_own_whats_new(1001, "2.0")
@@ -269,7 +304,7 @@ def test_concurrent_acknowledgements_merge_without_losing_versions(tmp_path):
 
 
 def test_component_mismatch_metadata_failure_and_root_identity(tmp_path):
-    broker, store, _ = make_backend(tmp_path, catalog(records=[note("1.5", "Parent")]))
+    broker, store, _ = make_backend(tmp_path, catalog(records=[note("1.5", record_id="1.5:Parent")]))
     assert broker.get_own_whats_new(1001)["records"] == []
     with pytest.raises(InvalidRequest):
         broker.acknowledge_own_whats_new(1001, "1.5")
@@ -342,23 +377,25 @@ def test_package_configuration_tracks_origin_upgrade_and_idempotent_retry(tmp_pa
 
 
 def test_upgrade_from_payload_without_feature_and_catalog_loading(tmp_path):
-    product, metadata = tmp_path / "app.json", tmp_path / "whats-new.toml"
+    product, metadata = tmp_path / "app.json", tmp_path / "whats-new-child.toml"
     state = tmp_path / "state"
     state.mkdir(mode=0o700)
     write_json(state / "previous-product.json", {"version": "1.3"})
     write_json(product, {"version": "1.5"})
     metadata.write_text("version = 1\n[[records]]\nProductVersion = '1.5'\n"
-                        "ShowIn = 'Parent,Child'\nContent = '''\n" + note("1.5")["Content"] + "'''\n",
+                        "Content = '''\n" + note("1.5")["Content"] + "'''\n",
                         encoding="utf-8")
     migrate_all_state(state, product_path=product)
     assert not (state / "previous-product.json").exists()
-    loaded = WhatsNewCatalog.load(metadata, product, state / "whats-new-installation.json")
+    history = tmp_path / "VersionHistory.md"
+    history.write_text("## v1.5 -\n" + note("1.5")["Content"])
+    loaded = WhatsNewCatalog.load(metadata, product, state / "whats-new-installation.json", history)
     assert loaded.available("Parent", [])["records"][0]["auto_show"] is True
     migrate_all_state(state, product_path=product)
     assert json.loads((state / "whats-new-installation.json").read_text())["first_version"] == "1.3"
     write_json(product, {"version": "1.6"})
     with pytest.raises(WhatsNewError):
-        WhatsNewCatalog.load(metadata, product, state / "whats-new-installation.json")
+        WhatsNewCatalog.load(metadata, product, state / "whats-new-installation.json", history)
 
 
 @pytest.mark.parametrize("failure", ["future", "permissions", "symlink", "interruption"])

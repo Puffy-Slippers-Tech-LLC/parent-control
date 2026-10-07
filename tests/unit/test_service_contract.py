@@ -31,7 +31,7 @@ def test_whats_new_dispatch_binds_authenticated_caller(method, signature, values
     service.credentials.uid.return_value = 1001
     service.broker = mock.Mock()
     result = {"product_version": "1.4", "records": [{"ProductVersion": "1.4",
-              "Content": "# New\n\n**Markdown**", "ShowIn": "Child", "auto_show": True}]}
+              "Content": "# New\n\n**Markdown**", "auto_show": True}]}
     getattr(service.broker, operation).return_value = result
     invocation = mock.Mock()
     service._method_call(None, ":1.42", None, None, method, GLib.Variant(signature, values), invocation)

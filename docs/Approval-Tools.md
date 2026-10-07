@@ -57,6 +57,14 @@ New recurring operations should use an existing validated route where possible.
 If a new privileged capability is needed, maintain a scoped helper with argument
 validation and regression coverage. Do not normalize per-command approvals.
 
+The translation-only `tools/sync-whatsnew` launcher follows the
+[localization workflow](SystemDesign/Localization.md#whats-new-translation-workflow):
+latest numeric VersionHistory release and optional matching child TOML entry,
+read-only coding-agent sessions, launcher-owned
+translation asset writes and validation. It shares detached ownership and
+retention; `--stop` cancels its owned session and `--check` is read-only. It grants
+no infrastructure/source edits, setup, staging, installation or publication.
+
 ## One-time setup
 
 Run `./setup.sh --test-tools-only`, then restart Codex with this checkout trusted.

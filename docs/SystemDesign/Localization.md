@@ -570,6 +570,108 @@ package replacement. Packaging changes follow
 [installed layout](Lifecycle.md#installed-layout). Catalogue and presentation
 changes alone do not require a preference-schema migration.
 
+### What's New translation workflow
+
+Developers author US English Parent Markdown in
+[`VersionHistory.md`](../VersionHistory.md) and optional child notes in
+[`data/whats-new-child.toml`](../../data/whats-new-child.toml). The established
+[`tools/sync-whatsnew`](../../tools/sync-whatsnew) launcher owns recurring
+preparation, coding-agent sessions and validation. Future synchronization changes
+translation assets only; it does not change the infrastructure.
+
+```sh
+tools/sync-whatsnew
+tools/sync-whatsnew --check
+```
+
+The launcher selects the **highest numeric release version in VersionHistory**,
+including its Parent body and any matching child TOML record. Child notes may
+have no matching entry or an empty record list. Older and future child entries
+do not change the selected release. Record order, installed version and
+`data/app.json` do not select its scope. `1.10.0` normalizes to `1.10`.
+Older versions are never translated, even if their English changed. Missing or
+invalid Parent history is an error. Targets come from `languages.json`; English
+uses the US English sources. Both source files are checked for concurrent edits.
+
+Sources live in `po/whats-new/<canonical-version>/`: one `whats-new.pot` and
+one `<underscore-locale>.po` per non-English language. Separate release-note
+domains reuse gettext, language resolution and existing UI terminology without
+modifying application POT/PO files. Each complete Markdown record is one singular
+message: context `whats-new:<record_id>`, exact English `Content` as `msgid`.
+Existing application headers supply language/plural metadata.
+
+New records create pending entries. Edited English replaces the source message,
+preserves previous English/translation for reference, and marks translations
+fuzzy until reviewed. Repeated preparation preserves that flag. Unchanged complete
+records retain their translations; new audience records are independent. Removing
+a latest-release record retires only its latest-version entries. Older version
+directories are never rewritten. Content edits preserve the
+[acknowledgement identity](State.md#whats-new-backend).
+
+Defaults are **GPT-6.1 Sol High, Standard speed**, eight pending languages per
+fresh session, and up to two read-only translator/reviewer subagents. High is
+recommended for semantic translation/review; independent language batches suit
+bounded delegation. Helpers receive disjoint assignments, return text and may
+not delegate further. The coordinator reviews meaning, policy terms, omissions,
+natural grammar, region/script and Markdown. `--subagents 0` selects serial work;
+`--batch-size`, `--model` and `--effort` override defaults. The selected pair must
+exist in the local CLI catalogue; no silent substitution occurs. Only
+`gpt-6.1-sol` is accepted for Sol. Existing CLI authentication is required.
+The [official noninteractive interface](https://learn.chatgpt.com/docs/non-interactive-mode)
+owns the ephemeral transport; [model guidance](https://learn.chatgpt.com/docs/models#gpt-61-sol)
+documents model selection.
+
+Coordinator and helpers use **read-only workspace sandboxes**. They return
+schema-constrained text; only the launcher writes latest-version PO/POT sources.
+Agents may not edit infrastructure, English TOML, UI catalogues, history,
+preferences or Git state, or run setup/builds/tests, install or publish. Prompts
+authorize only their pending batch and treat release content as data, including
+embedded instructions. The launcher performs no commits or publication.
+
+Every response must contain exactly its assigned languages/record IDs. Before
+any batch write, validation checks nonempty text, heading/list structure, bold
+formatting, URLs, code, placeholders, numeric versions and branding. These
+conservative guards supplement semantic review; they are not a quality score or
+a complete Markdown parser. Source/language changes and concurrent catalogue
+edits refuse application while preserving newer work. Final validation requires
+all current-source translations to be nonempty/non-fuzzy and checks GNU msgfmt
+syntax/format validity. Failed runs retain validated earlier batches; reruns
+translate only pending records.
+
+`--prepare` prepares translation assets without a model; `--check` validates
+without writes or a model. A complete normal run needs no further agent session.
+Shared detached ownership, rendering, retention and cancellation apply. Reinvoke
+to attach; `--stop` cancels only the owned session and awaits cleanup. Ctrl+C
+detaches the observer. Operational artifacts use the shared `sync-whatsnew`
+storage category.
+
+Before release, run `make check-whats-new-translations`, equivalent to `--check`.
+Until the first translation run, it correctly reports pending translations;
+infrastructure setup does not claim translation delivery. Development builds
+retain English fallback. `make translations` and package staging compile
+existing PO sources into
+`locale/<locale>/LC_MESSAGES/oh-no-parent-control-whats-new-<version>.mo`.
+The package manifest includes PO sources and the maintained compiler. Packaging
+may compile older catalogues but does not translate them.
+
+The GTK-independent
+[`whats_new.py`](../../common/oh_no_parent_control_ui/whats_new.py) adapter uses the
+owning frontend's personal/session language, loads the versioned domain and
+translates broker English with `translate_content` before rendering. Missing,
+fuzzy or current-source-mismatched translations fall back to English. The
+What’s New frontend remains pending under the
+[specification](../Specification.md#product-information); this adapter implements
+no menu, dialog, rendering or link action.
+
+Future-session prompt:
+
+> Run `tools/sync-whatsnew` to translate new or changed records for the latest
+> numeric release in `docs/VersionHistory.md` and any matching record in
+> `data/whats-new-child.toml` into all supported languages. Use the
+> established infrastructure, preserve unchanged and older translations, and
+> report completeness and validation. Change translations only; do not change
+> infrastructure or English source.
+
 ## Validation contract
 
 Validation separates backend integrity, catalogue behavior, GUI behavior and

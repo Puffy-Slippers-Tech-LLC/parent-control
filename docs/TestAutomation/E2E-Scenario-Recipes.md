@@ -1697,8 +1697,9 @@ shared UI tests. This is a saved-work history across language changes.
 
 Use exact body `שלום Alex 75` and reply `rtl-check@example.invalid`.
 After entry, close the dialog normally, change language through Preferences and
-reopen; compare retained body/reply before new input. Preserve account/application
-names and numeric policy at each functional result boundary. No Send or
+reopen; compare retained body/reply before new input. Preserve account names,
+app identities and numeric policy at each functional result boundary, and compare
+app names within each language as described below. No Send or
 external-link action. Public dialog reopening must preserve the actual draft;
 host fixtures or privately restored content cannot replace this history.
 
@@ -1710,7 +1711,12 @@ and comparing the retained draft and final policy/name/numeric balances. About
 is a supporting information visit; no chooser Cancel or duplicate read matrix
 is required by this customer history.
 Every feedback read compares the immutable original `synthetic-rtl` capture
-before any later input. Policy reads use a 600-second monotonic history bound
+before any later input. Account names, app identities and rules remain exact
+against the original English policy. App names follow desktop-entry translations
+as required by [ONPC-CORE-APPS-002](../Specification.md#application-access):
+capture Hebrew names at the first Hebrew policy read and compare them exactly
+at the Hebrew final read; both English return reads compare names against the
+original English capture. Policy reads use a 600-second monotonic history bound
 and two-second refresh/formatter tolerance; the entire case deadline is 900 seconds.
 
 ### Overlay language presentation (planned task 308)

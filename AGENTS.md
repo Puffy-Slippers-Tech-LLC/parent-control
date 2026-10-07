@@ -19,6 +19,11 @@
 
 ## Localization
 - When editing strings, update all supported languages
+- For recurring What's New translation, use `tools/sync-whatsnew` and the
+  [established workflow](docs/SystemDesign/Localization.md#whats-new-translation-workflow).
+  Translate only the latest numeric VersionHistory release and matching child
+  TOML entry, when present; change translation assets only,
+  never infrastructure, English source or older translations in a sync run.
 
 ## Authority and reading routes
 

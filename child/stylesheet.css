@@ -10,7 +10,7 @@
   border-radius: 0;
   padding: 2px 6px;
   spacing: 11px;
-  box-shadow: 0 2px 8px rgba(23, 9, 64, 0.55);
+  box-shadow: none;
 }
 .screen-time-reminder-logo { -st-icon-style: regular; }
 .screen-time-reminder-content { spacing: 6px; min-width: 160px; }

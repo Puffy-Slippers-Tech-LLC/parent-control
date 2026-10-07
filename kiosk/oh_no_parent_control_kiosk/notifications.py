@@ -102,7 +102,7 @@ class NotificationApplication(Gtk.Application):
             .kiosk-notification progressbar progress { background: linear-gradient(#24efff, #02cde9);
             min-height: 9px; min-width: 0; border: 0; border-radius: 0; }
             .kiosk-notification.onpc-readable-script label { font-family: sans-serif; }
-            '''.replace('FRAME', str(branding_asset_path('reminder-frame.svg'))))
+            '''.replace('FRAME', branding_asset_path('reminder-frame.svg').as_uri()))
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         self._css = css

@@ -95,6 +95,8 @@ test('production extension uses live state while the separate preview supplies f
         GnomeApplicationUiAdapter: class { close() {} },
         ChildApplicationUi: class { close() {} },
         ReminderPreview: class { close() {} },
+        WellbeingSuppression: class { close() {} },
+        Main: {timeLimitsManager: {}, sessionMode: {}},
         TranslationContext: class {
             constructor(directory) {
                 this.directory = directory;
@@ -171,4 +173,32 @@ test('production extension uses live state while the separate preview supplies f
     assert.equal(contexts[1].language, 'ja');
     assert.equal(preview._indicator.languageRefreshes, 2);
     assert.equal(preview._indicator.active, false);
+});
+
+test('suppression startup/reporting and shutdown failures cannot disable the enforcer', () => {
+    let destroyed = false;
+    const context = vm.createContext({
+        Extension: class { getSettings() { return {}; } },
+        Main: {timeLimitsManager: {}, sessionMode: {}},
+        ChildErrorHandler: class { report() { throw Error('report unavailable'); } close() {} },
+        WellbeingSuppression: class { constructor() { throw Error('helper unavailable'); } },
+        ReminderPreview: class { close() {} },
+        ChildApplicationUi: class { close() {} },
+        GnomeApplicationUiAdapter: class { close() {} },
+        TranslationContext: class { refresh(done) { done(); } },
+        appName: () => 'Product', appLogoPath: () => '/logo', logInfo() {},
+    });
+    vm.runInContext(readFileSync(new URL('../../child/extension.js', import.meta.url), 'utf8')
+        .replace(/^import[\s\S]*?;\n/gm, '')
+        .replace('export default class OhNoParentControlExtension', 'globalThis.Product = class'), context);
+    const extension = new context.Product();
+    const enforcer = {refreshLanguage() {}, refreshNotifications() {},
+        destroy() { destroyed = true; }};
+    extension._createIndicator = () => enforcer;
+    extension.enable();
+    assert.equal(extension._indicator, enforcer);
+    assert(extension._applicationUi);
+    extension._wellbeing = {close() { throw Error('suppression cleanup failed'); }};
+    extension.disable();
+    assert.equal(destroyed, true);
 });

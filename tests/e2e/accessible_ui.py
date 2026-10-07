@@ -3489,6 +3489,20 @@ class AccessibleUI:
             row = self.id_target('feedback-logs-row')
             require(row.get_process_id() == self.id_target('feedback-dialog').get_process_id(),
                     'ui:save-app-owner')
+            if hasattr(row, 'ui_element'):
+                # Product API rows expose the subtitle as description/text,
+                # not an anonymous AT-SPI DESCRIBED_BY child. Keep the exact
+                # outcome and independently read the displayed logical text.
+                metadata = row.snapshot()
+                require(metadata.get('id') == 'feedback-logs-row'
+                        and metadata.get('surface_id') == 'feedback-dialog',
+                        'ui:save-app-owner')
+                subtitle = metadata.get('description')
+                require(type(subtitle) is str and 0 < len(subtitle) <= 128,
+                        'ui:save-app-result')
+                require(row.getText() == 'diagnostic-logs.zip\n' + subtitle,
+                        'ui:save-app-result')
+                return subtitle == expected
             descriptions = [relation.get_target(index)
                 for relation in row.get_relation_set()
                 if relation.get_relation_type() == self.api.RelationType.DESCRIBED_BY
@@ -3606,7 +3620,16 @@ class AccessibleUI:
                 raise UiError('ui:attachment-refusal-missing')
             return {'checked': operation}
         profile = 'remaining' if operation == 'attachment-remaining' else 'details'
-        value = self.feedback_snapshot(attachments=profile)
+        if operation == 'attachment-remaining':
+            # The chooser's Files process can retire between registry discovery
+            # and GetItems, even after removal readback completed. Discard that
+            # incomplete observation and reacquire the whole guarded read within
+            # one deadline. Exact file/metadata mismatches still refuse; this
+            # predicate contains no removal or other input to replay.
+            value = self.wait(lambda: self.feedback_snapshot(attachments=profile),
+                              operation, prompt_in_predicate=True)
+        else:
+            value = self.feedback_snapshot(attachments=profile)
         if operation == 'attachment-preview':
             self.feedback_snapshot(attachments='preview')
             # This binding qualifies the explicitly inapplicable branch only.
@@ -11281,8 +11304,29 @@ def main():
     require(ui.expected_mate_challenge is None or (
         sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')
+    # Identify a disappearing external owner at the retained failure boundaries,
+    # including the fresh attachment read and diagnostic Save after cancellation.
+    # These probes preserve traversal, retry/input policy and the first failure.
+    ui.api.provider_diagnostics = sys.argv[1] in (
+        'switch-parent-before', 'attachment-remaining',
+        'denied-export-save-chooser-open')
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)
+    except ui.query_errors as error:
+        if ui.api.provider_diagnostics:
+            error.add_note('public-atspi-cache-parent:' + parent_failure_observation(ui))
+            # Observe once more for diagnosis, then rethrow the first failure.
+            # A complete reread is evidence of a transient tree, never a pass.
+            status = 'complete'
+            try:
+                ui.invalidate_observation()
+                ui.read_snapshot()
+            except ui.query_errors:
+                status = 'query-error'
+            except Exception:
+                status = 'refused'
+            error.add_note('public-atspi-cache-reread:' + status)
+        raise
     except UiError as error:
         if (sys.argv[1] == 'kiosk-request-form' and any(
                 item.get('source') == 'crash-report'
@@ -11306,6 +11350,20 @@ def main():
     if boot is not None:
         result['boot_sha256'] = boot
     print(json.dumps(result, sort_keys=True), flush=True)
+
+
+def parent_failure_observation(ui):
+    """One independent product read after failure; never accept or retry input."""
+    catalog = ui.application_ui
+    if catalog is None or 'parent' not in catalog.clients:
+        return 'not-pinned'
+    try:
+        node = catalog.getElementById('parent-window',
+            owner_pids=ui.owner_pids, application_owners=ui.application_owners,
+            application_ids=(PARENT_APPLICATION,))
+        return 'available' if ui.showing(node) else 'hidden'
+    except Exception:
+        return 'unavailable'
 
 
 def adapter_failure_diagnostic(error):
@@ -11342,6 +11400,17 @@ def adapter_failure_diagnostic(error):
         if (len(parts) == 2 and parts[0] in (
                 'public-atspi-cache-owner', 'public-atspi-cache-registry')
                 and parts[1] in ('present', 'missing', 'unavailable')):
+            cache_provider[parts[0].removeprefix('public-atspi-cache-')] = parts[1]
+        if len(parts) == 2 and parts[1] in {
+                'public-atspi-cache-source': (
+                    'shell', 'files', 'text-editor', 'gnome-portal', 'gtk-portal',
+                    'keyring', 'polkit', 'gjs', 'python', 'other', 'unavailable'),
+                'public-atspi-cache-process': (
+                    'live', 'zombie', 'missing', 'replaced', 'unavailable'),
+                'public-atspi-cache-parent': (
+                    'available', 'hidden', 'unavailable', 'not-pinned'),
+                'public-atspi-cache-reread': ('complete', 'query-error', 'refused'),
+                }.get(parts[0], ()):
             cache_provider[parts[0].removeprefix('public-atspi-cache-')] = parts[1]
         if (len(parts) == 3 and parts[:2] == ['ui', 'absence-read']
                 and parts[2] in ('empty-tree', 'defunct-tree', 'missing-anchor',

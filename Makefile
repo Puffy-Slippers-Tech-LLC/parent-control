@@ -36,6 +36,9 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(SYSTEMD_USER_DIR)/oh-no-parent-control-app.service \
 	$(SYSTEMD_USER_DIR)/oh-no-parent-control-polkit-agent.service \
 	$(SYSTEMD_USER_DIR)/oh-no-parent-control-notifications.service \
+	$(SYSTEMD_USER_DIR)/oh-no-parent-control-wellbeing.service \
+	$(SYSTEMD_USER_DIR)/default.target.wants/oh-no-parent-control-wellbeing.service \
+	$(DATADIR)/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service \
 	$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/session.conf \
 	$(DATADIR)/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service \
 	$(DATADIR)/dbus-1/interfaces/com.puffyslippers.OhNoParentControl1.xml \
@@ -69,6 +72,7 @@ CHILD_DIR := child
 EXTENSION_SOURCES := accessibility.js branding.js diagnosticEvents.mjs errorHandler.js indicatorLogic.mjs logger.js remainingTimeIndicator.js sessionPreparationClient.js timeCalculationClient.js timerQuery.js
 EXTENSION_SOURCES += gettext.mjs languages.mjs localization.js applicationUi.js gnomeApplicationUiAdapter.js
 EXTENSION_SOURCES += notificationLogic.mjs remainingTimeNotifications.js reminderBanner.js reminderPreview.js
+EXTENSION_SOURCES += wellbeingLogic.mjs wellbeingSuppression.js wellbeingService.js
 # Explicit production modules prevent preview/test helpers from entering the package.
 COMMON_SOURCES := __init__.py about.py accessibility.py gtk_automation.py app_policy.py diagnostic_events.py diagnostic_catalog.json diagnostic_bundle.py diagnostic_privacy.py diagnostic_report.py diagnostic_timezones.json diagnostics.py system_info.py duration.py errors.py feedback.py feedback_transport.py rich_text_editor.py user_icon.py languages.py languages.json localization.py
 COMMON_SOURCES += message.py messages.py translation_widgets.py reboot.py
@@ -79,6 +83,7 @@ PARENT_SOURCES := __init__.py client.py main.py language_dialog.py
 BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py execution_probe.py extension_manager.py grant_diagnostics.py logs.py preferences.py probe_channel.py probe_generation.py service.py uninstall.py
 PRODUCT_USER_SERVICES := oh-no-parent-control-app.service oh-no-parent-control-polkit-agent.service
 PRODUCT_USER_SERVICES += oh-no-parent-control-notifications.service
+PRODUCT_USER_SERVICES += oh-no-parent-control-wellbeing.service
 OBSOLETE_EXTENSION_SOURCES := aboutDialog.js appFilterClient.js appPolicyStore.js approverClient.js parentalApproval.js requestAccessClient.js requestDialog.js requestOptions.js requestPreferencesStore.js sessionLimitsClient.js sharedPreferencesClient.js
 EXTENSION_SCHEMA := schemas/com.puffyslippers.oh-no-parent-control.child.gschema.xml
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
@@ -125,6 +130,7 @@ PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	config/config.example.json $(BRANDING_ASSETS) $(PARENT_TITLEBAR_ASSET) data/app_logo_gnome_launcher.png data/kiosk_account_icon.png \
 	data/apt/99zz-oh-no-parent-control-reboot-notice \
 	data/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service \
+	data/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service \
 	data/dbus-1/com.puffyslippers.OhNoParentControl1.xml \
 	data/dbus-1/system.d/com.puffyslippers.OhNoParentControl1.conf.in \
 	data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.child.request-own-access.policy.in \
@@ -565,6 +571,9 @@ endif
 	install -m 0644 data/systemd/onpc-execution-probe-.service.d/oh-no-parent-control-timeout.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/onpc-execution-probe-.service.d/"
 	install -d "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d"
 	install -m 0644 $(addprefix data/systemd/user/,$(PRODUCT_USER_SERVICES)) "$(DESTDIR)$(SYSTEMD_USER_DIR)/"
+	install -d "$(DESTDIR)$(SYSTEMD_USER_DIR)/default.target.wants" "$(DESTDIR)$(DATADIR)/dbus-1/services"
+	ln -sf ../oh-no-parent-control-wellbeing.service "$(DESTDIR)$(SYSTEMD_USER_DIR)/default.target.wants/oh-no-parent-control-wellbeing.service"
+	install -m 0644 data/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service "$(DESTDIR)$(DATADIR)/dbus-1/services/"
 	install -m 0644 data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/"
 	install -d "$(DESTDIR)$(DATADIR)/gnome-session/sessions" "$(DESTDIR)$(DATADIR)/wayland-sessions" "$(DESTDIR)$(DATADIR)/applications" "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps"
 	install -m 0644 data/gnome-session/sessions/oh-no-parent-control.session "$(DESTDIR)$(DATADIR)/gnome-session/sessions/"

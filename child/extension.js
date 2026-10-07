@@ -1,6 +1,7 @@
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {appLogoPath, appName} from './branding.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
@@ -11,6 +12,7 @@ import {TranslationContext} from './localization.js';
 import {ChildApplicationUi} from './applicationUi.js';
 import {GnomeApplicationUiAdapter} from './gnomeApplicationUiAdapter.js';
 import {ReminderPreview} from './reminderPreview.js';
+import {WellbeingSuppression} from './wellbeingSuppression.js';
 
 const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
 const SETTINGS_SCHEMA = 'com.puffyslippers.oh-no-parent-control.child';
@@ -40,6 +42,17 @@ export default class OhNoParentControlExtension extends Extension {
         this._openingRequest = false;
         this._translations = new TranslationContext(this.path);
         this._indicator = this._createIndicator();
+        try {
+            this._wellbeing = new WellbeingSuppression(Main.timeLimitsManager, Main.sessionMode,
+                () => this._indicator?._notifications?.preferences,
+                error => this._errors?.report(error),
+                (stage, outcome) => (outcome === 'failed' ? logWarning : logInfo)(
+                    'child.wellbeing', {stage, outcome}));
+        } catch (error) {
+            // Optional banner suppression must never prevent enforcement startup.
+            logWarning('child.wellbeing', {stage: 'startup', outcome: 'failed'});
+            try { this._errors.report(error); } catch (_error) { /* optional feature */ }
+        }
         try {
             this._reminderPreview = new ReminderPreview(this._appName, appLogoPath(this),
                 this._translations, () => this._showRequest(true));
@@ -82,6 +95,10 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     disable() {
+        try { this._wellbeing?.close(); } catch (_error) {
+            logWarning('child.wellbeing', {stage: 'shutdown', outcome: 'failed'});
+        }
+        this._wellbeing = null;
         this._reminderPreview?.close();
         this._reminderPreview = null;
         this._applicationUi?.close();

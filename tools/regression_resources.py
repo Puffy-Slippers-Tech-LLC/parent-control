@@ -44,6 +44,10 @@ class Demand:
 DEMANDS = {
     'ui': Demand(4, 4 * GIB),
     'unit': Demand(2, 2 * GIB),
+    # Wellbeing component tests stage schemas/keyfiles and the client harness
+    # beneath tmp_path; helpers and clients are Popen-owned and reaped. They use
+    # the shared private-bus fixture plus recorded Popen handles. No live user
+    # settings or systemd units; bounded GJS children fit existing admission.
     'component': Demand(2, GIB),
     'fixture-runtime': Demand(2, GIB),
     'source': Demand(2, GIB),
@@ -53,6 +57,8 @@ DEMANDS = {
     # Neither accesses a live product bus, writes files or needs exclusivity.
     # Reminder/source/UI-adapter checks add only private synchronous objects
     # and read-only source imports; the child-node demand/isolation is unchanged.
+    # Wellbeing lease/client cases likewise use private maps, clocks and settings
+    # doubles; no desktop bus, persistent settings or subprocesses are touched.
     'child-node': Demand(2, GIB),
     'child-gjs': Demand(1, GIB),
     'backend': Demand(1, GIB),

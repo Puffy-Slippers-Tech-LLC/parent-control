@@ -100,6 +100,28 @@ def test_packaged_extension_has_all_local_imports(production_payload):
             assert (source.parent / target).is_file(), (source.name, target)
 
 
+def test_wellbeing_recovery_payload_activates_across_lingering_user_managers(production_payload):
+    manifest = json.loads((production_payload / (
+        'usr/share/oh-no-parent-control/package-activation.json')).read_text())
+    entries = {entry['path']: entry for entry in manifest['files']}
+    extension = 'usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com'
+    for path in (
+        'usr/lib/systemd/user/oh-no-parent-control-wellbeing.service',
+        'usr/lib/systemd/user/default.target.wants/oh-no-parent-control-wellbeing.service',
+        'usr/share/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service',
+        f'{extension}/wellbeingService.js', f'{extension}/wellbeingLogic.mjs',
+        f'{extension}/schemas/com.puffyslippers.oh-no-parent-control.child.gschema.xml',
+        f'{extension}/schemas/gschemas.compiled',
+    ):
+        assert entries[path]['activation'] == 'reboot'
+        assert entries[path]['sha256'] == hashlib.sha256((production_payload / path).read_bytes()).hexdigest()
+    link = production_payload / 'usr/lib/systemd/user/default.target.wants/oh-no-parent-control-wellbeing.service'
+    assert link.is_symlink()
+    assert link.readlink() == Path('../oh-no-parent-control-wellbeing.service')
+    assert link.resolve().is_relative_to(production_payload)
+    assert entries[f'{extension}/wellbeingSuppression.js']['activation'] == 'session-renewal'
+
+
 def test_packaged_localization_is_loadable_and_covered_by_activation(production_payload):
     relative = "usr/lib/oh-no-parent-control/common/oh_no_parent_control_ui"
     catalogue = f"{relative}/locale/en/LC_MESSAGES/oh-no-parent-control.mo"

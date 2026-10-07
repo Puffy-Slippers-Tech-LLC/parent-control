@@ -1,0 +1,16 @@
+[Unit]
+Description=Oh No! Parent Control temporary Wellbeing banner override
+
+[Service]
+Type=dbus
+BusName=com.puffyslippers.OhNoParentControl.Wellbeing
+ExecStart=/usr/bin/gjs -m /usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/wellbeingService.js
+Restart=on-failure
+RestartSec=1
+TimeoutStopSec=5
+NoNewPrivileges=yes
+
+[Install]
+# Recovery must run without extension activation. This user-manager lifetime
+# can outlast GNOME sessions; packaged helper updates require a reboot.
+WantedBy=default.target

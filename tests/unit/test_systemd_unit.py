@@ -15,6 +15,26 @@ DISPLAY_MANAGER_DROP_IN = (
 FAPOLICYD_FALLBACK = ROOT / "data/fapolicyd/99-oh-no-parent-control-allow.rules"
 
 
+def test_wellbeing_recovery_is_unprivileged_restartable_and_available_without_extension():
+    unit = configparser.ConfigParser(interpolation=None)
+    unit.read(ROOT / 'data/systemd/user/oh-no-parent-control-wellbeing.service')
+    service = unit['Service']
+    assert service['Type'] == 'dbus'
+    assert service['BusName'] == 'com.puffyslippers.OhNoParentControl.Wellbeing'
+    assert service['Restart'] == 'on-failure'
+    assert service['NoNewPrivileges'] == 'yes'
+    assert 'User' not in service
+    assert 'broker' not in service['ExecStart']
+    assert unit['Install']['WantedBy'] == 'default.target'
+    activation = configparser.ConfigParser(interpolation=None)
+    activation.read(ROOT / 'data/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service')
+    assert activation['D-BUS Service']['Name'] == service['BusName']
+    assert activation['D-BUS Service']['Exec'] == service['ExecStart']
+    assert activation['D-BUS Service']['SystemdService'] == 'oh-no-parent-control-wellbeing.service'
+    makefile = (ROOT / 'Makefile').read_text()
+    assert 'default.target.wants/oh-no-parent-control-wellbeing.service' in makefile
+
+
 def test_kiosk_notification_script_loads_without_a_package_context(tmp_path):
     unit = configparser.ConfigParser(interpolation=None)
     unit.read(ROOT / 'data/systemd/user/oh-no-parent-control-notifications.service')

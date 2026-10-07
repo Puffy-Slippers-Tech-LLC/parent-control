@@ -17,6 +17,20 @@ ROOT = '/org/a11y/atspi/accessible/root'
 NULL = '/org/a11y/atspi/null'
 LIMIT = 6000
 
+# Finite diagnostic labels only; never retain executable paths or process text.
+PROVIDER_EXECUTABLES = {
+    '/usr/bin/gnome-shell': 'shell',
+    '/usr/bin/nautilus': 'files',
+    '/usr/bin/gnome-text-editor': 'text-editor',
+    '/usr/libexec/xdg-desktop-portal-gnome': 'gnome-portal',
+    '/usr/libexec/xdg-desktop-portal-gtk': 'gtk-portal',
+    '/usr/libexec/gcr-prompter': 'keyring',
+    '/usr/libexec/mate-polkit': 'polkit',
+    '/usr/bin/gjs': 'gjs',
+    '/usr/bin/python3': 'python',
+    '/usr/bin/python3.14': 'python',
+}
+
 
 class IncompleteTree(RuntimeError):
     pass
@@ -41,6 +55,8 @@ class PublicAtspi:
         self._names = None
         self._states = None
         self._generation = 0
+        self.provider_diagnostics = False
+        self._provider_processes = {}
         self.Action = BusNode
         self.Text = BusNode
         self.EditableText = BusNode
@@ -92,6 +108,7 @@ class PublicAtspi:
 
     def reset(self):
         self._nodes.clear()
+        self._provider_processes.clear()
         self._registry_owner = None
         self.invalidate_snapshot()
         if self._connection is not None:
@@ -276,6 +293,68 @@ class PublicAtspi:
                 'org.freedesktop.DBus', '/org/freedesktop/DBus',
                 'org.freedesktop.DBus', 'GetNameOwner', 's', ('org.a11y.atspi.Registry',))
         return self.node(('org.a11y.atspi.Registry', ROOT))
+
+    @staticmethod
+    def provider_process(pid):
+        """Read a bounded process identity without retaining its name or args.
+
+        Start ticks stay private to this probe, distinguishing PID reuse from
+        the original provider. No process is launched, signalled or waited for.
+        """
+        if type(pid) is not int or not 0 < pid < 2**31:
+            return None, 'unavailable', 'unavailable'
+        try:
+            with open('/proc/' + str(pid) + '/stat', encoding='utf-8') as stream:
+                stat = stream.read(4097)
+            fields = stat.rsplit(')', 1)[1].split()
+            if len(stat) > 4096 or len(fields) < 20:
+                return None, 'unavailable', 'unavailable'
+            started = int(fields[19])
+            state = 'zombie' if fields[0] in ('Z', 'X') else 'live'
+        except (FileNotFoundError, ProcessLookupError):
+            return None, 'missing', 'unavailable'
+        except (OSError, ValueError, IndexError, UnicodeError):
+            return None, 'unavailable', 'unavailable'
+        try:
+            source = PROVIDER_EXECUTABLES.get(os.readlink('/proc/' + str(pid) + '/exe'), 'other')
+        except OSError:
+            source = 'unavailable'
+        return started, state, source
+
+    def remember_providers(self, references):
+        """Pin at most sixteen enumerated owners before any subtree queries.
+
+        Opt-in evidence for one failing operation. Probe failures cannot change
+        the complete-tree contract or authorize omission of a provider.
+        """
+        if not self.provider_diagnostics:
+            return
+        for bus, _path in references:
+            if bus in self._provider_processes or len(self._provider_processes) >= 16:
+                continue
+            self._provider_processes[bus] = (None, None, 'unavailable')
+            try:
+                pid = self.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                                'org.freedesktop.DBus', 'GetConnectionUnixProcessID', 's', (bus,))
+                started, _state, source = self.provider_process(pid)
+                self._provider_processes[bus] = (pid, started, source)
+            except Exception:
+                pass
+
+    def cache_process_notes(self, bus, error):
+        if not self.provider_diagnostics:
+            return
+        pid, started, source = self._provider_processes.get(bus, (None, None, 'unavailable'))
+        try:
+            current, state, _source = self.provider_process(pid)
+        except Exception:
+            current, state = None, 'unavailable'
+        if started is None:
+            state = 'unavailable'
+        elif current is not None and current != started:
+            state = 'replaced'
+        error.add_note('public-atspi-cache-source:' + source)
+        error.add_note('public-atspi-cache-process:' + state)
 
     @contextmanager
     def snapshot(self):
@@ -502,6 +581,7 @@ class PublicAtspi:
                 if isinstance(error, GLib.Error) and Gio.DBusError.get_remote_error(error) in (
                         'org.freedesktop.DBus.Error.ServiceUnknown',
                         'org.freedesktop.DBus.Error.NameHasNoOwner'):
+                    self.cache_process_notes(node.bus, error)
                     # Evidence only: distinguish an exited owner still listed
                     # by the registry from a live provider/query failure. Never
                     # retry input, omit a subtree or replace the original error.
@@ -657,6 +737,8 @@ class BusNode:
         children = tuple(self.api.reference(ref) for ref in children)
         if len(set(children)) != len(children):
             raise IncompleteTree('public-atspi:incomplete-tree')
+        if self.bus == 'org.a11y.atspi.Registry' and self.path == ROOT:
+            self.api.remember_providers(children)
         return children
 
     def get_child_count(self):

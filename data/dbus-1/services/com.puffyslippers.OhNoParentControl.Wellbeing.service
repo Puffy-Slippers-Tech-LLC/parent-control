@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.puffyslippers.OhNoParentControl.Wellbeing
+Exec=/usr/bin/gjs -m /usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/wellbeingService.js
+SystemdService=oh-no-parent-control-wellbeing.service

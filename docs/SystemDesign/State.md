@@ -9,6 +9,13 @@ Implementation: [preferences.py](../../broker/oh_no_parent_control/preferences.p
 
 ## Persistent and derived state
 
+The child GSettings schema also holds a non-authoritative, user-local
+`wellbeing-banner-backup` recovery string: empty when inactive, otherwise
+`default`, `true` or `false`. The unprivileged session service alone owns this
+record and the temporary single-key override described in
+[native banner suppression](Screen-Time.md#native-wellbeing-banner-suppression).
+It contains no identity or policy data and changes no broker preference format.
+
 The single product preference source for user UID `N` is:
 
 ```text

@@ -2,6 +2,10 @@
 <schemalist>
   <schema id="com.puffyslippers.oh-no-parent-control.child"
           path="/com/puffyslippers/oh-no-parent-control/child/">
+    <key name="wellbeing-banner-backup" type="s">
+      <default>''</default>
+      <!-- Internal recovery record: empty, default, true or false. Not UI text. -->
+    </key>
     <key name="one-minute-countdown-animation" type="b">
       <default>false</default>
       <summary>Animate the final minute of the screen-time countdown</summary>

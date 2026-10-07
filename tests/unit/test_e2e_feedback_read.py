@@ -68,6 +68,8 @@ from ui_observations import FeedbackStateObservation
 # no resource ownership, unit scheduler or cleanup classification changes.
 # Initial collection-read retries add only mocked clocks and in-memory reads;
 # the compatible unit classification and resource lifetime remain unchanged.
+# Remaining-attachment retries use those same in-memory trees and mocked clocks;
+# no live provider, process, bus, display, path or cleanup owner is introduced.
 
 
 @pytest.mark.parametrize('fault', ['', 'storage', 'input', 'terminal-only', 'terminal', 'order', 'boot'])
@@ -2169,6 +2171,49 @@ def test_attachment_removal_waits_for_queued_action_without_replay(monkeypatch):
     assert dispatch.call_count == 1
 
 
+@pytest.mark.parametrize('fault', ['query', 'incomplete', 'persistent', 'wrong-item', 'size'])
+def test_remaining_attachment_reacquires_complete_read_without_replaying_removal(monkeypatch, fault):
+    ui, dialog, rows = attachment_ui()
+    assert ui.attachment_operation('attachment-remove')['items'] == [['Synthetic note.txt', '26 bytes']]
+    now = [0.0]
+    ui.timeout = .4
+    ui.query_errors = (LookupError,)
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: now.__setitem__(0, now[0] + delay))
+    if fault == 'wrong-item':
+        dialog.children.remove(rows[1])
+        dialog.children.append(rows[0])
+    elif fault == 'size':
+        rows[1].children[1].name = '999 bytes'
+    root = ui.root()
+    attributes = root.get_attributes
+    calls = []
+
+    def read():
+        calls.append(now[0])
+        if len(calls) == 1 or fault == 'persistent':
+            if fault == 'incomplete':
+                raise accessible_ui.UiError('ui:incomplete-tree')
+            raise LookupError('retired external provider')
+        return attributes()
+
+    root.get_attributes = read
+    with ui.observation():  # Match the installed operation's read-cache lifetime.
+        if fault in ('persistent', 'wrong-item', 'size'):
+            expected = {'persistent': 'ui:timeout:attachment-remaining',
+                        'wrong-item': 'ui:feedback-attachment-set', 'size': 'ui:attachment-size'}[fault]
+            with pytest.raises(accessible_ui.UiError, match='^' + expected + '$'):
+                ui.attachment_operation('attachment-remaining')
+        else:
+            assert ui.attachment_operation('attachment-remaining') == {
+                'checked': 'attachment-remaining', 'items': [['Synthetic note.txt', '26 bytes']]}
+    assert len(calls) >= 2
+    assert now[0] == (.4 if fault == 'persistent' else .2)
+    rows[0].children[0].action.do_action.assert_called_once_with(0)
+    rows[1].children[0].action.do_action.assert_not_called()
+    assert not ui.input_uncertain
+
+
 def test_attachment_wrong_entry_is_publicly_checked():
     ui, _, _, _ = feedback_ui()
     assert ui.attachment_operation('attachment-wrong-entry') == {'checked': 'attachment-wrong-entry'}
@@ -2807,6 +2852,64 @@ def test_save_error_requires_exact_app_subtitle_and_refuses_unsafe_result(fault)
     else:
         ui.save_app_result(expected)
     for node in controls.values(): node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('expected', ['Could not save logs. Try another location.',
+                                    'Downloaded · Ready to examine'])
+@pytest.mark.parametrize('fault', ['', 'delayed', 'text', 'subtitle', 'owner',
+                                  'surface', 'missing', 'chooser'])
+def test_save_result_uses_product_api_row_without_accessibility_subtitle(expected, fault):
+    from tests.support.application_ui import ApplicationNode
+    ui, _, _, _ = feedback_ui()
+    reads = []
+    client = SimpleNamespace(owner=':1.42', pid=100, application_id=accessible_ui.PARENT_APPLICATION,
+                             object_path='/com/puffyslippers/OhNoParentControl/Parent')
+    current = expected
+
+    def call(surface, identity, operation, arguments):
+        assert surface == 'feedback-dialog' and identity == 'feedback-logs-row'
+        assert arguments is None
+        reads.append(operation)
+        if operation == 'getElementById':
+            return {'id': identity, 'surface_id': surface,
+                    'application_id': client.application_id,
+                    'description': None if fault == 'missing' else current}
+        assert operation == 'getText'  # Mutations are forbidden during result reads.
+        return ('Other file.zip' if fault == 'text' else 'diagnostic-logs.zip') + '\n' + current
+    client.call = call
+
+    def target(identity):
+        if identity == 'feedback-dialog':
+            return SimpleNamespace(get_process_id=lambda: 999 if fault == 'owner' else 100)
+        assert identity == 'feedback-logs-row'
+        row = ApplicationNode(SimpleNamespace(api=ui.api), client, 'feedback-dialog', {'id': identity})
+        if fault == 'surface':
+            row.snapshot = lambda: {'id': identity, 'surface_id': 'parent-window',
+                                    'description': current}
+        assert row.get_relation_set() == []  # The actual API projection has no subtitle relation.
+        return row
+    ui.id_target = target
+    ui.chooser_snapshot = Mock(return_value=fault != 'chooser')
+
+    def wait(predicate, label):
+        nonlocal current
+        assert label == 'save-app-result'
+        if fault in ('delayed', 'subtitle'):
+            current = 'Latest 3 log dates · ZIP archive'
+        if predicate():
+            return True
+        if fault == 'delayed':
+            current = expected
+        if predicate():
+            return True
+        raise accessible_ui.UiError('ui:timeout:' + label)
+    ui.wait = wait
+    if fault in ('', 'delayed'):
+        ui.save_app_result(expected)
+        assert reads == ['getElementById', 'getText'] * (2 if fault == 'delayed' else 1)
+    else:
+        with pytest.raises(accessible_ui.UiError):
+            ui.save_app_result(expected)
 
 
 def test_synthetic_cancel_and_failed_save_preserve_draft_before_recovery():

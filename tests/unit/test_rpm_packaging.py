@@ -67,8 +67,21 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
                            for path in sorted(extension.glob('*.mjs'))]
     assert {path.name for path in extension.glob('*.mjs')} == {
         'diagnosticEvents.mjs', 'indicatorLogic.mjs', 'gettext.mjs', 'languages.mjs',
-        'notificationLogic.mjs',
+        'notificationLogic.mjs', 'wellbeingLogic.mjs',
     }
+    for relative in (
+            'usr/lib/systemd/user/oh-no-parent-control-wellbeing.service',
+            'usr/lib/systemd/user/default.target.wants/oh-no-parent-control-wellbeing.service',
+            'usr/share/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service',
+            f'{extension.relative_to(payload)}/wellbeingService.js',
+            f'{extension.relative_to(payload)}/wellbeingLogic.mjs',
+            f'{extension.relative_to(payload)}/schemas/gschemas.compiled'):
+        assert files[relative]['activation'] == 'reboot'
+    assert files[f'{extension.relative_to(payload)}/wellbeingSuppression.js']['activation'] == 'session-renewal'
+    recovery = payload / 'usr/lib/systemd/user/default.target.wants/oh-no-parent-control-wellbeing.service'
+    assert recovery.is_symlink()
+    assert recovery.readlink() == Path('../oh-no-parent-control-wellbeing.service')
+    assert recovery.resolve().is_relative_to(payload)
     assert files[trust_path]['activation'] == 'none'
     manuals = payload / 'usr/share/man/man1'
     for name in ('oh-no-parent-control.1', 'oh-no-parent-control-parent.1'):

@@ -1,7 +1,7 @@
 """Fresh public bulk traversal and uncached input guards; no real bus or files."""
 
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, mock_open
 
 import pytest
 
@@ -908,6 +908,76 @@ def test_missing_cache_provider_diagnostics_preserve_failure(owner, registered, 
     ]
     assert [entry.args[3] for entry in rpc.call_args_list] == [
         'GetItems', 'NameHasOwner', 'GetChildren']
+    assert 'PRIVATE_' not in repr(error.__notes__)
+
+
+@pytest.mark.parametrize('current,state,expected', [
+    (100, 'live', 'live'), (100, 'zombie', 'zombie'),
+    (None, 'missing', 'missing'), (101, 'live', 'replaced'),
+])
+def test_cache_lifecycle_diagnostic_pins_process_and_preserves_original_error(
+        monkeypatch, current, state, expected):
+    from gi.repository import GLib, Gio
+    api, _, rpc, app, _ = fixture_bus()
+    api.provider_diagnostics = True
+    process = Mock(side_effect=[(100, 'live', 'files'), (current, state, 'other')])
+    monkeypatch.setattr(api, 'provider_process', process)
+    error = Gio.DBusError.new_for_dbus_error(
+        'org.freedesktop.DBus.Error.ServiceUnknown', 'PRIVATE_PROVIDER')
+
+    def call(bus, path, interface, method, signature='', args=()):
+        if method == 'GetConnectionUnixProcessID':
+            assert args == (app.bus,)
+            return 123
+        if method == 'GetItems':
+            raise error
+        if method == 'NameHasOwner':
+            return False
+        assert method == 'GetChildren'
+        return []
+
+    rpc.side_effect = call
+    desktop = api.node(('org.a11y.atspi.Registry', ROOT))
+    desktop.validate_children(1, [(app.bus, ROOT)])
+    with api.snapshot(), pytest.raises(GLib.Error) as caught:
+        api.record(app)
+    assert caught.value is error
+    assert error.__notes__ == [
+        'public-atspi-cache-source:files',
+        'public-atspi-cache-process:' + expected,
+        'public-atspi-cache-owner:missing', 'public-atspi-cache-registry:missing']
+    assert [entry.args[3] for entry in rpc.call_args_list] == [
+        'GetConnectionUnixProcessID', 'GetItems', 'NameHasOwner', 'GetChildren']
+    assert process.call_args_list[0].args == process.call_args_list[1].args == (123,)
+    assert 'PRIVATE_' not in repr(error.__notes__)
+
+
+def test_provider_process_probe_is_bounded_and_excludes_process_text(monkeypatch):
+    stat = '123 (PRIVATE_NAME ) WITH SPACE) S ' + '0 ' * 18 + '100 0 0'
+    stream = mock_open(read_data=stat)
+    monkeypatch.setattr('builtins.open', stream)
+    monkeypatch.setattr('os.readlink', lambda _path: '/home/PRIVATE_USER/PRIVATE_APP')
+    assert PublicAtspi.provider_process(123) == (100, 'live', 'other')
+    stream().read.assert_called_once_with(4097)
+    stream = mock_open(read_data='PRIVATE_' * 600)
+    monkeypatch.setattr('builtins.open', stream)
+    assert PublicAtspi.provider_process(123) == (None, 'unavailable', 'unavailable')
+
+
+def test_provider_diagnostic_probes_are_opt_in_bounded_and_failure_tolerant():
+    api, _, rpc, _, _ = fixture_bus()
+    references = [(':1.' + str(index), ROOT) for index in range(20)]
+    api.remember_providers(references)
+    rpc.assert_not_called()
+    api.provider_diagnostics = True
+    rpc.side_effect = RuntimeError('PRIVATE_PROBE_FAILURE')
+    api.remember_providers(references)
+    api.remember_providers(references)
+    assert rpc.call_count == len(api._provider_processes) == 16
+    error = RuntimeError('PRIVATE_FAILURE')
+    api.cache_process_notes(references[0][0], error)
+    assert error.__notes__ == [
+        'public-atspi-cache-source:unavailable', 'public-atspi-cache-process:unavailable']
     assert 'PRIVATE_' not in repr(error.__notes__)
 
 

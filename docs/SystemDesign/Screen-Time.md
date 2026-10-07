@@ -55,6 +55,67 @@ The [Application UI API](../TestAutomation/Application-UI-API.md#child-panel)
 exposes current notification content and urgency; it does not claim native
 banner visibility. Installed acceptance is queued, not implemented.
 
+### Native Wellbeing banner suppression
+
+The extension's [suppression client](../../child/wellbeingSuppression.js) reads
+Shell's `dailyLimitTime` and `getCurrentTime()` directly, independently of the
+broker-adjusted panel balance. A nonempty loaded reminder list and active
+parental-control limits enable the window `55 < remaining <= 65` on an unlocked
+desktop. Reminder thresholds, custom text and fullscreen preference do not
+change eligibility. GNOME 50's private 60-second warning threshold and the
+five-second margin are named constants in [window/lease logic](../../child/wellbeingLogic.mjs);
+Shell exposes the deadline but no public warning-threshold setting.
+Signals and a separate one-second timer reevaluate eligibility. Login/resume
+inside the window uses its remainder; a missed window below 55 seconds is not
+replayed. No private notification objects or enforcement state are modified.
+
+The unprivileged [session service](../../child/wellbeingService.js) exclusively
+owns the Wellbeing application's `show-banners` override. A session-bus method
+accepts only a finite expiry up to ten seconds away, or zero for cancellation.
+Independent sender/instance leases share one original snapshot; the last release
+restores it. A new enable gets a fresh token, so an old instance's late cancellation
+cannot release its replacement. The service accepts at most 64 concurrent leases.
+Unique bus-owner loss releases a crashed Shell's leases. Both real-time and
+monotonic deadlines bound a lease, checked every 250 ms while work is pending.
+The client watches the service's unique bus owner, invalidates acknowledgements
+on replacement, and reacquires an eligible window. Requests pin a known owner;
+late replies from a previous owner cannot acknowledge the replacement. Eligibility
+is reevaluated before reacquisition. Shutdown detaches the watch and serializes
+cancellation after in-flight calls without activating a helper for cancellation.
+Asynchronous failures and reporting failures do not escape into extension startup
+or enforcement.
+
+Before suppression, the service saves and synchronizes the original explicit
+boolean or unset/default state in the child schema's `wellbeing-banner-backup`.
+Restoration synchronizes before clearing that record. User banner edits during
+the window are deliberately overwritten; unrelated notification settings are
+untouched. Invalid recovery records refuse new suppression. Failed restoration
+retains the record and retries. A user systemd unit starts independently of the
+extension at user-manager startup, restarts on failure and recovers before new
+leases. Session D-Bus activation also starts it on demand. Ordinary termination
+restores; an uncatchable crash is recovered by restart or next login. Disabled
+services, unavailable settings backends or locked keys can delay recovery.
+
+Child diagnostics record eligibility transitions, acquisition/cancellation,
+helper-owner changes, stale replies, shutdown and failures through the approved
+`child.wellbeing` event. The independent helper writes fixed `onpc.child`
+journal messages for settings backup, suppression, restoration and verification,
+lease expiry/release, sender loss, invalid requests, capacity and recovery retries.
+Repeated helper failures are suppressed per stage until recovery; healthy timer
+ticks produce no logs. These messages contain only shipped categories and the
+original boolean/default category, never identities, tokens, deadlines, reminder
+content or exception text. Helper journal messages are local diagnostics and are
+not automatically included in feedback exports.
+
+This is best-effort presentation suppression: queued banners and startup races
+can escape, and other noncritical Wellbeing banners share the window. An eligible
+saved reminder need not actually be visible. No broker/AccountsService policy,
+grant, PAM or fapolicyd mutation participates. Node cases cover timing, ownership
+and client failure isolation; private-bus component cases exercise the real GJS
+service and production suppression client with a persistent isolated GSettings
+backend, including crash recovery and reacquisition after helper replacement.
+These checks do not establish native GNOME banner or installed-system acceptance.
+
 `SetPreferences` cannot alter `parent_control_enabled`. `SetParentControl`
 applies screen-time settings to the account and controls child-extension
 activation when the saved toggle changes. `SetPreferences` can save a daily

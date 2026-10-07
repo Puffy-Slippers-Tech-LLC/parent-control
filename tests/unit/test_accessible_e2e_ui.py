@@ -409,9 +409,35 @@ def test_adapter_cache_provider_diagnostic_excludes_unapproved_values():
     error.add_note('public-atspi-cache-registry:present')
     error.add_note('public-atspi-cache-owner:PRIVATE_ACCOUNT')
     error.add_note('public-atspi-cache-PRIVATE_PASSWORD:present')
+    error.add_note('public-atspi-cache-source:files')
+    error.add_note('public-atspi-cache-process:missing')
+    error.add_note('public-atspi-cache-parent:available')
+    error.add_note('public-atspi-cache-reread:complete')
+    for field in ('source', 'process', 'parent', 'reread'):
+        error.add_note('public-atspi-cache-' + field + ':PRIVATE_VALUE')
     value = accessible_ui.adapter_failure_diagnostic(error)
-    assert value['cache_provider'] == {'owner': 'missing', 'registry': 'present'}
+    assert value['cache_provider'] == {
+        'owner': 'missing', 'registry': 'present', 'source': 'files',
+        'process': 'missing', 'parent': 'available', 'reread': 'complete'}
     assert 'PRIVATE_' not in json.dumps(value)
+
+
+@pytest.mark.parametrize('status', ['available', 'hidden', 'unavailable', 'not-pinned'])
+def test_parent_failure_probe_keeps_pinned_owner_and_never_inputs(status):
+    catalog = Mock()
+    catalog.clients = {} if status == 'not-pinned' else {'parent': object()}
+    ui = SimpleNamespace(application_ui=catalog, owner_pids=object(),
+        application_owners=object(), showing=Mock(return_value=status == 'available'))
+    if status == 'unavailable':
+        catalog.getElementById.side_effect = RuntimeError('PRIVATE_PRODUCT_FAILURE')
+    assert accessible_ui.parent_failure_observation(ui) == status
+    if status == 'not-pinned':
+        catalog.getElementById.assert_not_called()
+    else:
+        catalog.getElementById.assert_called_once_with('parent-window',
+            owner_pids=ui.owner_pids, application_owners=ui.application_owners,
+            application_ids=(accessible_ui.PARENT_APPLICATION,))
+    assert all(call[0] == 'getElementById' for call in catalog.method_calls)
 
 
 @pytest.mark.parametrize('provider', ['mate', 'shell'])

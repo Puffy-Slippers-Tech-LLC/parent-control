@@ -17,6 +17,36 @@ changed_impacts = _activation["changed_impacts"]
 generate = _activation["generate"]
 
 
+@pytest.mark.parametrize('path', [
+    'usr/lib/systemd/user/oh-no-parent-control-wellbeing.service',
+    'usr/lib/systemd/user/default.target.wants/oh-no-parent-control-wellbeing.service',
+    'usr/share/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service',
+    *[f'{_activation["EXTENSION_PATH"]}/{name}' for name in (
+        'wellbeingService.js', 'wellbeingLogic.mjs',
+        'schemas/com.puffyslippers.oh-no-parent-control.child.gschema.xml',
+        'schemas/gschemas.compiled')],
+])
+def test_user_manager_recovery_updates_require_a_fresh_manager(tmp_path, path):
+    # Logout/login is insufficient with lingering or another active login.
+    # Verify both classification and the upgrade decision consumed by packages.
+    assert activation_for(path) == 'reboot'
+    installed = tmp_path / path
+    installed.parent.mkdir(parents=True)
+    installed.write_text('old helper')
+    old, new = tmp_path / 'old.json', tmp_path / 'new.json'
+    generate(tmp_path, old, includes=[Path(path)])
+    installed.write_text('updated helper')
+    generate(tmp_path, new, includes=[Path(path)])
+    assert changed_impacts(old, new) == ['reboot']
+    installed.unlink()
+    generate(tmp_path, old, includes=[Path(path)])
+    assert changed_impacts(new, old) == ['reboot']
+
+
+def test_shell_only_suppression_client_update_still_needs_session_renewal():
+    assert activation_for(f'{_activation["EXTENSION_PATH"]}/wellbeingSuppression.js') == 'session-renewal'
+
+
 @pytest.mark.parametrize('fault', ['delayed', 'missing', 'digest', 'size', 'source', 'command'])
 def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch, fault):
     wait = _activation['wait_child_trust']

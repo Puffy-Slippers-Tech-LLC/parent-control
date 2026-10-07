@@ -155,7 +155,8 @@ package ordering, and failure/retry behavior.
 
 Package activation is selected from a generated digest manifest. Depending on
 the installed file that changed, an update needs no action, a broker restart, a
-new child/kiosk session, or a reboot at the PAM/display-manager boundary. See
+new child/kiosk session, or a reboot for boot integration or resident user-manager
+recovery code. See
 [Package update](../Publishing.md#package-update-activation) for the classification rules.
 In particular, replacing the native PAM module alone is `session-renewal`,
 whereas changing PAM profiles or login-routing integration is `reboot`.
@@ -187,6 +188,22 @@ persistent state or marker is introduced. The launcher's early child-trust gate
 still verifies import safety independently of the frontend reboot guard.
 
 ## Installed layout
+
+The optional Wellbeing banner service is packaged as
+`/usr/lib/systemd/user/oh-no-parent-control-wellbeing.service`, with a package-owned
+`default.target.wants` link and session D-Bus activation file. It runs as the
+session user, starts independently of Shell extension activation to recover an
+unfinished settings override, and restarts on failure. Its GJS modules and
+recovery schema ship in the extension payload. A lingering user manager or
+another login can keep this helper alive through GNOME logout/login. Its resident
+service module, shared lease/window module, recovery schema (source and compiled),
+unit, startup link and D-Bus activation file therefore require a reboot to
+guarantee update activation. The Shell-only suppression client still requires
+session renewal. Package configuration uses the existing reboot notification
+and does not restart users' managers or force logout.
+GJS is an explicit runtime dependency on both distributions. It has no readiness
+dependency from the broker, desktop or enforcement services. See
+[suppression lifecycle](Screen-Time.md#native-wellbeing-banner-suppression).
 
 The [Fedora packaging adapter](../Fedora-Packaging.md#fedora-lifecycle) supplies
 `wheel`, `/etc/gdm`, native x86_64 PAM paths and authselect integration for local

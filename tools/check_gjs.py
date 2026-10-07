@@ -18,6 +18,8 @@ JS_FILES = [
         "sessionPreparationClient.js",
         "timeCalculationClient.js",
         "timerQuery.js",
+        "wellbeingLogic.mjs",
+        "wellbeingSuppression.js",
     )
 ]
 

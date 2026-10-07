@@ -57,6 +57,20 @@ def activation_for(path: str) -> str:
     # sessions use its replacement without restarting the machine.
     if path.endswith("/security/pam_oh_no_parent_control.so"):
         return "session-renewal"
+    # This recovery service belongs to the user manager, not a GNOME session.
+    # Lingering or another login can retain it through logout/login. Package
+    # configuration does not restart arbitrary users' managers, so a reboot is
+    # the guaranteed activation boundary for its resident code and integration.
+    if path in {
+        f"{EXTENSION_PATH}/wellbeingService.js",
+        f"{EXTENSION_PATH}/wellbeingLogic.mjs",
+        f"{EXTENSION_PATH}/schemas/com.puffyslippers.oh-no-parent-control.child.gschema.xml",
+        f"{EXTENSION_PATH}/schemas/gschemas.compiled",
+        "usr/lib/systemd/user/oh-no-parent-control-wellbeing.service",
+        "usr/lib/systemd/user/default.target.wants/oh-no-parent-control-wellbeing.service",
+        "usr/share/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service",
+    }:
+        return "reboot"
     if path.startswith((
         "etc/gdm3/",
         "etc/gdm/",
@@ -90,6 +104,7 @@ def activation_for(path: str) -> str:
     if path.startswith((
         "usr/lib/oh-no-parent-control/kiosk/",
         "usr/lib/systemd/user/",
+        "usr/share/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service",
         "usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/",
         "usr/share/gnome-session/",
         "usr/share/wayland-sessions/",

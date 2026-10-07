@@ -23,6 +23,7 @@ Requires:       authselect
 Requires:       dbus
 Requires:       fapolicyd
 Requires:       gdm >= 50
+Requires:       gjs
 Requires:       gnome-kiosk >= 50
 Requires:       gnome-session
 Requires:       gnome-shell >= 50
@@ -123,6 +124,7 @@ for script in rpm-lifecycle/rpm-*; do /bin/sh -n "$script"; done
 %{_datadir}/doc/oh-no-parent-control/
 %{_datadir}/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/
 %{_datadir}/dbus-1/system-services/com.puffyslippers.OhNoParentControl1.service
+%{_datadir}/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service
 %{_datadir}/dbus-1/interfaces/com.puffyslippers.OhNoParentControl1.xml
 %{_datadir}/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.*.policy
 %{_datadir}/polkit-1/rules.d/00-oh-no-parent-control-session.rules
@@ -137,6 +139,7 @@ for script in rpm-lifecycle/rpm-*; do /bin/sh -n "$script"; done
 %{_unitdir}/display-manager.service.d/oh-no-parent-control.conf
 %{_unitdir}/onpc-execution-probe-.service.d/oh-no-parent-control-timeout.conf
 %{_userunitdir}/oh-no-parent-control-*.service
+%{_userunitdir}/default.target.wants/oh-no-parent-control-wellbeing.service
 %{_userunitdir}/gnome-session@oh-no-parent-control.target.d/session.conf
 %{_mandir}/man1/oh-no-parent-control*.1*
 

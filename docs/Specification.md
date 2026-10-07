@@ -206,6 +206,17 @@ Technical interfaces, storage formats and verification limits are in the
   or kiosk; Dismiss closes the banner. Any new reminder or preview dismisses the
   previous banner.
 
+  On GNOME 50, a nonempty saved reminder list temporarily suppresses Wellbeing
+  banners while Shell's parental-control deadline is more than 55 and at most
+  65 seconds away, regardless of reminder thresholds, text or fullscreen choice.
+  The original banner preference is restored afterward, on cancellation or
+  shutdown, and through recovery after a crash. Changes to that banner preference
+  during suppression are intentionally replaced by its original value.
+  Notifications remain in the list and enforcement stays active. Other
+  noncritical Wellbeing banners in the window are also suppressed; an already
+  queued banner or a warning racing startup can still appear. Empty reminder
+  lists do not suppress native warnings.
+
 - [ONPC-COMP-CHILD-003] Combines the current daily-time estimate with the current grant. A temporary read failure retains the last verified estimate while time continues to elapse.
 - [ONPC-COMP-CHILD-004] Opens one shared request overlay for the signed-in child, with eligible parent selection, remembered choices, time estimates, Help and About.
 - [ONPC-COMP-CHILD-005] Refreshes after grant changes and closing the overlay, and requests expired-grant reconciliation at startup and after unlock. Failure is reportable and can be retried; the panel itself does not edit policy or close other apps.

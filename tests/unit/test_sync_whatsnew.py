@@ -233,6 +233,25 @@ def test_transport_is_read_only_and_helpers_are_bounded(monkeypatch, tmp_path):
     assert 'enabled = false' in config
 
 
+def test_ephemeral_helpers_receive_self_contained_translation_and_review_tasks(repository):
+    release = catalogs.prepare(repository)
+    work = catalogs.pending(repository, release)
+    instructions, manifest = sync.prompt(release, work, 2).split('\n\n', 1)
+    assert 'On every spawn_agent call, explicitly set fork_turns="none"' in instructions
+    assert 'fork_context' not in instructions
+    assert 'self-contained' in instructions
+    assert 'read-only/scope/data instructions' in instructions
+    assert 'review assignments must also include the candidate translations' in instructions
+    assert 'separate bounded review assignment' in instructions
+    assert 'Wait for every helper to finish' in instructions
+    assert json.loads(manifest) == work
+    serial, manifest = sync.prompt(release, work, 0).split('\n\n', 1)
+    assert 'do not spawn subagents' in serial
+    assert 'fork_context' not in serial
+    assert 'fork_turns' not in serial
+    assert json.loads(manifest) == work
+
+
 def test_worker_batches_pending_languages_only_and_noop_needs_no_agent(repository, tmp_path, monkeypatch):
     run = tmp_path / 'run'
     run.mkdir()

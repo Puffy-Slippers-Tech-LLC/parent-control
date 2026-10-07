@@ -1650,3 +1650,20 @@ msgstr "Жабу"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Бұл хабарландыру 5 секундтан кейін жабылады."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Не жаңалық"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "v%(version)s нұсқасындағы жаңалықтар"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Бұл терезені қолданба мәзірінен қайта ашуға болады."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Толығырақ"

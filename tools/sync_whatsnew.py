@@ -57,8 +57,13 @@ def agent_command(root, run, model, effort, subagents):
 
 def prompt(release, work, subagents):
     helper = (f'You may use at most {subagents} read-only whatsnew_translator subagents at once. '
+              'On every spawn_agent call, explicitly set fork_turns="none". The coordinator '
+              'is ephemeral and has no stored rollout to fork. Give each helper a self-contained '
+              'assignment with these read-only/scope/data instructions, its exact languages and '
+              'records, current English, previous text when relevant, and terminology paths; '
+              'review assignments must also include the candidate translations. '
               'Assign disjoint language batches for translation, then use a separate bounded '
-              'review assignment for policy meaning/omissions. Wait for and close every helper. '
+              'review assignment for policy meaning/omissions. Wait for every helper to finish. '
               'Use the selected coordinator model/effort for helpers; do not override them. '
               if subagents else 'Translate and review this batch yourself; do not spawn subagents. ')
     return (

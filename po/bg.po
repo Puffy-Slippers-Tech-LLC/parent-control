@@ -1656,3 +1656,20 @@ msgstr "Затваряне"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Това известие ще се затвори след 5 секунди."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Какво е новото"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Какво е новото във v%(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Можете да отворите този прозорец отново от менюто на приложението."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Научете повече"

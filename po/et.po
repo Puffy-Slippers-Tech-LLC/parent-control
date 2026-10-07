@@ -1656,3 +1656,20 @@ msgstr "Sulge"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "See teavitus sulgub 5 sekundi pärast."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Mis on uut"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Mis on uut versioonis %(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Saate selle akna uuesti avada rakenduse menüüst."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Lisateave"

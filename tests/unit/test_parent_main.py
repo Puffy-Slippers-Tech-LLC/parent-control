@@ -63,6 +63,7 @@ class ParentWindowHarness:
     _users_loaded = ParentWindow._users_loaded
     _account_changed = ParentWindow._account_changed
     _selected_uid = ParentWindow._selected_uid
+    _try_auto_whats_new = mock.Mock()
 
     def __init__(self):
         self._users = []
@@ -87,6 +88,121 @@ class ParentWindowHarness:
 
 
 class ParentWindowTests(unittest.TestCase):
+    def release_window(self):
+        window = SimpleNamespace(
+            _closed=False, _fatal_discovery_error=False, _language_ready=True,
+            _language_loading=False, _language_dialog=None, _own_language='de',
+            _users_loaded_once=True, _whats_new_wait_id=0,
+            _whats_new_auto_attempted=False, _whats_new_loaded_once=False,
+            _whats_new_loading=True, _whats_new_record=None, _whats_new_dialog=None,
+            _whats_new_menu_item=mock.Mock(), _language_shade=mock.Mock(),
+            _whats_new_modal_blocked=mock.Mock(return_value=False),
+            _client=mock.Mock(), _run=mock.Mock(), _load_policy_warnings=mock.Mock(),
+            get_application=mock.Mock(return_value=SimpleNamespace(get_windows=lambda: [])),
+            _toast=mock.Mock())
+        for name in ('_try_auto_whats_new', '_show_whats_new', '_whats_new_closed',
+                     '_whats_new_loaded', '_whats_new_failed'):
+            setattr(window, name, lambda *args, _name=name:
+                    getattr(ParentWindow, _name)(window, *args))
+        return window
+
+    @staticmethod
+    def release_reply(auto=True):
+        return {'product_version': '1.4', 'records': [{
+            'ProductVersion': '1.4', 'record_id': '1.4:Parent',
+            'Content': '## Changes\n- **Better** behavior', 'auto_show': auto}]}
+
+    def test_release_waits_for_language_and_uses_the_final_preference(self):
+        window = self.release_window()
+        window._language_ready = False
+        window._language_dialog = mock.Mock()
+        with mock.patch('parent.oh_no_parent_control_parent.main.WhatsNewDialog') as dialog:
+            window._whats_new_loaded(self.release_reply())
+            dialog.assert_not_called()
+            window._own_language = 'he'
+            window._language_dialog = None
+            window._language_ready = True
+            window._try_auto_whats_new()
+            self.assertEqual(dialog.call_args.args[0]._own_language, 'he')
+            self.assertTrue(window._whats_new_auto_attempted)
+            window._try_auto_whats_new()
+            dialog.assert_called_once()
+            window._run.assert_not_called()  # Query/presentation never persists seen state.
+
+    def test_release_fresh_install_and_missing_or_wrong_audience_only_offer_valid_notes(self):
+        for variant in ('fresh', 'missing', 'child', 'old'):
+            window = self.release_window()
+            reply = self.release_reply(auto=False)
+            if variant == 'missing':
+                reply['records'] = []
+            elif variant == 'child':
+                reply['records'][0]['record_id'] = '1.4:Child'
+            elif variant == 'old':
+                reply['records'][0]['ProductVersion'] = '1.3'
+            with mock.patch('parent.oh_no_parent_control_parent.main.WhatsNewDialog') as dialog:
+                window._whats_new_loaded(reply)
+                dialog.assert_not_called()
+                window._whats_new_menu_item.set_visible.assert_called_with(variant == 'fresh')
+
+    def test_release_waits_for_other_modals_and_ignores_closed_or_fatal_parent(self):
+        window = self.release_window()
+        window._whats_new_record = self.release_reply()['records'][0]
+        window._whats_new_modal_blocked.return_value = True
+        with (mock.patch('parent.oh_no_parent_control_parent.main.GLib.timeout_add', return_value=7) as timer,
+              mock.patch('parent.oh_no_parent_control_parent.main.WhatsNewDialog') as dialog):
+            window._try_auto_whats_new()
+            dialog.assert_not_called()
+            self.assertEqual(window._whats_new_wait_id, 7)
+            window._closed = True
+            window._whats_new_loaded(self.release_reply())
+            dialog.assert_not_called()
+            window._closed = False
+            window._fatal_discovery_error = True
+            window._show_whats_new()
+            dialog.assert_not_called()
+
+    def test_release_modal_guard_includes_transient_windows_without_application_membership(self):
+        window = mock.Mock()
+        window.get_dialogs = lambda: SimpleNamespace(get_n_items=lambda: 0)
+        intermediate = mock.Mock()
+        intermediate.get_transient_for.return_value = window
+        modal = mock.Mock()
+        modal.get_transient_for.return_value = intermediate
+        model = SimpleNamespace(get_n_items=lambda: 1, get_item=lambda index: modal)
+        with mock.patch('parent.oh_no_parent_control_parent.main.Gtk.Window.get_toplevels', return_value=model):
+            self.assertTrue(ParentWindow._whats_new_modal_blocked(window))
+            modal.get_visible.return_value = False
+            self.assertFalse(ParentWindow._whats_new_modal_blocked(window))
+
+    def test_release_acknowledges_only_a_displayed_closed_record_and_keeps_failure_unseen(self):
+        window = self.release_window()
+        record = self.release_reply()['records'][0]
+        window._whats_new_closed(record, False)
+        window._run.assert_not_called()
+        window._whats_new_closed(record, True)
+        operation, success, failure = window._run.call_args.args
+        operation()
+        window._client.acknowledge_own_whats_new.assert_called_once_with('1.4')
+        self.assertTrue(record['auto_show'])
+        failure(RuntimeError('private data'))
+        self.assertTrue(record['auto_show'])
+        success(self.release_reply(auto=False))
+        self.assertFalse(window._whats_new_record['auto_show'])
+
+    def test_release_markdown_formats_content_and_never_interprets_html_or_unsafe_links(self):
+        from parent.oh_no_parent_control_parent.release_markdown import inline_markup, markdown_blocks
+        self.assertEqual(inline_markup('**Bold** & *italic* `x < y`'),
+                         '<b>Bold</b> &amp; <i>italic</i> <tt>x &lt; y</tt>')
+        self.assertIn('&lt;script&gt;', inline_markup('<script>alert(1)</script>'))
+        self.assertNotIn('<a ', inline_markup('[bad](javascript:alert)'))
+        self.assertNotIn('<a ', inline_markup('![remote](https://example.com/a.png)'))
+        self.assertIn('<a href="https://example.com/?a=1&amp;b=2">',
+                      inline_markup('[safe](https://example.com/?a=1&b=2)'))
+        self.assertEqual([kind for kind, _markup in markdown_blocks(
+            '## Heading\n\n- **Item**\n\n> Quote\n\n```\n<a>&\n```\n\n---\n\nEnd')],
+            ['heading', 'list', 'quote', 'code', 'rule', 'paragraph'])
+        self.assertEqual(markdown_blocks('Heading\n---'), [('heading', 'Heading')])
+
     def test_startup_presents_before_worker_and_coalesces_reactivation(self):
         from parent.oh_no_parent_control_parent.main import Application
         import parent.oh_no_parent_control_parent.main as main
@@ -159,7 +275,8 @@ class ParentWindowTests(unittest.TestCase):
                     _fatal_discovery_error=False,
                     _language_readiness=object(), _open_language_dialog=mock.Mock(),
                     _apply_language=mock.Mock(return_value=True),
-                    _finish_startup=mock.Mock(), _language_shade=mock.Mock())
+                    _finish_startup=mock.Mock(), _language_shade=mock.Mock(),
+                    _try_auto_whats_new=mock.Mock())
                 with mock.patch("parent.oh_no_parent_control_parent.main.set_automation_id") as identify:
                     ParentWindow._language_loaded(window, language)
                 self.assertEqual(window._own_language, language)
@@ -337,6 +454,7 @@ class ParentWindowTests(unittest.TestCase):
     def test_policy_warning_is_visible_without_repeated_dialogs_and_recovers(self):
         window = mock.Mock()
         window._language_dialog = None
+        window._whats_new_dialog = None
         window._selected_uid.return_value = 1001
         window._policy_warnings_closed = False
         window._reported_policy_warnings = {}
@@ -368,6 +486,7 @@ class ParentWindowTests(unittest.TestCase):
     def test_warning_query_errors_and_discovery_outages_do_not_close_loaded_window(self):
         window = mock.Mock()
         window._language_dialog = None
+        window._whats_new_dialog = None
         window._policy_warnings_closed = False
         window._policy_warning_query_failed = False
         window._selected_uid.return_value = 1001

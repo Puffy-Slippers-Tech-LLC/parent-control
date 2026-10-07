@@ -27,6 +27,9 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 # Update-required modal checks reuse Feedback's private preview/display/bus
+# Parent release-note checks reuse language_settings' owned preview, private
+# compositor/bus and tmp_path event files. No real backend, network, settings
+# or new cleanup owner; the Request behavior whole-module bucket still applies.
 # and tmp_path event logs. A shared transport double prevents all host reboot
 # calls; no new process owner, privileged mutation or cleanup lifetime is added.
 # The existing compatible whole-module Feedback bucket remains appropriate.

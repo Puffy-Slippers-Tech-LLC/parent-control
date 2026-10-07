@@ -339,6 +339,35 @@ closure and readiness. It leaves a subsequently opened Preferences dialog alone.
 Host preview launch and installed entry checkpoints use its
 `complete_parent_language_setup` and `complete_request_language_setup` wrappers.
 
+## Parent release notes
+
+Parent asynchronously queries `GetOwnWhatsNew` after constructing management.
+The broker owns current-version selection, audience, fresh-install/upgrade
+eligibility and persistence under the [backend contract](State.md#whats-new-backend).
+No matching Parent record hides the “What's New” menu item; a matching record
+adds it immediately before About, including after acknowledgement.
+
+Automatic presentation waits for language setup and successful account discovery.
+Save applies the selected language before opening notes; Cancel destroys the
+chooser before notes use the session default. Other visible Parent modals defer
+automatic presentation. Fatal discovery and window closure discard late replies.
+Each window attempts automatic presentation at most once; query or presentation
+alone never persists acknowledgement. Closing a successfully mapped note, through
+Close, the top close control, Escape or window close, calls
+`AcknowledgeOwnWhatsNew`. A failed write leaves broker eligibility unchanged and
+reports a nonfatal notice; a later manual close or launch can retry.
+
+The Parent-only [dialog](../../parent/oh_no_parent_control_parent/whats_new_dialog.py)
+uses the logo, a version heading, a scrollable notes card and persistent footer
+actions. It inherits the Parent translation context. The versioned release-note
+catalogue translates Markdown before the
+[native renderer](../../parent/oh_no_parent_control_parent/release_markdown.py)
+builds headings, paragraphs, ordered/unordered lists, quotes, separators, fenced
+code and inline bold/italic/strike/code/HTTP(S) links. Raw HTML and image syntax
+stay literal and load no external resources. The optional See More action is
+shown only for a supplied HTTP(S) link and uses the system URI handler.
+Kiosk and child overlay UI remain outside this implementation.
+
 ## Child reminder preferences
 
 The shared request-screen preferences window has Language and Reminders tabs.

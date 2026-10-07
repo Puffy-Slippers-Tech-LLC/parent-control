@@ -1656,3 +1656,20 @@ msgstr "Sulje"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Tämä ilmoitus sulkeutuu 5 sekunnin kuluttua."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Uutta"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Uutta versiossa %(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Voit avata tämän uudelleen sovelluksen valikosta."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Lisätietoja"

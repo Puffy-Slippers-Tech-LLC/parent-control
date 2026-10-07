@@ -42,6 +42,15 @@ class BrokerClient:
         language, = self._call("GetOwnLanguage", None, "(s)")
         return language
 
+    def get_own_whats_new(self):
+        encoded, = self._call("GetOwnWhatsNew", None, "(s)")
+        return json.loads(encoded)
+
+    def acknowledge_own_whats_new(self, version):
+        encoded, = self._call("AcknowledgeOwnWhatsNew",
+                              GLib.Variant("(s)", (version,)), "(s)")
+        return json.loads(encoded)
+
     def set_own_language(self, language):
         saved, = self._call("SetOwnLanguage", GLib.Variant("(s)", (language,)), "(s)")
         return saved

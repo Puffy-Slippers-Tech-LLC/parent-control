@@ -11,6 +11,10 @@ shared cache or cleanup inventory is added; whats_new is compatible. Release
 preinst checks reuse the package_removal relocated, waited shell fixture on both
 distributions; service_contract additions use process-local Gio doubles. Their
 existing compatible classifications remain valid.
+Parent release-note scheduling, acknowledgement and safe Markdown checks use
+process-local callback/widget/transport doubles and strings in parent_main and
+parent_client. No live GTK surface, bus, timer or subprocess is created; both
+retain their compatible classifications without a cleanup inventory.
 Origin-capture failure checks keep temporary files and per-file/directory fsync
 inside those private machines; command doubles inject partial copies and each
 waited shell cleans its own temporary file. No shared sync or new owner is added.

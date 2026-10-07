@@ -42,6 +42,29 @@ class ScriptedParentBroker:
             self._preferences[1001]["daily_time_limit_minutes"] = 0
         self._status_attempts = 0
         self._events_path = os.environ.get("ONPC_PARENT_COMPONENT_EVENTS_PATH")
+        self._whats_new_seen = False
+
+    def get_own_whats_new(self):
+        from broker.oh_no_parent_control.whats_new import read_history
+        from tests.support.paths import ROOT
+        # Finite upcoming-release fixture, independent of the checkout's
+        # currently declared installed version. Never change product metadata.
+        records = read_history(ROOT / 'docs/VersionHistory.md')
+        value = {'product_version': '1.4', 'records': [dict(record)
+                 for record in records if record['ProductVersion'] == '1.4'
+                 and self._mode.startswith('whats-new')]}
+        for record in value['records']:
+            record['auto_show'] = self._mode != 'whats-new-manual' and not self._whats_new_seen
+            record['SeeMore'] = 'https://example.com/releases/' + value['product_version']
+        self._record('whats-new-read', count=len(value['records']))
+        return value
+
+    def acknowledge_own_whats_new(self, version):
+        self._record('whats-new-acknowledge', version=version)
+        if self._mode == 'whats-new-ack-fails':
+            raise RuntimeError('synthetic acknowledgement failure')
+        self._whats_new_seen = True
+        return self.get_own_whats_new()
 
     def _record(self, event, **details):
         """Expose fake-broker call order to the black-box component harness."""

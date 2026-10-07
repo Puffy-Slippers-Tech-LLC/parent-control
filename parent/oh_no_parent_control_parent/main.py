@@ -47,6 +47,7 @@ from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
 from .client import BrokerClient, configure_logging, management_access_denied, broker_reboot_required
 from .language_dialog import LanguageDialog
+from .whats_new_dialog import WhatsNewDialog
 
 LOG = get_logger("parent")
 APPLICATION_ICON_NAME = "com.puffyslippers.OhNoParentControl"
@@ -367,6 +368,13 @@ class ParentWindow(Adw.ApplicationWindow):
         self._language_dialog = None
         self._language_loading = False
         self._language_requested = False
+        self._language_ready = False
+        self._whats_new_record = None
+        self._whats_new_loading = False
+        self._whats_new_loaded_once = False
+        self._whats_new_dialog = None
+        self._whats_new_auto_attempted = False
+        self._whats_new_wait_id = 0
         self._closed = False
         self._fatal_discovery_error = False
         self._users = []
@@ -432,6 +440,7 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         LOG.info("parent.002", app_count=len(self._rows))
         self._load_users()
+        self._load_whats_new()
         return GLib.SOURCE_REMOVE
 
     def _language_dialog_mapped(self, dialog):
@@ -488,6 +497,7 @@ class ParentWindow(Adw.ApplicationWindow):
         for identity, label, callback in (
             ("preferences", m.PREFERENCES, self._show_preferences),
             ("help", m.HELP, open_help),
+            ("whats-new", m.WHATS_NEW, self._show_whats_new),
             ("about", m.ABOUT, self._show_about),
         ):
             item = localized(Gtk.Button, child=localized(Gtk.Label, label=label, xalign=0),
@@ -497,6 +507,8 @@ class ParentWindow(Adw.ApplicationWindow):
             item.connect("clicked", activate_menu_item, callback)
             menu.append(item)
             menu_items[identity] = item
+        self._whats_new_menu_item = menu_items['whats-new']
+        self._whats_new_menu_item.set_visible(False)
         # Explicit circular dots keep the heavier ellipsis consistent across
         # icon themes and display scales.
         dots = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3,
@@ -523,7 +535,8 @@ class ParentWindow(Adw.ApplicationWindow):
                 raise ValueError("Parent menu command is unavailable")
             item.emit("clicked")
         bind_ui(self._menu_button, set_value=choose_menu,
-                choices=lambda: list(menu_items))
+                choices=lambda: [identity for identity, item in menu_items.items()
+                                 if item.get_visible()])
         # Keep native window actions and the desktop's decoration layout, with
         # the application menu immediately before the window controls.
         header_actions = Gtk.Box(spacing=4, valign=Gtk.Align.CENTER)
@@ -1299,6 +1312,99 @@ class ParentWindow(Adw.ApplicationWindow):
     def _show_about(self, *_args):
         AboutDialog(self).present()
 
+    def _load_whats_new(self):
+        if self._whats_new_loading or self._whats_new_loaded_once or self._closed:
+            return
+        self._whats_new_loading = True
+        self._run(self._client.get_own_whats_new, self._whats_new_loaded,
+                  self._whats_new_failed)
+
+    def _whats_new_failed(self, error):
+        self._whats_new_loading = False
+        if self._closed or self._fatal_discovery_error:
+            return
+        # Optional release information must not replace language setup or
+        # disable policy controls. The same private event records API failures.
+        LOG.warning('parent.004', error_type=error_code(error))
+        self._toast(GENERIC_DETAIL)
+
+    def _whats_new_loaded(self, value):
+        self._whats_new_loading = False
+        if self._closed or self._fatal_discovery_error:
+            return
+        records = value['records']
+        # The broker owns current-version and audience selection. Refuse a
+        # mismatching reply rather than rendering old or child-only notes.
+        self._whats_new_record = next((record for record in records
+            if record['ProductVersion'] == value['product_version']
+            and record['record_id'] == value['product_version'] + ':Parent'), None)
+        self._whats_new_loaded_once = True
+        self._whats_new_menu_item.set_visible(self._whats_new_record is not None)
+        self._try_auto_whats_new()
+
+    def _try_auto_whats_new(self):
+        if self._whats_new_wait_id:
+            GLib.source_remove(self._whats_new_wait_id)
+            self._whats_new_wait_id = 0
+        record = self._whats_new_record
+        if (self._closed or self._fatal_discovery_error or not record
+                or not record['auto_show'] or self._whats_new_auto_attempted):
+            return GLib.SOURCE_REMOVE
+        if not self._language_ready or not self._users_loaded_once:
+            return GLib.SOURCE_REMOVE
+        if (self._language_loading or self._language_dialog is not None
+                or self._whats_new_modal_blocked()):
+            def retry():
+                self._whats_new_wait_id = 0
+                return self._try_auto_whats_new()
+            self._whats_new_wait_id = GLib.timeout_add(250, retry)
+            return GLib.SOURCE_REMOVE
+        self._show_whats_new()
+        return GLib.SOURCE_REMOVE
+
+    def _whats_new_modal_blocked(self):
+        if self.get_dialogs().get_n_items():
+            return True
+        # Shared About/Feedback windows may inherit ownership only through
+        # their transient chain rather than joining Gtk.Application.windows.
+        windows = Gtk.Window.get_toplevels()
+        for index in range(windows.get_n_items()):
+            window = windows.get_item(index)
+            if not window.get_visible() or not window.get_modal():
+                continue
+            parent = window.get_transient_for()
+            visited = set()
+            while parent is not None and parent not in visited:
+                if parent is self:
+                    return True
+                visited.add(parent)
+                parent = parent.get_transient_for()
+        return False
+
+    def _show_whats_new(self, *_args):
+        if (self._closed or self._fatal_discovery_error or not self._language_ready
+                or self._language_dialog is not None or not self._whats_new_record):
+            return
+        if self._whats_new_dialog is None:
+            record = self._whats_new_record
+            self._whats_new_dialog = WhatsNewDialog(
+                self, record, lambda displayed: self._whats_new_closed(record, displayed))
+            self._whats_new_dialog.connect(
+                'map', lambda *_args: self._language_shade.set_reveal_child(True))
+            self._whats_new_dialog.connect(
+                'unmap', lambda *_args: self._language_shade.set_reveal_child(False))
+        self._whats_new_dialog.present()
+        self._whats_new_auto_attempted = True
+
+    def _whats_new_closed(self, record, displayed):
+        self._whats_new_dialog = None
+        if self._closed or self._fatal_discovery_error:
+            return
+        if displayed:
+            self._run(lambda: self._client.acknowledge_own_whats_new(record['ProductVersion']),
+                      self._whats_new_loaded, self._whats_new_failed)
+        self._load_policy_warnings()
+
     def _load_language(self):
         if self._language_loading or self._closed or self._fatal_discovery_error:
             return GLib.SOURCE_REMOVE
@@ -1321,6 +1427,8 @@ class ParentWindow(Adw.ApplicationWindow):
             self._finish_startup()
             self._language_shade.set_reveal_child(False)
             set_automation_id(self._language_readiness, "parent-language-ready")
+            self._language_ready = True
+            self._try_auto_whats_new()
 
     def _language_failed(self, error):
         self._language_loading = False
@@ -1328,6 +1436,10 @@ class ParentWindow(Adw.ApplicationWindow):
             self._finish_startup()
             self._language_shade.set_reveal_child(False)
             self._show_error(error, m.YOUR_LANGUAGE_PREFERENCE_COULD_NOT_BE_LOADED_OPEN_PREFERENCES_TO)
+            # The error report owns dismissal; release notes wait behind it
+            # and then inherit the existing session-default context.
+            self._language_ready = True
+            GLib.idle_add(self._try_auto_whats_new)
 
     def _show_preferences(self, *_args):
         if self._closed or self._fatal_discovery_error:
@@ -1351,6 +1463,9 @@ class ParentWindow(Adw.ApplicationWindow):
         self._language_requested = False
         self._finish_startup()
         set_automation_id(self._language_readiness, "parent-language-ready")
+        self._language_ready = True
+        # Cancel destroys the chooser after this callback returns.
+        GLib.idle_add(self._try_auto_whats_new)
         self._load_policy_warnings()
 
     def _save_language(self, language, success, failure):
@@ -1373,6 +1488,8 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         self._finish_startup()
         set_automation_id(self._language_readiness, "parent-language-ready")
+        self._language_ready = True
+        GLib.idle_add(self._try_auto_whats_new)
         self._load_policy_warnings()
 
     def _apply_language(self, language):
@@ -1578,6 +1695,9 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         LOG.warning("parent.006", error_type=error_code(error))
         self._fatal_discovery_error = True
+        if self._whats_new_dialog is not None:
+            self._whats_new_dialog.destroy()
+            self._whats_new_dialog = None
         # Account discovery is fatal here. Replace setup rather than leaving
         # two competing modals, and ignore outstanding language replies.
         if self._language_dialog is not None:
@@ -1597,6 +1717,7 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         previous_uid = self._selected_uid()
         self._users_loaded_once = True
+        GLib.idle_add(self._try_auto_whats_new)
         self._users = loaded
         LOG.info("parent.007", count=len(self._users))
         selected = next((index for index, user in enumerate(self._users)
@@ -1882,7 +2003,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self._policy_warning_query_failed = False
         affected = tuple(sorted(set(affected)))
         previous = self._reported_policy_warnings.get(uid, ())
-        report_ready = self._language_dialog is None
+        report_ready = (self._language_dialog is None
+                        and getattr(self, '_whats_new_dialog', None) is None)
         # Management loads behind the startup chooser. Keep the warning visible,
         # but do not open a competing modal or mark it reported until setup has
         # finished. Save and Cancel refresh the current warning set afterward.
@@ -1911,7 +2033,8 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         set_text(self._policy_warning, 'label', m.APP_LIMIT_STATUS_IS_UNAVAILABLE_RETRYING_AUTOMATICALLY)
         self._policy_warning.set_visible(True)
-        if not self._policy_warning_query_failed and self._language_dialog is None:
+        if (not self._policy_warning_query_failed and self._language_dialog is None
+                and getattr(self, '_whats_new_dialog', None) is None):
             self._policy_warning_query_failed = True
             self._show_error(error, m.APP_LIMIT_STATUS_COULD_NOT_BE_CHECKED_OTHER_CONTROLS_REMAIN_AVAI)
 
@@ -1921,6 +2044,9 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _close_requested(self, *_args):
         self._closed = True
+        if self._whats_new_wait_id:
+            GLib.source_remove(self._whats_new_wait_id)
+            self._whats_new_wait_id = 0
         self._policy_warnings_closed = True
         self._cancel_time_status_retry()
         self._cancel_custom_daily_limit_save()

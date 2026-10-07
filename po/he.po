@@ -1656,3 +1656,20 @@ msgstr "סגירה"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "ההתראה הזו תיסגר בעוד 5 שניות."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "מה חדש"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "מה חדש ב־v%(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "אפשר לפתוח את החלון הזה שוב מתפריט האפליקציה."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "מידע נוסף"

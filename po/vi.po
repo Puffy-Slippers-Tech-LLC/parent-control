@@ -1650,3 +1650,20 @@ msgstr "Đóng"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Thông báo này sẽ đóng sau 5 giây."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Có gì mới"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Có gì mới trong v%(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Bạn có thể mở lại cửa sổ này từ menu ứng dụng."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Xem thêm"

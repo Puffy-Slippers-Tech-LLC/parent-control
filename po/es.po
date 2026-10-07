@@ -1654,3 +1654,20 @@ msgstr "Descartar"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Esta notificación se cerrará en 5 segundos."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Novedades"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Novedades de v%(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Puedes volver a abrir esto desde el menú de la aplicación."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Ver más"

@@ -1662,3 +1662,20 @@ msgstr "Aizvērt"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Šis paziņojums tiks aizvērts pēc 5 sekundēm."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Kas jauns"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Kas jauns v%(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Šo logu varat atkal atvērt no lietotnes izvēlnes."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Uzzināt vairāk"

@@ -1656,3 +1656,20 @@ msgstr "Loka"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Þessi tilkynning lokast eftir 5 sekúndur."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Hvað er nýtt"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Hvað er nýtt í v%(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Þú getur opnað þetta aftur úr valmynd forritsins."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Sjá meira"

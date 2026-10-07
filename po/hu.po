@@ -1656,3 +1656,20 @@ msgstr "Bezárás"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Ez az értesítés 5 másodperc múlva bezárul."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Újdonságok"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Újdonságok a v%(version)s verzióban"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Ezt az ablakot újra megnyithatja az alkalmazás menüjéből."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "További információ"

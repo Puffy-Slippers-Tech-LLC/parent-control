@@ -1650,3 +1650,20 @@ msgstr "تاقاش"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "بۇ ئۇقتۇرۇش 5 سېكۇنتتىن كېيىن تاقىلىدۇ."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "يېڭىلىقلار"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "v%(version)s نەشرىدىكى يېڭىلىقلار"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "بۇ كۆزنەكنى ئەپ تىزىملىكىدىن قايتا ئاچالايسىز."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "تېخىمۇ كۆپ"

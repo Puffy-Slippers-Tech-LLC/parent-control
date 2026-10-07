@@ -612,7 +612,11 @@ Defaults are **GPT-6.1 Sol High, Standard speed**, eight pending languages per
 fresh session, and up to two read-only translator/reviewer subagents. High is
 recommended for semantic translation/review; independent language batches suit
 bounded delegation. Helpers receive disjoint assignments, return text and may
-not delegate further. The coordinator reviews meaning, policy terms, omissions,
+not delegate further. Every `spawn_agent` call explicitly sets
+`fork_turns="none"`: the ephemeral coordinator has no stored rollout to fork.
+Assignments include all scope/read-only/data rules, exact records and English,
+relevant previous text and terminology paths; reviewers also receive candidate
+translations. The coordinator reviews meaning, policy terms, omissions,
 natural grammar, region/script and Markdown. `--subagents 0` selects serial work;
 `--batch-size`, `--model` and `--effort` override defaults. The selected pair must
 exist in the local CLI catalogue; no silent substitution occurs. Only
@@ -659,9 +663,10 @@ The GTK-independent
 owning frontend's personal/session language, loads the versioned domain and
 translates broker English with `translate_content` before rendering. Missing,
 fuzzy or current-source-mismatched translations fall back to English. The
-What’s New frontend remains pending under the
-[specification](../Specification.md#product-information); this adapter implements
-no menu, dialog, rendering or link action.
+Parent frontend uses this adapter for its
+[release-note dialog](Frontends.md#parent-release-notes); kiosk and child overlay
+frontend delivery remains pending under the
+[specification](../Specification.md#product-information).
 
 Future-session prompt:
 

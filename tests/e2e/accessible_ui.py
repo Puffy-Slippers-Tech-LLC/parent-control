@@ -5161,9 +5161,14 @@ class AccessibleUI:
         binding = ('parent' if operation in ('switch-parent-before', 'switch-parent') else
                    'viewer' if operation in ('switch-viewer', 'switch-viewer-again',
                                               'switch-viewer-close') else 'feedback')
-        if operation not in ('switch-parent-before', 'switch-draft-before'):
-            self.wait(lambda: self.existing_window_active(binding), 'switch-active',
-                      prompt_in_predicate=True)
+        if operation in ('switch-parent-before', 'switch-draft-before'):
+            # An unrelated provider can exit between desktop enumeration and
+            # its subtree read. Discard that incomplete observation and obtain
+            # the full owned-window proof before releasing the next action.
+            return self.wait(lambda: self.window_switch_proof(binding, projection=projection),
+                             'switch-proof', prompt_in_predicate=True)
+        self.wait(lambda: self.existing_window_active(binding), 'switch-active',
+                  prompt_in_predicate=True)
         return self.window_switch_proof(binding, projection=projection)
 
     def license_content(self):

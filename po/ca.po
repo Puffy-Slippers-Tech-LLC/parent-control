@@ -1656,3 +1656,20 @@ msgstr "Tanca"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Aquesta notificació es tancarà d’aquí a 5 segons."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Novetats"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Novetats de la v%(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Podeu tornar a obrir aquesta finestra des del menú de l’aplicació."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Més informació"

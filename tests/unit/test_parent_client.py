@@ -42,6 +42,8 @@ class FakeConnection:
             return GLib.Variant("(s)", ("",))
         if name == BUS_NAME and method == "SetOwnLanguage":
             return GLib.Variant("(s)", unpacked)
+        if name == BUS_NAME and method in ('GetOwnWhatsNew', 'AcknowledgeOwnWhatsNew'):
+            return GLib.Variant('(s)', ('{"product_version":"1.4","records":[]}',))
         if name == BUS_NAME and method == "GetTimeStatus":
             if self.error is not None:
                 raise self.error
@@ -54,6 +56,16 @@ class FakeConnection:
 
 
 class ParentClientTests(unittest.TestCase):
+    def test_release_notes_use_caller_scoped_json_api(self):
+        connection = FakeConnection()
+        client = BrokerClient(connection)
+        expected = {'product_version': '1.4', 'records': []}
+        self.assertEqual(client.get_own_whats_new(), expected)
+        self.assertEqual(client.acknowledge_own_whats_new('1.4'), expected)
+        self.assertEqual([call[3:6] for call in connection.calls], [
+            ('GetOwnWhatsNew', None, '(s)'),
+            ('AcknowledgeOwnWhatsNew', ('1.4',), '(s)'),
+        ])
     def test_running_soft_app_list_reads_only_selected_child_ids(self):
         connection = FakeConnection()
         self.assertEqual(BrokerClient(connection).list_running_soft_blocked_apps(1001), ["soft.desktop"])

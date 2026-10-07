@@ -990,6 +990,103 @@ def test_parent_first_run_shared_helper_saves_with_cancel_visible(
     assert_no_policy_or_request_writes(path)
 
 
+@pytest.mark.parametrize('save,expected_language', [(True, 'de'), (False, 'en')])
+def test_parent_upgrade_notes_wait_for_language_result_and_acknowledge_on_close(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, save, expected_language):
+    ui, wait = automation, wait_for_accessible_state
+    path = tmp_path / 'release-events.jsonl'
+    launch_ui('parent_component_preview', complete_language_setup=False,
+              environment_overrides={
+                  'ONPC_PARENT_COMPONENT_SCENARIO': 'whats-new-upgrade',
+                  'ONPC_PARENT_COMPONENT_EVENTS_PATH': str(path),
+                  'ONPC_LANGUAGE_INITIAL': '', 'LANGUAGE': 'en_US.UTF-8',
+                  'LC_ALL': 'C.UTF-8', 'LANG': 'C.UTF-8',
+              })
+    wait(lambda: ui.showing('language-dialog'), 'language setup is ready')
+    wait(lambda: any(event['event'] == 'whats-new-read' for event in read_events(path)),
+         'release metadata has arrived behind language setup')
+    assert not ui.showing('whats-new-dialog')
+    assert not any(event['event'] == 'whats-new-acknowledge' for event in read_events(path))
+    ui.reader.choose_language('parent', 'de')
+    if save:
+        ui.reader.save_language('parent')
+    else:
+        ui.reader.cancel_language('parent')
+    heading = 'Neue Funktionen' if expected_language == 'de' else 'New Features'
+    title = 'Was ist neu in v1.4?' if expected_language == 'de' else "What's New in v1.4"
+    wait(lambda: ui.showing('whats-new-dialog'), 'eligible upgrade notes are ready')
+    assert ui.text('whats-new-title') == title
+    assert heading in ui.text('whats-new-content')
+    assert ui.text('whats-new-block-0') == heading
+    assert 'activate' in ui.target('whats-new-see-more').metadata['operations']
+    assert not any(event['event'] == 'whats-new-acknowledge' for event in read_events(path))
+    ui.activate('whats-new-close')
+    wait(lambda: any(event['event'] == 'whats-new-acknowledge' for event in read_events(path)),
+         'closing displayed notes saves the acknowledgement')
+    assert committed(path) == (['de'] if save else [])
+    wait(lambda: not ui.showing('whats-new-dialog'), 'notes return to management')
+    wait(lambda: any(event['event'] == 'whats-new-read' for event in read_events(path)[-1:]),
+         'acknowledgement reply is applied')
+    assert 'whats-new' in ui.getChoices('parent-menu-button')
+    ui.setValue('parent-menu-button', 'whats-new')
+    wait(lambda: ui.showing('whats-new-dialog'), 'seen notes can be reopened')
+    assert heading in ui.text('whats-new-content')
+    ui.close('whats-new-dialog')
+    wait(lambda: len([event for event in read_events(path)
+                     if event['event'] == 'whats-new-acknowledge']) == 2,
+         'window close also acknowledges a manual display')
+
+
+@pytest.mark.parametrize('scenario,available', [('normal', False), ('whats-new-manual', True)])
+def test_parent_current_notes_menu_availability_without_automatic_fresh_install_display(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, scenario, available):
+    ui, wait = automation, wait_for_accessible_state
+    path = tmp_path / 'release-events.jsonl'
+    launch_ui('parent_component_preview', environment_overrides={
+        'ONPC_PARENT_COMPONENT_SCENARIO': scenario,
+        'ONPC_PARENT_COMPONENT_EVENTS_PATH': str(path),
+        'ONPC_LANGUAGE_INITIAL': 'en', 'LANGUAGE': 'en_US.UTF-8', 'LC_ALL': 'C.UTF-8',
+    })
+    wait(lambda: any(event['event'] == 'whats-new-read' for event in read_events(path)),
+         'current release lookup completes')
+    wait(lambda: ('whats-new' in ui.getChoices('parent-menu-button')) == available,
+         'menu availability matches current release metadata')
+    assert not ui.showing('whats-new-dialog')
+    if available:
+        assert ui.getChoices('parent-menu-button') == ['preferences', 'help', 'whats-new', 'about']
+        ui.setValue('parent-menu-button', 'whats-new')
+        wait(lambda: ui.showing('whats-new-dialog'), 'manual release notes are ready')
+        assert 'New Features' in ui.text('whats-new-content')
+        ui.activate('whats-new-close')
+        wait(lambda: any(event['event'] == 'whats-new-acknowledge' for event in read_events(path)),
+             'manual display is acknowledged')
+
+
+def test_parent_upgrade_notes_defer_to_language_error_report_then_use_default_language(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    ui, wait = automation, wait_for_accessible_state
+    path = tmp_path / 'release-events.jsonl'
+    launch_ui('parent_component_preview', complete_language_setup=False,
+              environment_overrides={
+                  'ONPC_PARENT_COMPONENT_SCENARIO': 'whats-new-upgrade',
+                  'ONPC_PARENT_COMPONENT_EVENTS_PATH': str(path),
+                  'ONPC_LANGUAGE_INITIAL': 'de', 'ONPC_LANGUAGE_LOAD_FAILURES': '1',
+                  'LANGUAGE': 'en_US.UTF-8', 'LC_ALL': 'C.UTF-8', 'LANG': 'C.UTF-8',
+              })
+    wait(lambda: ui.showing('feedback-dialog'), 'language failure report is ready')
+    wait(lambda: any(event['event'] == 'whats-new-read' for event in read_events(path)),
+         'notes arrive while the error report owns the parent')
+    assert not ui.showing('whats-new-dialog')
+    ui.activate('feedback-close')
+    wait(lambda: ui.showing('whats-new-dialog'), 'notes use the retained default context')
+    assert ui.text('whats-new-title') == "What's New in v1.4"
+    assert 'New Features' in ui.text('whats-new-content')
+    assert not committed(path)
+    ui.activate('whats-new-close')
+    wait(lambda: any(event['event'] == 'whats-new-acknowledge' for event in read_events(path)),
+         'default-language display is acknowledged')
+
+
 @pytest.mark.parametrize('language', ('ug', 'ur', 'ar', 'de'))
 def test_parent_development_preview_translates_visible_labels(
         launch_ui, automation, wait_for_accessible_state, language):

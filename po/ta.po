@@ -1656,3 +1656,20 @@ msgstr "மூடு"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "இந்த அறிவிப்பு 5 வினாடிகளில் மூடப்படும்."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "புதியவை"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "v%(version)s இல் புதியவை"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "பயன்பாட்டின் மெனுவிலிருந்து இந்தச் சாளரத்தை மீண்டும் திறக்கலாம்."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "மேலும் பார்க்க"

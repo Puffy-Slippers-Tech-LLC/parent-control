@@ -1656,3 +1656,20 @@ msgstr "Κλείσιμο"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Αυτή η ειδοποίηση θα κλείσει σε 5 δευτερόλεπτα."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Τι νέο υπάρχει"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Τι νέο υπάρχει στην v%(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Μπορείτε να ανοίξετε ξανά αυτό το παράθυρο από το μενού της εφαρμογής."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Μάθετε περισσότερα"

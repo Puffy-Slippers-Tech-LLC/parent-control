@@ -80,7 +80,7 @@ COMMON_SOURCES += application_ui.py application_ui_client.py
 COMMON_SOURCES += whats_new.py
 KIOSK_SOURCES := __init__.py agent_locale.py chrome.py floating_islands.py preference_dialog.py lava.py lightning.py main.py model.py request_content.py selection_store.py snowflakes.py thunder.py
 KIOSK_SOURCES += notifications.py
-PARENT_SOURCES := __init__.py client.py main.py language_dialog.py
+PARENT_SOURCES := __init__.py client.py main.py language_dialog.py whats_new_dialog.py release_markdown.py
 BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py execution_probe.py extension_manager.py grant_diagnostics.py logs.py preferences.py probe_channel.py probe_generation.py service.py uninstall.py
 BROKER_SOURCES += whats_new.py
 PRODUCT_USER_SERVICES := oh-no-parent-control-app.service oh-no-parent-control-polkit-agent.service
@@ -414,19 +414,23 @@ check: check-source
 	@$(MAKE) --no-print-directory check-unit
 	@tools/run-tests component tests/component -m component
 
-preview-kiosk: translations
+.PHONY: preview-version
+preview-version:
+	@$(PYTHON) -B tools/bump_version.py --latest
+
+preview-kiosk: preview-version translations
 	# The preview watches kiosk assets and source files; no manual relaunch is needed.
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.preview
 
-preview-child-overlay: translations
+preview-child-overlay: preview-version translations
 	# The child overlay is the kiosk GUI in overlay mode, with the current child locked.
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=kiosk $(PYTHON) -m oh_no_parent_control_kiosk.preview --child-overlay
 
-preview-parent: translations
+preview-parent: preview-version translations
 	# The preview watches parent source and CSS files; no backend or installation is needed.
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=parent $(PYTHON) -m oh_no_parent_control_parent.preview
 
-preview-child: message-assets translations
+preview-child: preview-version message-assets translations
 	# A nested Shell loads the checkout by temporary symlink; host settings stay untouched.
 	$(CHILD_DIR)/preview
 

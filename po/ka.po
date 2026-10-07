@@ -1650,3 +1650,20 @@ msgstr "დახურვა"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "ეს შეტყობინება 5 წამში დაიხურება."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "რა არის ახალი"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "რა არის ახალი v%(version)s-ში"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "ამ ფანჯრის ხელახლა გახსნა აპის მენიუდან შეგიძლიათ."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "მეტის ნახვა"

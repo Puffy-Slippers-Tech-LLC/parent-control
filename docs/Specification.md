@@ -130,14 +130,18 @@ the separate technical checks described in the system design.
   not automatically display upgrade notes. Kiosk and child overlay share the
   selected child's acknowledgement. Future versions have new eligibility.
 - [ONPC-CORE-WHATSNEW-003] Matching current notes can be reopened from a menu item
-  before About. The menu and dialog title read “What's new in v[version]”.
+  before About. Parent uses “What's New” for the menu item and
+  “What's New in v[version]” for the dialog title.
   Content honors Markdown formatting; See More is present only when supplied and
   opens its link. Parent-only records never appear on kiosk or child overlay.
 - [ONPC-CORE-WHATSNEW-004] Successfully displaying/closing a note records its
   acknowledgement and removes saved acknowledgements whose metadata records have
   been deleted. Other retained records remain independent. The current delivery
   implements the [backend contract](SystemDesign/State.md#whats-new-backend);
-  the frontend menu, dialog, rendering and link actions remain pending.
+  Parent implements the menu, dialog, translated Markdown rendering and optional
+  link action. Its automatic dialog waits for first-time language setup to close:
+  Save uses the saved language; Cancel uses the session default. Kiosk and child
+  overlay frontend delivery remains pending.
 
 ### Feedback and error reports
 

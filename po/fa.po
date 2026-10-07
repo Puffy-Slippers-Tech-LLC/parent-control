@@ -1656,3 +1656,20 @@ msgstr "بستن"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "این اعلان پس از ۵ ثانیه بسته می‌شود."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "تازه‌ها"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "تازه‌های نسخهٔ %(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "می‌توانید این پنجره را دوباره از منوی برنامه باز کنید."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "بیشتر بدانید"

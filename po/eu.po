@@ -1656,3 +1656,20 @@ msgstr "Itxi"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Jakinarazpen hau 5 segundo barru itxiko da."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Berritasunak"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "v%(version)s bertsioko berritasunak"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Leiho hau berriro ireki dezakezu aplikazioaren menutik."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Informazio gehiago"

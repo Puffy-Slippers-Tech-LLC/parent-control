@@ -88,6 +88,19 @@ class PreviewBrokerClient:
     def __init__(self):
         self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
         self._language = ""
+        self._whats_new_seen = False
+
+    def get_own_whats_new(self):
+        from broker.oh_no_parent_control.whats_new import read_history, product_version
+        from common.oh_no_parent_control_ui.about import app_version
+        version = product_version(app_version())
+        records = read_history(Path(__file__).resolve().parents[2] / 'docs/VersionHistory.md')
+        return {'product_version': version, 'records': [dict(record, auto_show=False)
+                for record in records if record['ProductVersion'] == version]}
+
+    def acknowledge_own_whats_new(self, _version):
+        self._whats_new_seen = True
+        return self.get_own_whats_new()
 
     def get_own_language(self):
         return self._language

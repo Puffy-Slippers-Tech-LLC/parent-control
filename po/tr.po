@@ -1650,3 +1650,20 @@ msgstr "Kapat"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Bu bildirim 5 saniye içinde kapanacak."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Yenilikler"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "v%(version)s sürümündeki yenilikler"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Bu pencereyi uygulama menüsünden tekrar açabilirsiniz."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Daha fazla bilgi"

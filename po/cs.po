@@ -1662,3 +1662,20 @@ msgstr "Zavřít"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Toto oznámení se zavře za 5 sekund."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Novinky"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Novinky ve v%(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Toto okno můžete znovu otevřít z nabídky aplikace."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Více informací"

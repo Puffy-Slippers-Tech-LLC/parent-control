@@ -1656,3 +1656,20 @@ msgstr "మూసివేయి"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "ఈ నోటిఫికేషన్ 5 సెకన్లలో మూసివేయబడుతుంది."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "కొత్తవి"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "v%(version)s లో కొత్తవి"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "యాప్ మెను నుండి ఈ విండోను మళ్లీ తెరవవచ్చు."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "మరింత చూడండి"

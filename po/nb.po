@@ -1656,3 +1656,20 @@ msgstr "Lukk"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "Dette varselet lukkes om 5 sekunder."
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "Nyheter"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "Nyheter i v%(version)s"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "Du kan åpne dette igjen fra appmenyen."
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "Les mer"

@@ -1656,3 +1656,20 @@ msgstr "बंद करें"
 #. Shared message: REMINDER_AUTO_CLOSE
 msgid "This notification will close in 5 seconds."
 msgstr "यह सूचना 5 सेकंड में बंद हो जाएगी।"
+
+#. Shared message: WHATS_NEW
+msgid "What's New"
+msgstr "नया क्या है"
+
+#. Shared message: WHATS_NEW_VERSION
+#, python-format
+msgid "What's New in v%(version)s"
+msgstr "v%(version)s में नया क्या है"
+
+#. Shared message: WHATS_NEW_MENU_HINT
+msgid "You can open this again from the app menu."
+msgstr "आप ऐप के मेन्यू से इसे फिर से खोल सकते हैं।"
+
+#. Shared message: SEE_MORE
+msgid "See More"
+msgstr "और देखें"

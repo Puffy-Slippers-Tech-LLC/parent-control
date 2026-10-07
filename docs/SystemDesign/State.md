@@ -190,9 +190,9 @@ authorities; bracketed IP addresses must occupy the complete host. Percent escap
 in paths, queries and fragments are preserved. The document is bounded at 512 KiB,
 64 records, 65,536 content characters per record and 2,048 URL characters.
 
-The API returns JSON and preserves Markdown content literally; rendering and
-external link opening belong to the future frontend implementation. No dialogs,
-menus, title translations or rendering are implemented by this backend change.
+The API returns JSON and preserves Markdown content literally. The
+[Parent frontend](Frontends.md#parent-release-notes) owns rendering and external
+link opening; kiosk and child overlay frontend delivery remains pending.
 
 `GetOwnWhatsNew()` and `AcknowledgeOwnWhatsNew(product_version)` derive the UID
 from bus credentials. Administrators (including root) receive Parent records;

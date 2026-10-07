@@ -51,6 +51,62 @@
   background: alpha(#292934, 0.32);
 }
 
+.parent-whats-new-dialog,
+.parent-whats-new-dialog:backdrop {
+  background: #fcfcfd;
+  color: #15152e;
+}
+
+.parent-whats-new-title {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.parent-whats-new-content {
+  background: #ffffff;
+  border: 1px solid alpha(#292934, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 2px 8px alpha(#292934, 0.05);
+}
+
+.parent-whats-new-paragraph,
+.parent-whats-new-list,
+.parent-whats-new-quote,
+.parent-whats-new-code {
+  font-size: 18px;
+  color: #555574;
+}
+
+.parent-whats-new-heading {
+  font-size: 23px;
+  font-weight: 700;
+  margin-top: 16px;
+  margin-bottom: 4px;
+}
+
+.parent-whats-new-quote,
+.parent-whats-new-code {
+  background: #f4f3f9;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.parent-whats-new-hint {
+  font-size: 16px;
+}
+
+.parent-whats-new-close {
+  background: #6945ff;
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 12px 30px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.parent-whats-new-close:hover { background: #7959ff; }
+.parent-whats-new-close:active { background: #5734e6; }
+
 .parent-language-dialog,
 .parent-language-dialog:backdrop {
   background: #fcfcfd;

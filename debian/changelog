@@ -1,3 +1,24 @@
+oh-no-parent-control (1.4+local1~ubuntu26.04.1) resolute; urgency=medium
+
+  New Features
+  * Language Dialog: You can search for a language by its English name as well
+    as its localized name
+  * Remaing Time Reminders: Added default critical reminders in child session.
+    Reminders can show in full-screen apps and can be customized in child
+    preferences.
+  * Parent App: Revoke dialog shows list of running soft blocked apps that
+    will be terminated.
+  * What's New: Added metadata-driven What's new infra
+
+  Bug Fixes
+  * Parent App: Parent app app grid column headers on some RTL languages
+    overlap
+  * Parent App: Fixed the disabled Revoke button at zero remaining time when
+    soft-blocked apps are still running, allowing parents to close those apps
+    after the child’s session locks.
+
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Wed, 07 Oct 2026 22:05:02 +0000
+
 oh-no-parent-control (1.3+ppa1~ubuntu26.04.1) resolute; urgency=medium
 
   New Features

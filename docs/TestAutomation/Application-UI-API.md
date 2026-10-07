@@ -68,7 +68,7 @@ No system-bus method, privileged helper or new background service is required.
 
 `ListSurfaces() -> s` returns JSON surface metadata: `id`, `application_id`,
 `type`, `visible`, `enabled`, `modal` and `parent_id`. Dialogs such as
-`language-dialog`, `about-dialog`, `feedback-dialog`, `parent-revoke-dialog`
+`language-dialog`, `whats-new-dialog`, `about-dialog`, `feedback-dialog`, `parent-revoke-dialog`
 and `parent-match-rule-dialog` have their own surface scopes. Discover actual
 surfaces instead of assuming a dialog already exists. Non-unique error-report
 processes use `UIClient("child-request", owner=unique_owner,
@@ -172,7 +172,7 @@ injects attachments into application state.
 | `parent-match-rule-entry` | Literal editable rule text in `parent-match-rule-dialog` |
 | `parent-match-rule-cancel`, `parent-match-rule-reset`, `parent-match-rule-save` | Ordinary dialog actions, including validation and save |
 | `parent-legend-toggle`, `parent-time-calculation-collapse` | Ordinary disclosure actions |
-| `parent-menu-button` | `getChoices`; `setValue` runs `preferences`, `help`, or `about` without a popup; `activate` opens the menu normally |
+| `parent-menu-button` | `getChoices`; `setValue` runs `preferences`, `help`, `whats-new` (only with current Parent notes), or `about` without a popup; `activate` opens the menu normally |
 | `parent-menu-<key>`, `parent-feedback-button` | Native menu or feedback actions |
 | `parent-language-loading`, `parent-language-ready`, `parent-no-users-message`, `parent-policy-warning` | Public readiness and result text/availability |
 | `parent-access-denied-window`, `parent-access-denied-message`, `parent-access-denied-close` | Access-denial surface and action |
@@ -241,6 +241,8 @@ Kiosk restrictions continue to remove unavailable external actions.
 | ID or family | Values and operations |
 | --- | --- |
 | `about-product-name`, `about-version`, `about-<detail>-value`, `about-integration-notice`, `about-copyright` | Read displayed information; link values expose ordinary activation when available |
+| `whats-new-title`, `whats-new-content`, `whats-new-block-<index>`, `whats-new-menu-hint` | Parent release-note title and displayed translated text; block IDs are scoped to the current document |
+| `whats-new-close`, `whats-new-dismiss`, `whats-new-see-more` | Ordinary Close and optional See More actions; `whats-new-dialog` also exposes normal surface close |
 | `feedback-reply-email` | Literal reply address text |
 | `feedback-editor-input`, `feedback-webview` | Get/set plain editor text through Quill's user-edit path; draft and displayed document update together |
 | `feedback-editor-selection` | Get/set `{"index": 0, "length": 5}` using Quill UTF-16 offsets; retained selection is independent of focus |

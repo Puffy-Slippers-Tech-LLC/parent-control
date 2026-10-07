@@ -70,6 +70,7 @@ from ui_observations import FeedbackStateObservation
 # the compatible unit classification and resource lifetime remain unchanged.
 # Remaining-attachment retries use those same in-memory trees and mocked clocks;
 # no live provider, process, bus, display, path or cleanup owner is introduced.
+# Initial window-proof retries retain those same in-memory resources and unit scheduling.
 
 
 @pytest.mark.parametrize('fault', ['', 'storage', 'input', 'terminal-only', 'terminal', 'order', 'boot'])
@@ -4627,6 +4628,48 @@ def test_existing_window_preparation_refuses_unsafe_or_uncertain_targets(fault):
         assert ui.window_switch_ready('feedback', 'parent')['available'] is True
         assert ui.window_switch_proof('feedback')['available'] is True
     dialog.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', ['query-transient', 'incomplete-transient',
+                                   'query-persistent', 'incomplete-persistent', 'wrong-owner'])
+def test_initial_window_proof_reacquires_complete_tree_without_input(monkeypatch, failure):
+    from gi.repository import Gio, GLib
+    ui, parent, dialog, controls = synthetic_feedback_ui()
+    parent.bus, parent.path = ':1.123', '/parent'
+    ui.query_errors = (GLib.Error,)
+    ui.timeout = 1 if failure.endswith('-transient') else 0
+    read = ui.read_snapshot
+    attempts = []
+    error = (Gio.DBusError.new_for_dbus_error(
+        'org.freedesktop.DBus.Error.ServiceUnknown', 'exited provider')
+        if failure.startswith('query-') else accessible_ui.UiError(
+            'ui:wrong-application-owner' if failure == 'wrong-owner' else 'ui:incomplete-tree'))
+
+    def snapshot(*args, **kwargs):
+        attempts.append(True)
+        if len(attempts) == 1 or not failure.endswith('-transient'):
+            raise error
+        return read(*args, **kwargs)
+
+    ui.read_snapshot = snapshot
+    launch = Mock(side_effect=AssertionError('read boundary must not launch'))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', launch)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', Mock())
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', Mock(side_effect=[0, .1, .2]))
+    if failure.endswith('-transient'):
+        assert ui.window_switch_operation('switch-parent-before') == {
+            'binding': 'parent', 'pid': 100, 'endpoint': [':1.123', '/parent'], 'available': True}
+        assert len(attempts) == 2
+    else:
+        with pytest.raises(accessible_ui.UiError, match=(
+                'wrong-application-owner' if failure == 'wrong-owner' else 'timeout:switch-proof')):
+            ui.window_switch_operation('switch-parent-before')
+        assert len(attempts) == 1
+    launch.assert_not_called()
+    for node in (parent, dialog, *controls.values()):
+        node.action.do_action.assert_not_called()
+        node.component.grab_focus.assert_not_called()
+    assert not ui.input_uncertain
 
 
 def test_window_switch_public_proof_decoder_and_retained_identity(tmp_path):

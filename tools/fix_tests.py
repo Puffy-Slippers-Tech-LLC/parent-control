@@ -423,8 +423,9 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             checkpoint.state['round'] = number
             checkpoint.save()
 
-    def progress(category, status, *, model=None):
-        publish_repair_status(run, round_number, category, categories, status, model=model)
+    def progress(category, status, *, model=None, effort=None):
+        publish_repair_status(run, round_number, category, categories, status,
+                              model=model, effort=effort)
 
     def verification_started(completed):
         # A repair requires another whole clean pass. Persist the new pass's
@@ -585,7 +586,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             check_budget()
             sessions = case_sessions.get(failure_key, 0) + 1
             agent_model, agent_effort = case_tiers.setdefault(failure_key, (model, effort))
-            progress('', 'fixing errors', model=agent_model)
+            progress('', 'fixing errors', model=agent_model, effort=agent_effort)
             phase = 'repair review' if classification else 'classify and repair'
             print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort}); '
                   f'case session {sessions}/{MAX_REPAIR_SESSIONS}', flush=True)

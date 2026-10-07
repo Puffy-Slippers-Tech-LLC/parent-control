@@ -1,5 +1,7 @@
 """Synthetic request-station forms and worker for related E2E unit cases."""
 
+from unittest.mock import Mock
+
 from accessible_ui import CHILD, EXISTING_CHILD, OTHER_PARENT, PARENT, PRODUCT
 from tests.support.accessible_ui import Node, ui_for
 
@@ -76,6 +78,10 @@ def request_form(*, fault=None):
 
 def accounts_form(field='child'):
     ui, _ = request_form()
+    # Synthetic OS eligibility is independent of the mutable offered choices.
+    # These units must not query AccountsService on the development host.
+    ui.interactive_approver_uids = Mock(return_value={
+        str(ui.fixture_uids[name]) for name in (PARENT, OTHER_PARENT)})
     form = ui.find_id('kiosk-request-form')
     selector = ui.find_id(f'kiosk-{field}-selector')
     expected = (CHILD, EXISTING_CHILD) if field == 'child' else (PARENT, OTHER_PARENT)

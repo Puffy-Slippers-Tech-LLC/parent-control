@@ -127,7 +127,8 @@ def test_overlay_approver_oracle_includes_unrelated_eligible_administrators(monk
 
 @pytest.mark.parametrize('fault', [None, 'missing-admin', 'ineligible-extra', 'duplicate',
                                   'malformed', 'ineligible-fixture', 'os-read-failed'])
-def test_overlay_account_selection_requires_the_complete_independent_eligible_set(fault):
+@pytest.mark.parametrize('overlay', [False, True])
+def test_account_selection_requires_the_complete_independent_eligible_set(fault, overlay):
     from accessible_ui import PARENT, OTHER_PARENT, ACCOUNT_LANGUAGE_LABELS
 
     choices = ['1000', '1010', '4000']
@@ -155,16 +156,46 @@ def test_overlay_account_selection_requires_the_complete_independent_eligible_se
         code = {'ineligible-fixture': 'ui:kiosk-fixture-eligibility',
                 'os-read-failed': 'ui:approver-os-read-failed'}.get(fault, 'ui:kiosk-eligible-set')
         with pytest.raises(UiError, match=code):
-            ui.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT), overlay=True)
+            ui.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT), overlay=overlay)
         selector.setValue.assert_not_called()
         ui.kiosk_request_form.assert_not_called()
     else:
         assert ui.select_kiosk_account('approver', PARENT,
-            expected=(PARENT, OTHER_PARENT), overlay=True) == {'approver': 'fixture-parent'}
+            expected=(PARENT, OTHER_PARENT), overlay=overlay) == {'approver': 'fixture-parent'}
+        ui.interactive_approver_uids.assert_called_once_with()
         selector.setValue.assert_called_once_with('1000')
         ui.kiosk_request_form.assert_called_once_with(enabled=True,
             expected_selection=('approver', 'fixture-parent'), duration_seconds=1800,
-            custom_text=None, overlay=True, language='en')
+            custom_text=None, overlay=overlay, language='en')
+
+
+def test_kiosk_approver_mismatch_retains_private_diagnostics_without_authorizing_input(capsys):
+    from accessible_ui import PARENT, OTHER_PARENT
+
+    selector = Node(choices=['1000', '1010', '4000'], value='1000')
+    ui = ui_for(Node())
+    ui.complete_request_language_setup = Mock()
+    ui.kiosk_account_snapshot = Mock(return_value=(selector, None, None))
+    ui.kiosk_request_form = Mock()
+    ui.interactive_approver_uids = Mock(return_value={'1000', '1010'})
+    ui.unexpected_approver_facts = Mock(return_value=[{'administrator': True}])
+    ui.wait = Mock(side_effect=lambda predicate, *_args, **_kwargs: predicate())
+
+    with pytest.raises(UiError, match='ui:kiosk-eligible-set'):
+        ui.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT))
+
+    output = capsys.readouterr().err
+    diagnostic = json.loads(output)
+    assert diagnostic['event'] == 'ui-kiosk-approver-choices'
+    assert diagnostic['unexpected_count'] == 1
+    assert diagnostic['missing_count'] == 0
+    assert diagnostic['fixtures_present'] == {
+        'fixture-parent': True, 'other-fixture-parent': True}
+    assert diagnostic['unexpected_os_facts'] == [{'administrator': True}]
+    ui.unexpected_approver_facts.assert_called_once_with({'4000'})
+    assert all(value not in output for value in ('1000', '1010', '4000', PARENT, OTHER_PARENT))
+    selector.setValue.assert_not_called()
+    ui.kiosk_request_form.assert_not_called()
 
 
 def test_editor_append_preserves_existing_document_and_uses_utf16_selection(monkeypatch):
@@ -283,6 +314,17 @@ def test_adapter_query_failure_kind_excludes_private_error_values(domain, code, 
     assert 'PRIVATE_' not in json.dumps(value)
     assert error.message == 'PRIVATE_DOCUMENT_AND_ACCOUNT'
     assert error.matches(quark, getattr(codes, code))
+
+
+def test_adapter_cache_provider_diagnostic_excludes_unapproved_values():
+    error = RuntimeError('PRIVATE_PROVIDER')
+    error.add_note('public-atspi-cache-owner:missing')
+    error.add_note('public-atspi-cache-registry:present')
+    error.add_note('public-atspi-cache-owner:PRIVATE_ACCOUNT')
+    error.add_note('public-atspi-cache-PRIVATE_PASSWORD:present')
+    value = accessible_ui.adapter_failure_diagnostic(error)
+    assert value['cache_provider'] == {'owner': 'missing', 'registry': 'present'}
+    assert 'PRIVATE_' not in json.dumps(value)
 
 
 @pytest.mark.parametrize('expected', ['', 'b' * 64])

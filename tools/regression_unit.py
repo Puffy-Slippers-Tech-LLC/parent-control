@@ -56,6 +56,9 @@ added; existing compatible unit and cleanup classifications remain valid.
 Trust-refresh counter/privacy tests in system_enforcement use tiny private
 synthetic proc trees and a systemctl double, with no live process or service
 reads. They preserve the compatible unit classification and add no cleanup owner.
+Trust-refresh sequencing tests use journal/systemctl doubles, a synthetic clock
+and tiny private fixture files; they do not read host journals or launch commands.
+The same compatible unit classification applies, without new shared resources.
 
 Child trust upgrade/retry/boot regressions use tiny private pytest machine trees,
 synthetic boot IDs, and synchronously waited relocated maintainer-script/helper

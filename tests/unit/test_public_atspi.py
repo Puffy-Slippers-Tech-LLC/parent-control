@@ -874,6 +874,43 @@ def test_dbus_error_type_survives_transport_for_fallback_and_retry():
     assert error.__notes__ == ['public-atspi-query:org.a11y.atspi.Cache:GetItems:object']
 
 
+@pytest.mark.parametrize('owner,registered,probe_failure', [
+    (False, True, False), (False, False, False), (True, True, False),
+    (False, True, True),
+])
+def test_missing_cache_provider_diagnostics_preserve_failure(owner, registered, probe_failure):
+    from gi.repository import Gio, GLib
+    api, _, rpc, app, _ = fixture_bus()
+    error = Gio.DBusError.new_for_dbus_error(
+        'org.freedesktop.DBus.Error.ServiceUnknown', 'PRIVATE_PROVIDER')
+
+    def call(bus, path, interface, method, signature='', args=()):
+        if method == 'GetItems':
+            raise error
+        if probe_failure:
+            raise RuntimeError('PRIVATE_PROBE_FAILURE')
+        if method == 'NameHasOwner':
+            assert args == (app.bus,)
+            return owner
+        assert (bus, path, interface, method) == (
+            'org.a11y.atspi.Registry', ROOT, PREFIX + 'Accessible', 'GetChildren')
+        return [(app.bus, ROOT)] if registered else []
+
+    rpc.side_effect = call
+    with api.snapshot(), pytest.raises(GLib.Error) as caught:
+        api.record(app)
+    assert caught.value is error
+    assert error.__notes__ == [
+        'public-atspi-cache-owner:' + ('unavailable' if probe_failure else
+                                      'present' if owner else 'missing'),
+        'public-atspi-cache-registry:' + ('unavailable' if probe_failure else
+                                         'present' if registered else 'missing'),
+    ]
+    assert [entry.args[3] for entry in rpc.call_args_list] == [
+        'GetItems', 'NameHasOwner', 'GetChildren']
+    assert 'PRIVATE_' not in repr(error.__notes__)
+
+
 def test_explicit_accessibility_bus_wins_over_session_discovery(monkeypatch):
     from gi.repository import Gio, GLib
     monkeypatch.setenv('AT_SPI_BUS_ADDRESS', 'unix:path=/private-a11y')

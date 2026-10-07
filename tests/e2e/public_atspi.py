@@ -499,6 +499,25 @@ class PublicAtspi:
                 items = self.call(node.bus, '/org/a11y/atspi/cache', PREFIX + 'Cache', 'GetItems')
             except Exception as error:
                 from gi.repository import Gio, GLib
+                if isinstance(error, GLib.Error) and Gio.DBusError.get_remote_error(error) in (
+                        'org.freedesktop.DBus.Error.ServiceUnknown',
+                        'org.freedesktop.DBus.Error.NameHasNoOwner'):
+                    # Evidence only: distinguish an exited owner still listed
+                    # by the registry from a live provider/query failure. Never
+                    # retry input, omit a subtree or replace the original error.
+                    for label, query, present in (
+                            ('owner', ('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                                       'org.freedesktop.DBus', 'NameHasOwner', 's', (node.bus,)),
+                             lambda value: value is True),
+                            ('registry', ('org.a11y.atspi.Registry', ROOT,
+                                          PREFIX + 'Accessible', 'GetChildren'),
+                             lambda value: any(ref[0] == node.bus for ref in value))):
+                        status = 'unavailable'
+                        try:
+                            status = 'present' if present(self.call(*query)) else 'missing'
+                        except Exception:
+                            pass
+                        error.add_note('public-atspi-cache-' + label + ':' + status)
                 if not isinstance(error, GLib.Error) or Gio.DBusError.get_remote_error(error) not in (
                         'org.freedesktop.DBus.Error.UnknownMethod',
                         'org.freedesktop.DBus.Error.UnknownInterface',

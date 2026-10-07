@@ -794,6 +794,8 @@ def test_future_trust_is_fixed_owned_and_independently_observed(monkeypatch, tmp
     monkeypatch.setattr(enforcement.guest, 'package_path', lambda: Path('package.rpm'))
     monkeypatch.setattr(enforcement, 'TrustRefreshDiagnostic', lambda: SimpleNamespace(
         initial={}, snapshot=lambda: {}))
+    completion = SimpleNamespace(wait=Mock())
+    monkeypatch.setattr(enforcement, 'TrustRefreshCompletion', lambda: completion)
     native_lstat = type(trust).lstat
     monkeypatch.setattr(type(trust), 'lstat', lambda path: (
         SimpleNamespace(st_mode=0o40777 if fault == 'unsafe-parent' else 0o40755, st_uid=0)
@@ -832,6 +834,8 @@ def test_future_trust_is_fixed_owned_and_independently_observed(monkeypatch, tmp
             sleep.assert_not_called()
         assert [item.args[0] for item in run.call_args_list] == expected_commands
     if fault in (None, 'delayed-refresh', 'wrong-digest'):
+        assert completion.wait.call_args.args[0] == 120
+        assert completion.wait.call_args.args[1].initial == {}
         transform = run.call_args.kwargs['diagnostic_stdout']
         # Even a large dump retains only this exact path, including a bad
         # digest/malformed entry needed to diagnose a failed trust check.
@@ -852,6 +856,140 @@ def test_future_trust_is_fixed_owned_and_independently_observed(monkeypatch, tmp
         assert lines == [
             f'database_bytes={len(partial)} sha256={hashlib.sha256(partial).hexdigest()}',
             row, malformed]
+
+
+@pytest.mark.parametrize('fault', [None, 'delayed', 'timeout', 'stale', 'wrong-pid',
+                                 'wrong-invocation', 'replaced-before', 'replaced-after',
+                                 'inactive', 'zero-invocation', 'invalid-pid',
+                                 'missing-cursor', 'invalid-cursor'])
+def test_trust_refresh_completion_excludes_stale_foreign_and_replaced_daemons(monkeypatch, fault):
+    identity = 'a' * 32
+    cursor = 's=123;i=1;b=456;m=1;t=2;x=3'
+    complete_cursor = 's=123;i=2;b=456;m=2;t=3;x=4'
+    now = 0
+    services = 0
+    polls = 0
+    seen = []
+
+    def run(argv, **options):
+        nonlocal services, polls, now
+        seen.append(argv)
+        if argv[0] == 'systemctl':
+            services += 1
+            invocation = ('b' * 32 if (fault == 'replaced-before' and services >= 2) or
+                          (fault == 'replaced-after' and services >= 3) else
+                          '0' * 32 if fault == 'zero-invocation' else identity)
+            pid = '0' if fault == 'invalid-pid' else '987'
+            state = 'inactive' if fault == 'inactive' else 'active'
+            return f'MainPID={pid}\nInvocationID={invocation}\nActiveState={state}'
+        assert argv[0] == 'journalctl' and options['timeout'] <= 10
+        if '--after-cursor=' + cursor not in argv:
+            assert '--lines=1' in argv and '--output-fields=__CURSOR' in argv
+            return '' if fault == 'missing-cursor' else json.dumps(
+                {'__CURSOR': 'invalid\ncursor' if fault == 'invalid-cursor' else cursor})
+        polls += 1
+        assert '_PID=987' in argv and '_SYSTEMD_INVOCATION_ID=' + identity in argv
+        assert 'MESSAGE=Updated' in argv
+        if fault == 'timeout' or (fault == 'delayed' and polls == 1):
+            now = 121 if fault == 'timeout' else 40
+            return ''
+        row = {'MESSAGE': 'Updated', '_PID': '988' if fault == 'wrong-pid' else '987',
+               '_SYSTEMD_INVOCATION_ID': 'b' * 32 if fault == 'wrong-invocation' else identity,
+               '__CURSOR': cursor if fault == 'stale' else complete_cursor}
+        raw = json.dumps(row)
+        retained = options['diagnostic_stdout'](raw.encode()).decode()
+        assert identity not in retained and cursor not in retained and 'Updated' not in retained
+        assert json.loads(retained.splitlines()[1].removeprefix('trust_refresh=')) == {
+            'initial': {}, 'observed': {}}
+        return raw
+
+    monkeypatch.setattr(enforcement.guest, 'run', run)
+    monkeypatch.setattr(enforcement.time, 'monotonic', lambda: now)
+
+    def sleep(seconds):
+        nonlocal now
+        assert seconds == 0.25
+        if fault != 'delayed':
+            now = 121
+
+    monkeypatch.setattr(enforcement.time, 'sleep', sleep)
+    diagnostic = SimpleNamespace(initial={}, snapshot=lambda: {})
+    if fault not in (None, 'delayed'):
+        category = ('trust-daemon-identity' if fault in ('inactive', 'zero-invocation', 'invalid-pid') else
+                    'trust-journal-cursor' if fault in ('missing-cursor', 'invalid-cursor') else
+                    'trust-daemon-replaced' if fault.startswith('replaced-') else 'future-not-trusted')
+        with pytest.raises(enforcement.guest.GuestError, match=category):
+            enforcement.TrustRefreshCompletion().wait(120, diagnostic)
+    else:
+        enforcement.TrustRefreshCompletion().wait(120, diagnostic)
+        assert polls == (2 if fault == 'delayed' else 1)
+    assert all(argv[0] != 'fapolicyd-cli' for argv in seen)
+    if fault == 'replaced-before':
+        assert polls == 0
+
+
+@pytest.mark.parametrize('fault', [None, 'unfinished', 'dump-crash'])
+def test_future_trust_waits_before_dump_and_preserves_command_failure(monkeypatch, tmp_path, fault):
+    target = tmp_path / 'Versioned-2.AppImage'
+    target.write_bytes(b'future fixture')
+    trust = tmp_path / 'trust.d/future.trust'
+    trust.parent.mkdir()
+    monkeypatch.setattr(enforcement, 'FUTURE_TRUST', trust)
+    monkeypatch.setattr(enforcement, 'native_paths', lambda variant: (target, None, None))
+    monkeypatch.setattr(enforcement.guest, 'guard', Mock())
+    monkeypatch.setattr(enforcement.guest, 'sha', lambda path: 'a' * 64)
+    monkeypatch.setattr(enforcement.guest, 'package_path', lambda: Path('package.deb'))
+    native_lstat = type(trust).lstat
+    monkeypatch.setattr(type(trust), 'lstat', lambda path: (
+        SimpleNamespace(st_mode=0o40755, st_uid=0) if path in trust.parents else native_lstat(path)))
+    monkeypatch.setattr(enforcement, 'TrustRefreshDiagnostic', lambda: SimpleNamespace(
+        initial={}, snapshot=lambda: {}))
+    now = 0
+    notified = finished = False
+    dumps = 0
+
+    def run(argv, **options):
+        nonlocal notified, finished, now, dumps
+        if argv[0] == 'systemctl':
+            return 'MainPID=987\nInvocationID=' + 'a' * 32 + '\nActiveState=active'
+        if argv[0] == 'journalctl':
+            if '--after-cursor=s=123;i=1' not in argv:
+                return json.dumps({'__CURSOR': 's=123;i=1'})
+            assert notified
+            if now == 0 or fault == 'unfinished':
+                return ''
+            finished = True
+            return json.dumps({'__CURSOR': 's=123;i=2', 'MESSAGE': 'Updated',
+                               '_PID': '987', '_SYSTEMD_INVOCATION_ID': 'a' * 32})
+        if argv == ['fapolicyd-cli', '--update']:
+            notified = True
+        if argv == ['fapolicyd-cli', '--dump-db']:
+            assert notified and finished
+            dumps += 1
+            if fault == 'dump-crash':
+                raise enforcement.guest.CommandError('command:failed:fapolicyd-cli')
+            return f'filedb {target} {target.stat().st_size} ' + 'a' * 64
+        return ''
+
+    def sleep(seconds):
+        nonlocal now
+        assert seconds == 0.25
+        now = 121 if fault == 'unfinished' else 40
+
+    monkeypatch.setattr(enforcement.guest, 'run', run)
+    monkeypatch.setattr(enforcement.time, 'monotonic', lambda: now)
+    monkeypatch.setattr(enforcement.time, 'sleep', sleep)
+    if fault == 'unfinished':
+        with pytest.raises(enforcement.guest.GuestError, match='future-not-trusted'):
+            enforcement.trust_future()
+        assert dumps == 0
+    elif fault == 'dump-crash':
+        with pytest.raises(enforcement.guest.CommandError, match='command:failed:fapolicyd-cli'):
+            enforcement.trust_future()
+        assert dumps == 1
+    else:
+        enforcement.trust_future()
+        assert dumps == 1
 
 
 def test_trust_refresh_counters_are_private_bounded_and_reject_replaced_daemon(monkeypatch, tmp_path):

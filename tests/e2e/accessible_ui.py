@@ -8922,8 +8922,11 @@ class AccessibleUI:
             require(str(uid) not in bindings, 'ui:duplicate-choice-identity')
             bindings[str(uid)] = label
         self.complete_request_language_setup()
+        # Fixtures bind the intended recipient, not the complete administrator
+        # inventory: baseline preparation preserves unrelated eligible parents.
+        # Both request surfaces must match the independent OS oracle exactly.
         eligible_uids = (self.interactive_approver_uids()
-                         if overlay and field == 'approver' else set(bindings))
+                         if field == 'approver' else set(bindings))
         require(set(bindings) <= eligible_uids, 'ui:kiosk-fixture-eligibility')
 
         def offered():
@@ -8931,7 +8934,7 @@ class AccessibleUI:
                 field, overlay=overlay, child=child,
                 language=language if child is not None else None)
             choices = selector.getChoices()
-            if overlay and field == 'approver':
+            if field == 'approver':
                 strings = type(choices) is list and all(type(value) is str for value in choices)
                 if not strings or len(choices) != len(eligible_uids) or set(choices) != eligible_uids:
                     # Distinguish absent fixtures, extra accounts and malformed
@@ -8939,7 +8942,8 @@ class AccessibleUI:
                     # or account text, and never authorize input from this trace.
                     offered_uids = set(choices) if strings else set()
                     print(json.dumps({
-                        'event': 'ui-overlay-approver-choices',
+                        'event': ('ui-overlay-approver-choices' if overlay
+                                  else 'ui-kiosk-approver-choices'),
                         'string_list': strings,
                         'choice_count': min(len(choices), 65) if type(choices) is list else None,
                         'unique_count': min(len(offered_uids), 65) if strings else None,
@@ -9386,7 +9390,11 @@ class AccessibleUI:
         """One normal public action; no replay after uncertain delivery."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(instance == 'primary', 'ui:native-binding')
-        self.native_app_snapshot(submitted)
+        # A provider can exit after desktop enumeration but before GetItems.
+        # Reacquire the whole read-only preflight within the normal deadline;
+        # a complete wrong activity/owner still refuses, and input stays outside.
+        self.wait(lambda: self.native_app_snapshot(submitted), 'native-submit-ready',
+                  prompt_in_predicate=True)
         self.activate_id('onpc-fixture-native-primary-submit')
 
     def native_app_closed(self):
@@ -11035,6 +11043,7 @@ def adapter_failure_diagnostic(error):
     identified by their module globals; embedded helpers have fixed module names.
     """
     locations, queries, absence_reads = [], [], []
+    cache_provider = {}
     trace = error.__traceback__
     while trace is not None:
         frame = trace.tb_frame
@@ -11048,6 +11057,10 @@ def adapter_failure_diagnostic(error):
         if type(note) is not str:
             continue
         parts = note.split(':')
+        if (len(parts) == 2 and parts[0] in (
+                'public-atspi-cache-owner', 'public-atspi-cache-registry')
+                and parts[1] in ('present', 'missing', 'unavailable')):
+            cache_provider[parts[0].removeprefix('public-atspi-cache-')] = parts[1]
         if (len(parts) == 3 and parts[:2] == ['ui', 'absence-read']
                 and parts[2] in ('empty-tree', 'defunct-tree', 'missing-anchor',
                                  'stale-owner', 'query')):
@@ -11070,6 +11083,8 @@ def adapter_failure_diagnostic(error):
                   'queries': queries[-8:]}
     if absence_reads:
         diagnostic['absence_reads'] = absence_reads[-8:]
+    if cache_provider:
+        diagnostic['cache_provider'] = cache_provider
     prompts = getattr(error, 'system_prompts', None)
     if type(prompts) is list and 0 < len(prompts) <= 8 and all(
             type(item) is dict and set(item) == {

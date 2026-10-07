@@ -79,6 +79,63 @@ def test_action_success_cannot_replace_effect_and_uncertain_action_cannot_replay
     nodes['submit'].action.do_action.assert_called_once()
 
 
+@pytest.mark.parametrize('fault', ['recovered', 'persistent', 'owner', 'activity',
+                                 'prompt', 'delivery'])
+def test_submit_reacquires_complete_preflight_and_preserves_refusals(monkeypatch, fault):
+    from gi.repository import Gio, GLib
+    ui, root, _surface, nodes = native_tree()
+    ui.query_errors = (GLib.Error,)
+    ui.timeout = 1
+    clock = [0]
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _seconds: clock.__setitem__(0, clock[0] + .5))
+    error = Gio.DBusError.new_for_dbus_error(
+        'org.freedesktop.DBus.Error.ServiceUnknown', 'vanished provider')
+    reads = []
+    count = root.get_child_count
+
+    def children():
+        reads.append(True)
+        nodes['submit'].action.do_action.assert_not_called()
+        if len(reads) == 1 or fault == 'persistent':
+            raise error
+        if fault == 'owner':
+            root.children[0].identity = 'unrelated.application'
+        if fault == 'activity':
+            nodes['submitted'].name = 'unexpected activity'
+        return count()
+
+    root.get_child_count = children
+    if fault == 'prompt':
+        ui.handle_system_prompt = Mock(side_effect=UiError('ui:prompt'))
+    if fault == 'delivery':
+        nodes['submit'].action.do_action.side_effect = error
+    elif fault == 'recovered':
+        nodes['submit'].action.do_action.side_effect = lambda _: (
+            setattr(nodes['submitted'], 'name', 'ONPC fixture draft') or True)
+
+    if fault in ('persistent', 'owner', 'activity', 'prompt'):
+        expected = {'persistent': 'ui:timeout:native-submit-ready',
+                    'owner': 'ui:native-entry', 'activity': 'ui:native-activity',
+                    'prompt': 'ui:prompt'}[fault]
+        with pytest.raises(UiError, match=expected):
+            ui.native_app_submit()
+        nodes['submit'].action.do_action.assert_not_called()
+    elif fault == 'delivery':
+        with pytest.raises(GLib.Error) as caught:
+            ui.native_app_submit()
+        assert caught.value is error
+        with pytest.raises(UiError, match='ui:uncertain-input'):
+            ui.native_app_submit()
+        nodes['submit'].action.do_action.assert_called_once()
+    else:
+        ui.native_app_submit()
+        nodes['submit'].action.do_action.assert_called_once()
+        root.get_child_count = count
+        assert ui.native_app_operation('native-submitted')['submitted'] == 'ONPC fixture draft'
+    assert len(reads) >= 2
+
+
 def test_overlay_resume_reads_already_submitted_activity_through_real_decoder():
     from overlay_cancel import PLAN as cancel_plan
     ui, _root, surface, nodes = native_tree()

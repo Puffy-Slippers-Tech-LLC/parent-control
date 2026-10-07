@@ -6,7 +6,7 @@ serialize the private journal. Unregistered replacements and unfinished owners
 fail closed. A recreated path belongs to its latest recorded allocation.
 """
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import fcntl
 import json
 import os
@@ -108,17 +108,19 @@ class Store:
                 print(f'Discarded {len(records)} completed registered allocations.', flush=True)
                 return len(records)
 
-    def reconcile(self, guard):
+    def reconcile(self, guard, *, completed_guard=None, lease=nullcontext):
         """Recover an idle owner, retaining its evidence in normal rotation.
 
-        The caller holds checkout activity ownership; the privileged guard
-        additionally reconciles the recorded VM under its independent lease.
-        Never signal processes or discover disposable paths by name.
+        The caller holds checkout activity ownership. The privileged guard
+        reconciles the recorded VM; lease keeps its ownership through retirement.
+        completed_guard opts execution into oversized completed-run retirement
+        and, when privileged, audits live references. Other journals preserve
+        oversized evidence. Never signal processes or discover paths by name.
         """
         ensure_directory(self.path)
         with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
             guard()
-            with self.locked(fd, 'writer.lock'):
+            with lease(), self.locked(fd, 'writer.lock'):
                 state = self.read(fd)
                 marked = 'recovery-required' in os.listdir(fd)
                 if state is None:
@@ -126,6 +128,8 @@ class Store:
                         raise ValueError('retention: recovery marker has no journal')
                     return False
                 if state['finished'] and not marked:
+                    if completed_guard is not None:
+                        self.prune(fd, state, completed_guard=completed_guard)
                     return False
                 for _, record in latest_allocations([*state['history'], state]):
                     remove(record, validate_only=True)
@@ -141,8 +145,8 @@ class Store:
                     os.fsync(fd)
                 state['finished'] = True
                 self.save(fd, state)
-                self.prune(fd, state)
-                print('Recovered idle test retention; previous evidence retained.', flush=True)
+                self.prune(fd, state, completed_guard=completed_guard)
+                print('Recovered idle test retention; evidence retained within storage limits.', flush=True)
                 return True
 
     @contextmanager
@@ -210,11 +214,11 @@ class Store:
         os.replace('current.tmp', name, src_dir_fd=fd, dst_dir_fd=fd)
         os.fsync(fd)
 
-    def prune(self, fd, state, *, keep=RUNS_TO_KEEP):
+    def prune(self, fd, state, *, keep=RUNS_TO_KEEP, completed_guard=None):
         """Bound completed evidence by count and allocated bytes, under ownership.
 
-        Never evict the current run. A single oversized current run refuses new
-        work until explicitly addressed, instead of silently losing evidence.
+        Preserve an oversized current run at finalization. Execution recovery
+        may retire it after ownership/recovery and live-reference checks succeed.
         """
         entries = [*state['history'], state]
         allocations = latest_allocations(entries)
@@ -240,6 +244,20 @@ class Store:
                 private(info, regular=True)
                 os.unlink(name, dir_fd=fd)
         if sizes[-1] > MAX_RETAINED_BYTES:
+            if (completed_guard is not None and state['finished']
+                    and 'recovery-required' not in os.listdir(fd)):
+                records = [record for index, record in allocations
+                           if index == len(entries) - 1]
+                completed_guard({record['path'] for record in records})
+                for record in records:
+                    remove(record)
+                # Keep records until every removal succeeds, so an interrupted
+                # deletion retries the original identities rather than replacements.
+                state['paths'] = []
+                self.save(fd, state)
+                print('Retired oversized completed test evidence '
+                      f'({sizes[-1]} allocated bytes); new work may proceed.', flush=True)
+                return
             # Diagnose the preserved run, including a refusal at the next
             # session's entry. Fixed categories expose no paths or contents.
             usage = budget_usage([record for index, record in allocations

@@ -2,6 +2,7 @@
 """Guarded SSH transport for the existing, identity-recorded test VM."""
 
 import io
+import hashlib
 from contextlib import contextmanager
 import os
 from pathlib import Path
@@ -107,6 +108,11 @@ def extract(data, destination):
         archive.extractall(destination, filter='data')
 
 
+def transfer_diagnostic(raw):
+    """Fingerprint transferred bytes; the extracted files own the payload."""
+    return f'transfer_bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()}\n'.encode('ascii')
+
+
 class Transport:
     def __init__(self, config, commands=None, guard=guard_host):
         self.config = config
@@ -114,16 +120,17 @@ class Transport:
         self.guard = guard
 
     def call(self, argv, *, input=None, timeout=120, check=True, attempts=1, on_output=None,
-             on_stream=None):
+             on_stream=None, diagnostic_stdout=None):
         require(on_output is None or on_stream is None, 'transport:ambiguous-output-callback')
         from watch_activity import operation, remote_command
         selection = remote_command(argv, input is not None)
         with operation(selection[0], priority=1):
             return self._call(argv, input=input, timeout=timeout, check=check,
                               attempts=attempts, on_output=on_output, on_stream=on_stream,
-                              selection=selection)
+                              selection=selection, diagnostic_stdout=diagnostic_stdout)
 
-    def _call(self, argv, *, input, timeout, check, attempts, on_output, on_stream, selection):
+    def _call(self, argv, *, input, timeout, check, attempts, on_output, on_stream, selection,
+              diagnostic_stdout):
         self.guard(self.config)
         previous_watch = getattr(self.commands, 'watch_command', None)
         self.commands.watch_command = selection
@@ -134,7 +141,9 @@ class Transport:
             return self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
                                      input=input, timeout=timeout, check=check, merge_stderr=False,
                                      on_output=on_stream if on_stream is not None else
-                                     command_output if on_output is not None else None)
+                                     command_output if on_output is not None else None,
+                                     **({} if diagnostic_stdout is None else
+                                        {'diagnostic_stdout': diagnostic_stdout}))
         finally:
             self.commands.watch_command = previous_watch
 
@@ -275,9 +284,11 @@ class Transport:
         require(guest.startswith('/') and '..' not in Path(guest).parts and guest != '/', 'transport:guest-path')
         if up:
             if is_dir:
-                extract(self.call(['tar', '-C', guest, '-cf', '-', '.'], timeout=300), local)
+                extract(self.call(['tar', '-C', guest, '-cf', '-', '.'], timeout=300,
+                                  diagnostic_stdout=transfer_diagnostic), local)
             else:
-                raw = self.call(['cat', '--', guest], timeout=300)
+                raw = self.call(['cat', '--', guest], timeout=300,
+                                diagnostic_stdout=transfer_diagnostic)
                 local.parent.mkdir(parents=True, exist_ok=True)
                 require(not local.is_symlink(), 'transport:host-symlink')
                 local.write_bytes(raw)

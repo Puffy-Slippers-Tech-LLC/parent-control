@@ -64,8 +64,11 @@ authorizes ordinary producers to allocate under an independent root.
 ## Evidence and verification
 
 Retained evidence belongs to a bounded journal. Preserve oversized current-run
-evidence and refuse replacement until explicit cleanup; do not silently rotate
-it away to start new work. Failed or interrupted recovery must keep diagnostic
+evidence and report the budget failure at finalization. Execution preflight may
+automatically retire oversized completed evidence after qualified recovery,
+under owner locks and the privileged VM leases/live-reference audit; report the
+retirement. Other journals require explicit cleanup. Failed or interrupted
+recovery must keep diagnostic
 evidence without clearing or rotating the unfinished VM journal.
 
 Changes to allocation or cleanup must cover the affected lifetime, interruption,

@@ -21,7 +21,7 @@ def cleanup_host(root):
     with test_activity.activity(root, host_only=True):
         path = test_activity.retention_path(root)
         if path.exists():
-            test_retention.Store(path).reconcile(lambda: None)
+            test_retention.Store(path).reconcile(lambda: None, completed_guard=lambda paths: None)
     return 0
 
 
@@ -42,8 +42,8 @@ def cleanup(root):
             raise ValueError(f'retention: automatic recovery failed (status={status}); '
                              'see diagnostics above; previous evidence preserved')
     if store.path.exists():
-        store.reconcile(guard)
+        store.reconcile(guard, completed_guard=lambda paths: None)
     else:
         guard()
-    print('Automatic recovery: ready; previous evidence preserved.', flush=True)
+    print('Automatic recovery: ready; evidence retained within storage limits.', flush=True)
     return 0

@@ -144,6 +144,173 @@ def test_direct_discard_dispatch_does_not_enter_retention(tmp_path, monkeypatch,
     assert calls == [['discard']]
 
 
+@pytest.mark.parametrize('pending', [False, True])
+@pytest.mark.parametrize('fault', [None, 'guard', 'active', 'replaced', 'live', 'interrupted'])
+def test_execution_recovery_retires_only_verified_oversized_evidence(
+        tmp_path, monkeypatch, capsys, pending, fault):
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        first = allocated(tmp_path, 'first')
+        second = allocated(tmp_path, 'second')
+        if pending:
+            retention.preserve_for_recovery()
+    unknown = tmp_path / 'unknown'
+    unknown.mkdir()
+    (unknown / 'keep').write_text('unregistered')
+    original = (store.path / 'current.json').read_bytes()
+    monkeypatch.setattr(retention, 'MAX_RETAINED_BYTES', 1)
+    if fault == 'replaced':
+        second.rename(tmp_path / 'original')
+        second.mkdir(mode=0o700)
+        (second / 'keep').write_text('replacement')
+    calls = []
+    held = False
+    from contextlib import contextmanager
+    @contextmanager
+    def lease():
+        nonlocal held
+        held = True
+        try:
+            yield
+        finally:
+            held = False
+    def guard():
+        calls.append('recover')
+        if fault == 'guard':
+            raise ValueError('recovery failed')
+    def unused(paths):
+        assert held and paths == {str(first), str(second)}
+        calls.append('audit')
+        if fault == 'live':
+            raise ValueError('live reference')
+    remove = retention.remove
+    interrupted = False
+    def retire(record, *, validate_only=False):
+        nonlocal interrupted
+        if not validate_only:
+            assert held
+            if fault == 'interrupted' and record['path'] == str(second) and not interrupted:
+                interrupted = True
+                raise KeyboardInterrupt
+        return remove(record, validate_only=validate_only)
+    monkeypatch.setattr(retention, 'remove', retire)
+    def recover():
+        return store.reconcile(guard, completed_guard=unused, lease=lease)
+    if fault == 'active':
+        with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+            with pytest.raises(ValueError, match='another owner'):
+                recover()
+        assert calls == []
+    elif fault:
+        with pytest.raises(KeyboardInterrupt if fault == 'interrupted' else ValueError):
+            recover()
+    else:
+        assert recover() == pending
+    assert not held
+    if fault in ('active', 'guard', 'replaced'):
+        assert first.exists() and second.exists()
+        assert (store.path / 'current.json').read_bytes() == original
+    elif fault == 'live':
+        assert first.exists() and second.exists()
+    if fault == 'interrupted':
+        assert not first.exists() and second.exists()
+        # Records survive partial removal; retry validates the original second
+        # allocation and completes without adopting unrelated storage.
+        assert len(json.loads((store.path / 'current.json').read_text())['paths']) == 2
+        recover()
+    if fault in (None, 'interrupted'):
+        assert not first.exists() and not second.exists()
+        assert json.loads((store.path / 'current.json').read_text())['paths'] == []
+        assert 'Retired oversized completed test evidence' in capsys.readouterr().out
+        with store.session():
+            pass
+    assert (unknown / 'keep').read_text() == 'unregistered'
+
+
+def test_execution_recovery_keeps_completed_evidence_within_budget(tmp_path):
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        evidence = allocated(tmp_path, 'evidence')
+    audit = Mock()
+    assert not store.reconcile(lambda: None, completed_guard=audit)
+    audit.assert_not_called()
+    assert (evidence / 'test.log').is_file()
+
+
+def test_host_preflight_automatically_retires_oversized_completed_evidence(tmp_path, monkeypatch):
+    import test_recovery
+    import test_retention as live_retention
+    import regression_process
+    store = live_retention.Store(tmp_path / 'state')
+    with store.session():
+        path = tmp_path / 'evidence'
+        path.mkdir(mode=0o700)
+        (path / 'result').write_text('saved failure')
+        live_retention.retain(path)
+    monkeypatch.setattr(live_retention, 'MAX_RETAINED_BYTES', 1)
+    monkeypatch.setattr(test_recovery.test_activity, 'activity', lambda *args, **kwargs: nullcontext())
+    monkeypatch.setattr(test_recovery.test_activity, 'retention_path', lambda root: store.path)
+    monkeypatch.setattr(regression_process, 'category_run',
+                        lambda *args, **kwargs: pytest.fail('host recovery touched the VM'))
+    assert test_recovery.cleanup_host(tmp_path) == 0
+    assert not path.exists()
+    with store.session():
+        pass
+
+
+@pytest.mark.parametrize('fault', [None, 'busy', 'recovery', 'live'])
+def test_privileged_preflight_retires_oversized_run_under_vm_leases(tmp_path, monkeypatch, fault):
+    import check_test_recovery as recovery
+    from contextlib import contextmanager
+    store = recovery.test_retention.Store(tmp_path / 'state')
+    with store.session():
+        path = tmp_path / 'evidence'
+        path.mkdir(mode=0o700)
+        (path / 'result').write_text('saved failure')
+        recovery.test_retention.retain(path)
+    monkeypatch.setattr(recovery.test_retention, 'MAX_RETAINED_BYTES', 1)
+    monkeypatch.setattr(recovery, 'ROOT', Path.cwd())
+    monkeypatch.setattr(recovery, 'os', SimpleNamespace(geteuid=lambda: 0,
+                                                      environ={'PKEXEC_UID': '1000'}))
+    monkeypatch.setattr(recovery.sys, 'argv', ['check_test_recovery'])
+    import test_storage
+    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: store.path)
+    held = False
+    def reconcile(root):
+        if fault == 'recovery':
+            raise ValueError('VM recovery failed')
+    monkeypatch.setattr(recovery, 'reconcile_vm', reconcile)
+    @contextmanager
+    def lease(root):
+        nonlocal held
+        if fault == 'busy':
+            raise BlockingIOError('VM busy')
+        held = True
+        try:
+            yield
+        finally:
+            held = False
+    monkeypatch.setattr(recovery.runpy, 'run_path', lambda path: {'retention_lease': lease})
+    def unused(paths):
+        assert held and paths == {str(path)}
+        if fault == 'live':
+            raise ValueError('live reference')
+    monkeypatch.setattr(recovery, 'unused', unused)
+    remove = recovery.test_retention.remove
+    def retire(record, *, validate_only=False):
+        assert held
+        return remove(record, validate_only=validate_only)
+    monkeypatch.setattr(recovery.test_retention, 'remove', retire)
+    if fault:
+        with pytest.raises((ValueError, BlockingIOError)):
+            recovery.main()
+        assert (path / 'result').read_text() == 'saved failure'
+    else:
+        assert recovery.main() == 0
+        assert not path.exists()
+    assert not held
+
+
 def test_explicit_discard_reclaims_oversized_finished_run_and_history(tmp_path, monkeypatch):
     store = retention.Store(tmp_path / 'state')
     with store.session():

@@ -8,6 +8,7 @@ import runpy
 import sys
 
 import check_graphical_recovery
+from check_tmp_storage_cleanup import unused
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
@@ -35,13 +36,18 @@ def main():
         raise ValueError('retention: authenticated caller required')
     from test_storage import privileged_state
     store = test_retention.Store(privileged_state(uid))
-    store.reconcile(lambda: reconcile_vm(ROOT))
+    lease = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['retention_lease']
+    # Keep both VM leases through the live-reference audit and deletion, after
+    # recorded VM recovery. A competing controller cannot start during pruning.
+    store.reconcile(lambda: reconcile_vm(ROOT), completed_guard=unused,
+                    lease=lambda: lease(ROOT))
     # Rotate eligible completed evidence before the aggregate's RAM admission.
     with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
-        with store.locked(fd, 'writer.lock'):
-            state = store.read(fd)
-            if state is not None and state['finished']:
-                store.prune(fd, state, keep=2)
+        with lease(ROOT):
+            with store.locked(fd, 'writer.lock'):
+                state = store.read(fd)
+                if state is not None and state['finished']:
+                    store.prune(fd, state, keep=2, completed_guard=unused)
     print('Test recovery: VM and privileged storage are ready.', flush=True)
     return 0
 

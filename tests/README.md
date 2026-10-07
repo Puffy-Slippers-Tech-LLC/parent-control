@@ -1184,8 +1184,12 @@ existing caller-owned `/tmp/onpc-*.png` contract.
 
 Each retention journal keeps at most three runs and 4 GiB of allocated blocks,
 checked at session boundaries. Older completed runs expire first; an oversized
-current run is preserved and reported as an error, and blocks a new run until
-its evidence is explicitly reduced or removed. These are per-journal limits,
+current run is preserved and reported as an error at finalization. Before new
+execution, automatic recovery retires oversized completed execution evidence
+under the activity/storage owner locks, after recorded VM recovery and the
+privileged live-reference audit. It reports this retirement; active owners,
+unresolved recovery and unsafe identities still refuse. Other journals retain
+their oversized evidence until explicit cleanup. These are per-journal limits,
 not a filesystem quota on an active build. Recovery receipts expire with their
 run. Reconnect and repair directories also rotate; repair transcripts retain
 a bounded tail (32 MiB threshold) between operations. Process-owned temporary
@@ -1322,7 +1326,10 @@ are archived as `recovered-<run>.json` and `recovered-<run>.marker`. Every regis
 allocation must pass ownership, identity and mount validation before its blocker
 is cleared. Evidence remains in the normal rotation. After recovery succeeds,
 older runs may expire under the count and byte limits; the recovered current run
-remains. Recovery does not scan temporary-directory prefixes and is retryable.
+remains unless it alone exceeds the execution storage budget. Oversized completed
+execution allocations then retire automatically through the same identity audit,
+with VM leases held through privileged deletion. Recovery does not scan
+temporary-directory prefixes and is retryable.
 Changed identities, an active lease, unsupported VM interruption phases, or a failed
 baseline audit still refuse a new run and preserve evidence with a diagnostic.
 Ordinary test failures and cooperative Ctrl+C finish their storage ownership.

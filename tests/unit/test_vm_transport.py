@@ -1,6 +1,7 @@
 """SSH quoting, archive confinement and reboot regressions; no live VM calls."""
 
 import io
+import hashlib
 from contextlib import nullcontext
 import shlex
 import subprocess
@@ -541,3 +542,30 @@ def test_plain_files_round_trip_through_safe_archive(tmp_path):
         archive.addfile(entry, io.BytesIO(b'<test/>'))
     transport.extract(stream.getvalue(), tmp_path / 'output')
     assert (tmp_path / 'output/results.xml').read_bytes() == b'<test/>'
+
+
+@pytest.mark.parametrize('directory', [False, True])
+def test_copyup_keeps_payload_once_and_fingerprints_command_diagnostics(tmp_path, directory):
+    payload = b'private transferred bytes\x00\xff' * 1024
+    raw = payload
+    if directory:
+        stream = io.BytesIO()
+        with tarfile.open(fileobj=stream, mode='w') as archive:
+            entry = tarfile.TarInfo('result.bin')
+            entry.size = len(payload)
+            archive.addfile(entry, io.BytesIO(payload))
+        raw = stream.getvalue()
+    value = client()
+    value.config['directory'] = str(tmp_path)
+    value.commands.run.return_value = raw
+    destination = tmp_path / 'received'
+    value.copy(True, '/guest/results' + ('/' if directory else ''),
+               str(destination) + ('/' if directory else ''))
+    assert (destination / 'result.bin' if directory else destination).read_bytes() == payload
+    options = value.commands.run.call_args.kwargs
+    assert options['merge_stderr'] is False
+    diagnostic = options['diagnostic_stdout'](raw)
+    assert diagnostic == (
+        f'transfer_bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()}\n'.encode())
+    assert len(diagnostic) < 128 and b'private transferred bytes' not in diagnostic
+    value.guard.assert_called_once_with(value.config)

@@ -386,3 +386,6 @@ def buckets(nodeids):
 # Completed-result discard checks retain private pytest journals and local locks
 # with mocked privileged dispatch. No live VM, workflow or shared path is touched;
 # test_retention keeps its existing compatible unit and cleanup classification.
+# Oversized execution recovery uses tiny pytest-private journals, real local
+# locks and process-local VM-lease/reference doubles. No live VM, shared path
+# or new subprocess is used; retention remains compatible in both inventories.

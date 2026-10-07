@@ -1694,6 +1694,76 @@ def test_restarted_mate_agent_keeps_ownership_and_challenge_guards(fault):
     field.get_description.assert_not_called()
 
 
+@pytest.mark.parametrize('state', ['visible', 'focused'])
+@pytest.mark.parametrize('recovers', [True, False])
+def test_initial_mate_prompt_waits_for_field_without_replaying_request(monkeypatch, state, recovers):
+    ui, desktop, agent, dialog, field, cancel, submit, *_ = mate_form()
+    field.states.discard(state)
+    ui.timeout = 1 if recovers else 0
+    ui.mate_challenge_identity = Mock(return_value='a' * 64)
+
+    def restore(_seconds):
+        submit.action.do_action.assert_called_once()
+        cancel.action.do_action.assert_not_called()
+        ui.mate_challenge_identity.assert_not_called()
+        field.states.add(state)
+
+    sleep = Mock(side_effect=restore)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    if recovers:
+        assert ui.run('kiosk-mate-open', '')['approval'] == {'challenge_id': 'a' * 64}
+        sleep.assert_called_once()
+        ui.mate_challenge_identity.assert_called_once_with(100, (agent, dialog, field, cancel))
+    else:
+        with pytest.raises(UiError, match='^ui:timeout:mate-prompt$') as caught:
+            ui.run('kiosk-mate-open', '')
+        assert caught.value.authentication_field_state == {
+            'provider': 'mate', 'showing': state != 'visible', 'sensitive': True,
+            'focused': state != 'focused', 'stale': False}
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.run('kiosk-mate-open', '')
+        sleep.assert_not_called()
+        ui.mate_challenge_identity.assert_not_called()
+    submit.action.do_action.assert_called_once()
+    cancel.action.do_action.assert_not_called()
+    field.get_child_count.assert_not_called()
+    field.get_description.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['service-replaced', 'disappeared', 'nonempty', 'context'])
+def test_initial_mate_prompt_wait_keeps_owner_and_recipient_guards(monkeypatch, fault):
+    ui, desktop, agent, dialog, field, cancel, submit, message, _ = mate_form()
+    field.states.discard('visible')
+    ui.timeout = 1
+    ui.mate_challenge_identity = Mock()
+
+    def change(_seconds):
+        field.states.add('visible')
+        if fault == 'service-replaced':
+            ui.mate_agent_pid.return_value = 200
+        elif fault == 'disappeared':
+            desktop.children.remove(agent)
+        elif fault == 'nonempty':
+            field.get_text_iface = lambda: SimpleNamespace(get_character_count=lambda: 1)
+        else:
+            message.name = 'Authentication is required'
+
+    sleep = Mock(side_effect=change)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', sleep)
+    code = {'service-replaced': 'owner', 'disappeared': 'replacement',
+            'nonempty': 'field-not-empty', 'context': 'request-context-missing'}[fault]
+    with pytest.raises(UiError, match='^ui:mate-' + code + '$'):
+        ui.run('kiosk-mate-open', '')
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.run('kiosk-mate-open', '')
+    sleep.assert_called_once()
+    submit.action.do_action.assert_called_once()
+    cancel.action.do_action.assert_not_called()
+    ui.mate_challenge_identity.assert_not_called()
+    field.get_child_count.assert_not_called()
+    field.get_description.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'changed', 'nonempty', 'unfocused', 'uncertain'])
 def test_approval_proofs_preserve_recipient_and_challenge(fault):
     ui, desktop, agent, dialog, field, cancel, submit, *_ = mate_form()

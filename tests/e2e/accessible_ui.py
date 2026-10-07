@@ -8142,20 +8142,41 @@ class AccessibleUI:
         appears, require the complete prompt to belong to the current service
         process, then pin that process for all subsequent challenge checks.
         """
+        pending = None
+        pending_pid = None
+
         def ready():
+            nonlocal pending, pending_pid
             self.invalidate_observation()
             observation = self.read_snapshot(protect_text=True)
             nodes, snapshot, _identities, facts = observation
             kind = self.system_prompt_kind(observation=(nodes, snapshot, facts))
             require(kind in (None, 'mate-polkit'), 'ui:mate-wrong-agent')
             if kind is None:
+                require(pending_pid is None, 'ui:mate-replacement')
                 return None
             pid = self.mate_agent_pid()
-            challenge = self.mate_prompt(pid, observation=observation, binding=binding,
-                                         **({'language': language} if language != 'en' else {}))
+            require(pending_pid is None or pending_pid == pid, 'ui:mate-owner')
+            try:
+                challenge = self.mate_prompt(pid, observation=observation, binding=binding,
+                                             **({'language': language} if language != 'en' else {}))
+            except UiError as error:
+                if str(error) != 'ui:mate-field-state':
+                    raise
+                # MATE 1.26 shows the dialog before PAM reveals/focuses its
+                # password grid. Reacquire only the read, not Request or input.
+                # The strict proof remains required before returning a challenge.
+                require(self.mate_agent_pid() == pid, 'ui:mate-owner')
+                pending, pending_pid = error, pid
+                return None
             require(self.mate_agent_pid() == pid, 'ui:mate-owner')
             return pid, challenge
-        return self.wait(ready, 'mate-prompt', prompt_in_predicate=True)
+        try:
+            return self.wait(ready, 'mate-prompt', prompt_in_predicate=True)
+        except UiError as error:
+            if str(error) == 'ui:timeout:mate-prompt' and pending is not None:
+                error.authentication_field_state = pending.authentication_field_state
+            raise
 
     def kiosk_approval_success(self, *, immediate=False, overlay=False, pinned=None, language='en'):
         """REQUEST11: explicit owned success, never prompt disappearance alone."""

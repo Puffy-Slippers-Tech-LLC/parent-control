@@ -1,4 +1,4 @@
-"""Standard-account search qualification without activating the web suggestion."""
+"""Standard-account search qualification without activating unrelated results."""
 
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop

@@ -546,7 +546,6 @@ KEYRING_CONTRACTS = {'gcr-keyring-prompter': {
 
 SEARCH_CONTROLS = {
     'search': 'test-shell-search', 'result::parent': 'test-shell-parent-result',
-    'web-suggestion::parent': 'test-shell-web-suggestion',
 }
 SEARCH_CONTRACTS = copy.deepcopy(TEST_PROMPT_CONTRACTS)
 SEARCH_CONTRACTS['gnome-shell'] = {
@@ -4407,8 +4406,9 @@ def test_controller_requires_fresh_recipient_recheck_without_wrong_account_detou
     'disabled-field', 'missing-overview', 'missing-suggestion', 'hidden-description',
     'wrong-description', 'launcher', 'unnamed-launcher', 'management', 'stale-subtree',
     'delayed-launcher', 'labelled-result', 'disabled-suggestion', 'unrelated-description',
-    'defunct-subtree', 'transient-stale'])
-def test_standard_search_requires_query_web_result_and_stable_complete_absence(monkeypatch, fault):
+    'defunct-subtree', 'transient-stale', 'no-results', 'no-results-launcher',
+    'no-results-management', 'disabled-launcher'])
+def test_standard_search_requires_query_and_stable_complete_absence(monkeypatch, fault):
     import accessible_ui
     product = accessible_ui.PRODUCT
     field = Node(product, 'text', identity=SEARCH_CONTROLS['search'])
@@ -4417,7 +4417,7 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
     field.get_text_iface = lambda: field
     description = Node('Search "' + product + '" on the web', 'label')
     suggestion = Node('Search online', 'push button', children=[description],
-                      identity=SEARCH_CONTROLS['web-suggestion::parent'])
+                      identity='test-shell-web-suggestion')
     overview = Node('Overview', 'panel', children=[field, suggestion],
                     appearance={'scale': 2.5, 'font': 'ugly', 'misaligned': True})
     outside = []
@@ -4427,6 +4427,8 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
     if fault == 'disabled-field': field.states.remove('sensitive')
     if fault == 'missing-overview': overview.name = 'Unrelated window'
     if fault == 'missing-suggestion': overview.children.remove(suggestion)
+    if fault in ('no-results', 'no-results-launcher', 'no-results-management'):
+        overview.children = [field, Node('No results', 'label')]
     if fault == 'disabled-suggestion': suggestion.states.remove('sensitive')
     if fault == 'labelled-result':
         suggestion.name = ''
@@ -4438,12 +4440,15 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
         overview.children.append(description)
     if fault == 'hidden-description': description.states.remove('showing')
     if fault == 'wrong-description': description.name = 'Search for unrelated information'
-    if fault == 'launcher': overview.children.append(Node(
-        product, 'push button', identity=SEARCH_CONTROLS['result::parent']))
+    if fault in ('launcher', 'no-results-launcher', 'disabled-launcher'):
+        overview.children.append(Node(
+            product, 'push button', identity=SEARCH_CONTROLS['result::parent']))
+        if fault == 'disabled-launcher': overview.children[-1].states.remove('sensitive')
     if fault == 'unnamed-launcher':
         overview.children.append(Node('', 'push button', children=[Node(product, 'label')],
                                       identity=SEARCH_CONTROLS['result::parent']))
-    if fault == 'management': outside.append(Node(product, 'frame', identity='parent-window'))
+    if fault in ('management', 'no-results-management'):
+        outside.append(Node(product, 'frame', identity='parent-window'))
     if fault == 'stale-subtree':
         stale = Node('private-canary')
         stale.get_child_count = Mock(side_effect=LookupError('private-canary'))
@@ -4466,7 +4471,9 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
             child.parent = overview
             overview.children.append(child)
     monkeypatch.setattr(accessible_ui.time, 'sleep', tick)
-    if fault not in (None, 'labelled-result', 'transient-stale'):
+    if fault not in (None, 'labelled-result', 'transient-stale', 'missing-suggestion',
+                     'hidden-description', 'wrong-description', 'disabled-suggestion',
+                     'unrelated-description', 'no-results'):
         expected = ('system-prompt-observation-failed' if fault == 'stale-subtree'
                     else 'standard-parent-unavailable')
         with pytest.raises(UiError, match=expected):
@@ -4484,8 +4491,9 @@ def test_standard_search_requires_query_web_result_and_stable_complete_absence(m
     'duplicate-suggestion', 'wrong-description', 'hidden-description',
     'disabled-suggestion', 'duplicate-field', 'wrong-owner', 'duplicate-owner',
     'incomplete-tree', 'delayed-launcher', 'transient-query', 'transient-description',
-    'transient-incomplete', 'transient-defunct'])
-def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
+    'transient-incomplete', 'transient-defunct', 'no-results', 'no-results-launcher',
+    'no-results-management', 'missing-suggestion'])
+def test_shell_search_adapter_proves_query_and_stable_launcher_absence(
         monkeypatch, fault):
     product = accessible_ui.PRODUCT
     field = Node(product, 'text', states=('showing', 'visible', 'sensitive', 'editable'))
@@ -4496,6 +4504,9 @@ def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
     overview = Node('Overview', 'panel', children=[field, suggestion])
     shell = Node('gnome-shell', 'application', children=[overview])
     desktop = Node(children=[shell])
+    if fault in ('no-results', 'no-results-launcher', 'no-results-management'):
+        overview.children = [field, Node('No results', 'label')]
+    if fault == 'missing-suggestion': overview.children.remove(suggestion)
     if fault == 'missing-description': suggestion.children.clear()
     if fault == 'wrong-description': description.name = 'Search for another product'
     if fault == 'hidden-description': description.states.remove('showing')
@@ -4507,10 +4518,12 @@ def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
     if fault == 'unrelated-description':
         suggestion.children.clear()
         overview.children.append(description)
-    if fault == 'launcher': overview.children.append(Node(product, 'push button'))
+    if fault in ('launcher', 'no-results-launcher'):
+        overview.children.append(Node(product, 'push button'))
     if fault == 'disabled-launcher':
         overview.children.append(Node(product, 'push button', states=('showing', 'visible')))
-    if fault == 'management': desktop.children.append(Node(identity='parent-window'))
+    if fault in ('management', 'no-results-management'):
+        desktop.children.append(Node(identity='parent-window'))
     if fault == 'duplicate-suggestion':
         overview.children.append(Node('Search online', 'push button', children=[
             Node(description.name, 'label')]))
@@ -4540,7 +4553,10 @@ def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
             desktop.states = {'defunct'} if 1 <= now[0] < 2 else {'showing', 'visible'}
     monkeypatch.setattr(accessible_ui.time, 'sleep', tick)
     if fault not in (None, 'transient-query', 'transient-description',
-                    'transient-incomplete', 'transient-defunct'):
+                    'transient-incomplete', 'transient-defunct', 'missing-description',
+                    'unrelated-description', 'duplicate-suggestion', 'wrong-description',
+                    'hidden-description', 'disabled-suggestion', 'no-results',
+                    'missing-suggestion'):
         with pytest.raises(UiError):
             ui.run('standard-parent-unavailable', '')
     else:
@@ -4548,7 +4564,8 @@ def test_shell_search_adapter_proves_web_suggestion_and_stable_launcher_absence(
             'operation': 'standard-parent-unavailable', 'outcome': 'passed',
             'interface': 'ApplicationUI+external-provider'}
         assert now[0] >= 2
-        if fault: assert now[0] >= 4
+        if fault in ('transient-query', 'transient-incomplete', 'transient-defunct'):
+            assert now[0] >= 4
     suggestion.action.do_action.assert_not_called()
 
 
@@ -4781,7 +4798,7 @@ def test_search_check_diagnostic_retains_predicate_facts_before_query_failure(
     assert ui.search_absence_diagnostic == {
         'event': 'ui-search-check-diagnostic', 'observation': 'during-check',
         'query_matched_reads': 2, 'no_results_reads': 0 if suggestion_present else 2,
-        'suggestion_reads': 2 if suggestion_present else 0, 'incomplete_reads': 1}
+        'incomplete_reads': 1}
     assert 'private' not in json.dumps(ui.search_absence_diagnostic)
     assert accessible_ui.PRODUCT not in json.dumps(ui.search_absence_diagnostic)
     result.action.do_action.assert_not_called()

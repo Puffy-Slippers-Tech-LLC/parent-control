@@ -26,7 +26,7 @@ sub run {
     my $focused = onpc_parent::focus_search($entry, $field, 'overview');
     onpc_parent::enter_search_query($entry, $focused, 'Oh No! Parent Control');
     $entry->seen('unavailable');
-    # Enter would activate the web suggestion. The owned envelope shuts down.
+    # Leave unrelated search results unopened. The owned envelope shuts down.
     $journey->finish();
 }
 

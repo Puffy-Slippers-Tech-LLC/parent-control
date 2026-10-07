@@ -15,8 +15,8 @@ sub run {
     my $field = onpc_parent::open_search($journey, $desktop, 'overview');
     my $focused = onpc_parent::focus_search($journey, $field, 'overview');
     onpc_parent::enter_search_query($journey, $focused, 'Oh No! Parent Control');
-    # Independently observe the actual query and web-only result through public
-    # accessibility. Enter would launch that unrelated web suggestion.
+    # Independently observe the actual query and Parent launcher/window absence
+    # through public accessibility. Do not activate unrelated search results.
     $journey->seen('unavailable');
     $journey->finish();
 }

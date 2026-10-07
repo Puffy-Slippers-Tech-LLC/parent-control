@@ -186,7 +186,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Log in as a standard user and observe the desktop. For app-grid, open the app grid to test discovery restrictions. Case 6 retains the legacy terminal ID but opens no terminal."},
-          {"id": "step-2", "operation": "ui", "description": "For app-grid, search for Oh No! Parent Control and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent."}
+          {"id": "step-2", "operation": "ui", "description": "For app-grid, search for Oh No! Parent Control and check that no Parent launcher or management window is available. Do not activate unrelated search results. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}

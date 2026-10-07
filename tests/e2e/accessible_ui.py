@@ -900,7 +900,6 @@ EXTERNAL_PROVIDER_CONTRACTS = {
             }),
             'app-grid': (None, {
                 'search': None, 'result::parent': None,
-                'web-suggestion::parent': None,
             }),
             'notifications': (None, {'notification': None, 'dismiss': None}),
             'lock-screen': (None, {'recipient': None, 'password': None, 'unlock': None}),
@@ -5949,7 +5948,7 @@ class AccessibleUI:
     def read_label(self, root, projection, *, maximum, expected=None, language='en'):
         """UI03: bounded registered nonsecret projections; no arbitrary text."""
         require(projection in ('child', 'allowance', 'empty-explanation', 'empty-picker',
-                               'search-query', 'web-suggestion', 'about-product',
+                               'search-query', 'about-product',
                                'about-version', 'about-footer')
                 and type(maximum) is int
                 and 1 <= maximum <= 80, 'ui:text-binding')
@@ -5988,23 +5987,6 @@ class AccessibleUI:
             self.search_status = ('query-matched' if matches else
                                   'query-mismatch-length=' + str(min(count, 256)))
             return matches
-        if projection == 'web-suggestion':
-            require(expected == PRODUCT, 'ui:search-binding')
-            _application_id, _surface_id, registered = self.require_provider_contract(
-                'gnome-shell', 'app-grid', ('web-suggestion::parent',))
-            require(public_automation_id(root) == registered['web-suggestion::parent']
-                    and self.find_provider_control(
-                        'gnome-shell', 'app-grid', 'web-suggestion::parent') is root,
-                    'ui:search-owner')
-            label = 'Search "' + expected + '" on the web'
-            require(len(label) <= maximum, 'ui:text-bound')
-            matches = []
-            for node in self.nodes(root, strict=True):
-                if (node.get_role_name() == 'label' and self.showing(node)
-                        and ' '.join(node.get_name().split()) == label):
-                    matches.append(node)
-            require(len(matches) <= 1, 'ui:ambiguous-text-projection')
-            return len(matches) == 1
         if projection == 'empty-explanation':
             text = 'No interactive non-administrator account was found.'
             require(len(text) <= maximum, 'ui:text-bound')
@@ -9678,7 +9660,7 @@ class AccessibleUI:
             self.activate_id('onpc-fixture-native-primary-close')
 
     def search_absence(self, product, *, stable_seconds):
-        """Positive query/result witnesses plus fresh, complete absence reads.
+        """A positive query witness plus fresh, complete absence reads.
 
         A missing tree, unfinished query, stale subtree or failed read cannot
         prove that the launcher is unavailable. Require a stable observation
@@ -9691,11 +9673,11 @@ class AccessibleUI:
         self.search_absence_diagnostic = {
             'event': 'ui-search-check-diagnostic', 'observation': 'during-check',
             'query_matched_reads': 0, 'no_results_reads': 0,
-            'suggestion_reads': 0, 'incomplete_reads': 0}
+            'incomplete_reads': 0}
         if not semantic_shell:
             self.require_provider_contract(
                 'gnome-shell', 'app-grid',
-                ('search', 'result::parent', 'web-suggestion::parent'))
+                ('search', 'result::parent'))
         def observed():
             nonlocal stable_since
             try:
@@ -9726,25 +9708,9 @@ class AccessibleUI:
                            and facts[node]['name'] == 'No results' for node in scoped):
                         diagnostic['no_results_reads'] = min(
                             10000, diagnostic['no_results_reads'] + 1)
-                    description = 'Search "' + product + '" on the web'
                     buttons = [node for node in scoped
                                if facts[node]['role'] in ('button', 'push button')
                                and facts[node]['showing']]
-                    suggestions = [node for node in buttons
-                                   if self.has_state(node, self.api.StateType.SENSITIVE)
-                                   and (facts[node]['name'] == description or any(
-                                       facts[child]['role'] == 'label'
-                                       and facts[child]['showing']
-                                       and facts[child]['name'] == description
-                                       for child in self.snapshot_scope(nodes, snapshot, node)))]
-                    require(len(suggestions) <= 1, 'ui:shell-suggestion-ambiguous')
-                    if suggestions:
-                        diagnostic['suggestion_reads'] = min(
-                            10000, diagnostic['suggestion_reads'] + 1)
-                    self.search_status = 'suggestion-missing'
-                    if not suggestions:
-                        stable_since = None
-                        return False
                     launchers = [node for node in buttons
                                  if facts[node]['name'] == product or any(
                                      facts[child]['role'] == 'label'
@@ -9756,7 +9722,7 @@ class AccessibleUI:
                     ready = not launchers and not any(
                         facts[node]['showing'] and facts[node]['identity'] in management
                         for node in nodes)
-                    self.search_status = ('description-matched' if ready else
+                    self.search_status = ('parent-absent' if ready else
                                           'parent-available')
                     if not ready:
                         stable_since = None
@@ -9768,17 +9734,8 @@ class AccessibleUI:
                 self.search_status = 'surface-missing'
                 surface, registered = self.provider_surface(
                     'gnome-shell', 'app-grid',
-                    ('search', 'result::parent', 'web-suggestion::parent'))
+                    ('search', 'result::parent'))
                 ready = surface is not None and self.search_query(product)
-                if ready:
-                    suggestion = self.find_id(
-                        registered['web-suggestion::parent'], root=surface)
-                    ready = (suggestion is not None and self.has_state(
-                        suggestion, self.api.StateType.SENSITIVE))
-                    self.search_status = 'suggestion-matched' if ready else 'suggestion-missing'
-                if ready:
-                    ready = self.read_label(suggestion, 'web-suggestion', expected=product, maximum=80)
-                    self.search_status = 'description-matched' if ready else 'description-missing'
                 root = self.api.get_desktop(0)
                 nodes = list(self.nodes(root, strict=True)) if root is not None else []
                 for node in nodes:
@@ -9883,7 +9840,7 @@ class AccessibleUI:
             return diagnostic
         surface, registered = self.provider_surface(
             'gnome-shell', 'app-grid',
-            ('search', 'result::parent', 'web-suggestion::parent'), showing=False)
+            ('search', 'result::parent'), showing=False)
         if surface is None:
             return {'provider_surface': 'absent', 'identified_controls': []}
         identified = [logical for logical, identity in registered.items()

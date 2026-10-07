@@ -405,6 +405,13 @@ from regression_ui import Bucket
 # cancelled and these checks retain the same compatible resource classification.
 # Application UI projection tests use in-memory clients and tiny immutable
 # inventories only. No real bus, display, process, storage or cleanup owner.
+# Deferred-label and document-availability checks retain that compatible scope.
+# Character/format boundary checks also use only those in-memory clients.
+# Retired-state absence checks use in-memory nodes/errors only; compatible
+# accessible_observation scheduling retains its existing resource ownership.
+# Category diagnostic replay tests reuse fix_tests_cleanup_safety's private
+# checkpoint trees and recorded, waited children. Both unit and cleanup
+# compatibility remain unchanged; no shared owner or new resource is introduced.
 REVIEWED = frozenset("""
 application_ui_support
 test_checkpoint

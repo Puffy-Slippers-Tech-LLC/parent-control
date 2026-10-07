@@ -696,6 +696,57 @@ def test_id_checks_reuse_facts_but_state_guards_remain_live():
         assert not ui.has_state(controls[1], ui.api.StateType.SENSITIVE)
 
 
+@pytest.mark.parametrize('code,uncertain,retryable', [
+    ('Unavailable', False, True), ('Timeout', False, True),
+    ('Unavailable', True, False), ('Timeout', True, False),
+    ('Denied', False, False), ('Transport', False, False), ('Unsupported', False, False),
+])
+@pytest.mark.parametrize('read', ['showing', 'has_state'])
+def test_product_state_retirement_discards_only_retryable_read_failures(code, uncertain, retryable, read):
+    from common.oh_no_parent_control_ui.application_ui_client import UIClientError
+    ui, _desktop, _surface, controls = arbitrary_ui()
+    ui.application_ui = object()
+    node = controls[0]
+    node.ui_element = object()
+    error = UIClientError(code, uncertain=uncertain)
+    node.get_state_set = Mock(side_effect=error)
+    generation = ui._observation_generation
+    with pytest.raises(UiError if retryable else UIClientError) as caught:
+        if read == 'showing':
+            ui.showing(node)
+        else:
+            ui.has_state(node, ui.api.StateType.SENSITIVE)
+    if retryable:
+        assert str(caught.value) == 'ui:incomplete-tree'
+        assert caught.value.__cause__ is error
+        assert ui._observation_generation == generation + 1
+    else:
+        assert caught.value is error
+        assert ui._observation_generation == generation
+    node.get_state_set.assert_called_once_with()
+    node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('incomplete_raises', [False, True])
+def test_retired_state_cannot_prove_absence_until_a_new_complete_inventory(incomplete_raises):
+    from common.oh_no_parent_control_ui.application_ui_client import UIClientError
+    ui, _desktop, surface, controls = arbitrary_ui()
+    ui.application_ui = object()
+    node = controls[0]
+    node.ui_element = object()
+    node.observation_facts = lambda: {
+        'identity': node.identity, 'role': node.role, 'name': '', 'showing': True, 'modal': False}
+    node.get_state_set = Mock(side_effect=UIClientError('Unavailable'))
+    if incomplete_raises:
+        with pytest.raises(UiError, match='^ui:incomplete-tree$'):
+            ui.absent_id(node.identity, within=surface.identity, incomplete_raises=True)
+    else:
+        assert ui.absent_id(node.identity, within=surface.identity) is False
+    surface.children.remove(node)
+    assert ui.absent_id(node.identity, within=surface.identity) is True
+    node.action.do_action.assert_not_called()
+
+
 def test_tree_preserves_depth_first_order_with_shared_children_and_cycles():
     ui, desktop, surface, controls = arbitrary_ui(50)
     nested = Node(identity='nested', children=[controls[-1]])

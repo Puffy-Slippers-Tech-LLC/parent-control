@@ -106,6 +106,17 @@ from pathlib import PurePosixPath
 # unknown-input bucket, listSurfaces and inventory in that same recorder. It
 # forwards each call once without inspecting targets, arguments or results;
 # no new reads/resources or change to compatible UI classifications is added.
+# Native inventory observations defer unrelated label/value snapshots within
+# each existing reader boundary; document aliases retain their precise reads.
+# Character/format inspection shares text/document reads in that same projection,
+# invalidated before input; independent public result reads remain fresh.
+# This adds no bus, thread, process, cache lifetime or input route. Management
+# smoke previews start with their scripted saved language, avoiding unrelated
+# first-run/error-modal races. Existing compatible bucket reservations apply.
+# Collection readiness includes its initial complete read in the same bounded
+# wait, retaining its first successful owner pin and existing preview lifetime.
+# Retired precise state reads invalidate the observation before bounded retry;
+# negative proofs still require a later complete inventory, with no new owner.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

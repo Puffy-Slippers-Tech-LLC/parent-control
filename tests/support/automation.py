@@ -133,23 +133,20 @@ class Automation:
         return node
 
     def state(self, identity, state):
-        return self.target(identity).get_state_set().contains(state)
+        return self.reader.has_state(self.target(identity), state)
 
     def showing(self, identity):
         node = self.find(identity)
         if node is None:
             return False
         try:
-            states = node.get_state_set()
+            return self.reader.showing(node)
         except self.query_errors as error:
             # Layout changes can retire the public object after ID lookup.
             # A failed state query proves neither visibility nor absence;
             # discard this read so the bounded wait reacquires the ID.
             self.reader.invalidate_observation()
             raise AutomationError("automation:incomplete-tree") from error
-        return (states.contains(self.api.StateType.SHOWING)
-                and states.contains(self.api.StateType.VISIBLE)
-                and not states.contains(self.api.StateType.DEFUNCT))
 
     def text(self, identity):
         """Read the public label after resolving the element by ID."""

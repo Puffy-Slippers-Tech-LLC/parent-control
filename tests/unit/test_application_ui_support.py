@@ -80,6 +80,82 @@ def test_scoped_references_are_fresh_and_never_claim_keyboard_focus():
     assert ui.getElementById('parent-screen-limit-toggle') != first
 
 
+def test_inventory_observations_defer_unrelated_labels_and_keep_result_reads_fresh():
+    from types import MappingProxyType
+    client = Client()
+    client.elements['parent-screen-limit-toggle']['name'] = 'Screen time limit'
+    ui = catalog(client)
+    node = ui.getElementById('parent-screen-limit-toggle')
+    facts = MappingProxyType(node.observation_facts())
+    assert facts['role'] == 'toggle button' and facts['showing'] is True
+    assert client.calls == []
+    assert facts['name'] == 'Screen time limit'
+    assert facts['name'] == 'Screen time limit'
+    assert [call[1] for call in client.calls] == ['getElementById']
+    with pytest.raises(TypeError):
+        facts['showing'] = False
+    node.setValue(True)
+    client.elements[node.identity]['name'] = 'Updated label'
+    assert facts['name'] == 'Screen time limit'
+    assert ui.getElementById(node.identity).getValue() is True
+    assert [call[1] for call in client.calls] == ['getElementById', 'setValue', 'getValue']
+
+
+def test_document_observations_refine_host_inventory_before_accepting_visibility():
+    client = Client()
+    client.elements['parent-screen-limit-toggle'].update(type='document-element', visible=False)
+    node = catalog(client).getElementById('parent-screen-limit-toggle')
+    node.metadata['visible'] = True  # Host inventory cannot prove alias visibility.
+    assert node.observation_facts()['showing'] is False
+    assert [call[1] for call in client.calls] == ['getElementById']
+
+
+def test_character_and_format_reads_share_a_boundary_and_refresh_after_input():
+    class EditorClient(Client):
+        text = 'a😀b\n'
+        document = {'ops': [{'insert': 'a😀', 'attributes': {'bold': True}},
+                            {'insert': 'b\n'}]}
+
+        def getValue(self, identity, *, surface_id):
+            return self.call(surface_id, identity, 'getValue')
+
+        def call(self, scope, identity, operation, arguments=None):
+            assert scope == 'parent-window'
+            self.calls.append((identity, operation, arguments))
+            if operation == 'getText':
+                return self.text
+            if operation == 'getValue' and identity == 'feedback-editor-document':
+                return deepcopy(self.document)
+            if operation == 'setText':
+                self.text = arguments['text']
+                self.document = {'ops': [{'insert': self.text}]}
+                return None
+            raise AssertionError((identity, operation))
+
+    client = EditorClient()
+    ui = catalog(client)
+    node = ui.getElementById('parent-screen-limit-toggle')
+    assert node.get_character_count() == 4
+    assert ''.join(chr(node.get_character_at_offset(i)) for i in range(4)) == 'a😀b\n'
+    for offset, bounds, weight in [(0, (0, 2), '700'), (1, (0, 2), '700'),
+                                    (2, (2, 4), '400'), (3, (2, 4), '400')]:
+        attributes, start, end = node.get_attribute_run(offset)
+        assert (start, end) == bounds and attributes['weight'] == weight
+    assert [call[1] for call in client.calls] == ['getText', 'getValue']
+    client.text = 'changed'
+    assert node.getText() == 'changed'  # Independent result reads remain live.
+    assert node.get_text(0, -1) == 'a😀b\n'
+    assert ui.getElementById(node.identity).get_character_count() == 7
+    node.setText('z\n')
+    assert node.get_text(0, -1) == 'z\n'
+    assert node.get_attribute_run(0)[1:] == (0, 2)
+    with pytest.raises(UIClientError, match='InvalidArgument'):
+        node.get_attribute_run(3)
+    client.document = {'ops': [{'insert': {'image': 'unsupported'}}]}
+    with pytest.raises(UIClientError, match='InvalidResponse'):
+        ui.getElementById(node.identity).get_attribute_run(0)
+
+
 @pytest.mark.parametrize('fault', ['cycle', 'missing-parent', 'wrong-owner', 'wrong-application'])
 def test_incomplete_inventory_or_foreign_launch_owner_refuses(fault):
     client = Client()

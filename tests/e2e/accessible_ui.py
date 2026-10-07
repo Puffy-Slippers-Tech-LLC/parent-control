@@ -1685,16 +1685,20 @@ class AccessibleUI:
                 if identities is not None:
                     identities[node] = identity
                 if facts is not None:
-                    states = getattr(node, 'snapshot_state_set', node.get_state_set)()
-                    facts[node] = {
-                        'identity': identity,
-                        'role': role,
-                        'name': getattr(node, 'snapshot_name', node.get_name)(),
-                        'showing': (states.contains(self.api.StateType.SHOWING)
-                                    and states.contains(self.api.StateType.VISIBLE)
-                                    and not states.contains(self.api.StateType.DEFUNCT)),
-                        'modal': states.contains(self.api.StateType.MODAL),
-                    }
+                    product_facts = getattr(node, 'observation_facts', None)
+                    if product_facts is not None:
+                        facts[node] = product_facts()
+                    else:
+                        states = getattr(node, 'snapshot_state_set', node.get_state_set)()
+                        facts[node] = {
+                            'identity': identity,
+                            'role': role,
+                            'name': getattr(node, 'snapshot_name', node.get_name)(),
+                            'showing': (states.contains(self.api.StateType.SHOWING)
+                                        and states.contains(self.api.StateType.VISIBLE)
+                                        and not states.contains(self.api.StateType.DEFUNCT)),
+                            'modal': states.contains(self.api.StateType.MODAL),
+                        }
                 yield node
                 if diagnostic is not None:
                     diagnostic.check()
@@ -2149,14 +2153,29 @@ class AccessibleUI:
         return fact['identity'] if fact is not None else public_automation_id(node)
 
     def showing(self, node):
-        states = node.get_state_set()
+        states = self._state_set(node)
         return (states.contains(self.api.StateType.SHOWING)
                 and states.contains(self.api.StateType.VISIBLE)
                 and not states.contains(self.api.StateType.DEFUNCT))
 
     def has_state(self, node, state):
         node.clear_cache_single()
-        return node.get_state_set().contains(state)
+        return self._state_set(node).contains(state)
+
+    def _state_set(self, node):
+        try:
+            return node.get_state_set()
+        except RuntimeError as error:
+            # Inventory discovery and precise state observation are separate
+            # public reads. A surface may retire between them. Discard that
+            # read rather than treating refusal as visibility or absence.
+            if (self.application_ui is not None and hasattr(node, 'ui_element')
+                    and type(error).__name__ == 'UIClientError'
+                    and getattr(error, 'code', None) in ('Unavailable', 'Timeout')
+                    and not getattr(error, 'uncertain', False)):
+                self.invalidate_observation()
+                raise UiError('ui:incomplete-tree') from error
+            raise
 
     def surface_available(self, node):
         """Use product logical visibility and external-provider foreground state."""
@@ -4439,19 +4458,27 @@ class AccessibleUI:
         This Parent feedback block uses the shared predicate wait, including its
         prompt, fresh-read and deadline guards. Time alone never satisfies it.
         """
-        observation = self.read_snapshot()
-        parent = self.snapshot_owned_target('parent-window', observation=observation,
-                                            check_prompt=True)
-        require(parent is not None, 'ui:collection-entry')
-        nodes, _edges, identities, _facts = observation
-        application = self.snapshot_matches(PARENT_APPLICATION, nodes, showing=False,
-                                             identities=identities)
-        require(application is not None and application.bus == parent.bus,
-                'ui:collection-entry')
-        self.collection_owner = (parent.bus, parent.path)
-        self.collection_application = application
+        pinned = False
 
         def ready():
+            nonlocal pinned
+            if not pinned:
+                # Opening feedback publishes its WebView before its document
+                # is ready. The initial complete read belongs under the same
+                # deadline as subsequent samples. Pin once after that read;
+                # retries must never adopt a replacement application owner.
+                observation = self.read_snapshot()
+                parent = self.snapshot_owned_target('parent-window', observation=observation,
+                                                    check_prompt=True)
+                require(parent is not None, 'ui:collection-entry')
+                nodes, _edges, identities, _facts = observation
+                application = self.snapshot_matches(PARENT_APPLICATION, nodes, showing=False,
+                                                     identities=identities)
+                require(application is not None and application.bus == parent.bus,
+                        'ui:collection-entry')
+                self.collection_owner = (parent.bus, parent.path)
+                self.collection_application = application
+                pinned = True
             value = self.feedback_collection_sample()
             return value if value == {'collecting': False, 'download': True} else None
 

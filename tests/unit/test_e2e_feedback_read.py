@@ -66,6 +66,8 @@ from ui_observations import FeedbackStateObservation
 # mutable paths, buses, displays, caches or scheduling resources.
 # Case 155 retains these private paths, bounded doubles and waited Perl children;
 # no resource ownership, unit scheduler or cleanup classification changes.
+# Initial collection-read retries add only mocked clocks and in-memory reads;
+# the compatible unit classification and resource lifetime remain unchanged.
 
 
 @pytest.mark.parametrize('fault', ['', 'storage', 'input', 'terminal-only', 'terminal', 'order', 'boot'])
@@ -188,6 +190,41 @@ def test_collection_guest_refuses_unfinished_or_unavailable_download(monkeypatch
     ui.feedback_collection_sample = Mock(return_value=state)
     with pytest.raises(accessible_ui.UiError, match='ui:timeout:feedback-collection-ready'):
         ui.wait_feedback_collection()
+
+
+@pytest.mark.parametrize('stage', ['initial', 'sample'])
+@pytest.mark.parametrize('recovers', [True, False])
+def test_collection_wait_retries_incomplete_reads_under_one_deadline(monkeypatch, stage, recovers):
+    ui, parent, _dialog, controls = feedback_ui()
+    ui.root().bus = parent.bus = ':1.2'
+    parent.path = '/parent'
+    now = [0.0]
+    ui.timeout = .4
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: now.__setitem__(0, now[0] + delay))
+    complete = ui.read_snapshot()
+    error = accessible_ui.UiError('ui:incomplete-tree')
+    terminal = {'collecting': False, 'download': True}
+    ui.read_snapshot = Mock(side_effect=(
+        [error, complete] if recovers else error) if stage == 'initial' else None,
+        return_value=complete)
+    ui.feedback_collection_sample = Mock(side_effect=(
+        [error, terminal] if recovers else error) if stage == 'sample' else None,
+        return_value=terminal)
+    if recovers:
+        assert ui.wait_feedback_collection() == terminal
+        assert now[0] == .2
+    else:
+        with pytest.raises(accessible_ui.UiError, match='^ui:timeout:feedback-collection-ready$'):
+            ui.wait_feedback_collection()
+        assert now[0] == .4
+    if stage == 'sample':
+        ui.read_snapshot.assert_called_once_with()  # Keep the original owner pinned.
+        assert ui.collection_owner == (':1.2', '/parent')
+    elif not recovers:
+        ui.feedback_collection_sample.assert_not_called()
+    for control in controls.values():
+        control.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('value', [

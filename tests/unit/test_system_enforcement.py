@@ -792,6 +792,8 @@ def test_future_trust_is_fixed_owned_and_independently_observed(monkeypatch, tmp
     monkeypatch.setattr(enforcement.guest, 'guard', Mock())
     monkeypatch.setattr(enforcement.guest, 'sha', lambda path: 'a' * 64)
     monkeypatch.setattr(enforcement.guest, 'package_path', lambda: Path('package.rpm'))
+    monkeypatch.setattr(enforcement, 'TrustRefreshDiagnostic', lambda: SimpleNamespace(
+        initial={}, snapshot=lambda: {}))
     native_lstat = type(trust).lstat
     monkeypatch.setattr(type(trust), 'lstat', lambda path: (
         SimpleNamespace(st_mode=0o40777 if fault == 'unsafe-parent' else 0o40755, st_uid=0)
@@ -837,14 +839,77 @@ def test_future_trust_is_fixed_owned_and_independently_observed(monkeypatch, tmp
         unrelated = f'filedb {target}.unrelated 1 ' + 'c' * 64
         database = ((unrelated + '\n') * 10000 + row + '\n' + malformed + '\n').encode()
         diagnostic = transform(database).decode()
-        assert diagnostic.splitlines() == [
+        lines = diagnostic.splitlines()
+        metrics = json.loads(lines.pop(1).removeprefix('trust_refresh='))
+        assert metrics['initial'] == {} and metrics['observed']['dump_duration_ns'] >= 0
+        assert lines == [
             f'database_bytes={len(database)} sha256={hashlib.sha256(database).hexdigest()}',
             row, malformed]
         assert len(diagnostic) < 1024
         partial = database + b'filedb /unrelated/partial-\xc3'
-        assert transform(partial).decode().splitlines() == [
+        lines = transform(partial).decode().splitlines()
+        lines.pop(1)
+        assert lines == [
             f'database_bytes={len(partial)} sha256={hashlib.sha256(partial).hexdigest()}',
             row, malformed]
+
+
+def test_trust_refresh_counters_are_private_bounded_and_reject_replaced_daemon(monkeypatch, tmp_path):
+    proc = tmp_path / 'proc'
+    daemon = proc / '987'
+    threads = daemon / 'task'
+    threads.mkdir(parents=True)
+    (proc / 'self').mkdir()
+    (proc / 'stat').write_text('cpu 10 20 30 40 50 60 70 80 90 100\n')
+    (proc / 'meminfo').write_text('MemAvailable: 123 kB\nSwapFree: 456 kB\nPrivate: 789 kB\n')
+
+    def stat_line(start=99):
+        fields = ['0'] * 50
+        for number, value in ((3, 'S'), (14, '12'), (15, '34'), (22, str(start)), (42, '56')):
+            fields[number - 3] = value
+        return '987 (private account and file names) ' + ' '.join(fields) + '\n'
+
+    for path in (daemon, proc / 'self'):
+        (path / 'stat').write_text(stat_line())
+    (daemon / 'io').write_text('rchar: 100\nread_bytes: 200\nprivate: 300\n')
+    for tid in range(987, 1004):
+        thread = threads / str(tid)
+        thread.mkdir()
+        (thread / 'stat').write_text(stat_line())
+        (thread / 'wchan').write_text('io_schedule\n')
+    real_path = enforcement.Path
+
+    def path(value):
+        value = real_path(value)
+        return proc / value.relative_to('/proc') if value.is_relative_to('/proc') else value
+
+    monkeypatch.setattr(enforcement, 'Path', path)
+    run = Mock(return_value='MainPID=987\n')
+    monkeypatch.setattr(enforcement.guest, 'run', run)
+    diagnostic = enforcement.TrustRefreshDiagnostic()
+    data = diagnostic.snapshot()
+    assert data['daemon'] == {'user_ticks': 12, 'system_ticks': 34,
+                              'start_ticks': 99, 'io_delay_ticks': 56}
+    assert data['daemon_io'] == {'rchar': 100, 'read_bytes': 200}
+    assert data['memory_kib'] == {'MemAvailable': 123, 'SwapFree': 456}
+    assert len(data['threads']) == 16 and data['threads_truncated']
+    assert 'private' not in json.dumps(data)
+    assert not data['daemon_identity_changed']
+    # A reused PID must not supply another process's resource evidence.
+    (daemon / 'stat').write_text(stat_line(start=100))
+    changed = diagnostic.snapshot()
+    assert changed['daemon_identity_changed'] and 'daemon' not in changed and 'threads' not in changed
+    run.assert_called_once_with(
+        ['systemctl', 'show', 'fapolicyd.service', '--property=MainPID'], timeout=10)
+
+
+def test_trust_refresh_diagnostic_failure_preserves_fixture_outcome(monkeypatch):
+    monkeypatch.setattr(enforcement.guest, 'run', Mock(side_effect=RuntimeError('private error')))
+    monkeypatch.setattr(enforcement.TrustRefreshDiagnostic, 'read',
+                        Mock(side_effect=OSError('private path')))
+    diagnostic = enforcement.TrustRefreshDiagnostic()
+    data = diagnostic.snapshot()
+    assert data['counters_unavailable'] and 'private' not in json.dumps(data)
 
 
 @pytest.mark.parametrize('fault', ['allow-missing', 'allow-after-deny', 'deny-missing', 'wrong-uid',

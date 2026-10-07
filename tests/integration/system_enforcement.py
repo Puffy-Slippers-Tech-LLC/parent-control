@@ -206,6 +206,153 @@ def provision_future():
                   'enforcement:fixture-copy-digest')
 
 
+class TrustRefreshDiagnostic:
+    """Private, bounded resource counters; never retain names or signal a PID."""
+
+    def __init__(self):
+        self.started_ns = time.perf_counter_ns()
+        self.process = None
+        self.start_ticks = None
+        try:
+            fields = dict(line.split('=', 1) for line in guest.run(
+                ['systemctl', 'show', 'fapolicyd.service', '--property=MainPID'],
+                timeout=10).splitlines() if '=' in line)
+            pid = fields.get('MainPID', '')
+            if re.fullmatch(r'[1-9][0-9]{0,9}', pid):
+                self.process = Path('/proc') / pid
+                self.start_ticks = self.process_stat(self.process)['start_ticks']
+        except Exception:
+            # Instrumentation must not mask the original fixture outcome.
+            self.process = None
+        self.initial = self.snapshot()
+
+    @staticmethod
+    def read(path):
+        with path.open('r', encoding='ascii') as stream:
+            return stream.read(4096)
+
+    @classmethod
+    def process_stat(cls, path):
+        # Discard comm, which can contain spaces or personal text. Linux stat
+        # fields 14/15, 22 and 42 are CPU ticks, birth identity and I/O delay.
+        fields = cls.read(path / 'stat').rsplit(')', 1)[1].split()
+        return {name: int(fields[index]) for name, index in (
+            ('user_ticks', 11), ('system_ticks', 12), ('start_ticks', 19),
+            ('io_delay_ticks', 39))}
+
+    @classmethod
+    def counters(cls, path, allowed):
+        result = {}
+        for line in cls.read(path).splitlines():
+            key, separator, value = line.partition(':')
+            if separator and key in allowed:
+                result[key] = int(value.split()[0])
+        return result
+
+    def snapshot(self):
+        result = {'elapsed_ns': time.perf_counter_ns() - self.started_ns,
+                  'daemon_identity_unavailable': self.process is None}
+        try:
+            result['clock_ticks_per_second'] = os.sysconf('SC_CLK_TCK')
+            result['cpu'] = [int(value) for value in
+                             self.read(Path('/proc/stat')).splitlines()[0].split()[1:]]
+            result['memory_kib'] = self.counters(Path('/proc/meminfo'),
+                                                {'MemAvailable', 'SwapFree', 'Dirty', 'Writeback'})
+            result['test'] = self.process_stat(Path('/proc/self'))
+            if self.process is not None:
+                current = self.process_stat(self.process)
+                if current['start_ticks'] != self.start_ticks:
+                    result['daemon_identity_changed'] = True
+                    return result
+                result['daemon'] = current
+                result['daemon_io'] = self.counters(self.process / 'io',
+                    {'rchar', 'wchar', 'syscr', 'syscw', 'read_bytes', 'write_bytes'})
+                threads = []
+                # Inspect only this daemon, at most 16 threads. Numeric kernel
+                # counters and wait channels contain no command/file names.
+                for thread in (self.process / 'task').iterdir():
+                    if not thread.name.isdecimal():
+                        continue
+                    if len(threads) == 16:
+                        result['threads_truncated'] = True
+                        break
+                    counters = self.process_stat(thread)
+                    wait = self.read(thread / 'wchan').strip()
+                    counters['wait'] = wait if re.fullmatch(r'[A-Za-z0-9_]{1,128}', wait) else 'unknown'
+                    counters['tid'] = int(thread.name)
+                    threads.append(counters)
+                result['threads'] = threads
+                result['daemon_identity_changed'] = (
+                    self.process_stat(self.process)['start_ticks'] != self.start_ticks)
+        except Exception:
+            result['counters_unavailable'] = True
+        return result
+
+
+class TrustRefreshCompletion:
+    """Keep the unlocked CLI reader out of the daemon's database rebuild."""
+
+    def __init__(self):
+        self.identity = self.service_identity()
+        raw = guest.run(['journalctl', '--no-pager', '--unit=fapolicyd.service',
+                         '--lines=1', '--output=json', '--output-fields=__CURSOR'], timeout=10)
+        rows = [json.loads(line) for line in raw.splitlines()]
+        guest.require(len(rows) == 1 and isinstance(rows[0], dict),
+                      'enforcement:trust-journal-cursor')
+        self.cursor = rows[0].get('__CURSOR', '')
+        guest.require(isinstance(self.cursor, str) and
+                      re.fullmatch(r'[A-Za-z0-9;=:_-]{1,1024}', self.cursor) is not None,
+                      'enforcement:trust-journal-cursor')
+
+    @staticmethod
+    def service_identity(timeout=10):
+        raw = guest.run(['systemctl', 'show', 'fapolicyd.service',
+                         '--property=MainPID,InvocationID,ActiveState'], timeout=timeout)
+        fields = dict(line.split('=', 1) for line in raw.splitlines() if '=' in line)
+        guest.require(fields.get('ActiveState') == 'active' and
+                      re.fullmatch(r'[1-9][0-9]{0,9}', fields.get('MainPID', '')) is not None and
+                      re.fullmatch(r'[0-9a-f]{32}', fields.get('InvocationID', '')) is not None and
+                      fields['InvocationID'] != '0' * 32, 'enforcement:trust-daemon-identity')
+        return fields['MainPID'], fields['InvocationID']
+
+    def wait(self, deadline, diagnostic):
+        # fapolicyd 1.3.6's --dump-db uses MDB_NOLOCK. A reader racing the
+        # asynchronous --update can abort inside LMDB. "Updated" follows the
+        # rebuild/sync in both supported fapolicyd versions; it is only a
+        # sequencing barrier, never a substitute for the exact database row.
+        def budget():
+            remaining = deadline - time.monotonic()
+            guest.require(remaining > 0, 'enforcement:future-not-trusted')
+            return min(10, remaining)
+
+        def retain(raw):
+            # Polling needs no application/account text or additional storage.
+            metrics = json.dumps({'initial': diagnostic.initial,
+                                  'observed': diagnostic.snapshot()}, sort_keys=True)
+            return (f'completion_bytes={len(raw)}\ntrust_refresh={metrics}\n').encode()
+
+        while True:
+            guest.require(self.service_identity(budget()) == self.identity,
+                          'enforcement:trust-daemon-replaced')
+            raw = guest.run(['journalctl', '--no-pager', '--unit=fapolicyd.service',
+                             '--after-cursor=' + self.cursor, '--lines=1', '--output=json',
+                             '--output-fields=MESSAGE,_PID,_SYSTEMD_INVOCATION_ID',
+                             '_PID=' + self.identity[0],
+                             '_SYSTEMD_INVOCATION_ID=' + self.identity[1], 'MESSAGE=Updated'],
+                            timeout=budget(), diagnostic_stdout=retain)
+            rows = [json.loads(line) for line in raw.splitlines()]
+            complete = any(isinstance(row, dict) and row.get('MESSAGE') == 'Updated' and
+                           row.get('_PID') == self.identity[0] and
+                           row.get('_SYSTEMD_INVOCATION_ID') == self.identity[1] and
+                           row.get('__CURSOR') != self.cursor and
+                           isinstance(row.get('__CURSOR'), str) for row in rows)
+            guest.require(self.service_identity(budget()) == self.identity,
+                          'enforcement:trust-daemon-replaced')
+            if complete:
+                return
+            time.sleep(min(0.25, budget()))
+
+
 def trust_future():
     """Model a newly trusted app version without reconciling product rules.
 
@@ -227,12 +374,15 @@ def trust_future():
     guest.run(['fapolicyd-cli', '--file', 'add', str(target), '--trust-file', FUTURE_TRUST.name])
     if guest.package_path().suffix == '.rpm':
         guest.run(['restorecon', str(FUTURE_TRUST)])
+    diagnostic = TrustRefreshDiagnostic()
+    completion = TrustRefreshCompletion()
     guest.run(['fapolicyd-cli', '--update'])
     expected = [str(target), str(target.stat().st_size), guest.sha(target)]
     # Ubuntu's debdb backend rehashes installed packages on --update. The
     # retained VM evidence shows a successful refresh taking about 40 seconds;
     # allow the guest command budget while still requiring the exact DB entry.
     deadline = time.monotonic() + 120
+    completion.wait(deadline, diagnostic)
 
     def trust_diagnostic(raw):
         # Each Ubuntu database dump is about 26 MB and collection retains
@@ -243,9 +393,15 @@ def trust_future():
         rows = [line for line in raw.decode('utf-8', errors='replace').splitlines()
                 if len(line.split()) >= 2 and line.split()[1] == str(target)]
         header = f'database_bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()}\n'
-        return (header + '\n'.join(rows) + '\n').encode('utf-8')
+        counters = diagnostic.snapshot()
+        counters['dump_duration_ns'] = time.perf_counter_ns() - dump_started_ns
+        # Reuse the owned command artifact: no background sampling or new
+        # storage lifetime. Keep the initial counters with every database view.
+        metrics = json.dumps({'initial': diagnostic.initial, 'observed': counters}, sort_keys=True)
+        return (header + 'trust_refresh=' + metrics + '\n' + '\n'.join(rows) + '\n').encode('utf-8')
 
     while True:
+        dump_started_ns = time.perf_counter_ns()
         rows = [row.split() for row in guest.run(
             ['fapolicyd-cli', '--dump-db'], diagnostic_stdout=trust_diagnostic).splitlines()]
         if any(len(row) == 4 and row[1:] == expected for row in rows):

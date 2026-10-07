@@ -53,6 +53,9 @@ Trust-dump diagnostic regressions in system_enforcement, system_guest and
 system_runner_cleanup_safety use bounded in-memory databases, pytest-private
 logs and process/pidfd doubles. No real child, guest, shared path or cache is
 added; existing compatible unit and cleanup classifications remain valid.
+Trust-refresh counter/privacy tests in system_enforcement use tiny private
+synthetic proc trees and a systemctl double, with no live process or service
+reads. They preserve the compatible unit classification and add no cleanup owner.
 
 Child trust upgrade/retry/boot regressions use tiny private pytest machine trees,
 synthetic boot IDs, and synchronously waited relocated maintainer-script/helper

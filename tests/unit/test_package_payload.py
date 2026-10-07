@@ -254,10 +254,18 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 import pkgutil
+import runpy
 import sys
 
 root = Path(sys.argv[1]) / 'usr/lib/oh-no-parent-control'
 sys.path[:0] = [str(root), *(str(root / name) for name in ('broker', 'parent', 'kiosk'))]
+# The notification service executes a file, unlike the package-based previews.
+# Resolve its real imports with no package context before importing the modules.
+notification_entry = runpy.run_path(str(
+    root / 'kiosk/oh_no_parent_control_kiosk/notifications.py'),
+    run_name='onpc_notifications_entry')
+assert notification_entry['__package__'] == ''
+assert 'NotificationApplication' in notification_entry
 for name in ('common.oh_no_parent_control_ui', 'oh_no_parent_control',
              'oh_no_parent_control_parent', 'oh_no_parent_control_kiosk'):
     package = importlib.import_module(name)

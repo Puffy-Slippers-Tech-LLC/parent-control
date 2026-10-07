@@ -316,6 +316,93 @@ def test_adapter_query_failure_kind_excludes_private_error_values(domain, code, 
     assert error.matches(quark, getattr(codes, code))
 
 
+def test_crash_report_diagnostic_retains_cause_without_private_report_fields(tmp_path, monkeypatch):
+    report = tmp_path / 'PRIVATE_ACCOUNT.crash'
+    report.write_text('''ProblemType: Crash
+ExecutablePath: /usr/bin/oh-no-parent-control
+InterpreterPath: /usr/bin/python3.14
+Signal: 11
+ProcCmdline: PRIVATE_PASSWORD
+ProcEnviron: PRIVATE_ACCOUNT
+Traceback:
+  File "/usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/main.py", line 123, in PRIVATE_FUNCTION
+TypeError: PRIVATE_DOCUMENT
+  File "/home/PRIVATE_ACCOUNT/main.py", line 456, in PRIVATE_FUNCTION
+PRIVATE_EXCEPTION: PRIVATE_PASSWORD
+''')
+    monkeypatch.setattr(accessible_ui.time, 'time', lambda: report.stat().st_mtime + 120)
+    before = report.read_bytes()
+    value = accessible_ui.crash_report_diagnostic(str(tmp_path))
+    assert value == {'event': 'crash-report-diagnostic', 'status': 'read',
+                     'unavailable': 0, 'bounded': False, 'reports': [{
+        'executable': 'request-app', 'python': True, 'problem': 'Crash', 'signal': 11,
+        'age_seconds': 120, 'middle_omitted': False,
+        'frames': [{'module': 'main', 'line': 123}], 'exception_types': ['TypeError']}]}
+    assert 'PRIVATE_' not in json.dumps(value)
+    assert report.read_bytes() == before
+
+
+@pytest.mark.parametrize('fault', ['unknown-fields', 'symlink', 'other-owner', 'oversized'])
+def test_crash_report_diagnostic_bounds_and_ownership(tmp_path, monkeypatch, fault):
+    report = tmp_path / 'PRIVATE_REPORT.crash'
+    if fault == 'symlink':
+        target = tmp_path / 'PRIVATE_TARGET'
+        target.write_text('ExecutablePath: /usr/bin/oh-no-parent-control\n')
+        report.symlink_to(target)
+    else:
+        report.write_text('ExecutablePath: /home/PRIVATE_ACCOUNT/PRIVATE_PROGRAM\n'
+                          'Signal: PRIVATE_PASSWORD\nProblemType: PRIVATE_DOCUMENT\n'
+                          + ('X' * 200000 if fault == 'oversized' else ''))
+    if fault == 'other-owner':
+        monkeypatch.setattr(accessible_ui.os, 'geteuid', lambda: report.stat().st_uid + 1)
+    value = accessible_ui.crash_report_diagnostic(str(tmp_path))
+    if fault in ('symlink', 'other-owner'):
+        assert value['reports'] == []
+        assert value['unavailable'] == (1 if fault == 'symlink' else 0)
+    else:
+        summary = value['reports'][0]
+        assert summary['executable'] == 'other' and summary['problem'] == 'other'
+        assert summary['signal'] is None and summary['python'] is False
+        assert summary['middle_omitted'] == (fault == 'oversized')
+    assert 'PRIVATE_' not in json.dumps(value)
+
+
+@pytest.mark.parametrize('metadata_size', [70000, 200000])
+def test_crash_report_diagnostic_reads_indented_python_traceback_after_large_metadata(
+        tmp_path, metadata_size):
+    report = tmp_path / 'PRIVATE_ACCOUNT.crash'
+    report.write_text(
+        'ProblemType: Crash\n'
+        'ExecutablePath: /usr/lib/oh-no-parent-control/kiosk/'
+        'oh_no_parent_control_kiosk/notifications.py\n'
+        'InterpreterPath: /usr/bin/python3.14\n'
+        'ProcMaps:\n ' + 'X' * metadata_size + '\n'
+        'Traceback:\n Traceback (most recent call last):\n'
+        '   File "/usr/lib/oh-no-parent-control/kiosk/'
+        'oh_no_parent_control_kiosk/notifications.py", line 24, in PRIVATE_FUNCTION\n'
+        ' ImportError: PRIVATE_PASSWORD\n')
+    before = report.read_bytes()
+    value = accessible_ui.crash_report_diagnostic(str(tmp_path))
+    summary, = value['reports']
+    assert summary['executable'] == 'notifications' and summary['python'] is True
+    assert summary['frames'] == [{'module': 'notifications', 'line': 24}]
+    assert summary['exception_types'] == ['ImportError']
+    assert summary['middle_omitted'] == (metadata_size == 200000)
+    assert 'PRIVATE_' not in json.dumps(value)
+    assert report.read_bytes() == before
+
+
+def test_crash_report_diagnostic_refuses_missing_storage_and_bounds_inventory(tmp_path):
+    assert accessible_ui.crash_report_diagnostic(str(tmp_path / 'absent')) == {
+        'event': 'crash-report-diagnostic', 'status': 'unavailable',
+        'reports': [], 'unavailable': 0, 'bounded': False}
+    for index in range(10):
+        (tmp_path / f'{index}.crash').write_text('ExecutablePath: /usr/bin/gnome-kiosk\n')
+    value = accessible_ui.crash_report_diagnostic(str(tmp_path))
+    assert value['bounded'] is True and len(value['reports']) == 8
+    assert all(report['executable'] == 'compositor' for report in value['reports'])
+
+
 def test_adapter_cache_provider_diagnostic_excludes_unapproved_values():
     error = RuntimeError('PRIVATE_PROVIDER')
     error.add_note('public-atspi-cache-owner:missing')
@@ -324,6 +411,38 @@ def test_adapter_cache_provider_diagnostic_excludes_unapproved_values():
     error.add_note('public-atspi-cache-PRIVATE_PASSWORD:present')
     value = accessible_ui.adapter_failure_diagnostic(error)
     assert value['cache_provider'] == {'owner': 'missing', 'registry': 'present'}
+    assert 'PRIVATE_' not in json.dumps(value)
+
+
+@pytest.mark.parametrize('provider', ['mate', 'shell'])
+@pytest.mark.parametrize('missing', ['showing', 'sensitive', 'focused'])
+def test_authentication_field_refusal_diagnostic_preserves_guard_and_excludes_secrets(provider, missing):
+    proof = {'showing': True, 'sensitive': True, 'focused': True,
+             'stale': False, 'length': 0, 'text': 'PRIVATE_PASSWORD'}
+    proof[missing] = False
+    with pytest.raises(UiError, match='^ui:' + provider + '-field-state$') as caught:
+        accessible_ui.AccessibleUI.validate_mate_field(proof, provider=provider)
+    value = accessible_ui.adapter_failure_diagnostic(caught.value)
+    assert value['authentication_field_state'] == {
+        'provider': provider, **{key: proof[key] for key in (
+            'showing', 'sensitive', 'focused', 'stale')}}
+    assert 'length' not in json.dumps(value)
+    assert 'PRIVATE_' not in json.dumps(value)
+
+
+@pytest.mark.parametrize('invalid', [
+    {'provider': 'PRIVATE_ACCOUNT', 'showing': True, 'sensitive': True,
+     'focused': False, 'stale': False},
+    {'provider': 'mate', 'showing': True, 'sensitive': True,
+     'focused': 'PRIVATE_PASSWORD', 'stale': False},
+    {'provider': 'mate', 'showing': True, 'sensitive': True,
+     'focused': False, 'stale': False, 'text': 'PRIVATE_PASSWORD'},
+])
+def test_authentication_field_diagnostic_refuses_unapproved_values(invalid):
+    error = UiError('ui:mate-field-state')
+    error.authentication_field_state = invalid
+    value = accessible_ui.adapter_failure_diagnostic(error)
+    assert 'authentication_field_state' not in value
     assert 'PRIVATE_' not in json.dumps(value)
 
 
@@ -4676,6 +4795,7 @@ def test_fresh_desktop_refusal_retains_prompt_facts_without_private_ui_values(ki
     assert diagnostic['system_prompts'] == [{
         'kind': 'unknown' if kind == 'directory-language' else kind,
         'source': 'directory-language' if kind == 'directory-language' else 'other',
+        'application_id': 'missing', 'surface_id': 'missing',
         'role': 'dialog', 'password_control': kind in ('mate-polkit', 'shell-polkit', 'keyring'),
         'authentication_title': False,
     }]
@@ -4684,15 +4804,51 @@ def test_fresh_desktop_refusal_retains_prompt_facts_without_private_ui_values(ki
         control.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['', 'kind', 'source', 'role', 'boolean', 'extra', 'bound'])
+@pytest.mark.parametrize('source, expected', [
+    ('user-dirs-update-gtk', 'directory-language'),
+    ('gnome-session-failed', 'session-error'),
+    ('zenity', 'system-message'),
+    ('apport-gtk', 'crash-report'),
+    ('PRIVATE_APPLICATION', 'other'),
+])
+@pytest.mark.parametrize('known_ids', [False, True])
+def test_unknown_prompt_identity_diagnostic_preserves_refusal_without_private_values(
+        source, expected, known_ids):
+    ui, controls = semantic_prompt('unknown')
+    application = ui.api.get_desktop(0).children[0]
+    application.name = source
+    application.identity = ('com.puffyslippers.OhNoParentControl.KioskNotifications'
+                            if known_ids else 'PRIVATE_APPLICATION_ID')
+    application.children[0].identity = ('kiosk-system-notification'
+                                       if known_ids else 'PRIVATE_SURFACE_ID')
+    application.children[0].name = 'PRIVATE_DIALOG_AND_ACCOUNT'
+    ui.prompt_enabled = True
+    ui.prompt_session = 'station'
+    with pytest.raises(UiError, match='^ui:system-prompt-refused:station:unknown$') as caught:
+        ui.handle_system_prompt()
+    prompts = accessible_ui.adapter_failure_diagnostic(caught.value)['system_prompts']
+    assert prompts == [{
+        'kind': 'unknown', 'source': expected, 'role': 'dialog',
+        'password_control': False, 'authentication_title': False,
+        'application_id': application.identity if known_ids else 'other',
+        'surface_id': 'kiosk-system-notification' if known_ids else 'other',
+    }]
+    assert 'PRIVATE_' not in json.dumps(prompts)
+    for control in controls:
+        control.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'kind', 'source', 'role', 'application_id',
+                                  'surface_id', 'boolean', 'extra', 'bound'])
 def test_prompt_failure_diagnostic_is_bounded_in_the_real_isolated_payload(tmp_path, fault):
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({
         'operation': 'desktop', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
     }).encode()))
     UiObservations(transport).observe('desktop')
     prompt = {'kind': 'unknown', 'source': 'directory-language', 'role': 'dialog',
+              'application_id': 'missing', 'surface_id': 'missing',
               'password_control': False, 'authentication_title': False}
-    if fault in ('kind', 'source', 'role'):
+    if fault in ('kind', 'source', 'role', 'application_id', 'surface_id'):
         prompt[fault] = 'PRIVATE_UI_VALUE'
     elif fault == 'boolean':
         prompt['password_control'] = 'PRIVATE_PASSWORD'

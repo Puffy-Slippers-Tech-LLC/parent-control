@@ -1127,6 +1127,25 @@ CHILD_APPLICATION = 'com.puffyslippers.OhNoParentControl.ChildRequest'
 CHILD_PANEL_APPLICATION = 'com.puffyslippers.OhNoParentControl.ChildUI'
 WATCH_APPLICATION = 'org.onpc.E2EWatch'
 PRODUCT_APPLICATIONS = (PARENT_APPLICATION, KIOSK_APPLICATION, CHILD_APPLICATION)
+PROMPT_DIAGNOSTIC_APPLICATION_IDS = (
+    *PRODUCT_APPLICATIONS, CHILD_PANEL_APPLICATION,
+    'com.puffyslippers.OhNoParentControl.KioskNotifications', WATCH_APPLICATION,
+)
+PROMPT_DIAGNOSTIC_SURFACE_IDS = (
+    'language-dialog', 'update-required-dialog', 'startup-error-dialog',
+    'kiosk-system-notification', 'kiosk-request-window', 'parent-window',
+)
+PROMPT_DIAGNOSTIC_SOURCES = {
+    'user-dirs-update-gtk': 'directory-language',
+    'gnome-session-failed': 'session-error',
+    'zenity': 'system-message',
+    'apport-gtk': 'crash-report',
+}
+
+
+def prompt_diagnostic_id(identity, approved):
+    """Report only fixed public IDs; unknown identities may contain private text."""
+    return identity if identity in approved else 'other' if identity else 'missing'
 
 
 def owned_applications(identity):
@@ -8325,8 +8344,17 @@ class AccessibleUI:
     def validate_mate_field(proof, *, provider='mate'):
         require(provider in ('mate', 'shell'), 'ui:authentication-provider')
         require(not proof['stale'], 'ui:' + provider + '-owner')
-        require(all(proof[key] for key in ('showing', 'sensitive', 'focused')),
-                'ui:' + provider + '-field-state')
+        try:
+            require(all(proof[key] for key in ('showing', 'sensitive', 'focused')),
+                    'ui:' + provider + '-field-state')
+        except UiError as error:
+            # Preserve the refusal and the existing read. Only public state
+            # flags reach diagnostics; never retain password text or length.
+            error.authentication_field_state = {
+                'provider': provider,
+                **{key: proof[key] for key in ('showing', 'sensitive', 'focused', 'stale')},
+            }
+            raise
         require(type(proof['length']) is int and proof['length'] == 0,
                 'ui:' + provider + '-field-not-empty')
 
@@ -9787,8 +9815,12 @@ class AccessibleUI:
                         # facts come from this same complete refusal snapshot.
                         diagnostics.append({
                             'kind': kind or 'unknown',
-                            'source': ('directory-language' if facts[application]['name'].casefold()
-                                       == 'user-dirs-update-gtk' else 'other'),
+                            'source': PROMPT_DIAGNOSTIC_SOURCES.get(
+                                facts[application]['name'].casefold(), 'other'),
+                            'application_id': prompt_diagnostic_id(
+                                identities[application], PROMPT_DIAGNOSTIC_APPLICATION_IDS),
+                            'surface_id': prompt_diagnostic_id(
+                                identities[surface], PROMPT_DIAGNOSTIC_SURFACE_IDS),
                             'role': (facts[surface]['role'] if facts[surface]['role']
                                      in ('alert', 'dialog') else 'other-modal'),
                             'password_control': password, 'authentication_title': prompt_title,
@@ -10946,6 +10978,94 @@ def allowance_failure_diagnostic(ui=None):
     return diagnostic
 
 
+CRASH_DIAGNOSTIC_EXECUTABLES = {
+    '/usr/bin/oh-no-parent-control': 'request-app',
+    '/usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/main.py': 'request-app',
+    '/usr/lib/oh-no-parent-control/kiosk/oh_no_parent_control_kiosk/notifications.py': 'notifications',
+    '/usr/bin/gnome-kiosk': 'compositor',
+    '/usr/bin/gnome-session-binary': 'session',
+    '/usr/libexec/gnome-session-binary': 'session',
+    '/usr/bin/mate-polkit': 'authentication-agent',
+    '/usr/libexec/polkit-mate-authentication-agent-1': 'authentication-agent',
+    '/usr/bin/apport-gtk': 'crash-reporter',
+}
+
+
+def crash_report_diagnostic(directory='/var/crash'):
+    """Read only bounded, caller-owned reports after a crash-dialog refusal.
+
+    No filenames, raw report fields, arguments, environment, exception messages,
+    account names or core bytes are emitted. This runs after dropping privileges
+    to the bound observation user and never changes a report or dismisses UI.
+    Report age is diagnostic context, not proof of which attempt caused it.
+    """
+    diagnostic = {'event': 'crash-report-diagnostic', 'status': 'read',
+                  'reports': [], 'unavailable': 0, 'bounded': False}
+    try:
+        with os.scandir(directory) as entries:
+            for index, entry in enumerate(entries):
+                if index >= 32 or len(diagnostic['reports']) >= 8:
+                    diagnostic['bounded'] = True
+                    break
+                if not entry.name.endswith('.crash'):
+                    continue
+                try:
+                    # Pin the file; reject links, special files and other users.
+                    fd = os.open(entry.path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                    with os.fdopen(fd, 'rb') as stream:
+                        info = os.fstat(stream.fileno())
+                        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                                or info.st_uid != os.geteuid()):
+                            continue
+                        raw = stream.read(65537)
+                        prefix = raw[:65536]
+                        tail = b''
+                        middle_omitted = info.st_size > 131072
+                        if len(raw) > 65536:
+                            # Apport's Python traceback can follow large process
+                            # metadata. Read the tail on the same pinned file,
+                            # keeping total I/O below 129 KiB per report.
+                            stream.seek(max(65536, info.st_size - 65536))
+                            tail = stream.read(65536)
+                            if middle_omitted:
+                                # Do not manufacture matches from cut lines or
+                                # concatenate across an unread middle region.
+                                prefix = prefix.rpartition(b'\n')[0] + b'\n'
+                                tail = tail.partition(b'\n')[2]
+                    text = (prefix + tail).decode('utf-8', errors='replace')
+                    fields = dict(re.findall(
+                        r'^(ExecutablePath|InterpreterPath|Signal|ProblemType): ([^\n]*)$',
+                        text, re.MULTILINE))
+                    signal = fields.get('Signal', '')
+                    frames = re.findall(
+                        r'File "/usr/lib/oh-no-parent-control/kiosk/'
+                        r'oh_no_parent_control_kiosk/(main|notifications|agent_locale)\.py", '
+                        r'line ([0-9]{1,6})\b', text)
+                    diagnostic['reports'].append({
+                        'executable': CRASH_DIAGNOSTIC_EXECUTABLES.get(
+                            fields.get('ExecutablePath'), 'other'),
+                        'python': bool(re.fullmatch(r'/usr/bin/python3(?:\.[0-9]{1,2})?',
+                                                   fields.get('InterpreterPath', ''))),
+                        'problem': fields.get('ProblemType') if fields.get('ProblemType')
+                                   in ('Crash', 'KernelCrash') else 'other',
+                        'signal': int(signal) if signal.isascii() and signal.isdecimal()
+                                  and len(signal) <= 2 and 0 < int(signal) <= 64 else None,
+                        'age_seconds': max(0, min(10**9, int(time.time() - info.st_mtime))),
+                        'middle_omitted': middle_omitted,
+                        'frames': [{'module': module, 'line': int(line)}
+                                   for module, line in frames[-8:]],
+                        'exception_types': re.findall(
+                            r'^ ?(TypeError|ValueError|RuntimeError|AttributeError|ImportError|'
+                            r'ModuleNotFoundError|RecursionError|NameError|AssertionError|'
+                            r'OSError):', text, re.MULTILINE)[-8:],
+                    })
+                except (OSError, ValueError):
+                    diagnostic['unavailable'] += 1
+    except OSError:
+        diagnostic['status'] = 'unavailable'
+    return diagnostic
+
+
 def main():
     require(len(sys.argv) in (3, 4, 5, 6) and sys.argv[1] in OPERATIONS, 'ui:arguments')
     child = sys.argv[5] if len(sys.argv) == 6 else None
@@ -11020,7 +11140,16 @@ def main():
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)
-    except UiError:
+    except UiError as error:
+        if (sys.argv[1] == 'kiosk-request-form' and any(
+                item.get('source') == 'crash-report'
+                for item in getattr(error, 'system_prompts', ()) or ())):
+            try:
+                print(json.dumps(crash_report_diagnostic(), sort_keys=True),
+                      file=sys.stderr, flush=True)
+            except Exception:
+                # Diagnostics must never replace the original guarded refusal.
+                print('ui:crash-diagnostic-unavailable', file=sys.stderr, flush=True)
         if (sys.argv[1] in ALLOWANCE_OPERATIONS or sys.argv[1] in CUSTOM_ALLOWANCE_OPERATIONS
                 or sys.argv[1] in ALLOWANCE_KEYBOARD_OPERATIONS):
             print(json.dumps(allowance_failure_diagnostic(ui), sort_keys=True),
@@ -11085,12 +11214,22 @@ def adapter_failure_diagnostic(error):
         diagnostic['absence_reads'] = absence_reads[-8:]
     if cache_provider:
         diagnostic['cache_provider'] = cache_provider
+    field_state = getattr(error, 'authentication_field_state', None)
+    if (type(field_state) is dict and set(field_state) == {
+            'provider', 'showing', 'sensitive', 'focused', 'stale'}
+            and field_state['provider'] in ('mate', 'shell')
+            and all(type(field_state[key]) is bool
+                    for key in ('showing', 'sensitive', 'focused', 'stale'))):
+        diagnostic['authentication_field_state'] = dict(field_state)
     prompts = getattr(error, 'system_prompts', None)
     if type(prompts) is list and 0 < len(prompts) <= 8 and all(
             type(item) is dict and set(item) == {
-                'kind', 'source', 'role', 'password_control', 'authentication_title'}
+                'kind', 'source', 'role', 'password_control', 'authentication_title',
+                'application_id', 'surface_id'}
             and item['kind'] in ('mate-polkit', 'shell-polkit', 'keyring', 'unknown')
-            and item['source'] in ('directory-language', 'other')
+            and item['source'] in (*PROMPT_DIAGNOSTIC_SOURCES.values(), 'other')
+            and item['application_id'] in (*PROMPT_DIAGNOSTIC_APPLICATION_IDS, 'other', 'missing')
+            and item['surface_id'] in (*PROMPT_DIAGNOSTIC_SURFACE_IDS, 'other', 'missing')
             and item['role'] in ('alert', 'dialog', 'other-modal')
             and type(item['password_control']) is bool
             and type(item['authentication_title']) is bool for item in prompts):

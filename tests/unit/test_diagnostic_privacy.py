@@ -1,10 +1,12 @@
 """Exercise the privacy boundary before storage and again before transport."""
 
 import ast
+import errno
 from datetime import datetime, timedelta
 from io import BytesIO
 import json
 import logging
+import os
 from pathlib import Path
 from zipfile import ZipFile, ZipInfo
 from zoneinfo import ZoneInfo
@@ -18,6 +20,8 @@ from oh_no_parent_control.logs import DailyLogWriter, BrokerFileHandler
 from oh_no_parent_control.grant_diagnostics import GrantDiagnostics
 from oh_no_parent_control.extension_manager import _stderr_reason, ExtensionManager
 from oh_no_parent_control.adapters import AccountsService
+from oh_no_parent_control.app_termination import AppTerminationError, RunningAppTerminator
+from oh_no_parent_control.core import AccessDenied, BackendFailure, RollbackFailure
 from oh_no_parent_control.service import Service, BUS_NAME
 from gi.repository import GLib
 from types import SimpleNamespace
@@ -30,6 +34,367 @@ SECRET = "Child Name /home/private-user/private-file private@example.test secret
 class PrivateError(Exception):
     def __str__(self):
         raise AssertionError("Exception text must not be inspected")
+
+
+@pytest.mark.parametrize("failure,stage,cause_type,os_error", [
+    ("flatpak-exit", "flatpak-termination", "other", "none"),
+    ("flatpak-timeout", "flatpak-termination", "TimeoutExpired", "none"),
+    ("native-permission", "native-termination", "PermissionError", "permission-denied"),
+    ("native-malformed", "native-termination", "other", "none"),
+    ("catalog", "application-identity", "other", "none"),
+])
+def test_termination_failure_survives_broker_translation_and_customer_export(
+        tmp_path, monkeypatch, caplog, failure, stage, cause_type, os_error):
+    """Exercise the failed request/rollback path, without live apps or OS writes."""
+    import subprocess
+
+    proc = tmp_path / "proc"
+    uid = os.getuid()
+    proc.mkdir()
+    process = proc / "60579"
+    process.mkdir()
+    # Invalid ownership input must be diagnosed without exporting its contents.
+    (process / "status").write_text("Uid:\t" + SECRET + "\n")
+    runtime = tmp_path / "runtime"
+    (runtime / str(uid) / ".flatpak").mkdir(parents=True)
+    terminator = RunningAppTerminator(proc_root=proc, runtime_root=runtime)
+    identity = SimpleNamespace(pw_uid=uid, pw_gid=1101, pw_dir=SECRET)
+    monkeypatch.setattr(terminator, "_identity", lambda _uid: identity)
+    terminator._pidfd_send_signal = Mock()
+    descriptors = []
+
+    def pin(_pid, _flags):
+        if failure == "native-permission":
+            raise PermissionError(errno.EPERM, SECRET, SECRET)
+        fd = os.open("/dev/null", os.O_RDONLY)
+        descriptors.append(fd)
+        return fd
+
+    monkeypatch.setattr(terminator, "_pidfd_open", pin)
+
+    def flatpak(_command, **kwargs):
+        if failure == "flatpak-timeout":
+            raise subprocess.TimeoutExpired([SECRET], 5, output=SECRET, stderr=SECRET)
+        kwargs["stdout"].write(SECRET.encode())
+        return SimpleNamespace(returncode=1)
+
+    def catalog(_uid):
+        raise PrivateError(SECRET)
+
+    broker = make_broker(running_apps=terminator)
+    targets = ("org.example.Game",) if failure.startswith("flatpak") else ("/private/game",)
+    desired = (False, targets)
+    caplog.set_level(logging.INFO)
+    with monkeypatch.context() as scoped:
+        scoped.setattr("oh_no_parent_control.app_termination.subprocess.run", flatpak)
+        if failure == "catalog":
+            # Preflight succeeds; the second catalogue lookup fails at commit.
+            lookups = iter(((), None))
+
+            def changing_catalog(uid):
+                result = next(lookups)
+                return result if result is not None else catalog(uid)
+
+            scoped.setattr(terminator, "_application_catalog", changing_catalog)
+        with events.operation() as operation:
+            with pytest.raises(BackendFailure, match="account update failed"):
+                broker._apply(uid, {"daily_time_limit_minutes": 60}, desired,
+                              (123456, 60), "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72", ())
+    # The strict filter remains and no new grant is published after failure.
+    assert broker._accounts.filter == desired
+    assert broker._accounts.extension == (1, 2)
+    terminator._pidfd_send_signal.assert_not_called()
+    for fd in descriptors:
+        with pytest.raises(OSError):
+            os.fstat(fd)
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    failure_events = [value for value in decoded if value["event"] == "app-termination.failure"]
+    assert len(failure_events) == 1
+    assert failure_events[0]["fields"] == {
+        "stage": stage, "cause_type": cause_type, "os_error": os_error}
+    assert failure_events[0]["operation"] == operation
+    faults = [value for value in decoded if value["event"] == "runtime.fault"]
+    assert any(value["fields"]["source"] == "app-termination"
+               and value["fields"]["line"] > 0 for value in faults)
+    names = [value["event"] for value in decoded]
+    assert names.index("app-termination.failure") < names.index("core.040")
+    commands = [value for value in decoded if value["event"] == "app-termination.flatpak-command"]
+    assert [value["fields"] for value in commands] == (
+        [{"command": "ps", "exit_code": 1}] if failure == "flatpak-exit" else [])
+
+    writer = DailyLogWriter(tmp_path / "logs")
+    handler = BrokerFileHandler(writer)
+    for record in caplog.records:
+        assert not record.args and not record.exc_info
+        handler.emit(record)
+    bundle = writer.snapshot()
+    validate_bundle(bundle)
+    with ZipFile(BytesIO(bundle)) as archive:
+        exported = "".join(archive.read(name).decode() for name in archive.namelist())
+    assert "blocked-app operation failed stage=" + stage in exported
+    assert "source=app-termination" in exported
+    for private in (SECRET, "60579", "/private/game", "1101", "123456"):
+        assert private not in exported
+        assert private not in caplog.text
+
+
+@pytest.mark.parametrize("operation,stage", [("preflight", "preflight"),
+                                           ("has_running", "running-query")])
+def test_termination_discovery_failures_never_format_private_errors(
+        monkeypatch, caplog, operation, stage):
+    terminator = RunningAppTerminator()
+
+    def fail(_uid):
+        raise PrivateError(SECRET)
+
+    monkeypatch.setattr(terminator, "_identity", fail)
+    with pytest.raises(PrivateError):
+        getattr(terminator, operation)(1001, (), ())
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    assert decoded[0]["fields"] == {
+        "stage": stage, "cause_type": "other", "os_error": "none"}
+    assert SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("capture", [False, True])
+@pytest.mark.parametrize("code,expected", [(0, 0), (1, 1), (-9, -9), (999999, 256), (SECRET, 256)])
+def test_flatpak_exit_status_projection_never_logs_arguments_or_output(
+        monkeypatch, caplog, capture, code, expected):
+    terminator = RunningAppTerminator()
+
+    def run(_command, **kwargs):
+        if capture:
+            kwargs["stdout"].write(SECRET.encode())
+        return SimpleNamespace(returncode=code)
+
+    monkeypatch.setattr("oh_no_parent_control.app_termination.subprocess.run", run)
+    caplog.set_level(logging.INFO)
+    terminator._run_flatpak(SimpleNamespace(pw_uid=1001, pw_gid=1101, pw_dir=SECRET),
+                            ["ps" if capture else "kill", SECRET], capture=capture)
+    value = events.decode(caplog.records[-1].onpc_payload)
+    assert value["fields"] == {"command": "ps" if capture else "kill", "exit_code": expected}
+    assert SECRET not in caplog.text
+
+
+def test_visible_exception_chain_survives_customer_export_without_private_data(tmp_path, caplog):
+    import subprocess
+
+    try:
+        try:
+            raise subprocess.CalledProcessError(-9, [SECRET], output=SECRET, stderr=SECRET)
+        except subprocess.CalledProcessError as cause:
+            raise BackendFailure(SECRET) from cause
+    except BackendFailure as error:
+        with events.operation() as operation:
+            events.record_exception(error)
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    causes = [value for value in decoded if value["event"] == "runtime.failure-cause"]
+    assert [(value["fields"]["depth"], value["fields"]["link"],
+             value["fields"]["error_type"], value["fields"]["exit_code"])
+            for value in causes] == [(0, "self", "BackendFailure", 256),
+                                    (1, "cause", "CalledProcessError", -9)]
+    assert all(value["operation"] == operation for value in decoded)
+    assert decoded[-2]["fields"] == {"count": 2, "end": "complete"}
+    assert decoded[-1]["event"] == "runtime.fault"
+    writer = DailyLogWriter(tmp_path / "logs")
+    handler = BrokerFileHandler(writer)
+    for record in caplog.records:
+        handler.emit(record)
+    with ZipFile(BytesIO(validate_bundle(writer.snapshot()))) as archive:
+        exported = "".join(archive.read(name).decode() for name in archive.namelist())
+    assert "link=cause" in exported and "exit_code=-9" in exported
+    assert SECRET not in exported and SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("remaining", [False, True])
+def test_flatpak_post_kill_verification_records_remaining_count_without_instance_identity(
+        tmp_path, monkeypatch, caplog, remaining):
+    runtime = tmp_path / "runtime"
+    (runtime / "1001" / ".flatpak").mkdir(parents=True)
+    terminator = RunningAppTerminator(runtime_root=runtime)
+    identity = SimpleNamespace(pw_uid=1001, pw_gid=1101, pw_dir=SECRET)
+    monkeypatch.setattr(terminator, "preflight", lambda *_args: None)
+    monkeypatch.setattr(terminator, "_identity", lambda _uid: identity)
+    instance = (("60579", "app/org.example.Game/x86_64/stable"),)
+    observations = iter((instance, instance if remaining else ()))
+    monkeypatch.setattr(terminator, "_flatpak_instances", lambda _identity: next(observations))
+    kill = Mock(return_value=SimpleNamespace(returncode=0))
+    monkeypatch.setattr(terminator, "_run_flatpak", kill)
+    caplog.set_level(logging.INFO)
+    if remaining:
+        with pytest.raises(AppTerminationError, match="still running"):
+            terminator.terminate(1001, ("org.example.Game",), ())
+    else:
+        assert terminator.terminate(1001, ("org.example.Game",), ()) == 1
+    kill.assert_called_once_with(identity, ["kill", "60579"], capture=False)
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    assert [value["fields"]["stage"] for value in decoded
+            if value["event"] == "app-termination.flatpak-stage"] == [
+                "discover", "terminate", "verify"]
+    assert next(value["fields"] for value in decoded
+                if value["event"] == "app-termination.flatpak-verification") == {
+                    "selected_count": 1, "remaining_count": int(remaining)}
+    assert "60579" not in caplog.text and SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("shape,count,end", [("cycle", 2, "cycle"),
+                                            ("long", 9, "limit"),
+                                            ("hidden", 1, "complete"),
+                                            ("context", 2, "complete")])
+def test_exception_chain_bounds_and_visible_context_never_format_errors(caplog, shape, count, end):
+    error = PrivateError(SECRET)
+    if shape in {"cycle", "long"}:
+        following = PrivateError(SECRET)
+        error.__cause__ = following
+        if shape == "cycle":
+            following.__cause__ = error
+        else:
+            for _ in range(12):
+                following.__cause__ = PrivateError(SECRET)
+                following = following.__cause__
+    else:
+        error.__context__ = PrivateError(SECRET)
+        error.__suppress_context__ = shape == "hidden"
+    events.record_exception(error)
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    causes = [value for value in decoded if value["event"] == "runtime.failure-cause"]
+    assert len(causes) == count
+    assert [value["fields"]["depth"] for value in causes] == list(range(count))
+    if shape == "context":
+        assert causes[-1]["fields"]["link"] == "context"
+    assert decoded[-2]["fields"] == {"count": count, "end": end}
+    assert SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("errno_value,category", [(errno.EROFS, "read-only"),
+                                               (errno.ENOSPC, "resource-limit"),
+                                               (errno.EAFNOSUPPORT, "address-family-unavailable"),
+                                               (999999, "other")])
+def test_os_failure_categories_discard_messages_and_paths(caplog, errno_value, category):
+    events.record_exception(OSError(errno_value, SECRET, SECRET))
+    value = events.decode(caplog.records[0].onpc_payload)
+    assert value["fields"]["os_error"] == category
+    assert SECRET not in caplog.text
+
+
+def test_failed_provenance_collection_cannot_prevent_rollback(monkeypatch, caplog):
+    broker = make_broker()
+    primary = PermissionError(errno.EPERM, SECRET, SECRET)
+    broker._running_apps.error = primary
+
+    def fail_provenance(_error):
+        raise PrivateError(SECRET)
+
+    monkeypatch.setattr(events, "_record_exception", fail_provenance)
+    desired = (False, ("org.example.Game",))
+    with pytest.raises(BackendFailure) as caught:
+        broker._apply(1001, {"daily_time_limit_minutes": 60}, desired,
+                      (123456, 60), "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72", ())
+    assert caught.value.__cause__ is primary
+    assert broker._accounts.extension == (1, 2)
+    assert broker._accounts.filter == desired
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    assert any(value["event"] == "runtime.failure-unavailable" for value in decoded)
+    assert SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("broken", ["metadata", "sink"])
+def test_termination_diagnostics_cannot_replace_the_original_exception(monkeypatch, caplog, broken):
+    class UnreadableCause(PrivateError):
+        def __getattribute__(self, name):
+            if name == "__cause__":
+                raise PrivateError(SECRET)
+            return super().__getattribute__(name)
+
+    primary = UnreadableCause(SECRET) if broken == "metadata" else PrivateError(SECRET)
+    terminator = RunningAppTerminator()
+
+    def fail_identity(_uid):
+        raise primary
+
+    def fail_sink(*_args, **_kwargs):
+        raise PrivateError(SECRET)
+
+    monkeypatch.setattr(terminator, "_identity", fail_identity)
+    if broken == "sink":
+        monkeypatch.setattr(events.EventLogger, "_emit", fail_sink)
+    with pytest.raises(type(primary)) as caught:
+        terminator.preflight(1001, (), ())
+    assert caught.value is primary
+    if broken == "metadata":
+        assert events.decode(caplog.records[-1].onpc_payload)["event"] == "runtime.failure-unavailable"
+    assert SECRET not in caplog.text
+
+
+def test_primary_failure_is_retained_before_rollback_replaces_it(monkeypatch, caplog):
+    broker = make_broker()
+    broker._running_apps.error = PermissionError(errno.EPERM, SECRET, SECRET)
+
+    def fail_rollback(_uid, _value):
+        raise OSError(errno.EROFS, SECRET, SECRET)
+
+    monkeypatch.setattr(broker._accounts, "set_extension", fail_rollback)
+    with pytest.raises(RollbackFailure) as caught:
+        broker._apply(1001, {"daily_time_limit_minutes": 60},
+                      (False, ("org.example.Game",)), (123456, 60),
+                      "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72", ())
+    events.record_exception(caught.value)
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    rollback = next(index for index, value in enumerate(decoded)
+                    if value["event"] == "core.040")
+    assert any(value["event"] == "runtime.failure-cause"
+               and value["fields"]["os_error"] == "permission-denied"
+               for value in decoded[:rollback])
+    assert any(value["event"] == "runtime.failure-cause"
+               and value["fields"]["os_error"] == "read-only"
+               for value in decoded[rollback:])
+    # The caller still receives the unchanged rollback failure, whose explicit
+    # cause replaces the primary failure. The pre-rollback record preserves it.
+    assert broker._accounts.extension == (1, 2)
+    assert SECRET not in caplog.text
+
+
+@pytest.mark.parametrize("worker,method,arguments", [
+    ("_request_worker", "request_access", (991, SECRET, 1001, 1003, 60, False)),
+    ("_request_own_worker", "request_own_access", (1001, SECRET, 1003, 60, False)),
+    ("_prepare_own_session_worker", "prepare_own_session", (1001,)),
+])
+@pytest.mark.parametrize("failure", ["backend", "unexpected", "denied"])
+def test_async_failure_provenance_precedes_reply_without_logging_normal_denial(
+        monkeypatch, caplog, worker, method, arguments, failure):
+    service = Service.__new__(Service)
+    replies = []
+
+    def fail(*_args):
+        if failure == "denied":
+            raise AccessDenied("administrator access is required")
+        try:
+            raise PermissionError(errno.EACCES, SECRET, SECRET)
+        except PermissionError as cause:
+            if failure == "backend":
+                raise BackendFailure("backend unavailable") from cause
+            raise PrivateError(SECRET) from cause
+
+    service.broker = SimpleNamespace(**{method: fail})
+
+    def queue_reply(callback, *args):
+        replies.append((args, tuple(caplog.records)))
+
+    monkeypatch.setattr(GLib, "idle_add", queue_reply)
+    getattr(service, worker)(Mock(), *arguments)
+    assert len(replies) == 1
+    assert replies[0][0][1] == BUS_NAME + ".Error." + (
+        "AccessDenied" if failure == "denied" else "BackendFailure" if failure == "backend" else "Failed")
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    causes = [value for value in decoded if value["event"] == "runtime.failure-cause"]
+    if failure == "denied":
+        assert causes == []
+    else:
+        assert causes[-1]["fields"]["os_error"] == "permission-denied"
+        assert any(events.decode(record.onpc_payload)["event"] == "runtime.failure-cause"
+                   for record in replies[0][1])
+        assert all(value["operation"] == decoded[0]["operation"] > 0 for value in decoded)
+    assert SECRET not in caplog.text
 
 
 def test_pending_reboot_cause_survives_customer_export_without_machine_identity(tmp_path, caplog):
@@ -286,8 +651,10 @@ def test_rejected_account_context_is_bounded_and_unknown_on_read_failure(
 @pytest.mark.parametrize("event_id,definition", list(events.CATALOG.items()))
 def test_every_catalog_field_rejects_arbitrary_text(event_id, definition):
     def example(spec):
+        if spec["type"] == "enum":
+            return spec["values"][0]
         return {"bool": False, "int": spec.get("min", 0), "number": 0,
-                "enum": "other", "version": "1.2", "request": "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72",
+                "version": "1.2", "request": "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72",
                 "local-timestamp": "2026-09-11T16:16:21.123-07:00"}[spec["type"]]
     values = {key: example(spec) for key, spec in definition["fields"].items()}
     events.decode(events.encode(events.event(event_id, values)))

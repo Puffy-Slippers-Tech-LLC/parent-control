@@ -3405,7 +3405,14 @@ class AccessibleUI:
                 raise UiError('ui:save-refusal-missing')
         elif step in ('open', 'reopen'):
             self.wait_feedback_collection()
-            require(self.chooser_snapshot(mode='save', absent=True), 'ui:chooser-already-open')
+            def unopened():
+                # A cancelled portal provider can retire between enumeration
+                # and GetItems. Only a complete fresh read proves absence;
+                # a present chooser still refuses immediately. Download stays
+                # outside the read retry so it is never replayed.
+                require(self.chooser_snapshot(mode='save', absent=True), 'ui:chooser-already-open')
+                return True
+            self.wait(unopened, 'save-chooser-entry', prompt_in_predicate=True)
             self.activate_id('feedback-download-logs')
             def ready():
                 try:
@@ -4887,6 +4894,8 @@ class AccessibleUI:
         return self.clickable_link('about-' + link + '-value', root=root)
 
     def overlay_about_closed(self):
+        self.overlay_about_scope(opened=True)
+        self.close_id('about-dialog')
         self.wait(lambda: self.absent_id('about-dialog', within='kiosk-request-window'),
                   'overlay-about-close')
         self.overlay_about_scope(opened=False)

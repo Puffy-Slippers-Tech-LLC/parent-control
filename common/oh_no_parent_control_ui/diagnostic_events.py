@@ -8,6 +8,7 @@ types alone cannot determine whether a number represents personal information.
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime
+import errno
 from functools import wraps
 import json
 import logging
@@ -15,6 +16,7 @@ import math
 import re
 from pathlib import Path
 import sys
+import subprocess
 import threading
 import uuid
 
@@ -299,7 +301,49 @@ FAULT_SOURCES = {
 }
 
 
-def record_exception(error):
+MAX_EXCEPTION_CHAIN = 9
+
+
+def _exception_chain(error):
+    """Follow Python's visible cause chain, bounded even for cyclic exceptions."""
+    chain, seen, link = [], set(), "self"
+    while len(chain) < MAX_EXCEPTION_CHAIN:
+        if id(error) in seen:
+            return chain, "cycle"
+        seen.add(id(error))
+        chain.append((error, link))
+        if error.__cause__ is not None:
+            error, link = error.__cause__, "cause"
+        elif not error.__suppress_context__ and error.__context__ is not None:
+            error, link = error.__context__, "context"
+        else:
+            return chain, "complete"
+    return chain, "cycle" if id(error) in seen else "limit"
+
+
+def exception_cause(error):
+    """Deepest retained visible cause; never a claim beyond the chain bound."""
+    return _exception_chain(error)[0][-1][0]
+
+
+def os_error_code(error):
+    """Project OS metadata only; exception text and filenames are never read."""
+    if not isinstance(error, OSError):
+        return "none"
+    if type(error.errno) is not int:
+        return "other"
+    return {
+        errno.EACCES: "permission-denied", errno.EPERM: "permission-denied",
+        errno.ENOENT: "not-found", errno.ESRCH: "process-exited",
+        errno.EIO: "io", errno.EINVAL: "invalid", errno.EROFS: "read-only",
+        errno.ENOSYS: "unsupported", errno.EOPNOTSUPP: "unsupported",
+        errno.EAFNOSUPPORT: "address-family-unavailable",
+        errno.EMFILE: "resource-limit", errno.ENFILE: "resource-limit",
+        errno.ENOMEM: "resource-limit", errno.ENOSPC: "resource-limit",
+    }.get(error.errno, "other")
+
+
+def _fault_location(error):
     source, line = "other", 0
     current = error.__traceback__
     for _ in range(128):
@@ -310,7 +354,40 @@ def record_exception(error):
             source = FAULT_SOURCES[module]
             line = min(50000, max(0, current.tb_lineno))
         current = current.tb_next
-    get_logger("runtime").error("runtime.fault", error_type=error_code(error), source=source, line=line)
+    return source, line
+
+
+def record_exception(error):
+    """Retain cause provenance before a public error or rollback replaces it.
+
+    Only exception classes, OS/subprocess metadata and reviewed shipped-module
+    locations are inspected. No messages, arguments, output, paths or locals.
+    Preserve the existing top-level fault event for older readers.
+    """
+    try:
+        _record_exception(error)
+    except Exception:
+        # Diagnostics are best effort. A broken metadata accessor or log sink
+        # must never replace the original failure or prevent its rollback.
+        try:
+            get_logger("runtime").error("runtime.failure-unavailable")
+        except Exception:
+            pass
+
+
+def _record_exception(error):
+    chain, end = _exception_chain(error)
+    logger = get_logger("runtime")
+    for depth, (cause, link) in enumerate(chain):
+        source, line = _fault_location(cause)
+        code = cause.returncode if isinstance(cause, subprocess.CalledProcessError) else None
+        code = code if type(code) is int and -255 <= code <= 255 else 256
+        logger.error("runtime.failure-cause", depth=depth, link=link,
+                     error_type=error_code(cause), source=source, line=line,
+                     os_error=os_error_code(cause), exit_code=code)
+    logger.error("runtime.failure-chain", count=len(chain), end=end)
+    source, line = _fault_location(error)
+    logger.error("runtime.fault", error_type=error_code(error), source=source, line=line)
 
 
 def run_cli(callback):

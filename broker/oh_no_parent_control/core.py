@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception
 from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.localization import load_translations
@@ -384,6 +384,7 @@ class Broker:
                 # Once termination starts, processes cannot be restored. Keep
                 # the canonical strict filter active. Before that point,
                 # preserve the exact policy that preceded reconciliation.
+                record_exception(error)
                 if filter_changed and not termination_started:
                     try:
                         self._accounts.set_filter(target.uid, old_filter)
@@ -946,6 +947,7 @@ class Broker:
             # Retain the requested canonical policy so every requested block
             # remains enforced and its patterns remain available to the
             # execution-policy reconciler.
+            record_exception(error)
             if termination_started:
                 LOG.warning("core.013", error_type=error_code(error))
                 if isinstance(error, BrokerError):
@@ -1062,6 +1064,7 @@ class Broker:
                 return saved
             except Exception as error:
                 LOG.warning("core.018", error_type=error_code(error))
+                record_exception(error)
                 rollback_error = None
                 try:
                     self._restore(
@@ -1069,11 +1072,13 @@ class Broker:
                         old_extension, None,
                     )
                 except Exception as caught:
+                    record_exception(caught)
                     rollback_error = caught
                 try:
                     if extension_changed:
                         self._extensions.set_enabled(target.uid, previous)
                 except Exception as caught:
+                    record_exception(caught)
                     rollback_error = rollback_error or caught
                 if rollback_error is not None:
                     LOG.critical("core.019", error_type=error_code(rollback_error))
@@ -1146,6 +1151,7 @@ class Broker:
                 LOG.info("core.023")
             except Exception as error:
                 LOG.warning("core.024", error_type=error_code(error))
+                record_exception(error)
                 try:
                     self._write_extension(target.uid, old_extension)
                     rollback_filter = (
@@ -1426,6 +1432,9 @@ class Broker:
                 raise BackendFailure("extension verification failed")
             self._observe_grant(target_uid, *extension)
         except Exception as error:
+            # Preserve the primary failure even if rollback raises a different
+            # error with an explicit cause that hides the original context.
+            record_exception(error)
             if not snapshot_complete:
                 LOG.warning("core.039", request=correlation_id, error_type=error_code(error))
             elif termination_may_have_changed_processes:

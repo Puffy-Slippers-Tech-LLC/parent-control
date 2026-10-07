@@ -184,15 +184,28 @@ def test_overlay_help_and_about_use_fresh_owned_menu_without_following_help(monk
     help_link.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['', 'still-open', 'wrong-owner', 'missing-form', 'inactive-form'])
+@pytest.mark.parametrize('fault', ['', 'still-open', 'wrong-owner', 'missing-form', 'inactive-form',
+                                  'uncertain-input', 'close-error'])
 def test_overlay_close_requires_complete_absence_and_active_same_owner(monkeypatch, fault):
-    ui, owner, window, about, _ = about_tree(monkeypatch, opened=fault == 'still-open')
+    ui, owner, window, about, _ = about_tree(monkeypatch)
+    if fault == 'still-open': about.close.side_effect = lambda: None
     if fault == 'wrong-owner': owner.identity = a.KIOSK_APPLICATION
     if fault == 'missing-form': window.children.clear()
     if fault == 'inactive-form': window.states.discard('active')
+    if fault == 'uncertain-input': ui.input_uncertain = True
+    if fault == 'close-error': about.close.side_effect = a.UiError('ui:close-failed')
     if fault:
         with pytest.raises(a.UiError): ui.overlay_about_closed()
     else: ui.overlay_about_closed()
+    if fault in ('wrong-owner', 'missing-form', 'uncertain-input'):
+        about.close.assert_not_called()
+    else:
+        about.close.assert_called_once_with()
+    if fault == 'close-error':
+        assert ui.input_uncertain
+        with pytest.raises(a.UiError, match='ui:uncertain-input'):
+            ui.overlay_about_closed()
+        about.close.assert_called_once_with()
 
 
 @pytest.mark.parametrize('selector,qualification,plan', [

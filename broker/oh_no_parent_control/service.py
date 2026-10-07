@@ -30,7 +30,7 @@ from .adapters import (
 from .authorization import PolkitAuthorizer
 from .app_termination import RunningAppTerminator
 from .catalog import list_apps
-from .core import Broker, BrokerError, Busy, InvalidRequest
+from .core import Broker, BrokerError, Busy, InvalidRequest, BackendFailure, RollbackFailure
 from .extension_manager import ExtensionManager
 from .execution_policy import FapolicydPolicy, originally_permissive_policy
 from .logs import DailyLogWriter, configure_broker_logging
@@ -309,6 +309,7 @@ class Service:
             cap_uids = self.broker.clear_live_session_runtime_caps()
         except Exception as error:
             LOG.error("service.002", error_type=error_code(error))
+            record_exception(error)
         else:
             if cap_uids:
                 LOG.info("service.003", child_count=len(cap_uids))
@@ -352,11 +353,13 @@ class Service:
             daemon=True,
         ).start()
 
+    @operation_scope
     def _observe_grants(self):
         try:
             self.broker.observe_grants()
         except Exception as error:
             LOG.warning("service.grant-observation-failed", error_type=error_code(error))
+            record_exception(error)
 
     def _grant_changed(self, *_args):
         # Coalesce signal bursts; diagnostics must not create an unbounded
@@ -399,11 +402,13 @@ class Service:
             get_logger("runtime").info("runtime.health", probe=probe, status=status)
         return result
 
+    @operation_scope
     def _sync_execution_policy_after_signal(self):
         try:
             self.accounts.sync_execution_policy()
-        except Exception:
+        except Exception as error:
             LOG.error("service.004")
+            record_exception(error)
 
     def register(self):
         if self._registration_id is not None:
@@ -665,12 +670,15 @@ class Service:
                 LOG.info("service.008", method=method)
         except BrokerError as error:
             LOG.warning("service.009", method=method, error_type=error_code(error))
+            if isinstance(error, (BackendFailure, RollbackFailure)):
+                record_exception(error)
             invocation.return_dbus_error(error.dbus_name, str(error))
         except Exception as error:
             LOG.error("service.010", method=method, error_type=error_code(error))
             record_exception(error)
             invocation.return_dbus_error(f"{BUS_NAME}.Error.Failed", "service failure")
 
+    @operation_scope
     def _export_logs_worker(self, invocation, caller_uid):
         data = None
         try:
@@ -685,6 +693,7 @@ class Service:
             data = self.log_writer.snapshot(health=self._health_snapshot())
         except Exception as error:
             LOG.warning("service.011", error_type=error_code(error))
+            record_exception(error)
         GLib.idle_add(self._export_logs_done, invocation, caller_uid, data)
 
     def _export_logs_done(self, invocation, caller_uid, data):
@@ -719,9 +728,12 @@ class Service:
             GLib.idle_add(self._return_value, invocation, result)
         except BrokerError as error:
             LOG.warning("service.014", error_type=error_code(error))
+            if isinstance(error, (BackendFailure, RollbackFailure)):
+                record_exception(error)
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
             LOG.error("service.015", error_type=error_code(error))
+            record_exception(error)
             GLib.idle_add(
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
             )
@@ -737,9 +749,12 @@ class Service:
             GLib.idle_add(self._return_own_value, invocation, result)
         except BrokerError as error:
             LOG.warning("service.017", error_type=error_code(error))
+            if isinstance(error, (BackendFailure, RollbackFailure)):
+                record_exception(error)
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
             LOG.error("service.018", error_type=error_code(error))
+            record_exception(error)
             GLib.idle_add(
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
             )
@@ -755,9 +770,12 @@ class Service:
             )
         except BrokerError as error:
             LOG.warning("service.020", error_type=error_code(error))
+            if isinstance(error, (BackendFailure, RollbackFailure)):
+                record_exception(error)
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
             LOG.error("service.021", error_type=error_code(error))
+            record_exception(error)
             GLib.idle_add(
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
             )

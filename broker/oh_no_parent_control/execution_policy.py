@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import fnmatch
 import json
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception
 import os
 import platform
 import stat
@@ -349,12 +349,14 @@ class FapolicydPolicy:
                 self._reload()
             except Exception as error:
                 LOG.error("execution-policy.005", error_type=error_code(error))
+                record_exception(error)
                 try:
                     self._write_layers(previous)
                     self._reload()
                     self._last_notified_contents = previous
                 except Exception as rollback_error:
                     LOG.error("execution-policy.006", error_type=error_code(rollback_error))
+                    record_exception(rollback_error)
                     raise ExecutionPolicyError(
                         "execution-policy rollback could not be activated"
                     ) from rollback_error
@@ -383,6 +385,7 @@ class FapolicydPolicy:
                 self._reload()
             except Exception as error:
                 LOG.error("execution-policy.009", error_type=error_code(error))
+                record_exception(error)
                 if any(value is not None for value in previous):
                     try:
                         self._write_layers(previous)
@@ -390,6 +393,7 @@ class FapolicydPolicy:
                         self._last_notified_contents = previous
                     except Exception as rollback_error:
                         LOG.error("execution-policy.010", error_type=error_code(rollback_error))
+                        record_exception(rollback_error)
                         raise ExecutionPolicyError(
                             "execution-policy removal rollback could not be activated"
                         ) from rollback_error

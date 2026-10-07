@@ -2300,6 +2300,61 @@ def save_ui():
     return ui, window, field, accept, caller
 
 
+@pytest.mark.parametrize('operation', ['export-save-chooser-reopen',
+                                      'denied-export-save-chooser-open'])
+@pytest.mark.parametrize('fault', ['query', 'incomplete', 'persistent', 'already-open', 'prompt'])
+def test_save_entry_reacquires_complete_absence_before_single_download(monkeypatch, operation, fault):
+    # Same private tree/clock resources and compatible scheduling as FILE03.
+    ui, window, _, accept, caller = save_ui()
+    visible = set(window.states)
+    if fault != 'already-open':
+        window.states.clear()
+    now = [0.0]
+    ui.timeout = .4
+    ui.query_errors = (LookupError,)
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: now.__setitem__(0, now[0] + delay))
+    root = ui.root()
+    if fault == 'prompt':
+        root.children.append(Node(role='application', children=[
+            Node(role='dialog', states=('visible', 'showing', 'active', 'modal'))]))
+    attributes = root.get_attributes
+    reads = []
+
+    def read():
+        reads.append(now[0])
+        if fault == 'persistent' or (len(reads) == 1 and fault in ('query', 'incomplete')):
+            if fault == 'incomplete':
+                raise accessible_ui.UiError('ui:incomplete-tree')
+            raise LookupError('retired external provider')
+        return attributes()
+
+    root.get_attributes = read
+    download = next(node for node in caller.children if node.identity == 'feedback-download-logs')
+    download.action.do_action.side_effect = lambda _: window.states.update(visible) or True
+    ui.wait_feedback_collection = Mock()
+    ui.chooser_metadata = Mock(return_value={'route': 'nautilus-portal', 'version': '50.2.2-1',
+                                            'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]})
+    if fault in ('query', 'incomplete'):
+        result = ui.run(operation, '1.3')
+        assert result['chooser'] == {'checked': operation, 'provider': {
+            **ui.chooser_metadata.return_value, 'mode': 'save', 'caller': 'parent-feedback'}}
+        assert reads[:2] == [0.0, .2]
+        assert now[0] == .2
+        download.action.do_action.assert_called_once_with(0)
+    else:
+        expected = ('ui:timeout:save-chooser-entry' if fault == 'persistent' else
+                    'ui:chooser-already-open' if fault == 'already-open' else 'ui:system-prompt')
+        with pytest.raises(accessible_ui.UiError, match=expected):
+            ui.run(operation, '1.3')
+        assert now[0] == (.4 if fault == 'persistent' else 0.0)
+        download.action.do_action.assert_not_called()
+    accept.action.do_action.assert_not_called()
+    next(node for node in window.children if node.name == 'Close').action.do_action.assert_not_called()
+    ui.api.EditableText.set_text_contents.assert_not_called()
+    assert not ui.input_uncertain
+
+
 def collapse_save_name(ui, window, field):
     # Nautilus removes the transient editor from AT-SPI on focus loss.
     window.children.remove(field)

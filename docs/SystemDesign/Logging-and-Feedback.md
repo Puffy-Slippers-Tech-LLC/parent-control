@@ -145,6 +145,55 @@ of existing fields. Incompatible formats require a new schema and compatible
 reader/release plan. The catalogue is product code, never customer-supplied
 configuration.
 
+The shared exception recorder also retains Python's visible explicit cause or
+unsuppressed context chain, up to nine exceptions. Each `runtime.failure-cause`
+records its bounded depth, link kind, closed exception and OS-error categories,
+reviewed shipped-module location, and bounded subprocess exit status when the
+exception is `CalledProcessError`. `256` means no reviewed subprocess status.
+`runtime.failure-chain` distinguishes a complete chain from a cycle or depth
+limit; the deepest retained exception is not necessarily the original cause
+when that limit applies. Suppressed context, exception text, arguments, filenames,
+subprocess output and traceback locals are never inspected. Existing
+`runtime.fault` records retain their original top-level meaning.
+Provenance collection is best effort: metadata or logging failures cannot
+replace the original exception or prevent rollback. A fieldless
+`runtime.failure-unavailable` marker reports incomplete provenance when the
+logging sink remains usable; a broken sink cannot guarantee any new record.
+
+Backend and rollback failures record this provenance before D-Bus error
+delivery, including kiosk requests, child requests and session preparation
+workers. Unexpected worker failures use the same recorder. Normal access denials,
+busy responses, rate limits and invalid input retain their ordinary diagnostics.
+Approval, policy-save, session-preparation, revocation and screen-time-toggle
+transactions preserve the primary error before rollback can replace it;
+execution-policy activation/removal retain primary and rollback failures too.
+Background policy reconciliation, grant observation, startup runtime-cap cleanup
+and diagnostic collection use the same recorder. Operation scopes distinguish
+background attempts without introducing account or process references.
+
+Blocked-app operation failures record a fixed phase (preflight, running query,
+identity, Flatpak termination, desktop application identity or native termination)
+before the broker converts the failure into its public error. The original
+exception and its bounded explicit cause chain supply only shipped-module
+categories and source line numbers; the deepest retained cause supplies a closed
+exception class and reviewed OS-error category. Flatpak `ps` and `kill` record
+bounded subprocess exit statuses, including negative signal codes; `256` means
+an unavailable or out-of-range status. No process/account identifiers, command
+arguments, stdout/stderr, exception text or traceback locals enter these events.
+Flatpak termination also records fixed discovery, termination and verification
+stages, followed by counts of selected and still-matching instances. This
+distinguishes a completed kill command with remaining instances from a failed
+post-kill query or a later native discovery failure. It does not identify any
+instance or prove that a successful command completed process exit.
+These observations preserve failure and rollback behavior. Ship the additive
+catalogue with all validators; the broker loads the diagnostics on process restart
+and frontend validators load them on their next launch. A retained incident
+captured before these producers were installed does not gain missing provenance
+from a later installation; logs-only sufficiency needs a fresh instrumented
+reproduction compared with independently established cause evidence.
+No saved-data migration
+or portal change is required.
+
 ### Investigation coverage
 
 While the shared product reboot detector finds an installation or upgrade

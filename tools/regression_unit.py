@@ -257,6 +257,11 @@ and GLib doubles; child_preview remains compatible without a real bus/display.
 # The diagnostic-report import-failure regression uses its existing tmp_path
 # writer and restored process-local logger/command doubles; no additional shared
 # service, bus, subprocess or cache. diagnostic collectors remain compatible.
+# Failure-chain, rollback and async-reply privacy checks in diagnostic_privacy
+# use bounded in-memory exceptions, mocked transactions/GLib callbacks and tiny
+# private tmp_path log/runtime trees. Flatpak termination is entirely mocked;
+# no real process, signal, bus, installed service or new cleanup owner is used.
+# The module retains its reviewed compatible unit classification.
 # Broker address-family checks read immutable unit/payload inputs; payload
 # fixtures retain their existing private build trees and resource admission.
 # Sandbox socket probes use process-local doubles, including netlink; no real

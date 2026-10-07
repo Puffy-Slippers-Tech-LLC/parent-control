@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import errno
 import fnmatch
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from common.oh_no_parent_control_ui.diagnostic_events import (
+    get_logger, error_code, record_exception, exception_cause, os_error_code,
+)
 import os
 import pwd
 import re
@@ -39,6 +42,37 @@ SNAP_APP_RE = re.compile(r"^[a-z0-9](?:-?[a-z0-9])*$")
 
 class AppTerminationError(RuntimeError):
     """A redacted failure while identifying or terminating child applications."""
+
+
+@contextmanager
+def _diagnostic_stage(stage):
+    """Retain failure provenance before the broker replaces it with BackendFailure.
+
+    Only fixed call-site stages, exception classes, reviewed errno categories
+    and shipped-module line numbers are emitted. Never inspect error messages,
+    subprocess output, paths, process IDs or traceback locals.
+    """
+    try:
+        yield
+    except Exception as error:
+        try:
+            cause = exception_cause(error)
+            LOG.error("app-termination.failure", stage=stage,
+                      cause_type=error_code(cause), os_error=os_error_code(cause))
+        except Exception:
+            # Keep the operation's original exception even if diagnostics fail.
+            pass
+        record_exception(error)
+        raise
+
+
+def _log_flatpak_result(arguments, result):
+    # The command category comes from our fixed ps/kill call sites. Exit status
+    # is subprocess metadata, never an instance ID, argv or stderr contents.
+    command = arguments[0] if arguments and arguments[0] in {"ps", "kill"} else "other"
+    code = result.returncode
+    code = code if type(code) is int and -255 <= code <= 255 else 256
+    LOG.info("app-termination.flatpak-command", command=command, exit_code=code)
 
 
 def _native_targets(targets: tuple[str, ...]) -> tuple[str, ...]:
@@ -87,6 +121,7 @@ class RunningAppTerminator:
         self._pidfd_open = getattr(os, "pidfd_open", None)
         self._pidfd_send_signal = getattr(signal, "pidfd_send_signal", None)
 
+    @_diagnostic_stage("preflight")
     def preflight(self, target_uid: int, targets: tuple[str, ...],
                   patterns: tuple[str, ...]) -> None:
         """Reject an unsupported termination request before policy is changed."""
@@ -110,6 +145,7 @@ class RunningAppTerminator:
                 not os.access(self._flatpak, os.X_OK)):
             raise AppTerminationError("Flatpak is unavailable")
 
+    @_diagnostic_stage("running-query")
     def has_running(self, target_uid: int, targets: tuple[str, ...],
                     patterns: tuple[str, ...]) -> bool:
         """Observe matching child apps without changing policy or signaling."""
@@ -141,16 +177,20 @@ class RunningAppTerminator:
                   patterns: tuple[str, ...]) -> int:
         """Kill blocked apps for *target_uid* and return the number terminated."""
         self.preflight(target_uid, targets, patterns)
-        identity = self._identity(target_uid)
+        with _diagnostic_stage("identity"):
+            identity = self._identity(target_uid)
         LOG.info("app-termination.002")
-        terminated = self._terminate_flatpaks(
-            identity, _flatpak_targets(targets),
-        )
-        terminated += self._terminate_native(
-            target_uid, _native_targets(targets), patterns,
-            _snap_security_labels(targets),
-            self._application_ids(target_uid, targets, patterns),
-        )
+        with _diagnostic_stage("flatpak-termination"):
+            terminated = self._terminate_flatpaks(
+                identity, _flatpak_targets(targets),
+            )
+        with _diagnostic_stage("application-identity"):
+            application_ids = self._application_ids(target_uid, targets, patterns)
+        with _diagnostic_stage("native-termination"):
+            terminated += self._terminate_native(
+                target_uid, _native_targets(targets), patterns,
+                _snap_security_labels(targets), application_ids,
+            )
         LOG.info("app-termination.003", terminated_count=terminated)
         return terminated
 
@@ -513,7 +553,7 @@ class RunningAppTerminator:
         }
         try:
             if not capture:
-                return subprocess.run(
+                result = subprocess.run(
                     [self._flatpak, *arguments],
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
@@ -529,6 +569,8 @@ class RunningAppTerminator:
                     extra_groups=(),
                     umask=0o077,
                 )
+                _log_flatpak_result(arguments, result)
+                return result
             with tempfile.TemporaryFile() as output:
                 result = subprocess.run(
                     [self._flatpak, *arguments],
@@ -546,6 +588,7 @@ class RunningAppTerminator:
                     extra_groups=(),
                     umask=0o077,
                 )
+                _log_flatpak_result(arguments, result)
                 output.flush()
                 if os.fstat(output.fileno()).st_size > MAX_FLATPAK_OUTPUT_BYTES:
                     raise AppTerminationError("Flatpak process list is too large")
@@ -599,21 +642,27 @@ class RunningAppTerminator:
         # running Flatpak instance, and avoids requiring Flatpak when only a
         # stale saved target remains after the package was removed.
         if not self._flatpak_instance_root(identity).is_dir():
+            LOG.info("app-termination.flatpak-stage", stage="no-runtime")
             return 0
+        LOG.info("app-termination.flatpak-stage", stage="discover")
         instances = self._flatpak_instances(identity)
         selected = []
         for instance, full_ref in instances:
             application = full_ref.split("/", 3)[1]
             if full_ref in targets or application in targets:
                 selected.append(instance)
+        LOG.info("app-termination.flatpak-stage", stage="terminate")
         for instance in selected:
             result = self._run_flatpak(identity, ["kill", instance], capture=False)
             if result.returncode != 0:
                 raise AppTerminationError("Flatpak instance termination failed")
+        LOG.info("app-termination.flatpak-stage", stage="verify")
         remaining = {
             instance for instance, full_ref in self._flatpak_instances(identity)
             if full_ref in targets or full_ref.split("/", 3)[1] in targets
         }
+        LOG.info("app-termination.flatpak-verification",
+                 selected_count=len(selected), remaining_count=len(remaining))
         if remaining:
             raise AppTerminationError("blocked Flatpak instances are still running")
         return len(selected)

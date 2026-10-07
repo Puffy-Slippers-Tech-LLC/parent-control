@@ -90,7 +90,7 @@ EXTENSION_SCHEMA := schemas/com.puffyslippers.oh-no-parent-control.child.gschema
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
 # app_logo_gnome_launcher.png is the full-resolution GNOME launcher asset.
 BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_icon_32.png
-BRANDING_ASSETS += data/whats-new.json
+BRANDING_ASSETS += data/whats-new.toml
 REMINDER_ASSETS := data/reminder-frame.svg data/reminder-preferences.svg data/reminder-dismiss.svg
 BRANDING_ASSETS += $(REMINDER_ASSETS)
 PARENT_TITLEBAR_ASSET := data/app_logo_titlebar.png

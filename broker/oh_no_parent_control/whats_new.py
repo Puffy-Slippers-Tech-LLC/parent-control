@@ -6,10 +6,11 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 import re
+import tomllib
 from urllib.parse import urlsplit
 
 PRODUCT_PATH = Path("/usr/share/oh-no-parent-control/app.json")
-METADATA_PATH = Path("/usr/share/oh-no-parent-control/whats-new.json")
+METADATA_PATH = Path("/usr/share/oh-no-parent-control/whats-new.toml")
 INSTALLATION_PATH = Path("/var/lib/oh-no-parent-control/whats-new-installation.json")
 INSTALLATION_FORMAT_VERSION = 1
 MAX_RECORDS = 64
@@ -61,15 +62,32 @@ def _unique_keys(pairs):
     return result
 
 
-def read_document(path: Path) -> object:
+def _read_text(path: Path) -> str:
     with path.open("rb") as stream:
         encoded = stream.read(MAX_DOCUMENT_BYTES + 1)
     if len(encoded) > MAX_DOCUMENT_BYTES:
         raise WhatsNewError("release metadata is too large")
     try:
-        return json.loads(encoded.decode("utf-8"), object_pairs_hook=_unique_keys)
+        return encoded.decode("utf-8")
+    except UnicodeError as error:
+        raise WhatsNewError("invalid release metadata encoding") from error
+
+
+def read_document(path: Path) -> object:
+    text = _read_text(path)
+    try:
+        return json.loads(text, object_pairs_hook=_unique_keys)
     except (UnicodeError, ValueError, RecursionError) as error:
         raise WhatsNewError("invalid release metadata JSON") from error
+
+
+def read_metadata(path: Path) -> object:
+    """Read author-edited TOML, preserving literal multiline Markdown."""
+    text = _read_text(path)
+    try:
+        return tomllib.loads(text)
+    except (ValueError, RecursionError) as error:
+        raise WhatsNewError("invalid release metadata TOML") from error
 
 
 def validate_metadata(raw: object) -> tuple[dict, ...]:
@@ -154,7 +172,7 @@ class WhatsNewCatalog:
         if current != installation["current_version"]:
             raise WhatsNewError("installation history is not configured for this release")
         return cls(current, installation["first_version"],
-                   validate_metadata(read_document(metadata_path)))
+                   validate_metadata(read_metadata(metadata_path)))
 
     @property
     def retained_records(self) -> set[str]:

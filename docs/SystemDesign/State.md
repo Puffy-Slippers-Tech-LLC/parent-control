@@ -144,36 +144,49 @@ application without changing persistence, authorization or policy ownership.
 
 ## What's New backend
 
-The broker reads immutable [release metadata](../../data/whats-new.json) from
-`/usr/share/oh-no-parent-control/whats-new.json`. Its schema is
-`{"version": 1, "records": [...]}`. Each record requires `ProductVersion`,
-`ShowIn` and `Content`; `SeeMore` is optional. For example:
+The broker reads immutable [release metadata](../../data/whats-new.toml) from
+`/usr/share/oh-no-parent-control/whats-new.toml`. Authors edit TOML with a
+top-level `version = 1` and one `[[records]]` block per release/audience
+combination. Each record requires `ProductVersion`, `ShowIn` and `Content`;
+`SeeMore` is optional. For example:
 
-```json
-{
-  "ProductVersion": "1.4",
-  "ShowIn": "Parent,Child",
-  "Content": "## New features\n\n- **Formatted** release notes\n",
-  "SeeMore": "https://example.com/releases/1.4"
-}
+```toml
+version = 1
+
+[[records]]
+ProductVersion = "1.4"
+ShowIn = "Parent,Child"
+SeeMore = "https://example.com/releases/1.4"
+Content = '''
+## New features
+
+- **Formatted** release notes
+'''
 ```
+
+Type Markdown with normal line breaks inside the triple-single-quoted literal
+string. Quotes and backslashes need no escaping; TOML removes the first newline
+after the opening delimiter and preserves subsequent whitespace. Three
+consecutive single quotes delimit the string and cannot occur inside it; use a
+triple-double-quoted TOML string with TOML escaping if that content is needed.
+For an empty catalogue, use `version = 1` and `records = []`.
 
 Versions are numeric dotted product versions, independent of DEB/RPM revisions.
 Comparison is numeric (`1.10` follows `1.9`); trailing zero components normalize
 (`1.4.0` equals `1.4`). `ShowIn` accepts `Parent`, `Child`, or both in either order,
 with whitespace around tokens allowed. Records for one version must have disjoint
 component sets: separate Parent and Child records are valid, but Parent plus
-Parent,Child is rejected. Duplicate JSON keys, missing required fields, unknown
+Parent,Child is rejected. Duplicate TOML keys, missing required fields, unknown
 fields, empty content and unsafe SeeMore URLs are rejected. SeeMore accepts
 absolute ASCII HTTP(S) links without credentials, backslashes or percent-encoded
 authorities; bracketed IP addresses must occupy the complete host. Percent escapes
 in paths, queries and fragments are preserved. The document is bounded at 512 KiB,
 64 records, 65,536 content characters per record and 2,048 URL characters.
 
-The API preserves Markdown content literally; rendering and external link opening
-belong to the future frontend implementation. The shipped catalogue is empty
-until release authors supply actual notes. No dialogs, menus, title translations
-or rendering are implemented by this backend change.
+The API returns JSON and preserves Markdown content literally; rendering and
+external link opening belong to the future frontend implementation. The shipped
+catalogue contains a sample v1.4 record shared by Parent and Child. No dialogs,
+menus, title translations or rendering are implemented by this backend change.
 
 `GetOwnWhatsNew()` and `AcknowledgeOwnWhatsNew(product_version)` derive the UID
 from bus credentials. Administrators (including root) receive Parent records;

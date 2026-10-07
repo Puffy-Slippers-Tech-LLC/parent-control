@@ -12,7 +12,8 @@ from oh_no_parent_control.core import AccessDenied, BackendFailure, Broker, Inva
 from oh_no_parent_control.data_migration import MigrationError, migrate_all_state
 from oh_no_parent_control.preferences import PreferenceStore, PreferencesError, default_preferences
 from oh_no_parent_control.whats_new import (
-    WhatsNewCatalog, WhatsNewError, read_document, validate_metadata, version_key,
+    METADATA_PATH, WhatsNewCatalog, WhatsNewError, read_document, read_metadata,
+    validate_metadata, version_key,
 )
 from tests.support.broker import Accounts, Authorizer
 from tests.support.configuration import valid_config
@@ -45,6 +46,63 @@ def test_metadata_preserves_markdown_and_normalizes_component_order():
     assert parsed["SeeMore"] == original["SeeMore"]
     assert original["ShowIn"] == "Child, Parent"
     assert "SeeMore" not in validate_metadata({"version": 1, "records": [note()]})[0]
+
+
+def test_toml_literal_markdown_survives_catalog_loading_for_both_audiences(tmp_path):
+    metadata = tmp_path / METADATA_PATH.name
+    metadata.write_text("""# Author comments are allowed.
+version = 1
+
+[[records]]
+ProductVersion = "1.4"
+ShowIn = "Parent,Child"
+SeeMore = "https://example.com/releases/1.4"
+Content = '''
+## What's new — nouveautés
+
+- **Quoted:** "Hello" and 'welcome'.
+  Indented Markdown with a literal \\n and \\path.
+
+```text
+code
+```
+'''
+""", encoding="utf-8")
+    product = tmp_path / "app.json"
+    installation = tmp_path / "installation.json"
+    write_json(product, {"version": "1.4"})
+    write_json(installation, {"version": 1, "first_version": "1.3", "current_version": "1.4"})
+    loaded = WhatsNewCatalog.load(metadata, product, installation)
+    expected = ("## What's new — nouveautés\n\n"
+                "- **Quoted:** \"Hello\" and 'welcome'.\n"
+                "  Indented Markdown with a literal \\n and \\path.\n\n"
+                "```text\ncode\n```\n")
+    for component in ("Parent", "Child"):
+        record, = loaded.available(component, [])["records"]
+        assert record["Content"] == expected
+        assert record["SeeMore"] == "https://example.com/releases/1.4"
+        assert record["record_id"] == "1.4:Child,Parent"
+        assert record["auto_show"] is True
+
+
+@pytest.mark.parametrize("contents", [
+    b"version = 1\nversion = 1\nrecords = []\n",
+    b"version = 1\n[[records]]\nContent = 'one'\nContent = 'two'\n",
+    b"version = 1\n[[records]]\nContent = '''unterminated",
+    b"\xff",
+    b" " * (512 * 1024 + 1),
+], ids=["duplicate-document-key", "duplicate-record-key", "unterminated", "invalid-utf8", "oversized"])
+def test_toml_reader_rejects_duplicates_invalid_encoding_and_oversized_input(tmp_path, contents):
+    path = tmp_path / "metadata.toml"
+    path.write_bytes(contents)
+    with pytest.raises(WhatsNewError):
+        read_metadata(path)
+
+
+def test_packaged_toml_catalogue_passes_release_validation():
+    from tests.support.paths import ROOT
+
+    validate_metadata(read_metadata(ROOT / "data" / METADATA_PATH.name))
 
 
 @pytest.mark.parametrize("change", [
@@ -284,12 +342,14 @@ def test_package_configuration_tracks_origin_upgrade_and_idempotent_retry(tmp_pa
 
 
 def test_upgrade_from_payload_without_feature_and_catalog_loading(tmp_path):
-    product, metadata = tmp_path / "app.json", tmp_path / "whats-new.json"
+    product, metadata = tmp_path / "app.json", tmp_path / "whats-new.toml"
     state = tmp_path / "state"
     state.mkdir(mode=0o700)
     write_json(state / "previous-product.json", {"version": "1.3"})
     write_json(product, {"version": "1.5"})
-    write_json(metadata, {"version": 1, "records": [note("1.5")]})
+    metadata.write_text("version = 1\n[[records]]\nProductVersion = '1.5'\n"
+                        "ShowIn = 'Parent,Child'\nContent = '''\n" + note("1.5")["Content"] + "'''\n",
+                        encoding="utf-8")
     migrate_all_state(state, product_path=product)
     assert not (state / "previous-product.json").exists()
     loaded = WhatsNewCatalog.load(metadata, product, state / "whats-new-installation.json")

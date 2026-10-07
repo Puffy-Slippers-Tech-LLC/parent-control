@@ -3,6 +3,7 @@ import ast
 import json
 from pathlib import Path
 import subprocess
+import tomllib
 import xml.etree.ElementTree as ET
 
 from render_lifecycle import PHASES, render
@@ -32,6 +33,8 @@ def main():
             ast.parse(path.read_text(), filename=name)
         elif path.suffix == '.json':
             json.loads(path.read_text())
+        elif path.suffix == '.toml':
+            tomllib.loads(path.read_text(encoding='utf-8'))
         elif path.suffix == '.xml' or name.endswith(('.policy.in', '.conf.in')):
             ET.parse(path)
         elif path.suffix in ('.js', '.mjs'):

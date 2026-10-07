@@ -253,7 +253,7 @@ def test_continuous_history_retains_four_minutes_before_reapplying_five(monkeypa
             < stages.index('reapply-allowance-saved') < stages.index('reapply-policy'))
 
 
-@pytest.mark.parametrize('fault', ['', 'remove-result', 'retained-policy', 'blocked-after-reinstall',
+@pytest.mark.parametrize('fault', ['', 'overlay-approver', 'overlay-choices', 'remove-result', 'retained-accounts', 'retained-policy', 'blocked-after-reinstall',
                                   'purge-result', 'fresh-request', 'fresh-returned'])
 def test_actual_continuous_worker_consumes_all_unique_stages_and_stops_on_failure(fault):
     source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_lifecycle;')
@@ -289,6 +289,15 @@ def test_actual_continuous_worker_consumes_all_unique_stages_and_stops_on_failur
             'initial-allowance-text-selected', 'initial-allowance-text-read',
             'reapply-allowance-text-selected', 'reapply-allowance-text-read'))
     assert not any(event[0] in ('pointer', 'click') for event in result['events'])
+
+
+def test_continuous_case_selects_overlay_local_approver_before_shared_choice_comparison():
+    stages = list(case.PLAN.screen_tags)
+    assert case.PLAN.screen_tags['overlay-approver'] == 'ui:overlay-flow-approver-select'
+    assert stages.index('overlay-launch') + 1 == stages.index('overlay-approver')
+    assert stages.index('overlay-approver') + 1 == stages.index('overlay-choices')
+    assert case.SAVED_CHOICES == dict(child='fixture-child', approver='fixture-parent',
+        duration_seconds=75, allow_soft=True, custom_text='1.25')
 
 
 @pytest.mark.parametrize('fault', ['', 'missing-baseline', 'policy', 'rows', 'grant', 'choices', 'replay'])
@@ -506,6 +515,20 @@ def test_plan_refuses_more_than_five_reboots():
         replace(case.PLAN, additional_reboot_transitions=case.PLAN.additional_reboot_transitions * 2)
 
 
+def test_removed_and_purged_logins_require_station_absence_before_reinstall():
+    for prefix, role in case.ROLES.items():
+        product_free = prefix in ('removed', 'healthy-child', 'reinstall-parent', 'purged')
+        operation = 'gdm-product-free-' if product_free else 'gdm-'
+        assert case.PLAN.screen_tags[prefix + '-installed-greeter'] == (
+            'ui:' + operation + ('child-list' if role == 'child' else 'list'))
+    # A password challenge or unrelated greeter observation cannot complete
+    # any lifecycle reboot, even when its stage is adjacent to the request.
+    tags = dict(case.PLAN.screen_tags)
+    tags['removed-installed-greeter'] = 'ui:gdm-parent-recipient'
+    with pytest.raises(EvidenceError, match='reboot-plan'):
+        replace(case.PLAN, screen_tags=tags)
+
+
 @pytest.mark.parametrize('fault', ['order', 'installed', 'old-package'])
 def test_invalid_lifecycle_composition_refuses_before_transfer(monkeypatch, fault):
     transfer = Mock()
@@ -625,6 +648,10 @@ def test_blocked_app_requires_real_permission_failure_and_complete_window_absenc
         stdout=b'x' * 65537 if fault == 'output-bound' else b'',
         stderr=b'No such file or directory' if fault == 'wrong-error' else b'Failed to execute: Permission denied'))
     monkeypatch.setattr(accessible_ui.subprocess, 'run', run)
+    # The denial adapter may query this launch's journal after stderr fails
+    # qualification. That read is separate from the single launch submission.
+    journal = Mock(return_value={'status': 'read', 'exec_errors': []})
+    monkeypatch.setattr(accessible_ui, 'native_execution_journal_diagnostic', journal)
     ticks = iter((0, 3))
     monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: next(ticks))
     ui.wait = lambda predicate, *_args, **_kwargs: predicate()
@@ -634,3 +661,4 @@ def test_blocked_app_requires_real_permission_failure_and_complete_window_absenc
         ui.native_launch_command(blocked=True)
         assert '--wait' in run.call_args.args[0] and '--pipe' in run.call_args.args[0]
     assert run.call_count == 1
+    assert journal.call_count == (1 if fault in ('successful-exec', 'wrong-error', 'output-bound') else 0)

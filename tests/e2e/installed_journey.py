@@ -165,7 +165,7 @@ class JourneyPlan:
                     stages.index(transition[0]) > prior and
                     stages.index(transition[1]) == stages.index(transition[0]) + 1 and
                     self.screen_tags[transition[0]] == 'system:parent-command-context' and
-                    self.screen_tags[transition[1]] == 'ui:gdm-list' and
+                    self.screen_tags[transition[1]] in ('ui:gdm-list', 'ui:gdm-product-free-list') and
                     transition[0] not in self.stage_actions, self.prefix + ':reboot-plan')
             prior = stages.index(transition[1])
         for identity, binding in self.challenges.items():
@@ -180,7 +180,7 @@ class JourneyPlan:
             recipient = ('gdm-parent-recipient' if role == 'parent' else
                          'gdm-child-recipient' if role == 'child' else 'gdm-standard-recipient')
             focus = (('gdm-focused', 'gdm-product-free-focused') if role == 'parent' else
-                     ('gdm-child-focused',) if role == 'child' else
+                     ('gdm-child-focused', 'gdm-product-free-child-focused') if role == 'child' else
                      ('gdm-standard-focused', 'gdm-product-free-standard-focused'))
             require(stages.index(first) > 0
                     and self.screen_tags[stages[stages.index(first) - 1]] in

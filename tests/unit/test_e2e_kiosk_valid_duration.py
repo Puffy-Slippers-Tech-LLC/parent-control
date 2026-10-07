@@ -315,6 +315,69 @@ def valid_form():
     return ui, status, custom
 
 
+@pytest.mark.parametrize('fault', ['', 'child', 'approver', 'duration', 'soft'])
+def test_restored_station_selects_local_accounts_without_replacing_shared_choices(fault):
+    ui, _, custom = valid_form()
+    ui.timeout = 3
+    ui.kiosk_valid_choice('kiosk-valid-custom-open')
+    ui.kiosk_valid_choice('kiosk-valid-fraction-soft-select')
+    child = ui.find_id('kiosk-child-selector')
+    approver = ui.find_id('kiosk-approver-selector')
+    form = ui.find_id('kiosk-request-form')
+    child_choices = Node(identity='kiosk-child-choices', states=('visible',), children=[
+        Node(f'Child account: {name}', identity=f'kiosk-child-choice-{uid}')
+        for uid, name in (('1001', accessible_ui.CHILD), ('1002', accessible_ui.EXISTING_CHILD))])
+    child_choices.parent = form
+    form.children.append(child_choices)
+
+    def selected(selector, field, uid, name):
+        selector.value = uid
+        selector.children[0].identity = f'kiosk-{field}-selected-{uid}'
+        selector.children[0].name = name
+        selector.description = f'Selected account: {name}.'
+
+    selected(child, 'child', '1002', accessible_ui.EXISTING_CHILD)
+    selected(approver, 'approver', '1010', accessible_ui.OTHER_PARENT)
+    original_approver_commit = approver.setValue.side_effect
+
+    def select_child(uid):
+        assert uid == '1001'
+        if fault != 'child':
+            selected(child, 'child', uid, accessible_ui.CHILD)
+        if fault == 'duration':
+            custom.value = '1.5'
+        if fault == 'soft':
+            ui.find_id('kiosk-soft-apps-toggle').states.discard('checked')
+        return True
+
+    child.setValue.side_effect = select_child
+    approver.setValue.side_effect = (lambda uid: True) if fault == 'approver' else original_approver_commit
+    for node in form.children:
+        node.action.do_action.reset_mock()
+    if fault:
+        with pytest.raises(UiError):
+            ui.run('kiosk-restored-accounts-select', '')
+        assert ui.input_uncertain
+    else:
+        result = ui.run('kiosk-restored-accounts-select', '')
+        observer = UiObservations(Mock())
+        observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+        assert observer.observe('kiosk-restored-accounts-select') == result
+        request = result['valid_choice']['request']
+        assert request['child'] == 'fixture-child'
+        assert request['approver'] == 'fixture-parent'
+        assert request['duration_seconds'] == 75
+        assert request['custom_text'] == '1.25'
+        assert request['allow_soft'] is True
+    child.setValue.assert_called_once_with('1001')
+    if fault in ('child', 'duration'):
+        approver.setValue.assert_not_called()
+    else:
+        approver.setValue.assert_called_once_with('1000')
+    for node in form.children:
+        node.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'terminal', 'shell', 'management',
                                   'control', 'incomplete', 'stale', 'wrong-owner', 'duplicate'])
 def test_station_restrictions_inspect_complete_public_tree(fault):

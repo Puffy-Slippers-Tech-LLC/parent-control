@@ -125,6 +125,46 @@ def test_valid_choices_round_trip_through_real_decoder_and_diagnostics(monkeypat
     child.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', ['', 'selection', 'duration', 'soft'])
+def test_restored_shared_choices_select_local_approver_without_rewriting_choices(monkeypatch, fault):
+    ui, _, child, _, custom = overlay(monkeypatch)
+    selector = ui.find_id('kiosk-approver-selector')
+    commit = selector.setValue.side_effect
+    commit('1010')  # The fresh overlay's local default is Casey, unlike kiosk.
+    child.states.discard('sensitive')
+    selector.setValue.reset_mock()
+    for seconds in (300, 900, 1800, 3600, 7200, 14400, 0, 'custom'):
+        ui.find_id(f'kiosk-duration-{seconds}').states.discard('pressed')
+    ui.find_id('kiosk-duration-custom').states.add('pressed')
+    custom.states.add('showing')
+    soft = ui.find_id('kiosk-soft-apps-toggle')
+    soft.states.add('checked')
+
+    def select(value):
+        if fault != 'selection':
+            commit(value)
+        child.states.discard('sensitive')
+        if fault == 'duration': custom.value = '2'
+        if fault == 'soft': soft.states.discard('checked')
+
+    selector.setValue.side_effect = select
+    if fault:
+        with pytest.raises(a.UiError):
+            ui.run('overlay-flow-approver-select', '')
+    else:
+        result = ui.run('overlay-flow-approver-select', '')
+        request = result['valid_choice']['request']
+        assert request['approver'] == 'fixture-parent'
+        assert request['child'] == 'fixture-child'
+        assert request['duration_seconds'] == 75 and request['custom_text'] == '1.25'
+        assert request['allow_soft'] is True
+    selector.setValue.assert_called_once_with('1000')
+    custom.setText.assert_not_called()
+    soft.setValue.assert_not_called()
+    soft.action.do_action.assert_not_called()
+    child.setValue.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'persistent', 'wrong-owner', 'prompt', 'disabled'])
 def test_overlay_approver_reacquires_stale_preflight_before_any_input(monkeypatch, fault):
     ui, application, child, _, _ = overlay(monkeypatch)

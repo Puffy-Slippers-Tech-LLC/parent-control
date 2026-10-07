@@ -707,6 +707,15 @@ platform. The qualified 75-second approval occurs after the child block/form
 observations and immediately before the positive-grant read and removal; expiry
 cannot substitute for clearing a positive grant. Retained/default assertions and
 the four-minute → five-minute reapplication binding below remain independent.
+Before comparing the overlay's saved request choices, select Jamie through its
+local approver selector. Kiosk and overlay approver defaults have separate
+[OS-user ownership](../SystemDesign/Frontends.md#request-selector-state); this
+selection must preserve the shared 75-second custom duration and soft-app choice.
+After remove or purge, graphical entry uses the product-free Parent/child
+binding and proves the station is absent. After reinstall, entry again requires
+the installed station; absence must never be accepted for an installed stage.
+The recreated kiosk home has fresh local selectors: select Riley and Jamie
+before reading Riley's retained shared request choices, without editing them.
 
 1. V(parent,fresh) → LIFE04(install) → FILE06(notice) → LIFE02.
 2. FLOW16 → FLOW03 → both forms FLOW04/REQUEST03/REQUEST12 → FLOW06 → C → FLOW08.

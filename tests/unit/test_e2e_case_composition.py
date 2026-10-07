@@ -367,7 +367,11 @@ def test_routine_login_has_no_wrong_account_visit_or_prompt_dismissal():
 def test_product_free_desktop_binding_refuses_invalid_roles_and_result():
     from journey_blocks import fresh_desktop
     from private_artifacts import EvidenceError
-    for role, expected, binding in (('child', 'success', True), ('parent', 'time-denied', True),
+    stages = fresh_desktop('child', product_free=True)
+    assert list(stages.values()) == ['ui:gdm-product-free-child-list',
+        'ui:gdm-product-free-child-focused', 'ui:gdm-child-recipient',
+        'ui:gdm-child-recipient-rechecked', 'ui:fresh-child-desktop']
+    for role, expected, binding in (('child', 'time-denied', True), ('parent', 'time-denied', True),
                                     ('other-child', 'success', 'true')):
         with pytest.raises(EvidenceError):
             fresh_desktop(role, expected, product_free=binding)

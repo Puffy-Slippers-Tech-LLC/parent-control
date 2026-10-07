@@ -53,6 +53,7 @@ OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-select-parent', 'gdm-navigation-returned',
     'gdm-product-free-list', 'gdm-product-free-focused',
     'gdm-product-free-standard-list', 'gdm-product-free-standard-focused',
+    'gdm-product-free-child-list', 'gdm-product-free-child-focused',
     'gdm-product-free-select-parent', 'gdm-product-free-returned',
     'gdm-dismissed', 'gdm-returned',
     'desktop', 'app-grid', 'parent-window', 'parent-window-count', 'parent-empty', 'child-picker-opened', 'child-choice-highlighted', 'parent-selected',
@@ -643,6 +644,7 @@ GREETER_OPERATIONS = frozenset({'gdm-list', 'gdm-focused', 'gdm-select-parent',
     'gdm-navigation-returned', 'gdm-dismissed', 'gdm-returned',
     'gdm-product-free-list', 'gdm-product-free-focused',
     'gdm-product-free-standard-list', 'gdm-product-free-standard-focused',
+    'gdm-product-free-child-list', 'gdm-product-free-child-focused',
     'gdm-product-free-select-parent', 'gdm-product-free-returned',
     'gdm-other-list', 'gdm-other-focused', 'gdm-wrong-recipient-refused',
     'gdm-parent-recipient', 'gdm-parent-recipient-rechecked',
@@ -655,7 +657,7 @@ GREETER_NAVIGATION = frozenset({'gdm-list', 'gdm-other-list', 'gdm-standard-list
                                 'gdm-product-free-standard-list'})
 GREETER_OPERATIONS |= frozenset({'gdm-product-free-provider', 'gdm-installed-accounts'})
 GREETER_OPERATIONS |= CHILD_GREETER_OPERATIONS
-GREETER_NAVIGATION |= frozenset({'gdm-child-list'})
+GREETER_NAVIGATION |= frozenset({'gdm-child-list', 'gdm-product-free-child-list'})
 GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-list', 'gdm-focused', 'gdm-other-list', 'gdm-other-focused',
     'gdm-standard-list', 'gdm-standard-focused',
@@ -666,7 +668,8 @@ GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-station-list', 'gdm-station-focused', 'gdm-station-returned',
 })
 GDM_SEMANTIC_APPLICATION_NAMES = frozenset({'gnome-shell', 'gnome shell'})
-GDM_NONSECRET_OPERATIONS |= frozenset({'gdm-child-list', 'gdm-child-focused'})
+GDM_NONSECRET_OPERATIONS |= frozenset({'gdm-child-list', 'gdm-child-focused',
+    'gdm-product-free-child-list', 'gdm-product-free-child-focused'})
 GDM_ACCOUNT_ROLES = frozenset({'button', 'push button'})
 GDM_DIAGNOSTIC_ROLES = frozenset({
     'application', 'button', 'push button', 'label', 'password text',
@@ -764,6 +767,7 @@ KIOSK_VALID_REQUESTS.update({f'kiosk-valid-fraction-soft-{action}': (75, '1.25',
                              for action in ('select', 'read')})
 KIOSK_VALID_REQUESTS.update({f'kiosk-flow-{field}-select': (75, '1.25', True)
                              for field in ('child', 'approver')})
+KIOSK_VALID_REQUESTS['kiosk-restored-accounts-select'] = (75, '1.25', True)
 KIOSK_VALID_OPERATIONS = frozenset(KIOSK_VALID_REQUESTS) | {'kiosk-valid-custom-open'}
 CHINESE_VALID_BINDINGS = {
     'chinese-' + suffix: 'kiosk-valid-' + suffix for suffix in
@@ -7311,7 +7315,7 @@ class AccessibleUI:
 
     def gdm_product_free_account(self, name=PARENT):
         """Resolve the declared pre-install account while proving station absence."""
-        require(name in (PARENT, EXISTING_CHILD) and not self.gdm_nonsecret_has_id_route(),
+        require(name in (PARENT, EXISTING_CHILD, CHILD) and not self.gdm_nonsecret_has_id_route(),
                 'ui:gdm-product-free-binding')
         _owner, rows = self.gdm_semantic_rows(tuple(dict.fromkeys((PARENT, name))), excluded=(KIOSK,))
         return rows[name]
@@ -8020,6 +8024,14 @@ class AccessibleUI:
         if operation in ('overlay-valid-approver-select', 'overlay-flow-approver-select'):
             self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT),
                 duration_seconds=seconds, custom_text=custom, overlay=True)
+        elif operation == 'kiosk-restored-accounts-select':
+            # A recreated kiosk home has fresh local selectors. Select the
+            # declared child, independently read its retained shared choices,
+            # then select the declared approver without replacing those values.
+            self.select_kiosk_account('child', CHILD, expected=(CHILD, EXISTING_CHILD),
+                duration_seconds=seconds, custom_text=custom)
+            self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT),
+                duration_seconds=seconds, custom_text=custom)
         elif operation in ('kiosk-flow-child-select', 'kiosk-flow-approver-select'):
             field = operation.split('-')[2]
             self.select_kiosk_account(
@@ -10051,16 +10063,17 @@ class AccessibleUI:
                 self.kiosk_gdm_returned()
             elif operation in ('gdm-focused', 'gdm-other-focused', 'gdm-standard-focused',
                               'gdm-station-focused', 'gdm-product-free-focused', 'gdm-child-focused',
-                              'gdm-product-free-standard-focused'):
+                              'gdm-product-free-standard-focused', 'gdm-product-free-child-focused'):
                 name = OTHER_PARENT if operation == 'gdm-other-focused' else PARENT
                 if operation in ('gdm-standard-focused', 'gdm-product-free-standard-focused'):
                     name = EXISTING_CHILD
-                if operation == 'gdm-child-focused':
+                if operation in ('gdm-child-focused', 'gdm-product-free-child-focused'):
                     name = CHILD
                 if operation == 'gdm-station-focused':
                     name = KIOSK
                 account = ((lambda: self.gdm_product_free_account(name))
-                           if operation in ('gdm-product-free-focused', 'gdm-product-free-standard-focused')
+                           if operation in ('gdm-product-free-focused', 'gdm-product-free-standard-focused',
+                                            'gdm-product-free-child-focused')
                            else (lambda: self.gdm_nonsecret_account(name))
                            if operation in GDM_NONSECRET_OPERATIONS
                            else (lambda: self.greeter_list(name)))
@@ -10070,11 +10083,12 @@ class AccessibleUI:
                 name = OTHER_PARENT if operation == 'gdm-other-list' else PARENT
                 if operation in ('gdm-standard-list', 'gdm-product-free-standard-list'):
                     name = EXISTING_CHILD
-                if operation == 'gdm-child-list':
+                if operation in ('gdm-child-list', 'gdm-product-free-child-list'):
                     name = CHILD
                 if operation == 'gdm-station-list':
                     name = KIOSK
-                if operation in ('gdm-product-free-list', 'gdm-product-free-standard-list'):
+                if operation in ('gdm-product-free-list', 'gdm-product-free-standard-list',
+                                 'gdm-product-free-child-list'):
                     result['focused'] = self.gdm_product_free_navigation(name)
                 else:
                     navigation = (self.gdm_nonsecret_navigation

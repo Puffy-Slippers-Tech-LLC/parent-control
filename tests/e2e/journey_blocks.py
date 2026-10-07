@@ -184,13 +184,12 @@ def fresh_desktop(account, expected='success', *, product_free=False):
     require(account in ('parent', 'other-child', 'child'), 'journey:desktop-binding')
     require(expected in ('success', 'time-denied') and
             (expected == 'success' or account == 'child'), 'journey:desktop-result')
-    require(type(product_free) is bool and
-            (not product_free or account in ('parent', 'other-child')),
+    require(type(product_free) is bool and (not product_free or expected == 'success'),
             'journey:desktop-product-binding')
     if account == 'child':
         return {
-            'installed-greeter': 'ui:gdm-child-list',
-            'child-focused': 'ui:gdm-child-focused',
+            'installed-greeter': 'ui:gdm-product-free-child-list' if product_free else 'ui:gdm-child-list',
+            'child-focused': 'ui:gdm-product-free-child-focused' if product_free else 'ui:gdm-child-focused',
             'child-recipient-qualified': 'ui:gdm-child-recipient',
             'child-recipient-rechecked': 'ui:gdm-child-recipient-rechecked',
             ('desktop' if expected == 'success' else 'denied'):

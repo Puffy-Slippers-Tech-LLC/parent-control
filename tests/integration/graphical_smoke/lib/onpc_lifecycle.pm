@@ -42,7 +42,8 @@ sub run_removal {
     onpc_request_flow::prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1);
     $journey->seen($_) for qw(open-cancel open-returned);
     onpc_gdm::named_login($journey, 'restricted-child', 'child');
-    $journey->seen($_) for qw(blocked-before-remove overlay-launch overlay-choices overlay-cancel restricted-logout);
+    $journey->seen($_) for qw(blocked-before-remove overlay-launch overlay-approver
+        overlay-choices overlay-cancel restricted-logout);
     onpc_request_flow::obtain_time($journey, 'selected', 'fixture-child', 'fixture-parent', 75, 1, 'automatic');
     onpc_gdm::named_login($journey, 'remove-parent', 'parent');
     onpc_parent::named_management($journey, 'before-remove', 'child');
@@ -58,7 +59,7 @@ sub run_removal {
     onpc_parent::named_management($journey, 'retained', 'child');
     $journey->seen($_) for qw(retained-policy retained-switch retained-greeter);
     onpc_gdm::enter_station($journey->scope('retained'), '');
-    $journey->seen($_) for qw(retained-request retained-cancel retained-returned);
+    $journey->seen($_) for qw(retained-accounts retained-request retained-cancel retained-returned);
     onpc_gdm::named_login($journey, 'reapply-parent', 'parent');
     onpc_parent::named_management($journey, 'reapply', 'child');
     onpc_allowance_boundaries::custom_value($journey, 'reapply-allowance', 5);

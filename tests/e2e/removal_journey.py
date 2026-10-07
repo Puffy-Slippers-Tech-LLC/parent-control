@@ -17,7 +17,9 @@ ROLES = {'activated': 'parent', 'restricted-child': 'child', 'remove-parent': 'p
          'removed': 'parent', 'healthy-child': 'child', 'reinstall-parent': 'parent',
          'retained': 'parent', 'reapply-parent': 'parent', 'reblocked-child': 'child',
          'purge-parent': 'parent', 'purged': 'parent', 'fresh': 'parent'}
-LOGINS = {prefix: prefixed_stages(prefix, fresh_desktop(role)) for prefix, role in ROLES.items()}
+LOGINS = {prefix: prefixed_stages(prefix, fresh_desktop(role,
+    product_free=prefix in ('removed', 'healthy-child', 'reinstall-parent', 'purged')))
+    for prefix, role in ROLES.items()}
 REBOOTS = tuple((prefix + '-reboot-requested', prefix + '-installed-greeter')
                 for prefix in ('activated', 'removed', 'retained', 'purged', 'fresh'))
 INSTALL = {**package_installation(),
@@ -35,7 +37,12 @@ CONFIGURE = {
     'open-cancel': 'ui:kiosk-request-cancel', 'open-returned': 'ui:gdm-station-returned',
     **LOGINS['restricted-child'],
     'blocked-before-remove': 'ui:overlay-native-command-blocked',
-    'overlay-launch': 'ui:child-command-launch', 'overlay-choices': 'ui:overlay-valid-fraction-soft-read',
+    'overlay-launch': 'ui:child-command-launch',
+    # Approver defaults belong to each OS user; kiosk selection cannot seed
+    # the child's overlay. Select the same declared parent before comparing
+    # the shared duration/custom/soft choices, without editing those choices.
+    'overlay-approver': 'ui:overlay-flow-approver-select',
+    'overlay-choices': 'ui:overlay-valid-fraction-soft-read',
     'overlay-cancel': 'ui:overlay-request-cancel', 'restricted-logout': 'system:child-logout',
     **prepared_request(prefix='new', entry='new', initial='selected', **CHOICES),
     'approval-open': 'ui:kiosk-mate-open', 'approval-qualified': 'ui:kiosk-mate-qualified',
@@ -60,7 +67,9 @@ RESTORATION = {
     **prefixed_stages('retained', parent_management()),
     'retained-policy': 'ui:kiosk-riley-language-policy',
     'retained-switch': 'system:parent-switch-user', 'retained-greeter': 'ui:gdm-returned',
-    **prefixed_stages('retained', station_entry()), 'retained-request': 'ui:kiosk-valid-fraction-soft-read',
+    **prefixed_stages('retained', station_entry()),
+    'retained-accounts': 'ui:kiosk-restored-accounts-select',
+    'retained-request': 'ui:kiosk-valid-fraction-soft-read',
     'retained-cancel': 'ui:kiosk-request-cancel', 'retained-returned': 'ui:gdm-station-returned',
     **LOGINS['reapply-parent'], **prefixed_stages('reapply', parent_management()),
     **custom_allowance('reapply-allowance', 5),

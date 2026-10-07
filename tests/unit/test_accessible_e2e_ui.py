@@ -2084,15 +2084,17 @@ def test_current_chinese_renewal_enters_child_then_parent_before_installation():
     parent.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['station', 'missing-parent', 'missing-child', 'duplicate-child',
+@pytest.mark.parametrize('account', ['standard', 'child'])
+@pytest.mark.parametrize('fault', ['', 'station', 'missing-parent', 'missing-child', 'duplicate-child',
                                   'disabled-child', 'prompt', 'wrong-owner'])
-def test_product_free_standard_entry_refuses_wrong_shape_before_focus(fault):
+def test_product_free_standard_entry_refuses_wrong_shape_before_focus(fault, account):
     parent, standard, station = semantic_gdm_rows(standard=True)
+    if account == 'child': standard.name = accessible_ui.CHILD
     rows = [parent, standard]
     if fault == 'station': rows.append(station)
     if fault == 'missing-parent': rows.remove(parent)
     if fault == 'missing-child': rows.remove(standard)
-    if fault == 'duplicate-child': rows.append(Node(accessible_ui.EXISTING_CHILD, 'push button'))
+    if fault == 'duplicate-child': rows.append(Node(standard.name, 'push button'))
     if fault == 'disabled-child': standard.states.remove('sensitive')
     field = Node('Password', 'password text') if fault == 'prompt' else None
     applications = []
@@ -2100,14 +2102,21 @@ def test_product_free_standard_entry_refuses_wrong_shape_before_focus(fault):
         rows.remove(standard)
         applications.append(Node('Unrelated', 'application', children=[standard]))
     ui, _shell = semantic_gdm_ui(rows=rows, field=field, applications=applications)
-    with pytest.raises(UiError):
-        ui.run('gdm-product-free-standard-list', '')
-    standard.component.grab_focus.assert_not_called()
+    if fault:
+        with pytest.raises(UiError):
+            ui.run(f'gdm-product-free-{account}-list', '')
+        standard.component.grab_focus.assert_not_called()
+    else:
+        assert ui.run(f'gdm-product-free-{account}-list', '')['focused'] is True
+        assert ui.run(f'gdm-product-free-{account}-focused', '')['outcome'] == 'passed'
+        standard.component.grab_focus.assert_called_once_with()
+    standard.action.do_action.assert_not_called()
     parent.component.grab_focus.assert_not_called()
 
 
+@pytest.mark.parametrize('account', ['standard', 'child'])
 @pytest.mark.parametrize('fault', [None, 'wrong-role', 'skip-first', 'intervening-focus'])
-def test_product_free_standard_entry_retains_fresh_challenge_order(fault):
+def test_product_free_standard_entry_retains_fresh_challenge_order(fault, account):
     def call(argv, **kwargs):
         operation = argv[3]
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
@@ -2115,22 +2124,22 @@ def test_product_free_standard_entry_retains_fresh_challenge_order(fault):
         return json.dumps(result).encode()
     transport = SimpleNamespace(call=Mock(side_effect=call))
     ui = UiObservations(transport)
-    ui.observe('gdm-product-free-standard-list')
-    ui.observe('gdm-product-free-standard-focused')
-    challenge = {'id': 'pre-install-child', 'role': 'other-child', 'surface': 'gdm',
+    ui.observe(f'gdm-product-free-{account}-list')
+    ui.observe(f'gdm-product-free-{account}-focused')
+    challenge = {'id': 'pre-install-child', 'role': 'child' if account == 'child' else 'other-child', 'surface': 'gdm',
                  'check': 'qualified'}
     if fault == 'wrong-role':
         with pytest.raises(EvidenceError, match='recipient-order'):
             ui.observe_challenge('gdm-parent-recipient', {**challenge, 'role': 'parent'})
         return
     if fault != 'skip-first':
-        ui.observe_challenge('gdm-standard-recipient', challenge)
-    if fault == 'intervening-focus': ui.observe('gdm-product-free-standard-focused')
+        ui.observe_challenge(f'gdm-{account}-recipient', challenge)
+    if fault == 'intervening-focus': ui.observe(f'gdm-product-free-{account}-focused')
     if fault in ('skip-first', 'intervening-focus'):
         with pytest.raises(EvidenceError, match='challenge-order'):
-            ui.observe_challenge('gdm-standard-recipient-rechecked', {**challenge, 'check': 'rechecked'})
+            ui.observe_challenge(f'gdm-{account}-recipient-rechecked', {**challenge, 'check': 'rechecked'})
     else:
-        ui.observe_challenge('gdm-standard-recipient-rechecked', {**challenge, 'check': 'rechecked'})
+        ui.observe_challenge(f'gdm-{account}-recipient-rechecked', {**challenge, 'check': 'rechecked'})
 
 
 def test_gdm_product_free_and_installed_bindings_reject_the_opposite_fixture_shape():

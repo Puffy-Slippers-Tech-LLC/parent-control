@@ -26,6 +26,79 @@ from system_session_expiry import (
 FIXTURE = Path('/var/lib/onpc-test-graphical-expiry')
 SEED = Path('/usr/libexec/onpc-test-graphical-expiry-seed')
 PAM = Path('/etc/pam.d/gdm-autologin')
+BOOT_UNIT = 'onpc-test-graphical-expiry-broker.service'
+BOOT_SERVICE = Path('/etc/systemd/system') / BOOT_UNIT
+BOOT_DROPIN = Path('/etc/systemd/system/display-manager.service.d/onpc-test-graphical-expiry.conf')
+
+
+def prepare_broker_boot(*, fedora):
+    """Let PID 1 establish the broker before GDM, outside its PAM domain.
+
+    This attempt-only dependency and witness belong to the outer VM restore.
+    No login hook starts services or changes Fedora's enforcing SELinux policy.
+    """
+    marker = guest.guard()
+    for path in (BOOT_SERVICE, BOOT_DROPIN):
+        guest.require(not path.exists() and not path.is_symlink(),
+                      'expiry:broker-boot-fixture-collision')
+    for directory in (BOOT_SERVICE.parent, BOOT_DROPIN.parent):
+        guest.require(not directory.is_symlink(), 'expiry:broker-boot-directory')
+        directory.mkdir(mode=0o755, exist_ok=True)
+        info = directory.lstat()
+        guest.require(stat.S_ISDIR(info.st_mode) and info.st_uid == info.st_gid == 0
+                      and not info.st_mode & 0o022, 'expiry:broker-boot-directory')
+    # Pull the broker into the boot transaction without propagating its later
+    # deliberate stop (activate_broker's recovery check) through this witness
+    # to GDM. broker_ready still refuses an inactive/unidentified broker, and
+    # GDM still requires that successful witness before starting.
+    service = (f'[Unit]\nWants={guest.BROKER}\nAfter={guest.BROKER}\n'
+               '[Service]\nType=oneshot\nRemainAfterExit=yes\nUMask=0077\n'
+               f'ExecStart=/usr/bin/env ONPC_EXPECTED_RUN={marker["run"]} '
+               f'/usr/bin/python3 -B {guest.PAYLOAD}/system_graphical_expiry.py broker-ready\n'
+               'TimeoutStartSec=120\n')
+    dropin = f'[Unit]\nRequires={BOOT_UNIT}\nAfter={BOOT_UNIT}\n'
+    for path, contents in ((BOOT_SERVICE, service), (BOOT_DROPIN, dropin)):
+        with path.open('x') as stream:
+            stream.write(contents)
+        path.chmod(0o644)
+    if fedora:
+        guest.run(['restorecon', str(BOOT_SERVICE), str(BOOT_DROPIN.parent), str(BOOT_DROPIN)])
+    guest.run(['systemctl', 'daemon-reload'])
+    for unit, dependency, relationship in (
+            (BOOT_UNIT, guest.BROKER, 'Wants'),
+            ('display-manager.service', BOOT_UNIT, 'Requires')):
+        for property in (relationship, 'After'):
+            value = guest.run(['systemctl', 'show', unit, '--property=' + property, '--value'])
+            guest.require(dependency in value.split(), 'expiry:broker-boot-ordering')
+
+
+def broker_ready():
+    """Publish the real broker invocation before the login manager can run."""
+    marker = guest.guard()
+    guest.enable_diagnostics()
+    prepared = json.loads((FIXTURE / 'prepared.json').read_text())
+    boot = Path('/proc/sys/kernel/random/boot_id').read_text()
+    guest.require(prepared['run'] == marker['run'] and prepared['boot'] != boot,
+                  'expiry:broker-boot-reboot-boundary')
+    guest.require(guest.run(['systemctl', 'is-active', guest.BROKER]) == 'active',
+                  'expiry:broker-boot-inactive')
+    invocation = guest.run(['systemctl', 'show', guest.BROKER,
+                            '--property=InvocationID', '--value'])
+    guest.require(re.fullmatch(r'[0-9a-f]{32}', invocation) is not None
+                  and invocation != '0' * 32, 'expiry:broker-boot-invocation')
+    with (FIXTURE / 'broker-ready.json').open('x') as stream:
+        json.dump({'run': marker['run'], 'boot': boot, 'broker_invocation': invocation}, stream)
+
+
+def _seed_security_type():
+    """Read only the SELinux domain, never environment or command-line input."""
+    try:
+        with Path('/proc/self/attr/selinux/current').open() as stream:
+            context = stream.read(256).strip().split(':')
+    except OSError:
+        return 'unavailable'
+    return (context[2] if len(context) >= 3
+            and re.fullmatch(r'[a-zA-Z0-9_]+', context[2]) else 'unavailable')
 
 
 def seed_account_stack(original, *, fedora):
@@ -71,6 +144,7 @@ def prepare():
         'run': marker['run'], 'boot': Path('/proc/sys/kernel/random/boot_id').read_text(),
         'pam_sha256': guest.sha(PAM),
     }))
+    prepare_broker_boot(fedora=fedora)
     # Fixed root-owned wrapper, installed only in this guest attempt. Its run
     # token is pinned at preparation, never inferred from a caller's PAM input.
     SEED.write_text('#!/usr/bin/python3\nimport os,sys\n'
@@ -103,13 +177,33 @@ def seed():
     pending = FIXTURE / 'seed-attempt.json'
     guest.require(not (FIXTURE / 'seeded.json').exists(), 'expiry:seed-already-complete')
     with pending.open('x') as stream:
-        # Establish the broker before session creation so its startup fallback
-        # cannot clear a faulty scope after the observed account phase.
-        guest.run(['systemctl', 'start', guest.BROKER])
-        invocation = guest.run(['systemctl', 'show', guest.BROKER,
-                                '--property=InvocationID', '--value'])
+        attempt = {'boot': boot, 'worker': os.getppid(), 'seed_pid': os.getpid(),
+                   'started_epoch': time.time(), 'uid': os.getuid(), 'euid': os.geteuid(),
+                   'security_type': _seed_security_type(), 'stage': 'broker-witness'}
+        def checkpoint():
+            stream.seek(0)
+            stream.truncate()
+            json.dump(attempt, stream)
+            stream.flush()
+        checkpoint()
+        # PID 1 established the broker before GDM. Reading its boot-bound
+        # witness avoids service management from Fedora's confined PAM hook.
+        try:
+            witness = json.loads((FIXTURE / 'broker-ready.json').read_text())
+            invocation = witness['broker_invocation']
+            guest.require(witness['run'] == marker['run'] and witness['boot'] == boot
+                          and re.fullmatch(r'[0-9a-f]{32}', invocation) is not None
+                          and invocation != '0' * 32, 'expiry:seed-broker-witness')
+        except Exception:
+            attempt['failed'] = True
+            checkpoint()
+            raise
+        attempt['stage'] = 'grant'
+        checkpoint()
         time.sleep(max(0, int(time.time()) + 1.01 - time.time()))
         deadline = grant(accounts['child'], 1)
+        stream.seek(0)
+        stream.truncate()
         json.dump({'boot': boot, 'worker': os.getppid(), 'broker_invocation': invocation,
                    'deadline': deadline, 'remaining_seconds': round(deadline - time.time(), 3)}, stream)
     pending.rename(FIXTURE / 'seeded.json')
@@ -322,5 +416,5 @@ def verify(record):
 
 if __name__ == '__main__':
     guest.guard()
-    guest.require(sys.argv[1:] == ['prepare'], 'expiry:graphical-arguments')
-    prepare()
+    guest.require(sys.argv[1:] in (['prepare'], ['broker-ready']), 'expiry:graphical-arguments')
+    (prepare if sys.argv[1] == 'prepare' else broker_ready)()

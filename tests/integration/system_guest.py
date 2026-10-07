@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import stat
 import sys
 import tempfile
@@ -410,6 +411,57 @@ def retain_identity_for_redaction(uid):
         json.dump((account.pw_name, account.pw_gecos, account.pw_dir), stream)
 
 
+def _audit_denials(raw):
+    """Retain denial coordinates, excluding audit command lines and PROCTITLE."""
+    rows = []
+    for line in raw.decode(errors='replace').splitlines():
+        header = re.match(r'(?:node=\S+ )?type=(AVC|USER_AVC) '
+                          r'msg=audit\(([0-9.]+):([0-9]+)\):', line)
+        if header is None or re.search(r'\bavc:\s+denied\b', line) is None:
+            continue
+        row = {'type': header[1], 'epoch': header[2], 'serial': header[3],
+               'broker_unit': BROKER in line}
+        permissions = re.search(r'denied\s+\{([a-zA-Z0-9_\s]+)\}', line)
+        if permissions:
+            row['permissions'] = permissions[1].split()
+        for field in ('pid', 'uid', 'scontext', 'tcontext', 'tclass', 'permissive'):
+            match = re.search(r'\b' + field + r'=([a-zA-Z0-9_:.,-]+)', line)
+            if match:
+                row[field] = match[1]
+        rows.append(row)
+    return rows
+
+
+def collect_seed_access(output, redacted):
+    """Read the missing denial sources only for a failed graphical seed."""
+    guard()
+    result = Commands().run([
+        'journalctl', '--no-pager', '--utc', '-b', '--lines=300',
+        '_PID=1', '+', '_SYSTEMD_UNIT=dbus-broker.service', '+',
+        '_SYSTEMD_UNIT=dbus.service'], timeout=30, check=False, merge_stderr=False)
+    (output / 'graphical-expiry-access-journal.txt').write_text(
+        redacted(result.decode(errors='replace')))
+    # Fedora's audit daemon can own AVC evidence not present in the journal.
+    # This optional reader neither installs tools nor changes security policy.
+    reader = shutil.which('ausearch')
+    audit = {'status': 'reader-unavailable', 'denials': []}
+    if reader is not None:
+        commands = Commands()
+        errors = []
+        def retain_error(data, stream):
+            if stream == 'stderr':
+                errors.append(data)
+        result = commands.run([reader, '--input-logs', '--start', 'boot',
+                               '--message', 'AVC,USER_AVC', '--raw'], timeout=30,
+                              check=False, merge_stderr=False, on_output=retain_error)
+        rows = _audit_denials(result)
+        audit = {'returncode': commands.last_returncode, 'denials': rows[-100:],
+                 'truncated': len(rows) > 100,
+                 'stderr': b''.join(errors)[:4096].decode(errors='replace')}
+    (output / 'graphical-expiry-access-audit.json').write_text(
+        redacted(json.dumps(audit, sort_keys=True)))
+
+
 def collect(marker, outcome):
     """Copy only text diagnostics, redacting copies using the existing collector helper."""
     sys.path.insert(0, str(Path(__file__).parent / 'guest'))
@@ -436,6 +488,7 @@ def collect(marker, outcome):
         return contents.replace(hostname, '[Test VM]') if hostname else contents
 
     result = Commands().run(['journalctl', '--no-pager', '--utc', '-b', '-u', BROKER,
+                             '-u', 'onpc-test-graphical-expiry-broker.service',
                              '-u', 'fapolicyd.service', '-u', 'accounts-daemon.service',
                              '-u', 'slapd.service', '-u', 'sssd.service'],
                             timeout=60, check=False, merge_stderr=False)
@@ -447,13 +500,15 @@ def collect(marker, outcome):
                              '_SYSTEMD_UNIT=systemd-logind.service', '+',
                              '_COMM=gnome-shell'], timeout=60, check=False, merge_stderr=False)
     (output / 'session-journal.txt').write_text(redacted(result.decode(errors='replace')))
-    for name in ('prepared', 'prerequisites', 'seed-attempt', 'seeded'):
+    for name in ('prepared', 'prerequisites', 'broker-ready', 'seed-attempt', 'seeded'):
         source = EXPIRY_DIAGNOSTICS / (name + '.json')
         if source.exists():
             require(source.is_file() and not source.is_symlink()
                     and source.stat().st_size <= 65536, 'expiry-diagnostic-file')
             (output / ('graphical-expiry-' + name + '.json')).write_text(
                 redacted(source.read_text()))
+    if (EXPIRY_DIAGNOSTICS / 'seed-attempt.json').exists():
+        collect_seed_access(output, redacted)
     result = Commands().run(['journalctl', '--no-pager', '--utc', '-b',
                              '_SYSTEMD_UNIT=polkit.service', '+',
                              'SYSLOG_IDENTIFIER=polkit-agent-helper-1'],

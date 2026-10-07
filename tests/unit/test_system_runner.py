@@ -253,6 +253,27 @@ def test_isolation_removes_spice_transfer_but_preserves_disk():
     assert root.findtext('description') == runner.TAG + RUN
 
 
+@pytest.mark.parametrize('driver', ['virtiofs', 'path'])
+@pytest.mark.parametrize('graphics_type', ['spice', 'vnc'])
+def test_isolation_removes_host_filesystems_without_changing_original(driver, graphics_type):
+    original = ET.fromstring(xml())
+    devices = original.find('devices')
+    share = ET.SubElement(devices, 'filesystem', type='mount', accessmode='passthrough')
+    ET.SubElement(share, 'driver', type=driver)
+    ET.SubElement(share, 'source', dir='/host-checkout')
+    ET.SubElement(share, 'target', dir='pst')
+    original_xml = ET.tostring(original, encoding='unicode')
+
+    isolated = ET.fromstring(runner.isolated_xml(
+        original_xml, UUID, RUN, graphics_type=graphics_type))
+
+    assert not isolated.findall('devices/filesystem')
+    assert (runner.baseline.domain_layout(ET.tostring(isolated, encoding='unicode'), UUID) ==
+            runner.baseline.domain_layout(original_xml, UUID))
+    runner.validate_host_sharing(isolated)
+    assert ET.fromstring(original_xml).find('devices/filesystem/source').get('dir') == '/host-checkout'
+
+
 @pytest.mark.parametrize('old,new', [
     (runner.baseline.DOMAIN, 'host'), (UUID, 'other'), ('type="qcow2"', 'type="raw"'),
     ('source network="default"', 'source network="bridged"'),

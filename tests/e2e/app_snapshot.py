@@ -29,6 +29,13 @@ def mode_mismatch(xml, mode, *, now=None):
         domain = root.find('domain')
         if domain is None:
             return 'missing snapshot console configuration'
+        # Older isolation left host shares attached. Their backend state
+        # depends on live host files outside the guest disk/RAM snapshot.
+        # Refresh those online snapshots before attempting a memory restore;
+        # offline snapshots are isolated again before boot, and recorded
+        # owners must remain recoverable through the existing cleanup route.
+        if online and domain.findall('devices/filesystem'):
+            return 'online snapshot contains host filesystem sharing'
         try:
             system.validate_private_vnc(domain)
             system.validate_host_sharing(domain)

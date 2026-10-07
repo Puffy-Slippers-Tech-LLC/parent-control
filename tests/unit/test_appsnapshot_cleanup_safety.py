@@ -65,6 +65,26 @@ def test_snapshot_mode_and_host_age(mode, memory, state, created, expected):
 
 
 @pytest.mark.parametrize('mode', ['online', 'offline'])
+def test_host_share_snapshot_requires_refresh_only_before_memory_restore(mode):
+    domain = ET.fromstring(controller.system.isolated_xml(
+        domain_xml(), UUID, 'a' * 32, graphics_type='vnc'))
+    share = ET.SubElement(domain.find('devices'), 'filesystem', type='mount')
+    ET.SubElement(share, 'driver', type='virtiofs')
+    ET.SubElement(share, 'source', dir='/host-checkout')
+    ET.SubElement(share, 'target', dir='pst')
+    memory, state = ('internal', 'running') if mode == 'online' else ('no', 'shutoff')
+    xml = (f'<domainsnapshot><memory snapshot="{memory}"/><state>{state}</state>'
+           '<creationTime>100000</creationTime>' + ET.tostring(domain, encoding='unicode') +
+           '</domainsnapshot>')
+
+    # Existing recorded owners keep their cleanup/isolation proof. A new
+    # memory restore must instead replace this stale snapshot through prepare.
+    controller.system.validate_host_sharing(domain)
+    reason = app_snapshot.mode_mismatch(xml, mode, now=100000)
+    assert reason == ('online snapshot contains host filesystem sharing' if mode == 'online' else None)
+
+
+@pytest.mark.parametrize('mode', ['online', 'offline'])
 def test_channel_free_snapshot_refreshes_but_remains_recoverable(mode):
     domain = ET.fromstring(controller.system.isolated_xml(
         domain_xml(), UUID, 'a' * 32, graphics_type='vnc'))

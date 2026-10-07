@@ -395,7 +395,9 @@ def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
     root = ET.fromstring(xml)
     require(not root.findall('{http://libvirt.org/schemas/domain/qemu/1.0}commandline'), 'guard:qemu-override')
     devices = root.find('devices')
-    for name in ('redirdev', 'channel', 'graphics', 'audio', 'sound', 'rng'):
+    # Host filesystem backends are outside the guest disk/RAM snapshot boundary.
+    # In particular, virtiofs backend state must not enter a reusable app snapshot.
+    for name in ('filesystem', 'redirdev', 'channel', 'graphics', 'audio', 'sound', 'rng'):
         for node in devices.findall(name):
             devices.remove(node)
     require(graphics_type in ('spice', 'vnc'), 'guard:graphics-type')

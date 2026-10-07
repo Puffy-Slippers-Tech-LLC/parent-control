@@ -15,13 +15,12 @@ ENTRY.update({
     'parent-selected': 'ui:existing-returned',
 })
 ENTRY.update({
-    'disabled-refused': 'ui:parent-custom-trace-disabled-refused',
     'setup': 'ui:named-custom-setup',
 })
 EDITS = {
     **allowance_selection('jordan-preset', (15,)),
-    **custom_save_entry('jordan', 'existing'),
-    **ordinary_custom_save('riley', 'child', 7),
+    **custom_save_entry('jordan', 'existing', qualification=False),
+    **ordinary_custom_save('riley', 'child', 7, qualification=False),
     **custom_child_selection('final-away', 'existing'),
     'jordan-final-read': 'ui:custom-6-reopen',
     **custom_child_selection('final-back', 'child'),
@@ -36,9 +35,8 @@ PERSISTENCE = {
 }
 SCREENS = {**ENTRY, **EDITS, **PERSISTENCE}
 CHILDREN = {stage: 'existing' for stage in (
-    'disabled-refused', 'setup', 'jordan-open', 'jordan-focus',
-    'jordan-wrong-child', 'jordan-rapid', 'jordan-saved',
-    'jordan-reopened', 'jordan-final-read', 'jordan-after-restart')}
+    'setup', 'jordan-rapid',
+    'jordan-final-read', 'jordan-after-restart')}
 CHILDREN.update({stage: 'existing' for stage in (
     *allowance_selection('jordan-preset', (15,)),
     *allowance_selection('jordan-choice', ('custom',)))})
@@ -55,7 +53,6 @@ PLAN = JourneyPlan(
     custom_inputs={'jordan-rapid': (5, 6)},
     settings_checks={
         'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
-        'jordan-back-selected': SettingsObservation('existing-fixture-child', True, ('6 minutes',)),
         'final-away-selected': SettingsObservation('existing-fixture-child', True, ('6 minutes',)),
         'final-back-selected': SettingsObservation('fixture-child', True, ('7 minutes',)),
         'reopen-jordan-selected': SettingsObservation('existing-fixture-child', True, ('6 minutes',)),

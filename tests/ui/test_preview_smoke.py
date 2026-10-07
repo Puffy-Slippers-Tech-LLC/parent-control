@@ -347,6 +347,52 @@ def test_parent_daily_preset_and_custom_limit_autosave(
     assert reader.settings(CHILD)['allowance'] == ['1439 minutes']
 
 
+def test_e2e_rapid_custom_edits_queue_while_child_navigation_is_inhibited(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, monkeypatch):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD
+
+    # Reuse the private held-save fixture, bus/display and owned preview. The
+    # release file controls only the synthetic broker, never product UI state.
+    release = tmp_path / 'release-save'
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario='held-save', loading_release=release)
+    wait_parent_ready(ui, wait_for_accessible_state)
+    select_allowance(ui, ('custom',))
+    reader = AccessibleUI(
+        ui.api, timeout=10, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    reader.trace_request = reader.parent_save_trace_source(True, CHILD)[0]
+    set_text = reader.set_text
+
+    def edit(identity, value, **kwargs):
+        set_text(identity, value, **kwargs)
+        if value == '5':
+            wait_for_accessible_state(
+                lambda: not ui.state('parent-child-selector', ui.api.StateType.SENSITIVE),
+                'held first custom save inhibits navigation')
+
+    monkeypatch.setattr(reader, 'set_text', edit)
+    try:
+        assert reader.custom_trace_focus(CHILD) == {'applied': True}
+        assert ui.getText('parent-custom-daily-limit') == '6'
+    finally:
+        release.touch()
+    assert reader.parent_saved_result(True, CHILD) == {'saved': True, 'minutes': 6}
+    assert reader.settings(CHILD)['allowance'] == ['6 minutes']
+    # Reselect from the normal policy load instead of accepting the draft as
+    # proof of persistence in the scripted backend.
+    ui.setValue('parent-child-selector', '1002')
+    wait_parent_ready(ui, wait_for_accessible_state)
+    ui.setValue('parent-child-selector', '1001')
+    reader.parent_save_snapshot(CHILD, True)
+    assert reader.settings(CHILD)['allowance'] == ['6 minutes']
+
+
 def test_parent_rejected_custom_allowance_reloads_saved_value(
         launch_ui, automation, wait_for_accessible_state):
     from gi.repository import GLib

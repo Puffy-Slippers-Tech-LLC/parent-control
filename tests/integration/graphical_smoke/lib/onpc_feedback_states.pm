@@ -87,28 +87,38 @@ sub run_parent_save_trace {
 
 sub custom_save_entry {
     onpc_progress::operation('Saving and independently reloading the named custom allowance');
-    my ($journey, $entry, $child, $first, $last) = @_;
-    die 'trace:custom-entry' unless @_ == 5 && ref($journey) eq 'onpc_journey'
+    my ($journey, $entry, $child, $first, $last, $qualification) = @_;
+    $qualification //= 1;
+    die 'trace:custom-entry' unless (@_ == 5 || @_ == 6) && ref($journey) eq 'onpc_journey'
+        && ($qualification eq '0' || $qualification eq '1')
         && $entry =~ /\A[a-z][a-z0-9-]*\z/ && ($child eq 'child' || $child eq 'existing')
         && $first eq '5' && $last eq '6';
     onpc_allowance_selection::select($journey, "$entry-choice", ['custom'], 'confirm');
-    rejection_observe($journey, "$entry-$_") for ('open', 'focus', 'wrong-child', 'wrong-surface');
+    if ($qualification) {
+        rejection_observe($journey, "$entry-$_") for ('open', 'focus', 'wrong-child', 'wrong-surface');
+    }
     onpc_text::observed_custom_edits($journey, "$entry-rapid", $first, $last, $child);
-    rejection_observe($journey, "$entry-saved");
-    onpc_allowance_boundaries::reload_child($journey, $entry);
-    rejection_observe($journey, "$entry-reopened");
+    if ($qualification) {
+        rejection_observe($journey, "$entry-saved");
+        onpc_allowance_boundaries::reload_child($journey, $entry);
+        rejection_observe($journey, "$entry-reopened");
+    }
 }
 
 sub ordinary_custom_save {
     onpc_progress::operation('Selecting a child and saving the declared custom allowance');
-    my ($journey, $entry, $value) = @_;
-    die 'save:ordinary-custom' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+    my ($journey, $entry, $value, $qualification) = @_;
+    $qualification //= 1;
+    die 'save:ordinary-custom' unless (@_ == 3 || @_ == 4) && ref($journey) eq 'onpc_journey'
+        && ($qualification eq '0' || $qualification eq '1')
         && defined($entry) && $entry =~ /\A[a-z][a-z0-9-]*\z/
         && defined($value) && $value eq '7';
     onpc_allowance_boundaries::select_child($journey, $entry);
     rejection_observe($journey, "$entry-setup");
     onpc_allowance_selection::select($journey, "$entry-choice", ['custom'], 'confirm');
-    rejection_observe($journey, "$entry-$_") for ('editor', 'wrong-child');
+    if ($qualification) {
+        rejection_observe($journey, "$entry-$_") for ('editor', 'wrong-child');
+    }
     onpc_text::replace_text($journey, "daily-$value", "$entry-text");
     rejection_observe($journey, "$entry-saved");
 }
@@ -139,10 +149,10 @@ sub run_save_order {
     onpc_gdm::reattach_functional();
     $journey->consume_observation('parent-selected',
         onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing'));
-    rejection_observe($journey, $_) for ('disabled-refused', 'setup');
+    rejection_observe($journey, 'setup');
     onpc_allowance_selection::select($journey, 'jordan-preset', [15], 'confirm');
-    custom_save_entry($journey, 'jordan', 'existing', 5, 6);
-    ordinary_custom_save($journey, 'riley', 7);
+    custom_save_entry($journey, 'jordan', 'existing', 5, 6, 0);
+    ordinary_custom_save($journey, 'riley', 7, 0);
     onpc_allowance_boundaries::select_child($journey, 'final-away');
     rejection_observe($journey, 'jordan-final-read');
     onpc_allowance_boundaries::select_child($journey, 'final-back');

@@ -519,7 +519,7 @@ print encode_json({ok => $ok ? 1 : 0, stages => \@stages, keys => \@keys});
     assert PLAN.settings_checks['final-away-selected'].child == 'existing-fixture-child'
 
 
-def test_save_order_worker_reuses_named_input_and_stops_at_failed_window_count():
+def test_save_order_worker_reuses_named_input_and_stops_at_every_failed_boundary():
     from save_order import PLAN
     from tests.support.perl import run_perl
     expected = list(PLAN.screen_tags)
@@ -569,6 +569,64 @@ def test_save_order_uses_only_final_allowance_boundaries():
                           for value in (15, 'custom', 'custom')
                           for phase in ('click', 'selected')]
     assert not PLAN.balance_checks
+    assert not any('refused' in tag for tag in PLAN.screen_tags.values())
+    assert not any(stage.startswith(('jordan-away-', 'jordan-back-'))
+                   for stage in PLAN.screen_tags)
+    assert all(stage in PLAN.settings_checks for stage in (
+        'final-away-selected', 'final-back-selected',
+        'reopen-jordan-selected', 'reopen-riley-selected'))
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong-child', 'disabled-editor',
+                                  'disabled-allowance', 'uncertain-first-commit'])
+def test_rapid_custom_edits_do_not_wait_for_child_navigation(fault):
+    # Synthetic helper qualification: the first commit inhibits navigation.
+    # The second edit must still run, while unavailable recipients and an
+    # uncertain commit stop the batch without replay or alternative input.
+    child = Node(identity='parent-child-selected-' + (
+        '1002' if fault == 'wrong-child' else '1001'),
+        children=[Node(name=accessible_ui.CHILD, role='label')])
+    picker = Node(identity='parent-child-selector', children=[child])
+    allowance = Node(identity='parent-daily-limit-selector')
+    editor = Node(identity='parent-custom-daily-limit', role='entry',
+                  states=('showing', 'visible', 'sensitive', 'editable'))
+    if fault == 'disabled-editor': editor.states.remove('sensitive')
+    if fault == 'disabled-allowance': allowance.states.remove('sensitive')
+    ui = ui_for(Node(identity='parent-window', children=[picker, allowance, editor]))
+    ui.trace_request = 'c' * 64
+    ui.parent_save_snapshot = Mock()
+    ui.parent_save_trace_source = Mock(return_value=('c' * 64, {}))
+    commits = []
+
+    def commit(_index):
+        commits.append(editor.value)
+        picker.states.discard('sensitive')
+        if fault == 'uncertain-first-commit':
+            raise OSError('uncertain commit')
+        return True
+
+    editor.action.do_action.side_effect = commit
+    if fault:
+        category = {'wrong-child': 'ui:wrong-child',
+                    'disabled-editor': 'ui:text-disabled',
+                    'disabled-allowance': 'ui:unusable-target',
+                    'uncertain-first-commit': 'uncertain commit'}[fault]
+        with pytest.raises((accessible_ui.UiError, OSError), match=category):
+            ui.custom_trace_focus()
+        assert commits == (['5'] if fault == 'uncertain-first-commit' else [])
+        assert editor.setText.call_count == (1 if commits else 0)
+        if fault == 'uncertain-first-commit':
+            assert ui.input_uncertain
+            with pytest.raises(accessible_ui.UiError, match='ui:uncertain-input'):
+                ui.custom_trace_focus()
+            assert commits == ['5'] and editor.setText.call_count == 1
+    else:
+        assert ui.custom_trace_focus() == {'applied': True}
+        assert commits == ['5', '6']
+        assert 'sensitive' not in picker.states
+        assert [call.args[0] for call in editor.setText.call_args_list] == ['5', '6']
+        ui.parent_save_snapshot.assert_called_once_with(accessible_ui.CHILD, True)
+    editor.component.grab_focus.assert_not_called()
 
 
 @pytest.mark.parametrize('values', [(), (15, 0), (900, 0), (True,), (1440,)])

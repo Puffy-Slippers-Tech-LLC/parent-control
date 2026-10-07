@@ -852,7 +852,12 @@ custom 1 through this block; reopening reads the final saved 1. Case 159 starts 
 Jordan's enabled saved zero, selects 15 minutes and verifies saved 15.
 Choose Custom with the same block, then perform rapid 5→6.
 Riley's custom 7 entry and the named-child/rapid-save qualifications reuse the
-same block. All UI and E2E tests follow the
+same block. Case 159 uses the customer bindings of `custom_save_entry` and
+`ordinary_custom_save` (`qualification=False`); refusal exercises and the
+qualification's extra child reload stay in the harness checks. The rapid editor
+guard checks selected-child identity while navigation is inhibited by saving.
+Both children's final values are independently read before and after reopening.
+The current API bindings require installed requalification. All UI and E2E tests follow the
 [mandatory sequence](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception);
 popup/highlight/cancellation assertions and alternate choice-selection routes
 are excluded.
@@ -1668,6 +1673,10 @@ scenario's approval or panel rendering is needed to pass this account history.
 E2E-054 `account-offline`, case 255, binds this complete history in
 `tests/e2e/language_persistence.py`. Both policy captures use a 2400-second
 monotonic history bound, with two seconds of public refresh/formatter tolerance.
+App IDs and rules remain exact across languages. App names follow the parent's
+language under [ONPC-CORE-APPS-002](../Specification.md): capture each child's
+Chinese names at its first Chinese readback and require those exact names on
+subsequent Chinese readbacks; English readbacks retain the English capture.
 The overlay retains its independent Casey approver while the station retains
 Jamie. German/Hebrew forms retain Custom `1.25`, 75 seconds and included soft apps.
 The complete history passed all 26 assertions on Ubuntu 26.04 in

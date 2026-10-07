@@ -163,7 +163,11 @@ for stage, tag in SCREENS.items():
             'management': 'Screen time limit' if language == 'en' else '限制屏幕时间'},
             capture=name if stage == name + '-before' else None,
             same=None if stage == name + '-before' else name, max_elapsed_seconds=2400,
-            labels=LABELS[language], absent_labels=LABELS['zh-Hans' if language == 'en' else 'en'])
+            labels=LABELS[language], absent_labels=LABELS['zh-Hans' if language == 'en' else 'en'],
+            app_names_capture=name + '-chinese-app-names'
+                if stage == 'parent-' + name + '-state' else None,
+            app_names_same=name + '-chinese-app-names'
+                if language == 'zh-Hans' and stage != 'parent-' + name + '-state' else None)
 FORM_TEXT = {'en': ('Child', 'Approver', '30 minutes', 'REQUEST', 'CANCEL'),
     'de': ('Kind', 'Genehmigung durch', '30 Minuten', 'ANFRAGEN', 'Abbrechen'),
     'he': ('ילד', 'מאשר', '30 דקות', 'בקשה', 'ביטול')}

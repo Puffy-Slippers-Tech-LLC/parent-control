@@ -4,6 +4,11 @@ Known modules have private compositor/bus/settings and per-attempt evidence.
 Keep nested Shell in one job because it also publishes stable latest evidence.
 New modules remain included, but run exclusively until their isolation is reviewed.
 
+Rapid custom-save coverage in preview_smoke reuses the owned GTK preview,
+private display/bus and a tiny tmp_path broker release file, released in finally.
+No new process, shared service or cleanup owner; the Preview smoke bucket and
+existing resource reservation remain appropriate.
+
 Preview cleanup defers wait cancellation within its existing deadlines and
 Popen ownership, then propagates it before another case can start. It adds no
 process, signal handler, shared bus or storage; private-display buckets still apply.

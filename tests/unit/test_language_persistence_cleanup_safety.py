@@ -175,6 +175,56 @@ def test_real_recorder_step_checks_before_durable_reply(tmp_path, stage, fault):
             assert journey.public_captures['jordan' if stage == 'jordan-before' else 'riley'][0]['rows'][0][1] == 'allowed'
 
 
+@pytest.mark.parametrize('child', ['riley', 'jordan'])
+@pytest.mark.parametrize('fault', ['', 'name', 'policy', 'missing-names'])
+def test_chinese_app_names_follow_language_and_remain_exact_before_reply(tmp_path, child, fault):
+    journey = shared.language_journey(checks=case.CHECKS)(
+        SimpleNamespace(directory=tmp_path), Mock(), case.PLAN,
+        actions=shared.offline_language_actions())
+    english = policy(child)
+    journey.check_settings(child + '-before', {'ui': {'language_state': english}})
+    first_chinese = policy(child, 'zh-Hans', elapsed=40)
+    first_chinese['app_names'][0][1] = '应用程序'
+    journey.check_settings('parent-' + child + '-state', {'ui': {'language_state': first_chinese}})
+    names_endpoint = child + '-chinese-app-names'
+    # The original policy and each language's names are immutable, separate
+    # witnesses. Translation does not authorize changing any identity or rule.
+    english['app_names'][0][1] = 'mutated English input'
+    first_chinese['app_names'][0][1] = 'mutated Chinese input'
+    assert journey.public_captures[child][0]['app_names'][0][1] == 'Fixture application'
+    assert journey.public_captures[names_endpoint][0][1] == '应用程序'
+    assert ('jordan' if child == 'riley' else 'riley') + '-chinese-app-names' not in journey.public_captures
+    stage = child + '-online-final'
+    value = policy(child, 'zh-Hans', elapsed=60)
+    value['app_names'][0][1] = '应用程序'
+    if fault == 'name': value['app_names'][0][1] = 'different application'
+    if fault == 'policy': value['rows'][0][1] = 'permanent'
+    if fault == 'missing-names': del journey.public_captures[names_endpoint]
+    journey.boot = 'a' * 64
+    journey.steps = [{'stage': item} for item in case.PLAN.stages[:case.PLAN.stages.index(stage)]]
+    journey.ui = SimpleNamespace(boot_proof=journey.boot,
+        observe=Mock(return_value={'language_state': value}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+        with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).is_file()
+
+
+def test_english_app_names_still_compare_against_original_capture(tmp_path):
+    journey = shared.language_journey(checks=case.CHECKS)(
+        SimpleNamespace(directory=tmp_path), Mock(), case.PLAN,
+        actions=shared.offline_language_actions())
+    journey.check_settings('jordan-before', {'ui': {'language_state': policy('jordan')}})
+    changed = policy('jordan', elapsed=10)
+    changed['app_names'][0][1] = 'different application'
+    with pytest.raises(EvidenceError, match='policy-preservation'):
+        journey.check_settings('offline-enter', {'ui': {'language_state': changed}})
+
+
 @pytest.mark.parametrize('stage', ['direct-form', 'jordan-german', 'riley-casey'])
 @pytest.mark.parametrize('fault', ['', 'child', 'surface', 'duration', 'soft', 'extra', 'text',
                                    'late-diagnostic', 'missing-reply', 'replayed-reply'])

@@ -1,5 +1,9 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Case 159 rapid-edit guards in e2e_feedback_read use in-memory control doubles
+and its existing waited private Perl children. No bus, display, shared path or
+new cleanup owner is added; its compatible unit classification remains valid.
+
 Kiosk notification startup in systemd_unit uses one bounded, synchronously
 waited Python child with private tmp_path HOME/cache and bytecode disabled.
 It loads GTK modules without creating a window, bus connection or main loop;

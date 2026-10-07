@@ -53,16 +53,22 @@ def _public_value(journey, observed, *, key, expected, capture, same):
 
 
 def language_policy(expected, *, capture=None, same=None, max_elapsed_seconds,
-                    labels=(), absent_labels=()):
+                    labels=(), absent_labels=(), app_names_capture=None, app_names_same=None):
     require(bool(capture) != bool(same) and type(max_elapsed_seconds) is int
             and 0 < max_elapsed_seconds <= 3600, 'language:policy-plan')
+    require(not (app_names_capture and app_names_same)
+            and all(endpoint is None or isinstance(endpoint, str) and endpoint
+                    and endpoint not in (capture, same)
+                    for endpoint in (app_names_capture, app_names_same)),
+            'language:app-name-plan')
     return partial(_language_policy, expected=deepcopy(expected), capture=capture,
                    same=same, max_elapsed_seconds=max_elapsed_seconds,
-                   labels=tuple(labels), absent_labels=tuple(absent_labels))
+                   labels=tuple(labels), absent_labels=tuple(absent_labels),
+                   app_names_capture=app_names_capture, app_names_same=app_names_same)
 
 
 def _language_policy(journey, observed, *, expected, capture, same, max_elapsed_seconds,
-                     labels, absent_labels):
+                     labels, absent_labels, app_names_capture, app_names_same):
     value = observed['ui']['language_state']
     require(all(value.get(key) == item for key, item in expected.items()),
             journey.plan.prefix + ':policy-values')
@@ -81,11 +87,23 @@ def _language_policy(journey, observed, *, expected, capture, same, max_elapsed_
     else:
         require(same in journey.public_captures, 'language:missing-policy')
         prior, baseline = journey.public_captures[same]
-        require(saved == prior, journey.plan.prefix + ':policy-preservation')
+        # App IDs and rules remain exact across languages. Desktop-entry names
+        # follow Parent's language (ONPC-CORE-APPS-002); callers may declare a
+        # separate immutable name endpoint for each language in their history.
+        keys = saved.keys() - {'app_names'} if app_names_capture or app_names_same else saved.keys()
+        require(all(saved[key] == prior[key] for key in keys),
+                journey.plan.prefix + ':policy-preservation')
         elapsed = (balances['observed_monotonic_ns'] - baseline['observed_monotonic_ns']) / 1e9
         decrease = baseline['daily']['seconds'] - balances['daily']['seconds']
         require(0 <= elapsed <= max_elapsed_seconds and -2 <= decrease <= elapsed + 2,
                 journey.plan.prefix + ':balance-preservation')
+    if app_names_capture:
+        require(app_names_capture not in journey.public_captures, 'language:capture-replay')
+        journey.public_captures[app_names_capture] = deepcopy(value['app_names'])
+    elif app_names_same:
+        require(app_names_same in journey.public_captures, 'language:missing-app-names')
+        require(value['app_names'] == journey.public_captures[app_names_same],
+                journey.plan.prefix + ':app-name-preservation')
 
 
 def enter_offline(journey, guard):

@@ -4310,7 +4310,11 @@ class AccessibleUI:
         require(node.get_role_name() != 'password text'
                 and self.has_state(node, self.api.StateType.EDITABLE), 'ui:text-editor')
         if identity == 'parent-custom-daily-limit':
-            self.allowance_entry(child)
+            # Custom saves inhibit child navigation, but keep this child's
+            # editor usable for the next queued edit. Check identity without
+            # requiring the unrelated selector to accept input.
+            self.time_explanation_entry(child)
+            self.id_target('parent-daily-limit-selector', root=root, sensitive=True)
         if identity == 'parent-app-search':
             picker = self.id_target('parent-child-selector', root=root, sensitive=True)
             require(self.child_id_control(child, 'parent-child-selected-', root=picker,

@@ -130,33 +130,41 @@ def custom_child_selection(prefix, child):
             for suffix, operation in zip(('open', 'focus', 'selected'), operations)}
 
 
-def custom_save_entry(prefix, child):
-    """Enabled rapid-save entry, then independent reselection and editor read."""
+def custom_save_entry(prefix, child, *, qualification=True):
+    """Rapid saving; qualifications additionally exercise refusals and reload."""
     require(child in ('child', 'existing'), 'journey:custom-child')
+    require(type(qualification) is bool, 'journey:custom-qualification')
     other = 'existing' if child == 'child' else 'child'
     return {
         **allowance_selection(prefix + '-choice', ('custom',)),
-        f'{prefix}-open': 'ui:custom-6-open',
-        f'{prefix}-focus': 'ui:text-daily-6-focus',
-        f'{prefix}-wrong-child': 'ui:named-custom-wrong-child-refused',
-        f'{prefix}-wrong-surface': 'ui:parent-trace-wrong-surface-refused',
+        **({
+            f'{prefix}-open': 'ui:custom-6-open',
+            f'{prefix}-focus': 'ui:text-daily-6-focus',
+            f'{prefix}-wrong-child': 'ui:named-custom-wrong-child-refused',
+            f'{prefix}-wrong-surface': 'ui:parent-trace-wrong-surface-refused',
+        } if qualification else {}),
         f'{prefix}-rapid': 'ui:parent-custom-save-trace',
-        f'{prefix}-saved': 'ui:custom-6-saved',
-        **custom_child_selection(prefix + '-away', other),
-        **custom_child_selection(prefix + '-back', child),
-        f'{prefix}-reopened': 'ui:custom-6-reopen',
+        **({
+            f'{prefix}-saved': 'ui:custom-6-saved',
+            **custom_child_selection(prefix + '-away', other),
+            **custom_child_selection(prefix + '-back', child),
+            f'{prefix}-reopened': 'ui:custom-6-reopen',
+        } if qualification else {}),
     }
 
 
-def ordinary_custom_save(prefix, child, value):
+def ordinary_custom_save(prefix, child, value, *, qualification=True):
     """Select a child and commit the qualified ordinary custom value."""
     require(value == 7, 'journey:ordinary-custom-value')
+    require(type(qualification) is bool, 'journey:custom-qualification')
     return {
         **custom_child_selection(prefix, child),
         f'{prefix}-setup': 'ui:named-custom-setup',
         **allowance_selection(prefix + '-choice', ('custom',)),
-        f'{prefix}-editor': f'ui:custom-{value}-open',
-        f'{prefix}-wrong-child': 'ui:named-custom-wrong-child-refused',
+        **({
+            f'{prefix}-editor': f'ui:custom-{value}-open',
+            f'{prefix}-wrong-child': 'ui:named-custom-wrong-child-refused',
+        } if qualification else {}),
         **{f'{prefix}-text-{suffix}': f'ui:text-daily-{value}-{suffix}'
            for suffix in ('focus', 'selected', 'read')},
         f'{prefix}-saved': f'ui:custom-{value}-saved',

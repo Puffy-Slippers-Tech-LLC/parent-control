@@ -21,7 +21,7 @@ from common.oh_no_parent_control_ui.about import branding_asset_path
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from common.oh_no_parent_control_ui.application_ui import ApplicationUI, bind_ui
 from common.oh_no_parent_control_ui.translation_widgets import TranslationContext, set_text
-# The installed service executes this file directly, without a package context.
+# The systemd service executes this file directly, without a package context.
 from kiosk.oh_no_parent_control_kiosk.chrome import register_form_font
 
 

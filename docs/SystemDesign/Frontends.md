@@ -60,6 +60,13 @@ loaded and the selected child's saved screen-time toggle is enabled. The
 broker's kiosk method has a broader contract; see
 [grant transactions](Broker.md#authorization-and-grant-transactions).
 
+The overlay's `com.puffyslippers.OhNoParentControl.ChildRequest` application ID
+has a matching, publicly readable desktop entry using the product launcher icon.
+The entry is hidden from the app grid and launches `oh-no-parent-control-child`;
+GNOME uses it to identify overlay windows in the dock. It activates on package
+installation/update and the next overlay launch, without a service restart or
+saved-data migration.
+
 ## Application UI API
 
 Parent, kiosk/child request windows, their shared dialogs and the child panel

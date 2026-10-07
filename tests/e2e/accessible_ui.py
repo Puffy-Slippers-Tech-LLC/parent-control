@@ -4680,8 +4680,10 @@ class AccessibleUI:
                 ('about-license-value', 'GNU General Public License v3.0'),
                 ('about-legal-notices-value', 'Malcontent integration and bundled-font notices')):
             node = self.id_target(identity, root=root, showing=False)
+            # About links expose a purpose-prefixed accessible name separately
+            # from their displayed legal text. Read the latter through the API.
             require(self.has_state(node, self.api.StateType.VISIBLE)
-                    and node.get_name() == expected, 'ui:about-information')
+                    and node.getText() == expected, 'ui:about-information')
 
     def open_about(self, version, *, menu_open=False, language='en'):
         """ABOUT01: independent Parent entry; menu, About, text and license link."""

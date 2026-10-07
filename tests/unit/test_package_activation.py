@@ -1,4 +1,5 @@
 import json
+import configparser
 import os
 import runpy
 import subprocess
@@ -365,6 +366,19 @@ class PackageActivationTests(unittest.TestCase):
             ),
             "session-renewal",
         )
+
+    def test_child_overlay_desktop_identity_uses_the_product_icon_without_restart(self):
+        root = Path(__file__).resolve().parents[2]
+        desktop_id = "com.puffyslippers.OhNoParentControl.ChildRequest"
+        installed_path = f"usr/share/applications/{desktop_id}.desktop"
+        entry = configparser.ConfigParser(interpolation=None)
+        entry.read(root / "data/applications" / f"{desktop_id}.desktop")
+        desktop = entry["Desktop Entry"]
+        self.assertEqual(desktop["Exec"], "/usr/bin/oh-no-parent-control-child")
+        self.assertEqual(desktop["Icon"], "com.puffyslippers.OhNoParentControl")
+        self.assertTrue(desktop.getboolean("NoDisplay"))
+        self.assertFalse(desktop.getboolean("DBusActivatable"))
+        self.assertEqual(activation_for(installed_path), "none")
 
     def test_account_logo_is_reapplied_by_provisioning(self):
         self.assertEqual(

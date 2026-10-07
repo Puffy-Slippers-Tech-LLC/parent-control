@@ -46,6 +46,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/oh-no-parent-control/child-extension.trust \
 	$(DATADIR)/gnome-session/sessions/oh-no-parent-control.session \
 	$(DATADIR)/wayland-sessions/oh-no-parent-control.desktop \
+	$(DATADIR)/applications/com.puffyslippers.OhNoParentControl.ChildRequest.desktop \
 	$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png \
 	$(DATADIR)/oh-no-parent-control/app_logo.png \
 	$(DATADIR)/oh-no-parent-control/kiosk_account_icon.png \
@@ -141,7 +142,8 @@ PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	$(addprefix data/systemd/user/,$(PRODUCT_USER_SERVICES)) \
 	data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf \
 	data/gnome-session/sessions/oh-no-parent-control.session data/wayland-sessions/oh-no-parent-control.desktop \
-	data/applications/com.puffyslippers.OhNoParentControl.desktop data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
+	data/applications/com.puffyslippers.OhNoParentControl.desktop data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop \
+	data/applications/com.puffyslippers.OhNoParentControl.ChildRequest.desktop
 PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.py \
 	packaging/render_lifecycle.py packaging/stage_distribution.py packaging/fedora_pam.py packaging/purge.py \
 	packaging/fedora_execution_policy.py \
@@ -569,6 +571,7 @@ endif
 	install -m 0644 data/wayland-sessions/oh-no-parent-control.desktop "$(DESTDIR)$(DATADIR)/wayland-sessions/"
 	install -m 0644 data/app_logo_gnome_launcher.png "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png"
 	install -m 0644 data/applications/com.puffyslippers.OhNoParentControl.desktop "$(DESTDIR)$(DATADIR)/applications/"
+	install -m 0644 data/applications/com.puffyslippers.OhNoParentControl.ChildRequest.desktop "$(DESTDIR)$(DATADIR)/applications/"
 	# GNOME only indexes desktop entries the signed-in user can read. The package
 	# maintainer script assigns this file to Ubuntu's administrator group.
 	install -m 0640 data/applications/com.puffyslippers.OhNoParentControl.Parent.desktop "$(DESTDIR)$(DATADIR)/applications/"

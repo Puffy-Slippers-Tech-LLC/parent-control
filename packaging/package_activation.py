@@ -29,6 +29,9 @@ BOOT_ID_PATTERN = r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}'
 
 def activation_for(path: str) -> str:
     """Return the activation required when an installed path changes."""
+    # GNOME monitors desktop entries; new overlay launches use this identity.
+    if path == "usr/share/applications/com.puffyslippers.OhNoParentControl.ChildRequest.desktop":
+        return "none"
     # These lifecycle commands and notices take effect on invocation;
     # changing them needs no running-service or session activation.
     if path in {

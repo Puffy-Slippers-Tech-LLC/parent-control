@@ -46,9 +46,11 @@ def about_tree(monkeypatch, opened=True):
 @pytest.mark.parametrize('fault', ['', 'product', 'version', 'license', 'notices', 'owner', 'hidden', 'clipped'])
 def test_customer_about_summary_reads_legal_information_without_link_actions(monkeypatch, fault):
     ui, owner, _, about, link = about_tree(monkeypatch)
-    link.name = 'GNU General Public License v3.0'
-    notices = Node('Malcontent integration and bundled-font notices',
-                   identity='about-legal-notices-value', role='link')
+    link.name = 'License: GNU General Public License v3.0'
+    link.value = 'GNU General Public License v3.0'
+    notices = Node('Legal notices: Malcontent integration and bundled-font notices',
+                   identity='about-legal-notices-value', role='link',
+                   value='Malcontent integration and bundled-font notices')
     about.children.append(notices)
     notices.parent = about
     # A readable disclosure does not need an activation action.
@@ -60,7 +62,11 @@ def test_customer_about_summary_reads_legal_information_without_link_actions(mon
     elif fault:
         target = {'product': about.children[0], 'version': about.children[1],
                   'license': link, 'notices': notices}[fault]
-        target.name = 'wrong'
+        if fault in ('license', 'notices'):
+            # Correct accessible labels must not conceal incorrect legal copy.
+            target.value = 'wrong'
+        else:
+            target.name = 'wrong'
     if fault and fault != 'clipped':
         with pytest.raises(a.UiError): ui.run('overlay-about-summary', '1.1')
     else:

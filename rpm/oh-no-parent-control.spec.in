@@ -129,6 +129,7 @@ for script in rpm-lifecycle/rpm-*; do /bin/sh -n "$script"; done
 %{_datadir}/gnome-session/sessions/oh-no-parent-control.session
 %{_datadir}/wayland-sessions/oh-no-parent-control.desktop
 %{_datadir}/applications/com.puffyslippers.OhNoParentControl.desktop
+%{_datadir}/applications/com.puffyslippers.OhNoParentControl.ChildRequest.desktop
 %attr(0640,root,wheel) %{_datadir}/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
 %{_datadir}/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png
 %{_unitdir}/oh-no-parent-control-broker.service

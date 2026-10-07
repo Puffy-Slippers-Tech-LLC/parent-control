@@ -102,6 +102,10 @@ from pathlib import PurePosixPath
 # add four fixed aggregate names to the existing worker-local recorder. They
 # retain no arguments/results, add no RPCs, threads, files or process owners,
 # and preserve all input/ownership guards and existing UI bucket reservations.
+# Protocol-operation timing separates the nine fixed Call operations plus an
+# unknown-input bucket, listSurfaces and inventory in that same recorder. It
+# forwards each call once without inspecting targets, arguments or results;
+# no new reads/resources or change to compatible UI classifications is added.
 
 
 # UI is host-only. The shared launcher always excludes VM-dependent live_e2e

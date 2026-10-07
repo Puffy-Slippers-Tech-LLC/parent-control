@@ -116,6 +116,22 @@ class Timings:
                 return function(*args, **kwargs)
         return measured
 
+    def wrap_ui_call(self, function):
+        """Separate fixed protocol operations without retaining targets or data."""
+        operations = frozenset({
+            'inventory', 'getElementById', 'getValue', 'getText', 'getChoices',
+            'setValue', 'setText', 'activate', 'close',
+        })
+
+        @wraps(function)
+        def measured(client, surface_id, element_id, operation, arguments=None):
+            # Unknown/malformed inputs still reach the original validator once.
+            # Do not stringify them or inspect their arguments/results.
+            kind = operation if type(operation) is str and operation in operations else 'other'
+            with self.measure('application-ui.call.' + kind):
+                return function(client, surface_id, element_id, operation, arguments)
+        return measured
+
     @staticmethod
     def query_kind(interface, method, args):
         # Finite protocol names only. Never retain bus/path, arbitrary property

@@ -133,12 +133,15 @@ def ui_operation_timings():
         patch.setattr(gui_blocks, 'run_perl', UI_TIMINGS.wrap_span(gui_blocks.run_perl, 'gui.expand'))
         patch.setattr(PublicAtspi, 'call', UI_TIMINGS.wrap_rpc(PublicAtspi.call))
         patch.setattr(PublicAtspi, 'read_many', UI_TIMINGS.wrap_batch(PublicAtspi.read_many))
+        patch.setattr(UIClient, 'call', UI_TIMINGS.wrap_ui_call(UIClient.call))
         for owner, method, label in (
                 # Aggregate only fixed operation names and durations. Product
                 # RPCs otherwise appear as unaccounted traversal self time;
                 # never record their arguments, UI values or response text.
                 (UIClient, '_bus', 'application-ui.bus'),
                 (UIClient, '_request', 'application-ui.request'),
+                (UIClient, 'listSurfaces', 'application-ui.list-surfaces'),
+                (UIClient, 'inventory', 'application-ui.inventory'),
                 (ApplicationUI, '_application', 'application-ui.inventory-projection'),
                 (ApplicationNode, 'snapshot', 'application-ui.element-snapshot'),
                 (AccessibleUI, 'read_snapshot', 'reader.snapshot'),

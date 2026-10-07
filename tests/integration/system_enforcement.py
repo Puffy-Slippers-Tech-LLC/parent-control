@@ -228,7 +228,10 @@ def trust_future():
         guest.run(['restorecon', str(FUTURE_TRUST)])
     guest.run(['fapolicyd-cli', '--update'])
     expected = [str(target), str(target.stat().st_size), guest.sha(target)]
-    deadline = time.monotonic() + 30
+    # Ubuntu's debdb backend rehashes installed packages on --update. The
+    # retained VM evidence shows a successful refresh taking about 40 seconds;
+    # allow the guest command budget while still requiring the exact DB entry.
+    deadline = time.monotonic() + 120
     while True:
         rows = [row.split() for row in guest.run(['fapolicyd-cli', '--dump-db']).splitlines()]
         if any(len(row) == 4 and row[1:] == expected for row in rows):

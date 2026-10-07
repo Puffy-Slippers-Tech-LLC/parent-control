@@ -780,7 +780,8 @@ def test_pattern_scenario_future_after_activation_and_isolation(
     assert state['current'] == original
 
 
-@pytest.mark.parametrize('fault', [None, 'file', 'symlink', 'unsafe-parent', 'wrong-digest'])
+@pytest.mark.parametrize('fault', [None, 'delayed-refresh', 'file', 'symlink',
+                                 'unsafe-parent', 'wrong-digest'])
 def test_future_trust_is_fixed_owned_and_independently_observed(monkeypatch, tmp_path, fault):
     target = tmp_path / 'Versioned-2.AppImage'
     target.write_bytes(b'future fixture')
@@ -799,12 +800,18 @@ def test_future_trust_is_fixed_owned_and_independently_observed(monkeypatch, tmp
         trust.write_text('foreign')
     elif fault == 'symlink':
         trust.symlink_to(tmp_path / 'missing')
-    run = Mock(return_value=f'filedb {target} {target.stat().st_size} ' +
-               ('b' if fault == 'wrong-digest' else 'a') * 64)
+    row = f'filedb {target} {target.stat().st_size} ' + (
+        'b' if fault == 'wrong-digest' else 'a') * 64
+    run = Mock(return_value=row)
+    if fault == 'delayed-refresh':
+        # --update returns before the daemon finishes rehashing packages.
+        run.side_effect = ['', '', '', '', row]
     monkeypatch.setattr(enforcement.guest, 'run', run)
-    clock = iter((0, 31))
+    clock = iter((0, 40) if fault == 'delayed-refresh' else (0, 121))
     monkeypatch.setattr(enforcement.time, 'monotonic', lambda: next(clock))
-    if fault:
+    sleep = Mock()
+    monkeypatch.setattr(enforcement.time, 'sleep', sleep)
+    if fault and fault != 'delayed-refresh':
         with pytest.raises(enforcement.guest.GuestError, match=(
                 'future-not-trusted' if fault == 'wrong-digest' else
                 'unsafe-trust-parent' if fault == 'unsafe-parent' else 'future-trust-collision')):
@@ -813,9 +820,15 @@ def test_future_trust_is_fixed_owned_and_independently_observed(monkeypatch, tmp
             run.assert_not_called()
     else:
         enforcement.trust_future()
-        assert [item.args[0] for item in run.call_args_list] == [
+        expected_commands = [
             ['fapolicyd-cli', '--file', 'add', str(target), '--trust-file', trust.name],
             ['restorecon', str(trust)], ['fapolicyd-cli', '--update'], ['fapolicyd-cli', '--dump-db']]
+        if fault == 'delayed-refresh':
+            expected_commands.append(['fapolicyd-cli', '--dump-db'])
+            sleep.assert_called_once_with(0.25)
+        else:
+            sleep.assert_not_called()
+        assert [item.args[0] for item in run.call_args_list] == expected_commands
 
 
 @pytest.mark.parametrize('fault', ['allow-missing', 'allow-after-deny', 'deny-missing', 'wrong-uid',

@@ -150,6 +150,19 @@ STANDARD_OPERATIONS |= frozenset({'chinese-standard-desktop'})
 OPERATIONS |= frozenset({'standard-search-qualified'})
 STANDARD_OPERATIONS |= frozenset({'standard-search-qualified'})
 NATIVE_PRODUCT = 'ONPC Allowed Fixture'
+NATIVE_EXECUTION_MARKERS = (
+    ('permission-denied', b'Permission denied'),
+    ('operation-not-permitted', b'Operation not permitted'),
+    ('missing-file', b'No such file or directory'),
+    ('bus-unavailable', b'Failed to connect to bus'),
+    ('start-failed', b'Failed to start'),
+    ('exec-failed', b'203/EXEC'),
+    ('display-unavailable', b'cannot open display'),
+)
+NATIVE_EXECUTION_ERRNOS = {
+    '1': 'operation-not-permitted', '2': 'missing-file',
+    '8': 'invalid-executable', '13': 'permission-denied', '20': 'invalid-directory',
+}
 NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'desktop', 'search-ready', 'search-focused', 'search-entered', 'grid',
     'grid-refusals', 'command-launch', 'command-refusals', 'wrong-entry',
@@ -6246,9 +6259,19 @@ class AccessibleUI:
         require(root is not None, 'ui:match-window')
         def target(identity, scope=root):
             node = self.snapshot_owned_target(identity, root=scope, showing=False, observation=observation)
-            require(node is not None and self.has_state(node, self.api.StateType.VISIBLE)
-                    and not self.has_state(node, self.api.StateType.DEFUNCT), 'ui:match-target')
-            return node
+            if node is None:
+                reason = ('outside-scope' if identity in identities.values() else 'missing')
+            elif not self.has_state(node, self.api.StateType.VISIBLE):
+                reason = 'hidden'
+            elif self.has_state(node, self.api.StateType.DEFUNCT):
+                reason = 'defunct'
+            else:
+                return node
+            error = UiError('ui:match-target')
+            # Fixed control IDs and closed reasons only; no UI text or new
+            # queries. Preserve the original refusal and input boundary.
+            error.add_note('ui:match-target:' + identity + ':' + reason)
+            raise error
         picker = target('parent-child-selector')
         uid = (self.fixture_uids[child] if self.fixture_uids is not None
                else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
@@ -9384,22 +9407,58 @@ class AccessibleUI:
         # Reacquire it within the existing deadline before any launch input;
         # complete negative/ownership results still refuse immediately.
         self.wait(ready, 'native-launch-ready', prompt_in_predicate=True)
+        # Identify this one service for failure-only journal reads. The
+        # executable, session, service type and single submission stay the same.
+        unit = 'onpc-test-native-' + os.urandom(16).hex() + '.service' if blocked else None
         self.input_uncertain = True
         result = subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
-            *(['--wait', '--pipe'] if blocked else []),
+            *(['--wait', '--pipe', '--unit=' + unit] if blocked else []),
             '--service-type=exec',
             '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
         ], stdin=subprocess.DEVNULL, capture_output=True, check=not blocked, timeout=15)
         if blocked:
-            require(result.returncode in (1, 203) and len(result.stdout) + len(result.stderr) <= 65536
-                    and any(message in result.stderr for message in (
-                        b'Permission denied', b'Operation not permitted')), 'ui:native-execution-denial')
+            bounded = len(result.stdout) + len(result.stderr) <= 65536
+            denied = (result.returncode in (1, 203) and bounded
+                      and any(message in result.stderr for message in (
+                          b'Permission denied', b'Operation not permitted')))
+            journal = None
+            if not denied:
+                # The executor can fail before the service owns its piped
+                # stderr. Require the same permission error from this launch's
+                # attributed EXEC record; status 203 alone proves no denial.
+                journal = native_execution_journal_diagnostic(unit)
+                denied = (result.returncode == 203 and bounded
+                          and journal['status'] == 'read'
+                          and journal['exec_errors'] in (
+                              ['permission-denied'], ['operation-not-permitted']))
+            if not denied:
+                error = UiError('ui:native-execution-denial')
+                # Keep the exact refusal. Retain only bounded counts, exit
+                # status and fixed message markers, never command output.
+                error.native_execution_result = {
+                    'returncode': (result.returncode if type(result.returncode) is int
+                                   and -255 <= result.returncode <= 255 else 'other'),
+                    'stdout_bytes': min(len(result.stdout), 65537),
+                    'stderr_bytes': min(len(result.stderr), 65537),
+                    'stdout_markers': [name for name, marker in NATIVE_EXECUTION_MARKERS
+                                       if marker in result.stdout],
+                    'stderr_markers': [name for name, marker in NATIVE_EXECUTION_MARKERS
+                                       if marker in result.stderr],
+                }
+                error.native_execution_journal = journal
+                raise error
             stable = time.monotonic()
             def absent():
                 require(self.native_app_closed(), 'ui:native-blocked-window')
                 return time.monotonic() - stable >= 2
             self.wait(absent, 'native-blocked-absence')
+            if self.timing is not None:
+                self.timing({'event': 'ui-native-execution-denial',
+                             'source': 'journal' if journal is not None else 'stderr',
+                             'error': (journal['exec_errors'][0] if journal is not None else
+                                       'permission-denied' if b'Permission denied' in result.stderr
+                                       else 'operation-not-permitted')})
 
     def native_app_snapshot(self, submitted, *, pending=False, with_window=False):
         """APP02/03: public owned window and finite independent activity projection."""
@@ -10833,6 +10892,53 @@ def require_active_launch_session():
     require(len(active) == 1, 'ui:launch-session')
 
 
+def native_execution_journal_diagnostic(unit):
+    """Read this failed launch's OS error without exporting journal contents.
+
+    systemd's executor logs exec failures to the journal, not the service's
+    piped stderr. Bind the error to the unique unit, fixed executable and EXEC
+    step before returning a closed errno label. Missing evidence proves nothing.
+    """
+    diagnostic = {'status': 'unavailable', 'entries': 0, 'exec_errors': []}
+    if type(unit) is not str or re.fullmatch(r'onpc-test-native-[0-9a-f]{32}\.service', unit) is None:
+        return diagnostic
+    try:
+        result = subprocess.run([
+            '/usr/bin/journalctl', '--user', '--boot', '--unit=' + unit,
+            '--lines=16', '--output=json', '--no-pager', '--quiet',
+        ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=5)
+        if len(result.stdout) + len(result.stderr) > 65536:
+            return {**diagnostic, 'status': 'oversized'}
+        lines = result.stdout.splitlines()
+        if len(lines) > 16:
+            return {**diagnostic, 'status': 'oversized'}
+        entries = [json.loads(line) for line in lines]
+        if any(type(entry) is not dict for entry in entries):
+            return {**diagnostic, 'status': 'invalid'}
+        errors = []
+        for entry in entries:
+            if (unit not in (entry.get('USER_UNIT'), entry.get('_SYSTEMD_USER_UNIT'))
+                    or entry.get('EXECUTABLE') !=
+                    '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage'):
+                continue
+            message = entry.get('MESSAGE')
+            # LOG_EXEC_MESSAGE prefixes the unit name. Match the exact launch
+            # and step as well as the structured fields; no arbitrary text or
+            # another unit's permission error can stand in for this failure.
+            prefix = (unit + ': Failed at step EXEC spawning '
+                      '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage: ')
+            if type(message) is str and message.startswith(prefix):
+                value = entry.get('ERRNO')
+                errors.append(NATIVE_EXECUTION_ERRNOS.get(value, 'other')
+                              if type(value) is str else 'other')
+        return {'status': 'read', 'entries': len(entries), 'exec_errors': errors}
+    except ValueError:
+        return {**diagnostic, 'status': 'invalid'}
+    except (OSError, subprocess.SubprocessError):
+        # A missing reader or malformed log must not replace the original error.
+        return diagnostic
+
+
 def runtime_failure_diagnostic(account, pending, elapsed_ms, *, session_states=None):
     """Failure-only service/session evidence on private command stderr.
 
@@ -11192,7 +11298,7 @@ def adapter_failure_diagnostic(error):
     The isolated stdin payload has no checkout paths. Its observer frames are
     identified by their module globals; embedded helpers have fixed module names.
     """
-    locations, queries, absence_reads = [], [], []
+    locations, queries, absence_reads, match_targets = [], [], [], []
     cache_provider = {}
     trace = error.__traceback__
     while trace is not None:
@@ -11207,6 +11313,16 @@ def adapter_failure_diagnostic(error):
         if type(note) is not str:
             continue
         parts = note.split(':')
+        if (len(parts) == 4 and parts[:2] == ['ui', 'match-target']
+                and parts[2] in (
+                    'parent-child-selector', 'parent-app-limits-page',
+                    'parent-app-search', 'parent-app-rows',
+                    'parent-match-rule-entry', MATCH_APP, MATCH_OTHER_APP,
+                    *(app + suffix for app in (MATCH_APP, MATCH_OTHER_APP)
+                      for suffix in ('-match-rule', *('-access-' + choice
+                                                   for choice in ACCESS_CHOICES))))
+                and parts[3] in ('missing', 'outside-scope', 'hidden', 'defunct')):
+            match_targets.append({'id': parts[2], 'reason': parts[3]})
         if (len(parts) == 2 and parts[0] in (
                 'public-atspi-cache-owner', 'public-atspi-cache-registry')
                 and parts[1] in ('present', 'missing', 'unavailable')):
@@ -11233,8 +11349,38 @@ def adapter_failure_diagnostic(error):
                   'queries': queries[-8:]}
     if absence_reads:
         diagnostic['absence_reads'] = absence_reads[-8:]
+    if match_targets:
+        diagnostic['match_targets'] = match_targets[-4:]
     if cache_provider:
         diagnostic['cache_provider'] = cache_provider
+    native_result = getattr(error, 'native_execution_result', None)
+    if (type(native_result) is dict and set(native_result) == {
+            'returncode', 'stdout_bytes', 'stderr_bytes', 'stdout_markers', 'stderr_markers'}
+            and (type(native_result['returncode']) is str
+                 and native_result['returncode'] == 'other'
+                 or type(native_result['returncode']) is int
+                 and -255 <= native_result['returncode'] <= 255)
+            and all(type(native_result[key]) is int and 0 <= native_result[key] <= 65537
+                    for key in ('stdout_bytes', 'stderr_bytes'))
+            and all(type(native_result[key]) is list
+                    and len(native_result[key]) <= len(NATIVE_EXECUTION_MARKERS)
+                    and all(type(marker) is str and marker in dict(NATIVE_EXECUTION_MARKERS)
+                            for marker in native_result[key])
+                    for key in ('stdout_markers', 'stderr_markers'))):
+        diagnostic['native_execution_result'] = {
+            **native_result, 'stdout_markers': list(native_result['stdout_markers']),
+            'stderr_markers': list(native_result['stderr_markers'])}
+    native_journal = getattr(error, 'native_execution_journal', None)
+    if (type(native_journal) is dict and set(native_journal) == {'status', 'entries', 'exec_errors'}
+            and type(native_journal['status']) is str
+            and native_journal['status'] in ('read', 'unavailable', 'oversized', 'invalid')
+            and type(native_journal['entries']) is int and 0 <= native_journal['entries'] <= 16
+            and type(native_journal['exec_errors']) is list
+            and len(native_journal['exec_errors']) <= native_journal['entries']
+            and all(type(value) is str and value in (*NATIVE_EXECUTION_ERRNOS.values(), 'other')
+                    for value in native_journal['exec_errors'])):
+        diagnostic['native_execution_journal'] = {
+            **native_journal, 'exec_errors': list(native_journal['exec_errors'])}
     field_state = getattr(error, 'authentication_field_state', None)
     if (type(field_state) is dict and set(field_state) == {
             'provider', 'showing', 'sensitive', 'focused', 'stale'}

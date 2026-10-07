@@ -73,6 +73,9 @@ def test_child_trust_collision_refuses_before_package_changes(machine):
     ('ubuntu', 'remove'), ('ubuntu', 'purge'), ('fedora', 'remove'),
 ], indirect=['machine'])
 def test_child_trust_removal_preserves_other_trust_and_refreshes_daemon(machine, action):
+    # Purge validates /var even when logs are absent. Model a trusted system
+    # ancestor independently of the host umask so this reaches trust removal.
+    (machine.root / 'var').chmod(0o755)
     trust = machine.integration('child-extension-trust',
                                 'etc/fapolicyd/trust.d/oh-no-parent-control.trust')
     admin = machine.write('etc/fapolicyd/trust.d/administrator.trust', 'keep admin trust\n')
@@ -127,6 +130,9 @@ def test_preinst_registers_dpkg_notice_before_unpack_and_retries_safely(machine)
 @pytest.mark.parametrize("modified", [False, True])
 @ubuntu_only
 def test_notice_cleanup_preserves_administrator_replacements(machine, action, modified):
+    # Purge checks /var even without logs. Model a trusted system ancestor
+    # independently of the host umask so this reaches the notice checks.
+    (machine.root / 'var').chmod(0o755)
     assert machine.run("preinst", "install").returncode == 0
     notice = machine.root / "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice"
     if modified:
@@ -159,6 +165,12 @@ def test_purge_removes_saved_state_logs_and_empty_policy(machine):
     machine.baseline()
     machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
     machine.write("var/log/oh-no-parent-control/broker/day.log", "redacted fixture")
+    # Model trusted system ancestors and the product's 0750 log directories
+    # independently of the host umask; purge runs the real directory guards.
+    for path, mode in (('var', 0o755), ('var/log', 0o755),
+                       ('var/log/oh-no-parent-control', 0o750),
+                       ('var/log/oh-no-parent-control/broker', 0o750)):
+        (machine.root / path).chmod(mode)
     machine.integration("fapolicyd-fallback", "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules")
     result = machine.run("postrm", "purge")
     assert result.returncode == 0, result.stderr
@@ -172,6 +184,9 @@ def test_purge_removes_saved_state_logs_and_empty_policy(machine):
 
 
 def test_remove_retains_preferences_until_later_purge(machine):
+    # Purge validates /var even without logs. Model a trusted system ancestor
+    # independently of the host umask so this reaches saved-state cleanup.
+    (machine.root / 'var').chmod(0o755)
     path = machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
     assert machine.run("postrm", "remove").returncode == 0
     assert path.exists()
@@ -185,6 +200,9 @@ def test_remove_retains_preferences_until_later_purge(machine):
     ('fedora', 'remove'), ('fedora', 'purge'),
 ], indirect=['machine'])
 def test_removal_preserves_unsettled_probe_generations(machine, action):
+    # Purge validates /var even without logs. Model a trusted system ancestor
+    # independently of the host umask so this reaches probe preservation.
+    (machine.root / 'var').chmod(0o755)
     witness = machine.write("run/oh-no-parent-control/probes/" + "1" * 32 + "/witness",
                             "retained generation")
     witness.chmod(0o500)
@@ -267,6 +285,9 @@ def test_changed_home_owner_is_preserved(machine):
 
 
 def test_purge_does_not_follow_saved_state_symlink(machine):
+    # Purge validates /var even without logs. Model a trusted system ancestor
+    # independently of the host umask so this reaches saved-state cleanup.
+    (machine.root / 'var').chmod(0o755)
     outside = machine.write("unrelated/keep", "keep")
     (machine.root / "var/lib/oh-no-parent-control/linked").symlink_to(outside.parent)
     assert machine.run("postrm", "purge").returncode == 0
@@ -391,6 +412,9 @@ def test_removal_requests_reboot_without_losing_or_duplicating_requests(machine,
 
 
 def test_later_purge_does_not_request_another_reboot(machine):
+    # Purge validates /var even without logs. Model a trusted system ancestor
+    # independently of the host umask so this reaches the reboot checks.
+    (machine.root / 'var').chmod(0o755)
     result = machine.run("postrm", "purge")
     assert result.returncode == 0, result.stderr
     assert not (machine.root / "run/reboot-required").exists()
@@ -398,6 +422,9 @@ def test_later_purge_does_not_request_another_reboot(machine):
 
 
 def test_remove_records_reboot_until_boot_and_purge_preserves_request(machine):
+    # Purge validates /var even without logs. Model a trusted system ancestor
+    # independently of the host umask so this reaches the reboot checks.
+    (machine.root / 'var').chmod(0o755)
     marker = machine.root / ('run/oh-no-parent-control-reboot-required'
                               if machine.distribution == 'fedora' else 'run/reboot-required')
     other = machine.write('run/reboot-required.pkgs', 'linux-base\n')
@@ -417,6 +444,9 @@ def test_remove_records_reboot_until_boot_and_purge_preserves_request(machine):
 
 
 def test_owned_integrations_removed_but_later_admin_hook_survives_purge(machine):
+    # Purge validates /var even without logs. Model a trusted system ancestor
+    # independently of the host umask so this reaches hook preservation.
+    (machine.root / 'var').chmod(0o755)
     hook = machine.integration("gdm-presession", machine.gdm_hook)
     fallback = machine.integration("fapolicyd-fallback", "etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules")
     result = machine.run("postrm", "remove")

@@ -84,7 +84,7 @@ def test_request_ids_are_public_and_unique(
 
 
 def test_station_selected_uids_drive_the_public_guest_projection(
-        launch_ui, automation, wait_for_accessible_state):
+        launch_ui, automation, wait_for_accessible_state, monkeypatch):
     from tests.e2e.accessible_ui import CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
 
     launch_ui("kiosk_preview", wait_for_application=False)
@@ -98,6 +98,9 @@ def test_station_selected_uids_drive_the_public_guest_projection(
     reader = ui.reader
     reader.fixture_uids = {CHILD: 1001, EXISTING_CHILD: 1002,
                           PARENT: 1000, OTHER_PARENT: 1010}
+    # The preview declares synthetic approvers rather than host OS accounts.
+    # Preserve the shared reader's exact offered-account check against them.
+    monkeypatch.setattr(reader, 'interactive_approver_uids', lambda: {'1000', '1010'})
     result = reader.kiosk_request_form()
     assert result['child'] == 'existing-fixture-child'
     assert result['approver'] == 'other-fixture-parent'

@@ -95,6 +95,290 @@ def test_launch_reacquires_complete_preflight_without_replaying_input(monkeypatc
         assert submit.call_count == 1
 
 
+@pytest.mark.parametrize('returncode,stderr,stdout,out_markers,err_markers', [
+    (0, b'private output', b'', [], []),
+    (203, b'', b'', [], []),
+    (203, b'', b'Permission denied: private path', ['permission-denied'], []),
+    (126, b'Permission denied: private path', b'', [], ['permission-denied']),
+    (1, b'No such file or directory: private path', b'', [], ['missing-file']),
+    (1, b'Failed to connect to bus: private address', b'', [], ['bus-unavailable']),
+    (203, b'Permission denied: private path', b'x' * 65538, [], ['permission-denied']),
+])
+def test_blocked_launch_failure_retains_private_safe_result_without_replay(
+        monkeypatch, returncode, stderr, stdout, out_markers, err_markers):
+    ui = ui_for(Node())
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
+    ui.require_child_overlay_session = Mock()
+    ui.desktop_result = Mock()
+    ui.handle_system_prompt = Mock()
+    ui.native_app_closed = Mock(return_value=True)
+    ui.wait = lambda predicate, *_args, **_kwargs: predicate()
+    submit = Mock(return_value=SimpleNamespace(
+        returncode=returncode, stdout=stdout, stderr=stderr))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
+    journal = Mock(return_value={'status': 'read', 'entries': 0, 'exec_errors': []})
+    monkeypatch.setattr(accessible_ui, 'native_execution_journal_diagnostic', journal)
+
+    with pytest.raises(UiError, match='^ui:native-execution-denial$') as caught:
+        ui.native_launch_command(child=accessible_ui.CHILD, blocked=True)
+    diagnostic = accessible_ui.adapter_failure_diagnostic(caught.value)
+    assert diagnostic['native_execution_result'] == {
+        'returncode': returncode, 'stdout_bytes': min(len(stdout), 65537),
+        'stderr_bytes': len(stderr), 'stdout_markers': out_markers,
+        'stderr_markers': err_markers,
+    }
+    assert 'private' not in json.dumps(diagnostic)
+    assert diagnostic['native_execution_journal'] == journal.return_value
+    journal.assert_called_once()
+    unit = journal.call_args.args[0]
+    assert '--unit=' + unit in submit.call_args.args[0]
+    assert ui.native_app_closed.call_count == 1  # No post-failure observation/input.
+    ui.desktop_result.assert_called_once_with(accessible_ui.CHILD, 'success')
+    ui.require_child_overlay_session.assert_called_once_with()
+    assert ui.input_uncertain
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.native_launch_command(child=accessible_ui.CHILD, blocked=True)
+    assert submit.call_count == 1
+
+
+@pytest.mark.parametrize('errno,expected', [
+    ('1', 'operation-not-permitted'), ('2', 'missing-file'),
+    ('8', 'invalid-executable'), ('13', 'permission-denied'),
+    ('20', 'invalid-directory'), ('private value', 'other'),
+    (['13'], 'other'), (None, 'other'),
+])
+def test_native_journal_binds_one_launch_and_exports_only_closed_errors(monkeypatch, errno, expected):
+    unit = 'onpc-test-native-' + 'a' * 32 + '.service'
+    entry = {'USER_UNIT': unit, 'ERRNO': errno,
+             'EXECUTABLE': '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
+             'MESSAGE': unit + ': Failed at step EXEC spawning '
+                        '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage: private error',
+             'private-field': 'private value'}
+    entries = [entry, {**entry, 'USER_UNIT': 'other.service'},
+               {**entry, 'EXECUTABLE': '/private/other'},
+               {**entry, 'MESSAGE': unit + ': Failed at step CHDIR spawning '
+                                   '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage: private error'}]
+    read = Mock(return_value=SimpleNamespace(
+        stdout=b'\n'.join(json.dumps(value).encode() for value in entries), stderr=b''))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', read)
+    result = accessible_ui.native_execution_journal_diagnostic(unit)
+    assert result == {'status': 'read', 'entries': 4, 'exec_errors': [expected]}
+    read.assert_called_once_with([
+        '/usr/bin/journalctl', '--user', '--boot', '--unit=' + unit,
+        '--lines=16', '--output=json', '--no-pager', '--quiet',
+    ], stdin=accessible_ui.subprocess.DEVNULL, capture_output=True, check=True, timeout=5)
+    assert 'private' not in json.dumps(result)
+
+
+@pytest.mark.parametrize('changed', [
+    {'USER_UNIT': 'other.service'},
+    {'USER_UNIT': None},
+    {'EXECUTABLE': '/private/other'},
+    {'EXECUTABLE': None},
+    {'MESSAGE': 'Failed at step EXEC spawning '
+                '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage: private error'},
+    {'MESSAGE': 'other.service: Failed at step EXEC spawning '
+                '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage: private error'},
+    {'MESSAGE': 'onpc-test-native-' + 'a' * 32 + '.service: Failed at step EXEC spawning '
+                '/private/other: private error'},
+    {'MESSAGE': None},
+    {'MESSAGE': ['private error']},
+])
+def test_native_journal_rejects_unattributed_permission_errors(monkeypatch, changed):
+    unit = 'onpc-test-native-' + 'a' * 32 + '.service'
+    entry = {'USER_UNIT': unit, 'ERRNO': '13',
+             'EXECUTABLE': '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
+             'MESSAGE': unit + ': Failed at step EXEC spawning '
+                        '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage: private error',
+             **changed}
+    read = Mock(return_value=SimpleNamespace(stdout=json.dumps(entry).encode(), stderr=b''))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', read)
+    assert accessible_ui.native_execution_journal_diagnostic(unit) == {
+        'status': 'read', 'entries': 1, 'exec_errors': []}
+    assert read.call_count == 1
+
+
+@pytest.mark.parametrize('errno,window,expected_error', [
+    ('13', False, None), ('1', False, None),
+    ('13', True, 'ui:native-blocked-window'),
+    ('2', False, 'ui:native-execution-denial'),
+    ('8', False, 'ui:native-execution-denial'),
+    ('20', False, 'ui:native-execution-denial'),
+    (None, False, 'ui:native-execution-denial'),
+])
+def test_blocked_launch_reads_executor_error_and_still_requires_no_window(
+        monkeypatch, errno, window, expected_error):
+    ui = ui_for(Node())
+    ui.timing = Mock()
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
+    ui.require_child_overlay_session = Mock()
+    ui.desktop_result = Mock()
+    ui.handle_system_prompt = Mock()
+    ui.native_app_closed = Mock(side_effect=[True, not window, not window])
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', Mock(side_effect=[0, 1, 2]))
+
+    def wait(predicate, *_args, **_kwargs):
+        if not predicate():
+            assert predicate()
+    ui.wait = wait
+
+    def execute(argv, **_kwargs):
+        if argv[0] == '/usr/bin/systemd-run':
+            return SimpleNamespace(returncode=203, stdout=b'', stderr=b'')
+        assert argv[0] == '/usr/bin/journalctl'
+        unit = next(arg.removeprefix('--unit=') for arg in argv if arg.startswith('--unit='))
+        entry = {'USER_UNIT': unit, 'ERRNO': errno,
+                 'EXECUTABLE': '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
+                 'MESSAGE': unit + ': Failed at step EXEC spawning '
+                            '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage: private error'}
+        return SimpleNamespace(stdout=json.dumps(entry).encode(), stderr=b'')
+    run = Mock(side_effect=execute)
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', run)
+
+    if expected_error:
+        with pytest.raises(UiError, match='^' + expected_error + '$'):
+            ui.native_launch_command(child=accessible_ui.CHILD, blocked=True)
+    else:
+        ui.native_launch_command(child=accessible_ui.CHILD, blocked=True)
+    if expected_error:
+        ui.timing.assert_not_called()
+    else:
+        ui.timing.assert_called_once_with({
+            'event': 'ui-native-execution-denial', 'source': 'journal',
+            'error': 'permission-denied' if errno == '13' else 'operation-not-permitted'})
+    assert run.call_count == 2  # One launch, one read; never another launch.
+    launch_unit = next(arg for arg in run.call_args_list[0].args[0] if arg.startswith('--unit='))
+    assert launch_unit in run.call_args_list[1].args[0]
+    assert ui.native_app_closed.call_count == (1 if expected_error == 'ui:native-execution-denial'
+                                              else 2 if window else 3)
+    assert ui.input_uncertain
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.native_launch_command(child=accessible_ui.CHILD, blocked=True)
+    assert run.call_count == 2
+
+
+@pytest.mark.parametrize('returncode,stdout,errors,status', [
+    (0, b'', ['permission-denied'], 'read'),
+    (1, b'', ['permission-denied'], 'read'),
+    (126, b'', ['permission-denied'], 'read'),
+    (203, b'x' * 65537, ['permission-denied'], 'read'),
+    (203, b'', [], 'read'),
+    (203, b'', ['other'], 'read'),
+    (203, b'', ['permission-denied', 'missing-file'], 'read'),
+    (203, b'', ['permission-denied', 'permission-denied'], 'read'),
+    (203, b'', ['permission-denied'], 'unavailable'),
+    (203, b'', [], 'invalid'),
+    (203, b'', [], 'oversized'),
+])
+def test_journal_does_not_replace_exit_output_or_unambiguous_denial_guards(
+        monkeypatch, returncode, stdout, errors, status):
+    ui = ui_for(Node())
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
+    ui.desktop_result = Mock()
+    ui.handle_system_prompt = Mock()
+    ui.native_app_closed = Mock(return_value=True)
+    ui.wait = lambda predicate, *_args, **_kwargs: predicate()
+    run = Mock(return_value=SimpleNamespace(returncode=returncode, stdout=stdout, stderr=b''))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', run)
+    journal = Mock(return_value={'status': status, 'entries': len(errors), 'exec_errors': errors})
+    monkeypatch.setattr(accessible_ui, 'native_execution_journal_diagnostic', journal)
+    with pytest.raises(UiError, match='^ui:native-execution-denial$'):
+        ui.native_launch_command(blocked=True)
+    run.assert_called_once()
+    journal.assert_called_once()
+    assert ui.native_app_closed.call_count == 1
+
+
+@pytest.mark.parametrize('returncode,stderr', [
+    (1, b'Permission denied'), (203, b'Operation not permitted'),
+])
+def test_stderr_denial_keeps_absence_check_without_journal_read(monkeypatch, returncode, stderr):
+    ui = ui_for(Node())
+    ui.timing = Mock()
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
+    ui.desktop_result = Mock()
+    ui.handle_system_prompt = Mock()
+    ui.native_app_closed = Mock(return_value=True)
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', Mock(side_effect=[0, 2]))
+    ui.wait = lambda predicate, *_args, **_kwargs: predicate()
+    run = Mock(return_value=SimpleNamespace(returncode=returncode, stdout=b'', stderr=stderr))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', run)
+    journal = Mock()
+    monkeypatch.setattr(accessible_ui, 'native_execution_journal_diagnostic', journal)
+    ui.native_launch_command(blocked=True)
+    run.assert_called_once()
+    journal.assert_not_called()
+    assert ui.native_app_closed.call_count == 2
+    ui.timing.assert_called_once_with({
+        'event': 'ui-native-execution-denial', 'source': 'stderr',
+        'error': 'permission-denied' if returncode == 1 else 'operation-not-permitted'})
+
+
+@pytest.mark.parametrize('stdout,status', [
+    (b'', 'read'), (b'private malformed log', 'invalid'),
+    (b'[]', 'invalid'), (b'{}\n' * 17, 'oversized'), (b'x' * 65537, 'oversized'),
+])
+def test_native_journal_read_is_bounded_and_never_exports_raw_logs(monkeypatch, stdout, status):
+    read = Mock(return_value=SimpleNamespace(stdout=stdout, stderr=b''))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', read)
+    result = accessible_ui.native_execution_journal_diagnostic(
+        'onpc-test-native-' + 'a' * 32 + '.service')
+    assert result == {'status': status, 'entries': 0, 'exec_errors': []}
+    assert read.call_count == 1
+
+
+@pytest.mark.parametrize('error', [OSError('private error'),
+                                  accessible_ui.subprocess.TimeoutExpired('private command', 5)])
+def test_native_journal_reader_failure_does_not_retry(monkeypatch, error):
+    read = Mock(side_effect=error)
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', read)
+    assert accessible_ui.native_execution_journal_diagnostic(
+        'onpc-test-native-' + 'a' * 32 + '.service') == {
+            'status': 'unavailable', 'entries': 0, 'exec_errors': []}
+    assert read.call_count == 1
+
+
+@pytest.mark.parametrize('invalid', [
+    {'private-field': 'private value'}, {'status': 'private value'},
+    {'entries': True}, {'entries': 17}, {'exec_errors': ['private value']},
+    {'exec_errors': 'private value'}, {'exec_errors': ['permission-denied'] * 2},
+])
+def test_native_journal_export_refuses_unreviewed_values(invalid):
+    error = UiError('ui:native-execution-denial')
+    error.native_execution_journal = {
+        'status': 'read', 'entries': 1, 'exec_errors': ['permission-denied'], **invalid}
+    assert 'native_execution_journal' not in accessible_ui.adapter_failure_diagnostic(error)
+
+
+def test_native_journal_refuses_unbound_unit_before_reading(monkeypatch):
+    read = Mock()
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', read)
+    assert accessible_ui.native_execution_journal_diagnostic('private unit') == {
+        'status': 'unavailable', 'entries': 0, 'exec_errors': []}
+    read.assert_not_called()
+
+
+@pytest.mark.parametrize('invalid', [
+    {'private-field': 'private value'},
+    {'returncode': 'private code'},
+    {'returncode': True},
+    {'stdout_bytes': 65538},
+    {'stderr_bytes': -1},
+    {'stdout_markers': ['private output']},
+    {'stderr_markers': ['private output']},
+    {'stderr_markers': 'private output'},
+])
+def test_native_execution_diagnostic_refuses_unreviewed_values(invalid):
+    error = UiError('ui:native-execution-denial')
+    error.native_execution_result = {
+        'returncode': 203, 'stdout_bytes': 0, 'stderr_bytes': 17,
+        'stdout_markers': [], 'stderr_markers': ['permission-denied'], **invalid,
+    }
+    diagnostic = accessible_ui.adapter_failure_diagnostic(error)
+    assert 'native_execution_result' not in diagnostic
+    assert 'private' not in json.dumps(diagnostic)
+
+
 def test_live_refusal_operation_preserves_desktop_without_submitting(monkeypatch):
     ui = ui_for(Node())
     ui.native_app_closed = Mock(return_value=True)

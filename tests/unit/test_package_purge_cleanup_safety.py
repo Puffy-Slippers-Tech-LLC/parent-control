@@ -86,8 +86,11 @@ def saved_log_tree(purge_module, tmp_path, monkeypatch):
     # The fixed root and its parents remain private even when /var/log is 0775.
     machine = tmp_path / 'machine'
     machine.mkdir(mode=0o700)
+    # mkdir(parents=True) would create /var with umask-dependent permissions.
+    # Only /var/log may be group-writable in the modeled system tree.
+    (machine / 'var').mkdir(mode=0o755)
     parent = machine / 'var/log'
-    parent.mkdir(parents=True)
+    parent.mkdir(mode=0o755)
     parent.chmod(0o775)
     root = parent / purge_module.PRODUCT
     root.mkdir(mode=0o750)
@@ -186,6 +189,12 @@ def test_shared_purge_replacement_refusal_retains_saved_preferences(tmp_path, di
     machine = Machine(tmp_path, distribution)
     preference = machine.write('var/lib/oh-no-parent-control/preferences/1004.json', 'saved preference')
     machine.write('var/log/oh-no-parent-control/broker/day.events', 'product log')
+    # Machine.write creates parents with umask-dependent permissions. Model
+    # trusted directories so preflight reaches the intended replacement race.
+    for path, mode in (('var', 0o755), ('var/log', 0o755),
+                       ('var/log/oh-no-parent-control', 0o750),
+                       ('var/log/oh-no-parent-control/broker', 0o750)):
+        (tmp_path / path).chmod(mode)
     # This owned command double runs after postrm's preflight but before its
     # final saved-data deletion. The real embedded callback must refuse it.
     machine.write('usr/sbin/fapolicyd-cli', '''#!/bin/sh
@@ -253,6 +262,12 @@ def test_fedora_public_purge_runs_cleanup_only_in_native_callback_and_preserves_
     machine.baseline(active=True, enabled=True, rules='original policy\n')
     preference = machine.write('var/lib/oh-no-parent-control/preferences/1004.json', 'saved preferences')
     log = machine.write('var/log/oh-no-parent-control/broker/day.log', 'retained log')
+    # Model trusted system/log directories independently of the host umask.
+    # The native callback executes the real log-directory safety guards.
+    for path, mode in (('var', 0o755), ('var/log', 0o755),
+                       ('var/log/oh-no-parent-control', 0o750),
+                       ('var/log/oh-no-parent-control/broker', 0o750)):
+        (tmp_path / path).chmod(mode)
     source = machine.prepare_script(script_source('postrm', 'fedora')).read_text()
     monkeypatch.setattr(purge_module, 'Path', lambda value: tmp_path / str(value).lstrip('/'))
     monkeypatch.setattr(purge_module.os, 'geteuid', lambda: 0)
@@ -339,6 +354,12 @@ def test_standalone_saved_data_purge_preserves_but_does_not_recreate_reboot_requ
         machine.write(marker_path, 'existing reboot request\n')
     machine.write('var/lib/oh-no-parent-control/preferences/1004.json', 'saved preference')
     machine.write('var/log/oh-no-parent-control/broker/day.log', 'saved log')
+    # Model trusted system/log directories independently of the host umask.
+    # This case must reach saved-data cleanup and the reboot-marker checks.
+    for path, mode in (('var', 0o755), ('var/log', 0o755),
+                       ('var/log/oh-no-parent-control', 0o750),
+                       ('var/log/oh-no-parent-control/broker', 0o750)):
+        (tmp_path / path).chmod(mode)
 
     result = machine.run('postrm', 'purge')
 

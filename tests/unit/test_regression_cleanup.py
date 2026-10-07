@@ -195,6 +195,32 @@ def test_empty_inventory_diagnostic_precedes_refusal_and_omits_private_values(mo
     assert 'private' not in json.dumps(events)
 
 
+@pytest.mark.parametrize('error,kind', [
+    (KeyboardInterrupt, 'interrupted-collection'),
+    (RuntimeError, 'other-collection-error'),
+])
+def test_empty_inventory_diagnostic_distinguishes_cancellation_from_collection_error(
+        monkeypatch, error, kind):
+    import regression_events
+    events = []
+    monkeypatch.setenv('ONPC_REGRESSION_EVENTS', '1')
+    monkeypatch.setenv('ONPC_REGRESSION_INVENTORY', '1')
+    monkeypatch.setattr(regression_events, 'emit', lambda kind, **fields: events.append((kind, fields)))
+    session = SimpleNamespace(items=[], config=SimpleNamespace(
+        option=SimpleNamespace(collectonly=False)))
+    try:
+        raise error('private collection detail')
+    except (KeyboardInterrupt, RuntimeError):
+        collection_finish(session)
+    assert events == [
+        ('collection_diagnostic', dict(error_kind=kind, selector_error_count=0,
+                                      missing_test_sites=[])),
+        (('collection_interrupted', {}) if error is KeyboardInterrupt else
+         ('collection', dict(total=0, collection_only=False, nodeids=[]))),
+    ]
+    assert 'private' not in json.dumps(events)
+
+
 @pytest.mark.parametrize('reason,visible', [
     (f'{HOST_WORKERS} host categories already running', ''),
     ('waiting for required host jobs', ''),

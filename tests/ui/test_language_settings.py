@@ -751,12 +751,15 @@ def test_installed_kiosk_chooser_and_form_readers_through_real_gtk(
 
 
 def test_kiosk_shared_selector_restores_per_child_language_and_approver_independence(
-        launch_ui, automation, wait_for_accessible_state, tmp_path):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, monkeypatch):
     from accessible_ui import CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
     from kiosk_language import FORM, TEXT_IDS
     ui, wait = automation, wait_for_accessible_state
     path = launch_language(launch_ui, tmp_path, 'kiosk', scenario='installed-language')
     ui.reader.fixture_uids = {EXISTING_CHILD: 1001, CHILD: 1002, PARENT: 1000, OTHER_PARENT: 1010}
+    # This preview declares synthetic approvers, not host OS accounts. Keep
+    # the shared helper's exact eligibility check against that finite fixture.
+    monkeypatch.setattr(ui.reader, 'interactive_approver_uids', lambda: {'1000', '1010'})
     wait(lambda: ui.showing('language-dialog'), 'initial Jordan language')
     ui.reader.kiosk_language_operation('kiosk-language-initial')
     ui.reader.kiosk_language_operation('kiosk-language-save')
@@ -806,7 +809,7 @@ def test_kiosk_shared_selector_restores_per_child_language_and_approver_independ
 
 
 def test_language_history_nondefault_requests_restore_through_real_gtk(
-        launch_ui, automation, wait_for_accessible_state, tmp_path):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, monkeypatch):
     from accessible_ui import CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
     from language_persistence import CHECKS
     from tests.support.gui_blocks import run_block
@@ -815,6 +818,9 @@ def test_language_history_nondefault_requests_restore_through_real_gtk(
     path = launch_language(launch_ui, tmp_path, 'kiosk', scenario='installed-language')
     reader = ui.reader
     reader.fixture_uids = {EXISTING_CHILD: 1001, CHILD: 1002, PARENT: 1000, OTHER_PARENT: 1010}
+    # The preview's approvers are synthetic accounts. Keep the shared helper's
+    # exact eligibility check against this fixture rather than the host OS.
+    monkeypatch.setattr(reader, 'interactive_approver_uids', lambda: {'1000', '1010'})
     wait(lambda: ui.showing('language-dialog'), 'untouched Jordan setup')
     reader.kiosk_language_operation('kiosk-language-save')
     for child, name, language, binding, owner, stage in (

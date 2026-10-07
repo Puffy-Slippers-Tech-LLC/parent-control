@@ -798,6 +798,34 @@ def access_ui():
     return ui, root, buttons
 
 
+@pytest.mark.parametrize('fault', ['missing', 'outside-scope', 'hidden', 'defunct'])
+def test_access_target_diagnostic_identifies_refusal_without_input_or_private_text(fault):
+    ui, root, buttons = access_ui()
+    target = buttons[0]
+    target.name = 'private name must not be exported'
+    target.description = 'private description must not be exported'
+    if fault in ('missing', 'outside-scope'):
+        target.parent.children.remove(target)
+        if fault == 'outside-scope':
+            root.children.append(target)
+            target.parent = root
+    elif fault == 'hidden':
+        target.states.remove('visible')
+    else:
+        target.states.add('defunct')
+    with pytest.raises(accessible_ui.UiError, match='^ui:match-target$') as caught:
+        ui.choose_app_access(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP,
+                             target.identity)
+    caught.value.add_note('ui:match-target:private-id:missing')
+    caught.value.add_note('ui:match-target:' + target.identity + ':private-reason')
+    diagnostic = accessible_ui.adapter_failure_diagnostic(caught.value)
+    assert diagnostic['match_targets'] == [{'id': target.identity, 'reason': fault}]
+    assert 'private' not in json.dumps(diagnostic)
+    assert not ui.input_uncertain
+    for button in buttons:
+        button.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('choice', accessible_ui.ACCESS_CHOICES)
 def test_access_one_action_save_wait_and_independent_row_read(choice):
     ui, root, buttons = access_ui()

@@ -85,12 +85,12 @@ def pytest_sessionfinish(session, exitstatus):
 
 def pytest_collection_finish(session):
     if os.environ.get('ONPC_REGRESSION_EVENTS') == '1':
+        error = sys.exc_info()[1]
         if not session.items:
             # Pytest calls this hook in finally, before a pending selector
-            # UsageError reaches its terminal reporter. The runner rejects the
-            # empty inventory immediately, so retain bounded, value-free sites
-            # first. Do not change that rejection or expose parameter values.
-            error = sys.exc_info()[1]
+            # UsageError reaches its terminal reporter. The runner rejects a
+            # selector error's empty inventory immediately, so retain bounded,
+            # value-free sites first without exposing parameter values.
             messages = error.args if type(error).__name__ == 'UsageError' else ()
             sites = []
             for message in messages:
@@ -103,9 +103,17 @@ def pytest_collection_finish(session):
                     sites.append(match[1])
             emit('collection_diagnostic',
                  error_kind=('selector-error' if messages else
+                             'interrupted-collection' if isinstance(error, KeyboardInterrupt) else
                              'other-collection-error' if error is not None else
                              'no-pending-error'),
                  selector_error_count=len(messages), missing_test_sites=sites)
+        if isinstance(error, KeyboardInterrupt):
+            # Pytest also calls this hook from collection's finally block.
+            # An interrupted list (empty or partial) is not a completed
+            # inventory. Keep the assigned IDs/counts and let the coordinator's
+            # existing cancellation/missing-inventory guards decide the result.
+            emit('collection_interrupted')
+            return
         inventory = ({'nodeids': [item.nodeid for item in session.items]}
                      if os.environ.get('ONPC_REGRESSION_INVENTORY') == '1' else {})
         emit('collection', total=len(session.items), collection_only=session.config.option.collectonly,

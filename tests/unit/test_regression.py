@@ -978,6 +978,80 @@ def test_partial_failure_is_durable_before_cancellation(report, tmp_path):
     assert item.done == 0
 
 
+@pytest.mark.parametrize('partial', [False, True])
+@pytest.mark.parametrize('cancelled', [False, True])
+def test_interrupted_collection_preserves_assigned_inventory_and_requires_cancellation(
+        report, tmp_path, monkeypatch, partial, cancelled):
+    nodes = ('tests/unit/test_sample.py::test_first',
+             'tests/unit/test_sample.py::test_second')
+    control = Control()
+    run = regression.Run(tmp_path, report, control, host_only=True)
+    run.dashboard.stream = io.StringIO()
+    item = regression.Category('Interrupted collector', len(nodes), nodeids=nodes,
+                               retry_category='unit')
+    run.categories.append(item)
+    execution = regression.Execution(run, item, events=True)
+    session = SimpleNamespace(
+        items=[SimpleNamespace(nodeid=nodes[0])] if partial else [],
+        config=SimpleNamespace(option=SimpleNamespace(collectonly=False)))
+    monkeypatch.setenv('ONPC_REGRESSION_EVENTS', '1')
+    monkeypatch.setenv('ONPC_REGRESSION_INVENTORY', '1')
+    monkeypatch.setattr(regression_events, 'emit', lambda kind, **fields:
+        execution.output((regression.PREFIX + json.dumps(dict(kind=kind, **fields))
+                          + '\n').encode()))
+    try:
+        if cancelled:
+            control.stop()
+        try:
+            raise KeyboardInterrupt('private collection detail')
+        except KeyboardInterrupt:
+            regression_events.pytest_collection_finish(session)
+        assert not execution.inventory_seen
+        assert item.nodeids == nodes and item.total == len(nodes) and item.done == 0
+        execution.output(b'owned cleanup finished\n')
+        if cancelled:
+            assert execution.finish(130)[0] == 130
+            assert item.state == 'Interrupted' and item.failures == 0
+            assert regression.failure_targets([item]) == []
+            saved = json.loads((report.directory / 'progress.json').read_text())[-1]
+            assert saved['state'] == 'Interrupted' and saved['done'] == 0
+            assert saved['total'] == len(nodes)
+        else:
+            with pytest.raises(ValueError, match='missing test execution inventory'):
+                execution.finish(2)
+            assert item.state != 'Passed'
+        raw = Path(execution.raw.name).read_text()
+        assert 'collection_interrupted' in raw and 'owned cleanup finished' in raw
+        assert 'private collection detail' not in raw
+    finally:
+        execution.close()
+
+
+@pytest.mark.parametrize('cancelled', [False, True])
+@pytest.mark.parametrize('fields,message', [
+    (dict(total=0, nodeids=[]), 'test inventory changed after collection'),
+    (dict(total=1, nodeids=['changed-case']), 'test inventory IDs changed after collection'),
+    (dict(total=1), 'missing test inventory IDs'),
+])
+def test_completed_collection_inventory_guards_remain_active_during_cancellation(
+        report, tmp_path, cancelled, fields, message):
+    control = Control()
+    run = regression.Run(tmp_path, report, control, host_only=True)
+    run.dashboard.stream = io.StringIO()
+    item = regression.Category('Invalid inventory', 1, nodeids=('assigned-case',))
+    run.categories.append(item)
+    execution = regression.Execution(run, item, events=True)
+    try:
+        if cancelled:
+            control.stop()
+        with pytest.raises(ValueError, match=message):
+            execution.output((regression.PREFIX + json.dumps(dict(kind='collection', **fields))
+                              + '\n').encode())
+        assert item.state != 'Passed' and item.done == 0
+    finally:
+        execution.close()
+
+
 @pytest.mark.parametrize('outcome', ['passed', 'failed', 'error', 'interrupted', 'interrupted-failure'])
 def test_final_investigation_prompt_links_closed_report(tmp_path, monkeypatch, capsys, outcome):
     runs = []

@@ -84,6 +84,34 @@ def test_first_repeat_owned_update_and_preserved_unrelated_state(prepared):
     assert guest.read_file(fixture.assets.PREFIX + '/PrismLauncher.AppImage') == payload['N']
 
 
+def test_native_launchers_upgrade_both_child_catalogues_without_rewriting_existing_files(prepared, monkeypatch):
+    guest, payload = prepared
+    declaration = fixture.assets.files
+    riley_prefix = '/home/onpc-child-riley/.local/share/applications/com.puffyslippers.ONPCTest.'
+    # Reproduce the old baseline, whose native launchers existed only for Jordan.
+    with monkeypatch.context() as previous:
+        previous.setattr(fixture.assets, 'files', lambda accounts: {
+            path: spec for path, spec in declaration(accounts).items()
+            if not path.startswith(riley_prefix)})
+        fixture.reconcile(guest, payload)
+    before = copy.deepcopy(guest.nodes)
+    fixture.reconcile(guest, payload)
+    for path, node in before.items():
+        if path != fixture.RECORD:
+            assert guest.nodes[path] == node
+    accounts = fixture.accounts(guest)
+    for role in ('child', 'other'):
+        for asset in fixture.assets.ASSETS:
+            path = accounts[role].pw_dir + '/.local/share/applications/' + fixture.assets.desktop_id(asset[0])
+            assert guest.read_file(path) == fixture.assets.desktop_entry(asset).encode()
+            fixture.regular(guest, path, accounts[role].pw_uid, accounts[role].pw_gid, 0o644)
+    after = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    fixture.reconcile(guest, payload)
+    fixture.verify(guest)
+    assert guest.nodes == after and guest.writes == []
+
+
 @pytest.mark.parametrize('boundary', ['write', 'chown', 'rename', 'record'])
 def test_interrupted_placement_retries_only_owned_work(prepared, monkeypatch, boundary):
     guest, payload = prepared

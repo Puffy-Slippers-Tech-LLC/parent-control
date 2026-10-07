@@ -29,9 +29,12 @@ def native_files(accounts):
         files[PREFIX + '/' + filename] = (role, 0o755, 'other')
     for filename in GUI_FILES:
         files[PREFIX + '/' + filename] = (filename, 0o644, 'other')
-    for asset in ASSETS:
-        path = accounts['other'].pw_dir + '/.local/share/applications/' + desktop_id(asset[0])
-        files[path] = (desktop_entry(asset).encode(), 0o644, 'other')
+    # Both fixed children are native-policy consumers. Their catalogues are
+    # user-scoped; Jordan's launchers cannot supply Riley's removal journey.
+    for child_role in ('child', 'other'):
+        for asset in ASSETS:
+            path = accounts[child_role].pw_dir + '/.local/share/applications/' + desktop_id(asset[0])
+            files[path] = (desktop_entry(asset).encode(), 0o644, child_role)
     for target, suffix in NATIVE.values():
         files[target] = ('mechanical', 0o755, 'system')
         path = '/usr/share/applications/com.puffyslippers.ONPCTest.' + suffix + '.desktop'

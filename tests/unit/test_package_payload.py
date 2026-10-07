@@ -254,24 +254,44 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 import pkgutil
-import runpy
+import subprocess
 import sys
 
 root = Path(sys.argv[1]) / 'usr/lib/oh-no-parent-control'
 sys.path[:0] = [str(root), *(str(root / name) for name in ('broker', 'parent', 'kiosk'))]
-# The notification service executes a file, unlike the package-based previews.
-# Resolve its real imports with no package context before importing the modules.
+# The service has its own process and imports chrome through the kiosk namespace.
+# Mixing that with the request launcher's shorter package name registers GTK
+# types twice. Exercise the service's real file imports in a separate interpreter.
+notification_script = '''
+from pathlib import Path
+import runpy
+import sys
+
+root = Path(sys.argv[1])
 notification_entry = runpy.run_path(str(
     root / 'kiosk/oh_no_parent_control_kiosk/notifications.py'),
     run_name='onpc_notifications_entry')
 assert notification_entry['__package__'] == ''
 assert 'NotificationApplication' in notification_entry
+assert Path(notification_entry['__file__']).is_relative_to(root)
+assert not any('preview' in name or 'test_identities' in name for name in sys.modules)
+'''
+notification_checked = False
 for name in ('common.oh_no_parent_control_ui', 'oh_no_parent_control',
              'oh_no_parent_control_parent', 'oh_no_parent_control_kiosk'):
     package = importlib.import_module(name)
     for info in pkgutil.walk_packages(package.__path__, name + '.'):
-        module = importlib.import_module(info.name)
-        assert Path(module.__file__).is_relative_to(root), info.name
+        if info.name == 'oh_no_parent_control_kiosk.notifications':
+            result = subprocess.run(
+                [sys.executable, '-I', '-B', '-c', notification_script, str(root)],
+                capture_output=True, text=True,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+            notification_checked = True
+        else:
+            module = importlib.import_module(info.name)
+            assert Path(module.__file__).is_relative_to(root), info.name
+assert notification_checked
 assert not any('preview' in name or 'test_identities' in name for name in sys.modules)
 from common.oh_no_parent_control_ui.localization import LOCALE_DIR, load_translations
 assert LOCALE_DIR.is_relative_to(root)

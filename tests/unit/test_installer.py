@@ -357,7 +357,15 @@ class PackageDeploymentTests(unittest.TestCase):
         self.assertIn("package-created-kiosk-uid", postrm)
         self.assertIn('deluser "$kiosk_user"', postrm)
         self.assertIn("remove_tree /home/oh-no-parent-control", postrm)
-        self.assertIn("remove_tree /var/log/oh-no-parent-control", postrm)
+        # Purge deletes the identity-checked log tree through the shared helper.
+        self.assertIn("log_tree_cleanup() {", postrm)
+        self.assertIn("log_cleanup_identity=$(log_tree_cleanup check)", postrm)
+        purge = postrm.rsplit('if [ "$1" = purge ]; then', 1)[1].split("\nfi", 1)[0]
+        self.assertIn('log_tree_cleanup remove "$log_cleanup_identity"', purge)
+        self.assertLess(
+            purge.index('log_tree_cleanup remove "$log_cleanup_identity"'),
+            purge.index("remove_tree /var/lib/oh-no-parent-control"),
+        )
 
     def test_branding_and_policies_are_packaged_from_shared_sources(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")

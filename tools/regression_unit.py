@@ -590,6 +590,10 @@ write_e2e write_e2e_cleanup_safety
 # waited children or bounded joined threads; no host account, package database,
 # VM, network, bus, display, shared cache or package install is touched. These
 # modules and the changed package support fixtures remain compatible in unit.
+# Package-payload notification imports use one additional serial, waited Python
+# child in the existing private cwd. Both interpreters disable bytecode writes
+# and graphical displays; GTK type registries are process-local, and captured
+# pipes add no shared files, sockets or services. package_payload stays compatible.
 # RPM builder checks add private recipe/spec contexts and process-local Podman
 # doubles only. They neither pull images nor use real container storage/network;
 # setup entrypoint children keep their trace and VM registry in private trees.
@@ -654,6 +658,10 @@ write_e2e write_e2e_cleanup_safety
 # tracing preserves the unit and UI inventory resource classifications.
 # Protocol query/occupancy and stream-write timing checks use in-memory clocks,
 # sinks and synchronous transport doubles in test_regression; no added resource.
+# Interrupted-collection and inventory-guard regressions use in-memory pytest
+# sessions/events and the existing tmp_path Report fixture. No subprocess,
+# shared storage, display, socket or VM is added; regression/regression_cleanup
+# retain compatible unit scheduling.
 # Parent continuous-activity checks mock session identity, privilege transitions
 # and gsettings calls; diagnostic checks mock the read-only screen-saver query.
 # Neither touches the host session, settings, bus or display.

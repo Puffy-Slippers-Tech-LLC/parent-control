@@ -1,12 +1,12 @@
 ## v1.4 -
 ### New Features
-Language Dialog: You can search for a language by its English name as well as its localized name
-Remaing Time Reminders: Added default critical reminders in child session. Reminders can show in full-screen apps and can be customized in child preferences.
-Parent App: Revoke dialog shows list of running soft blocked apps that will be terminated.
+- Language Dialog: You can search for a language by its English name as well as its localized name
+- Remaing Time Reminders: Added default critical reminders in child session. Reminders can show in full-screen apps and can be customized in child preferences.
+- Parent App: Revoke dialog shows list of running soft blocked apps that will be terminated.
 
 ### Bug Fixes
-Parent App: Parent app app grid column headers on some RTL languages overlap
-Parent App: Fixed the disabled Revoke button at zero remaining time when soft-blocked apps are still running, allowing parents to close those apps after the child’s session locks.
+- Parent App: Parent app app grid column headers on some RTL languages overlap
+- Parent App: Fixed the disabled Revoke button at zero remaining time when soft-blocked apps are still running, allowing parents to close those apps after the child’s session locks.
 
 ## v1.3 - 2026-10-03
 ### New Features

@@ -2852,13 +2852,21 @@ class AccessibleUI:
             return {'language_form': self.kiosk_language_form(language, overlay=overlay, child=child)}
         if operation == surface + '-language-open':
             with self.language_scope(surface):
-                require(self.snapshot_owned_target('language-dialog', showing=False,
-                        check_prompt=True, allow_unmapped_surface=True) is None,
-                        'ui:language-already-open')
-                self.id_target('kiosk-language-ready')
-                observation = self.read_snapshot()
-                window = self.request_surface(observation, overlay=overlay)
-                self.initial_kiosk_child(observation, window, child=CHILD if overlay else child)
+                def ready():
+                    # External providers can retire between desktop discovery
+                    # and GetItems. Reacquire the complete read before input;
+                    # neither missing subtrees nor an old child proof suffice.
+                    observation = self.read_snapshot()
+                    require(self.snapshot_owned_target('language-dialog', showing=False,
+                            check_prompt=True, allow_unmapped_surface=True,
+                            observation=observation) is None, 'ui:language-already-open')
+                    if self.snapshot_owned_target('kiosk-language-ready',
+                            observation=observation) is None:
+                        return None
+                    window = self.request_surface(observation, overlay=overlay)
+                    self.initial_kiosk_child(observation, window, child=CHILD if overlay else child)
+                    return True
+                self.wait(ready, surface + '-language-entry', prompt_in_predicate=True)
                 self.open_language_preferences(surface)
         else:
             reader(initial=operation == surface + '-language-save' and

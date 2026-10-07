@@ -19,12 +19,14 @@ from datetime import datetime, timedelta
 from typing import Callable, Protocol
 
 from .config import Configuration, ConfigurationError, UINT32_MAX
+from .whats_new import WhatsNewCatalog, WhatsNewError
 from .preferences import (
     MAX_DAILY_LIMIT_MINUTES, MIN_DAILY_LIMIT_MINUTES, PreferencesError,
     blocked_patterns, blocked_targets, validate_preferences, validate_language, validate_notifications,
 )
 
 LOG = get_logger("core")
+_NO_ACKNOWLEDGEMENT = object()
 MAX_LOCAL_MIDNIGHT_SECONDS = 26 * 60 * 60
 MIN_REQUEST_SECONDS = 6
 MAX_REQUEST_SECONDS = 24 * 60 * 60
@@ -109,6 +111,7 @@ class Preferences(Protocol):
                        allow_soft: bool, last_selected_approver_uid: int = 0) -> dict: ...
     def update_request_muted(self, uid: int, surface: str, muted: bool) -> dict: ...
     def update_language(self, uid: int, language: object) -> str: ...
+    def acknowledge_whats_new(self, uid: int, record_id: str, retained: set[str]) -> list[str]: ...
 
 
 class Extensions(Protocol):
@@ -183,7 +186,8 @@ class Broker:
                  application_catalog: Callable[[UserAccount], tuple[dict, ...]] | None = None,
                  running_apps: RunningApps | None = None,
                  *, monotonic=time.monotonic,
-                 now=lambda: datetime.now().astimezone(), caller_alive=lambda _sender: True):
+                 now=lambda: datetime.now().astimezone(), caller_alive=lambda _sender: True,
+                 whats_new_loader=WhatsNewCatalog.load):
         self._config_loader = config_loader
         self._authorizer = authorizer
         self._accounts = accounts
@@ -195,6 +199,7 @@ class Broker:
         self._monotonic = monotonic
         self._now = now
         self._caller_alive = caller_alive
+        self._whats_new_loader = whats_new_loader
         self._request_lock = threading.Lock()
         self._transaction_revision = 0
         self._rate_lock = threading.Lock()
@@ -648,6 +653,54 @@ class Broker:
             raise AccessDenied("caller cannot select a language") from error
         if not self._eligible(config, user):
             raise AccessDenied("caller cannot select a language")
+
+    def _own_whats_new_component(self, caller_uid: int) -> str:
+        config = self._load_config()
+        if type(caller_uid) is not int or not 0 <= caller_uid <= UINT32_MAX:
+            raise AccessDenied("invalid caller identity")
+        if caller_uid == config.kiosk_uid:
+            raise AccessDenied("kiosk must select a child")
+        if self._is_admin(caller_uid):
+            return "Parent"
+        self._target(config, caller_uid)
+        return "Child"
+
+    def get_own_whats_new(self, caller_uid: int) -> dict:
+        component = self._own_whats_new_component(caller_uid)
+        return self._whats_new(caller_uid, component)
+
+    def get_child_whats_new(self, caller_uid: int, target_uid: int) -> dict:
+        target_uid = self._kiosk_language_target(caller_uid, target_uid)
+        return self._whats_new(target_uid, "Child")
+
+    def acknowledge_own_whats_new(self, caller_uid: int, version: object) -> dict:
+        component = self._own_whats_new_component(caller_uid)
+        return self._whats_new(caller_uid, component, acknowledge=version)
+
+    def acknowledge_child_whats_new(self, caller_uid: int, target_uid: int, version: object) -> dict:
+        target_uid = self._kiosk_language_target(caller_uid, target_uid)
+        return self._whats_new(target_uid, "Child", acknowledge=version)
+
+    def _whats_new(self, uid: int, component: str, *, acknowledge=_NO_ACKNOWLEDGEMENT) -> dict:
+        if self._preferences is None:
+            raise BackendFailure("release acknowledgement store is unavailable")
+        try:
+            catalog = self._whats_new_loader()
+        except (WhatsNewError, OSError) as error:
+            raise BackendFailure("release metadata is unavailable") from error
+        if acknowledge is not _NO_ACKNOWLEDGEMENT:
+            try:
+                record_id = catalog.acknowledgement(component, acknowledge)
+            except WhatsNewError as error:
+                raise InvalidRequest("release is unavailable for this component") from error
+        try:
+            if acknowledge is _NO_ACKNOWLEDGEMENT:
+                seen = self._preferences.load(uid)["personal"].get("whats_new_seen", [])
+            else:
+                seen = self._preferences.acknowledge_whats_new(uid, record_id, catalog.retained_records)
+        except (PreferencesError, OSError) as error:
+            raise BackendFailure("release acknowledgements are unavailable") from error
+        return catalog.available(component, seen)
 
     def get_own_language(self, caller_uid: int) -> str:
         self._authorize_own_language(caller_uid)

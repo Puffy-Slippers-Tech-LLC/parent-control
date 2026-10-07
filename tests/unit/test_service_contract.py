@@ -18,6 +18,28 @@ from common.oh_no_parent_control_ui.reboot import product_reboot_required
 from tests.support.paths import ROOT
 
 
+@pytest.mark.parametrize("method,signature,values,operation,arguments", [
+    ("GetOwnWhatsNew", "()", (), "get_own_whats_new", (1001,)),
+    ("GetChildWhatsNew", "(u)", (1002,), "get_child_whats_new", (1001, 1002)),
+    ("AcknowledgeOwnWhatsNew", "(s)", ("1.4",), "acknowledge_own_whats_new", (1001, "1.4")),
+    ("AcknowledgeChildWhatsNew", "(us)", (1002, "1.4"), "acknowledge_child_whats_new", (1001, 1002, "1.4")),
+])
+def test_whats_new_dispatch_binds_authenticated_caller(method, signature, values, operation, arguments):
+    from oh_no_parent_control.service import GLib
+    service = Service.__new__(Service)
+    service.credentials = mock.Mock()
+    service.credentials.uid.return_value = 1001
+    service.broker = mock.Mock()
+    result = {"product_version": "1.4", "records": [{"ProductVersion": "1.4",
+              "Content": "# New\n\n**Markdown**", "ShowIn": "Child", "auto_show": True}]}
+    getattr(service.broker, operation).return_value = result
+    invocation = mock.Mock()
+    service._method_call(None, ":1.42", None, None, method, GLib.Variant(signature, values), invocation)
+    getattr(service.broker, operation).assert_called_once_with(*arguments)
+    assert json.loads(invocation.return_value.call_args.args[0].unpack()[0]) == result
+    invocation.return_dbus_error.assert_not_called()
+
+
 def test_notification_dispatch_uses_bus_uid_and_rejects_duplicate_or_oversized_json():
     from oh_no_parent_control.service import GLib
     service = Service.__new__(Service)

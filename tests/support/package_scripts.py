@@ -213,10 +213,28 @@ stat() {
     else command stat "$@"; fi
 }
 install() {
-    # preinst's root-owned directory creation, confined to this fixture.
+    # Model directory/file installs without chown in this private machine.
     record install "$@"
-    for last do :; done
-    command install -d -m 0700 "$last"
+    install_directory=0
+    install_mode=0755
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -o|-g) shift 2 ;;
+            -m) install_mode="$2"; shift 2 ;;
+            -d) install_directory=1; shift ;;
+            *) break ;;
+        esac
+    done
+    if [ "$install_directory" = 1 ]; then
+        command install -d -m "$install_mode" "$@"
+    else
+        if [ "${RELEASE_CAPTURE_FAILURE:-0}" = 1 ] &&
+           [ "$1" = "$AUDIT_ROOT/usr/share/oh-no-parent-control/app.json" ]; then
+            printf '{"version":' > "$2"
+            return 1
+        fi
+        command install -m "$install_mode" "$@"
+    fi
 }
 '''
         return self.write(path, "#!/bin/sh\n" + mocks + source)

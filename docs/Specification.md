@@ -118,6 +118,25 @@ the separate technical checks described in the system design.
 - [ONPC-CORE-ABOUT-002] About is also available from both request forms. It identifies the website, privacy notice, support address and legal notices. Parent and child-overlay links can open the browser, mail client or installed legal files. The dedicated request station displays this information without external launch links.
 - [ONPC-CORE-ABOUT-003] Help in the Parent App and child overlay opens the product help website. The dedicated request station has no external Help action. Required information and actions remain reachable using normal focus, scrolling and window navigation. The installed commands `oh-no-parent-control-parent --help` and `oh-no-parent-control --help` show their usage without opening a product window; both also have installed command manuals.
 
+- [ONPC-CORE-WHATSNEW-001] Release metadata requires Product Version, ShowIn
+  (`Parent`, `Child`, or both) and Markdown Content, with optional See More link.
+  Each record is independent. One version may have separate Parent and Child
+  records, but records targeting the same component for that version are invalid.
+- [ONPC-CORE-WHATSNEW-002] After upgrading from a lower product version, unseen
+  records for the installed version display once per user on their matching
+  component. Skipped releases never display old notes; fresh installations do
+  not automatically display upgrade notes. Kiosk and child overlay share the
+  selected child's acknowledgement. Future versions have new eligibility.
+- [ONPC-CORE-WHATSNEW-003] Matching current notes can be reopened from a menu item
+  before About. The menu and dialog title read “What's new in v[version]”.
+  Content honors Markdown formatting; See More is present only when supplied and
+  opens its link. Parent-only records never appear on kiosk or child overlay.
+- [ONPC-CORE-WHATSNEW-004] Successfully displaying/closing a note records its
+  acknowledgement and removes saved acknowledgements whose metadata records have
+  been deleted. Other retained records remain independent. The current delivery
+  implements the [backend contract](SystemDesign/State.md#whats-new-backend);
+  the frontend menu, dialog, rendering and link actions remain pending.
+
 ### Feedback and error reports
 
 - [ONPC-CORE-FEEDBACK-001] The Parent App offers Send Feedback. Product errors in the Parent App, Child App and request station can open an editable error report. Opening feedback or a report sends nothing; the user must select Send Feedback.

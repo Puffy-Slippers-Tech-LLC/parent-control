@@ -81,6 +81,7 @@ KIOSK_SOURCES := __init__.py agent_locale.py chrome.py floating_islands.py prefe
 KIOSK_SOURCES += notifications.py
 PARENT_SOURCES := __init__.py client.py main.py language_dialog.py
 BROKER_SOURCES := __init__.py adapters.py app_termination.py authorization.py catalog.py config.py core.py data_migration.py diagnostics.py execution_policy.py execution_probe.py extension_manager.py grant_diagnostics.py logs.py preferences.py probe_channel.py probe_generation.py service.py uninstall.py
+BROKER_SOURCES += whats_new.py
 PRODUCT_USER_SERVICES := oh-no-parent-control-app.service oh-no-parent-control-polkit-agent.service
 PRODUCT_USER_SERVICES += oh-no-parent-control-notifications.service
 PRODUCT_USER_SERVICES += oh-no-parent-control-wellbeing.service
@@ -89,6 +90,7 @@ EXTENSION_SCHEMA := schemas/com.puffyslippers.oh-no-parent-control.child.gschema
 # app_logo.png is intentionally limited to 128 pixels for AccountsService;
 # app_logo_gnome_launcher.png is the full-resolution GNOME launcher asset.
 BRANDING_ASSETS := data/brand.json data/app.json data/app_logo.png data/company_icon_32.png
+BRANDING_ASSETS += data/whats-new.json
 REMINDER_ASSETS := data/reminder-frame.svg data/reminder-preferences.svg data/reminder-dismiss.svg
 BRANDING_ASSETS += $(REMINDER_ASSETS)
 PARENT_TITLEBAR_ASSET := data/app_logo_titlebar.png

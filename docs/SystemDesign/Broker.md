@@ -114,6 +114,10 @@ the broker resolves and revalidates it.
 | `ListApprovers` | yes | yes | yes |
 | `GetOwnAccount` | own | - | - |
 | `GetOwnLanguage` | own | own | own |
+| `GetOwnWhatsNew` | own | - | own |
+| `AcknowledgeOwnWhatsNew` | own | - | own |
+| `GetChildWhatsNew` | - | selected child | - |
+| `AcknowledgeChildWhatsNew` | - | selected child | - |
 | `SetOwnLanguage` | own | own | own |
 | `GetOwnNotifications` | own | - | - |
 | `SetOwnNotifications` | own | - | - |
@@ -156,6 +160,12 @@ The own-notification methods accept only eligible child callers and no target
 UID. They persist personal reminder choices through the same store without
 changing time limits, grants or application policy; see the
 [notification storage contract](State.md#persistent-and-derived-state).
+
+The What's New methods bind component visibility and acknowledgement to the
+caller role. Administrators use their own Parent record; children use their own
+Child record; the kiosk uses its selected child's Child record. Queries return
+only the installed version, and acknowledgement collects deleted metadata IDs;
+see the [backend contract](State.md#whats-new-backend).
 
 `GetOwnSessionAllowsSoftApps()` is an eligible-child-only, read-only boolean
 query for reminder wording. It reads live application policy under the shared

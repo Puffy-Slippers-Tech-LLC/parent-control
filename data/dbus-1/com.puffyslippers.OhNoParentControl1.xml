@@ -1,5 +1,21 @@
 <node>
   <interface name="com.puffyslippers.OhNoParentControl1">
+    <method name="GetOwnWhatsNew">
+      <arg name="whats_new_json" type="s" direction="out"/>
+    </method>
+    <method name="GetChildWhatsNew">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="whats_new_json" type="s" direction="out"/>
+    </method>
+    <method name="AcknowledgeOwnWhatsNew">
+      <arg name="product_version" type="s" direction="in"/>
+      <arg name="whats_new_json" type="s" direction="out"/>
+    </method>
+    <method name="AcknowledgeChildWhatsNew">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="product_version" type="s" direction="in"/>
+      <arg name="whats_new_json" type="s" direction="out"/>
+    </method>
     <method name="GetOwnSessionAllowsSoftApps">
       <arg name="allow_soft_blocked_apps" type="b" direction="out"/>
     </method>

@@ -1,5 +1,15 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+What's New uses tiny private pytest preference/installation files, account and
+transport doubles, and two finite joined threads. No live bus, display, service,
+shared cache or cleanup inventory is added; whats_new is compatible. Release
+preinst checks reuse the package_removal relocated, waited shell fixture on both
+distributions; service_contract additions use process-local Gio doubles. Their
+existing compatible classifications remain valid.
+Origin-capture failure checks keep temporary files and per-file/directory fsync
+inside those private machines; command doubles inject partial copies and each
+waited shell cleans its own temporary file. No shared sync or new owner is added.
+
 Case 159 rapid-edit guards in e2e_feedback_read use in-memory control doubles
 and its existing waited private Perl children. No bus, display, shared path or
 new cleanup owner is added; its compatible unit classification remains valid.
@@ -518,7 +528,7 @@ terminal_cleanup_safety test_account_password test_activity test_artifacts test_
 test_retention_cleanup_safety test_runner_policy test_storage_cleanup_safety thunder ui_artifacts_cleanup_safety
 ui_cleanup_safety ui_watch ui_watch_cleanup_safety uninstall unit_test_launcher usage_query_retry verify_test_traceability
 vm_config vm_control_cleanup_safety vm_transport vm_watch_session_cleanup_safety watch_activity watch_output
-write_e2e write_e2e_cleanup_safety
+write_e2e write_e2e_cleanup_safety whats_new
 """.split())
 
 # Interrupted write-e2e close-out recovery reuses private pytest checkouts and

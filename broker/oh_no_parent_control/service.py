@@ -45,6 +45,22 @@ CONFIG_PATH = os.environ.get("OH_NO_PARENT_CONTROL_CONFIG", "/etc/oh-no-parent-c
 INTROSPECTION_XML = f"""
 <node>
   <interface name="{INTERFACE}">
+    <method name="GetOwnWhatsNew">
+      <arg name="whats_new_json" type="s" direction="out"/>
+    </method>
+    <method name="GetChildWhatsNew">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="whats_new_json" type="s" direction="out"/>
+    </method>
+    <method name="AcknowledgeOwnWhatsNew">
+      <arg name="product_version" type="s" direction="in"/>
+      <arg name="whats_new_json" type="s" direction="out"/>
+    </method>
+    <method name="AcknowledgeChildWhatsNew">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="product_version" type="s" direction="in"/>
+      <arg name="whats_new_json" type="s" direction="out"/>
+    </method>
     <method name="GetOwnSessionAllowsSoftApps">
       <arg name="allow_soft_blocked_apps" type="b" direction="out"/>
     </method>
@@ -467,7 +483,22 @@ class Service:
                     f"{BUS_NAME}.Error.RebootRequired", "product activation requires a reboot",
                 )
                 return
-            if method == "GetOwnSessionAllowsSoftApps":
+            if method == "GetOwnWhatsNew":
+                value = self.broker.get_own_whats_new(caller_uid)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(value),)))
+            elif method == "GetChildWhatsNew":
+                target_uid, = parameters.unpack()
+                value = self.broker.get_child_whats_new(caller_uid, target_uid)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(value),)))
+            elif method == "AcknowledgeOwnWhatsNew":
+                version, = parameters.unpack()
+                value = self.broker.acknowledge_own_whats_new(caller_uid, version)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(value),)))
+            elif method == "AcknowledgeChildWhatsNew":
+                target_uid, version = parameters.unpack()
+                value = self.broker.acknowledge_child_whats_new(caller_uid, target_uid, version)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(value),)))
+            elif method == "GetOwnSessionAllowsSoftApps":
                 allowed = self.broker.get_own_session_allows_soft_apps(caller_uid)
                 invocation.return_value(GLib.Variant("(b)", (allowed,)))
             elif method == "GetOwnNotifications":

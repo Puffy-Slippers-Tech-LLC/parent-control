@@ -17,6 +17,53 @@ def machine(tmp_path, request):
 ubuntu_only = pytest.mark.parametrize('machine', ['ubuntu'], indirect=True)
 
 
+def test_upgrade_captures_product_origin_once_before_unpack(machine):
+    import json
+    machine.baseline()
+    product = machine.write('usr/share/oh-no-parent-control/app.json', '{"version":"1.3"}')
+    result = machine.run('preinst', 'upgrade')
+    assert result.returncode == 0, result.stderr
+    previous = machine.root / 'var/lib/oh-no-parent-control/previous-product.json'
+    assert json.loads(previous.read_text()) == {"version": "1.3"}
+    assert previous.stat().st_mode & 0o777 == 0o600
+    product.write_text('{"version":"1.4"}')
+    result = machine.run('preinst', 'upgrade')
+    assert result.returncode == 0, result.stderr
+    assert json.loads(previous.read_text()) == {"version": "1.3"}
+
+
+def test_fresh_install_has_no_upgrade_origin(machine):
+    machine.write('usr/share/oh-no-parent-control/app.json', '{"version":"1.4"}')
+    result = machine.run('preinst', 'install')
+    assert result.returncode == 0, result.stderr
+    assert not (machine.root / 'var/lib/oh-no-parent-control/previous-product.json').exists()
+
+
+def test_failed_origin_capture_can_retry_without_preserving_partial_json(machine):
+    machine.baseline()
+    product = machine.write('usr/share/oh-no-parent-control/app.json', '{"version":"1.3"}')
+    state = machine.root / 'var/lib/oh-no-parent-control'
+    result = machine.run('preinst', 'upgrade', RELEASE_CAPTURE_FAILURE='1')
+    assert result.returncode != 0
+    assert not (state / 'previous-product.json').exists()
+    assert not list(state.glob('.previous-product.*'))
+    result = machine.run('preinst', 'upgrade')
+    assert result.returncode == 0, result.stderr
+    assert (state / 'previous-product.json').read_bytes() == product.read_bytes()
+    assert not list(state.glob('.previous-product.*'))
+
+
+def test_preinst_refuses_substituted_release_history(machine):
+    machine.baseline()
+    foreign = machine.write('foreign-release.json', '{"version":"1.3"}')
+    path = machine.root / 'var/lib/oh-no-parent-control/previous-product.json'
+    path.symlink_to(foreign)
+    result = machine.run('preinst', 'upgrade')
+    assert result.returncode != 0
+    assert path.is_symlink()
+    assert foreign.read_text() == '{"version":"1.3"}'
+
+
 def test_removal_clears_deferred_child_trust_guard(machine):
     guard = machine.write('run/oh-no-parent-control-child-trust-reboot')
     result = machine.run('postrm', 'remove')

@@ -71,6 +71,9 @@ PREFERENCE_MIGRATIONS: dict[int, Migration] = {
     3: migrate_preferences_v3_to_v4,
 }
 
+# Independent data family; append forward steps here when its schema advances.
+WHATS_NEW_INSTALLATION_MIGRATIONS: dict[int, Migration] = {}
+
 
 class MigrationError(RuntimeError):
     """Persistent state cannot be migrated without risking data loss."""
@@ -227,7 +230,51 @@ def migrate_preferences(directory: Path = PREFERENCES_DIRECTORY, *,
     return rewritten
 
 
-def migrate_all_state(state_directory: Path = STATE_DIRECTORY) -> int:
+def configure_whats_new(state_directory: Path, product_path: Path) -> int:
+    """Remember the installation origin once; retries never turn installs into upgrades."""
+    from .whats_new import (
+        INSTALLATION_FORMAT_VERSION, WhatsNewError, product_version, read_document,
+        validate_installation, version_key,
+    )
+    history_path = state_directory / "whats-new-installation.json"
+    previous_path = state_directory / "previous-product.json"
+    try:
+        product = read_document(product_path)
+        if not isinstance(product, dict) or set(product) != {"version"}:
+            raise WhatsNewError("invalid product metadata")
+        current = product_version(product["version"])
+        previous = None
+        if previous_path.exists() or previous_path.is_symlink():
+            previous, _ = _read_record(previous_path)
+            if not isinstance(previous, dict) or set(previous) != {"version"}:
+                raise WhatsNewError("invalid previous product metadata")
+            previous = product_version(previous["version"])
+        if history_path.exists() or history_path.is_symlink():
+            raw, file_stat = _read_record(history_path)
+            history, _ = migrate_document(
+                raw, current_version=INSTALLATION_FORMAT_VERSION,
+                migrations=WHATS_NEW_INSTALLATION_MIGRATIONS, validator=validate_installation)
+            if version_key(current) < version_key(history["current_version"]):
+                raise WhatsNewError("product downgrade is unsupported")
+            first = history["first_version"]
+        else:
+            file_stat = state_directory.stat()
+            first = previous if previous is not None else current
+            raw = None
+        result = validate_installation({"version": INSTALLATION_FORMAT_VERSION, "first_version": first,
+                                        "current_version": current})
+        changed = result != raw
+        if changed:
+            _atomic_write(history_path, result, file_stat)
+        # The origin is now durable. This bootstrap input is no longer needed.
+        previous_path.unlink(missing_ok=True)
+        return int(changed)
+    except (WhatsNewError, OSError) as error:
+        raise MigrationError("cannot configure release installation history") from error
+
+
+def migrate_all_state(state_directory: Path = STATE_DIRECTORY, *,
+                      product_path: Path | None = None) -> int:
     """Run every registered data-family migration under one process lock."""
     try:
         state_stat = state_directory.lstat()
@@ -251,7 +298,10 @@ def migrate_all_state(state_directory: Path = STATE_DIRECTORY) -> int:
             raise MigrationError("data-migration lock has unsafe ownership")
         os.fchmod(descriptor, 0o600)
         fcntl.flock(descriptor, fcntl.LOCK_EX)
-        return migrate_preferences(state_directory / "preferences")
+        rewritten = migrate_preferences(state_directory / "preferences")
+        if product_path is not None:
+            rewritten += configure_whats_new(state_directory, product_path)
+        return rewritten
     finally:
         os.close(descriptor)
 
@@ -266,7 +316,8 @@ def main() -> int:
         raise SystemExit("onpc.migration: must run as root")
     LOG.info("migration.started")
     try:
-        rewritten = migrate_all_state()
+        from .whats_new import PRODUCT_PATH
+        rewritten = migrate_all_state(product_path=PRODUCT_PATH)
     except MigrationError as error:
         LOG.error("migration.failed", error_type=error_code(error))
         return 1

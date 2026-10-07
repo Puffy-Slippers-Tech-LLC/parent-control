@@ -13,6 +13,7 @@ import threading
 from pathlib import Path
 
 from .config import UINT32_MAX, validate_target
+from .whats_new import WhatsNewError, validate_seen
 
 FORMAT_VERSION = 4
 VALID_APP_STATES = {"allowed", "permanent", "conditional"}
@@ -131,10 +132,14 @@ def validate_preferences(raw: object) -> dict:
         raise PreferencesError("unsupported preference version")
     personal = raw["personal"]
     if (not isinstance(personal, dict) or "language" not in personal or
-            not set(personal) <= {"language", "notifications"}):
+            not set(personal) <= {"language", "notifications", "whats_new_seen"}):
         raise PreferencesError("invalid personal preferences")
     language = validate_language(personal["language"])
     notifications = validate_notifications(personal.get("notifications", default_notifications()))
+    try:
+        whats_new_seen = validate_seen(personal.get("whats_new_seen", []))
+    except WhatsNewError as error:
+        raise PreferencesError("invalid release acknowledgements") from error
     if type(raw["parent_control_enabled"]) is not bool:
         raise PreferencesError("parent-control state must be boolean")
     # Legacy v3 records could omit this field. Keep its grant-only default
@@ -204,7 +209,8 @@ def validate_preferences(raw: object) -> dict:
     return {
         "version": FORMAT_VERSION,
         "parent_control_enabled": raw["parent_control_enabled"],
-        "personal": {"language": language, "notifications": notifications},
+        "personal": {"language": language, "notifications": notifications,
+                     **({"whats_new_seen": whats_new_seen} if "whats_new_seen" in personal else {})},
         "daily_time_limit_minutes": daily_limit,
         "apps": apps,
         "request": {
@@ -329,6 +335,25 @@ class PreferenceStore:
             if set(raw) == {"version", "personal"}:
                 current = {"version": FORMAT_VERSION, "personal": current["personal"]}
             return self._write(uid, current)["personal"]["notifications"]
+
+    def acknowledge_whats_new(self, uid: int, record_id: str, retained: set[str]) -> list[str]:
+        """Merge one acknowledgement and collect removed metadata atomically."""
+        try:
+            retained_records = set(validate_seen(list(retained)))
+            record_id, = validate_seen([record_id])
+            if record_id not in retained_records:
+                raise WhatsNewError("release is not retained")
+        except WhatsNewError as error:
+            raise PreferencesError("invalid release acknowledgement") from error
+        with self._write_lock:
+            raw = self._load_record(uid)
+            current = validate_preferences(raw)
+            seen = set(current["personal"].get("whats_new_seen", []))
+            current["personal"]["whats_new_seen"] = validate_seen(
+                list((seen & retained_records) | {record_id}))
+            if set(raw) == {"version", "personal"}:
+                current = {"version": FORMAT_VERSION, "personal": current["personal"]}
+            return self._write(uid, current)["personal"]["whats_new_seen"]
 
     def _write(self, uid: int, normalized: dict) -> dict:
         LOG.info("preferences.004", app_policy_count=len(normalized.get("apps", {})))

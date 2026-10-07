@@ -248,6 +248,75 @@ def test_stale_ambiguous_and_uncertain_input_is_not_replayed(operation):
         target.action.do_action.assert_called_once()
 
 
+@pytest.mark.parametrize('overlay', [True, False])
+@pytest.mark.parametrize('fault', ['retired-once', 'retired-always', 'wrong-child',
+                                  'wrong-owner', 'already-open', 'uncertain-input'])
+def test_language_open_reacquires_complete_entry_without_replaying_input(monkeypatch, overlay, fault):
+    from gi.repository import Gio, GLib
+    ui, window, dialog, controls = chooser_tree()
+    surface = 'overlay' if overlay else 'kiosk'
+    ui.api.get_desktop(0).identity = public.CHILD_APPLICATION if overlay else public.KIOSK_APPLICATION
+    if fault != 'already-open':
+        window.children.remove(dialog)
+    menu = Node(identity='kiosk-menu-button')
+    preferences = Node(identity='kiosk-menu-item-preferences')
+    for node in (menu, preferences):
+        node.parent = window
+        window.children.append(node)
+    if fault == 'wrong-child':
+        window.children[1].identity = 'kiosk-child-selected-1002'
+    if fault == 'wrong-owner':
+        ui.owner_pids = lambda: {999}
+
+    def open_dialog(_index):
+        if fault == 'uncertain-input':
+            return False
+        window.children.append(dialog)
+        return True
+    preferences.action.do_action.side_effect = open_dialog
+    error = Gio.DBusError.new_for_dbus_error(
+        'org.freedesktop.DBus.Error.ServiceUnknown', 'retired provider')
+    ui.query_errors = (GLib.Error,)
+    reads = []
+    def attributes():
+        reads.append(True)
+        if fault == 'retired-always' or (fault == 'retired-once' and len(reads) == 1):
+            menu.action.do_action.assert_not_called()
+            preferences.action.do_action.assert_not_called()
+            raise error
+        return {}
+    window.get_attributes = attributes
+    ui.timeout = .5 if fault == 'retired-once' else 0
+    monkeypatch.setattr(public.time, 'sleep', lambda _seconds: None)
+    operation = surface + '-language-open'
+    if fault == 'retired-once':
+        assert ui.request_language_operation(operation, overlay=overlay,
+            child=public.CHILD) == {'language': chooser_value()}
+        assert len(reads) >= 2
+        assert not ui.input_uncertain
+    else:
+        expected = {'retired-always': 'ui:timeout:' + surface + '-language-entry',
+            'wrong-child': 'ui:initial-child', 'wrong-owner': 'ui:wrong-owner',
+            'already-open': 'ui:language-already-open', 'uncertain-input': 'ui:action-refused'}[fault]
+        with pytest.raises(public.UiError, match=expected):
+            ui.request_language_operation(operation, overlay=overlay, child=public.CHILD)
+    if fault in ('retired-once', 'uncertain-input'):
+        menu.action.do_action.assert_called_once()
+        preferences.action.do_action.assert_called_once()
+        if fault == 'uncertain-input':
+            assert ui.input_uncertain
+            with pytest.raises(public.UiError, match='ui:uncertain-input'):
+                ui.request_language_operation(operation, overlay=overlay, child=public.CHILD)
+            menu.action.do_action.assert_called_once()
+            preferences.action.do_action.assert_called_once()
+    else:
+        menu.action.do_action.assert_not_called()
+        preferences.action.do_action.assert_not_called()
+    for control in controls:
+        control.action.do_action.assert_not_called()
+    assert ui.application_ids is None
+
+
 def test_real_session_guard_rejects_wrong_uid_and_requires_active_session(monkeypatch):
     ui, *_ = chooser_tree()
     ui.require_child_overlay_session = public.AccessibleUI.require_child_overlay_session.__get__(ui)

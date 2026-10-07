@@ -84,6 +84,28 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
         @service_command@ stop oh-no-parent-control-broker.service >/dev/null
     fi
     touch /var/lib/oh-no-parent-control/package-activation-pending
+    # Bootstrap the release-history origin even when the old payload predates
+    # What's New. Keep the input across interrupted unpack/configure retries.
+    previous_product="$state/previous-product.json"
+    release_history="$state/whats-new-installation.json"
+    if [ -L "$previous_product" ] || [ -L "$release_history" ]; then
+        echo 'oh-no-parent-control: refusing substituted release history' >&2
+        exit 1
+    fi
+    if [ "$1" = upgrade ] && [ ! -e "$release_history" ] &&
+       [ ! -e "$previous_product" ] && [ -f /usr/share/oh-no-parent-control/app.json ]; then
+        (
+            previous_pending=$(mktemp "$state/.previous-product.XXXXXX")
+            trap 'rm -f -- "$previous_pending"' 0
+            install -o root -g root -m 0600 /usr/share/oh-no-parent-control/app.json "$previous_pending"
+            sync "$previous_pending"
+            mv -T "$previous_pending" "$previous_product"
+        )
+    fi
+    if [ -f "$previous_product" ]; then
+        # Also finish durability after a failed directory sync on an earlier try.
+        sync "$previous_product" "$state"
+    fi
     if [ "$1" = upgrade ] && [ -f /usr/share/oh-no-parent-control/package-activation.json ]; then
         install -o root -g root -m 0644 \
             /usr/share/oh-no-parent-control/package-activation.json \

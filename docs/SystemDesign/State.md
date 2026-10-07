@@ -28,7 +28,7 @@ and atomically replaced. The current preference format is version 4 (`FORMAT_VER
 
 ```text
 version
-personal = { language, notifications = { show_in_fullscreen, reminders[] } }
+personal = { language, notifications = { show_in_fullscreen, reminders[] }, whats_new_seen[]? }
 parent_control_enabled
 daily_time_limit_minutes
 apps[desktop-id] = {
@@ -141,6 +141,77 @@ retains these records; purge removes them with the product state directory.
 The [language selectors](Frontends.md#personal-language-selection) use this API.
 [Localization](Localization.md) defines translation contexts and language
 application without changing persistence, authorization or policy ownership.
+
+## What's New backend
+
+The broker reads immutable [release metadata](../../data/whats-new.json) from
+`/usr/share/oh-no-parent-control/whats-new.json`. Its schema is
+`{"version": 1, "records": [...]}`. Each record requires `ProductVersion`,
+`ShowIn` and `Content`; `SeeMore` is optional. For example:
+
+```json
+{
+  "ProductVersion": "1.4",
+  "ShowIn": "Parent,Child",
+  "Content": "## New features\n\n- **Formatted** release notes\n",
+  "SeeMore": "https://example.com/releases/1.4"
+}
+```
+
+Versions are numeric dotted product versions, independent of DEB/RPM revisions.
+Comparison is numeric (`1.10` follows `1.9`); trailing zero components normalize
+(`1.4.0` equals `1.4`). `ShowIn` accepts `Parent`, `Child`, or both in either order,
+with whitespace around tokens allowed. Records for one version must have disjoint
+component sets: separate Parent and Child records are valid, but Parent plus
+Parent,Child is rejected. Duplicate JSON keys, missing required fields, unknown
+fields, empty content and unsafe SeeMore URLs are rejected. SeeMore accepts
+absolute ASCII HTTP(S) links without credentials, backslashes or percent-encoded
+authorities; bracketed IP addresses must occupy the complete host. Percent escapes
+in paths, queries and fragments are preserved. The document is bounded at 512 KiB,
+64 records, 65,536 content characters per record and 2,048 URL characters.
+
+The API preserves Markdown content literally; rendering and external link opening
+belong to the future frontend implementation. The shipped catalogue is empty
+until release authors supply actual notes. No dialogs, menus, title translations
+or rendering are implemented by this backend change.
+
+`GetOwnWhatsNew()` and `AcknowledgeOwnWhatsNew(product_version)` derive the UID
+from bus credentials. Administrators (including root) receive Parent records;
+eligible children receive Child records. The kiosk uses
+`GetChildWhatsNew(target_uid)` and
+`AcknowledgeChildWhatsNew(target_uid, product_version)` for an eligible selected
+child. Those two methods are kiosk-only. Kiosk and child overlay therefore share
+the child's acknowledgement; the approver's account is independent.
+
+All four methods return JSON with `product_version` and `records`. Each returned
+record includes the validated metadata, a derived `record_id` and `auto_show`.
+Only records matching the installed version and caller's component are returned.
+Users who skip a release never receive its old notes. Previously acknowledged
+current records remain in this result for manual menu access, with
+`auto_show = false`. A fresh installation also sets `auto_show = false`; an
+upgrade from a lower version sets it true for unseen current records. Installation
+origin is recorded during [package configuration](Data-Migration.md#whats-new-installation-history),
+so this decision works even when a user never opened the old app.
+
+The stable record identity combines canonical version and sorted ShowIn, such as
+`1.4:Parent` or `1.4:Child,Parent`. Separate Parent and Child records at the same
+version have independent acknowledgements, including if a UID's role changes.
+Editing content, SeeMore or ShowIn token order preserves identity; changing its
+component set creates a different record. Acknowledge selects the unique current
+record for the caller's component and supplied version; past, future, unknown and
+wrong-component records are refused. Frontends must acknowledge after successful
+display/close, including manual opening, and persist successfully before treating
+the record as seen. Querying alone does not consume eligibility.
+
+`personal.whats_new_seen` is an optional compatible version-4 field; absent means
+no acknowledgements. It contains at most 256 unique record IDs. The store merges
+acknowledgements under its existing write lock and atomically writes the record.
+Every successful acknowledgement also removes IDs absent from the complete
+packaged metadata, retaining IDs for other components and older metadata that
+still exists. Queries do not collect garbage. Language, reminders, request choices
+and policy remain intact; policy saves and rollback retain the latest personal
+state. Personal-only records remain personal-only. Ordinary removal retains
+acknowledgements; purge removes them with product state.
 
 The ownership of runtime state is deliberately split:
 

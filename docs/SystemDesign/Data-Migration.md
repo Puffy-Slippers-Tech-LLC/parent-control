@@ -9,7 +9,7 @@ Implementation: [data_migration.py](../../broker/oh_no_parent_control/data_migra
 
 Oh No! Parent Control migrates application-owned persistent data automatically during package configuration. Data schema versions are independent of distribution package versions: package releases may leave a schema unchanged, and one release may migrate more than one saved-data family.
 
-The current framework migrates unified per-user records in `/var/lib/oh-no-parent-control/preferences/`, including personal settings and child policy/request choices. Machine configuration, transient markers, logs, AccountsService, Malcontent, and files managed as Debian conffiles are not preference data and must not be added to that migration chain. If another application-owned data family later needs versioning, give it its own current-version constant, migration registry, validation, and migration pass in `migrate_all_state()`.
+The current framework migrates unified per-user records in `/var/lib/oh-no-parent-control/preferences/`, including personal settings and child policy/request choices. It also configures the separately versioned [What's New installation history](#whats-new-installation-history). Machine configuration, transient markers, logs, AccountsService, Malcontent, and files managed as Debian conffiles are not preference data and must not be added to that migration chain. If another application-owned data family later needs versioning, give it its own current-version constant, migration registry, validation, and migration pass in `migrate_all_state()`.
 
 The current preference schema is version 4. Its `3 -> 4` step adds
 `personal.language = ""` (follow the frontend session language) without changing
@@ -40,6 +40,33 @@ provisioning/activation. RPM can record an installed package despite a failed
 post-transaction script; the marker continues to exclude the broker. Use the
 [installed configuration retry](../Fedora-Packaging.md#fedora-lifecycle) after
 resolving the cause. Fedora installed lifecycle qualification remains pending.
+
+## What's New installation history
+
+`/var/lib/oh-no-parent-control/whats-new-installation.json` is a root-private,
+mode-0600 schema-1 record with `version`, `first_version` and `current_version`.
+The migration command configures it under the same process lock and package
+exclusion as preferences, using the shared validated reader and atomic/fsynced
+writer. Its schema is independent of preference format 4. Malformed, unsafe,
+future-schema and downgrade histories are refused and preserved.
+
+A fresh installation records the current product version as its origin. Before
+the first upgrade to a payload with this feature, shared Debian/RPM pre-install
+code saves the old installed `app.json` as mode-0600 `previous-product.json`.
+It captures only on upgrade when neither history nor a pending bootstrap input
+exists, and refuses substituted paths. This supports old payloads that have no
+history writer and interrupted unpack/configuration retries. Capture writes and
+flushes a private temporary file before atomic publication and a directory flush;
+a failed copy never becomes the bootstrap input retained by the next attempt. Configuration uses
+that input once, then removes it only after the history write succeeds.
+Subsequent upgrades advance the current version without changing origin;
+same-version configuration is idempotent. Removal retains this saved family and
+purge deletes it with the product state directory.
+
+The optional per-user `whats_new_seen` field uses compatible normalization,
+without changing any released migration or incrementing preference schema 4.
+The [state contract](State.md#whats-new-backend) owns record identity, eligibility,
+acknowledgement and garbage collection.
 
 ## Adding a preference migration
 

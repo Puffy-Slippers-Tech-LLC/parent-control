@@ -493,6 +493,12 @@ The child renderer owns only its own Shell chrome and notification model,
 without registering it with the message tray: the tray's fixed noncritical
 timeout cannot express persistence independently of fullscreen urgency.
 High urgency waits outside fullscreen; Critical appears above fullscreen.
+The card and its tooltip use Shell's public `addTopChrome` layer, above Mutter's
+override-redirect window group as well as ordinary windows. `trackFullscreen`
+alone only controls hiding and cannot lift ordinary chrome above that group.
+The renderer attaches both actors before measuring themed controls and recenters
+the card on the current primary monitor when the display configuration changes,
+including external-monitor-only mode.
 An unlocked visible delivery at 60 seconds or more starts a five-second
 monotonic deadline and countdown; shorter deliveries persist without a bar.
 New banners dispose the old source, actor, signals and timer. Locking, extension

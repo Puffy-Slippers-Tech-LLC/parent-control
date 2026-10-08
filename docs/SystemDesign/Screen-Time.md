@@ -31,8 +31,10 @@ the greeter, notifications are cleared and no new reminder is emitted. Disabling
 the extension cancels pending preference reads and destroys its owned source.
 
 `show_in_fullscreen` chooses GNOME Shell `CRITICAL` urgency when true and `HIGH`
-when false. Shell owns banner presentation and fullscreen suppression through
-its [message tray API](https://raw.githubusercontent.com/GNOME/gnome-shell/50.0/js/ui/messageTray.js).
+when false. The shared [banner renderer](Frontends.md#child-reminder-preferences)
+owns presentation and fullscreen suppression; its notification model is not
+registered with Shell's message tray. It uses Shell's public top-chrome layer to
+appear above ordinary and override-redirect fullscreen windows.
 Notifications use the product logo, user privacy scope, plain text and transient
 lifetime. A later reminder replaces the previous product notification so an
 undismissed critical banner cannot obstruct later reminders. Default content

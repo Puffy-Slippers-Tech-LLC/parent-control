@@ -11,6 +11,28 @@ ROOT = pathlib.Path(__file__).parents[2]
 
 
 class ChildPreviewTests(unittest.TestCase):
+    def test_shell_diagnostics_do_not_borrow_identity_from_neighboring_notices(self):
+        from tests.support.child_shell import extension_error_context
+
+        uuid = 'oh-no-parent-control@tech.puffyslippers.com'
+        notice = (f'GNOME Shell-Message: 20:11:08.428: Extension {uuid} already installed '
+                  f'in /private/{uuid}. /usr/share/{uuid} will not be loaded\n')
+        warning = ('(gnome-shell:123): GNOME Shell-WARNING **: 20:11:08.447: '
+                   'Failed to inhibit suspend: login1 unavailable\n')
+        self.assertEqual(extension_error_context(warning + notice + warning, uuid), [])
+
+    def test_shell_diagnostics_retain_complete_extension_error_stacks(self):
+        from tests.support.child_shell import extension_error_context
+
+        uuid = 'oh-no-parent-control@tech.puffyslippers.com'
+        error = ('(gnome-shell:123): Gjs-CRITICAL **: 20:11:18.489: JS ERROR: TypeError\n'
+                 + '  helper@resource:///org/gnome/shell/ui/environment.js:69:22\n' * 12
+                 + f'  present@file:///private/{uuid}/reminderBanner.js:219:24\n')
+        other = 'GNOME Shell-Message: 20:11:19.020: Shutting down GNOME Shell\n'
+        self.assertEqual(extension_error_context(error + other, uuid), [error.strip()])
+        direct = f'GNOME Shell-WARNING: 20:11:19.020: Extension {uuid}: failed\n'
+        self.assertEqual(extension_error_context(direct, uuid), [direct.strip()])
+
     def interaction_wait(self):
         # Load just the wait boundary: importing the live worker would bind
         # the launch-owned Shell PID and artifact paths in a unit test.

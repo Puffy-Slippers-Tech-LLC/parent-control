@@ -96,12 +96,17 @@ function harness() {
             this.children = [];
             this.clutter_text = {};
         }
-        add_child(child) { this.children.push(child); }
+        add_child(child) { this.children.push(child); child.parent = this; }
         set_style(style) { this.style = style; }
         set_request_mode(mode) { this.request_mode = mode; }
         get_style() { return this.style; }
         set_position(x, y) { this.x = x; this.y = y; }
-        get_preferred_width() { return [this.width, this.width]; }
+        get_preferred_width() {
+            let root = this;
+            while (root.parent) root = root.parent;
+            assert.ok(chrome.includes(root), 'measure themed controls only after stage attachment');
+            return [this.width, this.width];
+        }
         set_text_direction(value) { this.direction = value; }
         get_text_direction() { return this.direction; }
         get_transformed_position() { return [this.x ?? 0, this.y ?? 0]; }
@@ -112,11 +117,21 @@ function harness() {
     const file = path => ({get_path: () => path, get_parent: () => file(path + '/..'),
         get_child: name => file(path + '/' + name), query_exists: () => true});
     const sessionMode = new SignalObject({isLocked: false, isGreeter: false});
-    const layoutManager = new SignalObject({primaryMonitor: {x: 0, y: 0, width: 1920, inFullscreen: false},
-        addChrome: actor => {
-            chrome.push(actor);
-            if (actor.style_class === 'screen-time-reminder') banners.push(actor);
-        }, removeChrome: actor => {
+    // Model Shell's documented distinction: ordinary chrome is below the
+    // override-redirect group, top chrome is above it. No desktop is touched.
+    const topWindows = {name: 'override-redirect windows'};
+    const stacking = [topWindows];
+    const attach = (actor, params, top) => {
+        assert.equal(params.trackFullscreen, false);
+        stacking.splice(top ? stacking.length : stacking.indexOf(topWindows), 0, actor);
+        chrome.push(actor);
+        if (actor.style_class === 'screen-time-reminder') banners.push(actor);
+    };
+    const layoutManager = new SignalObject({primaryMonitor: {x: 0, y: 0, width: 1920, height: 1080, inFullscreen: false},
+        addChrome: (actor, params) => attach(actor, params, false),
+        addTopChrome: (actor, params) => attach(actor, params, true),
+        removeChrome: actor => {
+            stacking.splice(stacking.indexOf(actor), 1);
             chrome.splice(chrome.indexOf(actor), 1);
             if (banners.includes(actor)) banners.splice(banners.indexOf(actor), 1);
         }});
@@ -156,7 +171,7 @@ function harness() {
         now += milliseconds * 1000;
         for (const [id, callback] of [...timers]) if (!callback()) timers.delete(id);
     };
-    return {notifier, sources, errors, callbacks, cancelled, banners, chrome, reply, policyReply,
+    return {notifier, sources, errors, callbacks, cancelled, banners, chrome, stacking, topWindows, reply, policyReply,
         advance, timers, sessionMode, layoutManager, context, preferencesOpened: () => preferencesOpened};
 }
 
@@ -311,6 +326,36 @@ test('fullscreen preference controls delivery without changing persistence or to
     h.sessionMode.isLocked = true;
     for (const sync of h.sessionMode.handlers.updated) sync();
     assert.equal(h.notifier.current, null);
+    assert.equal(h.timers.size, 0);
+});
+
+test('critical reminders stay above override-redirect games through external-only monitor changes', () => {
+    const h = harness();
+    h.notifier.preferences = {show_in_fullscreen: true, reminders};
+    h.layoutManager.primaryMonitor.inFullscreen = true;
+    h.notifier.schedule.previous = 15;
+    h.notifier.present(reminders[3], false);
+    const current = h.notifier.current;
+    const tooltip = h.chrome.find(actor => actor.style_class === 'dash-label screen-time-tooltip');
+    assert.equal(current.card.visible, true);
+    assert.ok(h.stacking.indexOf(current.card) > h.stacking.indexOf(h.topWindows));
+    assert.ok(h.stacking.indexOf(tooltip) > h.stacking.indexOf(current.card));
+    const monitorsChanged = () => {
+        for (const sync of h.layoutManager.handlers['monitors-changed']) sync();
+    };
+    h.layoutManager.primaryMonitor = null;
+    monitorsChanged();
+    assert.equal(current.card.visible, false);
+    h.layoutManager.primaryMonitor = {x: 1920, y: 120, width: 2560, height: 1440, inFullscreen: true};
+    monitorsChanged();
+    assert.equal(current.card.visible, true);
+    assert.equal(current.card.x, 1920 + (2560 - current.card.width) / 2);
+    assert.equal(current.card.y, 128);
+    h.advance(6000);
+    assert.equal(h.notifier.current, current);
+    h.notifier.clear();
+    assert.deepEqual(h.stacking, [h.topWindows]);
+    assert.equal(h.chrome.length, 0);
     assert.equal(h.timers.size, 0);
 });
 

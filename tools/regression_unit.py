@@ -1,5 +1,10 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Restart-modal coverage retains customer_reboot_cleanup_safety's private pytest
+evidence, synthetic UI/transport trees and bounded waited Perl children. Its
+isolated-Python payload check has no live UI, socket or product process. The
+existing compatible unit and cleanup classifications remain appropriate.
+
 sync_whatsnew uses tiny private pytest Markdown/TOML/PO/catalogue trees, bounded waited
 gettext/Make subprocesses and a private Codex double under the existing detached
 worker/supervisor ownership. Children are reaped through that established owner;

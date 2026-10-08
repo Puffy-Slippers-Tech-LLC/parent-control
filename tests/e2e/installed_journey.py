@@ -46,6 +46,7 @@ class JourneyPlan:
     challenges: dict = field(default_factory=dict)
     reboot_transition: tuple = ()
     additional_reboot_transitions: tuple = ()
+    modal_reboots: dict = field(default_factory=dict)
     trace_bindings: dict = field(default_factory=dict)
     trace_terminals: dict = field(default_factory=dict)
     accessibility_inputs: dict = field(default_factory=dict)
@@ -159,12 +160,18 @@ class JourneyPlan:
                 (self.reboot_transition or not self.additional_reboot_transitions),
                 self.prefix + ':reboot-plan')
         prior = -1
+        require(type(self.modal_reboots) is dict and set(self.modal_reboots) <=
+                {pair[0] for pair in self.reboot_transitions} and
+                all(surface in ('parent', 'overlay', 'kiosk')
+                    for surface in self.modal_reboots.values()), self.prefix + ':reboot-plan')
         for transition in self.reboot_transitions:
             require(type(transition) is tuple and len(transition) == 2 and
                     all(stage in stages for stage in transition) and
                     stages.index(transition[0]) > prior and
                     stages.index(transition[1]) == stages.index(transition[0]) + 1 and
-                    self.screen_tags[transition[0]] == 'system:parent-command-context' and
+                    self.screen_tags[transition[0]] == (
+                        'ui:restart-' + self.modal_reboots[transition[0]] + '-read'
+                        if transition[0] in self.modal_reboots else 'system:parent-command-context') and
                     self.screen_tags[transition[1]] in ('ui:gdm-list', 'ui:gdm-product-free-list') and
                     transition[0] not in self.stage_actions, self.prefix + ':reboot-plan')
             prior = stages.index(transition[1])
@@ -422,15 +429,23 @@ class InstalledJourney:
         else:
             self.additional_reboots_submitted.add(index)
         name = 'customer-reboot-intent.json' if index == 0 else f'customer-reboot-{index + 1}-intent.json'
+        surface = self.plan.modal_reboots.get(stage)
         with (self.context.directory / name).open('x') as stream:
             json.dump({'stage': stage,
-                       'previous_boot_sha256': self.boot}, stream)
+                       'previous_boot_sha256': self.boot,
+                       **({'route': 'ApplicationUI', 'surface': surface} if surface else {})}, stream)
             stream.flush()
             os.fsync(stream.fileno())
         guard()
-        self.transport.request_customer_reboot(self.boot)
+        if surface is None:
+            self.transport.request_customer_reboot(self.boot)
+            submission = {}
+        else:
+            require(self.ui is not None and self.ui.boot_proof == self.boot,
+                    self.plan.prefix + ':reboot-modal-proof')
+            submission = self.ui.submit_restart(surface)
         guard()
-        return {'submitted': True, 'previous_boot_sha256': self.boot}
+        return {'submitted': True, 'previous_boot_sha256': self.boot, **submission}
 
     def _step(self, guard):
         plan, context = self.plan, self.context

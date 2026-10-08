@@ -863,6 +863,15 @@ INITIAL_KIOSK_OPERATIONS = frozenset('kiosk-initial-' + suffix for suffix in (
     'notice', 'notice-close', 'notice-return', 'language', 'language-cancel', 'form'))
 OPERATIONS |= INITIAL_KIOSK_OPERATIONS | {'station-initial-entry'}
 KIOSK_SESSION_OPERATIONS |= INITIAL_KIOSK_OPERATIONS | {'station-initial-entry'}
+RESTART_OPERATIONS = {f'restart-{surface}-{action}': (surface, action)
+    for surface in ('parent', 'overlay', 'kiosk')
+    for action in ('read', 'close', 'closed', 'exit', 'usable', 'reboot', 'missing-refused')}
+RESTART_OPERATIONS['restart-parent-wrong-owner'] = ('parent', 'wrong-owner')
+OPERATIONS |= RESTART_OPERATIONS.keys()
+KIOSK_SESSION_OPERATIONS |= {op for op, (surface, _) in RESTART_OPERATIONS.items()
+                            if surface == 'kiosk'}
+CHILD_DESKTOP_OPERATIONS |= {op for op, (surface, _) in RESTART_OPERATIONS.items()
+                            if surface == 'overlay'}
 KIOSK_SESSION_OPERATIONS |= MATE_OPERATIONS | MATE_APPROVAL_OPERATIONS
 CHINESE_LANGUAGE_OPERATIONS = frozenset({'chinese-language-save', 'chinese-persisted-form'})
 OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
@@ -2637,6 +2646,135 @@ class AccessibleUI:
                   'initial-notice-closed', prompt_in_predicate=True)
         self.input_uncertain = False
         return value
+
+    @contextmanager
+    def restart_scope(self, surface):
+        with self.language_scope(surface):
+            application = {'parent': PARENT_APPLICATION, 'overlay': CHILD_APPLICATION,
+                           'kiosk': KIOSK_APPLICATION}[surface]
+            self.application_ids = tuple(value for value in self.application_ids if value == application)
+            yield
+
+    def restart_notice(self, surface, *, wait=True):
+        """One fresh, owner-scoped modal read, before any language automation."""
+        with self.restart_scope(surface):
+            def read():
+                observation = self.read_snapshot()
+                modal = self.snapshot_owned_target('update-required-dialog',
+                    observation=observation, check_prompt=True)
+                if modal is None:
+                    return None
+                require(self.has_state(modal, self.api.StateType.MODAL), 'ui:restart-not-modal')
+                require(self.snapshot_owned_target('language-dialog', observation=observation) is None,
+                        'ui:restart-language-displaced')
+                blocked = 'parent-window' if surface == 'parent' else 'kiosk-request-form'
+                require(self.snapshot_owned_target(blocked, observation=observation) is None,
+                        'ui:restart-policy-available')
+                if surface != 'parent':
+                    window = self.snapshot_owned_target('kiosk-request-window', observation=observation)
+                    require(window is not None, 'ui:restart-request-owner')
+                    # RebootRequired can arrive before own-account loading.
+                    # The overlay's active fixture session and endpoint owner
+                    # bind this notice; no selected child is promised yet.
+                texts = {}
+                for identity in ('update-required-message', 'update-required-close', 'update-required-reboot'):
+                    node = self.snapshot_owned_target(identity, root=modal, observation=observation)
+                    require(node is not None, 'ui:restart-control')
+                    if identity != 'update-required-message':
+                        require(self.has_state(node, self.api.StateType.SENSITIVE), 'ui:restart-disabled')
+                    texts[identity] = node.getText()
+                return {'surface': surface, 'texts': texts, 'modal': True, 'policy_blocked': True}
+            return self.wait(read, 'restart-notice', prompt_in_predicate=True) if wait else read()
+
+    def restart_action(self, surface, action):
+        """Resolve the same modal anew; perform exactly one ordinary action."""
+        require(action in ('close', 'reboot'), 'ui:restart-action')
+        with self.restart_scope(surface):
+            require(self.restart_notice(surface, wait=False) is not None, 'ui:restart-missing')
+            target = self.id_target('update-required-' + action, sensitive=True)
+            if action == 'reboot':
+                require(type(self.trace_boot) is str and re.fullmatch(r'[0-9a-f]{64}', self.trace_boot),
+                        'ui:restart-boot')
+                print(json.dumps({'event': 'restart-input-qualified', 'surface': surface,
+                                  'boot_sha256': self.trace_boot}, sort_keys=True), flush=True)
+            self._invoke_target(target)
+
+    def restart_closed(self, surface):
+        with self.restart_scope(surface):
+            def read():
+                observation = self.read_snapshot()
+                self.handle_system_prompt(observation=(observation[0], observation[1], observation[3]))
+                if self.snapshot_owned_target('update-required-dialog', observation=observation,
+                                              allow_unmapped_surface=True) is not None:
+                    return None
+                require(self.snapshot_owned_target('language-dialog', observation=observation) is None,
+                        'ui:restart-language-displaced')
+                if surface == 'parent':
+                    require(self.snapshot_owned_target('parent-window', observation=observation) is None,
+                            'ui:restart-policy-available')
+                    self.standard_shell_desktop(no_prompt=True)
+                else:
+                    title = self.snapshot_owned_target('kiosk-result-title', observation=observation)
+                    action = self.snapshot_owned_target('kiosk-result-action', observation=observation)
+                    if title is None or action is None:
+                        return None
+                    require(title.getText() == 'Restart required' and
+                            self.has_state(action, self.api.StateType.SENSITIVE) and
+                            self.snapshot_owned_target('kiosk-request-form', observation=observation) is None,
+                            'ui:restart-policy-available')
+                return True
+            self.wait(read, 'restart-closed', prompt_in_predicate=True)
+
+    def restart_usable(self, surface):
+        with self.restart_scope(surface):
+            # Language setup is deliberately allowed only in this postboot leaf.
+            self._complete_language_setup('parent' if surface == 'parent' else 'kiosk')
+            identity = 'parent-window' if surface == 'parent' else 'kiosk-request-window'
+            root = self.id_target(identity)
+            require(self.absent_id('update-required-dialog', within=identity), 'ui:restart-still-required')
+            if surface == 'parent':
+                self.id_target('parent-child-selector', root=root, sensitive=True)
+            else:
+                form = self.id_target('kiosk-request-form', root=root)
+                self.id_target('kiosk-request-submit', root=form, sensitive=True)
+                if surface == 'overlay':
+                    self.initial_kiosk_child(self.read_snapshot(), root, child=CHILD)
+
+    def restart_operation(self, surface, action):
+        if action == 'read':
+            return self.restart_notice(surface)
+        if action in ('close', 'reboot'):
+            self.restart_action(surface, action)
+        elif action == 'closed':
+            self.restart_closed(surface)
+        elif action == 'exit':
+            require(surface != 'parent', 'ui:restart-exit-binding')
+            self.restart_closed(surface)
+            with self.restart_scope(surface):
+                self.activate_id('kiosk-result-action')
+        elif action == 'usable':
+            self.restart_usable(surface)
+        elif action == 'missing-refused':
+            with self.restart_scope(surface):
+                require(self.restart_notice(surface, wait=False) is None, 'ui:restart-not-missing')
+                try:
+                    self.restart_action(surface, 'reboot')
+                except UiError as error:
+                    require(str(error) == 'ui:restart-missing', 'ui:restart-wrong-refusal')
+                else:
+                    require(False, 'ui:restart-missing-accepted')
+        elif action == 'wrong-owner':
+            require(self.restart_notice('parent', wait=False) is not None, 'ui:restart-missing')
+            with self.restart_scope('kiosk'):
+                require(self.restart_notice('kiosk', wait=False) is None, 'ui:restart-wrong-owner')
+                try:
+                    self.restart_action('kiosk', 'close')
+                except UiError as error:
+                    require(str(error) == 'ui:restart-missing', 'ui:restart-wrong-refusal')
+                else:
+                    require(False, 'ui:restart-wrong-owner-accepted')
+        else:
+            require(False, 'ui:restart-action')
 
     def return_initial_notice(self):
         require(self.snapshot_owned_target('update-required-dialog') is None and
@@ -10127,7 +10265,14 @@ class AccessibleUI:
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-        if operation in NATIVE_APP_OPERATIONS or operation in OVERLAY_NATIVE_OPERATIONS:
+        if operation in RESTART_OPERATIONS:
+            surface, action = RESTART_OPERATIONS[operation]
+            value = self.restart_operation(surface, action)
+            if action == 'reboot':
+                return {'surface': surface, 'status': 'acknowledged'}
+            if value is not None:
+                result['restart'] = value
+        elif operation in NATIVE_APP_OPERATIONS or operation in OVERLAY_NATIVE_OPERATIONS:
             overlay_native = operation in OVERLAY_NATIVE_OPERATIONS
             if overlay_native:
                 self.require_child_overlay_session()

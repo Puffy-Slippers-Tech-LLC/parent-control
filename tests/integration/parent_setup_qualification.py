@@ -875,6 +875,13 @@ class CustomerRebootQualification(ProductFreeEntryQualification):
         return CustomerRebootJourney(context, progress)
 
 
+class RestartNoticeQualification(ProductFreeEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from restart_notice import RestartNoticeJourney
+        return RestartNoticeJourney(context, progress)
+
+
 class PackageUpgradeQualification(ProductFreeEntryQualification):
     upgrade_assets = True
 

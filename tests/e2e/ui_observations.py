@@ -34,6 +34,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Checking the installed restart notice: ' + surface + ' / ' + action
+       for operation, (surface, action) in accessible_ui.RESTART_OPERATIONS.items()},
     'parent-about-information': 'Reading installed product, version and legal information',
     'overlay-about-summary': 'Reading overlay product, version and legal information',
     **{operation: 'Setting or reading the owned daily allowance through its API: ' + phase
@@ -859,6 +861,8 @@ class UiObservations:
         self.shell_success_input(token, self.shell_approval_identity)
 
     def call(self, argv, operation, *, input=None):
+        if operation in accessible_ui.RESTART_OPERATIONS and operation.endswith('-reboot'):
+            return self.restart_call(argv, operation, input=input), []
         # Overlay readback uses the same form reader and diagnostic stream as
         # the station, while retaining its separate child-session binding.
         form_diagnostics = (operation in accessible_ui.KIOSK_SESSION_OPERATIONS
@@ -924,6 +928,45 @@ class UiObservations:
             return results[0], prompts
         finally:
             commands.progress = previous
+
+    def submit_restart(self, surface):
+        require(surface in ('parent', 'overlay', 'kiosk') and
+                not getattr(self, 'restart_consumed', False) and
+                self.boot_proof == self.boot_guard and bool(self.boot_guard), 'ui:restart-submission')
+        self.restart_consumed = True
+        with watch_activity.operation('Requesting one normal reboot through the installed notice'):
+            return self._observe('restart-' + surface + '-reboot')
+
+    def restart_call(self, argv, operation, *, input):
+        """Only a qualified terminal mutation may survive an SSH disconnect."""
+        surface = accessible_ui.RESTART_OPERATIONS[operation][0]
+        qualified = {'event': 'restart-input-qualified', 'surface': surface,
+                     'boot_sha256': self.boot_guard}
+        acknowledged = {'surface': surface, 'status': 'acknowledged',
+                        'boot_sha256': self.boot_guard}
+        pending, records = bytearray(), []
+        received = 0
+        def output(data):
+            nonlocal received
+            received += len(data)
+            require(received <= 4096, 'ui:restart-response-size')
+            pending.extend(data)
+            while b'\n' in pending:
+                line, _, rest = pending.partition(b'\n')
+                pending[:] = rest
+                value = json.loads(line)
+                require(len(records) < 2 and value == (qualified if not records else acknowledged),
+                        'ui:restart-response')
+                records.append(value)
+        self.transport.call(argv, input=input, timeout=120, check=False, on_output=output)
+        status = self.transport.commands.last_returncode
+        # Preserve strict refusal, interrupt and ownership errors. A missing or
+        # partial readiness record never authorizes accepting a lost receipt.
+        require(not pending and records and status in (0, 255), 'ui:restart-submission-failed')
+        require(len(records) == 2 or status == 255, 'ui:restart-receipt-missing')
+        return json.dumps({'surface': surface,
+            'status': 'acknowledged' if len(records) == 2 else 'uncertain',
+            'boot_sha256': self.boot_guard}).encode()
 
     def observe(self, operation, *, child=None):
         require(not getattr(self, 'language_failed', False), 'ui:language-previous-failure')
@@ -1064,6 +1107,8 @@ class UiObservations:
             raise
 
     def _observe(self, operation, *, child=None):
+        if operation in accessible_ui.RESTART_OPERATIONS and operation.endswith('-reboot'):
+            require(getattr(self, 'restart_consumed', False), 'ui:restart-submission')
         initial_inputs = {'kiosk-initial-notice-close': 'kiosk-initial-notice',
                           'kiosk-initial-notice-return': 'kiosk-initial-notice-close',
                           'kiosk-initial-language-cancel': 'kiosk-initial-language'}
@@ -1150,12 +1195,31 @@ class UiObservations:
         require(isinstance(raw, bytes) and 0 < len(raw) <=
                 RESPONSE_BYTE_LIMITS.get(operation, 2048), 'ui:response-size')
         result = json.loads(raw)
+        if operation in accessible_ui.RESTART_OPERATIONS and operation.endswith('-reboot'):
+            surface = accessible_ui.RESTART_OPERATIONS[operation][0]
+            require(type(result) is dict and set(result) == {'surface', 'status', 'boot_sha256'}
+                    and result['surface'] == surface and result['status'] in ('acknowledged', 'uncertain')
+                    and result['boot_sha256'] == self.boot_guard, 'ui:restart-response')
+            self.boot_proof = result['boot_sha256']
+            return {'surface': surface, 'status': result['status']}
         if binding:
             proof = result.pop('boot_sha256', None) if type(result) is dict else None
             require(type(proof) is str and re.fullmatch(r'[0-9a-f]{64}', proof)
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+        if operation in accessible_ui.RESTART_OPERATIONS:
+            surface, action = accessible_ui.RESTART_OPERATIONS[operation]
+            if action == 'read':
+                value = result.get('restart')
+                require(type(value) is dict and set(value) == {'surface', 'texts', 'modal', 'policy_blocked'}
+                        and value['surface'] == surface and value['modal'] is True
+                        and value['policy_blocked'] is True and type(value['texts']) is dict
+                        and set(value['texts']) == {'update-required-message', 'update-required-close',
+                                                   'update-required-reboot'}
+                        and all(type(text) is str and 0 < len(text) <= 512
+                                for text in value['texts'].values()), 'ui:restart-response')
+                expected['restart'] = value
         if operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS:
             action = accessible_ui.LANGUAGE_HISTORY_REQUESTS[operation][4]
             if action == 'form':

@@ -435,6 +435,24 @@ Callers retain phase boundaries, assertions and current/previous package binding
 the guarded command and independent result. The fragment adds no resource or
 cleanup lifetime; existing unit/cleanup classifications remain applicable.
 
+`restart_notice.RestartNoticeJourney` adds the three fresh-install modal bindings
+over that package fragment and the shared fresh-desktop/station entries.
+`AccessibleUI.restart_notice`, `restart_action`, `restart_closed` and
+`restart_usable` share the public-ID route with the real GTK modal test.
+The notice can arrive before the request's own-account load; the exact application
+owner and, for the overlay, active fixture session bind that early read.
+Language setup is permitted only in the postboot usability operation.
+`JourneyPlan.modal_reboots` pairs an exact surface read with the adjacent fresh
+GDM result. `UiObservations.submit_restart` consumes once; a bounded terminal
+stream permits transport uncertainty only after the exact boot/surface readiness
+record. Independent boot-change and fresh-GDM observations supply acceptance.
+No command reboot fallback or input retry is allowed.
+The existing customer-reboot unit/cleanup module retains private fixtures and
+waited Perl/isolated-Python subprocesses with bounded timeouts; the existing
+error-feedback UI module retains its private display and stubbed reboot callback.
+These additions share no VM or product process and add no host resource owner.
+The existing unit, cleanup and UI classifications remain applicable.
+
 Native activity transitions reuse `journey_blocks.native_activity_entry` /
 `onpc_app_rows::native_activity_entry` for
 launch/use/capture and `native_activity_resume` for an independently observed

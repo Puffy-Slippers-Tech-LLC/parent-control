@@ -11,7 +11,7 @@ pytestmark = pytest.mark.ui
 
 @pytest.mark.parametrize('surface', ('parent', 'kiosk', 'child-overlay'))
 def test_product_update_modal_reboot_and_dismissal(
-        launch_ui, automation, wait_for_accessible_state, tmp_path, surface):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, monkeypatch, surface):
     ui, wait = automation, wait_for_accessible_state
     if surface == 'parent':
         path = tmp_path / 'parent-reboot.jsonl'
@@ -25,6 +25,14 @@ def test_product_update_modal_reboot_and_dismissal(
                                        complete_language_setup=False)
         underlying = 'kiosk-request-window'
     wait(lambda: ui.showing('update-required-dialog'), 'product update modal opens')
+    binding = 'overlay' if surface == 'child-overlay' else surface
+    # The preview's simulated session/UID supplies no installed ownership credit.
+    monkeypatch.setattr(ui.reader, 'require_child_overlay_session', lambda: None)
+    assert ui.reader.restart_notice(binding) == {'surface': binding,
+        'texts': {'update-required-message':
+            'Restart the computer for Oh No! Parent Control to work properly.',
+            'update-required-close': 'Close', 'update-required-reboot': 'Reboot now'},
+        'modal': True, 'policy_blocked': True}
     assert ui.state('update-required-dialog', ui.api.StateType.MODAL)
     assert len(ui.find_all('update-required-dialog')) == 1
     assert ui.text('update-required-message') == (
@@ -35,18 +43,20 @@ def test_product_update_modal_reboot_and_dismissal(
         for identity in ('parent-window', 'parent-startup-window', 'parent-reboot-window'):
             assert ui.absent(identity, within='update-required-dialog')
     assert not events(path, 'reboot-requested')
-    ui.activate('update-required-reboot')
+    ui.reader.trace_boot = 'a' * 64
+    ui.reader.restart_action(binding, 'reboot')
     wait(lambda: ui.showing('update-required-status'), 'reboot refusal remains actionable')
     assert ui.text('update-required-status') == 'The operation could not be completed. Please try again later.'
     assert len(events(path, 'reboot-requested')) == 1
     assert ui.state('update-required-reboot', ui.api.StateType.SENSITIVE)
-    ui.activate('update-required-close')
+    ui.reader.restart_action(binding, 'close')
     if surface == 'parent':
         wait(lambda: process.poll() is not None, 'closing the only dialog exits Parent')
         assert process.returncode == 0
         assert not ui.find_all('update-required-dialog')
     else:
         wait(lambda: ui.absent('update-required-dialog', within=underlying), 'modal dismissed')
+        ui.reader.restart_closed(binding)
     assert not events(path, 'feedback')
     assert not events(path, 'logout') and not events(path, 'close_overlay')
     if surface != 'parent':

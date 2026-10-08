@@ -1,6 +1,9 @@
 """Partition the discovered UI inventory without splitting shared fixtures.
 
 Known modules have private compositor/bus/settings and per-attempt evidence.
+Restart-modal error_feedback checks use that same owned private preview/bus and
+the existing stubbed reboot callback, never a host reboot. No shared resource
+or new lifetime is added; the Feedback bucket reservation remains appropriate.
 Keep nested Shell in one job because it also publishes stable latest evidence.
 New modules remain included, but run exclusively until their isolation is reviewed.
 

@@ -43,6 +43,7 @@ APIS = {
     'approval_flow': {'rejected_request'},
     'request_composition': {'KioskRequestJourney'},
     'package_install': {'check_install_result', 'observe_current_install', 'submit_install'},
+    'restart_notice': {'RestartNoticeJourney'},
     'chinese_kiosk_lifecycle': {'ChinesePresentationMixin', 'renewed_desktop',
                               'renewed_language_entry', 'set_desktop_language'},
     'package_journey': {'record_package_journey'},

@@ -10,6 +10,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # ui_cleanup_safety's preview wait-cancellation checks use private tmp_path logs
 # and process-local Popen/clock doubles, without changing real signal handlers
 # or starting children. Its existing compatible unit/cleanup scheduling holds.
+# Restart-modal customer_reboot checks retain private pytest evidence, synthetic
+# UI/transport trees and bounded waited Perl/isolated-Python children. No live
+# guest, display, socket or new cleanup owner; compatible in unit and cleanup.
 # Repair resume checks reuse fix_tests_cleanup_safety's private checkpoint trees
 # and recorded, waited test/agent doubles. They create no new shared cleanup
 # owner, VM, display or socket; compatible unit and cleanup scheduling holds.

@@ -21,6 +21,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 ## Implementation
 
 Reuse the concrete reviewed profile and submission authorization from task 150a.
+Use an empty optional reply address for this Parent ordinary-feedback binding.
 Compose FEED03/Privacy observations, one Send, FEED09 sending/success and FEED14
 dismissal. Qualify these result projections through the supported real service
 and dedicated recipient. Do not expand content, recipient or submission counts.

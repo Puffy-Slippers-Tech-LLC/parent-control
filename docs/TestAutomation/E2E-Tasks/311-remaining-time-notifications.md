@@ -13,7 +13,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **300i** — Child overlay personal-language Save and normal return.
 
 Estimate: 40–60 minutes.
-Session exception: The natural ten-minute countdown, fullscreen branches, two child accounts and real reboot/upgrade persistence form a continuous customer history.
+Session exception: The natural one-minute/15-second warning sequence, fullscreen branches, two child accounts and real reboot/upgrade persistence form a continuous customer history.
 
 ## Scope and acceptance
 
@@ -44,14 +44,18 @@ Qualify Shell banner accessibility through the scoped external-provider adapter;
 require logical body/accessibility text equality and owned banner identity,
 without coordinates, private actors or pixel/rendering acceptance.
 
-Finite history: start with untouched defaults and positive combined usable time
-above ten minutes. Independently observe the 10m, 5m, 1m and 15s warnings once
-through natural countdown; expect shared localized text and Critical urgency.
+Finite history: start with untouched defaults and read all four saved thresholds
+(10m, 5m, 1m and 15s) through the public reminder-management dialog. Begin the
+delivery sequence with positive combined usable time above one minute but below
+five minutes. Independently observe the 1m and 15s warnings once through natural
+countdown; expect shared localized text and Critical urgency. Do not wait for
+the 10m and 5m warnings to appear; their saved defaults remain checked, but their
+delivery is outside this case's acceptance.
 Use German for one child and English for the other. Through the public
 dialog, create a 75-second reminder with `Save your game now`, update it to 15
 seconds, delete the other reminders, and save. Verify literal custom text across
-the language switch and the other child's unchanged reminders. Save whitespace-only
-text and require the translated default at the next configured threshold.
+the language switch and the other child's unchanged reminders. Omit the extra
+whitespace-only text delivery cycle.
 
 Compare fullscreen-enabled Critical delivery with fullscreen-disabled High
 delivery using the same owned fullscreen fixture and naturally reached threshold;

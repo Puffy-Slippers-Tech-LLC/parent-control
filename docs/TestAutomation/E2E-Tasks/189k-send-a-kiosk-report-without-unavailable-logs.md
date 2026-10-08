@@ -19,11 +19,11 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Bind the explicit Send without logs action on kiosk after observed collection failure and reviewed FEED03/FEED05 evidence. Qualify its actual acceptance and confirmation destination; use one input and no automatic retry by the test.
+Bind the explicit Send without logs action on kiosk after observed collection failure and reviewed FEED03/FEED05 evidence. Preserve station restrictions: no Add files, log download, attachment shortcut or external Privacy link; in-app Privacy remains readable. Qualify its actual acceptance and confirmation destination; use one input and no automatic retry by the test.
 
 ## Live VM acceptance
 
-With the reviewed sending authorization, reproduce the qualified public collection failure on the VM, submit the declared report once without logs, observe service acceptance, dismiss thanks and require the kiosk-specific final destination. Missing logs alone is not acceptance.
+With the reviewed sending authorization, reproduce the qualified public collection failure on the VM, verify the station restrictions and submit the declared report once without logs. Observe service acceptance and thanks with the report's exit still pending; manually dismiss thanks, require the report closed and the sign-in screen visible. Missing logs alone is not acceptance.
 
 Qualification selector (implement and register before use):
 

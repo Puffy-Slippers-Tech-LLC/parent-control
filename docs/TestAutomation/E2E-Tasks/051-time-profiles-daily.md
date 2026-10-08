@@ -7,7 +7,7 @@ Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **FLOW13 daily-only, fresh/same Parent entry with observed G=0**. First scheduled consumer: [E2E-008, case 21](../E2E-Scenario-Recipes.md#e2e-008).
+Deliver **FLOW13 daily-only, fresh/same Parent entry with observed G=0**. First scheduled consumer: [E2E-008, case 22](../E2E-Scenario-Recipes.md#e2e-008).
 Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):

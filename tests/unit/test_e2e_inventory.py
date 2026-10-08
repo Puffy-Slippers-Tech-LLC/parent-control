@@ -130,14 +130,16 @@ def test_specific_variant_selects_once_and_keeps_pending_reason(document):
 
 @pytest.mark.parametrize('selector,category', [('', 'empty'), ('   ', 'empty'),
     ('E2E-000', 'unknown'), ('E2E-023/missing', 'unknown'), ('E2E-02', 'unknown'),
-    ('E2E-023/*', 'unknown'), ('E2E-023,E2E-024', 'unknown'), ('E2E-023 ', 'unknown')])
+    ('E2E-023/*', 'unknown'), ('E2E-023,E2E-024', 'unknown'), ('E2E-023 ', 'unknown'),
+    ('E2E-050/kiosk-first-retained', 'unknown'),
+    ('E2E-050/kiosk-first-fresh', 'unknown'), ('E2E-051/riley', 'unknown')])
 def test_invalid_selection_fails_without_broadening(document, selector, category):
     with pytest.raises(inventory.InventoryError, match='selection:' + category):
         inventory.resolve_selection(document, selector)
 
 
 @pytest.mark.parametrize('selector', [None, 'E2E-005', 'E2E-023/fullscreen',
-    'E2E-051/riley',
+    'E2E-051/jordan',
     'E2E-052/appimagelauncher-login-autostart'])
 def test_pending_selection_cannot_run(document, selector):
     with pytest.raises(inventory.InventoryError, match='selection:pending'):
@@ -214,7 +216,7 @@ def test_empty_or_duplicate_registry_refused(document, location):
 
 
 def test_missing_interacting_combination_is_not_hidden_by_value_coverage(document):
-    chosen = family(document)
+    chosen = family(document, 'E2E-014')
     chosen['variants'].pop()
     assert all({case['parameters'][key] for case in chosen['variants']} == set(values)
                for key, values in chosen['matrix']['dimensions'].items())
@@ -435,15 +437,35 @@ def test_listing_is_cwd_independent_and_does_not_need_artifacts_or_vm(tmp_path):
     assert not result.stdout
 
 
-def test_every_declared_launch_route_policy_control_combination_remains_pending(document):
+def test_retained_launch_route_policy_control_combinations_remain_pending(document):
     chosen = family(document, 'E2E-019')
     expected = set(itertools.product(
         chosen['matrix']['dimensions']['route'], ['allowed', 'hard-blocked', 'soft-blocked'],
-        ['enabled', 'disabled']))
+        ['enabled']))
+    expected.update(itertools.product(
+        ['native-command', 'snap-command', 'flatpak-command'],
+        ['allowed', 'hard-blocked', 'soft-blocked'], ['disabled']))
     actual = {(v['parameters']['route'], v['parameters']['policy'], v['parameters']['control'])
               for v in chosen['variants']}
     assert actual == expected
+    removed_ids = {63, 65, 67, 69, 71, 73, 75, 77, 79, 87, 89, 91, 99, 101, 103}
+    assert {v['coverage_id'] for v in chosen['variants']} == set(range(62, 110)) - removed_ids
     assert all(v['status'] == 'pending' for v in chosen['variants'])
+
+
+def test_lifecycle_pairs_keep_one_combined_idle_journey(document):
+    chosen = family(document, 'E2E-022')
+    expected = set(itertools.product(
+        ['app-restart', 'sign-out-in', 'reboot', 'suspend-wake'],
+        ['active', 'expired']))
+    expected.add(('idle', 'active-to-expired'))
+    actual = {(v['parameters']['boundary'], v['parameters']['grant'])
+              for v in chosen['variants']}
+    assert actual == expected
+    assert {v['coverage_id'] for v in chosen['variants']} == set(range(116, 126)) - {123}
+    idle = next(v for v in chosen['variants'] if v['coverage_id'] == 122)
+    assert idle['id'] == 'idle-active-expired'
+    assert idle['status'] == 'pending' and idle['executable'] is None
 
 
 def test_unmapped_surfaces_and_external_delivery_are_explicit_pending_work(document):

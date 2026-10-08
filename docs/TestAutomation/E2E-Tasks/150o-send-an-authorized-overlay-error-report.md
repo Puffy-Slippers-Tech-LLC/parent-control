@@ -19,7 +19,10 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Bind one reviewed synthetic Send on the actual overlay error-report window. Reuse the qualified public cooldown-error prefix and shared submission operation; qualify the surface's confirmation and exit separately from ordinary Parent feedback.
+Bind one reviewed synthetic Send, including the reviewed synthetic reply address,
+on the actual overlay error-report window. Reuse the qualified public cooldown-error
+prefix and shared submission operation; qualify the surface's confirmation,
+reply-follow-up note and exit separately from ordinary Parent feedback.
 
 ## Live VM acceptance
 

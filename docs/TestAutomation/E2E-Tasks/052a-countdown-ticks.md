@@ -14,7 +14,7 @@ Reuse the delivered scope of tasks **052d** under the
 
 ## Scope and prerequisites
 
-Deliver **TIME02 minute/final-second ticks**. First scheduled consumer: [E2E-008, case 21](../E2E-Scenario-Recipes.md#e2e-008).
+Deliver **TIME02 minute/final-second ticks**. First scheduled consumer: [E2E-008, case 22](../E2E-Scenario-Recipes.md#e2e-008).
 Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lifecycle-boundaries) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):

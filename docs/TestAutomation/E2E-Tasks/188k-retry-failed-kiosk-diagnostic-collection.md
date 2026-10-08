@@ -10,7 +10,7 @@ Estimate: 20–30 minutes.
 Deliver **FEED09 kiosk collection failure and usable controls**. First scheduled consumer: [E2E-046, case 213](../E2E-Scenario-Recipes.md#e2e-046).
 Read the named [block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and only the selected consumer's recipe.
 
-**Gate:** No deterministic public collection-failure trigger is established. Leave pending until an exact normal customer trigger is qualified; no internal fault injection. Recovery is required only by the separate Retry slice.
+**Gate:** No deterministic public collection-failure trigger is established. Leave pending until an exact normal customer trigger is qualified; no internal fault injection. Successful collection recovery is not required by the retained Send without logs journey.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 

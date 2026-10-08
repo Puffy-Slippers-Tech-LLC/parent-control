@@ -12,8 +12,8 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **007** — Owned reboot and independent new-boot observation.
 
 Estimate: 35–55 minutes.
-Session exception: One uninterrupted two-child history spans both request surfaces,
-saved changes, cancellations and a real reboot to prove durable account isolation.
+Session exception: One continuous saved-reminder history spans both request surfaces,
+one Cancel check and a real reboot to prove durable account isolation.
 
 ## Scope and acceptance
 
@@ -28,28 +28,44 @@ capability work if required by the shared sizing contract. Host UI coverage does
 not qualify an installed route. No E2E implementation or execution is authorized
 by this documentation addition; the current next-task pointer stays unchanged.
 
-Finite history: begin with the backend's four untouched default reminders. In
-Riley's overlay, create a 75-second reminder with literal text `Save <work>!`,
-edit its trigger to 90 seconds, and save the main preferences. Read rows in
-ascending remaining seconds; custom text must stay literal and its smaller
-trigger description must reflect 90 seconds independently of the text. No
-illustrative `Custom reminder` preset may appear.
+## One saved-reminder journey
 
-Attempt a second reminder at an existing threshold, including 1 minute versus
-60 seconds. Require the editor footer's duplicate warning, unavailable Save and
-unchanged saved data; correct the trigger and cancel the editor. Delete a saved
-row and cancel the main preferences; reopening must retain the saved list.
-Change Riley's language to German and require translated default text/trigger
-descriptions while the literal custom text and request choices remain intact.
+Finite history: begin with both children's four untouched backend defaults and
+record Jordan's reminder list and language. In Riley's overlay, create a
+75-second reminder with literal text `Save <work>!`, edit its text to
+`Save <work> & games!` and its trigger to 90 seconds, then save the main
+preferences. Reopen Riley's preferences through the kiosk and require the same
+saved list, including the exact edited text and trigger.
 
-Reopen Riley's preferences through the kiosk and require the same saved list.
-Jordan must retain independent defaults and language. Save an empty list for
-Riley, reboot normally, and re-enter both request surfaces; Riley's list must
-remain empty and Jordan's list unchanged. Reminder edits must not grant time or
-change policy. Use public actions and independently observed results; private
-files, broker calls as UI input and injected reminders supply no acceptance.
+Keep one Cancel check: delete the custom row in the preferences draft, cancel
+the main preferences, then reopen and require the saved list to be unchanged.
+Delete all Riley's reminders, including the custom row, and save the empty list.
+Reboot normally and re-enter both request surfaces; Riley's list must remain
+empty on both, and Jordan's reminders and language must remain unchanged on
+both. Reminder edits must preserve request choices, grant no time and change no
+policy. Use public actions and independently observed results; private files,
+broker calls as UI input and injected reminders supply no acceptance.
 
-This task covers preference persistence and refusal. Native notification delivery,
+## Smaller editing checks
+
+Duplicate-time refusal, ascending trigger sorting and detailed translated
+descriptions belong to the [local reminder editing allocation](../UI-and-E2E-Coverage.md#duplicate-review-and-allocation)
+in `tests/ui/test_language_settings.py`. Preserve these functional assertions:
+
+- Equal thresholds, including 1 minute versus 60 seconds, show the duplicate
+  warning, disable editor Save and leave saved data unchanged; a distinct
+  threshold clears the refusal.
+- Rows sort by ascending remaining seconds after editing. Literal custom text
+  stays exact, its separate trigger description reflects the edited duration,
+  and no illustrative `Custom reminder` preset appears.
+- German candidate-language checks translate default text and trigger
+  descriptions while retaining literal custom text and request choices.
+
+Existing local tests cover parts of this matrix; remaining assertions stay
+pending with that owner. These checks need no additional two-child history or
+restart and do not qualify the installed route or claim live acceptance.
+
+This journey covers saved preference persistence and Cancel. Native notification delivery,
 fullscreen urgency, natural countdown and upgrade persistence remain in
 [task 311](311-remaining-time-notifications.md). Geometry, scrollbar rendering and
 popup appearance are excluded from automated acceptance under the UI mandate.

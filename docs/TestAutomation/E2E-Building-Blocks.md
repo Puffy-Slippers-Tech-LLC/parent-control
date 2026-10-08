@@ -703,8 +703,8 @@ for the remaining bindings:
 | --- | --- | --- |
 | Installed Hebrew logical text and labels | Parent chooser/dialogs and finite enabled policy qualified by 307a/307b/307c; complete Parent case 256 passed; other surfaces require separate qualification | 308–310 |
 | Hebrew overlay product approval/result with ordinary native Shell authentication | 308b | 308 |
-| Overlay form/About/real error report and same-draft language changes | 308a, after 187o's genuine public trigger | 308 |
-| Restricted kiosk form/About/real report and same-draft language changes | 309a, after 187k's genuine public trigger | 309 |
+| Overlay Hebrew/restored-English request with unchanged choices and original activity | 308a | 308 |
+| Restricted kiosk Hebrew/restored-English request and child's language across approver changes | 309a | 309 |
 | Remaining-time and request information refresh after overlay language changes and session resume | 310a, using qualified panel reading and retained-session operations; tooltip/menu text matrices remain UI scope | 310 countdown/natural expiry |
 
 Parent enabled-state readback is qualified for English/Chinese and the finite
@@ -713,8 +713,11 @@ policy and inherited-dialog comparisons; prerequisite qualification alone suppli
 no complete-case credit.
 Feedback entry/readers include the stated Parent English/Hebrew binding; shared IDs do not establish translated child/station
 routes. Follow the [no-visual presentation acceptance rule](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results);
-Missing public text or identity or same-draft report
-reopening remains an explicit gate in these tasks, not claimed readiness.
+Missing public text or identity remains an explicit gate in these tasks, not
+claimed readiness. Repeated overlay/station About and error-report tours are
+outside 308/309. Parent task 307 retains the mixed-script ordinary feedback draft
+history; error-report drafts end on closure under the
+[specification](../Specification.md#feedback-and-error-reports).
 The existing fixed countdown observations do not qualify translation,
 minute/final-second progression or natural expiry; retain those earlier queued
 capabilities before composing 310. No future selector listed in these briefs is
@@ -2489,13 +2492,13 @@ binding does not extend an existing callable's qualified scope.
 | AUTH04 | A | Validate authority and protected-account restrictions for shared fixture account operations. No Users-settings password prompt. | Owned fixture/SSH boundary; product approval challenges remain AUTH01/02. | pending |
 | ACCOUNT01 | A | Read the declared fixture account/role set through public system account interfaces over guarded SSH. | Shared account-fixture library with bounded nonsecret output. Preparation metadata only; app account lists supply customer assertions. | pending |
 | ACCOUNT02 | C | Add/remove/change the role of a registered spare fixture account through shared system commands or AccountsService and read back the change. | Reuse `account_fixture` infrastructure; protect active/last administrator and station, registered secrets and owned cleanup. Independently observe Parent/request-selector refresh. No GNOME Users wizard. | pending |
-| PANEL01 | C | Read the child's saved animation preference through `child-countdown-animation-toggle`; discover the owned panel surface independently. | Shared `child-panel` client `getValue`; use `child-countdown-menu.activate` only when ordinary menu entry itself is needed. E2E-037 owns persistence outcomes. | pending |
+| PANEL01 | C | Read the child's saved animation preference through `child-countdown-animation-toggle`; discover the owned panel surface independently. | Shared `child-panel` client `getValue`; use `child-countdown-menu.activate` only when ordinary menu entry itself is needed. E2E-022 cases 118/120 own persistence and isolation; E2E-008 case 22 owns locking with animation enabled. | pending |
 | PANEL02 | C | Set the canonical animation boolean through the panel API and independently read it before continuing child activity. Preserve session/account persistence assertions. | UI17 on `child-countdown-animation-toggle`, independent PANEL01 readback and DESK01; no popup or Escape dependency. | pending |
 | PANEL03 | C | Read the public countdown explanation through `child-request-tooltip.getText` in its local UI owner. | UI01 → UI03 through the shared panel API; local obligation 181h retains text/function assertions. | pending UI coverage |
 | INFO01 | C | Check declared Help/About external links are clickable, then stop. Never invoke them or inspect their URIs/destinations. Kiosk asserts unavailable external actions instead. | `AccessibleUI.clickable_link(identity, root=owned_surface)` checks the ID-owned visible/enabled control and sole public activation action without input. Parent: `check_parent_help`, `open_about(menu_open=True)` and `check_parent_information`; shared worker calls `onpc_about::read_help`, `open_from_help`, `check_link`, `return_to_parent`. `license_viewer_provider.INFORMATION_PLAN` / `ParentInformationJourney` and `check_e2e_read_parent_information_links` qualify the composite through `onpc_license_viewer_provider::run(exchange, 'information')`. Case 190 owns `parent_information.PLAN` / `onpc_parent_about::run_links`. Overlay: `check_overlay_help`, `open_overlay_about(menu_open=True)` and `read_overlay_link`; `journey_blocks.overlay_license_read(links='information')` / `onpc_about::overlay_license(..., 'information')` compose Help and all five About links with caller-owned immutable form comparisons. `overlay_license.INFORMATION_PLAN` / `OverlayLicenseJourney` and `onpc_request_flow::overlay_information` supply the qualification; legacy license and browser-link plans/selectors retain their finite scopes. Complete case 191 owns `overlay_about.PLAN` / `onpc_parent_about::run_overlay` and shared `KioskRequestJourney` capture/return comparisons. Fresh independent entry, wrong-entry proof refusal, owned About close and unchanged Parent selection/settings or overlay choices. No external handler dependency. Kiosk UI11 on recognized About. [About contracts](#about-block-contracts); E2E-042. | Parent Help and all five About links qualified in `20260930T192004Z-89316fef`; complete case 190 passed in `20260930T195316Z-5a8d360d`. Overlay Help and all five About links qualified in `20261002T045632Z-62a50e45` on every enabled VM (Ubuntu 26.04); license and website/privacy regressions passed in `20261002T050326Z-b8fd7de5`. Complete case 191 passed on every enabled VM (Ubuntu 26.04) in `20261002T052623Z-0b463dbc`, including unchanged-form return, collection and owned cleanup |
 | INFO02 | C | Read one installed product help command or command manual from bounded, guarded SSH stdout as the parent fixture account; check the public desktop afterward. | `onpc_documentation::read(journey, binding)` composes `command_documentation.observe` and the registered public desktop-clear observation. The stdout adapter checks fixed command identity, help usage/options or manual sections/purpose without Terminal rendering. All four bindings and independent desktop returns passed complete case 193 in run `20260923T194553Z-e2f16f7e`, with collection and owned cleanup. | ready |
 | FEED15 | C | Review or decline a displayed product error report. Request result entry explicitly sets Report this error then closes the result; Parent entry observes its automatically opened report without inventing a report button. Read the report or declared exit destination. | Request: UI17(report choice) → UI04(result Close) → UI01 → FEED03 for review; Parent: `parent_reports.report_review` / `onpc_feedback_privacy::review_parent_report` → FEED03/UI16 → FEED05 → guarded UI18 → independent destination/rule read. Direct closure: `parent_reports.report_close` / `onpc_feedback_privacy::close_parent_report` → automatic-draft read → guarded UI18 → independent destination/rule read. See [automatic Parent error reports](#automatic-parent-error-reports). Parent has no report-choice toggle. E2E-045. | ready for the declared Parent review and edited/untouched report-close bindings; request surfaces and other bindings pending |
-| FEED16 | C | Retry an observed failed diagnostic collection and read its result and retained draft. | UI04(Retry collection) → FEED09 → FEED03 → UI12. Without-logs submission reuses FEED11; it is not hidden inside retry. E2E-046. | pending |
+| FEED16 | C | Retry an observed failed diagnostic collection and read its result and retained draft. | UI04(Retry collection) → FEED09 → FEED03 → UI12. Scheduled qualification is Parent retry, E2E-046 case 208; overlay/station retry bindings are no longer scheduled. Station without-logs submission reuses FEED11 in case 213; it is not hidden inside retry. | pending |
 | FEED17 | C | Attempt normal Close on a sending error report and read the stop-sending confirmation. Do not yet stop or exit. | UI04(Close) → UI01(confirmation) → UI03. E2E-047. | pending |
 | FEED18 | C | Choose the explicit Stop sending and close or stay-open response, then read the destination. | UI04(response) → UI11(confirmation) → UI01(destination); report closure uses UI11(report) separately. E2E-047. | pending |
 | TIME05 | A | Read actual local date/time, UTC offset and timezone through bounded `date`/`timedatectl` output over guarded SSH. Do not change them. | Shared clock observation with explicit precision/monotonic bracketing. No Shell calendar or Settings page. Natural calendar windows and product countdown assertions remain required. | pending |
@@ -3465,7 +3468,7 @@ still use the guarded ownership interfaces.
 | Family / cases | Contract and scope |
 | --- | --- |
 | E2E-012 / **30–33** | [Recipe](E2E-Scenario-Recipes.md#e2e-012) — Single child overlay and selected-parent approval. Customer actions and public results. |
-| E2E-013 / **34–37** | [Recipe](E2E-Scenario-Recipes.md#e2e-013) — Authentication denial and cancellation retry. Customer actions and public results. |
+| E2E-013 / **34, 36** | [Recipe](E2E-Scenario-Recipes.md#e2e-013) — One wrong-password → separate Cancel → valid-approval recovery journey per screen, with independent time, restriction and remembered-choice checks after each failure; absorbs former cases 35/37. |
 | E2E-014 / **38–43** | [Recipe](E2E-Scenario-Recipes.md#e2e-014) — Shared duration boundaries and duplicate submission. Customer actions and public results. |
 | E2E-015 / **44–49** | [Recipe](E2E-Scenario-Recipes.md#e2e-015) — Request surface exit behavior. Customer actions and public results. |
 | E2E-016 / **50–52** | [Recipe](E2E-Scenario-Recipes.md#e2e-016) — Restricted request station. Customer actions and public results. |
@@ -3476,12 +3479,12 @@ still use the guarded ownership interfaces.
 
 | Family / cases | Contract and scope |
 | --- | --- |
-| E2E-019 / **62–109** | [Recipe](E2E-Scenario-Recipes.md#e2e-019) — Use supported launch routes under each app rule. Customer actions and public results. |
+| E2E-019 / **retained cases in recipe** | [Recipe](E2E-Scenario-Recipes.md#e2e-019) — Every launch route and rule with limits on; ordinary, Snap and Flatpak command routes under all three rules with limits off. Actual use or refusal and another child's unaffected access. |
 | E2E-020 / **110–111** | [Recipe](E2E-Scenario-Recipes.md#e2e-020) — Catalog update/disappearance between display and save. Customer actions and public results. |
 | E2E-021 / **112–115** | [Recipe](E2E-Scenario-Recipes.md#e2e-021) — Apply an action across a child's distinct retained desktops. Customer actions and public results. |
-| E2E-022 / **116–125** | [Recipe](E2E-Scenario-Recipes.md#e2e-022) — Customer lifecycle persistence and resume. Customer actions and public results. |
+| E2E-022 / **116–122, 124–125** | [Recipe](E2E-Scenario-Recipes.md#e2e-022) — Customer lifecycle persistence and resume. Case 122 combines early idle return, expiry refusal and approved recovery with the original work. Customer actions and public results. |
 | E2E-023 / **126–127** | [Recipe](E2E-Scenario-Recipes.md#e2e-023) — Zero allowance to kiosk approval, real gameplay and expiry. Customer actions and public results. |
-| E2E-024 / **128–131** | [Recipe](E2E-Scenario-Recipes.md#e2e-024) — Additional time accumulates during gameplay. Customer actions and public results. |
+| E2E-024 / **128, 131** | [Recipe](E2E-Scenario-Recipes.md#e2e-024) — Additional time accumulates during gameplay: daily-dominant windowed and grant-dominant fullscreen. Customer actions and public results. |
 | E2E-025 / **132–135** | [Recipe](E2E-Scenario-Recipes.md#e2e-025) — Replace an expired grant before returning with daily time left. Customer actions and public results. |
 | E2E-026 / **136–138** | [Recipe](E2E-Scenario-Recipes.md#e2e-026) — Customer package update and activation. Customer actions and public results. |
 | E2E-027 / **139** | [Recipe](E2E-Scenario-Recipes.md#e2e-027) — Install through remove, reinstall and purge. Customer actions and public results. |
@@ -3501,21 +3504,21 @@ still use the guarded ownership interfaces.
 | --- | --- |
 | E2E-035 / **158–159** | [Recipe](E2E-Scenario-Recipes.md#e2e-035) — Choose allowances and save edits. Customer actions and public results. |
 | E2E-036 / **160–161** | [Recipe](E2E-Scenario-Recipes.md#e2e-036) — Revoke when there is no active grant. Customer actions and public results. |
-| E2E-037 / **162–163** | [Recipe](E2E-Scenario-Recipes.md#e2e-037) — Use and remember the child panel option. Customer actions and public results. |
+| Former E2E-037 / **162–163** | [Allocation](E2E-Scenario-Recipes.md#e2e-037) — Standalone cases removed; both children's animation preferences persist in E2E-022 cases 118/120, with animation-enabled locking in E2E-008 case 22. Receiving cases remain pending. |
 | E2E-038 / **164–170** | [Recipe](E2E-Scenario-Recipes.md#e2e-038) — Keep daily access after a grant ends and restore soft-app blocks. Customer actions and public results. |
-| E2E-039 / **171–178** | [Recipe](E2E-Scenario-Recipes.md#e2e-039) — Leave a pending approval or request again too soon. Customer actions and public results. |
-| E2E-040 / **179–183** | [Recipe](E2E-Scenario-Recipes.md#e2e-040) — Refresh accounts and remembered selections after account changes. Customer actions and public results. |
+| E2E-039 / **171–176, 178** | [Recipe](E2E-Scenario-Recipes.md#e2e-039) — Leave a pending approval or request again too soon, including report review/decline on each surface. Same-child station case 177 removed; report cases 206/207 absorbed. Customer actions and public results. |
+| E2E-040 / **180–182** | [Recipe](E2E-Scenario-Recipes.md#e2e-040) — Refresh accounts and remembered selections after account removals and role changes. Case 180 removes one logged-out spare child and checks Parent and reopened-station fallback independently with the survivor's own settings; former case 183 is absorbed. Last-child removal and ineligible-approver recovery remain separate. New-child discovery remains in completed case 3; duplicate case 179 is removed. Customer actions and public results. |
 | E2E-041 / **184–189** | [Recipe](E2E-Scenario-Recipes.md#e2e-041) — Search the app list and edit match rules. Customer actions and public results. |
 | E2E-042 / **190–193** | [Recipe](E2E-Scenario-Recipes.md#e2e-042) — Read Help, About and command usage on each surface. Customer actions and public results. |
-| E2E-043 / **194–195** | [Recipe](E2E-Scenario-Recipes.md#e2e-043) — Use local controls and approvals while offline. Customer actions and public results. |
-| E2E-044 / **196–204** | [Recipe](E2E-Scenario-Recipes.md#e2e-044) — Use time across local day and daylight-saving boundaries. Customer actions and public results. |
-| E2E-045 / **205–207** | [Recipe](E2E-Scenario-Recipes.md#e2e-045) — Review or decline an error report. Customer actions and public results. |
-| E2E-046 / **208–213** | [Recipe](E2E-Scenario-Recipes.md#e2e-046) — Recover unavailable diagnostic collection. Customer actions and public results. |
-| E2E-047 / **214–216, 218–222** | [Recipe](E2E-Scenario-Recipes.md#e2e-047) — Finish or stop feedback in different user flows. Customer actions and public results. |
-| E2E-048 / **223–230** | [Recipe](E2E-Scenario-Recipes.md#e2e-048) — Approve after the displayed estimate has aged, for four balances on both request surfaces. |
-| E2E-049 / **231–246** | [Recipe](E2E-Scenario-Recipes.md#e2e-049) — Alternate temporary app permission on eight launch routes and both request surfaces. |
-| E2E-050 / **247–250** | [Recipe](E2E-Scenario-Recipes.md#e2e-050) — Three continuous work/game/time-source cycles, with both form orders and retained/fresh departures. |
-| E2E-051 / **251–252** | [Recipe](E2E-Scenario-Recipes.md#e2e-051) — Four rounds of two-child management, independent choices and retained work. |
+| E2E-043 / **194** | [Recipe](E2E-Scenario-Recipes.md#e2e-043) — One offline journey uses both request screens, checks each approval's time/app results, then revokes once and reconnects. Case 195 is absorbed; complete acceptance remains pending. |
+| E2E-044 / **196–198, 200, 203** | [Recipe](E2E-Scenario-Recipes.md#e2e-044) — Three ordinary-midnight journeys and one two-child grant journey at each seasonal offset change. Separate seasonal daily renewal is dropped; fixed-grant cases 201/204 are absorbed. |
+| E2E-045 / **205** | [Recipe](E2E-Scenario-Recipes.md#e2e-045) — Parent error report. Request-surface review/decline belongs to E2E-039 cases 176/178. Customer actions and public results. |
+| E2E-046 / **208, 213** | [Recipe](E2E-Scenario-Recipes.md#e2e-046) — Genuine Parent collection failure followed by retry with draft preservation; station failure followed by explicit Send without logs, confirmation and sign-in with station restrictions. Cases 209–212 removed; IDs must not be reused. |
+| E2E-047 / **216, 218–221** | [Recipe](E2E-Scenario-Recipes.md#e2e-047) — Finish or stop feedback in different user flows. No-reply sending is combined into E2E-032 / 156; background reconnection into E2E-033 / 157. Customer actions and public results. |
+| E2E-048 / **223–225, 227–228, 230** | [Recipe](E2E-Scenario-Recipes.md#e2e-048) — Six delayed-approval journeys: both surfaces for daily-only/daily-dominant, desktop grant-only and station grant-dominant. Each retains the real 45-second prompt interval and second addition. |
+| E2E-049 / **231, 232, 233, 236, 238, 239, 242, 243, 246** | [Recipe](E2E-Scenario-Recipes.md#e2e-049) — Nine journeys: both request surfaces for the ordinary app menu, one per other launch route. Every journey keeps both parents and fresh exclude/include/exclude approval, soft-app closure, allowed work, hard denial and saved rules. |
+| E2E-050 / **247–248** | [Recipe](E2E-Scenario-Recipes.md#e2e-050) — Two continuous work/game/time-source cycles per retained/fresh journey, both forms/parents and opposite expiry/recovery app choices; reversed-start copies 249/250 removed. |
+| E2E-051 / **251** | [Recipe](E2E-Scenario-Recipes.md#e2e-051) — Two recomposed rounds of two-child management, reversed child order, both forms/parents, opposite temporary-app choices and targeted final revocation; copy 252 removed. |
 | E2E-052 / **253** | [Recipe](E2E-Scenario-Recipes.md#e2e-052) — Real Lunar AppImageLauncher login autostart with ungranted/time-only soft blocks, explicit approval and replacement exclusion. Pending manual fixture and public-provider qualification. |
 
 ### Lunar Client preparation and observation gate

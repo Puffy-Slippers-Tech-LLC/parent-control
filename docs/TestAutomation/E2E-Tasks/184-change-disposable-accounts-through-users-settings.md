@@ -25,7 +25,7 @@ Extend the shared account-fixture helper to create the registered disposable sta
 
 ## Live VM acceptance
 
-Create the registered spare in a fresh owned attempt and independently verify its role. Wrong identity, collision, unauthorized source and replay refuse without changing protected accounts. Require cleanup. Complete case 179 separately observes Parent's live discovery; system readback cannot pass that app assertion.
+Create the registered spare in a fresh owned attempt and independently verify its role. Wrong identity, collision, unauthorized source and replay refuse without changing protected accounts. Require cleanup. Retain this preparation for the remaining account-removal and role-change consumers. Completed [case 3](../E2E-Building-Blocks.md#parent-discovery-block-contracts) owns live discovery, selection and settings checks with Parent open; system readback cannot pass that app assertion.
 
 Implement and register this planned fixed qualification and its cleanup coverage before invoking it:
 

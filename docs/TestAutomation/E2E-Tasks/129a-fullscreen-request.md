@@ -7,7 +7,7 @@ Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **DESK12 fullscreen reveal; overlay/game return**. First scheduled consumer: [E2E-024, case 129](../E2E-Scenario-Recipes.md#e2e-024).
+Deliver **DESK12 fullscreen reveal; overlay/game return**. First scheduled consumer: [E2E-024, case 131](../E2E-Scenario-Recipes.md#e2e-024).
 Read the named [block contracts](../E2E-Building-Blocks.md#desktop-and-retained-session-entry) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):

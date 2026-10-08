@@ -14,7 +14,7 @@ Reuse the delivered scope of tasks **187b** under the
 
 ## Scope and prerequisites
 
-Deliver **REQUEST09 cooldown and FEED15 kiosk**. First scheduled consumer: [E2E-039, case 177](../E2E-Scenario-Recipes.md#e2e-039).
+Deliver **REQUEST09 cooldown and FEED15 kiosk**. First scheduled consumer: [E2E-039, case 178](../E2E-Scenario-Recipes.md#e2e-039).
 Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form), [related block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and only the selected consumer's recipe.
 
 **Gate:** The normal station re-entry-and-Request sequence must complete within the actual five-second cooldown.
@@ -33,7 +33,10 @@ Qualify station re-entry and Request within the real five-second cooldown, then 
 
 ## Live VM acceptance
 
-On the VM, approve once, re-enter and Request before five seconds from success, then read the too-soon result. Independently review and decline its report; read original balances before later approval. Other-child cooldown is bound by its separate case.
+On the VM, approve once, re-enter and select the other child, then Request before
+five seconds from success and read the too-soon result. Independently review and
+decline its report; read both children's original balances before later approval.
+Case 178 composes these bindings into one journey with separate cooldown errors.
 
 Qualification selector (implement and register before use):
 

@@ -7,7 +7,7 @@ Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **FEED09 Parent collection failure and usable controls**. First scheduled consumer: [E2E-046, case 209](../E2E-Scenario-Recipes.md#e2e-046).
+Deliver **FEED09 Parent collection failure and usable controls**. First scheduled consumer: [E2E-046, case 208](../E2E-Scenario-Recipes.md#e2e-046).
 Read the named [block contracts](../E2E-Building-Blocks.md#additional-public-surfaces) and only the selected consumer's recipe.
 
 **Gate:** No deterministic public collection-failure trigger is established. Leave pending until an exact normal customer trigger is qualified; no internal fault injection. Recovery is required only by the separate Retry slice.

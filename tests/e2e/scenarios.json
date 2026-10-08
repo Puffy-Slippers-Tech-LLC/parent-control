@@ -396,7 +396,7 @@
       "title": "Natural daily exhaustion, retained unlock and fresh login denial",
       "category": "customer-journey",
       "owners": ["child-access"],
-      "requirements": ["ONPC-CORE-TIME-007", "ONPC-CORE-TIME-008", "ONPC-CORE-TIME-009", "ONPC-COMP-CHILD-006"],
+      "requirements": ["ONPC-CORE-TIME-007", "ONPC-CORE-TIME-008", "ONPC-CORE-TIME-009", "ONPC-COMP-CHILD-006", "ONPC-COMP-CHILD-007"],
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
@@ -410,9 +410,12 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Set a short daily allowance with limits on and no one-time time displayed. Sign in as the child and use an allowed app."},
-          {"id": "step-2", "operation": "wait", "description": "Continue using the app until the allowance runs out and the desktop locks by itself."},
-          {"id": "step-3", "operation": "ui", "description": "Try the correct child password and read the time-limit restriction. For fresh-login, obtain temporary time at the station, unlock and log out normally, then have the parent revoke that temporary grant before trying fresh sign-in with exhausted daily time."}
+          {"id": "step-1", "operation": "ui", "description": "Set a short daily allowance with limits on and no one-time time displayed. Sign in as the child, explicitly save countdown animation on and independently read it. Confirm unchanged time allowance and app access, allowing actual elapsed use, then use an allowed app."},
+          {"id": "step-2", "operation": "wait", "description": "Continue using the app until the allowance runs out and the desktop locks by itself; require the lock to own normal input."},
+          {"id": "step-3", "operation": "ui", "description": "Try retained unlock with the correct child password, read the explicit time-limit restriction and require no desktop access."},
+          {"id": "step-4", "operation": "ui", "description": "Obtain legitimate temporary time at the station, unlock the retained child desktop successfully and require usable access, then log out normally and observe sign-in."},
+          {"id": "step-5", "operation": "ui", "description": "Have the parent revoke the temporary grant, confirm revocation and read daily and grant balances both zero."},
+          {"id": "step-6", "operation": "ui", "description": "Try fresh sign-in with the correct child password, read the specific time-limit restriction and require no child desktop access."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -424,7 +427,11 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Natural daily exhaustion locks the desktop. Correct credentials cannot bypass exhausted time on retained unlock or fresh sign-in; the restriction is explained."}
+          {"id": "natural-lock", "step_id": "step-2", "description": "Natural daily exhaustion with countdown animation enabled locks the desktop and the lock owns normal input; manual locking or configured zero is not sufficient. Use the existing exhaustion wait; effect rendering is outside acceptance."},
+          {"id": "retained-denial", "step_id": "step-3", "description": "Correct credentials cannot bypass exhausted time on retained unlock; the time-limit restriction is explained and desktop access remains refused."},
+          {"id": "approved-recovery", "step_id": "step-4", "description": "Legitimate temporary approval enables successful retained unlock and usable child access before normal logout returns to sign-in."},
+          {"id": "revoked-time", "step_id": "step-5", "description": "Confirmed Parent revocation leaves daily and grant balances both zero."},
+          {"id": "visible-result", "step_id": "step-6", "description": "Correct credentials cannot bypass exhausted time on fresh sign-in; the time-limit restriction is explained and no child desktop access is granted."}
         ],
         "backend": [],
         "other_user": []
@@ -433,13 +440,12 @@
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
-          "entry": ["retained-unlock", "fresh-login"]
+          "entry": ["fresh-login"]
         },
         "full_combinations": [],
-        "rationale": "Both entry paths consume real daily time. Temporary approval enables normal logout in the fresh-login case."
+        "rationale": "One fresh-login journey consumes real daily time and preserves retained-unlock denial, approved recovery, normal logout, revocation and fresh sign-in denial as intermediate results. The separate unlock case 21 is removed; its ID must not be reused."
       },
       "variants": [
-        {"coverage_id": 21, "id": "retained-unlock", "owner": "child-access", "parameters": {"entry": "retained-unlock"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 22, "id": "fresh-login", "owner": "child-access", "parameters": {"entry": "fresh-login"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },
@@ -592,7 +598,7 @@
           "time": ["daily-only", "grant-only", "combined"]
         },
         "full_combinations": [],
-        "rationale": "Three time-source profiles cover useful remaining-time information, retained return and natural expiry. Countdown visibility and tooltip wording remain child UI coverage; E2E-037 owns the persisted personal preference."
+        "rationale": "Three time-source profiles cover useful remaining-time information, retained return and natural expiry. Countdown visibility and tooltip wording remain child UI coverage; E2E-022 cases 118/120 own persisted personal animation preferences, and E2E-008 case 22 owns locking with animation enabled."
       },
       "variants": [
         {"coverage_id": 27, "id": "daily-only", "owner": "countdown", "parameters": {"time": "daily-only"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -645,15 +651,11 @@
           "soft-apps": ["excluded", "included"],
           "approver": ["first", "second"]
         },
-        "full_combinations": [
-          ["soft-apps", "approver"]
-        ],
-        "rationale": "Both eligible approvers and soft-app choices affect real approval/time/app outcomes. One panel entry reaches the request; the later ordinary reopen uses the direct child command. Repeated-entry singleton checks belong to child UI; visible success does not assert backend atomicity."
+        "full_combinations": [],
+        "rationale": "Retain first parent with soft apps excluded (30) and second parent with soft apps included (33), covering both eligible approvers and both app choices without the opposite pairings. Former case IDs 31 and 32 must not be reused. Both parents also remain in E2E-049 temporary-app journeys. Each retained journey verifies the fixed child, real approval/time/app outcomes and fresh authentication on a later request. One panel entry reaches the request; the later ordinary reopen uses the direct child command. Repeated-entry singleton checks belong to child UI; visible success does not assert backend atomicity."
       },
       "variants": [
         {"coverage_id": 30, "id": "excluded-first", "owner": "request-approval", "parameters": {"soft-apps": "excluded", "approver": "first"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 31, "id": "excluded-second", "owner": "request-approval", "parameters": {"soft-apps": "excluded", "approver": "second"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 32, "id": "included-first", "owner": "request-approval", "parameters": {"soft-apps": "included", "approver": "first"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 33, "id": "included-second", "owner": "request-approval", "parameters": {"soft-apps": "included", "approver": "second"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },
@@ -676,9 +678,10 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Enable limits and block a test app in Parent. Overlay has positive daily time and a guarded command channel bound to the child desktop user; kiosk has zero daily time and no grant. Open the selected form and submit explicit choices."},
-          {"id": "step-2", "operation": "ui", "description": "In the product's approval prompt, obtain the declared denial or cancel. Read Request denied or silent return and compare choices. On overlay, use the shared command helper as the active child desktop user to try the blocked app; on kiosk, exit, try correct-password child sign-in, then reopen the station and read choices."},
-          {"id": "step-3", "operation": "ui", "description": "Submit a fresh request with the intended choices, authenticate successfully, and verify child access and app behavior."}
+          {"id": "step-1", "operation": "ui", "description": "Enable limits and set hard and soft app blocks in Parent. Overlay has sufficient positive daily time and a guarded command channel bound to the child desktop user; kiosk has zero daily time. Both start with no grant. Open the selected form, select an eligible parent, custom 1.25 minutes (75 seconds) and soft apps included, then capture request choices and public daily/grant balances."},
+          {"id": "step-2", "operation": "ui", "description": "Request and submit the fixed wrong fixture password in the real approval prompt. Observe explicit rejection before safely dismissing it, then read the usable form, unchanged choices and public balances: no grant or extra time, allowing ordinary daily consumption. On overlay, attempt both blocked targets through the shared guarded active-child command route and require denial. On kiosk, exit normally, require correct-password child sign-in denial, confirm both unchanged blocks through public Parent App Limits, then reopen the station and read choices before editing."},
+          {"id": "step-3", "operation": "ui", "description": "Make a separate request with the remembered choices and cancel its fresh real approval prompt without password submission. Independently repeat every public time, hard/soft restriction and remembered-choice check from step-2, including normal kiosk exit/reentry. Keep the same prepared policy and child state; no restore or reset between requests."},
+          {"id": "step-4", "operation": "ui", "description": "Submit a third fresh request with the intended choices, authenticate successfully, and observe the requested time addition, normal success/exit, usable child access, soft-app access and hard-app denial."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -690,7 +693,9 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Denied/cancelled approval adds no usable time and permits no blocked app. Choices remain available and retry can succeed. This tests product approval, not generic wrong-password sign-in."}
+          {"id": "wrong-password-result", "step_id": "step-2", "description": "Wrong approval password is explicitly rejected. No grant or extra usable time is added, hard/soft app restrictions remain, and remembered request choices survive. Overlay blocked launches are denied; kiosk correct-password child sign-in remains denied and public Parent app blocks are unchanged."},
+          {"id": "cancel-result", "step_id": "step-3", "description": "Cancelling a separate fresh approval prompt silently returns to a usable form. Independently observe no grant or extra usable time, unchanged hard/soft restrictions and remembered choices, including normal kiosk reentry. Final success cannot substitute for either failure result."},
+          {"id": "visible-result", "step_id": "step-4", "description": "Only the third, freshly authenticated request adds the requested time and permits soft-app access. Normal exit and usable child access succeed; hard-blocked launches remain denied."}
         ],
         "backend": [],
         "other_user": []
@@ -699,19 +704,14 @@
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
-          "surface": ["child-overlay", "kiosk"],
-          "outcome": ["wrong-password", "cancel"]
+          "surface": ["child-overlay", "kiosk"]
         },
-        "full_combinations": [
-          ["surface", "outcome"]
-        ],
-        "rationale": "Both surfaces by denial/cancellation are combined. Kiosk exit/reopening is explicit and claims no same-window continuity."
+        "full_combinations": [],
+        "rationale": "One continuous recovery journey per surface covers wrong password, a separate cancelled request and fresh valid approval, with independent results after each failure. Four preparations become two; former Cancel-only cases 35/37 are absorbed and their IDs must not be reused. Kiosk exit/reopening is explicit and claims no same-window continuity."
       },
       "variants": [
-        {"coverage_id": 34, "id": "child-overlay-wrong-password", "owner": "request-approval", "parameters": {"surface": "child-overlay", "outcome": "wrong-password"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 35, "id": "child-overlay-cancel", "owner": "request-approval", "parameters": {"surface": "child-overlay", "outcome": "cancel"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 36, "id": "kiosk-wrong-password", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "outcome": "wrong-password"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 37, "id": "kiosk-cancel", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "outcome": "cancel"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 34, "id": "child-overlay-recovery", "owner": "request-approval", "parameters": {"surface": "child-overlay"}, "status": "pending", "pending_reason": "Combined wrong-password, separate Cancel and valid-approval recovery recipe is documented; full installed acceptance is pending.", "executable": null},
+        {"coverage_id": 36, "id": "kiosk-recovery", "owner": "kiosk-form", "parameters": {"surface": "kiosk"}, "status": "pending", "pending_reason": "Combined wrong-password, separate Cancel and valid-approval recovery recipe is documented; full installed acceptance is pending.", "executable": null}
       ]
     },
     {
@@ -1043,29 +1043,21 @@
           "control": ["enabled", "disabled"]
         },
         "full_combinations": [
-          ["route", "policy", "control"]
+          ["route", "policy"],
+          ["policy", "control"]
         ],
-        "rationale": "All eight routes by three rules by two limit states remain: 48 cases. E2E-006/041 own matching-boundary and editor checks."
+        "rationale": "Keep all eight routes under all three rules with limits enabled, and native, Snap and Flatpak command routes under all three rules with limits disabled. Repeated menu, desktop shortcut and Files combinations with limits disabled are removed; former case IDs 63, 65, 67, 69, 71, 73, 75, 77, 79, 87, 89, 91, 99, 101 and 103 must not be reused. Each retained case requires actual use or refusal and another child's unaffected access. E2E-006/041 own matching-boundary and editor checks."
       },
       "variants": [
         {"coverage_id": 62, "id": "native-grid-allowed-enabled", "owner": "app-launch", "parameters": {"route": "native-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 63, "id": "native-grid-allowed-disabled", "owner": "app-launch", "parameters": {"route": "native-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 64, "id": "native-grid-hard-blocked-enabled", "owner": "app-launch", "parameters": {"route": "native-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 65, "id": "native-grid-hard-blocked-disabled", "owner": "app-launch", "parameters": {"route": "native-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 66, "id": "native-grid-soft-blocked-enabled", "owner": "app-launch", "parameters": {"route": "native-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 67, "id": "native-grid-soft-blocked-disabled", "owner": "app-launch", "parameters": {"route": "native-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 68, "id": "native-desktop-allowed-enabled", "owner": "app-launch", "parameters": {"route": "native-desktop", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 69, "id": "native-desktop-allowed-disabled", "owner": "app-launch", "parameters": {"route": "native-desktop", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 70, "id": "native-desktop-hard-blocked-enabled", "owner": "app-launch", "parameters": {"route": "native-desktop", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 71, "id": "native-desktop-hard-blocked-disabled", "owner": "app-launch", "parameters": {"route": "native-desktop", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 72, "id": "native-desktop-soft-blocked-enabled", "owner": "app-launch", "parameters": {"route": "native-desktop", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 73, "id": "native-desktop-soft-blocked-disabled", "owner": "app-launch", "parameters": {"route": "native-desktop", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 74, "id": "native-file-manager-allowed-enabled", "owner": "app-launch", "parameters": {"route": "native-file-manager", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 75, "id": "native-file-manager-allowed-disabled", "owner": "app-launch", "parameters": {"route": "native-file-manager", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 76, "id": "native-file-manager-hard-blocked-enabled", "owner": "app-launch", "parameters": {"route": "native-file-manager", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 77, "id": "native-file-manager-hard-blocked-disabled", "owner": "app-launch", "parameters": {"route": "native-file-manager", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 78, "id": "native-file-manager-soft-blocked-enabled", "owner": "app-launch", "parameters": {"route": "native-file-manager", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 79, "id": "native-file-manager-soft-blocked-disabled", "owner": "app-launch", "parameters": {"route": "native-file-manager", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 80, "id": "native-command-allowed-enabled", "owner": "app-launch", "parameters": {"route": "native-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 81, "id": "native-command-allowed-disabled", "owner": "app-launch", "parameters": {"route": "native-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 82, "id": "native-command-hard-blocked-enabled", "owner": "app-launch", "parameters": {"route": "native-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -1073,11 +1065,8 @@
         {"coverage_id": 84, "id": "native-command-soft-blocked-enabled", "owner": "app-launch", "parameters": {"route": "native-command", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 85, "id": "native-command-soft-blocked-disabled", "owner": "app-launch", "parameters": {"route": "native-command", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 86, "id": "snap-grid-allowed-enabled", "owner": "app-launch", "parameters": {"route": "snap-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 87, "id": "snap-grid-allowed-disabled", "owner": "app-launch", "parameters": {"route": "snap-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 88, "id": "snap-grid-hard-blocked-enabled", "owner": "app-launch", "parameters": {"route": "snap-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 89, "id": "snap-grid-hard-blocked-disabled", "owner": "app-launch", "parameters": {"route": "snap-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 90, "id": "snap-grid-soft-blocked-enabled", "owner": "app-launch", "parameters": {"route": "snap-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 91, "id": "snap-grid-soft-blocked-disabled", "owner": "app-launch", "parameters": {"route": "snap-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 92, "id": "snap-command-allowed-enabled", "owner": "app-launch", "parameters": {"route": "snap-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 93, "id": "snap-command-allowed-disabled", "owner": "app-launch", "parameters": {"route": "snap-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 94, "id": "snap-command-hard-blocked-enabled", "owner": "app-launch", "parameters": {"route": "snap-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -1085,11 +1074,8 @@
         {"coverage_id": 96, "id": "snap-command-soft-blocked-enabled", "owner": "app-launch", "parameters": {"route": "snap-command", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 97, "id": "snap-command-soft-blocked-disabled", "owner": "app-launch", "parameters": {"route": "snap-command", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 98, "id": "flatpak-grid-allowed-enabled", "owner": "app-launch", "parameters": {"route": "flatpak-grid", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 99, "id": "flatpak-grid-allowed-disabled", "owner": "app-launch", "parameters": {"route": "flatpak-grid", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 100, "id": "flatpak-grid-hard-blocked-enabled", "owner": "app-launch", "parameters": {"route": "flatpak-grid", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 101, "id": "flatpak-grid-hard-blocked-disabled", "owner": "app-launch", "parameters": {"route": "flatpak-grid", "policy": "hard-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 102, "id": "flatpak-grid-soft-blocked-enabled", "owner": "app-launch", "parameters": {"route": "flatpak-grid", "policy": "soft-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 103, "id": "flatpak-grid-soft-blocked-disabled", "owner": "app-launch", "parameters": {"route": "flatpak-grid", "policy": "soft-blocked", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 104, "id": "flatpak-command-allowed-enabled", "owner": "app-launch", "parameters": {"route": "flatpak-command", "policy": "allowed", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 105, "id": "flatpak-command-allowed-disabled", "owner": "app-launch", "parameters": {"route": "flatpak-command", "policy": "allowed", "control": "disabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 106, "id": "flatpak-command-hard-blocked-enabled", "owner": "app-launch", "parameters": {"route": "flatpak-command", "policy": "hard-blocked", "control": "enabled"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -1209,7 +1195,7 @@
       "title": "Customer lifecycle persistence and resume",
       "category": "customer-journey",
       "owners": ["persistence"],
-      "requirements": ["ONPC-CORE-RECOVERY-002", "ONPC-CORE-RECOVERY-003", "ONPC-COMP-CHILD-005"],
+      "requirements": ["ONPC-CORE-RECOVERY-002", "ONPC-CORE-RECOVERY-003", "ONPC-COMP-CHILD-005", "ONPC-COMP-CHILD-007", "ONPC-CORE-ACCOUNTS-004"],
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
@@ -1223,10 +1209,10 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Save screen limits and app rules through Parent, approve this case's real grant with zero daily allowance, then explicitly choose and save the intended request preferences on both forms without approving again. Read those values and remaining grant time before leaving recognizable allowed work open."},
-          {"id": "step-2", "operation": "ui", "description": "Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend, or a real wait for idle. Use enough time for active return and a short grant for expired return."},
-          {"id": "step-3", "operation": "wait", "description": "Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time."},
-          {"id": "step-4", "operation": "ui", "description": "Read retained Parent/request choices before editing. Expired zero-daily access is denied first; then read station choices before replacement approval. Fresh entry after logout/reboot starts apps anew; retained return compares earlier allowed work."}
+          {"id": "step-1", "operation": "ui", "description": "Save screen limits and app rules through Parent and approve this case's real grant with zero daily allowance. Active and combined idle cases explicitly save and read intended preferences on both forms without approving again; paired expired cases omit that repeated preference preparation. Read remaining grant time and its original deadline before leaving recognizable allowed work open. Cases 118/120 also publicly prepare positive daily access for Riley, save Jordan's countdown animation on and Riley's off, and independently read both. Capture public time and app rules before/after preference writes, allowing actual elapsed use."},
+          {"id": "step-2", "operation": "ui", "description": "Perform the declared app restart through its tested public route; use shared system commands for sign-out, reboot and suspend. Idle uses one real 2-minute grant: wait 15 seconds without child activity, return with positive reduced time at the original deadline, compare retained work and read Parent/both forms' saved choices before editing."},
+          {"id": "step-3", "operation": "wait", "description": "Expired cases let the original deadline pass naturally. Active cases return before it and read reduced remaining time. The combined idle case leaves the same child desktop idle again through that original deadline, without reset, sign-out, clock change or intervening approval."},
+          {"id": "step-4", "operation": "ui", "description": "Read saved Parent allowance/app rules before editing. Active cases 116/118/120/124 compare complete remembered choices on both forms. Paired expired cases 117/119/121/125 omit the repeated preference tour, prove original-deadline expiry and specific time denial, then explicitly select inputs and parent for real 3-minute replacement approval. Confirm positive usable time and correct allowed/soft/hard app results after recovery. Fresh entry after logout/reboot starts apps anew; retained return compares earlier Always Allowed work. Combined idle keeps its declared preference and recovery checks. Case 118 signs each child out and back in normally; case 120 uses its existing single reboot and fresh login for both children. Independently read Jordan's animation on and Riley's off after the boundary before editing, preserving original time limits, app rules and the positive grant deadline, with no additional approval or exhaustion wait."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1238,7 +1224,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-4", "description": "Saved choices survive and the grant keeps elapsing. Expired access needs new approval. Only retained desktops must preserve their original work."}
+          {"id": "visible-result", "step_id": "step-4", "description": "Saved allowance/app rules survive every boundary and the grant keeps elapsing at its original deadline. Active cases compare complete remembered choices on both forms; expired partners preserve refusal and recovery while omitting the repeated preference tour. Idle must show positive reduced time at the original deadline on early return, then specific time refusal after that deadline and usable recovery only after new approval. Only retained desktops must preserve their original work. Cases 118/120 also require both children's explicitly different countdown-animation choices after sign-out/return and reboot respectively, without changing time limits or app access; animation-enabled natural locking belongs to case 22. Former standalone cases 162/163 are absorbed and their IDs must not be reused."}
         ],
         "backend": [],
         "other_user": []
@@ -1248,12 +1234,10 @@
       "matrix": {
         "dimensions": {
           "boundary": ["app-restart", "sign-out-in", "reboot", "idle", "suspend-wake"],
-          "grant": ["active", "expired"]
+          "grant": ["active", "expired", "active-to-expired"]
         },
-        "full_combinations": [
-          ["boundary", "grant"]
-        ],
-        "rationale": "All five boundaries by active/expired return remain. Service restarts and hidden mute interactions are not customer steps."
+        "full_combinations": [],
+        "rationale": "App restart, sign-out/in, reboot and suspend/wake each retain active/expired returns. Idle combines both returns and approved recovery into one short-grant journey (122), absorbing case 123 without reuse. Active-to-expired applies only to idle; the other eight exact boundary/grant pairs remain. Complete both-form preference tours belong to active cases 116/118/120/124; expired partners retain deadline, saved rules, refusal and recovery with shorter preference checks. Service restarts and hidden mute interactions are not customer steps."
       },
       "variants": [
         {"coverage_id": 116, "id": "app-restart-active", "owner": "persistence", "parameters": {"boundary": "app-restart", "grant": "active"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null},
@@ -1262,8 +1246,7 @@
         {"coverage_id": 119, "id": "sign-out-in-expired", "owner": "persistence", "parameters": {"boundary": "sign-out-in", "grant": "expired"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null},
         {"coverage_id": 120, "id": "reboot-active", "owner": "persistence", "parameters": {"boundary": "reboot", "grant": "active"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null},
         {"coverage_id": 121, "id": "reboot-expired", "owner": "persistence", "parameters": {"boundary": "reboot", "grant": "expired"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null},
-        {"coverage_id": 122, "id": "idle-active", "owner": "persistence", "parameters": {"boundary": "idle", "grant": "active"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null},
-        {"coverage_id": 123, "id": "idle-expired", "owner": "persistence", "parameters": {"boundary": "idle", "grant": "expired"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null},
+        {"coverage_id": 122, "id": "idle-active-expired", "owner": "persistence", "parameters": {"boundary": "idle", "grant": "active-to-expired"}, "status": "pending", "pending_reason": "Combined early idle return, original-deadline expiry refusal and approved recovery with saved choices/retained work require implementation and installed acceptance; absorbs case 123. Deferred interactive mute is separate future-feature work.", "executable": null},
         {"coverage_id": 124, "id": "suspend-wake-active", "owner": "persistence", "parameters": {"boundary": "suspend-wake", "grant": "active"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null},
         {"coverage_id": 125, "id": "suspend-wake-expired", "owner": "persistence", "parameters": {"boundary": "suspend-wake", "grant": "expired"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null}
       ]
@@ -1368,15 +1351,11 @@
           "time": ["daily-dominant", "grant-dominant"],
           "gameplay": ["windowed", "fullscreen"]
         },
-        "full_combinations": [
-          ["time", "gameplay"]
-        ],
-        "rationale": "Both dominant sources by both display modes are combined. Fullscreen variants test panel launch; windowed variants use direct entry. Shared UI owns local request-input boundaries."
+        "full_combinations": [],
+        "rationale": "Retain daily-dominant windowed play and grant-dominant fullscreen play instead of all four pairings. Both time calculations, both game modes, fullscreen panel launch, unchanged game progress and extended natural locking remain required. Opposite pairings 129 and 130 are removed; their coverage IDs must not be reused. Shared UI owns local request-input boundaries."
       },
       "variants": [
         {"coverage_id": 128, "id": "daily-dominant-windowed", "owner": "continuous-journeys", "parameters": {"time": "daily-dominant", "gameplay": "windowed"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 129, "id": "daily-dominant-fullscreen", "owner": "continuous-journeys", "parameters": {"time": "daily-dominant", "gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 130, "id": "grant-dominant-windowed", "owner": "continuous-journeys", "parameters": {"time": "grant-dominant", "gameplay": "windowed"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 131, "id": "grant-dominant-fullscreen", "owner": "continuous-journeys", "parameters": {"time": "grant-dominant", "gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },
@@ -1456,9 +1435,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Install this case's declared earlier release and follow its notice. Save distinct settings and request choices through Parent and both forms, approve a grant long enough for the update, and use the child desktop."},
+          {"id": "step-1", "operation": "ui", "description": "Install this case's declared earlier release and follow its notice. Save distinct allowance/app rules through Parent, approve a grant long enough for the update, capture its original deadline and use the child desktop. Reboot case 138 also prepares and captures complete saved request choices on both forms."},
           {"id": "step-2", "operation": "ui", "description": "Install the declared update with the normal package command and follow its process, session or reboot notice for every named affected surface."},
-          {"id": "step-3", "operation": "ui", "description": "Read retained Parent/request values before editing, read the installed version and reduced grant balance, and enter the child desktop to verify allowed use and blocked launches."}
+          {"id": "step-3", "operation": "ui", "description": "Independently prove every affected user's apps usable again after the actual activation instructions. Read saved allowance/app rules before editing, installed version and positive reduced grant balance at the original deadline; verify allowed work and denied soft/hard launches. Reboot case 138 compares complete remembered choices on both forms; process/session cases 136/137 open affected forms and read readiness and intended target without repeating the full preference tour."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1482,7 +1461,7 @@
           "activation": ["process", "session", "reboot"]
         },
         "full_combinations": [],
-        "rationale": "Three actual update/activation profiles. Every case installs its own earlier release and inherits no previous case state."
+        "rationale": "Three actual update/activation profiles. Every case installs its own earlier release, follows its actual instructions for every affected user/surface, preserves allowance/app rules and the original grant deadline, and proves usable/enforced access. Only reboot case 138 repeats the complete both-form preference tour; process/session cases 136/137 shorten that tour. No route inherits previous case state."
       },
       "variants": [
         {"coverage_id": 136, "id": "process", "owner": "package-update", "parameters": {"activation": "process"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -1666,8 +1645,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Open Parent feedback, enter authorized synthetic text and reply address, add reviewed files, inspect Privacy and select Send once with the authorized service profile."},
-          {"id": "step-2", "operation": "ui", "description": "Read service acceptance and the reply-address follow-up; leave thanks until manually dismissing it. Reopen feedback and read the cleared submitted draft and files. Pending-control guards and duplicate-send widgets are shared UI coverage."}
+          {"id": "step-1", "operation": "ui", "description": "Open Parent feedback, enter authorized synthetic text with the optional reply address empty, add reviewed files, inspect Privacy and select Send once with the authorized service profile."},
+          {"id": "step-2", "operation": "ui", "description": "Read service acceptance without a reply-follow-up note; keep thanks visible for five seconds, then manually dismiss it. Reopen feedback and read the cleared body, reply address and customer files. Exact confirmation wordings, pending-control guards and duplicate-send widgets are shared UI coverage."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1691,7 +1670,7 @@
           "delivery": ["success"]
         },
         "full_combinations": [],
-        "rationale": "Owns ordinary success with reply address and attachments. E2E-047 owns other sending lifetimes; recipient receipt remains separately authorized integration work."
+        "rationale": "Owns ordinary success without a reply address and with attachments, absorbing former case 214 without another send. E2E-047 case 220 sends an error report with a reply address; focused dialog checks own both exact confirmation wordings. Recipient receipt remains separately authorized integration work."
       },
       "variants": [
         {"coverage_id": 156, "id": "success", "owner": "continuous-journeys", "parameters": {"delivery": "success"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
@@ -1719,8 +1698,8 @@
           {"id": "step-1", "operation": "ui", "description": "Compose authorized synthetic feedback and files in Parent and review Privacy and submission contents."},
           {"id": "step-2", "operation": "ui", "description": "Remove Internet access using the shared distro-independent LIFE06 VM helper, preserving existing test control and public observations."},
           {"id": "step-3", "operation": "ui", "description": "Return to feedback, select Send once and read that the intended report is awaiting retry."},
-          {"id": "step-4", "operation": "ui", "description": "Reconnect through the same shared system-network helper within the retry period."},
-          {"id": "step-5", "operation": "ui", "description": "Observe automatic acceptance without another Send, dismiss thanks and reopen feedback to read the cleared draft."}
+          {"id": "step-4", "operation": "ui", "description": "Close only ordinary feedback, keep the same Parent app running and reconnect through the same shared system-network helper within the retry period. Require no unsolicited feedback or thank-you window during the bounded background completion interval."},
+          {"id": "step-5", "operation": "ui", "description": "Reopen feedback within the bounded completion interval and verify automatic completion and an empty draft without another Send. If sending remains active, observe explicit acceptance, dismiss any resulting visible confirmation and reopen to verify the cleared draft; elapsed time alone is not proof of success."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1732,7 +1711,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-5", "description": "Visible loss of connectivity causes retries; reconnection allows automatic success without another Send. No recipient or private submission-identity read is required."}
+          {"id": "visible-result", "step_id": "step-5", "description": "The one offline report waits for retry, continues after only feedback is closed and completes automatically after reconnection with Parent still running. No unsolicited feedback/thanks window appears; reopening verifies completion and an empty draft without a second Send. No recipient or private submission-identity read is required."}
         ],
         "backend": [],
         "other_user": []
@@ -1744,7 +1723,7 @@
           "delivery": ["retry"]
         },
         "full_combinations": [],
-        "rationale": "The customer route changes real connectivity through shared system commands. Injected transport failure, frozen bytes, idempotency and recipient verification remain separately owned."
+        "rationale": "One offline submission combines retry recovery and background completion formerly scheduled as case 215; that case ID must not be reused. E2E-032 retains visible confirmation. The customer route changes real connectivity through shared system commands. Injected transport failure, frozen bytes, idempotency and recipient verification remain separately owned."
       },
       "variants": [
         {"coverage_id": 157, "id": "retry", "owner": "continuous-journeys", "parameters": {"delivery": "retry"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
@@ -1855,58 +1834,6 @@
       ]
     },
     {
-      "id": "E2E-037",
-      "title": "Use and remember the child panel option",
-      "category": "customer-journey",
-      "owners": ["continuous-journeys"],
-      "requirements": ["ONPC-COMP-CHILD-007", "ONPC-CORE-ACCOUNTS-004"],
-      "requirement_gap": null,
-      "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
-      "components": ["parent", "child", "kiosk", "broker"],
-      "environment": ["ubuntu26.04", "fedora44"],
-      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
-      "phases": {
-        "setup": [
-          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
-        ],
-        "start": [
-          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
-        ],
-        "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Give both children six daily minutes with enough time for the declared boundary. On the first child's desktop save the countdown-animation choice as on and capture remaining time."},
-          {"id": "step-2", "operation": "ui", "description": "Perform the declared sign-out/sign-in or reboot and read the persisted choice before editing. Remaining access follows actual elapsed use and the original policy."},
-          {"id": "step-3", "operation": "ui", "description": "Read the other child's independent off choice, then return and use an allowed app to natural expiry. Saving a personal display choice must neither alter another child nor prevent locking."}
-        ],
-        "end": [
-          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
-        ],
-        "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
-        ]
-      },
-      "interventions": [],
-      "assertions": {
-        "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "The option is usable and remembered per child without changing time, app access, request sound or expiry enforcement."}
-        ],
-        "backend": [],
-        "other_user": []
-      },
-      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
-      "duration_seconds": 1800,
-      "matrix": {
-        "dimensions": {
-          "boundary": ["sign-out-in", "reboot"]
-        },
-        "full_combinations": [],
-        "rationale": "Both persistence boundaries; animation appearance is outside acceptance."
-      },
-      "variants": [
-        {"coverage_id": 162, "id": "sign-out-in", "owner": "continuous-journeys", "parameters": {"boundary": "sign-out-in"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 163, "id": "reboot", "owner": "continuous-journeys", "parameters": {"boundary": "reboot"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
-      ]
-    },
-    {
       "id": "E2E-038",
       "title": "Keep daily access after a grant ends and restore soft-app blocks",
       "category": "customer-journey",
@@ -1968,7 +1895,7 @@
       "title": "Leave a pending approval or request again too soon",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
-      "requirements": ["ONPC-CORE-REQUEST-013", "ONPC-CORE-RECOVERY-007", "ONPC-CORE-RECOVERY-008"],
+      "requirements": ["ONPC-CORE-REQUEST-013", "ONPC-CORE-RECOVERY-007", "ONPC-CORE-RECOVERY-008", "ONPC-CORE-FEEDBACK-001", "ONPC-CORE-FEEDBACK-007", "ONPC-CORE-FEEDBACK-012", "ONPC-CORE-FEEDBACK-013"],
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
@@ -1983,8 +1910,8 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown."},
-          {"id": "step-2", "operation": "ui", "description": "Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation."},
-          {"id": "step-3", "operation": "ui", "description": "Return normally and read choices and unchanged access before retrying. Interruption requires a new request and authentication; cooldown permits one after it ends. Station cooldown also covers the other child."}
+          {"id": "step-2", "operation": "ui", "description": "Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child."},
+          {"id": "step-3", "operation": "ui", "description": "Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1996,7 +1923,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Leaving the requesting session cannot revive approval; too-soon requests open no new prompt. A later valid request works."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Leaving the requesting session cannot revive approval; too-soon requests open no new prompt or give extra time/app access. Separate errors support report review and decline with correct desktop/GDM return, unchanged balances/restrictions before later approval and no report on decline. A later valid request works with fresh authentication; station cooldown is shared across children."}
         ],
         "backend": [],
         "other_user": []
@@ -2005,10 +1932,10 @@
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
-          "flow": ["overlay-lock", "overlay-switch", "overlay-signout", "overlay-close", "kiosk-close", "overlay-cooldown", "kiosk-cooldown-same", "kiosk-cooldown-other"]
+          "flow": ["overlay-lock", "overlay-switch", "overlay-signout", "overlay-close", "kiosk-close", "overlay-cooldown", "kiosk-cooldown-other"]
         },
         "full_combinations": [],
-        "rationale": "Public interruption routes need qualification. No process kill or artificially delayed authentication."
+        "rationale": "Public interruption routes need qualification. One cooldown journey per surface includes separate genuine errors for report review and decline, no unintended access and fresh approval after waiting. Station targets the other child to retain shared cooldown coverage. Same-child station case 177 is removed; report cases 206/207 are absorbed into 176/178. Those IDs must not be reused. No process kill, extended cooldown or artificially delayed authentication."
       },
       "variants": [
         {"coverage_id": 171, "id": "overlay-lock", "owner": "continuous-journeys", "parameters": {"flow": "overlay-lock"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
@@ -2017,7 +1944,6 @@
         {"coverage_id": 174, "id": "overlay-close", "owner": "continuous-journeys", "parameters": {"flow": "overlay-close"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 175, "id": "kiosk-close", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-close"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 176, "id": "overlay-cooldown", "owner": "continuous-journeys", "parameters": {"flow": "overlay-cooldown"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 177, "id": "kiosk-cooldown-same", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-cooldown-same"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 178, "id": "kiosk-cooldown-other", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-cooldown-other"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },
@@ -2040,9 +1966,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Use this case's disposable spare accounts. Open Parent or the station, select the account needed for this variant and read its choices."},
-          {"id": "step-2", "operation": "ui", "description": "Through shared system-account commands, add a spare standard child, remove the selected/last spare child, change the spare remembered approver to standard, or remove the spare remembered station child. Keep Parent open where refresh is tested; close request forms before changing their accounts."},
-          {"id": "step-3", "operation": "ui", "description": "Return to Parent or reopen the applicable forms. Check discovery without disturbing a valid selection, fallback to another child, an empty explanation or remembered-selection fallback. Read other-child settings before editing."}
+          {"id": "step-1", "operation": "ui", "description": "Use this case's disposable spare accounts. For remove-selected, prepare Jordan and Riley once with distinct saved allowances and request choices; leave Parent selecting Jordan and let the station remember Jordan before exiting it normally. Other branches select their declared child or approver and read its choices."},
+          {"id": "step-2", "operation": "ui", "description": "Through shared system-account commands, remove the selected logged-out spare child exactly once while Parent stays open, remove the last spare child, or change the spare remembered approver to standard. Close request forms before changing their accounts and retain the active administrator."},
+          {"id": "step-3", "operation": "ui", "description": "For remove-selected, independently check automatic Parent fallback to Riley in the same window with Riley's own settings, then reopen the station and check automatic fallback to Riley with Riley's own duration, custom value and soft-app choice before any edit or request. Do not reset preparation between results. Other branches check the empty explanation or eligible approver fallback."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2054,7 +1980,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Current eligible accounts and fallback choices appear without borrowing another child's settings."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Current eligible accounts and fallback choices appear without borrowing another child's settings. After one selected-child removal, both the still-open Parent and independently reopened station select the survivor automatically and display that child's own saved values before editing. Last-child removal and approver eligibility loss remain separate branches."}
         ],
         "backend": [],
         "other_user": []
@@ -2063,17 +1989,15 @@
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
-          "change": ["add-child", "remove-selected", "remove-last-child", "ineligible-approver", "missing-remembered-child"]
+          "change": ["remove-selected", "remove-last-child", "ineligible-approver"]
         },
         "full_combinations": [],
-        "rationale": "Owns app reactions to real account changes through shared system commands; ready discovery retains its narrower account-fixture qualification."
+        "rationale": "Owns app reactions to real account removals and role changes through shared system commands. Case 180 combines Parent and reopened-station fallback after one logged-out child removal; former case 183 is absorbed and its ID must not be reused. Last-child removal and approver eligibility loss remain independent. Completed E2E-003 case 3 already adds a child while Parent stays open, selects it and checks its settings; duplicate case 179 is removed and its ID must not be reused. Shared spare-account preparation remains for retained changes."
       },
       "variants": [
-        {"coverage_id": 179, "id": "add-child", "owner": "continuous-journeys", "parameters": {"change": "add-child"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 180, "id": "remove-selected", "owner": "continuous-journeys", "parameters": {"change": "remove-selected"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 181, "id": "remove-last-child", "owner": "continuous-journeys", "parameters": {"change": "remove-last-child"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 182, "id": "ineligible-approver", "owner": "continuous-journeys", "parameters": {"change": "ineligible-approver"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 183, "id": "missing-remembered-child", "owner": "continuous-journeys", "parameters": {"change": "missing-remembered-child"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 182, "id": "ineligible-approver", "owner": "continuous-journeys", "parameters": {"change": "ineligible-approver"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },
     {
@@ -2206,8 +2130,9 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Remove Internet access through the shared distro-independent LIFE06 VM helper, preserving test control. In Parent enable limits and save the allowance and hard/soft app rules."},
-          {"id": "step-2", "operation": "ui", "description": "Enter the selected form, read its estimate and approve additional time including soft apps through the selected local parent's prompt."},
-          {"id": "step-3", "operation": "ui", "description": "Use the child desktop: soft launches work, hard launches fail and time advances. Revoke through Parent, check the corresponding restriction and restore the connection."}
+          {"id": "step-2", "operation": "ui", "description": "Enter the child-overlay form, read its estimate and approve 3 minutes including soft apps through a fresh local parent's prompt. Observe success, added time, allowed/soft app use, hard refusal and ticking time before proceeding."},
+          {"id": "step-3", "operation": "ui", "description": "Sign out normally, enter the station form and approve another 3 minutes including soft apps through fresh local authentication. Observe success, sign in as the child and independently check added time, allowed/soft app use, hard refusal and ticking time while still offline."},
+          {"id": "step-4", "operation": "ui", "description": "Revoke once through Parent, confirm no grant, soft-app closure/refused relaunch, retained allowed access and hard refusal, then reconnect. Use one offline policy preparation with a fresh 30-minute daily allowance and one native app per rule; no reset, revocation or reconnection between approvals."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2219,23 +2144,24 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Policy editing, estimates, parent approval and enforcement work locally while offline."}
+          {"id": "overlay-result", "step_id": "step-2", "description": "Desktop estimates and genuine local approval add the expected time; allowed/soft apps work, hard apps are refused and time ticks while offline."},
+          {"id": "kiosk-result", "step_id": "step-3", "description": "Station estimates and a second genuine local approval add the expected time; child access, allowed/soft app use, hard refusal and ticking time work while offline."},
+          {"id": "visible-result", "step_id": "step-4", "description": "Offline policy editing and one final revocation work locally; the grant is gone, soft apps close and cannot relaunch, allowed access remains and hard apps stay denied before reconnection."}
         ],
         "backend": [],
         "other_user": []
       },
       "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
-      "duration_seconds": 1800,
+      "duration_seconds": 3600,
       "matrix": {
         "dimensions": {
-          "surface": ["child-overlay", "kiosk"]
+          "surface": ["both"]
         },
         "full_combinations": [],
-        "rationale": "Both approval surfaces; network settings are an input to product acceptance, not a networking test."
+        "rationale": "One continuous offline journey covers both approval surfaces and each intermediate time/app result with one preparation and revocation. Case 195 is absorbed and must not be reused; network settings are an input to product acceptance, not a networking test."
       },
       "variants": [
-        {"coverage_id": 194, "id": "child-overlay", "owner": "continuous-journeys", "parameters": {"surface": "child-overlay"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 195, "id": "kiosk", "owner": "continuous-journeys", "parameters": {"surface": "kiosk"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 194, "id": "both-surfaces", "owner": "continuous-journeys", "parameters": {"surface": "both"}, "status": "pending", "pending_reason": "Combined offline desktop/station recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },
     {
@@ -2257,9 +2183,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Start in the declared natural calendar window. Read the guest's date, time, UTC offset and timezone through shared TIME05 SSH commands; prepare daily-only time, Rest of the day or a fixed grant through Parent and actual approval."},
-          {"id": "step-2", "operation": "ui", "description": "Use the app across the declared natural midnight or daylight-saving transition without changing the clock. Read balances and the request estimate before and after."},
-          {"id": "step-3", "operation": "ui", "description": "Check the new day's daily allowance, Rest of the day's next-local-midnight deadline or the fixed elapsed-time deadline continuing across the boundary. Verify corresponding child access."}
+          {"id": "step-1", "operation": "ui", "description": "Start in the declared natural calendar window. Read date, time, UTC offset and timezone through TIME05. Ordinary cases prepare the selected daily-only or grant profile. Seasonal cases prepare two children with zero daily allowance: Jordan has Rest of the day and Riley a real fixed 10-minute approval within five minutes before the actual offset change. Record both public balances, request estimates and usable access before the jump."},
+          {"id": "step-2", "operation": "ui", "description": "Cross the declared natural midnight or offset change without changing the clock or resetting state. Read balances and request estimates afterward. Seasonal cases read both children and verify continued usable access while positive; compare Jordan's next-local-midnight duration and Riley's original elapsed deadline within declared display precision."},
+          {"id": "step-3", "operation": "ui", "description": "Ordinary cases verify daily renewal, midnight grant expiry or fixed-grant continuation and the original deadline. Seasonal cases observe Riley's natural lock, zero grant and correct-password time refusal at the original deadline, then revisit Jordan with positive remaining time and continued usable access. Neither seasonal grant gains or loses an hour; no seasonal daily-renewal claim."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2271,7 +2197,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Daily time follows the local day, Rest of the day targets local midnight and fixed grants keep elapsed-time deadlines."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Ordinary midnight retains daily renewal, Rest of the day expiry and fixed-grant continuation. Each seasonal direction checks both children's remaining time and access before/after the same jump: Rest of the day targets local midnight and stays usable while positive; the fixed grant keeps its elapsed deadline and ends with time refusal. Separate daily renewal on transition dates is dropped."}
         ],
         "backend": [],
         "other_user": []
@@ -2281,23 +2207,17 @@
       "matrix": {
         "dimensions": {
           "calendar": ["ordinary", "spring-forward", "fall-back"],
-          "time": ["daily-reset", "rest-of-day", "fixed-grant"]
+          "time": ["daily-reset", "rest-of-day", "fixed-grant", "paired-grants"]
         },
-        "full_combinations": [
-          ["calendar", "time"]
-        ],
-        "rationale": "Full calendar-by-time matrix scheduled at real boundaries. Readable deadline arithmetic avoids 25-hour waits."
+        "full_combinations": [],
+        "rationale": "Five scheduled journeys: three ordinary-midnight checks and one paired two-child grant journey for each real seasonal offset change. Cases 200/203 absorb fixed-grant cases 201/204; seasonal daily-reset cases 199/202 are dropped because they cross midnight rather than the offset change. Former IDs 199, 201, 202 and 204 must not be reused. Separate daily-renewal proof on those dates is given up. Public deadline arithmetic avoids full-day waits."
       },
       "variants": [
         {"coverage_id": 196, "id": "ordinary-daily-reset", "owner": "continuous-journeys", "parameters": {"calendar": "ordinary", "time": "daily-reset"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 197, "id": "ordinary-rest-of-day", "owner": "continuous-journeys", "parameters": {"calendar": "ordinary", "time": "rest-of-day"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 198, "id": "ordinary-fixed-grant", "owner": "continuous-journeys", "parameters": {"calendar": "ordinary", "time": "fixed-grant"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 199, "id": "spring-forward-daily-reset", "owner": "continuous-journeys", "parameters": {"calendar": "spring-forward", "time": "daily-reset"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 200, "id": "spring-forward-rest-of-day", "owner": "continuous-journeys", "parameters": {"calendar": "spring-forward", "time": "rest-of-day"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 201, "id": "spring-forward-fixed-grant", "owner": "continuous-journeys", "parameters": {"calendar": "spring-forward", "time": "fixed-grant"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 202, "id": "fall-back-daily-reset", "owner": "continuous-journeys", "parameters": {"calendar": "fall-back", "time": "daily-reset"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 203, "id": "fall-back-rest-of-day", "owner": "continuous-journeys", "parameters": {"calendar": "fall-back", "time": "rest-of-day"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 204, "id": "fall-back-fixed-grant", "owner": "continuous-journeys", "parameters": {"calendar": "fall-back", "time": "fixed-grant"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 200, "id": "spring-forward-paired-grants", "owner": "continuous-journeys", "parameters": {"calendar": "spring-forward", "time": "paired-grants"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
+        {"coverage_id": 203, "id": "fall-back-paired-grants", "owner": "continuous-journeys", "parameters": {"calendar": "fall-back", "time": "paired-grants"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },
     {
@@ -2319,9 +2239,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Open the declared surface and encounter its customer-reproducible error: a rejected Parent match pattern or actual too-soon request. Read the public failure and initially selected Report this error option where offered."},
-          {"id": "step-2", "operation": "ui", "description": "Review the report, edit synthetic text and read Privacy. Parent/overlay expose file and diagnostic-save controls; station hides them and external links. Close without sending and check the original flow's destination."},
-          {"id": "step-3", "operation": "ui", "description": "Repeat the error and decline reporting where offered, checking direct exit. Successful requests and cancelled authentication must not offer this error-report step."}
+          {"id": "step-1", "operation": "ui", "description": "Save the confirmed Parent match pattern, then reject the declared unrelated pattern and read the automatic public error report."},
+          {"id": "step-2", "operation": "ui", "description": "Review the report, edit synthetic text and read Privacy and available Parent actions. Close without sending and check return to management with the last confirmed policy."},
+          {"id": "step-3", "operation": "ui", "description": "Repeat the rejected Save and close its automatic report directly without editing or sending. Parent offers no report-choice toggle. Compare the exact last confirmed rule again."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2333,7 +2253,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Error reports are explicit, editable and optional, with usable surface restrictions and exits."}
+          {"id": "visible-result", "step_id": "step-3", "description": "The Parent error report supports review or direct closure without sending, and both exits preserve the exact last confirmed rule and usable management."}
         ],
         "backend": [],
         "other_user": []
@@ -2342,15 +2262,13 @@
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
-          "surface": ["parent", "child-overlay", "kiosk"]
+          "surface": ["parent"]
         },
         "full_combinations": [],
-        "rationale": "Three report surfaces use real user errors; no private fault switch or sending."
+        "rationale": "Parent retains its real user-error report journey. Child-overlay and kiosk review/decline are absorbed into E2E-039 cooldown cases 176/178; former case IDs 206/207 must not be reused. No private fault switch or sending."
       },
       "variants": [
-        {"coverage_id": 205, "id": "parent", "owner": "continuous-journeys", "parameters": {"surface": "parent"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_error_report.py", "test_id": "parent-error-report"}},
-        {"coverage_id": 206, "id": "child-overlay", "owner": "continuous-journeys", "parameters": {"surface": "child-overlay"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 207, "id": "kiosk", "owner": "continuous-journeys", "parameters": {"surface": "kiosk"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 205, "id": "parent", "owner": "continuous-journeys", "parameters": {"surface": "parent"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_error_report.py", "test_id": "parent-error-report"}}
       ]
     },
     {
@@ -2373,8 +2291,8 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Open the declared report during a real, independently observed collection failure. Read its unavailable/partial explanation without changing product files or services to create the failure."},
-          {"id": "step-2", "operation": "ui", "description": "Confirm editing and Close remain usable. Choose Retry collection after recovery, or explicitly choose Send without logs for the authorized reviewed valid draft."},
-          {"id": "step-3", "operation": "ui", "description": "Retry reads completed collection and preserved draft before local close. Without-logs reads actual acceptance and dismisses thanks; a failed send preserves the draft and is not success."}
+          {"id": "step-2", "operation": "ui", "description": "Confirm editing and Close remain usable and enter a synthetic draft. Parent restores the genuine public prerequisite and chooses Retry once. Station reviews the valid draft and in-app Privacy, verifies no Add files, log download, attachment shortcut or external Privacy link, then explicitly chooses the authorized Send without logs once."},
+          {"id": "step-3", "operation": "ui", "description": "Parent retry reads completed collection and unchanged draft before normal close without Send. Station without-logs reads actual acceptance and thanks while the original report exit remains pending, then manually dismisses thanks and requires report closure and the sign-in screen. A failed send preserves the draft and is not success."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2395,20 +2313,14 @@
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
-          "surface": ["parent", "child-overlay", "kiosk"],
+          "surface": ["parent", "kiosk"],
           "choice": ["retry", "without-logs"]
         },
-        "full_combinations": [
-          ["surface", "choice"]
-        ],
-        "rationale": "Both choices on all three surfaces. Public failure reproduction and sending authorization remain explicit gates."
+        "full_combinations": [],
+        "rationale": "Two retained journeys: Parent retry with draft preservation and station Send without logs with confirmation, manual dismissal and sign-in under station restrictions. Parent without logs, both overlay choices and station retry (case IDs 209–212) are removed; IDs must not be reused. Screen-specific recovery coverage is reduced. Each retained journey requires genuine public collection failure; Internet loss alone is insufficient. Public failure reproduction and sending authorization remain explicit gates."
       },
       "variants": [
         {"coverage_id": 208, "id": "parent-retry", "owner": "continuous-journeys", "parameters": {"surface": "parent", "choice": "retry"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure and qualified recovery. This retry-only branch does not send.", "executable": null},
-        {"coverage_id": 209, "id": "parent-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "parent", "choice": "without-logs"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure, public unavailable-log observations, explicit reviewed sending authorization and a dedicated real service profile. Sending without logs does not depend on the separate collection-recovery branch.", "executable": null},
-        {"coverage_id": 210, "id": "child-overlay-retry", "owner": "continuous-journeys", "parameters": {"surface": "child-overlay", "choice": "retry"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure and qualified recovery. This retry-only branch does not send.", "executable": null},
-        {"coverage_id": 211, "id": "child-overlay-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "child-overlay", "choice": "without-logs"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure, public unavailable-log observations, explicit reviewed sending authorization and a dedicated real service profile. Sending without logs does not depend on the separate collection-recovery branch.", "executable": null},
-        {"coverage_id": 212, "id": "kiosk-retry", "owner": "continuous-journeys", "parameters": {"surface": "kiosk", "choice": "retry"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure and qualified recovery. This retry-only branch does not send.", "executable": null},
         {"coverage_id": 213, "id": "kiosk-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "kiosk", "choice": "without-logs"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure, public unavailable-log observations, explicit reviewed sending authorization and a dedicated real service profile. Sending without logs does not depend on the separate collection-recovery branch.", "executable": null}
       ]
     },
@@ -2431,9 +2343,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send."},
-          {"id": "step-2", "operation": "ui", "description": "Perform the declared action: keep feedback open, close only its dialog, exit the app, or choose Stop sending and close. Success branches require actual service acceptance."},
-          {"id": "step-3", "operation": "ui", "description": "Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, or the original error-flow exit. Restore connectivity where needed."}
+          {"id": "step-1", "operation": "ui", "description": "Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. Overlay-success includes a reviewed synthetic reply address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send."},
+          {"id": "step-2", "operation": "ui", "description": "Perform the declared action: keep feedback open, exit the app, or choose Stop sending and close. Success branches require actual service acceptance."},
+          {"id": "step-3", "operation": "ui", "description": "Check no outbox after relaunch or the original error-flow exit after manual thanks dismissal. Overlay-success observes the reply-follow-up note and thanks still visible after five seconds before returning to the child desktop. Restore connectivity where needed. Background reconnection is combined into E2E-033 case 157."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2454,20 +2366,17 @@
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
-          "flow": ["no-reply", "background", "app-exit", "overlay-stop", "kiosk-stop", "overlay-success", "kiosk-success", "parent-error-success"]
+          "flow": ["app-exit", "overlay-stop", "kiosk-stop", "overlay-success", "kiosk-success"]
         },
         "full_combinations": [],
-        "rationale": "Eight distinct send lifetimes; ordinary visible success with reply address stays in E2E-032."
+        "rationale": "Five distinct send lifetimes; background reconnection is combined into E2E-033 case 157 and former case ID 215 must not be reused. Ordinary visible success without a reply address absorbs former case 214 in E2E-032. Case 220 includes a reply address; focused dialog checks own both exact confirmation wordings. Parent automatic error-report sending was removed from scheduling; Parent error review and return to confirmed settings remain in E2E-045."
       },
       "variants": [
-        {"coverage_id": 214, "id": "no-reply", "owner": "continuous-journeys", "parameters": {"flow": "no-reply"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 215, "id": "background", "owner": "continuous-journeys", "parameters": {"flow": "background"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 216, "id": "app-exit", "owner": "continuous-journeys", "parameters": {"flow": "app-exit"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 218, "id": "overlay-stop", "owner": "continuous-journeys", "parameters": {"flow": "overlay-stop"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 219, "id": "kiosk-stop", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-stop"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 220, "id": "overlay-success", "owner": "continuous-journeys", "parameters": {"flow": "overlay-success"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 221, "id": "kiosk-success", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-success"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 222, "id": "parent-error-success", "owner": "continuous-journeys", "parameters": {"flow": "parent-error-success"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 221, "id": "kiosk-success", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-success"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
       ]
     },
     {
@@ -2523,22 +2432,15 @@
             "kiosk"
           ]
         },
-        "full_combinations": [
-          [
-            "balance",
-            "surface"
-          ]
-        ],
-        "rationale": "All four positive-time profiles by both request surfaces. Owns approval-time recalculation after a meaningful public wait; input boundaries and gameplay extension retain their existing owners. Zero-time overlay entry is unavailable."
+        "full_combinations": [],
+        "rationale": "Six independent journeys retain both surfaces for daily-only and daily-dominant, child-overlay for grant-only and kiosk for grant-dominant. Daily use continues on the desktop but pauses while the child is away at the station; grant time elapses on either surface. Every retained journey keeps the real 45-second prompt interval, current-balance recalculation and second addition. Removed case IDs 226 and 229 must not be reused. Input boundaries and gameplay extension retain their existing owners. Zero-time overlay entry is unavailable."
       },
       "variants": [
         {"coverage_id": 223, "id": "daily-only-child-overlay", "owner": "request-approval", "parameters": {"balance": "daily-only", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 224, "id": "daily-only-kiosk", "owner": "request-approval", "parameters": {"balance": "daily-only", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 225, "id": "grant-only-child-overlay", "owner": "request-approval", "parameters": {"balance": "grant-only", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 226, "id": "grant-only-kiosk", "owner": "request-approval", "parameters": {"balance": "grant-only", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 227, "id": "daily-dominant-child-overlay", "owner": "request-approval", "parameters": {"balance": "daily-dominant", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 228, "id": "daily-dominant-kiosk", "owner": "request-approval", "parameters": {"balance": "daily-dominant", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 229, "id": "grant-dominant-child-overlay", "owner": "request-approval", "parameters": {"balance": "grant-dominant", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 230, "id": "grant-dominant-kiosk", "owner": "request-approval", "parameters": {"balance": "grant-dominant", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null}
       ]
     },
@@ -2599,30 +2501,18 @@
             "kiosk"
           ]
         },
-        "full_combinations": [
-          [
-            "route",
-            "surface"
-          ]
-        ],
-        "rationale": "Eight supported routes by both request forms: 16 independent cases. Three ordered approvals cover initial exclusion, inclusion and replacement exclusion, using both selected parents without a parent-by-soft-choice product. Baseline rule permutations remain in E2E-019."
+        "full_combinations": [],
+        "rationale": "Nine independent journeys retain both request forms for native-grid and one form per other route: native-desktop, snap-grid and flatpak-grid use child-overlay; native-file-manager, native-command, snap-command and flatpak-command use kiosk. Each case retains three fresh ordered approvals, Jamie/exclude, Sam/include and Jamie/exclude, with soft launch denial, usable inclusion, closure on replacement exclusion, unchanged allowed work, continued hard denial and unchanged saved rules. Removed case IDs 234, 235, 237, 240, 241, 244 and 245 must not be reused. Baseline rule permutations remain in E2E-019."
       },
       "variants": [
         {"coverage_id": 231, "id": "native-grid-child-overlay", "owner": "application-access", "parameters": {"route": "native-grid", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 232, "id": "native-grid-kiosk", "owner": "application-access", "parameters": {"route": "native-grid", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 233, "id": "native-desktop-child-overlay", "owner": "application-access", "parameters": {"route": "native-desktop", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 234, "id": "native-desktop-kiosk", "owner": "application-access", "parameters": {"route": "native-desktop", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 235, "id": "native-file-manager-child-overlay", "owner": "application-access", "parameters": {"route": "native-file-manager", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 236, "id": "native-file-manager-kiosk", "owner": "application-access", "parameters": {"route": "native-file-manager", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 237, "id": "native-command-child-overlay", "owner": "application-access", "parameters": {"route": "native-command", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 238, "id": "native-command-kiosk", "owner": "application-access", "parameters": {"route": "native-command", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 239, "id": "snap-grid-child-overlay", "owner": "application-access", "parameters": {"route": "snap-grid", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 240, "id": "snap-grid-kiosk", "owner": "application-access", "parameters": {"route": "snap-grid", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 241, "id": "snap-command-child-overlay", "owner": "application-access", "parameters": {"route": "snap-command", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 242, "id": "snap-command-kiosk", "owner": "application-access", "parameters": {"route": "snap-command", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 243, "id": "flatpak-grid-child-overlay", "owner": "application-access", "parameters": {"route": "flatpak-grid", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 244, "id": "flatpak-grid-kiosk", "owner": "application-access", "parameters": {"route": "flatpak-grid", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 245, "id": "flatpak-command-child-overlay", "owner": "application-access", "parameters": {"route": "flatpak-command", "surface": "child-overlay"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
         {"coverage_id": 246, "id": "flatpak-command-kiosk", "owner": "application-access", "parameters": {"route": "flatpak-command", "surface": "kiosk"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null}
       ]
     },
@@ -2646,8 +2536,8 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Independently configure Jordan's allowed work editor, soft-blocked real offline game and hard-blocked app through Parent. Start with limits on, zero allowance and no grant. Leave Riley's separate recognizable work open. Use a synthetic notes file for saved work."},
-          {"id": "step-2", "operation": "ui", "description": "Complete all eight recipe rows in each of three cycles: daily homework; included game approval; another included addition on the other form; excluded homework approval; included approval followed by allowance increase then zero; limits off then on; a short station-approved visit to natural lock; replacement approval and revocation. Alternate the two parents and both forms. Cycle 2 plays fullscreen; cycles 1 and 3 play windowed. After every row verify the stated time, app access and work result before proceeding. Switch User for retained departures or sign out for fresh departures; read saved work after a fresh login and compare old windows only after retained return. Require fresh authentication for every request and inspect remembered choices before editing. Each cycle ends with zero usable time and a visit to Riley's same unaffected work."},
-          {"id": "step-3", "operation": "ui", "description": "After all three complete cycles reopen Parent and read Jordan's final enabled zero allowance, zero grant and original app rules. Revisit Riley's work, then finish. No reset, hidden grant or restart from a later cycle is allowed."}
+          {"id": "step-2", "operation": "ui", "description": "Complete all eight recipe rows in each of two cycles: daily homework; included game approval; another included addition on the other form; excluded homework approval; included approval followed by allowance increase then zero; limits off then on; a short station-approved visit to natural lock; replacement approval and revocation. Alternate the two parents and both forms. Cycle 1 plays windowed and expires with soft apps included before excluded recovery; cycle 2 plays fullscreen and expires with soft apps excluded before included recovery. After every row verify the stated time, app access and work result before proceeding. Switch User for retained departures or sign out for fresh departures; read saved work after a fresh login and compare old windows only after retained return. Require fresh authentication for every request and inspect remembered choices before editing. Each cycle ends with zero usable time and a visit to Riley's same unaffected work."},
+          {"id": "step-3", "operation": "ui", "description": "After both complete cycles reopen Parent and read Jordan's final enabled zero allowance, zero grant and original app rules. Revisit Riley's work, then finish. No reset, hidden grant or restart from a later cycle is allowed."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2669,27 +2559,19 @@
       "matrix": {
         "dimensions": {
           "surface-order": [
-            "overlay-first",
-            "kiosk-first"
+            "overlay-first"
           ],
           "departure": [
             "retained",
             "fresh"
           ]
         },
-        "full_combinations": [
-          [
-            "surface-order",
-            "departure"
-          ]
-        ],
-        "rationale": "Both form orders by retained or fresh departures. Three bounded cycles own history-dependent reliability, not duplicate credit for isolated transitions. All cases use a real game and synthetic saved work without clock changes."
+        "full_combinations": [],
+        "rationale": "Two overlay-first journeys with retained or fresh departures, each covering both forms and parents in two complete cycles, windowed/fullscreen play and opposite expiry/recovery app choices. Reversed-start copies 249/250 and the third repetition are removed; those IDs must not be reused. Every distinct row and intermediate result remains required with a real game and synthetic saved work without clock changes."
       },
       "variants": [
         {"coverage_id": 247, "id": "overlay-first-retained", "owner": "household-routines", "parameters": {"surface-order": "overlay-first", "departure": "retained"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 248, "id": "overlay-first-fresh", "owner": "household-routines", "parameters": {"surface-order": "overlay-first", "departure": "fresh"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 249, "id": "kiosk-first-retained", "owner": "household-routines", "parameters": {"surface-order": "kiosk-first", "departure": "retained"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 250, "id": "kiosk-first-fresh", "owner": "household-routines", "parameters": {"surface-order": "kiosk-first", "departure": "fresh"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null}
+        {"coverage_id": 248, "id": "overlay-first-fresh", "owner": "household-routines", "parameters": {"surface-order": "overlay-first", "departure": "fresh"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null}
       ]
     },
     {
@@ -2712,8 +2594,8 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Independently configure allowed work, a soft-blocked game and a hard-blocked app for Jordan and Riley. Leave distinct saved work and retained desktops for both children. Set different custom request choices and the declared remembered parents on the two forms."},
-          {"id": "step-2", "operation": "ui", "description": "Complete four recipe rounds, visiting both children in the declared order and reversing that order on even rounds. Alternate Jamie and Sam's Parent windows, reselecting the intended child and reading current values before each change. Alternate daily homework, grant-only access and included/excluded game approvals exactly as the table specifies. After each child's change, revisit the peer's same work, current balances, app choices and remembered request values before editing that peer. Only the selected child's allowance, grant and temporary app permission may change, allowing ordinary elapsed time. Every request authenticates its displayed selected parent."},
-          {"id": "step-3", "operation": "ui", "description": "After round four revoke only the grant-only child's time and check its time-limit denial. The daily-only peer continues its original work with its own app restrictions. Read both children's final choices before ending this continuous attempt."}
+          {"id": "step-2", "operation": "ui", "description": "Complete two recomposed recipe rounds: Jordan then Riley, then Riley then Jordan. Each child uses both request screens, daily and grant-only time, and opposite temporary-app choices. Alternate Jamie and Sam's Parent windows, reselecting the intended child and reading current values before each change. Before editing, independently capture the untouched peer's balances, app rules, same work and remembered choices; compare these after the selected child's changes. Alternate daily homework, grant-only access and included/excluded game approvals exactly as the table specifies. After each child's change, revisit the peer's same work, current balances, app choices and remembered request values before editing that peer. Only the selected child's allowance, grant and temporary app permission may change, allowing ordinary elapsed time. Every request authenticates its displayed selected parent."},
+          {"id": "step-3", "operation": "ui", "description": "After round two make Riley daily-only with the recipe's explicit off/on transition, preserving saved choices and Jordan's original grant. Revoke only Jordan's grant-only time and check its time-limit denial. The daily-only peer continues its original work with its own app restrictions. Read both children's final choices before ending this continuous attempt."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2725,7 +2607,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Two parents can repeatedly manage two children without mixing displayed selections, saved work, request choices, grants or app permissions. Targeted final revocation restricts only the intended child; all eight visits and intermediate comparisons are required."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Two parents can repeatedly manage two children without mixing displayed selections, saved work, request choices, grants or app permissions. Targeted final revocation restricts only the intended child; all four visits, the daily-only transition and intermediate comparisons are required."}
         ],
         "backend": [],
         "other_user": []
@@ -2735,16 +2617,14 @@
       "matrix": {
         "dimensions": {
           "first-child": [
-            "jordan",
-            "riley"
+            "jordan"
           ]
         },
         "full_combinations": [],
-        "rationale": "Two starting orders; each covers both children, both parents and both forms across four fixed rounds. Owns alternating household state and isolation rather than repeating single-child value boundaries."
+        "rationale": "One two-round journey starts with Jordan, reverses child order in round two, and covers both parents own management windows and both forms. Each child gets daily and grant-only time with opposite temporary-app choices; Riley becomes daily-only before revoking only Jordan. Reversed-start copy 252 is removed and its ID must not be reused. Owns alternating household state and isolation."
       },
       "variants": [
-        {"coverage_id": 251, "id": "jordan", "owner": "household-routines", "parameters": {"first-child": "jordan"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
-        {"coverage_id": 252, "id": "riley", "owner": "household-routines", "parameters": {"first-child": "riley"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null}
+        {"coverage_id": 251, "id": "jordan", "owner": "household-routines", "parameters": {"first-child": "jordan"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null}
       ]
     },
     {

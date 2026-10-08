@@ -89,6 +89,7 @@ export class RemainingTimeNotifications {
                 if (!current.reminder.text.trim() && current.seconds >= 60 && remaining < 60)
                     this.querySoftApps(current.reminder, current);
                 current.seconds = remaining;
+                current.updateRemaining(remaining);
                 current.notification.body = reminderText(current.reminder, this.translations,
                     current.allowSoftApps, remaining);
             }

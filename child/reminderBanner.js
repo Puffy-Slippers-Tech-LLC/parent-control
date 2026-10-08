@@ -12,6 +12,35 @@ import {describeControl} from './accessibility.js';
 let activeSource = null;
 let fontLoaded = false;
 
+// Both the delivery timeout and the remaining-time countdown use whole-second
+// cells. Keep the original cell count as the denominator while fills go dark.
+function createCountdown(totalSeconds, translations) {
+    const actor = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
+        style_class: 'screen-time-reminder-countdown', visible: totalSeconds > 0});
+    const row = new St.BoxLayout({style_class: 'screen-time-reminder-progress-row'});
+    const track = new St.BoxLayout({style_class: 'screen-time-reminder-track',
+        x_expand: true, y_align: Clutter.ActorAlign.CENTER});
+    if (totalSeconds > 5) track.set_style('spacing: 1px;');
+    const segments = Array.from({length: totalSeconds}, () => {
+        const cell = new St.Widget({layout_manager: new Clutter.BinLayout(), x_expand: true,
+            style_class: 'screen-time-reminder-segment'});
+        const fill = new St.Widget({style_class: 'screen-time-reminder-fill',
+            x_expand: true, y_expand: true});
+        cell.add_child(fill);
+        track.add_child(cell);
+        return fill;
+    });
+    const time = new St.Label({style_class: 'screen-time-reminder-time'});
+    row.add_child(track);
+    row.add_child(time);
+    actor.add_child(row);
+    return {actor, update(left) {
+        const remaining = Math.max(0, Math.min(totalSeconds, Math.ceil(left)));
+        segments.forEach((fill, index) => { fill.visible = index < remaining; });
+        time.text = translations.text('COMPACT_SECONDS', {count: remaining});
+    }};
+}
+
 export function showReminderBanner(title, icon, body, urgency, seconds, translations, openPreferences) {
     activeSource?.destroy();
     const source = new MessageTray.Source({title, icon});
@@ -77,26 +106,10 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     message.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
     message.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
     content.add_child(message);
-    const countdown = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
-        style_class: 'screen-time-reminder-countdown', visible: seconds >= 60});
-    const progressRow = new St.BoxLayout({style_class: 'screen-time-reminder-progress-row'});
-    const track = new St.BoxLayout({
-        style_class: 'screen-time-reminder-track', x_expand: true,
-        y_align: Clutter.ActorAlign.CENTER});
-    const segments = Array.from({length: 5}, () => {
-        const cell = new St.Widget({layout_manager: new Clutter.BinLayout(), x_expand: true,
-            style_class: 'screen-time-reminder-segment'});
-        const fill = new St.Widget({style_class: 'screen-time-reminder-fill',
-            x_expand: true, y_expand: true});
-        cell.add_child(fill);
-        track.add_child(cell);
-        return fill;
-    });
-    const time = new St.Label({style_class: 'screen-time-reminder-time'});
-    progressRow.add_child(track);
-    progressRow.add_child(time);
-    countdown.add_child(progressRow);
-    content.add_child(countdown);
+    const autoClose = seconds >= 60;
+    const totalSeconds = autoClose ? 5 : Math.max(0, Math.ceil(seconds));
+    const countdown = createCountdown(totalSeconds, translations);
+    content.add_child(countdown.actor);
     card.add_child(content);
     const actions = [];
     let monitor = null;
@@ -151,15 +164,15 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     button('DISMISS', 'reminder-dismiss.svg', dismiss);
     card.add_child(actionRow);
     card.connect('notify::allocation', syncTooltip);
-    let deadline = null;
+    // Usable time keeps running even while fullscreen suppresses presentation.
+    let deadline = !autoClose && totalSeconds > 0
+        ? GLib.get_monotonic_time() + seconds * 1000000 : null;
     const tick = () => {
         const left = Math.max(0, (deadline - GLib.get_monotonic_time()) / 1000000);
-        // One complete block per second; never resize a partially filled block.
-        segments.forEach((fill, index) => { fill.visible = index < Math.ceil(left); });
-        time.text = translations.text('COMPACT_SECONDS', {count: Math.ceil(left)});
+        countdown.update(left);
         if (left === 0) {
             timer = 0;
-            dismiss();
+            if (autoClose) dismiss();
             return GLib.SOURCE_REMOVE;
         }
         return GLib.SOURCE_CONTINUE;
@@ -191,7 +204,7 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
         card.set_position(monitor.x + (monitor.width - card.width) / 2, monitor.y + 8 * scale);
         syncTooltip();
         // Start on delivery, never while fullscreen suppresses the banner.
-        if (card.visible && seconds >= 60 && deadline === null) {
+        if (card.visible && autoClose && deadline === null) {
             deadline = GLib.get_monotonic_time() + 5000000;
             tick();
             timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, tick);
@@ -207,6 +220,8 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
             const text = translations.text(key);
             describeControl(control, `child-reminder-${key.toLowerCase()}`, text, text);
         }
+        countdown.update(deadline === null ? totalSeconds :
+            (deadline - GLib.get_monotonic_time()) / 1000000);
         sync();
     };
     notification.connectObject('notify::body', relabel, card);
@@ -226,7 +241,16 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     Main.layoutManager.addTopChrome(tooltip, {trackFullscreen: false});
     tooltipChromeAdded = true;
     relabel();
+    if (!autoClose && deadline !== null && tick())
+        timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, tick);
     return {source, notification, card, dismiss, preferences,
+        updateRemaining: remaining => {
+            if (autoClose || totalSeconds === 0 || !card) return;
+            deadline = GLib.get_monotonic_time() + Math.max(0, remaining) * 1000000;
+            countdown.update(remaining);
+            if (!timer && remaining > 0)
+                timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, tick);
+        },
         countdown: () => deadline === null ? null : Math.max(0,
             Math.ceil((deadline - GLib.get_monotonic_time()) / 1000000))};
 }

@@ -272,14 +272,14 @@ test('second defaults schedule live ticks and delayed policy replies use the lat
     assert.equal(delayed.notifier.current.notification.body, '12 seconds left');
 });
 
-test('minute banners expire after five seconds and subminute banners persist until dismissed', () => {
+test('minute banners expire after five seconds and subminute countdowns persist until dismissed', () => {
     for (const seconds of [59, 60, 61]) {
         const h = harness();
         h.notifier.preferences = {show_in_fullscreen: true, reminders};
         h.notifier.schedule.previous = seconds;
         h.notifier.present(reminders[2], false);
         const current = h.notifier.current;
-        assert.equal(current.countdown(), seconds >= 60 ? 5 : null);
+        assert.equal(current.countdown(), seconds >= 60 ? 5 : seconds);
         h.advance(4900);
         assert.equal(h.notifier.current, current);
         h.advance(100);
@@ -295,6 +295,59 @@ test('minute banners expire after five seconds and subminute banners persist unt
     }
 });
 
+test('shared countdown has one cell per second and drains whole cells against its original total', () => {
+    for (const seconds of [1, 5, 15, 59, 60]) {
+        const h = harness();
+        h.notifier.preferences = {show_in_fullscreen: true, reminders};
+        h.notifier.schedule.previous = seconds;
+        h.notifier.present({...reminders[3], text: 'Save now'}, false);
+        const current = h.notifier.current;
+        const countdown = current.card.children[1].children[1];
+        const [track, label] = countdown.children[0].children;
+        const total = seconds >= 60 ? 5 : seconds;
+        assert.equal(countdown.visible, true);
+        assert.equal(track.children.length, total);
+        const filled = () => track.children.filter(cell => cell.children[0].visible).length;
+        assert.equal(filled(), total);
+        h.advance(999);
+        assert.equal(filled(), total);
+        h.advance(1);
+        assert.equal(track.children.length, total);
+        assert.equal(filled(), total - 1);
+        assert.equal(label.text, `${total - 1}s`);
+        if (seconds < 60 && seconds > 1) {
+            // A delayed verified sample corrects the bar even with literal text.
+            h.notifier.schedule.delivered = new Set(reminders.map(reminder => reminder.id));
+            h.notifier.update(1, true);
+            assert.equal(filled(), 1);
+            assert.equal(label.text, '1s');
+            assert.equal(current.notification.body, 'Save now');
+            h.advance(1000);
+            assert.equal(filled(), 0);
+            assert.equal(h.notifier.current, current);
+        }
+        h.notifier.close();
+        assert.equal(h.timers.size, 0);
+    }
+});
+
+test('suppressed subminute countdown follows elapsed usable time before becoming visible', () => {
+    const h = harness();
+    h.notifier.preferences = {show_in_fullscreen: false, reminders};
+    h.layoutManager.primaryMonitor.inFullscreen = true;
+    h.notifier.schedule.previous = 59;
+    h.notifier.present({...reminders[3], text: 'Save now'}, false);
+    const current = h.notifier.current;
+    assert.equal(current.card.visible, false);
+    h.advance(10000);
+    h.layoutManager.primaryMonitor.inFullscreen = false;
+    for (const sync of h.context.global.display.handlers['in-fullscreen-changed']) sync();
+    assert.equal(current.card.visible, true);
+    assert.equal(current.countdown(), 49);
+    current.dismiss();
+    assert.equal(h.timers.size, 0);
+});
+
 test('new banners retire previous timers and Preferences uses the shared overlay action', () => {
     const h = harness();
     h.notifier.preferences = {show_in_fullscreen: true, reminders};
@@ -305,7 +358,7 @@ test('new banners retire previous timers and Preferences uses the shared overlay
     h.notifier.present(reminders[3], false);
     const current = h.notifier.current;
     assert.equal(old.source.destroyed, true);
-    assert.equal(h.timers.size, 0);
+    assert.equal(h.timers.size, 1);
     h.advance(10000);
     old.dismiss();
     assert.equal(h.notifier.current, current);
@@ -416,7 +469,7 @@ test('monitor changes recover from stale app indices, missing displays and absen
     h.layoutManager.monitors = [];
     for (const sync of h.layoutManager.handlers['monitors-changed']) sync();
     assert.equal(current.card.visible, false);
-    assert.equal(current.countdown(), null);
+    assert.equal(current.countdown(), 15);
     h.context.global.display.focus_window = null;
     h.layoutManager.monitors = [external];
     h.layoutManager.primaryMonitor = external;

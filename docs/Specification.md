@@ -225,11 +225,15 @@ Technical interfaces, storage formats and verification limits are in the
   subsequent real countdown reminder replaces it without waiting for dismissal.
   All reminder banners use the kiosk/child overlay's pixel font and dark HUD
   styling, with the product logo, cyan heading, rough violet/cyan frame with
-  lava-red corners, five-section countdown bar and Preferences/Dismiss actions.
+  lava-red corners, segmented countdown bar and Preferences/Dismiss actions.
   One complete section goes dark each second. At delivery, remaining time
   of at least one minute gives the banner a five-second auto-close countdown;
-  below one minute it stays open without a countdown until dismissed, replaced
-  or the session locks. Previews use the editor's selected duration. Preferences
+  below one minute it uses the same bar with one section per remaining second
+  at delivery (five seconds has five sections; 59 seconds has 59). The total
+  section count stays fixed while remaining sections go dark. Real child banners
+  follow verified remaining time, including custom-text reminders. Below one
+  minute the banner stays open until dismissed, replaced or the session locks.
+  Previews use the editor's selected duration. Preferences
   opens the shared preferences dialog on its Reminders tab in the child overlay
   or kiosk; Dismiss closes the banner. Any new reminder or preview dismisses the
   previous banner.

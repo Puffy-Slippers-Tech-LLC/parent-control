@@ -57,6 +57,7 @@ class NotificationApplication(Gtk.Application):
         self._registration = 0
         self._name_owner = 0
         self._deadline = None
+        self._auto_close = True
 
     def do_dbus_register(self, connection, path):
         if not Gtk.Application.do_dbus_register(self, connection, path):
@@ -144,8 +145,9 @@ class NotificationApplication(Gtk.Application):
             self._close(3, emit=not reuse)
             self._serial = max(self._serial, identity)
             self._notification_id, self._sender = identity, sender
-            milliseconds = ((5000 if seconds >= 60 else 0) if seconds is not None else
+            milliseconds = ((5000 if seconds >= 60 else seconds * 1000) if seconds is not None else
                             (0 if hints.get('urgency') == 2 else 5000) if timeout < 0 else timeout)
+            self._auto_close = seconds is None or seconds >= 60
             self._show(summary, body, hints.get('urgency', 1), milliseconds, language)
             if milliseconds > 0:
                 self._deadline = GLib.get_monotonic_time() + min(milliseconds, 86400000) * 1000
@@ -183,10 +185,12 @@ class NotificationApplication(Gtk.Application):
         countdown = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6,
                             visible=milliseconds > 0)
         progress_row = Gtk.Box(spacing=8, margin_end=17)
-        self._progress = Gtk.Box(spacing=3, hexpand=True, valign=Gtk.Align.CENTER,
+        total_seconds = 5 if self._auto_close else math.ceil(milliseconds / 1000)
+        self._progress = Gtk.Box(spacing=1 if total_seconds > 5 else 3,
+                                 homogeneous=True, hexpand=True, valign=Gtk.Align.CENTER,
                                  css_classes=['reminder-track'])
         self._segments = []
-        for index in range(5):
+        for index in range(total_seconds):
             segment = Gtk.ProgressBar(hexpand=True)
             set_automation_id(segment, f'kiosk-system-notification-progress-{index}')
             self._segments.append(segment)
@@ -233,13 +237,14 @@ class NotificationApplication(Gtk.Application):
 
     def _tick(self):
         left = max(0, (self._deadline - GLib.get_monotonic_time()) / 1000000)
-        if left == 0:
-            self._timer = 0
-            self._close(1)
-            return GLib.SOURCE_REMOVE
         for index, segment in enumerate(self._segments):
             segment.set_fraction(1 if index < math.ceil(left) else 0)
         set_text(self._countdown_label, 'label', m.COMPACT_SECONDS % {'count': math.ceil(left)})
+        if left == 0:
+            self._timer = 0
+            if self._auto_close:
+                self._close(1)
+            return GLib.SOURCE_REMOVE
         return GLib.SOURCE_CONTINUE
 
     def _preferences(self, *_args):

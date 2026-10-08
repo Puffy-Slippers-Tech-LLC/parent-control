@@ -468,7 +468,7 @@ Countdown and preview share one banner slot: a new threshold replaces a preview
 immediately, and closing an old preview cannot close a newer countdown banner.
 
 Child and kiosk reminders share packaged pixel SVG rails/action icons, the
-request form's Monocraft font, dark HUD face, cyan heading and five-segment
+request form's Monocraft font, dark HUD face, cyan heading and segmented
 countdown. The armored rails have cyan/violet beveled plates and orange corner
 accents, six-sided corner plates with straight outer chamfers and thin rails;
 the 15-pixel bold cyan heading sits above the
@@ -502,7 +502,13 @@ The public `addTopChrome` layer also sits above Mutter's override-redirect
 window group; `trackFullscreen` controls hiding rather than stacking.
 The renderer attaches both actors before measuring themed controls.
 An unlocked visible delivery at 60 seconds or more starts a five-second
-monotonic deadline and countdown; shorter deliveries persist without a bar.
+monotonic deadline and five-segment countdown. Shorter positive deliveries use
+the same bar with one segment per remaining second at delivery (59 seconds
+means 59 segments), retaining that total as whole segments go dark. The child
+bar follows verified balance updates even for custom text; usable time keeps
+running while fullscreen suppresses presentation. These shorter banners persist
+until dismissed, replaced or locked, including after their bar reaches zero.
+Legacy previews with no duration remain persistent without a bar.
 New banners dispose the old source, actor, signals and timer. Locking, extension
 disposal and editor dismissal also retire the owned banner. Old preview IDs
 cannot dismiss a newer banner. Preferences dismisses the banner and activates

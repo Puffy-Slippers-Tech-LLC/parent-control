@@ -225,6 +225,7 @@ def test_reminder_preview_real_session_provider_retains_unsaved_edit(
     wait(lambda: body_is('  Save <games> & work!  '),
          'literal real notification body')
     assert client.getValue('kiosk-system-notification-message') == 'critical'
+    assert client.getText('kiosk-system-notification-countdown') in ('15s', '14s')
     import time
     started = time.monotonic()
     wait(lambda: time.monotonic() - started >= 5.2 and body_is('  Save <games> & work!  '),
@@ -232,8 +233,13 @@ def test_reminder_preview_real_session_provider_retains_unsaved_edit(
     client.activate('kiosk-system-notification-preferences')
     wait(lambda: not client.listSurfaces(), 'Preferences dismisses the banner')
     assert ui.getText('reminder-text') == '  Save <games> & work!  '
+    ui.setText('reminder-value', '59')
     ui.activate('reminder-editor-preview')
     wait(lambda: body_is('  Save <games> & work!  '), 'preview reopens with retained draft')
+    assert client.getText('kiosk-system-notification-countdown') in ('59s', '58s')
+    progress_ids = {element['id'] for element in client.inventory()
+                    if element['id'].startswith('kiosk-system-notification-progress-')}
+    assert progress_ids == {f'kiosk-system-notification-progress-{index}' for index in range(59)}
     client.activate('kiosk-system-notification-close')
     wait(lambda: not client.listSurfaces(), 'Dismiss closes the banner')
     ui.setText('reminder-value', '60')

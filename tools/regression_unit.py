@@ -261,6 +261,10 @@ and GLib doubles; child_preview remains compatible without a real bus/display.
 # Native command checks use process-local session/command doubles, tiny private
 # recorder files and bounded waited Perl workers; no live guest/display/cache.
 # The new e2e_native_app module and existing recorder/launcher buckets overlap.
+# Native startup evidence checks use bounded synthetic journal/service output
+# and process-local command/AT-SPI doubles in e2e_native_app and
+# e2e_native_grid_usable. No real journal, service, display or new cleanup owner;
+# their compatible unit classifications remain valid.
 # Native activity comparison uses frozen synthetic public values, private
 # pytest reply/marker files, process-local transport doubles and waited Perl
 # children. No live VM, display, socket, shared cache or new resource lifetime.

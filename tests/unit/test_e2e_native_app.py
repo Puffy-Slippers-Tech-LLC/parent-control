@@ -141,6 +141,88 @@ def test_blocked_launch_failure_retains_private_safe_result_without_replay(
     assert submit.call_count == 1
 
 
+def test_child_launch_diagnostic_names_only_its_single_submission(monkeypatch):
+    ui = ui_for(Node())
+    ui.timing = Mock()
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
+    monkeypatch.setattr(accessible_ui.os, 'urandom', Mock(return_value=b'\xab' * 16))
+    ui.require_child_overlay_session = Mock()
+    ui.desktop_result = Mock()
+    ui.native_app_closed = Mock(return_value=True)
+    ui.handle_system_prompt = Mock()
+    submit = Mock()
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
+    ui.native_launch_command(child=accessible_ui.CHILD)
+    unit = 'onpc-test-native-' + 'ab' * 16 + '.service'
+    submit.assert_called_once_with([
+        '/usr/bin/systemd-run', '--user', '--quiet', '--collect', '--unit=' + unit,
+        '--service-type=exec', '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
+    ], stdin=accessible_ui.subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
+    ui.timing.assert_called_once_with({'event': 'ui-native-launch', 'unit': unit})
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.native_launch_command(child=accessible_ui.CHILD)
+    assert submit.call_count == 1
+
+
+def test_native_startup_diagnostic_attributes_errors_and_redacts_values(monkeypatch):
+    unit = 'onpc-test-native-' + 'a' * 32 + '.service'
+    other = 'onpc-test-native-' + 'b' * 32 + '.service'
+    entries = [
+        {'_SYSTEMD_USER_UNIT': unit, 'MESSAGE': "ModuleNotFoundError: No module named 'gi' private"},
+        {'_SYSTEMD_USER_UNIT': 'init.scope', 'USER_UNIT': unit,
+         'MESSAGE': unit + ': Main process exited, code=exited, status=1/FAILURE'},
+        {'_SYSTEMD_USER_UNIT': unit, 'MESSAGE':
+            '  File "/opt/onpc-test-fixtures/Applications/onpc-test-gui.py", line 10, in private'},
+        {'USER_UNIT': 'foreign.service', 'MESSAGE': 'Permission denied: private'},
+        {'USER_UNIT': other, 'MESSAGE': 'cannot open display: private'},
+        {'USER_UNIT': unit, 'MESSAGE': other + ': Main process exited, code=killed, status=9/KILL'},
+    ]
+    states = ('Id=' + unit + '\nLoadState=not-found\nActiveState=inactive\nSubState=dead\n'
+              'Result=private\nUnrequested=private\n\nId=foreign.service\nActiveState=active\n')
+    read = Mock(side_effect=[
+        SimpleNamespace(stdout=b'\n'.join(json.dumps(entry).encode() for entry in entries), stderr=b''),
+        SimpleNamespace(stdout=states.encode(), stderr=b''),
+    ])
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', read)
+    result = accessible_ui.native_startup_diagnostic()
+    assert result['status'] == result['states'] == 'read'
+    assert result['units'][unit] == {
+        'entries': 4, 'markers': ['gi-missing'], 'exits': [{'code': 'exited', 'status': 1}],
+        'frames': [{'module': 'onpc-test-gui', 'line': 10}],
+        'state': {'LoadState': 'not-found', 'ActiveState': 'inactive', 'SubState': 'dead', 'Result': 'other'},
+    }
+    assert result['units'][other]['markers'] == ['display-unavailable']
+    assert 'foreign' not in json.dumps(result) and 'private' not in json.dumps(result)
+    assert read.call_args_list[0].args[0] == [
+        '/usr/bin/journalctl', '--user', '--boot', '--unit=onpc-test-native-*.service',
+        '--lines=64', '--output=json', '--no-pager', '--quiet',
+    ]
+    assert read.call_args_list[1].args[0][-2:] == [unit, other]
+
+
+@pytest.mark.parametrize('payload,status', [
+    (b'private non-json', 'invalid'), (b'[]', 'invalid'),
+    (b'x' * 65537, 'oversized'), (b'{}\n' * 65, 'oversized'),
+])
+def test_native_startup_diagnostic_refuses_invalid_or_unbounded_logs(monkeypatch, payload, status):
+    read = Mock(return_value=SimpleNamespace(stdout=payload, stderr=b''))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', read)
+    assert accessible_ui.native_startup_diagnostic() == {
+        'event': 'ui-native-startup', 'status': status, 'units': {}}
+    read.assert_called_once()
+
+
+def test_native_startup_diagnostic_keeps_journal_when_service_is_collected(monkeypatch):
+    unit = 'onpc-test-native-' + 'a' * 32 + '.service'
+    payload = json.dumps({'USER_UNIT': unit, 'MESSAGE': 'GTK 4.22 or newer is required'}).encode()
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', Mock(side_effect=[
+        SimpleNamespace(stdout=payload, stderr=b''), OSError('private failure')]))
+    result = accessible_ui.native_startup_diagnostic()
+    assert result['status'] == 'read' and result['states'] == 'unavailable'
+    assert result['units'][unit]['markers'] == ['gtk-version']
+    assert 'private' not in json.dumps(result)
+
+
 @pytest.mark.parametrize('errno,expected', [
     ('1', 'operation-not-permitted'), ('2', 'missing-file'),
     ('8', 'invalid-executable'), ('13', 'permission-denied'),

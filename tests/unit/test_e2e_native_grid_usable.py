@@ -79,6 +79,29 @@ def test_action_success_cannot_replace_effect_and_uncertain_action_cannot_replay
     nodes['submit'].action.do_action.assert_called_once()
 
 
+@pytest.mark.parametrize('fault', [None, 'missing-owner', 'inactive', 'changed-draft'])
+def test_native_open_diagnostic_preserves_actual_public_result_without_input(fault):
+    ui, root, surface, nodes = native_tree()
+    if fault == 'missing-owner': root.children[0].identity = 'foreign'
+    if fault == 'inactive': surface.states.remove('active')
+    if fault == 'changed-draft': nodes['draft'].name = 'private draft'
+    ui.native_open_diagnostic = {'event': 'ui-native-public-observation', 'complete_reads': 0}
+    with ui.observation():
+        result = ui.native_app_snapshot('No submitted draft', pending=True)
+    diagnostic = ui.native_open_diagnostic
+    assert bool(result) == (fault is None)
+    assert diagnostic['complete_reads'] == 1
+    assert diagnostic['owner_count'] == (0 if fault == 'missing-owner' else 1)
+    assert diagnostic['ids']['window'] == diagnostic['ids']['draft'] == 1
+    assert diagnostic['resolved_window'] == (fault != 'missing-owner')
+    assert diagnostic['active_window'] == (fault not in ('missing-owner', 'inactive'))
+    if fault in (None, 'changed-draft'):
+        assert diagnostic['activity_matches'] == {
+            'draft': fault is None, 'submitted': True, 'score': True}
+    assert 'private' not in json.dumps(diagnostic)
+    nodes['submit'].action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', ['recovered', 'persistent', 'owner', 'activity',
                                  'prompt', 'delivery'])
 def test_submit_reacquires_complete_preflight_and_preserves_refusals(monkeypatch, fault):

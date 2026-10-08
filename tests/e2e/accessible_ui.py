@@ -9472,14 +9472,20 @@ class AccessibleUI:
         self.wait(ready, 'native-launch-ready', prompt_in_predicate=True)
         # Identify this one service for failure-only journal reads. The
         # executable, session, service type and single submission stay the same.
-        unit = 'onpc-test-native-' + os.urandom(16).hex() + '.service' if blocked else None
+        unit = ('onpc-test-native-' + os.urandom(16).hex() + '.service'
+                if blocked or child == CHILD else None)
         self.input_uncertain = True
         result = subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
-            *(['--wait', '--pipe', '--unit=' + unit] if blocked else []),
+            *(['--wait', '--pipe'] if blocked else []),
+            *(['--unit=' + unit] if unit is not None else []),
             '--service-type=exec',
             '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
         ], stdin=subprocess.DEVNULL, capture_output=True, check=not blocked, timeout=15)
+        if not blocked and unit is not None and self.timing is not None:
+            # The next read runs in a separate observer process. Retain this
+            # synthetic identity on private stderr to correlate its journal.
+            self.timing({'event': 'ui-native-launch', 'unit': unit})
         if blocked:
             bounded = len(result.stdout) + len(result.stderr) <= 65536
             denied = (result.returncode in (1, 203) and bounded
@@ -9527,9 +9533,31 @@ class AccessibleUI:
         """APP02/03: public owned window and finite independent activity projection."""
         require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
         scope = 'onpc-fixture-native-primary'
-        root = self.snapshot_owned_target(scope, check_prompt=True)
+        observation = None
+        diagnostic = getattr(self, 'native_open_diagnostic', None)
+        if diagnostic is not None:
+            observation = self.read_snapshot()
+            nodes, _snapshot, identities, _facts = observation
+            # Fixed IDs and counts from the predicate's actual complete read,
+            # never names, draft values or a second diagnostic tree traversal.
+            diagnostic['complete_reads'] = min(10000, diagnostic['complete_reads'] + 1)
+            diagnostic['owner_count'] = sum(
+                identities[node] == 'com.puffyslippers.ONPCFixture.native.primary'
+                for node in nodes)
+            diagnostic['ids'] = {control: sum(identities[node] == identity for node in nodes)
+                for control, identity in [('window', scope), *[
+                    (control, scope + '-' + control)
+                    for control in ('status', 'draft', 'submit', 'submitted', 'score')]]}
+            diagnostic.update(resolved_window=None, active_window=None, activity_matches=None)
+        root = self.snapshot_owned_target(scope, check_prompt=True, observation=observation)
+        if diagnostic is not None:
+            diagnostic['resolved_window'] = root is not None
         if pending and (root is None or not self.surface_available(root)):
+            if diagnostic is not None:
+                diagnostic['active_window'] = False
             return None
+        if diagnostic is not None and pending:
+            diagnostic['active_window'] = True
         require(root is not None and self.surface_available(root),
                 'ui:native-entry')
         try:
@@ -9543,6 +9571,8 @@ class AccessibleUI:
         value = fixture.snapshot()
         expected = {'draft': 'ONPC fixture draft', 'submitted': submitted,
                     'score': 'Moves: 0; token: 0'}
+        if diagnostic is not None:
+            diagnostic['activity_matches'] = {key: value[key] == expected[key] for key in expected}
         if pending and value != expected:
             return None
         require(value == expected, 'ui:native-activity')
@@ -11060,6 +11090,101 @@ def native_execution_journal_diagnostic(unit):
         return diagnostic
 
 
+def native_startup_diagnostic():
+    """Failure-only evidence for the named child fixture launches in this boot.
+
+    The launch event identifies the relevant random unit. Other units cannot
+    stand in for it. Retain only that finite namespace, closed error markers,
+    numeric exits and public service states; never journal text or environment.
+    Collected services may be absent from systemctl but remain in the journal.
+    """
+    diagnostic = {'event': 'ui-native-startup', 'status': 'unavailable', 'units': {}}
+    try:
+        result = subprocess.run([
+            '/usr/bin/journalctl', '--user', '--boot', '--unit=onpc-test-native-*.service',
+            '--lines=64', '--output=json', '--no-pager', '--quiet',
+        ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=5)
+        if len(result.stdout) + len(result.stderr) > 65536:
+            return {**diagnostic, 'status': 'oversized'}
+        lines = result.stdout.splitlines()
+        if len(lines) > 64:
+            return {**diagnostic, 'status': 'oversized'}
+        entries = [json.loads(line) for line in lines]
+        if any(type(entry) is not dict for entry in entries):
+            return {**diagnostic, 'status': 'invalid'}
+        units = {}
+        markers = (
+            ('gi-missing', "ModuleNotFoundError: No module named 'gi'"),
+            ('automation-missing', "ModuleNotFoundError: No module named 'gtk_automation'"),
+            ('gtk-version', 'GTK 4.22 or newer is required'),
+            ('gtk-typelib-missing', 'Namespace Gtk not available'),
+            ('display-unavailable', 'cannot open display'),
+            ('permission-denied', 'Permission denied'),
+            ('operation-not-permitted', 'Operation not permitted'),
+            ('traceback', 'Traceback (most recent call last):'),
+            ('attribute-error', 'AttributeError:'),
+            ('type-error', 'TypeError:'),
+            ('import-error', 'ImportError:'),
+            ('permission-error', 'PermissionError:'),
+        )
+        for entry in entries:
+            # Manager records name their target in USER_UNIT while their own
+            # _SYSTEMD_USER_UNIT can be init.scope. Service output uses the
+            # latter field. Refuse conflicting fixture identities.
+            candidates = {candidate for key in ('_SYSTEMD_USER_UNIT', 'USER_UNIT')
+                if type(candidate := entry.get(key)) is str and re.fullmatch(
+                    r'onpc-test-native-[0-9a-f]{32}\.service', candidate)}
+            if len(candidates) != 1:
+                continue
+            unit = candidates.pop()
+            value = units.setdefault(unit, {'entries': 0, 'markers': [], 'exits': [], 'frames': []})
+            if len(units) > 8:
+                return {**diagnostic, 'status': 'oversized'}
+            value['entries'] += 1
+            message = entry.get('MESSAGE')
+            if type(message) is not str:
+                continue
+            for label, marker in markers:
+                if marker in message and label not in value['markers']:
+                    value['markers'].append(label)
+            frame = re.search(r'File "/opt/onpc-test-fixtures/Applications/'
+                              r'(onpc-test-gui|gtk_automation)\.py", line ([0-9]{1,6})', message)
+            if frame and len(value['frames']) < 8:
+                value['frames'].append({'module': frame[1], 'line': int(frame[2])})
+            exit_match = re.match(re.escape(unit) + r': Main process exited, '
+                                  r'code=(exited|killed|dumped), status=([0-9]{1,3})(?:/|$)', message)
+            if exit_match and int(exit_match[2]) <= 255:
+                value['exits'].append({'code': exit_match[1], 'status': int(exit_match[2])})
+        diagnostic.update(status='read', entries=len(entries), units=units,
+                          tail_limit_reached=len(entries) == 64)
+        if units:
+            states = subprocess.run([
+                '/usr/bin/systemctl', '--user', 'show', '--no-pager',
+                '--property=Id,LoadState,ActiveState,SubState,Result', *sorted(units),
+            ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=3)
+            if len(states.stdout) + len(states.stderr) > 16384:
+                diagnostic['states'] = 'oversized'
+            else:
+                allowed = {
+                    'LoadState': ('loaded', 'not-found', 'error', 'bad-setting', 'masked'),
+                    'ActiveState': ('active', 'inactive', 'failed', 'activating', 'deactivating'),
+                    'SubState': ('running', 'dead', 'failed', 'start', 'stop', 'exited'),
+                    'Result': ('success', 'exit-code', 'signal', 'core-dump', 'resources', 'timeout'),
+                }
+                for block in states.stdout.decode('utf-8').split('\n\n'):
+                    props = dict(line.split('=', 1) for line in block.splitlines() if '=' in line)
+                    if props.get('Id') in units:
+                        units[props['Id']]['state'] = {key: props.get(key)
+                            if props.get(key) in values else 'other' for key, values in allowed.items()}
+                diagnostic['states'] = 'read'
+    except (OSError, subprocess.SubprocessError):
+        # Keep any journal evidence already read and the original UI refusal.
+        diagnostic['states' if diagnostic['status'] == 'read' else 'status'] = 'unavailable'
+    except (ValueError, UnicodeError):
+        diagnostic['states' if diagnostic['status'] == 'read' else 'status'] = 'invalid'
+    return diagnostic
+
+
 def runtime_failure_diagnostic(account, pending, elapsed_ms, *, session_states=None):
     """Failure-only service/session evidence on private command stderr.
 
@@ -11377,6 +11502,8 @@ def main():
         timing=lambda value: print(json.dumps(value, sort_keys=True), file=sys.stderr, flush=True),
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     ui.branch_owner = branch_owner
+    if sys.argv[1] == 'overlay-native-opened':
+        ui.native_open_diagnostic = {'event': 'ui-native-public-observation', 'complete_reads': 0}
     trace_argument = (sys.argv[1] in ACCESSIBILITY_TRACE_OPERATIONS or
                       sys.argv[1] == 'parent-toggle-enabled')
     ui.trace_request = sys.argv[4] if len(sys.argv) >= 5 and trace_argument else None
@@ -11410,6 +11537,14 @@ def main():
             error.add_note('public-atspi-cache-reread:' + status)
         raise
     except UiError as error:
+        if sys.argv[1] == 'overlay-native-opened':
+            try:
+                print(json.dumps(ui.native_open_diagnostic, sort_keys=True),
+                      file=sys.stderr, flush=True)
+                print(json.dumps(native_startup_diagnostic(), sort_keys=True),
+                      file=sys.stderr, flush=True)
+            except Exception:
+                print('ui:native-startup-diagnostic-unavailable', file=sys.stderr, flush=True)
         if (sys.argv[1] == 'kiosk-request-form' and any(
                 item.get('source') == 'crash-report'
                 for item in getattr(error, 'system_prompts', ()) or ())):

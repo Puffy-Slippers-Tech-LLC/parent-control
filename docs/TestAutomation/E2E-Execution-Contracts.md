@@ -224,6 +224,9 @@ Use shared watch observation and nonsecret intentions under the
 [VM observation mandate](../Mandates/VM-Mandate.MD#vm-observation-mandate).
 The viewer may attach independently; its lifetime never gates the operation.
 
+Before preparation or live runs, plan the required report lifetimes under
+[completion and document cleanup](#completion-and-document-cleanup).
+
 Each attempt starts with fresh declared state and its own session/window ledger.
 For post-installation work, run `./tools/prepare-appsnapshot --vm NAME --y --overwrite false`
 under the [setup contract](E2E-Building-Blocks.md#parent-login-and-time-scenarios).
@@ -343,11 +346,19 @@ close-out without claiming an E2E pass or changing scenario readiness.
 
 After the guard is released and cleanup succeeds:
 
-Verify that the selected task's required acceptance reports are still retained
-after preparation and validation rotate completed runs. Finish input preparation
-before the live acceptance slices where possible. A handoff's report reference
-does not replace missing acceptance evidence; repeat only the affected slice if
-its required report has been removed.
+Plan required report lifetimes before live validation using the
+[retention owner](../../tests/README.md#aggregate-output-retention): account for
+preparation, acceptance, regression runs and exports that rotate their respective
+journals. Finish input preparation before the live acceptance slices where
+possible. Group exact affected selectors in one supported runner invocation
+when it preserves each independent attempt and its required assertions; do not
+broaden the selection or combine customer histories. Reuse existing retained
+exports and plan any needed export before its source report expires.
+
+Verify that all required acceptance reports are still retained after the final
+preparation, validation or export. A handoff's report reference does not replace
+missing acceptance evidence; repeat only the affected slice if its required
+report has been removed.
 
 1. After **every completed E2E scenario**, run
    `tools/generate_test_coverage.sh`. This approved executable runs the requested

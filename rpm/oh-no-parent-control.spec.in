@@ -34,6 +34,7 @@ Requires:       gstreamer1-plugins-good
 Requires:       gtk4
 Requires:       hicolor-icon-theme
 Requires:       libadwaita
+Requires:       lmdb-libs
 Requires:       malcontent >= 0.14.0
 Requires:       malcontent-libs >= 0.14.0
 Requires:       malcontent-pam >= 0.14.0

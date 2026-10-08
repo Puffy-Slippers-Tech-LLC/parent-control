@@ -125,6 +125,8 @@ class BrokerServiceUnitTests(unittest.TestCase):
         self.assertNotIn("Requires=fapolicyd.service", source)
         self.assertIn("After=fapolicyd.service", source)
         self.assertIn("ReadWritePaths=/etc/fapolicyd", source)
+        self.assertIn("ReadWritePaths=-/var/lib/fapolicyd/lock.mdb", source)
+        self.assertNotIn("ReadWritePaths=/var/lib/fapolicyd\n", source)
 
     def test_display_manager_waits_for_real_execution_enforcement(self):
         fapolicyd = FAPOLICYD_DROP_IN.read_text(encoding="utf-8")

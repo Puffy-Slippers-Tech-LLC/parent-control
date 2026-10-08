@@ -36,6 +36,8 @@ LogsDirectory=oh-no-parent-control
 LogsDirectoryMode=0750
 ReadWritePaths=/home
 ReadWritePaths=/etc/fapolicyd
+# Read-only trust snapshots register in LMDB's reader table, not its data file.
+ReadWritePaths=-/var/lib/fapolicyd/lock.mdb
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes

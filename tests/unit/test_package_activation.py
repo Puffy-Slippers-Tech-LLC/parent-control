@@ -3,6 +3,7 @@ import configparser
 import os
 import runpy
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -47,114 +48,126 @@ def test_shell_only_suppression_client_update_still_needs_session_renewal():
     assert activation_for(f'{_activation["EXTENSION_PATH"]}/wellbeingSuppression.js') == 'session-renewal'
 
 
-@pytest.mark.parametrize('fault', ['delayed', 'missing', 'digest', 'size', 'source', 'command'])
-def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch, fault):
+@pytest.mark.parametrize('refresh', [False, True])
+@pytest.mark.parametrize('fault', ['delayed', 'missing', 'command', 'timeout', 'update', 'malformed'])
+def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch, refresh, fault):
     wait = _activation['wait_child_trust']
     namespace = wait.__globals__
     records = [f'/{_activation["EXTENSION_PATH"]}/{name}.mjs 12 ' + digest * 64
                for name, digest in [('indicatorLogic', 'a'), ('diagnosticEvents', 'b')]]
     trust = tmp_path / 'child.trust'
     trust.write_text('# packaged\n' + '\n'.join(records) + '\n')
-    complete = '\n'.join('filedb ' + line for line in records)
-    wrong = {'missing': '', 'digest': complete.replace('a' * 64, 'c' * 64),
-             'size': complete.replace(' 12 ', ' 13 '),
-             'source': complete.replace('filedb ', 'rpmdb ')}
-    outputs = ['', complete] if fault == 'delayed' else [wrong.get(fault, '')] * 4
-    run = Mock(side_effect=(subprocess.CalledProcessError(1, ['fapolicyd-cli'])
-                           if fault == 'command' else
-                           [SimpleNamespace(stdout=value) for value in outputs]))
-    monkeypatch.setattr(namespace['subprocess'], 'run', run)
-    clock = iter([0, 0, 40, 40, 80, 80, 120, 120])
-    monkeypatch.setattr(namespace['time'], 'monotonic', lambda: next(clock))
-    sleep = Mock()
-    monkeypatch.setattr(namespace['time'], 'sleep', sleep)
-    if fault == 'delayed':
-        wait(trust)
-        assert run.call_count == 2
-    else:
-        with pytest.raises((TimeoutError, subprocess.CalledProcessError)):
-            wait(trust)
-    assert run.call_args.args[0] == ['/usr/sbin/fapolicyd-cli', '--dump-db']
-    assert 0 < run.call_args.kwargs['timeout'] <= 120
-
-
-@pytest.mark.parametrize('fault', [None, 'delayed', 'missing', 'stale', 'wrong-pid',
-                                 'wrong-invocation', 'wrong-message', 'cursor',
-                                 'inactive', 'replaced-before-request', 'replaced',
-                                 'replaced-after-completion', 'update', 'journal'])
-def test_package_trust_refresh_finishes_before_unlocked_database_read(tmp_path, monkeypatch, fault):
-    wait = _activation['wait_child_trust']
-    namespace = wait.__globals__
-    trust = tmp_path / 'child.trust'
-    record = f'/{_activation["EXTENSION_PATH"]}/indicatorLogic.mjs 12 ' + 'a' * 64
-    trust.write_text(record + '\n')
-    state = dict(clock=0, requested=False, complete=False, polls=0, identities=0)
-    invocation = 'a' * 32
+    complete = json.dumps([line.split() for line in records])
+    state = dict(clock=0, reads=0, updates=0)
 
     def run(argv, **kwargs):
         assert 0 < kwargs['timeout'] <= 120 - state['clock']
         assert kwargs['check'] and kwargs['capture_output']
         assert kwargs['env']['LC_ALL'] == 'C'
-        if argv[0] == '/usr/bin/systemctl':
-            state['identities'] += 1
-            replaced = ((fault == 'replaced-before-request' and state['identities'] == 2)
-                        or (fault == 'replaced' and state['requested'])
-                        or (fault == 'replaced-after-completion' and state['complete']))
-            raw = ('MainPID=' + ('43' if replaced else '42') + '\nInvocationID=' +
-                   invocation + '\nActiveState=' + ('inactive' if fault == 'inactive' else 'active'))
-        elif argv[0] == '/usr/bin/journalctl':
-            if not state['requested']:
-                raw = json.dumps({'__CURSOR': '../private' if fault == 'cursor' else 's=before'})
-            else:
-                if fault == 'journal':
-                    raise subprocess.CalledProcessError(7, argv, stderr='private journal')
-                assert '--after-cursor=s=before' in argv
-                assert '_PID=42' in argv and '_SYSTEMD_INVOCATION_ID=' + invocation in argv
-                state['polls'] += 1
-                row = dict(MESSAGE='Updated', _PID='42',
-                           _SYSTEMD_INVOCATION_ID=invocation, __CURSOR='s=after')
-                replacements = {'stale': ('__CURSOR', 's=before'),
-                                'wrong-pid': ('_PID', '43'),
-                                'wrong-invocation': ('_SYSTEMD_INVOCATION_ID', 'b' * 32),
-                                'wrong-message': ('MESSAGE', 'Creating trust database')}
-                if fault in replacements:
-                    key, value = replacements[fault]
-                    row[key] = value
-                pending = fault == 'missing' or (fault == 'delayed' and state['polls'] == 1)
-                raw = '' if pending else json.dumps(row)
-                state['complete'] = not pending and fault not in replacements
-        elif argv == ['/usr/sbin/fapolicyd-cli', '--update']:
-            assert not state['requested']
-            state['requested'] = True
+        if argv == ['/usr/sbin/fapolicyd-cli', '--update']:
+            state['updates'] += 1
             if fault == 'update':
-                raise subprocess.CalledProcessError(7, argv)
-            raw = ''
-        else:
-            assert argv == ['/usr/sbin/fapolicyd-cli', '--dump-db']
-            assert state['complete'], 'unlocked database traversal raced the rebuild'
-            raw = 'filedb ' + record
-        return SimpleNamespace(stdout=raw)
+                raise subprocess.CalledProcessError(1, argv)
+            state['clock'] += 30
+            return SimpleNamespace(stdout='')
+        assert argv == [sys.executable, '-I', str(Path(namespace['__file__']).resolve()),
+                        'read-child-trust']
+        state['reads'] += 1
+        if fault == 'command':
+            raise subprocess.CalledProcessError(1, argv)
+        if fault == 'timeout':
+            raise subprocess.TimeoutExpired(argv, kwargs['timeout'])
+        if fault == 'malformed':
+            return SimpleNamespace(stdout='["private invalid record"]')
+        return SimpleNamespace(stdout=(complete if fault != 'missing' and state['reads'] > 1
+                                       else '[]'))
 
-    commands = Mock(side_effect=run)
-    monkeypatch.setattr(namespace['subprocess'], 'run', commands)
+    monkeypatch.setattr(namespace['subprocess'], 'run', run)
     monkeypatch.setattr(namespace['time'], 'monotonic', lambda: state['clock'])
 
     def sleep(delay):
-        assert delay == .25
+        assert 0 < delay <= .25
         state['clock'] += 40
 
     monkeypatch.setattr(namespace['time'], 'sleep', sleep)
-    if fault in (None, 'delayed'):
-        wait(trust, refresh=True)
-        assert commands.call_args.args[0] == ['/usr/sbin/fapolicyd-cli', '--dump-db']
-        assert state['clock'] == (40 if fault == 'delayed' else 0)
+    if fault == 'delayed' or (fault == 'update' and not refresh):
+        wait(trust, refresh=refresh)
+        assert state['reads'] == 2
     else:
-        with pytest.raises((ValueError, subprocess.CalledProcessError)):
-            wait(trust, refresh=True)
-        assert all(call.args[0] != ['/usr/sbin/fapolicyd-cli', '--dump-db']
-                   for call in commands.call_args_list)
-        if fault in ('cursor', 'inactive', 'replaced-before-request'):
-            assert not state['requested']
+        with pytest.raises((TimeoutError, ValueError, subprocess.SubprocessError)):
+            wait(trust, refresh=refresh)
+    assert state['updates'] == int(refresh)
+    if fault == 'update' and refresh:
+        assert state['reads'] == 0
+
+
+@pytest.mark.parametrize('fault', ['none', 'digest', 'size', 'source', 'path', 'missing'])
+def test_real_child_trust_snapshot_matches_exact_file_backend_records(tmp_path, fault):
+    from tests.support.trust_database import replace_records
+    path = '/' + str(_activation['EXTENSION_PATH']) + '/indicatorLogic.mjs'
+    record = (path, '12', 'a' * 64)
+    row = [path, '2', '12', 'a' * 64]
+    if fault in ('digest', 'size', 'source', 'path'):
+        index, value = {'digest': (3, 'b' * 64), 'size': (2, '13'),
+                        'source': (1, '1'), 'path': (0, path + '.other')}[fault]
+        row[index] = value
+    database = tmp_path / 'database'
+    # A duplicate with another trust source must neither satisfy nor hide the
+    # exact file record. Unrelated keys never escape the reader.
+    rows = [[path, '3', '12', 'a' * 64], ['/private/unrelated', '2', '1', 'c' * 64]]
+    if fault != 'missing':
+        rows.append(row)
+    replace_records(database, rows)
+    result = _activation['read_child_trust']({record}, database)
+    assert result == ({record} if fault == 'none' else set())
+
+
+@pytest.mark.parametrize('mixed_generation', [False, True])
+def test_snapshot_survives_overlapping_queued_refreshes(tmp_path, monkeypatch, mixed_generation):
+    from tests.support.trust_database import replace_records
+    read = _activation['read_child_trust']
+    namespace = read.__globals__
+    database = tmp_path / 'database'
+    paths = [f'/{_activation["EXTENSION_PATH"]}/{name}.mjs' for name in ('a', 'b')]
+    before = [(path, '2', '12', 'a' * 64) for path in paths]
+    after = [(path, '2', '12', 'b' * 64) for path in paths]
+    replace_records(database, before)
+    expected = {(paths[0], '12', 'a' * 64),
+                (paths[1], '12', ('b' if mixed_generation else 'a') * 64)}
+    lib = _activation['child_trust_lmdb']()
+    cursor_get = lib.mdb_cursor_get
+    mutations = []
+
+    def overlap(*args):
+        if not mutations:
+            mutations.append(True)
+            # The production transaction is already open. Complete two queued
+            # refreshes, then force page reuse repeatedly while that read lives.
+            subprocess.run([sys.executable, '-c',
+                            'import json,sys; from tests.support.trust_database import replace_records; '
+                            'replace_records(sys.argv[1], json.loads(sys.argv[2]), repeats=64)',
+                            str(database), json.dumps(after)], check=True, timeout=15,
+                           cwd=Path(__file__).resolve().parents[2], capture_output=True)
+        return cursor_get(*args)
+
+    lib.mdb_cursor_get = overlap
+    monkeypatch.setitem(namespace, 'child_trust_lmdb', lambda: lib)
+    result = read(expected, database)
+    assert mutations
+    assert result == ({(paths[0], '12', 'a' * 64)} if mixed_generation else expected)
+    # The next poll gets a new snapshot, never a union of multiple generations.
+    assert read(expected, database) == ({(paths[1], '12', 'b' * 64)} if mixed_generation else set())
+
+
+@pytest.mark.parametrize('error', [FileNotFoundError, PermissionError])
+def test_snapshot_refuses_unavailable_lock_without_unlocked_fallback(tmp_path, monkeypatch, error):
+    read = _activation['read_child_trust']
+    library = Mock()
+    monkeypatch.setitem(read.__globals__, 'child_trust_lmdb', library)
+    monkeypatch.setattr(read.__globals__['os'], 'open', Mock(side_effect=error))
+    with pytest.raises(error):
+        read(set(), tmp_path)
+    library.assert_not_called()
 
 
 def test_wait_child_trust_refresh_cli_routes_to_helper(monkeypatch):
@@ -164,6 +177,37 @@ def test_wait_child_trust_refresh_cli_routes_to_helper(monkeypatch):
     monkeypatch.setattr('sys.argv', ['package-activation', 'wait-child-trust', '--refresh'])
     main()
     wait.assert_called_once_with(refresh=True)
+
+
+@pytest.mark.parametrize('fedora', [False, True])
+def test_trust_reader_loads_supported_distribution_soname(monkeypatch, fedora):
+    bind = _activation['child_trust_lmdb']
+    library = Mock()
+    load = Mock(side_effect=[OSError('absent'), library] if fedora else [library])
+    monkeypatch.setattr(bind.__globals__['ctypes'], 'CDLL', load)
+    assert bind() is library
+    assert [call.args[0] for call in load.call_args_list] == (
+        ['liblmdb.so.0', 'liblmdb.so.0.0.0'] if fedora else ['liblmdb.so.0'])
+
+
+def test_snapshot_cli_returns_only_matched_manifest_records(monkeypatch, capsys):
+    main = _activation['main']
+    expected = {('/packaged.mjs', '12', 'a' * 64)}
+    reader = Mock(return_value=expected)
+    monkeypatch.setitem(main.__globals__, 'child_trust_manifest', lambda: expected)
+    monkeypatch.setitem(main.__globals__, 'read_child_trust', reader)
+    monkeypatch.setattr('sys.argv', ['package-activation', 'read-child-trust'])
+    main()
+    reader.assert_called_once_with(expected)
+    assert json.loads(capsys.readouterr().out) == [list(next(iter(expected)))]
+
+
+def test_both_packages_require_the_snapshot_runtime_library():
+    root = Path(__file__).resolve().parents[2]
+    depends = next(line for line in (root / 'debian/control').read_text().splitlines()
+                   if line.startswith('Depends:'))
+    assert 'liblmdb0' in {item.strip() for item in depends.split(',')}
+    assert 'Requires:       lmdb-libs' in (root / 'rpm/oh-no-parent-control.spec.in').read_text()
 
 
 @pytest.mark.parametrize('backend', ['debdb', 'rpmdb,file', 'debdb,file'])

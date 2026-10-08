@@ -119,15 +119,20 @@ Removal restores the original configuration only when the owned
 replacement is unchanged. Local edits are preserved and block automatic cleanup.
 Because the update request is asynchronous, configuration waits up to 120 seconds
 for both exact packaged path/size/hash records in the live trust database before
-activating the broker. The configuration helper captures a journal cursor and
-the running daemon's PID/invocation before requesting the refresh, then waits
-for that same daemon's subsequent `Updated` event before invoking `--dump-db`.
-The completion event sequences the read; the exact records still establish
-readiness. This avoids racing fapolicyd 1.3.6's unlocked LMDB reader against
-its database rebuild. Missing completion, changed daemon identity and command
-failures preserve pending activation for configuration retry. The refresh and
-exact-record wait share the same 120-second deadline. Boot readiness and direct
-broker starts retain their read-only trust check.
+activating the broker. After requesting the refresh, the configuration helper
+queries only the packaged path/size/hash records in a registered, read-only LMDB
+transaction through liblmdb's public C API. Each transaction retains a consistent
+snapshot while concurrent or queued refreshes rebuild the database. It does not
+use fapolicyd 1.3.6's unlocked `--dump-db` reader or infer writer exclusion from
+an `Updated` journal event. Missing records are retried with a fresh snapshot;
+database/command failures preserve pending activation for configuration retry.
+The refresh and exact-record wait share the same 120-second deadline, with each
+database read isolated in a bounded subprocess. Boot readiness and direct broker
+starts use the same safe reader without requesting a refresh. Only the LMDB
+reader-table lock file needs write access; the broker's service sandbox grants
+that exact path while retaining read-only access to the database contents. A
+missing or unwritable lock file fails closed instead of allowing LMDB's unlocked
+read-only-filesystem fallback. Both packages explicitly depend on liblmdb.
 The existing startup-exclusion marker remains present through a same-boot trust
 wait and earlier provisioning, including configuration retries without `preinst`.
 D-Bus activation cannot bypass the trust gate; an existing broker is stopped

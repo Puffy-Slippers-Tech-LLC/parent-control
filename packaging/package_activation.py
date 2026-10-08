@@ -9,6 +9,7 @@ unpacked.  Keep the classifications here deliberately small and auditable.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import json
 import os
@@ -16,6 +17,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -387,8 +389,6 @@ def child_trust_failure(error) -> str:
     """Describe readiness failure without exposing unrelated database records."""
     if isinstance(error, ChildTrustDeadline):
         return 'deadline modules=' + ','.join(error.modules)
-    if isinstance(error, ChildTrustRefreshError):
-        return 'refresh-' + error.reason
     if isinstance(error, subprocess.TimeoutExpired):
         return 'cli-timeout'
     if isinstance(error, subprocess.CalledProcessError):
@@ -398,81 +398,92 @@ def child_trust_failure(error) -> str:
     return 'manifest-or-read'
 
 
-class ChildTrustRefreshError(ValueError):
-    def __init__(self, reason):
-        self.reason = reason
-        super().__init__('child trust refresh could not be observed safely')
+class LMDBValue(ctypes.Structure):
+    _fields_ = [('size', ctypes.c_size_t), ('data', ctypes.c_void_p)]
 
 
-def refresh_child_trust(deadline: float) -> None:
-    """Sequence the unlocked CLI reader after a running daemon's rebuild.
+def child_trust_lmdb():
+    """Bind the public LMDB C API provided by both distributions' liblmdb."""
+    try:
+        lib = ctypes.CDLL('liblmdb.so.0')  # Ubuntu liblmdb0 SONAME
+    except OSError:
+        lib = ctypes.CDLL('liblmdb.so.0.0.0')  # Fedora lmdb-libs SONAME
+    pointer, uint = ctypes.c_void_p, ctypes.c_uint
+    out = ctypes.POINTER(pointer)
+    signatures = {
+        'mdb_env_create': ([out], ctypes.c_int),
+        'mdb_env_set_maxdbs': ([pointer, uint], ctypes.c_int),
+        'mdb_env_open': ([pointer, ctypes.c_char_p, uint, uint], ctypes.c_int),
+        'mdb_env_close': ([pointer], None),
+        'mdb_txn_begin': ([pointer, pointer, uint, out], ctypes.c_int),
+        'mdb_txn_abort': ([pointer], None),
+        'mdb_dbi_open': ([pointer, ctypes.c_char_p, uint, ctypes.POINTER(uint)], ctypes.c_int),
+        'mdb_cursor_open': ([pointer, uint, out], ctypes.c_int),
+        'mdb_cursor_close': ([pointer], None),
+        'mdb_cursor_get': ([pointer, ctypes.POINTER(LMDBValue),
+                            ctypes.POINTER(LMDBValue), ctypes.c_uint], ctypes.c_int),
+    }
+    for name, (arguments, result) in signatures.items():
+        function = getattr(lib, name)
+        function.argtypes, function.restype = arguments, result
+    return lib
 
-    fapolicyd 1.3.6 opens --dump-db with MDB_NOLOCK: concurrent traversal can
-    abort in LMDB. Its fixed "Updated" journal event follows rebuild/sync.
-    This barrier never replaces the subsequent exact manifest comparison.
+
+def read_child_trust(expected, database=Path('/var/lib/fapolicyd')):
+    """Check exact file-backend records in one registered read-only snapshot.
+
+    Unlike fapolicyd 1.3.6's MDB_NOLOCK dump, MDB_RDONLY keeps the reader
+    registered until txn_abort. Writers cannot reuse its snapshot's pages,
+    even across queued refreshes. No journal event establishes that exclusion.
+    fapolicyd's trust.db values are 'source size hash'; SRC_FILE_DB is 2.
+    Only packaged keys/values are queried or returned, never unrelated records.
     """
-    def budget():
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise ChildTrustRefreshError('deadline')
-        return remaining
+    # LMDB silently skips locking on a read-only filesystem. Refuse that
+    # fallback (including service sandboxes) and never create a missing lock.
+    descriptor = os.open(database / 'lock.mdb', os.O_RDWR | os.O_NOFOLLOW)
+    os.close(descriptor)
+    lib = child_trust_lmdb()
+    env, txn, cursor = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
+    dbi = ctypes.c_uint()
+    readonly, notfound, get_both = 0x20000, -30798, 2
 
-    def run(command):
-        return subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True,
-                              text=True, check=True, timeout=min(10, budget()),
-                              env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}).stdout
+    def check(result):
+        if result:
+            raise ValueError('child trust snapshot unavailable')
 
-    def identity():
-        raw = run(['/usr/bin/systemctl', 'show', 'fapolicyd.service',
-                   '--property=MainPID,InvocationID,ActiveState'])
-        fields = dict(line.split('=', 1) for line in raw.splitlines() if '=' in line)
-        pid, invocation = fields.get('MainPID', ''), fields.get('InvocationID', '')
-        if (fields.get('ActiveState') != 'active'
-                or not re.fullmatch(r'[1-9][0-9]{0,9}', pid)
-                or not re.fullmatch(r'[0-9a-f]{32}', invocation)
-                or invocation == '0' * 32):
-            raise ChildTrustRefreshError('daemon-identity')
-        return pid, invocation
-
-    owner = identity()
-    journal = ['/usr/bin/journalctl', '--no-pager', '--unit=fapolicyd.service',
-               '--lines=1', '--output=json']
-    rows = [json.loads(line) for line in run(journal + ['--output-fields=__CURSOR']).splitlines()]
-    cursor = rows[0].get('__CURSOR', '') if len(rows) == 1 and isinstance(rows[0], dict) else ''
-    if not isinstance(cursor, str) or not re.fullmatch(r'[A-Za-z0-9;=:_-]{1,1024}', cursor):
-        raise ChildTrustRefreshError('journal-cursor')
-
-    def check_owner():
-        if identity() != owner:
-            raise ChildTrustRefreshError('daemon-replaced')
-
-    check_owner()
-    run(['/usr/sbin/fapolicyd-cli', '--update'])
-    while True:
-        check_owner()
-        raw = run(journal + ['--after-cursor=' + cursor,
-                            '--output-fields=MESSAGE,_PID,_SYSTEMD_INVOCATION_ID',
-                            '_PID=' + owner[0], '_SYSTEMD_INVOCATION_ID=' + owner[1],
-                            'MESSAGE=Updated'])
-        rows = [json.loads(line) for line in raw.splitlines()]
-        complete = any(isinstance(row, dict) and row.get('MESSAGE') == 'Updated'
-                       and row.get('_PID') == owner[0]
-                       and row.get('_SYSTEMD_INVOCATION_ID') == owner[1]
-                       and isinstance(row.get('__CURSOR'), str)
-                       and row['__CURSOR'] != cursor for row in rows)
-        check_owner()
-        if complete:
-            return
-        time.sleep(min(.25, budget()))
+    try:
+        check(lib.mdb_env_create(ctypes.byref(env)))
+        check(lib.mdb_env_set_maxdbs(env, 2))
+        check(lib.mdb_env_open(env, os.fsencode(database), readonly, 0))
+        check(lib.mdb_txn_begin(env, None, readonly, ctypes.byref(txn)))
+        result = lib.mdb_dbi_open(txn, b'trust.db', 0, ctypes.byref(dbi))
+        if result == notfound:
+            return set()
+        check(result)
+        check(lib.mdb_cursor_open(txn, dbi, ctypes.byref(cursor)))
+        present = set()
+        for record in sorted(expected):
+            path, size, digest = record
+            key_bytes = path.encode('utf-8')
+            value_bytes = f'2 {int(size)} {digest}'.encode('ascii')
+            key = LMDBValue(len(key_bytes), ctypes.cast(ctypes.c_char_p(key_bytes), ctypes.c_void_p))
+            value = LMDBValue(len(value_bytes), ctypes.cast(ctypes.c_char_p(value_bytes), ctypes.c_void_p))
+            result = lib.mdb_cursor_get(cursor, ctypes.byref(key), ctypes.byref(value), get_both)
+            if result == notfound:
+                continue
+            check(result)
+            present.add(record)
+        return present
+    finally:
+        if cursor:
+            lib.mdb_cursor_close(cursor)
+        if txn:
+            lib.mdb_txn_abort(txn)
+        if env:
+            lib.mdb_env_close(env)
 
 
-def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH, *, refresh=False) -> None:
-    """Wait for the asynchronous trust update to publish our exact records.
-
-    Read the packaged manifest, not mutable module bytes. The CLI's update
-    command only queues a request; dump-db reads the committed live database.
-    This is database readiness, not proof of a fresh Shell import.
-    """
+def child_trust_manifest(path=Path('/') / EXTENSION_TRUST_PATH):
     expected = set()
     for line in path.read_text(encoding='utf-8').splitlines():
         if not line.strip() or line.startswith('#'):
@@ -485,23 +496,38 @@ def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH, *, refresh=F
         expected.add(tuple(fields))
     if not expected:
         raise ValueError('missing packaged child trust records')
+    return expected
+
+
+def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH, *, refresh=False) -> None:
+    """Wait for exact packaged records; bound every snapshot in a child process."""
+    expected = child_trust_manifest(path)
     deadline = time.monotonic() + 120
     if refresh:
-        refresh_child_trust(deadline)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ChildTrustDeadline(expected)
+        subprocess.run(['/usr/sbin/fapolicyd-cli', '--update'],
+                       stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True,
+                       timeout=remaining,
+                       env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
     present = set()
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise ChildTrustDeadline(expected - present)
-        result = subprocess.run(['/usr/sbin/fapolicyd-cli', '--dump-db'],
+        result = subprocess.run([sys.executable, '-I', str(Path(__file__).resolve()),
+                                 'read-child-trust'],
                                 stdin=subprocess.DEVNULL, capture_output=True,
                                 text=True, check=True, timeout=remaining,
                                 env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
-        present = set()
-        for line in result.stdout.splitlines():
-            fields = line.split()
-            if len(fields) == 4 and fields[0] in ('file', 'filedb'):
-                present.add(tuple(fields[1:]))
+        rows = json.loads(result.stdout)
+        if (not isinstance(rows, list) or any(not isinstance(row, list) or len(row) != 3
+                or not all(isinstance(value, str) for value in row) for row in rows)):
+            raise ValueError('invalid child trust snapshot result')
+        present = {tuple(row) for row in rows}
+        if not present <= expected:
+            raise ValueError('unexpected child trust snapshot result')
         if expected <= present:
             return
         time.sleep(min(.25, max(0, deadline - time.monotonic())))
@@ -512,6 +538,7 @@ def main() -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser('prepare-child-trust-backend')
     commands.add_parser('complete-child-trust-backend')
+    commands.add_parser('read-child-trust')
     generate_parser = commands.add_parser("generate")
     generate_parser.add_argument("--root", type=Path, required=True)
     generate_parser.add_argument("--output", type=Path, required=True)
@@ -542,7 +569,10 @@ def main() -> None:
             raise SystemExit('oh-no-parent-control: child trust activation cannot be recorded safely') from None
     else:
         try:
-            wait_child_trust(refresh=args.refresh)
+            if args.command == 'read-child-trust':
+                print(json.dumps(sorted(read_child_trust(child_trust_manifest()))))
+            else:
+                wait_child_trust(refresh=args.refresh)
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             raise SystemExit('oh-no-parent-control: child trust database is not ready '
                              f'({child_trust_failure(error)})') from None

@@ -171,6 +171,44 @@ Background policy reconciliation, grant observation, startup runtime-cap cleanup
 and diagnostic collection use the same recorder. Operation scopes distinguish
 background attempts without introducing account or process references.
 
+Feedback collection also observes the fixed runtime dependencies fapolicyd,
+AccountsService, Polkit and logind through one read-only systemd query. Closed
+load/active/result/restart categories, exit kind/status and restart counts
+distinguish missing or failed services from application command failures. This
+observation runs in diagnostics-only mode too. It does not restart a service or
+acknowledge the daemon's active policy generation. A shared five-second budget
+bounds this query and the fapolicyd journal read.
+Both command pipes share a 256 KiB limit enforced while reading; timeout and
+overflow paths reap the collector's own command. Service-query failure does
+not suppress the independent journal read within the remaining budget.
+
+The collector transiently reads at most 200 reviewed fapolicyd journal entries
+from this boot's last 24 hours, selects only the fixed daemon executable under
+`/usr/sbin` or the merged `/usr/bin` layout, and
+retains at most 20 exact reviewed trust-update markers. It distinguishes the
+observed service invocation from earlier attempts without retaining identifiers,
+so recovery does not erase the earlier failure. When current invocation state
+is unavailable, reviewed journal markers remain available with an `other`
+invocation relation and partial evidence. Earlier-attempt evidence does
+not alone establish causation for a later request. Only
+closed reasons, the daemon's bounded diagnostic code and the original UTC event
+time survive. No raw journal, output, path, invocation ID, PID or account field
+becomes an attachment. Failed, malformed or saturated reads report unavailable
+or partial evidence; a completed bounded query does not prove complete history.
+In fapolicyd 1.3.6, `Cannot delete database (1)` identifies failure to start an
+LMDB write transaction, but discards its original LMDB status. The report states
+that limit explicitly; it must not infer a particular mutex, permission or
+capacity cause from code 1 alone. Historical errors are not reconstructed when
+their journal entries are unavailable.
+
+Rule-notification failures separately classify exact C-locale CLI markers for a
+missing endpoint, permission denial or an absent reader. Other output remains
+`other`. These categories and service observations retain the original failure
+and rollback behavior, and generalize to approval, policy-save, revocation,
+session reconciliation and package-removal rule reloads. The additive catalogue
+must ship with all validators; the collector activates on broker restart and
+frontends load it on their next launch. No portal or saved-data change is needed.
+
 Blocked-app operation failures record a fixed phase (preflight, running query,
 identity, Flatpak termination, desktop application identity or native termination)
 before the broker converts the failure into its public error. The original

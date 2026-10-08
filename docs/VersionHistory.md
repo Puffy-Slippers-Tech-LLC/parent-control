@@ -6,6 +6,7 @@
 - **What's New**: Added metadata-driven What's new infra
 
 ### Bug Fixes
+- **Broker**: Fixed startup failures caused by temporary trust-database lock contention and preserved bounded dependency diagnostics after service recovery without collecting personal data.
 - **Parent App**: Parent app app grid column headers on some RTL languages overlap
 - **Parent App**: Fixed the disabled Revoke button at zero remaining time when soft-blocked apps are still running, allowing parents to close those apps after the child’s session locks.
 

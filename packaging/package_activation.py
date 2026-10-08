@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import errno
 import fcntl
 import hashlib
 import json
@@ -386,6 +387,10 @@ class ChildTrustDeadline(TimeoutError):
         super().__init__('packaged child trust update did not complete')
 
 
+class ChildTrustBusy(BlockingIOError):
+    """The daemon holds the exclusive LMDB initialization lock; retry later."""
+
+
 def child_trust_failure(error) -> str:
     """Describe readiness failure without exposing unrelated database records."""
     if isinstance(error, ChildTrustDeadline):
@@ -483,7 +488,12 @@ def read_child_trust(expected, database=Path('/var/lib/fapolicyd')):
         # with this process's POSIX locks and survives unrelated descriptor
         # closes. Keep it until env_close finishes, including failure cleanup.
         guard = LMDBFileLock(fcntl.F_RDLCK, os.SEEK_SET, 0, 1, 0)
-        fcntl.fcntl(descriptor, fcntl.F_OFD_SETLK, bytes(guard))
+        try:
+            fcntl.fcntl(descriptor, fcntl.F_OFD_SETLK, bytes(guard))
+        except OSError as error:
+            if error.errno == errno.EAGAIN:
+                raise ChildTrustBusy('child trust initialization is in progress') from None
+            raise
         lib = child_trust_lmdb()
         check(lib.mdb_env_create(ctypes.byref(env)))
         check(lib.mdb_env_set_maxdbs(env, 2))
@@ -567,11 +577,19 @@ def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH, *, refresh=F
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise ChildTrustDeadline(expected - present)
-        result = subprocess.run([sys.executable, '-I', str(Path(__file__).resolve()),
-                                 'read-child-trust'],
-                                stdin=subprocess.DEVNULL, capture_output=True,
-                                text=True, check=True, timeout=remaining,
-                                env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+        try:
+            result = subprocess.run([sys.executable, '-I', str(Path(__file__).resolve()),
+                                     'read-child-trust'],
+                                    stdin=subprocess.DEVNULL, capture_output=True,
+                                    text=True, check=True, timeout=remaining,
+                                    env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+        except subprocess.CalledProcessError as error:
+            if error.returncode != 75:
+                raise
+            # Exit 75 is emitted only for the initialization guard's contention.
+            # Never retry permission, database, malformed output or timeout errors.
+            time.sleep(min(.25, max(0, deadline - time.monotonic())))
+            continue
         rows = json.loads(result.stdout)
         if (not isinstance(rows, list) or any(not isinstance(row, list) or len(row) != 3
                 or not all(isinstance(value, str) for value in row) for row in rows)):
@@ -624,6 +642,8 @@ def main() -> None:
                 print(json.dumps(sorted(read_child_trust(child_trust_manifest()))))
             else:
                 wait_child_trust(refresh=args.refresh)
+        except ChildTrustBusy:
+            raise SystemExit(75) from None
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             raise SystemExit('oh-no-parent-control: child trust database is not ready '
                              f'({child_trust_failure(error)})') from None

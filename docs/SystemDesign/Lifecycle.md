@@ -142,7 +142,10 @@ LMDB lock file's initialization byte from before opening the environment until
 after closing it. fapolicyd's fanotify descriptor closes can release its POSIX
 file locks; without this guard, another reader can mistake the live environment
 for an exclusive one and reinitialize or destroy its shared mutexes (including
-with Ubuntu's LMDB 0.9.31). Failure to acquire the guard fails closed. Registered
+with Ubuntu's LMDB 0.9.31). Guard contention returns a fixed temporary-unavailable
+status; readiness retries within its existing 120-second deadline without
+opening an unguarded environment. Other lock, database and command failures
+remain fatal. Registered
 read transactions continue to protect snapshot pages during concurrent writes.
 The existing startup-exclusion marker remains present through a same-boot trust
 wait and earlier provisioning, including configuration retries without `preinst`.

@@ -103,6 +103,53 @@ def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch
         assert state['reads'] == 0
 
 
+@pytest.mark.parametrize('persistent', [False, True])
+def test_child_trust_initialization_contention_retries_within_original_deadline(
+        tmp_path, monkeypatch, persistent):
+    wait = _activation['wait_child_trust']
+    namespace = wait.__globals__
+    record = [f'/{_activation["EXTENSION_PATH"]}/indicatorLogic.mjs', '12', 'a' * 64]
+    manifest = tmp_path / 'child.trust'
+    manifest.write_text(' '.join(record) + '\n')
+    state = dict(now=0, attempts=0)
+
+    def run(argv, **kwargs):
+        assert kwargs['check'] and kwargs['timeout'] == 120 - state['now']
+        assert argv[-1] == 'read-child-trust'
+        state['attempts'] += 1
+        if persistent or state['attempts'] == 1:
+            raise subprocess.CalledProcessError(75, argv, stderr='private details')
+        return SimpleNamespace(stdout=json.dumps([record]))
+
+    def sleep(delay):
+        assert 0 < delay <= .25
+        state['now'] += 40
+
+    monkeypatch.setattr(namespace['subprocess'], 'run', run)
+    monkeypatch.setattr(namespace['time'], 'monotonic', lambda: state['now'])
+    monkeypatch.setattr(namespace['time'], 'sleep', sleep)
+    if persistent:
+        with pytest.raises(_activation['ChildTrustDeadline']):
+            wait(manifest)
+        assert state['now'] == 120 and state['attempts'] == 3
+    else:
+        wait(manifest)
+        assert state['now'] == 40 and state['attempts'] == 2
+
+
+def test_snapshot_cli_reports_only_retryable_initialization_status(monkeypatch, capsys):
+    main = _activation['main']
+    namespace = main.__globals__
+    monkeypatch.setitem(namespace, 'child_trust_manifest', lambda: set())
+    monkeypatch.setitem(namespace, 'read_child_trust', Mock(
+        side_effect=_activation['ChildTrustBusy']('private database details')))
+    monkeypatch.setattr('sys.argv', ['package-activation', 'read-child-trust'])
+    with pytest.raises(SystemExit) as result:
+        main()
+    assert result.value.code == 75
+    assert capsys.readouterr() == ('', '')
+
+
 @pytest.mark.parametrize('fault', ['none', 'digest', 'size', 'source', 'path', 'missing'])
 @pytest.mark.parametrize('published', [False, True])
 def test_real_child_trust_snapshot_matches_exact_file_backend_records(tmp_path, fault, published):
@@ -276,8 +323,21 @@ def test_snapshot_refuses_exclusive_initialization_lock(tmp_path, monkeypatch):
     monkeypatch.setitem(read.__globals__, 'child_trust_lmdb', library)
     with lock.open('r+b') as stream:
         fcntl.lockf(stream, fcntl.LOCK_EX | fcntl.LOCK_NB, 1)
-        with pytest.raises(BlockingIOError):
+        with pytest.raises(_activation['ChildTrustBusy']):
             read(set(), tmp_path)
+    library.assert_not_called()
+
+
+def test_snapshot_guard_permission_denial_is_fatal_not_retryable(tmp_path, monkeypatch):
+    import errno
+    read = _activation['read_child_trust']
+    (tmp_path / 'lock.mdb').touch()
+    library = Mock()
+    monkeypatch.setitem(read.__globals__, 'child_trust_lmdb', library)
+    monkeypatch.setattr(read.__globals__['fcntl'], 'fcntl', Mock(
+        side_effect=PermissionError(errno.EACCES, 'private details')))
+    with pytest.raises(PermissionError):
+        read(set(), tmp_path)
     library.assert_not_called()
 
 

@@ -253,11 +253,13 @@ def test_reboot_mode_collects_real_report_and_rechecks_role(tmp_path):
             [None, AccessDenied('denied')] if revoke else None)
         invocation = mock.Mock()
         with (mock.patch('oh_no_parent_control.service.threading.Thread') as thread,
+              mock.patch('oh_no_parent_control.service.collect_dependency_diagnostics') as dependencies_probe,
               mock.patch('oh_no_parent_control.service.GLib.idle_add') as idle):
             service._method_call(None, ':1.42', None, None, 'ExportDiagnosticLogs',
                                  None, invocation)
             thread.assert_called_once()
             service._export_logs_worker(invocation, 1000)
+            dependencies_probe.assert_called_once_with()
         callback, reply, uid, data = idle.call_args.args
         validate_bundle(data)
         with ZipFile(BytesIO(data)) as archive:
@@ -406,12 +408,16 @@ class ServiceContractTests(unittest.TestCase):
         order = []
         service.broker.collect_extension_diagnostics.side_effect = lambda: order.append("observe")
         service.log_writer.snapshot.side_effect = lambda **_kwargs: order.append("snapshot") or b"report"
-        with mock.patch("oh_no_parent_control.service.GLib.idle_add") as reply:
+        with (mock.patch("oh_no_parent_control.service.GLib.idle_add") as reply,
+              mock.patch("oh_no_parent_control.service.collect_dependency_diagnostics",
+                         side_effect=lambda: order.append("dependencies"))):
             service._export_logs_worker(None, 0)
-        self.assertEqual(order, ["observe", "snapshot"])
+        self.assertEqual(order, ["dependencies", "observe", "snapshot"])
         self.assertEqual(reply.call_args.args[3], b"report")
         service.broker.collect_extension_diagnostics.side_effect = RuntimeError("private@example.test")
         with (mock.patch("oh_no_parent_control.service.GLib.idle_add") as reply,
+              mock.patch("oh_no_parent_control.service.collect_dependency_diagnostics",
+                         side_effect=RuntimeError("private@example.test")),
               self.assertLogs("onpc", "WARNING") as logs):
             service._export_logs_worker(None, 0)
         self.assertEqual(reply.call_args.args[3], b"report")

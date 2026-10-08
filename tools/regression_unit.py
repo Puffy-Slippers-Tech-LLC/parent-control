@@ -91,6 +91,15 @@ existing relocated, synchronously waited launcher processes. No system bus,
 installed service, shared log directory or new cleanup lifetime is used; the
 service_contract, diagnostic_privacy, systemd_unit and package_configuration
 modules retain compatible overlap.
+Dependency-collection cases in diagnostics and service_contract mock all service
+and journal commands and use the existing private event/report/rule files.
+Pipe-limit cases launch one isolated Python child each, retain its Popen identity,
+and reap it on completion, overflow or timeout; only private pipes are used,
+with at most 512 KiB of generated output and no host service, bus or shared cache.
+Trust
+initialization retry cases in package_activation use command/clock doubles and
+private manifests. No host journal/database or shared cleanup owner is added;
+their existing compatible classifications remain appropriate.
 Shared reboot detection/startup cases add only private tiny marker files and
 process-local main-loop/transport doubles to service_contract. They touch no
 host reboot state or services and retain that compatible classification.

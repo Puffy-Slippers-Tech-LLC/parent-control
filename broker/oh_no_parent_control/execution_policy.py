@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 import threading
 from pathlib import Path
+from .dependency_diagnostics import notification_error_reason
 
 LOG = get_logger("execution-policy")
 
@@ -446,10 +447,14 @@ class FapolicydPolicy:
                 check=False,
                 timeout=15,
                 text=True,
+                env={**os.environ, "LC_ALL": "C"},
             )
         except (OSError, subprocess.SubprocessError) as error:
             LOG.error("execution-policy.013", stage=stage, error_type=error_code(error))
             raise ExecutionPolicyError("could not reload execution policy") from error
         if completed.returncode != 0:
             LOG.error("execution-policy.014", stage=stage, returncode=completed.returncode)
+            LOG.error("execution-policy.command-failure", stage=stage,
+                      reason=notification_error_reason(getattr(completed, "stderr", None))
+                      if stage == "notify" else "other")
             raise ExecutionPolicyError("could not reload execution policy")

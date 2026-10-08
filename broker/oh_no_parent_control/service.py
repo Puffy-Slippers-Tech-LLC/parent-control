@@ -33,6 +33,7 @@ from .catalog import list_apps
 from .core import Broker, BrokerError, Busy, InvalidRequest, BackendFailure, RollbackFailure
 from .extension_manager import ExtensionManager
 from .execution_policy import FapolicydPolicy, originally_permissive_policy
+from .dependency_diagnostics import collect_dependency_diagnostics
 from .logs import DailyLogWriter, configure_broker_logging
 from .preferences import PreferenceStore, decode_preferences
 
@@ -713,6 +714,12 @@ class Service:
     def _export_logs_worker(self, invocation, caller_uid):
         data = None
         try:
+            try:
+                collect_dependency_diagnostics()
+            except Exception:
+                get_logger("execution-policy").warning(
+                    "execution-policy.backend-observation", source="service",
+                    outcome="unavailable", count=0)
             try:
                 if not self.diagnostics_only:
                     self.broker.collect_extension_diagnostics()

@@ -418,6 +418,8 @@ def child_trust_lmdb():
         'mdb_txn_begin': ([pointer, pointer, uint, out], ctypes.c_int),
         'mdb_txn_abort': ([pointer], None),
         'mdb_dbi_open': ([pointer, ctypes.c_char_p, uint, ctypes.POINTER(uint)], ctypes.c_int),
+        'mdb_get': ([pointer, uint, ctypes.POINTER(LMDBValue),
+                     ctypes.POINTER(LMDBValue)], ctypes.c_int),
         'mdb_cursor_open': ([pointer, uint, out], ctypes.c_int),
         'mdb_cursor_close': ([pointer], None),
         'mdb_cursor_get': ([pointer, ctypes.POINTER(LMDBValue),
@@ -429,13 +431,29 @@ def child_trust_lmdb():
     return lib
 
 
+def child_trust_database_name(raw):
+    """Validate fapolicyd 2.0's bounded publication record, never a stale DB."""
+    if len(raw) >= 4096 or b'\0' in raw:
+        raise ValueError('invalid child trust publication')
+    names = re.findall(rb'^name=(.*)$', raw, re.MULTILINE)
+    generations = re.findall(rb'^generation=(.*)$', raw, re.MULTILINE)
+    if (len(names) != 1 or len(generations) != 1
+            or not re.fullmatch(rb'[0-9]+', generations[0])
+            or not re.fullmatch(rb'trust\.(?:db|slot_(?:[0-9]|[12][0-9]|3[01]))', names[0])):
+        raise ValueError('invalid child trust publication')
+    return names[0]
+
+
 def read_child_trust(expected, database=Path('/var/lib/fapolicyd')):
     """Check exact file-backend records in one registered read-only snapshot.
 
     Unlike fapolicyd 1.3.6's MDB_NOLOCK dump, MDB_RDONLY keeps the reader
     registered until txn_abort. Writers cannot reuse its snapshot's pages,
     even across queued refreshes. No journal event establishes that exclusion.
-    fapolicyd's trust.db values are 'source size hash'; SRC_FILE_DB is 2.
+    fapolicyd 2.0 publishes the active DB through trust.meta/current. Resolve
+    that metadata and query its records in the same transaction so a concurrent
+    refresh cannot select stale or mixed generations. Older releases use trust.db.
+    Trust values are 'source size hash'; SRC_FILE_DB is 2.
     Only packaged keys/values are queried or returned, never unrelated records.
     """
     # LMDB silently skips locking on a read-only filesystem. Refuse that
@@ -456,8 +474,23 @@ def read_child_trust(expected, database=Path('/var/lib/fapolicyd')):
         check(lib.mdb_env_set_maxdbs(env, 2))
         check(lib.mdb_env_open(env, os.fsencode(database), readonly, 0))
         check(lib.mdb_txn_begin(env, None, readonly, ctypes.byref(txn)))
-        result = lib.mdb_dbi_open(txn, b'trust.db', 0, ctypes.byref(dbi))
+        name = b'trust.db'
+        metadata = ctypes.c_uint()
+        result = lib.mdb_dbi_open(txn, b'trust.meta', 0, ctypes.byref(metadata))
+        if result != notfound:
+            check(result)
+            key = LMDBValue(7, ctypes.cast(ctypes.c_char_p(b'current'), ctypes.c_void_p))
+            value = LMDBValue()
+            result = lib.mdb_get(txn, metadata, ctypes.byref(key), ctypes.byref(value))
+            if result != notfound:
+                check(result)
+                if value.size >= 4096:
+                    raise ValueError('invalid child trust publication')
+                name = child_trust_database_name(ctypes.string_at(value.data, value.size))
+        result = lib.mdb_dbi_open(txn, name, 0, ctypes.byref(dbi))
         if result == notfound:
+            if name != b'trust.db':
+                raise ValueError('child trust publication unavailable')
             return set()
         check(result)
         check(lib.mdb_cursor_open(txn, dbi, ctypes.byref(cursor)))

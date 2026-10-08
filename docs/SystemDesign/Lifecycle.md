@@ -126,6 +126,10 @@ snapshot while concurrent or queued refreshes rebuild the database. It does not
 use fapolicyd 1.3.6's unlocked `--dump-db` reader or infer writer exclusion from
 an `Updated` journal event. Missing records are retried with a fresh snapshot;
 database/command failures preserve pending activation for configuration retry.
+For fapolicyd 2.0, the reader resolves `trust.meta/current` and the published
+`trust.slot_*` database within that same snapshot. Older databases without
+publication metadata retain the `trust.db` route. Invalid publication metadata
+fails closed instead of consulting a retired database.
 The refresh and exact-record wait share the same 120-second deadline, with each
 database read isolated in a bounded subprocess. Boot readiness and direct broker
 starts use the same safe reader without requesting a refresh. Only the LMDB

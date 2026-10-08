@@ -102,7 +102,8 @@ def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch
 
 
 @pytest.mark.parametrize('fault', ['none', 'digest', 'size', 'source', 'path', 'missing'])
-def test_real_child_trust_snapshot_matches_exact_file_backend_records(tmp_path, fault):
+@pytest.mark.parametrize('published', [False, True])
+def test_real_child_trust_snapshot_matches_exact_file_backend_records(tmp_path, fault, published):
     from tests.support.trust_database import replace_records
     path = '/' + str(_activation['EXTENSION_PATH']) + '/indicatorLogic.mjs'
     record = (path, '12', 'a' * 64)
@@ -117,13 +118,20 @@ def test_real_child_trust_snapshot_matches_exact_file_backend_records(tmp_path, 
     rows = [[path, '3', '12', 'a' * 64], ['/private/unrelated', '2', '1', 'c' * 64]]
     if fault != 'missing':
         rows.append(row)
-    replace_records(database, rows)
+    if published:
+        # The legacy DB can contain an exact but retired record. Only the
+        # metadata-selected generation may establish current trust.
+        replace_records(database, [[path, '2', '12', 'a' * 64]])
+    replace_records(database, rows, database_name='trust.slot_0' if published else 'trust.db',
+                    metadata=b'generation=1\nname=trust.slot_0\nentries=3\npublish_time=1\n'
+                    if published else None)
     result = _activation['read_child_trust']({record}, database)
     assert result == ({record} if fault == 'none' else set())
 
 
 @pytest.mark.parametrize('mixed_generation', [False, True])
-def test_snapshot_survives_overlapping_queued_refreshes(tmp_path, monkeypatch, mixed_generation):
+@pytest.mark.parametrize('published', [False, True])
+def test_snapshot_survives_overlapping_queued_refreshes(tmp_path, monkeypatch, mixed_generation, published):
     from tests.support.trust_database import replace_records
     read = _activation['read_child_trust']
     namespace = read.__globals__
@@ -131,32 +139,71 @@ def test_snapshot_survives_overlapping_queued_refreshes(tmp_path, monkeypatch, m
     paths = [f'/{_activation["EXTENSION_PATH"]}/{name}.mjs' for name in ('a', 'b')]
     before = [(path, '2', '12', 'a' * 64) for path in paths]
     after = [(path, '2', '12', 'b' * 64) for path in paths]
-    replace_records(database, before)
+    replace_records(database, before,
+                    database_name='trust.slot_0' if published else 'trust.db',
+                    metadata=b'generation=1\nname=trust.slot_0\n' if published else None)
     expected = {(paths[0], '12', 'a' * 64),
                 (paths[1], '12', ('b' if mixed_generation else 'a') * 64)}
     lib = _activation['child_trust_lmdb']()
     cursor_get = lib.mdb_cursor_get
+    metadata_get = lib.mdb_get
     mutations = []
 
-    def overlap(*args):
+    def publish_refresh():
         if not mutations:
             mutations.append(True)
             # The production transaction is already open. Complete two queued
             # refreshes, then force page reuse repeatedly while that read lives.
             subprocess.run([sys.executable, '-c',
                             'import json,sys; from tests.support.trust_database import replace_records; '
-                            'replace_records(sys.argv[1], json.loads(sys.argv[2]), repeats=64)',
-                            str(database), json.dumps(after)], check=True, timeout=15,
+                            'replace_records(sys.argv[1], json.loads(sys.argv[2]), repeats=64, '
+                            'database_name=sys.argv[3], '
+                            'metadata=sys.argv[4].encode() if sys.argv[4] else None)',
+                            str(database), json.dumps(after),
+                            'trust.slot_1' if published else 'trust.db',
+                            'generation=2\nname=trust.slot_1\n' if published else ''], check=True, timeout=15,
                            cwd=Path(__file__).resolve().parents[2], capture_output=True)
+
+    def overlap(*args):
+        publish_refresh()
         return cursor_get(*args)
 
-    lib.mdb_cursor_get = overlap
+    def publication_overlap(*args):
+        result = metadata_get(*args)
+        # Publish after the old name was read but before its DB is opened.
+        # Metadata and records must still belong to the same read snapshot.
+        publish_refresh()
+        return result
+
+    if published:
+        lib.mdb_get = publication_overlap
+    else:
+        lib.mdb_cursor_get = overlap
     monkeypatch.setitem(namespace, 'child_trust_lmdb', lambda: lib)
     result = read(expected, database)
     assert mutations
     assert result == ({(paths[0], '12', 'a' * 64)} if mixed_generation else expected)
     # The next poll gets a new snapshot, never a union of multiple generations.
     assert read(expected, database) == ({(paths[1], '12', 'b' * 64)} if mixed_generation else set())
+
+
+@pytest.mark.parametrize('metadata', [
+    b'name=trust.slot_0\n', b'generation=1\n',
+    b'generation=bad\nname=trust.slot_0\n',
+    b'generation=1\nname=trust.slot_0\nname=trust.db\n',
+    b'generation=1\ngeneration=2\nname=trust.slot_0\n',
+    b'generation=1\nname=trust.meta\n', b'generation=1\nname=trust.slot_32\n',
+    b'generation=1\nname=trust.slot_0\0\n', b'x' * 4096,
+    b'generation=1\nname=trust.slot_1\n',  # published DB absent
+])
+def test_snapshot_refuses_invalid_publication_without_legacy_fallback(tmp_path, metadata):
+    from tests.support.trust_database import replace_records
+    record = ('/packaged.mjs', '12', 'a' * 64)
+    database = tmp_path / 'database'
+    replace_records(database, [[record[0], '2', *record[1:]]])
+    replace_records(database, [], database_name='trust.slot_0', metadata=metadata)
+    with pytest.raises(ValueError):
+        _activation['read_child_trust']({record}, database)
 
 
 @pytest.mark.parametrize('error', [FileNotFoundError, PermissionError])

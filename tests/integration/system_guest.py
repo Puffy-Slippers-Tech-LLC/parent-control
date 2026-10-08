@@ -14,6 +14,7 @@ import shutil
 import stat
 import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 
 from owned_commands import Commands, CommandError
@@ -159,10 +160,239 @@ def verify_package():
                 'configuration-permissions')
         # The broker is a static Type=dbus service. A public read exercises
         # normal activation after reboot, without restarting a service.
-        run(['busctl', '--system', '--quiet', 'call', BUS,
-             '/com/puffyslippers/OhNoParentControl1', BUS, 'ListManagedUsers'])
+        started = time.monotonic()
+        try:
+            run(['busctl', '--system', '--quiet', 'call', BUS,
+                 '/com/puffyslippers/OhNoParentControl1', BUS, 'ListManagedUsers'])
+        except CommandError:
+            try:
+                broker_setup_failure_diagnostic(time.monotonic() - started)
+            except Exception:
+                # An unavailable diagnostic must not replace the failed check.
+                pass
+            raise
         for unit in (BROKER, 'oh-no-parent-control-execution-policy-ready.service'):
             require(run(['systemctl', 'is-active', unit]) == 'active', 'service-ready')
+
+
+def broker_setup_failure_diagnostic(call_seconds):
+    """Bounded independent discovery read; preserve the first setup failure.
+
+    Do not start/restart a service, accept the reread, or emit account replies,
+    D-Bus owner names or exception messages. The retained SSH stdout owns this
+    observation even when setup fails before guest artifacts can be collected.
+    """
+    original_returncode = commands.last_returncode
+    observation = {'event': 'broker-setup-failure',
+                   'command_returncode': original_returncode,
+                   'call_seconds': round(call_seconds, 3),
+                   'discovery': 'unavailable', 'services': {}}
+
+    def discovery():
+        try:
+            from gi.repository import Gio, GLib
+            connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+            try:
+                connection.call_sync(BUS, '/com/puffyslippers/OhNoParentControl1', BUS,
+                    'ListManagedUsers', None, GLib.VariantType.new('(a(uss))'),
+                    Gio.DBusCallFlags.NO_AUTO_START, 1000, None)
+                return 'succeeded'
+            except GLib.Error as error:
+                remote = Gio.DBusError.get_remote_error(error)
+                known = {BUS + '.Error.' + code: 'product:' + code for code in (
+                    'RebootRequired', 'AccessDenied', 'InvalidRequest', 'Failed',
+                    'BackendFailure', 'Busy')}
+                known.update({'org.freedesktop.DBus.Error.' + code: 'dbus:' + code
+                              for code in ('ServiceUnknown', 'NameHasNoOwner',
+                                           'NoReply', 'Timeout', 'AccessDenied')})
+                return known.get(remote, 'other-error')
+        except Exception:
+            return 'unavailable'
+
+    def service_state(unit):
+        try:
+            state = commands.run(['systemctl', 'is-active', unit], timeout=3,
+                                 check=False, merge_stderr=False).decode().strip()
+            return state if state in (
+                'active', 'inactive', 'failed', 'activating', 'deactivating',
+                'reloading', 'unknown') else 'unavailable'
+        except Exception:
+            return 'unavailable'
+
+    try:
+        observation['discovery'] = discovery()
+        for unit in (BROKER, 'oh-no-parent-control-execution-policy-ready.service'):
+            observation['services'][unit] = service_state(unit)
+        print(json.dumps(observation, sort_keys=True), flush=True)
+        # Observe the already requested startup through its documented service
+        # budget. Never activate/restart the broker or accept a later success as
+        # repairing the original call. Emit fixed, bounded records only.
+        if observation['services'][BROKER] == 'activating':
+            settled_at = time.monotonic()
+            deadline = settled_at + 180
+            state = 'activating'
+            while state == 'activating' and time.monotonic() < deadline:
+                time.sleep(min(1, max(0, deadline - time.monotonic())))
+                state = service_state(BROKER)
+            terminal = {'event': 'broker-setup-settlement',
+                        'observation_seconds': round(time.monotonic() - settled_at, 3),
+                        'service': state, 'discovery': discovery(),
+                        'result': 'unavailable', 'exit_status': None}
+            try:
+                raw = commands.run(['systemctl', 'show', BROKER,
+                    '--property=Result', '--property=ExecMainStatus'], timeout=3,
+                    check=False, merge_stderr=False).decode()
+                properties = dict(line.split('=', 1) for line in raw.splitlines()
+                                  if '=' in line)
+                result = properties.get('Result')
+                if result in ('success', 'exit-code', 'signal', 'core-dump',
+                              'timeout', 'watchdog', 'start-limit-hit', 'resources',
+                              'protocol', 'oom-kill'):
+                    terminal['result'] = result
+                status = properties.get('ExecMainStatus', '')
+                if re.fullmatch(r'[0-9]{1,3}', status):
+                    terminal['exit_status'] = int(status)
+            except Exception:
+                pass
+            print(json.dumps(terminal, sort_keys=True), flush=True)
+        broker_startup_cause_diagnostic()
+    finally:
+        commands.last_returncode = original_returncode
+
+
+def broker_startup_cause_diagnostic():
+    """Project known startup errors and a single outside-service trust read.
+
+    The service can fail before the normal artifact collector is available.
+    Never print raw journal text, account data or unrelated trust records, and
+    never refresh trust or activate a service from this failure-only probe.
+    """
+    observation = {'event': 'broker-startup-cause', 'journal': 'unavailable',
+                   'causes': [], 'outside_service_trust': 'unavailable'}
+    known = {
+        'onpc.service: saved-data migration is incomplete': 'migration-incomplete',
+        'onpc.service: child trust database is not ready': 'child-trust-not-ready',
+        'onpc.runtime startup failed': 'runtime-import-failed',
+    }
+    try:
+        raw = commands.run(['journalctl', '--no-pager', '-b', '-u', BROKER,
+                            '--lines=100', '--output=json'], timeout=5,
+                           check=False, merge_stderr=False).decode()
+        causes = set()
+        for line in raw.splitlines():
+            message = json.loads(line).get('MESSAGE')
+            if not isinstance(message, str):
+                continue
+            if message in known:
+                causes.add(known[message])
+            # These are fixed helper error categories. Validate the complete
+            # message; discard module names instead of forwarding journal text.
+            match = re.fullmatch(
+                r'oh-no-parent-control: child trust database is not ready '
+                r'\((deadline modules=[A-Za-z0-9_,.\-]+|cli-timeout|'
+                r'cli-exit status=[0-9]+|output-decoding|manifest-or-read)\)', message)
+            if match:
+                causes.add('child-trust-' + match[1].split()[0])
+        observation['journal'] = 'read' if commands.last_returncode == 0 else 'read-failed'
+        observation['causes'] = sorted(causes)
+    except Exception:
+        pass
+    try:
+        manifest = Path('/usr/share/oh-no-parent-control/child-extension.trust')
+        expected = {tuple(line.split()) for line in manifest.read_text().splitlines()
+                    if line.strip() and not line.startswith('#')}
+        require(bool(expected) and all(len(row) == 3 for row in expected),
+                'diagnostic-trust-manifest')
+        raw = commands.run(['/usr/libexec/oh-no-parent-control-package-activation',
+                            'read-child-trust'], timeout=5,
+                           check=False, merge_stderr=False)
+        if commands.last_returncode == 0:
+            rows = json.loads(raw)
+            require(isinstance(rows, list) and all(isinstance(row, list) and
+                    len(row) == 3 and all(isinstance(value, str) for value in row)
+                    for row in rows), 'diagnostic-trust-reply')
+            present = {tuple(row) for row in rows}
+            require(present <= expected, 'diagnostic-trust-unexpected-record')
+            observation['outside_service_trust'] = (
+                'complete' if present == expected else 'missing-records')
+            observation['missing_records'] = len(expected - present)
+        else:
+            observation['outside_service_trust'] = 'read-failed'
+    except Exception:
+        pass
+    print(json.dumps(observation, sort_keys=True), flush=True)
+    child_trust_inputs_diagnostic()
+
+
+def child_trust_inputs_diagnostic():
+    """Separate missing integration inputs from a daemon/database load failure.
+
+    Only fixed categories and booleans leave this failure-only probe. It does
+    not reload the database, repair files, or accept a subsequent startup.
+    """
+    observation = {'event': 'child-trust-inputs', 'installed_trust': 'unavailable',
+                   'file_backend': 'unavailable', 'daemon_journal': 'unavailable',
+                   'daemon_events': []}
+
+    def read_fixed(path):
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and
+                    info.st_size <= 65536, 'diagnostic-trust-input')
+            contents = stream.read(65537)
+            require(len(contents) <= 65536, 'diagnostic-trust-input-size')
+            return contents.decode('utf-8')
+
+    try:
+        manifest = read_fixed('/usr/share/oh-no-parent-control/child-extension.trust')
+        installed = read_fixed('/etc/fapolicyd/trust.d/oh-no-parent-control.trust')
+        observation['installed_trust'] = 'matches' if installed == manifest else 'differs'
+    except FileNotFoundError:
+        observation['installed_trust'] = 'missing-input'
+    except Exception:
+        pass
+    try:
+        config = read_fixed('/etc/fapolicyd/fapolicyd.conf')
+        selections = re.findall(r'^\s*trust\s*=\s*([^#\n]+)', config, re.MULTILINE)
+        if len(selections) == 1:
+            observation['file_backend'] = (
+                'enabled' if 'file' in [value.strip() for value in selections[0].split(',')]
+                else 'disabled')
+        elif not selections:
+            observation['file_backend'] = 'distribution-default'
+        else:
+            observation['file_backend'] = 'ambiguous'
+    except Exception:
+        pass
+    try:
+        raw = commands.run(['journalctl', '--no-pager', '-b', '-u', 'fapolicyd.service',
+                            '--lines=200', '--output=json'], timeout=5,
+                           check=False, merge_stderr=False).decode()
+        events = set()
+        for line in raw.splitlines():
+            message = json.loads(line).get('MESSAGE')
+            if not isinstance(message, str):
+                continue
+            if message in ('Loading trust data from file backend', 'Loading file backend',
+                           'Importing trust data from file backend'):
+                events.add('file-backend-load')
+            if message == 'Updated':
+                events.add('refresh-completed')
+            if re.fullmatch(r'(?:Failed to load (?:trust )?data from backend|'
+                            r'Failed to create trust database, create_database\(\)|'
+                            r'Cannot update trust database!)' + r'(?: \([0-9]+\))?', message):
+                events.add('database-load-error')
+            # Project only errors naming the package-owned trust file. Never
+            # forward the journal's paths, unrelated records or free text.
+            if '/etc/fapolicyd/trust.d/oh-no-parent-control.trust' in message and any(
+                    token in message.lower() for token in ('cannot', "can't", 'denied', 'error')):
+                events.add('owned-trust-file-error')
+        observation['daemon_journal'] = 'read' if commands.last_returncode == 0 else 'read-failed'
+        observation['daemon_events'] = sorted(events)
+    except Exception:
+        pass
+    print(json.dumps(observation, sort_keys=True), flush=True)
 
 
 def before_install():

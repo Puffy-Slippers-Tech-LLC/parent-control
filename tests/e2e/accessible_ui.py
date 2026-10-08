@@ -11673,10 +11673,11 @@ def main():
         sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')
     # Identify a disappearing external owner at the retained failure boundaries,
-    # including the fresh attachment read and diagnostic Save after cancellation.
+    # including the attachment Open preflight, fresh attachment read and
+    # diagnostic Save after cancellation.
     # These probes preserve traversal, retry/input policy and the first failure.
     ui.api.provider_diagnostics = sys.argv[1] in (
-        'switch-parent-before', 'attachment-remaining',
+        'switch-parent-before', 'attachment-remaining', 'chooser-accept',
         'denied-export-save-chooser-open', 'standard-parent-unavailable')
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)

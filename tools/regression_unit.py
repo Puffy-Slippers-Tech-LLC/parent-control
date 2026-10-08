@@ -677,6 +677,9 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # doubles; no real identity changes, session, bus or display. Trust-readiness
 # checks use private tiny manifests and fake command/clock results. Existing
 # e2e_desktop_session and package_activation compatible classifications hold.
+# Publication-reader regressions use pytest-private LMDB databases and bounded,
+# waited writer children, including concurrent slot publication. No live daemon,
+# host trust database or shared path; package_activation stays compatible.
 # Child-module trust checks reuse private staged payloads and relocated lifecycle
 # machines, tiny hashes/files and waited command doubles. They touch no host
 # trust database, service, bus, VM or shared cache; existing packaging, activation,

@@ -8,7 +8,7 @@ class Value(c.Structure):
     _fields_ = [('size', c.c_size_t), ('data', c.c_void_p)]
 
 
-def replace_records(directory, records, repeats=1):
+def replace_records(directory, records, repeats=1, *, database_name='trust.db', metadata=None):
     """Commit empty/refilled generations, like fapolicyd's database rebuild."""
     directory = Path(directory)
     directory.mkdir(exist_ok=True)
@@ -42,14 +42,14 @@ def replace_records(directory, records, repeats=1):
     env, txn, dbi = pointer(), pointer(), uint()
     try:
         check(lib.mdb_env_create(c.byref(env)))
-        check(lib.mdb_env_set_maxdbs(env, 2))
+        check(lib.mdb_env_set_maxdbs(env, 4))
         check(lib.mdb_env_set_mapsize(env, 16 * 1024 * 1024))
         # Match the daemon's WRITEMAP | NOSYNC | MAPASYNC flags.
         check(lib.mdb_env_open(env, str(directory).encode(), 0x80000 | 0x10000 | 0x100000, 0o600))
         for _ in range(repeats):
             for rows in ([], records):
                 check(lib.mdb_txn_begin(env, None, 0, c.byref(txn)))
-                check(lib.mdb_dbi_open(txn, b'trust.db', 0x40000 | 0x04, c.byref(dbi)))
+                check(lib.mdb_dbi_open(txn, database_name.encode(), 0x40000 | 0x04, c.byref(dbi)))
                 check(lib.mdb_drop(txn, dbi, 0))
                 for path, source, size, digest in rows:
                     key_bytes = path.encode()
@@ -57,6 +57,12 @@ def replace_records(directory, records, repeats=1):
                     key = Value(len(key_bytes), c.cast(c.c_char_p(key_bytes), pointer))
                     data = Value(len(data_bytes), c.cast(c.c_char_p(data_bytes), pointer))
                     check(lib.mdb_put(txn, dbi, c.byref(key), c.byref(data), 0))
+                if metadata is not None:
+                    meta_dbi = uint()
+                    check(lib.mdb_dbi_open(txn, b'trust.meta', 0x40000, c.byref(meta_dbi)))
+                    key = Value(7, c.cast(c.c_char_p(b'current'), pointer))
+                    data = Value(len(metadata), c.cast(c.c_char_p(metadata), pointer))
+                    check(lib.mdb_put(txn, meta_dbi, c.byref(key), c.byref(data), 0))
                 result = lib.mdb_txn_commit(txn)
                 txn = pointer()
                 check(result)

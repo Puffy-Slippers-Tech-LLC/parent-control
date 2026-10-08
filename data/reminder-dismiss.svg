@@ -1,17 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" shape-rendering="crispEdges">
-<defs>
-  <linearGradient id="face" x2="0" y2="1"><stop stop-color="#191139"/><stop offset="1" stop-color="#0a102d"/></linearGradient>
-  <linearGradient id="rim" x2="0" y2="1"><stop stop-color="#c8a7ff"/><stop offset=".4" stop-color="#5d39c8"/><stop offset="1" stop-color="#21d7ff"/></linearGradient>
-</defs>
-<path fill="#172559" d="M4 0h70v4h6v72h-4v4H4v-4H0V6h4z"/>
-<path fill="url(#rim)" d="M6 2h68v4h4v68h-4v4H6v-4H2V6h4z"/>
-<path fill="#293485" d="M8 4h64v4h4v64h-4v4H8v-4H4V8h4z"/>
-<path fill="url(#face)" d="M10 6h60v4h4v60h-4v4H10v-4H6V10h4z"/>
-<path fill="#91eeff" d="M8 3h22v2H8zM3 8h2v21H3zM75 47h2v23h-2zM48 75h23v2H48z"/>
-<path fill="#7650da" d="M5 30h3v35H5zM29 72h35v3H29zM72 13h3v26h-3z"/>
-<path fill="#27d8ff" d="M5 5h6v3H8v5H5zM3 65h4v7h6v4H6v-3H3zM69 4h6v7h-3V8h-5V5h2z"/>
-<path fill="#e0caff" d="M5 4h3v4H5zM72 5h3v3h-3zM72 72h3v3h-3z"/>
-<path fill="#682b9f" d="M7 16h2v5H7zM67 71h5v2h-5z"/>
-<path fill="#079dcf" d="M25 24l15 15 15-15 5 5-15 15 15 15-5 5-15-15-15 15-5-5 15-15-15-15z"/>
-<path fill="#13e9ff" d="M25 22l15 15 15-15 5 5-15 15 15 15-5 5-15-15-15 15-5-5 15-15-15-15z"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+  <defs>
+    <linearGradient id="rim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop stop-color="#00baff"/><stop offset=".55" stop-color="#5867ff"/><stop offset="1" stop-color="#8b46ff"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="74" height="74" rx="7" fill="#f5f2ff" fill-opacity=".5" stroke="url(#rim)" stroke-width="2.5"/>
+  <path d="M27 27l26 26M53 27L27 53" fill="none" stroke="#2045f5" stroke-width="6"/>
 </svg>

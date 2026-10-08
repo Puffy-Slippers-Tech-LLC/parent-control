@@ -386,8 +386,12 @@ A newly exposed case starts with Medium classification, even in the same categor
 The runner's `failure.json` includes `failures` entries with category, case ID
 and VM name; host cases have an empty VM name. Worker bucket names, report paths
 and model-generated labels never define a case. Multi-VM handoffs retain each
-guest's identity. The repair targets one reported case at a time and reruns the
-original category selectors. A passing category clears its repair handoffs.
+guest's identity. Within a category, handoffs preserve the order in which
+failures were observed, so the first failure is repaired before later cases
+that may have failed because of it. Repeated failures of the same case retain
+its original position. The repair targets one reported case at a time and
+reruns the original category selectors. A passing category clears its repair
+handoffs.
 
 Each case has at most **five agent sessions per launcher run**, including
 classification, High repair and answered-blocker continuations. Counts survive

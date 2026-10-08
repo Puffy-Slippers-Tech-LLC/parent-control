@@ -138,14 +138,24 @@ def test_three_completed_tasks_commit_then_optimize_before_fourth_task(
     assert 'unrelated' not in tracked
 
 
-def test_batch_checkpoint_survives_separate_runs_budget_and_interrupted_optimization(checkout):
+def test_batch_checkpoint_survives_separate_runs_budget_and_interrupted_optimization(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # Every completed task and recovered optimization must perform a real push.
+    remote = tmp_path_factory.mktemp('write-e2e-checkpoint-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, *three_task_batch(root),
            {'result': optimization_reply(), 'invalid': True, 'writes': {'shared.py': 'partial fix'}},
            {'result': optimization_reply(), 'writes': {'shared.py': 'validated fix'}})
     for count in (1, 2, 3):
         run, _ = select_vm(root, ['--sessions', '1'])
-        assert launcher.follow(run, io.StringIO()) == 0
+        output = io.StringIO()
+        assert launcher.follow(run, output) == 0, output.getvalue()
         state = json.loads((run / 'checkpoint.json').read_text())
         assert state['optimization']['pending'] == [f'{task:03}' for task in range(1, count + 1)]
     assert state['optimization_session'] and state['phase'] == 'optimize'
@@ -160,14 +170,26 @@ def test_batch_checkpoint_survives_separate_runs_budget_and_interrupted_optimiza
     assert len(calls(root)) == 5
     assert subprocess.run(['git', 'log', '--format=%s'], cwd=root, capture_output=True,
                           text=True, check=True).stdout.count('TA: Refactored task 001 to 003') == 1
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_early_worker_spawn_failure_preserves_carried_batch(checkout, monkeypatch):
+def test_early_worker_spawn_failure_preserves_carried_batch(
+        checkout, monkeypatch, tmp_path_factory):
     root, _ = checkout
+    # Carry only completed, pushed tasks into the simulated spawn failure.
+    remote = tmp_path_factory.mktemp('write-e2e-spawn-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, *three_task_batch(root),
            {'result': optimization_reply(), 'writes': {'shared.py': 'reusable mechanics'}})
     first, _ = select_vm(root, ['--tasks', '2', '--sessions', '2'])
-    assert launcher.follow(first, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(first, output) == 0, output.getvalue()
     popen = subprocess.Popen
 
     def fail_worker(*args, **kwargs):
@@ -180,23 +202,36 @@ def test_early_worker_spawn_failure_preserves_carried_batch(checkout, monkeypatc
         with pytest.raises(OSError, match='worker spawn interrupted'):
             select_vm(root, ['--sessions', '1'])
     third, _ = select_vm(root, ['--sessions', '1'])
-    assert launcher.follow(third, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(third, output) == 0, output.getvalue()
     state = json.loads((third / 'checkpoint.json').read_text())
     assert state['optimization']['pending'] == ['001', '002', '003']
     audit, _ = select_vm(root, ['--sessions', '1'])
-    assert launcher.follow(audit, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(audit, output) == 0, output.getvalue()
     assert json.loads((audit / 'checkpoint.json').read_text())['optimization']['pending'] == []
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_first_session_success_closes_and_stages_without_another_session(checkout):
+def test_first_session_success_closes_and_stages_without_another_session(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # Successful close-out includes a real push to this case's private remote.
+    remote = tmp_path_factory.mktemp('write-e2e-first-session-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply('task_complete', 'passed',
                                  stage_paths=[workflow.PLAN, workflow.QUEUE, 'removed-brief.md']),
                   'close': True, 'usage': {'input_tokens': 100, 'cached_input_tokens': 80,
                                           'output_tokens': 20, 'reasoning_output_tokens': 12}})
     run, _ = select_vm(root, [])
     output = io.StringIO()
-    assert launcher.follow(run, output) == 0
+    assert launcher.follow(run, output) == 0, output.getvalue()
     from rich.text import Text
     assert ('Task 001 complete.\n- Took 1 sessions.\n'
             '- Duration: ') in Text.from_ansi(output.getvalue()).plain
@@ -220,10 +255,21 @@ def test_first_session_success_closes_and_stages_without_another_session(checkou
     assert state['phase'] == 'complete' and state['live_attempts'] == 1
     staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
     assert workflow.PLAN in staged.stdout and workflow.QUEUE in staged.stdout
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_staging_failure_keeps_accepted_handoff_and_restarts_without_agent(checkout):
+def test_staging_failure_keeps_accepted_handoff_and_restarts_without_agent(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # Recovery must finish the accepted task's commit and real push.
+    remote = tmp_path_factory.mktemp('write-e2e-staging-recovery-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     with (root / '.git/info/exclude').open('a') as stream:
         stream.write('ignored-task.txt\n')
     result = reply('task_complete', 'passed', summary='Live acceptance passed.',
@@ -236,7 +282,11 @@ def test_staging_failure_keeps_accepted_handoff_and_restarts_without_agent(check
     assert state['pending_completion'] == result
     assert state['summary'] == result['summary']
     handoff = (run / 'handoff.txt').read_text()
-    assert 'staging remains' in handoff and result['handoff'] in handoff
+    assert 'task staging failed:' in handoff and 'ignored-task.txt' in handoff
+    assert 'passed acceptance and queue close-out; Git close-out remains.' in handoff
+    assert 'Staging, its completion commit and/or git push remain.' in handoff
+    assert 'retry close-out from the retained result before starting the next task' in handoff
+    assert 'Do not rerun acceptance.' in handoff and result['handoff'] in handoff
     retained = (run / 'checkpoint.json').read_bytes()
     (root / 'ignored-task.txt').unlink()
     recovery = run.parent / ('c' * 32)
@@ -245,13 +295,25 @@ def test_staging_failure_keeps_accepted_handoff_and_restarts_without_agent(check
     assert selected['task_id'] == '002'
     assert len(calls(root)) == 1
     assert (run / 'checkpoint.json').read_bytes() == retained
+    assert workflow.git_output(root, 'log', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 001']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
 @pytest.mark.parametrize('empty_queue', [False, True])
 @pytest.mark.parametrize('interrupt_recovery', [False, True])
 def test_missing_completion_automatically_recovers_same_task_before_staging(
-        checkout, empty_queue, interrupt_recovery):
+        checkout, empty_queue, interrupt_recovery, tmp_path_factory):
     root, _ = checkout
+    # Recovered completion includes a real push to a case-private destination.
+    remote = tmp_path_factory.mktemp('write-e2e-missing-completion-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     (root / 'unrelated.py').write_text('preserve existing unstaged work')
     complete = reply('task_complete', 'passed', handoff='Next task only after staging.')
     writes = {'owned.py': 'interrupted task work'}
@@ -278,7 +340,8 @@ def test_missing_completion_automatically_recovers_same_task_before_staging(
                               check=True).stdout == b''
     recovered, started = select_vm(root, ['--sessions', '1'])
     assert started and recovered != previous
-    assert launcher.follow(recovered, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(recovered, output) == 0, output.getvalue()
     for name, content in retained.items():
         assert (previous / name).read_bytes() == content
     recorded = calls(root)
@@ -294,10 +357,23 @@ def test_missing_completion_automatically_recovers_same_task_before_staging(
     staged = subprocess.run(['git', 'ls-files', '-z'], cwd=root, capture_output=True,
                             text=True, check=True).stdout.split(chr(0))
     assert set(staged) - {''} == {workflow.PLAN, workflow.QUEUE, 'owned.py'}
+    assert workflow.git_output(root, 'log', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 001']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_completion_recovery_preserves_new_queue_tasks_across_restart(checkout):
+def test_completion_recovery_preserves_new_queue_tasks_across_restart(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # Both recovered and newly queued tasks must finish their real Git push.
+    remote = tmp_path_factory.mktemp('write-e2e-queue-recovery-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     additions = ''.join(f'| [ ] | {task} | Added |\n' for task in range(300, 306))
     queue = '| [x] | 001 | First |\n' + additions + '| [ ] | 002 | Second |\n'
     script(root,
@@ -321,7 +397,8 @@ def test_completion_recovery_preserves_new_queue_tasks_across_restart(checkout):
     assert subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True,
                           check=True).stdout == b''
     recovered, _ = select_vm(root, ['--tasks', '2', '--sessions', '2'])
-    assert launcher.follow(recovered, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(recovered, output) == 0, output.getvalue()
     assert (previous / 'checkpoint.json').read_bytes() == saved
     recorded = calls(root)
     assert len(recorded) == 4
@@ -331,10 +408,23 @@ def test_completion_recovery_preserves_new_queue_tasks_across_restart(checkout):
     assert current == '301'
     assert {task for task, done in statuses.items() if done} == {'001', '300'}
     assert json.loads((recovered / 'result.json').read_text())['tasks'] == 2
+    assert workflow.git_output(root, 'log', '--reverse', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 001', 'TA: Completed task 300']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_completion_recovery_can_reopen_unaccepted_task_then_resume(checkout):
+def test_completion_recovery_can_reopen_unaccepted_task_then_resume(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # The resumed task must finish close-out with a real, case-private push.
+    remote = tmp_path_factory.mktemp('write-e2e-reopen-recovery-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root,
            {'result': reply('task_complete', 'passed'), 'close': True, 'invalid': True},
            {'result': reply(handoff='Acceptance failed; keep task 001 open.'),
@@ -351,16 +441,30 @@ def test_completion_recovery_can_reopen_unaccepted_task_then_resume(checkout):
     assert subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True,
                           check=True).stdout == b''
     final, _ = select_vm(root, ['--sessions', '1'])
-    assert launcher.follow(final, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(final, output) == 0, output.getvalue()
     assert len(calls(root)) == 3
     assert all('Task 001:' in call['prompt'] for call in calls(root))
     assert 'Acceptance failed; keep task 001 open.' in calls(root)[-1]['prompt']
     assert workflow.queue_state(root)[0] == '002'
+    assert workflow.git_output(root, 'log', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 001']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
 @pytest.mark.parametrize('interrupted', [False, True])
-def test_prerequisite_repair_runs_before_consumer_and_survives_restart(checkout, interrupted):
+def test_prerequisite_repair_runs_before_consumer_and_survives_restart(
+        checkout, interrupted, tmp_path_factory):
     root, _ = checkout
+    # Consumer completion must finish its real push after prerequisite recovery.
+    remote = tmp_path_factory.mktemp('write-e2e-prerequisite-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     repair = prerequisite_writes()
     closed = {
         workflow.QUEUE: repair[workflow.QUEUE].replace('| [ ] | 000a |', '| [x] | 000a |'),
@@ -373,7 +477,8 @@ def test_prerequisite_repair_runs_before_consumer_and_survives_restart(checkout,
         {'result': reply('task_complete', 'passed', task_id='000a'), 'writes': closed},
         {'result': reply('task_complete', 'passed'), 'close': True})
     first, _ = select_vm(root, ['--tasks', '2', '--sessions', '3'])
-    assert launcher.follow(first, io.StringIO()) == (1 if interrupted else 0)
+    output = io.StringIO()
+    assert launcher.follow(first, output) == (1 if interrupted else 0), output.getvalue()
     if interrupted:
         # The old failure remains untouched; the new owner resumes the inserted
         # prerequisite and stops after its genuine completion, not the repair.
@@ -398,6 +503,8 @@ def test_prerequisite_repair_runs_before_consumer_and_survives_restart(checkout,
     assert workflow.queue_state(root) == ('002', {'000a': True, '001': True, '002': False})
     staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
     assert 'partial.py' in staged.stdout
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
     if not interrupted:
         from launcher_progress import read_progress
         first_completion = next(row for row in read_progress(final) if row['key'] == 'complete-000a')
@@ -405,8 +512,17 @@ def test_prerequisite_repair_runs_before_consumer_and_survives_restart(checkout,
         assert json.loads((final / 'result.json').read_text())['tasks'] == 2
 
 
-def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
+def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # The restarted task must complete its real push to a case-private remote.
+    remote = tmp_path_factory.mktemp('write-e2e-handoff-restart-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply(handoff='LATEST LIVE HANDOFF')},
            {'result': reply('task_complete', 'passed'), 'close': True})
     first, _ = select_vm(root, ['--sessions', '1'])
@@ -416,7 +532,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     second, started = select_vm(root, ['--sessions', '1'])
     assert started and second != first
     output = io.StringIO()
-    assert launcher.follow(second, output) == 0
+    assert launcher.follow(second, output) == 0, output.getvalue()
     from rich.console import Console
     from rich.text import Text
     rendered = Text.from_ansi(output.getvalue())
@@ -447,6 +563,10 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
         assert '--output-schema' in call['args']
     assert 'LATEST LIVE HANDOFF' in invocations[1]['prompt']
     assert workflow.queue_state(root)[0] == '002'
+    assert workflow.git_output(root, 'log', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 001']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
     staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
     assert workflow.PLAN in staged.stdout and workflow.QUEUE in staged.stdout
     from launcher_progress import read_progress
@@ -454,8 +574,17 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(checkout):
     assert json.loads((second / 'result.json').read_text())['sessions'] == 1
 
 
-def test_escalation_survives_restart_and_new_task_resets_with_attempt_history_intact(checkout):
+def test_escalation_survives_restart_and_new_task_resets_with_attempt_history_intact(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # Both tasks must finish their real push before the next task can start.
+    remote = tmp_path_factory.mktemp('write-e2e-escalation-restart-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply()}, {'result': reply()},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
@@ -464,7 +593,8 @@ def test_escalation_survives_restart_and_new_task_resets_with_attempt_history_in
     assert workflow.queue_state(root)[0] == '001'
     retained = (first / 'checkpoint.json').read_bytes()
     second, _ = select_vm(root, ['--sessions', '2', '--tasks', '2'])
-    assert launcher.follow(second, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(second, output) == 0, output.getvalue()
     assert (first / 'checkpoint.json').read_bytes() == retained
     invocations = calls(root)
     assert [call['args'][call['args'].index('--model') + 1] for call in invocations] == [
@@ -478,10 +608,23 @@ def test_escalation_survives_restart_and_new_task_resets_with_attempt_history_in
         (3, '001', 'gpt-6-astra'), (4, '002', 'gpt-6.1-sol')]
     assert [row['reasoning_effort'] for row in records] == ['high', 'high']
     assert all(row['usage'] is None for row in records)  # Missing usage is never zero.
+    assert workflow.git_output(root, 'log', '--reverse', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 001', 'TA: Completed task 002']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_failed_astra_repair_promotes_real_child_transport_and_restarts_at_xhigh(checkout):
+def test_failed_astra_repair_promotes_real_child_transport_and_restarts_at_xhigh(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # The restarted task must finish close-out with a real, case-private push.
+    remote = tmp_path_factory.mktemp('write-e2e-xhigh-restart-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     failed = dict(reply()['progress'], repair_outcome='failed_repair')
     script(root, {'result': reply()}, {'result': reply()},
            {'result': reply(progress=failed)},
@@ -490,7 +633,8 @@ def test_failed_astra_repair_promotes_real_child_transport_and_restarts_at_xhigh
     assert launcher.follow(first, io.StringIO()) == 0
     assert json.loads((first / 'checkpoint.json').read_text())['model_tier'] == 2
     second, _ = select_vm(root, ['--sessions', '1'])
-    assert launcher.follow(second, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(second, output) == 0, output.getvalue()
     invocation = calls(root)[-1]
     assert invocation['args'][invocation['args'].index('--model') + 1] == 'gpt-6-astra'
     assert 'model_reasoning_effort="xhigh"' in invocation['args']
@@ -499,6 +643,10 @@ def test_failed_astra_repair_promotes_real_child_transport_and_restarts_at_xhigh
     usage = json.loads((second / 'agent-usage.jsonl').read_text())
     assert (usage['model'], usage['reasoning_effort']) == ('gpt-6-astra', 'xhigh')
     assert workflow.queue_state(root)[0] == '002'
+    assert workflow.git_output(root, 'log', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 001']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
 def test_reasoning_stalls_promote_then_stop_at_final_tier_without_acceptance(checkout):
@@ -537,10 +685,18 @@ def test_prerequisite_completion_does_not_renew_suspended_consumer_cap(checkout)
     assert workflow.queue_state(root)[0] == '001'
 
 
-def test_cumulative_sessions_restart_only_for_a_new_task(checkout):
+def test_cumulative_sessions_restart_only_for_a_new_task(checkout, tmp_path_factory):
     from launcher_progress import read_progress
     from rich.text import Text
     root, _ = checkout
+    # Both tasks must finish their real push before session numbering can restart.
+    remote = tmp_path_factory.mktemp('write-e2e-cumulative-sessions-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply()},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002')},
@@ -548,22 +704,36 @@ def test_cumulative_sessions_restart_only_for_a_new_task(checkout):
     for sessions, expected in [('2', '2'), ('1', '1'), ('1', '2')]:
         run, started = select_vm(root, ['--sessions', sessions])
         assert started
-        assert launcher.follow(run, io.StringIO()) == 0
+        output = io.StringIO()
+        assert launcher.follow(run, output) == 0, output.getvalue()
         line = Text.from_ansi(read_progress(run)[-1]['lines'][-1]).plain
         assert f'Session [{expected}]' in line
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_completion_stages_changes_from_every_session_despite_omitted_stage_paths(checkout):
+def test_completion_stages_changes_from_every_session_despite_omitted_stage_paths(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # Cross-session close-out must push to a private destination for this case.
+    remote = tmp_path_factory.mktemp('write-e2e-cross-session-staging-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     unrelated = root / 'unrelated.txt'
     unrelated.write_text('pre-existing work')
     script(root, {'result': reply(), 'writes': {'implementation.py': 'first session\n'}},
            {'result': reply('task_complete', 'passed'), 'close': True,
             'writes': {'final-note.md': 'last session\n'}})
     first, _ = select_vm(root, ['--sessions', '1'])
-    assert launcher.follow(first, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(first, output) == 0, output.getvalue()
     second, _ = select_vm(root, ['--sessions', '1'])
-    assert launcher.follow(second, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(second, output) == 0, output.getvalue()
     committed = subprocess.run(['git', 'ls-tree', '-r', '--name-only', 'HEAD'], cwd=root,
                                capture_output=True, text=True, check=True).stdout.splitlines()
     assert set(committed) == {workflow.PLAN, workflow.QUEUE,
@@ -571,16 +741,28 @@ def test_completion_stages_changes_from_every_session_despite_omitted_stage_path
     assert subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=root,
                           capture_output=True, text=True, check=True).stdout == ''
     assert unrelated.read_text() == 'pre-existing work'
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_each_session_repairs_previous_failure_then_validates_and_hands_off(checkout):
+def test_each_session_repairs_previous_failure_then_validates_and_hands_off(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # Starting the next task requires the completed task's real push.
+    remote = tmp_path_factory.mktemp('write-e2e-session-handoff-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply(handoff='FIRST')},
            {'result': reply(live='failed', handoff='LATEST VM FAILURE')},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002', handoff='NEXT TASK LIVE')})
     run, _ = select_vm(root, ['--sessions', '4', '--tasks', '2'])
-    assert launcher.follow(run, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 0, output.getvalue()
     invocations = calls(root)
     assert len(invocations) == 4
     for invocation in invocations[1:3]:
@@ -592,10 +774,23 @@ def test_each_session_repairs_previous_failure_then_validates_and_hands_off(chec
     assert invocations[3]['prompt'].startswith(workflow.INITIAL_PROMPT)
     assert 'LATEST VM FAILURE' not in invocations[3]['prompt']
     assert 'Task 002' in (run / 'handoff.txt').read_text()
+    assert workflow.git_output(root, 'log', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 001']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(checkout):
+def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # Completion summaries require both tasks to finish their real local push.
+    remote = tmp_path_factory.mktemp('write-e2e-completion-sessions-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply()},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002')},
@@ -603,7 +798,7 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
     run, _ = select_vm(root, ['--sessions', '9', '--tasks', '2'])
     output = io.StringIO()
-    assert launcher.follow(run, output) == 0
+    assert launcher.follow(run, output) == 0, output.getvalue()
     from rich.text import Text
     rendered = Text.from_ansi(output.getvalue()).plain
     assert 'Task 001 complete.\n- Took 2 sessions.\n- Duration: ' in rendered
@@ -622,13 +817,26 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
         assert re.fullmatch(
             rf'Task {task}: {title} \(sessions={sessions}, duration=\d+m\)',
             Text.from_ansi(step['lines'][0]).plain)
+    assert workflow.git_output(root, 'log', '--reverse', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 001', 'TA: Completed task 002']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_completed_task_is_compacted_while_next_task_keeps_live_updates(checkout):
+def test_completed_task_is_compacted_while_next_task_keeps_live_updates(
+        checkout, tmp_path_factory):
     from launcher_progress import read_progress
     from rich.console import Console
     from rich.text import Text
     root, _ = checkout
+    # Task compaction follows successful close-out, including a real local push.
+    remote = tmp_path_factory.mktemp('write-e2e-compaction-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     queue = root / workflow.QUEUE
     queue.write_text(queue.read_text().replace('| First |', '| [First](first.md) |'))
     script(root, {'result': reply()},
@@ -651,28 +859,45 @@ def test_completed_task_is_compacted_while_next_task_keeps_live_updates(checkout
     assert 'Session [1]: Writing task code + host validation + first live VM test; close on success, hand off on failure (gpt-6.1-sol high)' in lines
     assert 'Session [2]: Investigate/fix previous failure + host validation + live VM test 2; close on success, hand off on failure (gpt-6.1-sol high)' in lines
     (root / 'release').touch()
-    assert launcher.follow(run, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 0, output.getvalue()
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_completion_excludes_sessions_from_previous_completed_launcher(checkout):
+def test_completion_excludes_sessions_from_previous_completed_launcher(
+        checkout, tmp_path_factory):
     from rich.text import Text
     root, _ = checkout
+    # Both launcher completions must finish their real push before counting sessions.
+    remote = tmp_path_factory.mktemp('write-e2e-previous-completion-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply()},
            {'result': reply(live='failed')},
            {'result': reply(live='failed')},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
     first, _ = select_vm(root, [])
-    assert launcher.follow(first, io.StringIO()) == 0
+    first_output = io.StringIO()
+    assert launcher.follow(first, first_output) == 0, first_output.getvalue()
     second, started = select_vm(root, [])
     assert started and second != first
     output = io.StringIO()
-    assert launcher.follow(second, output) == 0
+    assert launcher.follow(second, output) == 0, output.getvalue()
     assert len(calls(root)) == 5
     assert ('Task 002 complete.\n- Took 1 sessions.\n'
             '- Duration: ') in Text.from_ansi(output.getvalue()).plain
     assert re.search(r'- Total launcher sessions: 1\n─+\n?$',
                      Text.from_ansi(output.getvalue()).plain)
+    assert workflow.git_output(root, 'log', '--reverse', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 001', 'TA: Completed task 002']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
 @pytest.mark.parametrize('args, sessions, completed, reason', [
@@ -683,14 +908,24 @@ def test_completion_excludes_sessions_from_previous_completed_launcher(checkout)
     (['--tasks', '2'], 4, 2, 'task limit reached'),
     (['--sessions', '2', '--tasks', '1'], 2, 1, 'task limit reached'),
 ])
-def test_first_limit_stops_after_accepted_completion(checkout, args, sessions, completed, reason):
+def test_first_limit_stops_after_accepted_completion(
+        checkout, args, sessions, completed, reason, tmp_path_factory):
     root, _ = checkout
+    # Accepted completion must finish its real push before the limit is counted.
+    remote = tmp_path_factory.mktemp('write-e2e-first-limit-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply()},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002')},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
     run, _ = select_vm(root, args)
-    assert launcher.follow(run, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 0, output.getvalue()
     assert len(calls(root)) == sessions
     for index, call in enumerate(calls(root)):
         assert call['args'][call['args'].index('--model') + 1] == 'gpt-6.1-sol'
@@ -704,6 +939,8 @@ def test_first_limit_stops_after_accepted_completion(checkout, args, sessions, c
         staged = subprocess.run(['git', 'show', ':' + workflow.QUEUE], cwd=root,
                                 capture_output=True, text=True, check=True)
         assert staged.stdout.count('| [x] |') == completed
+        assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+            workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
 @pytest.mark.parametrize('args', [[], ['--tasks', '2'], ['--sessions', '20', '--tasks', '2']])
@@ -773,8 +1010,16 @@ def test_six_prior_sessions_get_five_more_in_plain_new_launcher(checkout):
     assert 'Task 001 is not complete in 11 sessions. Launcher exited early.' in Text.from_ansi(output.getvalue()).plain
 
 
-def test_completion_on_fifth_session_resets_cap_for_next_task(checkout):
+def test_completion_on_fifth_session_resets_cap_for_next_task(checkout, tmp_path_factory):
     root, _ = checkout
+    # Resetting the next task's cap follows successful close-out, including push.
+    remote = tmp_path_factory.mktemp('write-e2e-fifth-session-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply()},
            *({'result': reply(live='failed')} for _ in range(3)),
            {'result': reply('task_complete', 'passed'), 'close': True},
@@ -782,11 +1027,15 @@ def test_completion_on_fifth_session_resets_cap_for_next_task(checkout):
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
     run, _ = select_vm(root, ['--tasks', '2'])
     output = io.StringIO()
-    assert launcher.follow(run, output) == 0
+    assert launcher.follow(run, output) == 0, output.getvalue()
     assert len(calls(root)) == 7
     assert 'Launcher exited early.' not in output.getvalue()
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 0, 'sessions': 7, 'tasks': 2}
+    assert workflow.git_output(root, 'log', '--reverse', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 001', 'TA: Completed task 002']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
 def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
@@ -830,8 +1079,17 @@ def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
     ([], ['--sessions', '0'], 2, 1),
     ([], ['--sessions', '-5'], 1, 0),
 ])
-def test_attached_adjustments_control_next_boundary(checkout, initial, adjustment, sessions, completed):
+def test_attached_adjustments_control_next_boundary(
+        checkout, initial, adjustment, sessions, completed, tmp_path_factory):
     root, spawned = checkout
+    # Counting completed tasks requires their real push to a private destination.
+    remote = tmp_path_factory.mktemp('write-e2e-attached-adjustments-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply(), 'wait': True},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002')},
@@ -841,13 +1099,26 @@ def test_attached_adjustments_control_next_boundary(checkout, initial, adjustmen
     assert select_vm(root, adjustment) == (run, False)
     assert len(spawned) == 1 and spawned[0].poll() is None
     (root / 'release').touch()
-    assert launcher.follow(run, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 0, output.getvalue()
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 0, 'sessions': sessions, 'tasks': completed}
+    if completed:
+        assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+            workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_concurrent_adjustments_accumulate_without_resetting_completed_work(checkout):
+def test_concurrent_adjustments_accumulate_without_resetting_completed_work(
+        checkout, tmp_path_factory):
     root, _ = checkout
+    # Reach the adjustment boundary only after the completed task's real push.
+    remote = tmp_path_factory.mktemp('write-e2e-concurrent-adjustments-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply()},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002'), 'wait': True})
@@ -859,9 +1130,12 @@ def test_concurrent_adjustments_accumulate_without_resetting_completed_work(chec
     assert json.loads((run / 'limits.json').read_text()) == {'tasks': 6, 'sessions': 12, 'started': 3}
     select_vm(root, ['--tasks', '-6', '--sessions', '-12'])
     (root / 'release').touch()
-    assert launcher.follow(run, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 0, output.getvalue()
     assert json.loads((run / 'result.json').read_text()) == {'status': 0, 'sessions': 3, 'tasks': 1}
     assert workflow.queue_state(root) == ('002', {'001': True, '002': False})
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
 def test_plain_run_stops_at_handoff_without_interrupting_agent(checkout):
@@ -927,10 +1201,19 @@ def test_bad_agent_outcome_stops_without_advancing_or_reusing_a_reply(checkout, 
 
 
 @pytest.mark.parametrize('custom', [False, True])
-def test_blocker_pauses_across_detach_and_resumes_only_after_answer(checkout, custom):
+def test_blocker_pauses_across_detach_and_resumes_only_after_answer(
+        checkout, custom, tmp_path_factory):
     from launcher_question import submit
     from rich.text import Text
     root, spawned = checkout
+    # Completion after the answer includes a real push to a private destination.
+    remote = tmp_path_factory.mktemp('write-e2e-blocker-answer-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     script(root, {'result': reply('blocked', handoff='ENGINEERING DETAILS ONLY IN SAVED HANDOFF')},
            {'result': reply('task_complete', 'passed'), 'close': True, 'wait': True})
     run, _ = select_vm(root, [])
@@ -951,7 +1234,7 @@ def test_blocker_pauses_across_detach_and_resumes_only_after_answer(checkout, cu
     assert "run this task's live VM acceptance" in prompt
     (root / 'release').touch()
     output = io.StringIO()
-    assert finish_answered_run(run, spawned, output) == 0
+    assert finish_answered_run(run, spawned, output) == 0, output.getvalue()
     rendered = Text.from_ansi(output.getvalue()).plain
     assert rendered.count(question['explanation']) == 1
     assert 'ENGINEERING DETAILS ONLY IN SAVED HANDOFF' not in rendered
@@ -964,6 +1247,8 @@ def test_blocker_pauses_across_detach_and_resumes_only_after_answer(checkout, cu
     assert len(calls(root)) == 2
     assert workflow.queue_state(root)[0] == '002'
     assert json.loads((run / 'checkpoint.json').read_text())['live_attempts'] == 2
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
 @pytest.mark.parametrize('action', ['stop', 'cancel'])
@@ -1030,8 +1315,18 @@ def test_expired_completed_nested_run_does_not_block_the_next_session(tmp_path):
 
 
 @pytest.mark.parametrize('live', ['passed', 'failed'])
-def test_cancelled_run_can_restart_through_recovery_and_vm_validation(checkout, live):
+def test_cancelled_run_can_restart_through_recovery_and_vm_validation(
+        checkout, live, tmp_path_factory):
     root, _ = checkout
+    if live == 'passed':
+        # Successful recovery includes close-out to a real, case-private remote.
+        remote = tmp_path_factory.mktemp('write-e2e-cancelled-recovery-remote')
+        subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+        branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+        subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+        subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+        subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                       cwd=root, check=True)
     script(root, {'result': reply(), 'wait': True},
            {'result': reply('task_complete' if live == 'passed' else 'ready_for_vm',
                             live, handoff='RECOVERED HANDOFF'), 'close': live == 'passed'})
@@ -1045,7 +1340,8 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(checkout, 
     assert 'Continue with GPT-6-Astra High' not in handoff
     recovered, started = select_vm(root, ['--sessions', '1'])
     assert started and recovered != run
-    assert launcher.follow(recovered, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(recovered, output) == 0, output.getvalue()
     invocations = calls(root)
     invocation = invocations[1]
     assert invocation['pid'] != invocations[0]['pid']
@@ -1062,3 +1358,9 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(checkout, 
     assert state['live_attempts'] == 1
     assert state['phase'] == ('complete' if live == 'passed' else 'live')
     assert 'RECOVERED HANDOFF' in (recovered / 'handoff.txt').read_text()
+    if live == 'passed':
+        assert json.loads((recovered / 'result.json').read_text())['tasks'] == 1
+        assert workflow.git_output(root, 'log', '--format=%s').stdout.splitlines() == [
+            'TA: Completed task 001']
+        assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+            workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())

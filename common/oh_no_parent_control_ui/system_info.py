@@ -20,9 +20,9 @@ PACKAGE = "oh-no-parent-control"
 RUNTIME_ROOTS = (
     "accountsservice", "adduser", "debconf", "dbus-user-session", "fapolicyd",
     "gdm3", "gir1.2-adw-1", "gir1.2-gstreamer-1.0", "gir1.2-gtk-4.0",
-    "gir1.2-malcontent-0", "gir1.2-webkit-6.0", "gnome-kiosk", "gnome-shell",
+    "gir1.2-malcontent-0", "gir1.2-webkit-6.0", "gjs", "gnome-kiosk", "gnome-shell",
     "gstreamer1.0-plugins-base", "gstreamer1.0-plugins-good", "gtk-update-icon-cache",
-    "libglib2.0-bin", "libpam-malcontent", "libpam-runtime", "malcontent",
+    "libglib2.0-bin", "liblmdb0", "libpam-malcontent", "libpam-runtime", "malcontent",
     "mate-polkit-bin", "polkitd", "python3", "python3-apt", "python3-gi",
     "python3-gi-cairo", "python3-requests", "sudo", "systemd-sysusers",
     "update-notifier", "update-notifier-common",

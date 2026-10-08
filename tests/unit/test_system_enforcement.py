@@ -930,6 +930,10 @@ def test_trust_refresh_completion_excludes_stale_foreign_and_replaced_daemons(mo
 
 @pytest.mark.parametrize('fault', [None, 'unfinished', 'dump-crash'])
 def test_future_trust_waits_before_dump_and_preserves_command_failure(monkeypatch, tmp_path, fault):
+    kernel_failure = Mock()
+    database_failure = Mock()
+    monkeypatch.setattr(enforcement, 'collect_trust_refresh_failure', kernel_failure)
+    monkeypatch.setattr(enforcement, 'collect_trust_database_failure', database_failure)
     target = tmp_path / 'Versioned-2.AppImage'
     target.write_bytes(b'future fixture')
     trust = tmp_path / 'trust.d/future.trust'
@@ -983,6 +987,8 @@ def test_future_trust_waits_before_dump_and_preserves_command_failure(monkeypatc
         with pytest.raises(enforcement.guest.GuestError, match='future-not-trusted'):
             enforcement.trust_future()
         assert dumps == 0
+        kernel_failure.assert_called_once_with(('987', 'a' * 32))
+        database_failure.assert_called_once_with(('987', 'a' * 32))
     elif fault == 'dump-crash':
         with pytest.raises(enforcement.guest.CommandError, match='command:failed:fapolicyd-cli'):
             enforcement.trust_future()
@@ -1010,6 +1016,7 @@ def test_trust_refresh_counters_are_private_bounded_and_reject_replaced_daemon(m
     for path in (daemon, proc / 'self'):
         (path / 'stat').write_text(stat_line())
     (daemon / 'io').write_text('rchar: 100\nread_bytes: 200\nprivate: 300\n')
+    (daemon / 'status').write_text('Name:\tprivate identity\nVmRSS: 42 kB\nVmSwap: 7 kB\n')
     for tid in range(987, 1004):
         thread = threads / str(tid)
         thread.mkdir()
@@ -1029,6 +1036,7 @@ def test_trust_refresh_counters_are_private_bounded_and_reject_replaced_daemon(m
     assert data['daemon'] == {'user_ticks': 12, 'system_ticks': 34,
                               'start_ticks': 99, 'io_delay_ticks': 56}
     assert data['daemon_io'] == {'rchar': 100, 'read_bytes': 200}
+    assert data['daemon_memory_kib'] == {'VmRSS': 42, 'VmSwap': 7}
     assert data['memory_kib'] == {'MemAvailable': 123, 'SwapFree': 456}
     assert len(data['threads']) == 16 and data['threads_truncated']
     assert 'private' not in json.dumps(data)
@@ -1048,6 +1056,241 @@ def test_trust_refresh_diagnostic_failure_preserves_fixture_outcome(monkeypatch)
     diagnostic = enforcement.TrustRefreshDiagnostic()
     data = diagnostic.snapshot()
     assert data['counters_unavailable'] and 'private' not in json.dumps(data)
+
+
+def test_trust_database_mapping_diagnostic_detects_stale_and_small_maps(monkeypatch, tmp_path):
+    database = tmp_path / 'database'
+    database.mkdir()
+    data = database / 'data.mdb'
+    lock = database / 'lock.mdb'
+    data.write_bytes(b'x' * 8192)
+    lock.write_bytes(b'x' * 4096)
+    process = tmp_path / 'process'
+    process.mkdir()
+    info = lock.stat()
+    device = f'{os.major(info.st_dev):02x}:{os.minor(info.st_dev):02x}'
+    (process / 'maps').write_text(
+        '1000-2000 rw-s 00000000 00:00 1 /var/lib/fapolicyd/data.mdb (deleted)\n'
+        f'2000-3000 rw-s 00000000 {device} {info.st_ino} /var/lib/fapolicyd/lock.mdb\n'
+        '3000-4000 r--p 00000000 00:00 2 /home/private-account/private-file\n')
+    real_path = enforcement.Path
+    monkeypatch.setattr(enforcement, 'Path', lambda value: database if str(value) ==
+                        '/var/lib/fapolicyd' else real_path(value))
+    # Relocate the fixed database and its map rows together, leaving the
+    # unrelated private path as a privacy canary.
+    (process / 'maps').write_text((process / 'maps').read_text().replace(
+        '/var/lib/fapolicyd', str(database)))
+    observed = enforcement.TrustRefreshDiagnostic.database_snapshot(process)
+    assert observed['data.mdb']['file_bytes'] == 8192
+    assert observed['data.mdb']['mappings'] == [{
+        'bytes': 4096, 'offset': 0, 'writable': True, 'shared': True,
+        'deleted': True, 'same_file': False}]
+    assert observed['lock.mdb']['mappings'][0]['same_file'] is True
+    assert 'private' not in json.dumps(observed)
+    (process / 'maps').write_text('x' * 65537)
+    assert enforcement.TrustRefreshDiagnostic.database_snapshot(process) == {'maps_truncated': True}
+
+
+def test_trust_terminal_identity_failure_survives_unavailable_diagnostics(monkeypatch):
+    raw = 'MainPID=0\nInvocationID=' + 'a' * 32 + '\nActiveState=failed\n'
+    diagnostic = SimpleNamespace(initial={}, snapshot=Mock(side_effect=OSError('private error')))
+    retained = []
+
+    def run(argv, **options):
+        retained.append(options['diagnostic_stdout'](raw.encode()).decode())
+        return raw
+
+    monkeypatch.setattr(enforcement.guest, 'run', run)
+    with pytest.raises(enforcement.guest.GuestError, match='enforcement:trust-daemon-identity'):
+        enforcement.TrustRefreshCompletion.service_identity(3, diagnostic)
+    assert retained == [raw + '\ntrust_refresh={"counters_unavailable":true}\n']
+    assert 'private' not in retained[0]
+
+
+@pytest.mark.parametrize('fault', [None, 'unavailable', 'command-failed', 'no-events', 'malformed'])
+def test_trust_failure_kernel_diagnostic_preserves_outcome_and_privacy(monkeypatch, capsys, fault):
+    commands = SimpleNamespace(last_returncode=17)
+    retained = []
+
+    def run(argv, **options):
+        commands.last_returncode = 1 if fault == 'command-failed' else 0
+        assert argv[0] == 'journalctl' and options['timeout'] == 3 and options['check'] is False
+        assert '--dmesg' in argv and '--kernel' not in argv and '--quiet' in argv
+        assert '--lines=100' in argv and '--since=-3 minutes' in argv
+        assert not any(arg.startswith('--grep') for arg in argv)
+        if fault == 'unavailable':
+            raise OSError('private failure')
+        messages = [
+            'apparmor="DENIED" operation="file_lock" pid=987 comm="fapolicyd" '
+            'name="/var/lib/fapolicyd/lock.mdb" profile="private profile"',
+            'apparmor="DENIED" operation="open" pid=988 comm="fapolicyd" name="private file"',
+            'apparmor="DENIED" operation="open" pid=987 comm="other" name="private file"',
+            'Killed process 987 (fapolicyd) private account details',
+            'Killed process 988 (fapolicyd) private account details']
+        raw = '\n'.join(json.dumps({'MESSAGE': message}) for message in messages).encode()
+        if fault in ('command-failed', 'no-events'):
+            raw = b''
+        elif fault == 'malformed':
+            raw = b'private invalid reply'
+        retained.append(options['diagnostic_stdout'](raw).decode())
+
+    commands.run = run
+    monkeypatch.setattr(enforcement.guest, 'commands', commands)
+    enforcement.collect_trust_refresh_failure(('987', 'a' * 32))
+    assert commands.last_returncode == 17
+    output = capsys.readouterr().out
+    outcome = 'unavailable' if fault == 'unavailable' else 'failed' if fault == 'command-failed' else 'read'
+    assert output == 'onpc-system: stage=trust-refresh-kernel outcome=' + outcome + '\n'
+    assert 'private' not in output
+    if fault != 'unavailable':
+        expected = {'daemon_access_denials': [], 'daemon_oom': False}
+        if fault is None:
+            expected = {'daemon_access_denials': [{
+                'operation': 'file_lock', 'database_data': False, 'database_lock': True}],
+                'daemon_oom': True}
+        elif fault == 'malformed':
+            expected['parse_unavailable'] = True
+        assert json.loads(retained[0]) == expected
+        assert 'private' not in retained[0] and '987' not in retained[0]
+
+
+@pytest.mark.parametrize('failure', [None, 'create', 'open', 'read-transaction', 'trust-db', 'trust-stat'])
+def test_trust_metadata_uses_readonly_nolock_and_closes_partial_handles(monkeypatch, failure):
+    import ctypes as c
+
+    names = ('mdb_version', 'mdb_env_create', 'mdb_env_set_maxdbs', 'mdb_env_open',
+             'mdb_env_info', 'mdb_env_stat', 'mdb_txn_begin', 'mdb_dbi_open',
+             'mdb_stat', 'mdb_txn_abort', 'mdb_env_close')
+    lib = SimpleNamespace(**{name: Mock(return_value=0) for name in names})
+    load = Mock(return_value=lib)
+    monkeypatch.setattr(c, 'CDLL', load)
+
+    def version(*parts):
+        for pointer, value in zip(parts, (0, 9, 35)):
+            pointer._obj.value = value
+
+    def create(pointer):
+        if failure == 'create':
+            return -30793
+        pointer._obj.value = 1
+        return 0
+
+    def info(env, pointer):
+        row = pointer._obj
+        row.address = 0xABCDEF  # Never retain a mapped address.
+        row.map_bytes, row.last_page, row.last_txnid = 8 * 1024 * 1024, 1000, 190001
+        return 0
+
+    def stat(env, pointer):
+        pointer._obj.page_bytes = 4096
+        return 0
+
+    def begin(env, parent, flags, pointer):
+        assert parent is None and flags == 0x20000
+        if failure == 'read-transaction':
+            return -30785
+        pointer._obj.value = 2
+        return 0
+
+    def dbi(txn, name, flags, pointer):
+        assert name == b'trust.db' and flags == 0  # No MDB_CREATE.
+        if failure == 'trust-db':
+            return -30798
+        pointer._obj.value = 3
+        return 0
+
+    def trust_stat(txn, dbi, pointer):
+        if failure == 'trust-stat':
+            return -30796
+        pointer._obj.entries, pointer._obj.depth = 190000, 3
+        return 0
+
+    lib.mdb_version.side_effect = version
+    lib.mdb_env_create.side_effect = create
+    lib.mdb_env_info.side_effect = info
+    lib.mdb_env_stat.side_effect = stat
+    lib.mdb_txn_begin.side_effect = begin
+    lib.mdb_dbi_open.side_effect = dbi
+    lib.mdb_stat.side_effect = trust_stat
+    if failure == 'open':
+        lib.mdb_env_open.return_value = errno.EACCES
+    result = enforcement.trust_database_metadata()
+    load.assert_called_once_with('liblmdb.so.0')
+    assert result['library_version'] == [0, 9, 35]
+    if failure is None:
+        assert result == {'outcome': 'read', 'library_version': [0, 9, 35],
+                          'map_bytes': 8 * 1024 * 1024, 'last_page': 1000,
+                          'last_txnid': 190001, 'page_bytes': 4096,
+                          'used_bytes': 1001 * 4096, 'trust_entries': 190000, 'trust_depth': 3}
+    else:
+        assert result['outcome'] == 'failed' and result['stage'] == failure
+        assert isinstance(result['code'], int)
+    assert str(0xABCDEF) not in json.dumps(result)
+    if failure != 'create':
+        assert lib.mdb_env_open.call_args.args[1:] == (b'/var/lib/fapolicyd', 0x420000, 0)
+    assert lib.mdb_env_close.call_count == (0 if failure == 'create' else 1)
+    assert lib.mdb_txn_abort.call_count == (1 if failure in (None, 'trust-db', 'trust-stat') else 0)
+
+
+@pytest.mark.parametrize('fault', [None, 'active', 'replaced', 'read-failed', 'command-failed', 'unavailable'])
+def test_trust_metadata_collector_requires_exited_daemon_and_preserves_failure(monkeypatch, capsys, fault):
+    identity = 'a' * 32
+    commands = SimpleNamespace(last_returncode=17, run=Mock())
+
+    def show(argv, **options):
+        if fault == 'read-failed':
+            raise enforcement.guest.CommandError('private read error')
+        return ('MainPID=' + ('987' if fault == 'active' else '0') +
+                '\nActiveState=' + ('active' if fault == 'active' else 'failed') +
+                '\nInvocationID=' + ('b' * 32 if fault == 'replaced' else identity))
+
+    def run(argv, **options):
+        assert argv == ['/usr/bin/python3', '-B', str(enforcement.guest.PAYLOAD / 'system_enforcement.py'),
+                        'trust-database-metadata', identity]
+        assert options == {'timeout': 3, 'check': False, 'merge_stderr': False}
+        commands.last_returncode = 1 if fault == 'command-failed' else 0
+        if fault == 'unavailable':
+            raise OSError('private worker failure')
+        return b'{"outcome":"read"}\n'
+
+    commands.run.side_effect = run
+    monkeypatch.setattr(enforcement.guest, 'commands', commands)
+    monkeypatch.setattr(enforcement.guest, 'run', show)
+    enforcement.collect_trust_database_failure(('987', identity))
+    assert commands.last_returncode == 17
+    if fault in ('active', 'replaced', 'read-failed'):
+        commands.run.assert_not_called()
+    outcome = ('not-exited' if fault in ('active', 'replaced') else
+               'unavailable' if fault in ('read-failed', 'unavailable') else
+               'failed' if fault == 'command-failed' else 'collected')
+    assert capsys.readouterr().out == 'onpc-system: stage=trust-database-metadata outcome=' + outcome + '\n'
+
+
+@pytest.mark.parametrize('fault', [None, 'active', 'replaced', 'unavailable'])
+def test_trust_metadata_child_rechecks_exit_and_redacts_errors(monkeypatch, capsys, fault):
+    identity = 'a' * 32
+    monkeypatch.setattr(sys, 'argv', ['system_enforcement.py', 'trust-database-metadata', identity])
+    guard = Mock()
+    monkeypatch.setattr(enforcement.guest, 'guard', guard)
+    monkeypatch.setattr(enforcement.guest, 'run', Mock(return_value=(
+        'MainPID=' + ('987' if fault == 'active' else '0') + '\nActiveState=' +
+        ('active' if fault == 'active' else 'failed') + '\nInvocationID=' +
+        ('b' * 32 if fault == 'replaced' else identity))))
+    metadata = Mock(return_value={'outcome': 'read', 'trust_entries': 190000})
+    if fault == 'unavailable':
+        metadata.side_effect = RuntimeError('private library failure')
+    monkeypatch.setattr(enforcement, 'trust_database_metadata', metadata)
+    result = enforcement.main()
+    guard.assert_called_once()
+    output = capsys.readouterr()
+    assert 'private' not in output.out + output.err
+    if fault in ('active', 'replaced'):
+        assert result == 1 and not output.out
+        metadata.assert_not_called()
+    else:
+        assert result == 0 and not output.err
+        assert json.loads(output.out) == ({'outcome': 'unavailable'} if fault == 'unavailable' else
+                                          {'outcome': 'read', 'trust_entries': 190000})
 
 
 @pytest.mark.parametrize('fault', ['allow-missing', 'allow-after-deny', 'deny-missing', 'wrong-uid',

@@ -960,6 +960,27 @@ def test_failure_targets_keep_cases_stable_across_buckets_and_scope_vms():
         dict(category='system', case='', vm='guest-a')]
 
 
+def test_failure_handoff_repairs_first_observed_case_before_dependent_fallout(report, tmp_path):
+    run = regression.Run(tmp_path, report, Control(), host_only=True,
+                         continue_on_errors=True)
+    run.dashboard.stream = io.StringIO()
+    item = regression.Category('Enforcement', 2, retry_category='system')
+    run.categories.append(item)
+    execution = regression.Execution(run, item, events=True)
+    try:
+        for case in ('z_original_failure', 'a_dependent_failure', 'z_original_failure'):
+            execution.output((regression.PREFIX + json.dumps(dict(
+                kind='failure', nodeid=case, when='call')) + '\n').encode())
+        assert item.failures == 2
+        expected = [dict(category='system', case=case, vm='guest-a') for case in (
+            'z_original_failure', 'a_dependent_failure')]
+        assert regression.failure_targets([item], vm='guest-a') == expected
+        saved = json.loads((report.directory / 'progress.json').read_text())[-1]
+        assert saved['failed_nodeids'] == [target['case'] for target in expected]
+    finally:
+        execution.close()
+
+
 def test_partial_failure_is_durable_before_cancellation(report, tmp_path):
     item = regression.Category('Fixture', 1)
     control = Control()

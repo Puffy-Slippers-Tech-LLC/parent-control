@@ -47,7 +47,7 @@ def test_overlay_about_license_shared_reader_and_unchanged_form(
     reader.run('overlay-support-read', version)
     reader.run('overlay-legal-notices-read', version)
     reader.run('overlay-about-close-ready', version)
-    reader.close_id('about-dialog')
+    # The shared operation owns the close action and verifies return to the form.
     reader.run('overlay-about-closed', version)
     assert reader.run('overlay-valid-fraction-soft-read', '')['valid_choice']['request'] == before
 

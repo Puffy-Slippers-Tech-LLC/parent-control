@@ -223,9 +223,10 @@ Technical interfaces, storage formats and verification limits are in the
   logo and reminder body without an application/source header. In kiosk it
   appears at the top center. Closing the editor dismisses its preview, and a
   subsequent real countdown reminder replaces it without waiting for dismissal.
-  All reminder banners use the kiosk/child overlay's pixel font and dark HUD
-  styling, with the product logo, cyan heading, rough violet/cyan frame with
-  lava-red corners, segmented countdown bar and Preferences/Dismiss actions.
+  All reminder banners use a light lavender face, dark sans-serif heading,
+  slim cyan/violet frame with rounded, stepped-accent corners, the product logo,
+  a thin cyan countdown bar and icon-only Preferences/Dismiss actions. Content,
+  translated tooltips and accessible action names remain unchanged by styling.
   One complete section goes dark each second. At delivery, remaining time
   of at least one minute gives the banner a five-second auto-close countdown;
   below one minute it uses the same bar with one section per remaining second

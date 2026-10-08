@@ -21,8 +21,6 @@ from common.oh_no_parent_control_ui.about import branding_asset_path
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from common.oh_no_parent_control_ui.application_ui import ApplicationUI, bind_ui
 from common.oh_no_parent_control_ui.translation_widgets import TranslationContext, set_text
-# The systemd service executes this file directly, without a package context.
-from kiosk.oh_no_parent_control_kiosk.chrome import register_form_font
 
 
 INTERFACE = 'org.freedesktop.Notifications'
@@ -82,26 +80,24 @@ class NotificationApplication(Gtk.Application):
             self.get_dbus_connection(), INTERFACE, Gio.BusNameOwnerFlags.NONE,
             None, lambda *_: self.quit())
         css = Gtk.CssProvider()
-        register_form_font()
         css.load_from_string('''window.kiosk-notification { background: transparent; }
-            .kiosk-notification-card { background: transparent; color: #eeedf8;
-            border: 32px solid transparent; border-radius: 0; padding: 8px;
-            border-image-source: url("FRAME"); border-image-slice: 32 fill; border-image-width: 32px; }
-            .kiosk-notification label { font: 8.5px "Monocraft", "Ubuntu Mono", monospace; }
-            .kiosk-notification .reminder-message { font-size: 15px; font-weight: bold; color: #83edff;
-            text-shadow: 1px 1px #24305b; }
-            .kiosk-notification .reminder-time { font-size: 12px; color: #c0efff; min-width: 14px; }
-            .kiosk-notification button { background: transparent; color: #eeedf8;
-            border: 0; border-radius: 0; padding: 0; box-shadow: none; min-width: 50px; }
-            .kiosk-notification button:hover, .kiosk-notification button:focus { background: #38304d; }
-            .kiosk-notification .reminder-divider { background: #676280; min-width: 1px; }
-            .kiosk-notification .reminder-track { border: 1px solid #483092;
-            border-radius: 1px; padding: 1px; background: #111125; }
-            .kiosk-notification progressbar trough { background: #181230; min-height: 9px; min-width: 0;
+            .kiosk-notification-card { background: transparent; color: #242b4b;
+            border: 12px solid transparent; border-radius: 0; padding: 6px;
+            border-image-source: url("FRAME"); border-image-slice: 12 fill; border-image-width: 12px; }
+            .kiosk-notification label { font: 11px sans-serif; }
+            .kiosk-notification .reminder-message { font-size: 20px; font-weight: 600; color: #242b4b; }
+            .kiosk-notification .reminder-time { font-size: 12px; color: #424a70; min-width: 14px; }
+            .kiosk-notification button { background: transparent; color: #242b4b;
+            border: 0; border-radius: 5px; padding: 0; box-shadow: none; min-width: 32px; min-height: 32px; }
+            .kiosk-notification button:hover, .kiosk-notification button:focus { background: #d4e6ff; }
+            .kiosk-notification button:active { background: #c3d8fa; }
+            .kiosk-notification .reminder-divider { background: #d4cfe4; min-width: 1px; }
+            .kiosk-notification .reminder-track { border: 1px solid #cec9e1;
+            border-radius: 2px; background: #e1ddec; }
+            .kiosk-notification progressbar trough { background: transparent; min-height: 6px; min-width: 0;
             border: 0; border-radius: 0; }
-            .kiosk-notification progressbar progress { background: linear-gradient(#24efff, #02cde9);
-            min-height: 9px; min-width: 0; border: 0; border-radius: 0; }
-            .kiosk-notification.onpc-readable-script label { font-family: sans-serif; }
+            .kiosk-notification progressbar progress { background: linear-gradient(#06d7ee, #009df5);
+            min-height: 6px; min-width: 0; border: 0; border-radius: 0; }
             '''.replace('FRAME', branding_asset_path('reminder-frame.svg').as_uri()))
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
@@ -167,7 +163,7 @@ class NotificationApplication(Gtk.Application):
         row.append(Gtk.Image.new_from_gicon(Gio.FileIcon.new(
             Gio.File.new_for_path(str(branding_asset_path('app_logo.png'))))))
         row.get_first_child().set_pixel_size(56)
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6,
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
                           valign=Gtk.Align.CENTER, hexpand=True)
         message = Gtk.Label(wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
                             max_width_chars=20, xalign=0, css_classes=['reminder-message'])
@@ -186,7 +182,7 @@ class NotificationApplication(Gtk.Application):
                             visible=milliseconds > 0)
         progress_row = Gtk.Box(spacing=8, margin_end=17)
         total_seconds = 5 if self._auto_close else math.ceil(milliseconds / 1000)
-        self._progress = Gtk.Box(spacing=1 if total_seconds > 5 else 3,
+        self._progress = Gtk.Box(spacing=0,
                                  homogeneous=True, hexpand=True, valign=Gtk.Align.CENTER,
                                  css_classes=['reminder-track'])
         self._segments = []
@@ -205,14 +201,14 @@ class NotificationApplication(Gtk.Application):
         row.append(Gtk.Box(width_request=1, margin_top=5, margin_bottom=5,
                            margin_start=3, margin_end=4,
                            css_classes=['reminder-divider']))
-        action_row = Gtk.Box(spacing=11, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+        action_row = Gtk.Box(spacing=6, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
         row.append(action_row)
         for identity, filename, label, callback in (
                 ('preferences', 'reminder-preferences.svg', m.PREFERENCES, self._preferences),
                 ('close', 'reminder-dismiss.svg', m.DISMISS, lambda *_: self._close(2))):
             image = Gtk.Image.new_from_file(str(branding_asset_path(filename)))
             image.set_halign(Gtk.Align.CENTER)
-            image.set_pixel_size(40)
+            image.set_pixel_size(32)
             button = Gtk.Button(child=image, valign=Gtk.Align.CENTER)
             set_text(button, 'tooltip-text', label)
             describe_control(button, label, label, automation_id=f'kiosk-system-notification-{identity}')

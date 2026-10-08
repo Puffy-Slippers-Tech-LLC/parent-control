@@ -15,7 +15,8 @@ import system_graphical_expiry as expiry
 @pytest.fixture
 def boot_rig(tmp_path, monkeypatch):
     system = tmp_path / 'system'
-    system.mkdir()
+    # Model the protected systemd directory regardless of the host's umask.
+    system.mkdir(mode=0o755)
     service = system / expiry.BOOT_UNIT
     dropin = system / 'display-manager.service.d' / 'onpc-test-graphical-expiry.conf'
     monkeypatch.setattr(expiry, 'BOOT_SERVICE', service)

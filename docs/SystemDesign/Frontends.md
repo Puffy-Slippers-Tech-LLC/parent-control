@@ -451,7 +451,7 @@ above fullscreen windows without making it fullscreen. A transparent monitor-wid
 top strip centers its bounded banner card within the tagged surface; the default
 tag's top-left positioning does not position the card itself. This provider does not
 start in ordinary child desktops, where GNOME Shell owns notifications. The
-provider reads only packaged logo/HUD artwork, supports literal escaped body text,
+provider reads only packaged logo/banner artwork, supports literal escaped body text,
 replacement and dismissal, and does not log reminder content. Its user unit
 and kiosk target changes activate with session renewal.
 
@@ -467,17 +467,18 @@ Desktop delivery never falls back to a generic Shell application notification.
 Countdown and preview share one banner slot: a new threshold replaces a preview
 immediately, and closing an old preview cannot close a newer countdown banner.
 
-Child and kiosk reminders share packaged pixel SVG rails/action icons, the
-request form's Monocraft font, dark HUD face, cyan heading and segmented
-countdown. The armored rails have cyan/violet beveled plates and orange corner
-accents, six-sided corner plates with straight outer chamfers and thin rails;
-the 15-pixel bold cyan heading sits above the
-progress bar. The countdown uses 12 pixels so fallback
+Child and kiosk reminders share packaged SVG rails/action icons, a pale lavender
+face, dark sans-serif heading and thin cyan countdown. The slim cyan/violet
+rails have rounded corners with small stepped accents and white highlights;
+light action faces use fine gradient outlines, a blue gear and blue dismiss mark.
+The 20-pixel semibold heading sits above the progress bar without a subtitle.
+The countdown uses 12 pixels so fallback
 glyphs, including dense Chinese and Japanese scripts, remain readable.
 The product logo is 56 pixels and action icons
-are 40 pixels; the Shell card starts at 561 logical pixels and grows with the
+are 32 pixels, with no extra button padding and a six-pixel gap;
+the Shell card starts at 561 logical pixels and grows with the
 translated action widths, bounded by the monitor width. Both renderers retain
-32-pixel frame insets plus eight pixels of inner padding and centered action icons.
+12-pixel frame insets plus six pixels of inner padding and centered action icons.
 The CSS border reserves the full painted border-image slices in both toolkits,
 so the logo, heading, progress bar and buttons stay clear of the rails and corners.
 Height follows the content. Literal reminder
@@ -488,9 +489,8 @@ share a centered horizontal action row and retain translated accessible names.
 Hovering either icon shows its translated caption in a tooltip; Shell tooltip
 chrome is owned and destroyed with the banner, and kiosk uses native GTK tooltips.
 Each countdown segment represents one second and empties as a whole block;
-the bar never drains continuously within a segment.
-Shell registers Monocraft with the actor's Clutter font map, so it is available
-to the actual text renderer rather than only Cairo's separate default map.
+adjacent fills form a continuous thin track, but it never drains continuously
+within a segment. Both renderers use the system sans-serif font for all languages.
 The child renderer owns only its own Shell chrome and notification model,
 without registering it with the message tray: the tray's fixed noncritical
 timeout cannot express persistence independently of fullscreen urgency.

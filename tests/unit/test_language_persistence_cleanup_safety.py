@@ -155,6 +155,9 @@ def test_real_recorder_step_checks_before_durable_reply(tmp_path, stage, fault):
         elapsed=2500 if fault == 'elapsed' else 50 if 'final' in stage else 0)
     if 'final' in stage:
         case.CHECKS['riley-before'](journey, {'ui': {'language_state': policy()}})
+        # The final stage compares names with the earlier Chinese observation.
+        case.CHECKS['parent-riley-state'](journey, {
+            'ui': {'language_state': policy('riley', 'zh-Hans', elapsed=40)}})
     if fault == 'policy': value['rows'][0][1] = 'permanent'
     if fault == 'grant': value['balances']['one_time']['seconds'] = 1
     if fault == 'text': value['labels']['kiosk-request-submit'] = 'wrong'
@@ -274,6 +277,10 @@ def test_connectivity_boundary_checks_public_policy_before_action(
     journey.boot = 'a' * 64
     journey.steps = [{'stage': s} for s in case.PLAN.stages[:case.PLAN.stages.index(stage)]]
     case.CHECKS[child + '-before'](journey, {'ui': {'language_state': policy(child)}})
+    if stage == 'offline-restore':
+        # Restore compares names with the earlier Chinese observation.
+        case.CHECKS['parent-riley-state'](journey, {
+            'ui': {'language_state': policy('riley', 'zh-Hans', elapsed=40)}})
     value = policy(child, language, elapsed=50)
     if fault == 'policy':
         value['rows'][0][1] = 'permanent'

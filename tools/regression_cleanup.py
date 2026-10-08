@@ -5,6 +5,11 @@ explicitly owned children/descriptors. test_environment disables shared caches
 and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
+# Concurrent write_e2e limit adjustments and answered-blocker completion add a
+# tiny pytest-private bare Git remote and finite waited Git commands. Joined
+# threads and owned agent cleanup remain
+# unchanged; no network, shared cache, VM or new cleanup owner is added. Existing
+# compatible unit and cleanup classifications remain appropriate.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch; test_test_retention_cleanup_safety remains compatible in both inventories.
 # Unrelated-package package_authority/package_install checks use private markers,
@@ -201,10 +206,47 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Missing-completion recovery uses private checkouts and waited owner/agent
 # doubles under the existing write-e2e fixture. No live VM or shared mutable
 # resource is added; cleanup and unit scheduling remain compatible.
-# The three-task batch case uses a pytest-private bare Git remote and finite
-# waited Git commands; no network or shared state is added, so it stays compatible.
+# The batch, separate-run checkpoint, cumulative-session restart, cross-session staging,
+# missing-completion recovery and early worker-spawn failure cases use private bare
+# Git remotes and finite waited Git commands; no network or shared state is added,
+# so they stay compatible.
+# Accepted-completion limit checks likewise use pytest-private bare remotes and
+# waited local Git children; no shared resource or cleanup lifetime is added.
+# First-session successful close-out likewise uses a pytest-private bare remote
+# and waited local Git commands, retaining compatible unit/cleanup scheduling.
+# Staging-failure recovery uses the same private remote allocation and waited Git
+# children, preserving compatible scheduling without shared state or network.
+# Prerequisite/consumer recovery adds only a tiny pytest-private bare remote and
+# waited local Git children, preserving compatible unit/cleanup scheduling.
+# Newly inserted queue-task recovery also uses a pytest-private bare remote and
+# waited Git commands, retaining compatible unit/cleanup scheduling.
+# Reopened-task recovery uses the same private remote allocation and waited local
+# Git children; compatible unit/cleanup scheduling remains unchanged.
+# Session-limit handoff restart adds a tiny pytest-private bare remote and waited
+# local Git children; existing owned worker cleanup is unchanged. No shared cache,
+# socket, bus, display, service or live VM; bounded disk/CPU use stays compatible.
+# Escalation restart adds a pytest-private bare remote for both task pushes and
+# waited local Git commands; worker cleanup and compatible scheduling are unchanged.
+# Previous-failure session handoff uses a tiny pytest-private bare remote and
+# waited local Git children; cleanup and unit compatibility remain unchanged,
+# with no network, shared state, live VM or additional asynchronous owner.
+# Completion session summaries also use a tiny pytest-private bare remote and
+# waited local Git children; existing cleanup ownership and compatibility hold.
+# Completed-task compaction likewise uses a private remote and waited local Git
+# children, with no shared paths, network, sockets, displays or live VM.
+# Tiny disk/CPU demand and unchanged owned-agent cleanup preserve compatibility.
+# Previous-launcher session exclusion adds a tiny pytest-private bare remote and
+# waited local Git children; no shared state, network, sockets, displays or live
+# VM is added, so compatible unit/cleanup scheduling and owned cleanup hold.
+# Attached-limit adjustment checks likewise use a tiny pytest-private bare remote
+# and waited local Git children; compatible scheduling and worker cleanup hold.
+# Successful cancellation recovery adds a tiny pytest-private bare remote and
+# waited local Git children; no network, shared state, sockets, displays or live
+# VM is added. Bounded disk/CPU use and existing owned cleanup stay compatible.
 # Escalation/restart/stall checks use the same bounded, waited agent doubles;
 # there are no model calls, VM operations or additional shared resources.
+# Fifth-session cap reset uses a tiny pytest-private bare remote and waited local
+# Git commands; compatible overlap and existing worker cleanup remain unchanged.
 # Optimization cadence/interruptions and completion commits reuse isolated Git
 # checkouts with local identity and waited doubles; no host Git state or new
 # cleanup resource is shared, so the existing compatible classification applies.

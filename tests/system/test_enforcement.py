@@ -65,7 +65,55 @@ def test_native_catalog_is_selected_child_scoped(native_accounts, record_testsui
 
 
 def test_kiosk_expiry_installed_runtime(record_testsuite_property):
+    import json
+    import re
+    import system_guest as guest
     from system_session_expiry import verify_offline_recovery, verify_pam_scope
-    verify_offline_recovery(record_testsuite_property)
+
+    guest.guard()
+
+    def record_backend(stage):
+        # An earlier native fixture can fail to restore policy after losing
+        # fapolicyd. Observe this case's entry/exit without restarting it,
+        # refreshing trust, or replacing the original setup failure.
+        previous_returncode = guest.commands.last_returncode
+        observation = {'read': 'unavailable'}
+        try:
+            raw = guest.commands.run([
+                'systemctl', 'show', 'fapolicyd.service',
+                '--property=ActiveState,Result,MainPID,ExecMainStatus,ExecMainExitTimestampMonotonic'],
+                timeout=3, check=False, merge_stderr=False).decode('ascii')
+            observation['read'] = 'read' if guest.commands.last_returncode == 0 else 'failed'
+            fields = dict(line.split('=', 1) for line in raw.splitlines() if '=' in line)
+            for key, allowed in (
+                    ('ActiveState', ('active', 'inactive', 'failed', 'activating',
+                                     'deactivating', 'reloading')),
+                    ('Result', ('success', 'exit-code', 'signal', 'core-dump',
+                                'timeout', 'watchdog', 'start-limit-hit', 'oom-kill'))):
+                value = fields.get(key)
+                observation[key] = value if value in allowed else 'unknown'
+            for key in ('MainPID', 'ExecMainStatus', 'ExecMainExitTimestampMonotonic'):
+                value = fields.get(key, '')
+                if re.fullmatch(r'[0-9]{1,20}', value) and int(value) < 2 ** 64:
+                    if key == 'MainPID':
+                        observation['process_present'] = int(value) > 0
+                    else:
+                        observation[key] = int(value)
+        except Exception:
+            # Diagnostic errors and raw output must not reach assertions.
+            observation['read'] = 'unavailable'
+        finally:
+            guest.commands.last_returncode = previous_returncode
+        try:
+            record_testsuite_property('onpc.expiry.backend.' + stage,
+                                      json.dumps(observation, sort_keys=True))
+        except Exception:
+            pass
+
+    record_backend('before-offline-recovery')
+    try:
+        verify_offline_recovery(record_testsuite_property)
+    finally:
+        record_backend('after-offline-recovery')
     for service in ('gdm-password', 'gdm-autologin', 'login', 'sshd'):
         verify_pam_scope(service, record_testsuite_property)

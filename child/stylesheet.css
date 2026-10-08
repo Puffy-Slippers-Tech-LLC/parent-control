@@ -4,38 +4,38 @@
 
 .screen-time-reminder {
   background-color: transparent;
-  color: #eeedf8;
-  font-family: Monocraft;
-  /* St paints 32px border-image slices independently of the CSS border.
+  color: #242b4b;
+  font-family: sans-serif;
+  /* St paints 12px border-image slices independently of the CSS border.
      Reserve their full area before laying out the logo, text and actions. */
-  border: 32px solid transparent;
+  border: 12px solid transparent;
   border-radius: 0;
-  padding: 8px;
+  padding: 6px;
   spacing: 11px;
   box-shadow: none;
 }
 .screen-time-reminder-logo { -st-icon-style: regular; }
-.screen-time-reminder-content { spacing: 6px; min-width: 160px; }
-.screen-time-reminder-message { font-size: 15px; font-weight: bold; color: #83edff; text-shadow: 1px 1px #24305b; }
+.screen-time-reminder-content { spacing: 4px; min-width: 160px; }
+.screen-time-reminder-message { font-size: 20px; font-weight: 600; color: #242b4b; }
 /* Keep fallback glyphs, including dense CJK scripts, readable at native scale. */
-.screen-time-reminder-time { font-size: 12px; color: #c0efff; min-width: 14px; }
+.screen-time-reminder-time { font-size: 12px; color: #424a70; min-width: 14px; }
 .screen-time-reminder-countdown { spacing: 6px; }
 .screen-time-reminder-progress-row { spacing: 8px; margin-right: 17px; }
-.screen-time-reminder-track { height: 9px; border: 1px solid #483092; border-radius: 1px; padding: 1px; spacing: 3px; background-color: #111125; }
-.screen-time-reminder-segment { min-width: 0; background-color: #181230; }
-.screen-time-reminder-fill { background-gradient-direction: vertical; background-gradient-start: #24efff; background-gradient-end: #02cde9; }
-.screen-time-reminder-divider { width: 1px; background-color: #676280; margin: 5px 4px 5px 3px; }
+.screen-time-reminder-track { height: 6px; border: 1px solid #cec9e1; border-radius: 2px; spacing: 0; background-color: #e1ddec; }
+.screen-time-reminder-segment { min-width: 0; background-color: transparent; }
+.screen-time-reminder-fill { background-gradient-direction: vertical; background-gradient-start: #06d7ee; background-gradient-end: #009df5; }
+.screen-time-reminder-divider { width: 1px; background-color: #d4cfe4; margin: 2px 4px 2px 3px; }
 .screen-time-reminder-action {
-  color: #eeedf8;
+  color: #242b4b;
   padding: 0;
-  border-radius: 0;
-  font-size: 8.5px;
-  min-width: 50px;
+  border-radius: 5px;
+  font-size: 11px;
+  min-width: 32px;
 }
-.screen-time-reminder-actions { spacing: 11px; }
+.screen-time-reminder-actions { spacing: 6px; }
 .screen-time-reminder-action-icon { -st-icon-style: regular; }
-.screen-time-reminder-action:hover, .screen-time-reminder-action:focus { background-color: #38304d; }
-.screen-time-reminder-action:active { background-color: #43345f; }
+.screen-time-reminder-action:hover, .screen-time-reminder-action:focus { background-color: #d4e6ff; }
+.screen-time-reminder-action:active { background-color: #c3d8fa; }
 
 .screen-time-tooltip {
   text-align: left;

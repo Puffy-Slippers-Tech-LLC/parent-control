@@ -186,7 +186,7 @@ test('suppression startup/reporting and shutdown failures cannot disable the enf
         ChildApplicationUi: class { close() {} },
         GnomeApplicationUiAdapter: class { close() {} },
         TranslationContext: class { refresh(done) { done(); } },
-        appName: () => 'Product', appLogoPath: () => '/logo', logInfo() {},
+        appName: () => 'Product', appLogoPath: () => '/logo', logInfo() {}, logWarning() {},
     });
     vm.runInContext(readFileSync(new URL('../../child/extension.js', import.meta.url), 'utf8')
         .replace(/^import[\s\S]*?;\n/gm, '')

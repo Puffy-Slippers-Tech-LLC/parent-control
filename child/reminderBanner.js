@@ -10,7 +10,6 @@ import {describeControl} from './accessibility.js';
 // Shell's tray times out noncritical banners after four seconds. Own only
 // this product's chrome and lifetime so fullscreen urgency stays independent.
 let activeSource = null;
-let fontLoaded = false;
 
 // Both the delivery timeout and the remaining-time countdown use whole-second
 // cells. Keep the original cell count as the denominator while fills go dark.
@@ -20,7 +19,6 @@ function createCountdown(totalSeconds, translations) {
     const row = new St.BoxLayout({style_class: 'screen-time-reminder-progress-row'});
     const track = new St.BoxLayout({style_class: 'screen-time-reminder-track',
         x_expand: true, y_align: Clutter.ActorAlign.CENTER});
-    if (totalSeconds > 5) track.set_style('spacing: 1px;');
     const segments = Array.from({length: totalSeconds}, () => {
         const cell = new St.Widget({layout_manager: new Clutter.BinLayout(), x_expand: true,
             style_class: 'screen-time-reminder-segment'});
@@ -86,15 +84,7 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     // monitor-bounded width and wrapped text, so measure its height at that
     // width to keep the countdown inside the frame when the message wraps.
     card.set_request_mode(Clutter.RequestMode.HEIGHT_FOR_WIDTH);
-    if (!fontLoaded) {
-        const bundled = assets.get_child('Monocraft.ttf');
-        const sourceFont = assets.get_parent().get_child('kiosk').get_child('oh_no_parent_control_kiosk')
-            .get_child('fonts').get_child('Monocraft.ttf');
-        const font = bundled.query_exists(null) ? bundled : sourceFont;
-        // Shell renders with Clutter's font map, not Cairo's default map.
-        fontLoaded = card.get_pango_context().get_font_map().add_font_file(font.get_path());
-    }
-    card.set_style(`border-image: url("${assets.get_child('reminder-frame.svg').get_path()}") 32;`);
+    card.set_style(`border-image: url("${assets.get_child('reminder-frame.svg').get_path()}") 12;`);
     card.set_text_direction(translations.direction === 'rtl' ? Clutter.TextDirection.RTL : Clutter.TextDirection.LTR);
     card.add_child(new St.Icon({gicon: icon, icon_size: 56,
         style_class: 'screen-time-reminder-logo', y_align: Clutter.ActorAlign.CENTER}));
@@ -138,7 +128,7 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
         x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER});
     const button = (key, filename, callback) => {
         const icon = new St.Icon({gicon: new Gio.FileIcon({file: assets.get_child(filename)}),
-            icon_size: 40, style_class: 'screen-time-reminder-action-icon',
+            icon_size: 32, style_class: 'screen-time-reminder-action-icon',
             x_align: Clutter.ActorAlign.CENTER});
         const control = new St.Button({child: icon, can_focus: true,
             reactive: true, track_hover: true,
@@ -213,9 +203,6 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     const relabel = () => {
         message.text = notification.body;
         card.set_text_direction(translations.direction === 'rtl' ? Clutter.TextDirection.RTL : Clutter.TextDirection.LTR);
-        const joining = ['ar', 'fa', 'he', 'ug', 'ur', 'bn', 'hi', 'mr', 'ne', 'ta', 'te', 'ml', 'pa', 'th', 'ka'];
-        card.set_style(`border-image: url("${assets.get_child('reminder-frame.svg').get_path()}") 32;` +
-            (joining.includes(translations.language?.split('-')[0]) ? ' font-family: sans-serif;' : ''));
         for (const {key, control} of actions) {
             const text = translations.text(key);
             describeControl(control, `child-reminder-${key.toLowerCase()}`, text, text);

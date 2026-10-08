@@ -249,6 +249,42 @@ class TrustRefreshDiagnostic:
                 result[key] = int(value.split()[0])
         return result
 
+    @classmethod
+    def database_snapshot(cls, process):
+        # Observe only the two fixed LMDB mappings. Never retain addresses,
+        # unrelated mapped filenames, or database contents. A replaced inode
+        # or a file larger than the daemon's mapping supports the stale
+        # snapshot/map-growth hypothesis; matching mappings do not prove
+        # the transaction lock is healthy.
+        with (process / 'maps').open('r', encoding='ascii', errors='replace') as stream:
+            raw = stream.read(65537)
+        if len(raw) > 65536:
+            return {'maps_truncated': True}
+        result = {}
+        for name in ('data.mdb', 'lock.mdb'):
+            path = Path('/var/lib/fapolicyd') / name
+            info = path.lstat()
+            if not stat.S_ISREG(info.st_mode):
+                result[name] = {'regular': False}
+                continue
+            mappings = []
+            for line in raw.splitlines():
+                fields = line.split(None, 5)
+                if len(fields) != 6 or fields[5] not in (str(path), str(path) + ' (deleted)'):
+                    continue
+                start, end = (int(value, 16) for value in fields[0].split('-'))
+                major, minor = (int(value, 16) for value in fields[3].split(':'))
+                mappings.append({
+                    'bytes': end - start, 'offset': int(fields[2], 16),
+                    'writable': 'w' in fields[1], 'shared': fields[1].endswith('s'),
+                    'deleted': fields[5].endswith(' (deleted)'),
+                    'same_file': (major, minor, int(fields[4])) == (
+                        os.major(info.st_dev), os.minor(info.st_dev), info.st_ino)})
+                if len(mappings) == 4:
+                    break
+            result[name] = {'file_bytes': info.st_size, 'mappings': mappings}
+        return result
+
     def snapshot(self):
         result = {'elapsed_ns': time.perf_counter_ns() - self.started_ns,
                   'daemon_identity_unavailable': self.process is None}
@@ -267,6 +303,12 @@ class TrustRefreshDiagnostic:
                 result['daemon'] = current
                 result['daemon_io'] = self.counters(self.process / 'io',
                     {'rchar', 'wchar', 'syscr', 'syscw', 'read_bytes', 'write_bytes'})
+                result['daemon_memory_kib'] = self.counters(self.process / 'status',
+                    {'VmPeak', 'VmSize', 'VmRSS', 'VmData', 'VmSwap'})
+                try:
+                    result['database'] = self.database_snapshot(self.process)
+                except Exception:
+                    result['database_unavailable'] = True
                 threads = []
                 # Inspect only this daemon, at most 16 threads. Numeric kernel
                 # counters and wait channels contain no command/file names.
@@ -305,9 +347,19 @@ class TrustRefreshCompletion:
                       'enforcement:trust-journal-cursor')
 
     @staticmethod
-    def service_identity(timeout=10):
+    def service_identity(timeout=10, diagnostic=None):
+        def retain(raw):
+            # Keep the last observation even when this very identity check
+            # discovers the daemon exited, before the next journal poll.
+            try:
+                metrics = {'initial': diagnostic.initial, 'observed': diagnostic.snapshot()}
+                return raw + ('\ntrust_refresh=' + json.dumps(metrics, sort_keys=True) + '\n').encode()
+            except Exception:
+                return raw + b'\ntrust_refresh={"counters_unavailable":true}\n'
+
         raw = guest.run(['systemctl', 'show', 'fapolicyd.service',
-                         '--property=MainPID,InvocationID,ActiveState'], timeout=timeout)
+                         '--property=MainPID,InvocationID,ActiveState'], timeout=timeout,
+                        **({'diagnostic_stdout': retain} if diagnostic is not None else {}))
         fields = dict(line.split('=', 1) for line in raw.splitlines() if '=' in line)
         guest.require(fields.get('ActiveState') == 'active' and
                       re.fullmatch(r'[1-9][0-9]{0,9}', fields.get('MainPID', '')) is not None and
@@ -332,7 +384,7 @@ class TrustRefreshCompletion:
             return (f'completion_bytes={len(raw)}\ntrust_refresh={metrics}\n').encode()
 
         while True:
-            guest.require(self.service_identity(budget()) == self.identity,
+            guest.require(self.service_identity(budget(), diagnostic) == self.identity,
                           'enforcement:trust-daemon-replaced')
             raw = guest.run(['journalctl', '--no-pager', '--unit=fapolicyd.service',
                              '--after-cursor=' + self.cursor, '--lines=1', '--output=json',
@@ -346,11 +398,162 @@ class TrustRefreshCompletion:
                            row.get('_SYSTEMD_INVOCATION_ID') == self.identity[1] and
                            row.get('__CURSOR') != self.cursor and
                            isinstance(row.get('__CURSOR'), str) for row in rows)
-            guest.require(self.service_identity(budget()) == self.identity,
+            guest.require(self.service_identity(budget(), diagnostic) == self.identity,
                           'enforcement:trust-daemon-replaced')
             if complete:
                 return
             time.sleep(min(0.25, budget()))
+
+
+def collect_trust_refresh_failure(identity):
+    """Failure-only kernel evidence; no service changes or raw audit text."""
+    previous_returncode = guest.commands.last_returncode
+
+    def retain(raw):
+        # These observations are valid only with the terminal read outcome
+        # below. Empty output from a failed journal command proves no absence.
+        result = {'daemon_access_denials': [], 'daemon_oom': False}
+        try:
+            for line in raw.decode('utf-8', errors='replace').splitlines()[:100]:
+                message = json.loads(line).get('MESSAGE', '')
+                if not isinstance(message, str):
+                    continue
+                if re.search(r'\bKilled process ' + re.escape(identity[0]) + r' \(fapolicyd\)', message):
+                    result['daemon_oom'] = True
+                if ('comm="fapolicyd"' not in message or
+                        re.search(r'\bpid=' + re.escape(identity[0]) + r'\b', message) is None or
+                        not ('apparmor="DENIED"' in message or
+                             re.search(r'\bavc:\s+denied\b', message))):
+                    continue
+                row = {}
+                operation = re.search(r'\boperation="([a-z_]+)"', message)
+                if operation and operation[1] in ('file_lock', 'open', 'mmap', 'signal', 'capable'):
+                    row['operation'] = operation[1]
+                row['database_data'] = '/var/lib/fapolicyd/data.mdb' in message
+                row['database_lock'] = '/var/lib/fapolicyd/lock.mdb' in message
+                result['daemon_access_denials'].append(row)
+        except Exception:
+            result['parse_unavailable'] = True
+        return (json.dumps(result, sort_keys=True) + '\n').encode()
+
+    try:
+        guest.commands.run(['journalctl', '--no-pager', '--quiet', '--dmesg', '--boot',
+                            '--since=-3 minutes', '--lines=100', '--output=json',
+                            '--output-fields=MESSAGE'],
+                           timeout=3, check=False, merge_stderr=False,
+                           diagnostic_stdout=retain)
+        # Do not use --grep here: its no-match exit status is also 1, making
+        # an unavailable journal indistinguishable from no matching events.
+        outcome = 'read' if guest.commands.last_returncode == 0 else 'failed'
+        print('onpc-system: stage=trust-refresh-kernel outcome=' + outcome, flush=True)
+    except Exception:
+        # Evidence collection must preserve the original failure and reply.
+        print('onpc-system: stage=trust-refresh-kernel outcome=unavailable', flush=True)
+    finally:
+        guest.commands.last_returncode = previous_returncode
+
+
+def trust_database_metadata():
+    """Read numeric LMDB metadata without writing data or the lock file.
+
+    Called in a bounded child only after confirming the original daemon exited.
+    MDB_NOLOCK is unsafe during a rebuild; this is not a readiness reader or a
+    replacement for the existing completion barrier and exact trust-row check.
+    The structures/functions are the public LMDB C API (lmdb.h).
+    """
+    import ctypes as c
+
+    class Info(c.Structure):
+        _fields_ = [('address', c.c_void_p), ('map_bytes', c.c_size_t),
+                    ('last_page', c.c_size_t), ('last_txnid', c.c_size_t),
+                    ('max_readers', c.c_uint), ('readers', c.c_uint)]
+
+    class Statistics(c.Structure):
+        _fields_ = [('page_bytes', c.c_uint), ('depth', c.c_uint),
+                    ('branch_pages', c.c_size_t), ('leaf_pages', c.c_size_t),
+                    ('overflow_pages', c.c_size_t), ('entries', c.c_size_t)]
+
+    try:
+        lib = c.CDLL('liblmdb.so.0')
+    except OSError:
+        lib = c.CDLL('liblmdb.so.0.0.0')
+    pointer, uint = c.c_void_p, c.c_uint
+    signatures = {
+        'mdb_version': ([c.POINTER(c.c_int)] * 3, c.c_void_p),
+        'mdb_env_create': ([c.POINTER(pointer)], c.c_int),
+        'mdb_env_set_maxdbs': ([pointer, uint], c.c_int),
+        'mdb_env_open': ([pointer, c.c_char_p, uint, uint], c.c_int),
+        'mdb_env_info': ([pointer, c.POINTER(Info)], c.c_int),
+        'mdb_env_stat': ([pointer, c.POINTER(Statistics)], c.c_int),
+        'mdb_txn_begin': ([pointer, pointer, uint, c.POINTER(pointer)], c.c_int),
+        'mdb_dbi_open': ([pointer, c.c_char_p, uint, c.POINTER(uint)], c.c_int),
+        'mdb_stat': ([pointer, uint, c.POINTER(Statistics)], c.c_int),
+        'mdb_txn_abort': ([pointer], None),
+        'mdb_env_close': ([pointer], None),
+    }
+    for name, (arguments, result) in signatures.items():
+        function = getattr(lib, name)
+        function.argtypes, function.restype = arguments, result
+
+    env, txn, dbi = pointer(), pointer(), uint()
+    result = {'outcome': 'unavailable'}
+    version = [c.c_int() for _ in range(3)]
+    lib.mdb_version(*(c.byref(part) for part in version))
+    result['library_version'] = [part.value for part in version]
+    readonly, nolock = 0x20000, 0x400000
+
+    def check(stage, code):
+        if code:
+            # Numeric public error codes only; never library/error text.
+            result.update(outcome='failed', stage=stage, code=int(code))
+            raise ValueError('trust metadata unavailable')
+
+    try:
+        check('create', lib.mdb_env_create(c.byref(env)))
+        check('maxdbs', lib.mdb_env_set_maxdbs(env, 2))
+        check('open', lib.mdb_env_open(env, b'/var/lib/fapolicyd', readonly | nolock, 0))
+        info, stats = Info(), Statistics()
+        check('info', lib.mdb_env_info(env, c.byref(info)))
+        check('stat', lib.mdb_env_stat(env, c.byref(stats)))
+        result.update(map_bytes=info.map_bytes, last_page=info.last_page,
+                      last_txnid=info.last_txnid, page_bytes=stats.page_bytes,
+                      used_bytes=(info.last_page + 1) * stats.page_bytes)
+        check('read-transaction', lib.mdb_txn_begin(env, None, readonly, c.byref(txn)))
+        check('trust-db', lib.mdb_dbi_open(txn, b'trust.db', 0, c.byref(dbi)))
+        check('trust-stat', lib.mdb_stat(txn, dbi, c.byref(stats)))
+        result.update(outcome='read', trust_entries=stats.entries, trust_depth=stats.depth)
+    except ValueError:
+        pass
+    finally:
+        if txn:
+            lib.mdb_txn_abort(txn)
+        if env:
+            lib.mdb_env_close(env)
+    return result
+
+
+def collect_trust_database_failure(identity):
+    """Do not open the database while a live/replacement daemon can write it."""
+    previous_returncode = guest.commands.last_returncode
+    try:
+        raw = guest.run(['systemctl', 'show', 'fapolicyd.service',
+                         '--property=MainPID,InvocationID,ActiveState'], timeout=3)
+        fields = dict(line.split('=', 1) for line in raw.splitlines() if '=' in line)
+        if (fields.get('MainPID') != '0' or fields.get('ActiveState') != 'failed' or
+                fields.get('InvocationID') != identity[1]):
+            print('onpc-system: stage=trust-database-metadata outcome=not-exited', flush=True)
+            return
+        # The child rechecks the exited invocation before using MDB_NOLOCK.
+        # No data rows, memory addresses, exceptions or arbitrary paths escape.
+        guest.commands.run(['/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_enforcement.py'),
+                            'trust-database-metadata', identity[1]],
+                           timeout=3, check=False, merge_stderr=False)
+        outcome = 'collected' if guest.commands.last_returncode == 0 else 'failed'
+        print('onpc-system: stage=trust-database-metadata outcome=' + outcome, flush=True)
+    except Exception:
+        print('onpc-system: stage=trust-database-metadata outcome=unavailable', flush=True)
+    finally:
+        guest.commands.last_returncode = previous_returncode
 
 
 def trust_future():
@@ -382,7 +585,18 @@ def trust_future():
     # retained VM evidence shows a successful refresh taking about 40 seconds;
     # allow the guest command budget while still requiring the exact DB entry.
     deadline = time.monotonic() + 120
-    completion.wait(deadline, diagnostic)
+    try:
+        completion.wait(deadline, diagnostic)
+    except Exception:
+        try:
+            collect_trust_refresh_failure(completion.identity)
+        except Exception:
+            pass
+        try:
+            collect_trust_database_failure(completion.identity)
+        except Exception:
+            pass
+        raise
 
     def trust_diagnostic(raw):
         # Each Ubuntu database dump is about 26 MB and collection retains
@@ -895,6 +1109,22 @@ def native_policy_transition(accounts, record, variant='command'):
 
 def main():
     try:
+        if len(sys.argv) == 3 and sys.argv[1] == 'trust-database-metadata':
+            guest.guard()
+            guest.require(re.fullmatch(r'[0-9a-f]{32}', sys.argv[2]) is not None and
+                          sys.argv[2] != '0' * 32, 'enforcement:trust-diagnostic-identity')
+            raw = guest.run(['systemctl', 'show', 'fapolicyd.service',
+                             '--property=MainPID,InvocationID,ActiveState'], timeout=1)
+            fields = dict(line.split('=', 1) for line in raw.splitlines() if '=' in line)
+            guest.require(fields.get('MainPID') == '0' and fields.get('ActiveState') == 'failed' and
+                          fields.get('InvocationID') == sys.argv[2],
+                          'enforcement:trust-diagnostic-not-exited')
+            try:
+                metadata = trust_database_metadata()
+            except Exception:
+                metadata = {'outcome': 'unavailable'}
+            print(json.dumps(metadata, sort_keys=True), flush=True)
+            return 0
         request = json.load(sys.stdin)
         guest.require(isinstance(request, dict) and set(request) == {'uid', 'variant'},
                       'enforcement:launch-request')

@@ -23,9 +23,18 @@ existing compatible unit and cleanup classifications remain appropriate.
 Current-task exclusion recovery in write_e2e uses private checkpoint/queue trees
 and process-local doubles, without launching agents or changing ownership;
 its existing compatible classification remains appropriate.
-The three-task batch cleanup-safety case adds a tiny pytest-private bare Git
-remote and finite waited Git commands, without network access or shared state;
+The three-task batch, separate-run checkpoint, cumulative-session restart,
+cross-session staging,
+missing-completion recovery and early worker-spawn failure cases add tiny
+pytest-private bare Git remotes and finite waited Git commands, without network
+access or shared state;
 its compatible unit and cleanup classifications remain appropriate.
+
+Concurrent write_e2e limit adjustments and answered-blocker completion use a tiny
+pytest-private bare Git remote and finite waited Git commands. Existing joined
+threads and owned agent cleanup
+remain unchanged; no network, shared cache, VM or new cleanup owner is added.
+The existing compatible unit and cleanup classifications remain appropriate.
 
 sync_whatsnew uses tiny private pytest Markdown/TOML/PO/catalogue trees, bounded waited
 gettext/Make subprocesses and a private Codex double under the existing detached
@@ -119,6 +128,9 @@ reads. They preserve the compatible unit classification and add no cleanup owner
 Trust-refresh sequencing tests use journal/systemctl doubles, a synthetic clock
 and tiny private fixture files; they do not read host journals or launch commands.
 The same compatible unit classification applies, without new shared resources.
+Post-exit trust-metadata diagnostics use C API and command doubles only. They
+open no host database, load no real library and spawn no process; the existing
+system_enforcement compatible classification and cleanup inventory are unchanged.
 
 Child trust upgrade/retry/boot regressions use tiny private pytest machine trees,
 synthetic boot IDs, and synchronously waited relocated maintainer-script/helper
@@ -601,6 +613,41 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # valid without touching the developer's Git index, history, hooks or identity.
 # Push/retry checks add tiny pytest-private bare remotes and synchronously waited
 # local Git children, with no network or shared remote; compatible overlap holds.
+# Accepted-completion limit checks use the same private remotes and waited Git
+# commands; unit/cleanup compatibility and existing owner cleanup stay unchanged.
+# Fifth-session cap reset likewise uses a tiny pytest-private bare remote and
+# waited local Git commands; no network, shared state or new worker lifetime.
+# First-session successful close-out uses the same private remote allocation and
+# waited local Git commands; its unit and cleanup classifications stay compatible.
+# Staging-failure recovery also uses a pytest-private bare remote and waited local
+# Git children; it adds no network, shared state or live VM resource.
+# Prerequisite/consumer recovery uses the same tiny private remote and waited Git
+# children; existing compatible unit and cleanup classifications remain valid.
+# Newly inserted queue-task recovery uses the same private bare remote and waited
+# Git commands; no shared resource or scheduling classification changes.
+# Reopened-task recovery adds only a pytest-private bare remote and waited local
+# Git commands; compatible overlap remains, without network or shared state.
+# Session-limit handoff restart uses a tiny pytest-private bare remote and waited
+# local Git children; no shared cache, socket, bus, display, service or live VM,
+# and bounded disk/CPU demand preserves compatible unit/cleanup scheduling.
+# Escalation restart with two completed tasks uses the same pytest-private bare
+# remote and waited local Git commands; compatible scheduling remains valid.
+# Previous-failure session handoff adds a tiny pytest-private bare remote and
+# waited local Git children; no network, shared state or live VM is added.
+# Existing compatible unit and cleanup classifications remain valid.
+# Completion session summaries likewise use a tiny pytest-private bare remote
+# and waited local Git children; compatible unit/cleanup scheduling remains valid.
+# Completed-task compaction uses the same private remote and waited local Git
+# children; no shared paths, network, sockets, displays or live VM are added.
+# Tiny disk/CPU demand and unchanged owned-agent cleanup preserve compatibility.
+# Previous-launcher session exclusion adds a tiny pytest-private bare remote and
+# waited local Git children; no shared state, network, sockets, displays or live
+# VM is added, so compatible unit/cleanup scheduling and owned cleanup hold.
+# Attached-limit adjustment checks likewise use a tiny pytest-private bare remote
+# and waited local Git children; compatible scheduling and worker cleanup hold.
+# Successful cancellation recovery adds a tiny pytest-private bare remote and
+# waited local Git children; no network, shared state, sockets, displays or live
+# VM is added. Bounded disk/CPU use and existing owned cleanup stay compatible.
 
 # Baseline mode/update/reboot tests mock every VM/package
 # mutation. Version checks spawn only bounded read-only dpkg comparisons with

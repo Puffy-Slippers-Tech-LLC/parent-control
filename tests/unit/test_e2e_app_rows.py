@@ -813,9 +813,11 @@ def test_access_target_diagnostic_identifies_refusal_without_input_or_private_te
         target.states.remove('visible')
     else:
         target.states.add('defunct')
-    with pytest.raises(accessible_ui.UiError, match='^ui:match-target$') as caught:
+    with pytest.raises(accessible_ui.UiError) as caught:
         ui.choose_app_access(accessible_ui.EXISTING_CHILD, accessible_ui.MATCH_APP,
                              target.identity)
+    # pytest's match includes exception notes; check the refusal code separately.
+    assert str(caught.value) == 'ui:match-target'
     caught.value.add_note('ui:match-target:private-id:missing')
     caught.value.add_note('ui:match-target:' + target.identity + ':private-reason')
     diagnostic = accessible_ui.adapter_failure_diagnostic(caught.value)

@@ -568,9 +568,13 @@ class Execution:
                 self.finished.add(event['nodeid'])
                 item.done = len(self.finished)
             elif event['kind'] == 'failure':
+                # Repair the first observed failure before later fallout. A
+                # lexical sort can select a dependent case and exhaust its
+                # repair budget while the original cause remains untouched.
+                if event['nodeid'] not in self.failed:
+                    item.failed_nodeids += (event['nodeid'],)
                 self.failed.add(event['nodeid'])
                 item.failures = len(self.failed)
-                item.failed_nodeids = tuple(sorted(self.failed))
                 if event.get('when') in ('setup', 'teardown'):
                     self.fixture_failed = True
                     from test_retention import preserve_for_recovery

@@ -163,8 +163,9 @@ execution until recovered; evidence is never discarded to enable parallelism.
   work uses `tools/prepare-baseline --vm NAME --mode auto --y` to suppress the
   y/n prompt. Manual mode still requires explicit developer authorization;
   authorized launcher/session work uses `--mode manual --y`. Interactive invocation omits
-  `--y` to retain confirmation. Both modes still show the warning, require the
-  VM off and retain all tool safety checks; see
+  `--y` to retain confirmation. For both preparation tools, `--y` suppresses
+  warnings and confirmation. Both baseline modes require the VM off and retain
+  all tool safety checks; see
   [VM prerequisites](../../tests/integration/Environment.md).
   Ordinary setup and E2E runners never prepare or replace it implicitly; invoke
   the preapproved auto-mode preparation separately when needed.

@@ -74,10 +74,10 @@ def log(stage):
 
 
 def confirm_preparation(mode, existing, *, assume_yes=False):
-    detected = ' Existing baseline detected.' if existing else ''
-    print('\033[31mWARNING:' + detected + '\n' + mode_message(mode) + '\033[0m', flush=True)
     if assume_yes:
         return True
+    detected = ' Existing baseline detected.' if existing else ''
+    print('\033[31mWARNING:' + detected + '\n' + mode_message(mode) + '\033[0m', flush=True)
     while True:
         try:
             answer = input('Proceed (y/n)? ').strip().lower()

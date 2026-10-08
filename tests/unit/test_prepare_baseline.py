@@ -457,14 +457,12 @@ def test_warning_is_red_and_requires_y_or_n(monkeypatch, capsys, mode):
 
 @pytest.mark.parametrize('mode', ['auto', 'manual'])
 @pytest.mark.parametrize('existing', [False, True])
-def test_assume_yes_keeps_warning_without_reading_input(monkeypatch, capsys, mode, existing):
+def test_assume_yes_skips_warning_without_reading_input(monkeypatch, capsys, mode, existing):
     prompt = Mock(side_effect=AssertionError('unexpected confirmation prompt'))
     monkeypatch.setattr('builtins.input', prompt)
     assert host.confirm_preparation(mode, existing, assume_yes=True)
     output = capsys.readouterr().out
-    assert '\033[31mWARNING:' in output
-    assert host.mode_message(mode) in output
-    assert ('Existing baseline detected.' in output) == existing
+    assert output == ''
     prompt.assert_not_called()
 
 

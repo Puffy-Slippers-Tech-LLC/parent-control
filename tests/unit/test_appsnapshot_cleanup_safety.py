@@ -188,7 +188,7 @@ def test_assume_yes_with_vm_never_prompts(launch, monkeypatch, mode, capsys):
                         raising=False)
     assert launcher.main([*VM_ARGS, '--y', '--mode', mode, '--overwrite', 'false']) == 0
     control.run.assert_called_once()
-    assert f'mode={mode}' in capsys.readouterr().out
+    assert capsys.readouterr().out == ''
 
 
 def test_assume_yes_resolves_vm_id_before_dispatch(launch, monkeypatch):

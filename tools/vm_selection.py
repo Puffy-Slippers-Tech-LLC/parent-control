@@ -68,9 +68,9 @@ def execution_binding():
 
 def confirm_queue(args, tool, warning, *, prompt=None):
     """Confirm a whole preparation selection before parallel workers start."""
-    print(f'{tool}: selected VMs: {args.vm}\n{warning}', flush=True)
     if args.y:
         return True
+    print(f'{tool}: selected VMs: {args.vm}\n{warning}', flush=True)
     prompt = input if prompt is None else prompt
     while True:
         try:

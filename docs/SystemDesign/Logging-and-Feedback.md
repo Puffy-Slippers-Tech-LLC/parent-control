@@ -234,6 +234,23 @@ or portal change is required.
 
 ### Investigation coverage
 
+The child records anonymous logical display dimensions, geometry scale, Shell
+theme scale and text scale at extension startup and display configuration changes.
+Every feedback diagnostic collection independently queries the requesting
+frontend's current session through Mutter's public `GetCurrentState` interface.
+Active physical mode dimensions, configured scale, primary-display boolean and
+current text scale are recorded in diagnostic events and in the attached
+`system-info.json` display section. These values are collected afresh, not cached
+from startup or a prior banner; automatic transport retries retain the already
+collected submission snapshot. The query does not start a compositor and has a
+two-second timeout. Unavailable display collection is explicit and does not
+prevent other diagnostics. Only bounded numbers, booleans and collection status
+survive projection; connector names, vendor/product/serial information, mode IDs,
+positions and screen contents are discarded. Old reports without this additive
+section remain readable. Ship the catalogue and validators together; broker
+restart and child session renewal load events, and the next frontend launch loads
+fresh feedback collection. The portal attachment contract needs no change.
+
 Reminder diagnostics separate loaded configuration, threshold crossing and
 banner actor state. `child.reminder-settings` records only list count and the
 fullscreen boolean; `child.reminder-trigger` records duration operands and

@@ -653,7 +653,7 @@ def test_every_catalog_field_rejects_arbitrary_text(event_id, definition):
     def example(spec):
         if spec["type"] == "enum":
             return spec["values"][0]
-        return {"bool": False, "int": spec.get("min", 0), "number": 0,
+        return {"bool": False, "int": spec.get("min", 0), "number": spec.get("min", 0),
                 "version": "1.2", "request": "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72",
                 "local-timestamp": "2026-09-11T16:16:21.123-07:00"}[spec["type"]]
     values = {key: example(spec) for key, spec in definition["fields"].items()}

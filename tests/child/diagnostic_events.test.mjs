@@ -8,6 +8,7 @@ const catalog = JSON.parse(readFileSync(new URL(
 
 test('reminder diagnostics reject content, identities and invalid state', () => {
     const events = {
+        'child.display': {width: 2560, height: 1440, scale: 1, theme_scale: 1, text_scale: 1},
         'child.reminder-settings': {count: 4, fullscreen: true},
         'child.reminder-trigger': {threshold: 60, remaining: 59, critical: true},
         'child.reminder-presentation': {closed: false, visible: true, mapped: true,
@@ -20,6 +21,10 @@ test('reminder diagnostics reject content, identities and invalid state', () => 
         for (const key of Object.keys(fields))
             assert.throws(() => diagnosticEnvelope(catalog, event, {...fields, [key]: privateText}));
     }
+    for (const scale of [0, -1, 17, NaN, Infinity, true])
+        assert.throws(() => diagnosticEnvelope(catalog, 'child.display', {...events['child.display'], scale}));
+    assert.equal(JSON.parse(diagnosticEnvelope(catalog, 'child.display', {
+        ...events['child.display'], scale: 1.25})).fields.scale, 1.25);
     assert.throws(() => diagnosticEnvelope(catalog, 'child.reminder-settings', {count: 65, fullscreen: true}));
     for (const remaining of [0, -1, 0x100000000, Infinity, NaN])
         assert.throws(() => diagnosticEnvelope(catalog, 'child.reminder-trigger', {

@@ -1,6 +1,7 @@
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {appLogoPath, appName} from './branding.js';
@@ -42,6 +43,8 @@ export default class OhNoParentControlExtension extends Extension {
         this._openingRequest = false;
         this._translations = new TranslationContext(this.path);
         this._indicator = this._createIndicator();
+        this._recordDisplays();
+        Main.layoutManager.connectObject('monitors-changed', () => this._recordDisplays(), this._indicator);
         try {
             this._wellbeing = new WellbeingSuppression(Main.timeLimitsManager, Main.sessionMode,
                 () => this._indicator?._notifications?.preferences,
@@ -79,6 +82,20 @@ export default class OhNoParentControlExtension extends Extension {
             this._errors?.report(error);
             this._indicator?.refreshNotifications();
         });
+    }
+
+    _recordDisplays() {
+        try {
+            const themeScale = St.ThemeContext.get_for_stage(global.stage).scale_factor;
+            const textScale = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'})
+                .get_double('text-scaling-factor');
+            for (const monitor of Main.layoutManager.monitors.slice(0, 32)) {
+                logInfo('child.display', {width: monitor.width, height: monitor.height,
+                    scale: monitor.geometry_scale, theme_scale: themeScale, text_scale: textScale});
+            }
+        } catch (_error) {
+            // Optional display diagnostics must never interrupt enforcement.
+        }
     }
 
     _createIndicator() {

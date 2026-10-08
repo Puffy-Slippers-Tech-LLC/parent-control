@@ -4,6 +4,7 @@ from dataclasses import replace
 from email.parser import BytesParser
 from email.policy import default
 from io import BytesIO
+import json
 from unittest.mock import Mock
 from zipfile import ZipFile
 import uuid
@@ -14,6 +15,7 @@ import requests
 from common.oh_no_parent_control_ui import feedback_transport as ft
 from common.oh_no_parent_control_ui.diagnostic_bundle import build_bundle
 from common.oh_no_parent_control_ui.diagnostic_report import build_report
+from tests.support.system_info import sample_info
 
 
 @pytest.fixture
@@ -49,6 +51,18 @@ def test_invalid_automatic_diagnostics_prevent_delivery(monkeypatch, report):
     session = install_response(monkeypatch, response(202, {"ok": True}))
     assert ft.send_once(replace(report, logs=b"private raw logs")).kind == "logs_unavailable"
     session.post.assert_not_called()
+
+
+def test_current_display_diagnostics_survive_feedback_attachment(monkeypatch, report):
+    displays = {"status": "complete", "monitors": [
+        {"width": 2560, "height": 1440, "scale": 1.0, "primary": True}], "text_scale": 1.0}
+    logs = build_report({}, system_info={**sample_info(), "displays": displays})
+    session = install_response(monkeypatch, response(202, {"ok": True}))
+    assert ft.send_once(replace(report, logs=logs)).kind == "success"
+    parts = session.post.call_args.kwargs["files"]
+    attached = [value for key, value in parts if key == "attachments"][-1]
+    with ZipFile(BytesIO(attached[1])) as archive:
+        assert json.loads(archive.read("system-info.json"))["system"]["displays"] == displays
 
 
 @pytest.mark.parametrize("clean", [build_bundle([]), build_report({})])

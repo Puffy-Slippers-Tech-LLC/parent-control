@@ -532,7 +532,7 @@ test('reminder follows the focused app monitor and uses its fullscreen state', (
     const current = h.notifier.current;
     assert.equal(current.card.visible, false);
     assert.equal(current.countdown(), null);
-    assert.equal(current.card.x, external.x + (external.width - current.card.width) / 2);
+    assert.equal(current.card.x, Math.round(external.x + (external.width - current.card.width) / 2));
     assert.equal(current.card.y, external.y + 8);
 
     // Changing the preference shows the same warning on the game display.
@@ -546,11 +546,11 @@ test('reminder follows the focused app monitor and uses its fullscreen state', (
     // A focused window can move between monitors without changing focus.
     gameMonitor = 0;
     for (const sync of h.context.global.display.handlers['window-entered-monitor']) sync();
-    assert.equal(current.card.x, internal.x + (internal.width - current.card.width) / 2);
+    assert.equal(current.card.x, Math.round(internal.x + (internal.width - current.card.width) / 2));
     assert.equal(current.countdown(), 4);
     gameMonitor = 1;
     for (const sync of h.context.global.display.handlers['notify::focus-window']) sync();
-    assert.equal(current.card.x, external.x + (external.width - current.card.width) / 2);
+    assert.equal(current.card.x, Math.round(external.x + (external.width - current.card.width) / 2));
     assert.equal(current.countdown(), 4);
 
     const tooltip = h.chrome.find(actor => actor.style_class === 'dash-label screen-time-tooltip');
@@ -577,7 +577,7 @@ test('monitor changes recover from stale app indices, missing displays and absen
     h.notifier.present(reminders[3], false);
     const current = h.notifier.current;
     assert.equal(current.card.visible, true);
-    assert.equal(current.card.x, external.x + (external.width - current.card.width) / 2);
+    assert.equal(current.card.x, Math.round(external.x + (external.width - current.card.width) / 2));
     h.layoutManager.monitors = [];
     for (const sync of h.layoutManager.handlers['monitors-changed']) sync();
     assert.equal(current.card.visible, false);
@@ -587,7 +587,7 @@ test('monitor changes recover from stale app indices, missing displays and absen
     h.layoutManager.primaryMonitor = external;
     for (const sync of h.layoutManager.handlers['monitors-changed']) sync();
     assert.equal(current.card.visible, true);
-    assert.equal(current.card.x, external.x + (external.width - current.card.width) / 2);
+    assert.equal(current.card.x, Math.round(external.x + (external.width - current.card.width) / 2));
     current.dismiss();
     assert.equal(h.chrome.length, 0);
     assert.deepEqual(h.errors, []);
@@ -615,7 +615,7 @@ test('critical reminders stay above override-redirect games through external-onl
     h.layoutManager.monitors = [h.layoutManager.primaryMonitor];
     monitorsChanged();
     assert.equal(current.card.visible, true);
-    assert.equal(current.card.x, 1920 + (2560 - current.card.width) / 2);
+    assert.equal(current.card.x, Math.round(1920 + (2560 - current.card.width) / 2));
     assert.equal(current.card.y, 128);
     h.advance(6000);
     assert.equal(h.notifier.current, current);

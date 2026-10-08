@@ -18,6 +18,9 @@ export function diagnosticEnvelope(catalog, event, fields = {}) {
         else if (spec.type === 'int' && Number.isSafeInteger(value) &&
             value >= spec.min && value <= spec.max)
             safe[key] = value;
+        else if (spec.type === 'number' && typeof value === 'number' && Number.isFinite(value) &&
+            value >= spec.min && value <= spec.max)
+            safe[key] = Math.round(value * 1000) / 1000;
         else if (spec.type === 'enum' && typeof value === 'string' &&
             spec.values.includes(value))
             safe[key] = value;

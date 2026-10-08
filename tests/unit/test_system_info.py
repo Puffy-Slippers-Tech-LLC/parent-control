@@ -89,6 +89,64 @@ def test_extra_system_fields_and_identity_hashes_are_rejected():
             info.validate_system_info(value)
 
 
+def test_display_collection_uses_live_session_modes_and_discards_identities(monkeypatch):
+    from gi.repository import Gio
+    signature = "(ua((ssss)a(siiddada{sv})a{sv})a(iiduba(ssss)a{sv})a{sv})"
+    spec = (SECRET, SECRET, SECRET, SECRET)
+    inactive = ("disabled", SECRET, SECRET, SECRET)
+    def state(width, height, scale):
+        mode = (SECRET, width, height, 60.0, 1.0, [1.0, 1.25], {"is-current": GLib.Variant("b", True)})
+        return GLib.Variant(signature, (1, [(spec, [mode], {"display-name": GLib.Variant("s", SECRET)}),
+                                            (inactive, [mode], {})],
+                                      [(0, 0, scale, 0, True, [spec], {})], {}))
+    connection = Mock(call_sync=Mock(side_effect=[state(2560, 1440, 1.0), state(3840, 2160, 1.25)]))
+    buses = []
+    monkeypatch.setattr(Gio, "bus_get_sync", lambda bus, _: buses.append(bus) or connection)
+    monkeypatch.setattr(Gio.Settings, "new", lambda _: SimpleNamespace(get_double=lambda _: 1.0))
+    first, second = info.display_info(), info.display_info()
+    assert first == {"status": "complete", "monitors": [
+        {"width": 2560, "height": 1440, "scale": 1.0, "primary": True}], "text_scale": 1.0}
+    assert second["monitors"] == [{"width": 3840, "height": 2160, "scale": 1.25, "primary": True}]
+    assert buses == [Gio.BusType.SESSION, Gio.BusType.SESSION]
+    for call in connection.call_sync.call_args_list:
+        assert call.args[:5] == ("org.gnome.Mutter.DisplayConfig", "/org/gnome/Mutter/DisplayConfig",
+                                "org.gnome.Mutter.DisplayConfig", "GetCurrentState", None)
+        assert call.args[6:8] == (Gio.DBusCallFlags.NO_AUTO_START, 2000)
+    assert SECRET not in json.dumps((first, second))
+
+
+def test_display_probe_failure_is_private_and_does_not_block_report():
+    class PrivateFailure(Exception):
+        def __str__(self):
+            raise AssertionError("Never format display errors")
+    result = info.display_info(Mock(call_sync=Mock(side_effect=PrivateFailure())))
+    assert result == {"status": "unavailable", "monitors": [], "text_scale": None}
+    report = with_system_info(build_bundle([]), {**sample_info(), "displays": result})
+    assert validate_bundle(report) == report
+
+
+@pytest.mark.parametrize("key,invalid", [
+    ("width", SECRET), ("height", True), ("width", 0), ("height", 65537),
+    ("scale", SECRET), ("scale", float("nan")), ("scale", float("inf")),
+    ("scale", 0), ("scale", 17), ("primary", SECRET), ("serial", SECRET),
+])
+def test_display_fields_fail_closed_at_archive_boundary(key, invalid):
+    row = {"width": 2560, "height": 1440, "scale": 1.0, "primary": True, key: invalid}
+    system = {**sample_info(), "displays": {"status": "complete", "monitors": [row], "text_scale": 1.0}}
+    with pytest.raises(ValueError):
+        with_system_info(build_bundle([]), system)
+
+
+@pytest.mark.parametrize("key,invalid", [
+    ("status", SECRET), ("text_scale", SECRET), ("text_scale", float("nan")),
+    ("monitors", [{}] * 33), ("connector", SECRET),
+])
+def test_display_summary_fail_closed_at_archive_boundary(key, invalid):
+    displays = {"status": "complete", "monitors": [], "text_scale": 1.0, key: invalid}
+    with pytest.raises(ValueError):
+        with_system_info(build_bundle([]), {**sample_info(), "displays": displays})
+
+
 def installed(name, raw_version="1.2-" + SECRET, dependencies=(), architecture="amd64"):
     return SimpleNamespace(package=SimpleNamespace(name=name), version=raw_version,
                            architecture=architecture, get_dependencies=lambda *_: dependencies)
@@ -196,6 +254,7 @@ def test_rpm_collection_does_not_depend_on_distribution_identity(monkeypatch, os
         f'ID={os_id}\nVERSION_ID="44"' if str(path) == "/etc/os-release"
         else '{"version":"1.2"}'))
     monkeypatch.setattr(info, "account_info", lambda _: sample_info()["accounts"])
+    monkeypatch.setattr(info, "display_info", lambda: {"status": "unavailable", "monitors": [], "text_scale": None})
     query = Mock(return_value=subprocess.CompletedProcess([], 0, "\n".join(
         f"{name}\t1.2\tx86_64" for name in info.RPM_DIAGNOSTIC_PACKAGES), ""))
     monkeypatch.setattr(info.subprocess, "run", query)
@@ -270,6 +329,7 @@ def test_collector_discards_os_branding_and_environment(monkeypatch):
         return '{"version":"1.2+private-person"}'
     monkeypatch.setattr(info, "_bounded_read", read)
     monkeypatch.setattr(info, "account_info", lambda _: sample_info()["accounts"])
+    monkeypatch.setattr(info, "display_info", lambda: {"status": "unavailable", "monitors": [], "text_scale": None})
     monkeypatch.setattr(info, "dependency_info", lambda **_: sample_info()["dependencies"])
     monkeypatch.setattr(info.platform, "release", lambda: "6.17.0-" + SECRET)
     monkeypatch.setenv("XDG_SESSION_TYPE", SECRET)

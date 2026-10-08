@@ -1238,6 +1238,11 @@ class RequestWindow(Adw.ApplicationWindow):
     def _load_language(self):
         if self._language_loading or self._estimate_closed:
             return GLib.SOURCE_REMOVE
+        # Child selection and the startup idle can both reach this method.
+        # Once loaded, only an explicit Preferences action needs a fresh read;
+        # a duplicate reply could otherwise reopen setup after its language save.
+        if self._own_language is not None and not self._language_requested:
+            return GLib.SOURCE_REMOVE
         if not self._child_overlay and self._language_target_uid is None:
             return GLib.SOURCE_REMOVE
         revision = self._language_revision

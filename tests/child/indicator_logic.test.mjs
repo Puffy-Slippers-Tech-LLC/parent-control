@@ -137,6 +137,22 @@ test('countdown preference interaction cannot activate the request overlay', () 
     assert.deepEqual({active, requests, closes}, {active: true, requests: 1, closes: 0});
 });
 
+test('ordinary panel activation requests the overlay without preferences', () => {
+    const indicator = createIndicator();
+    const requests = [];
+    Object.assign(indicator, {
+        _requestButton: {checked: false},
+        _tooltip: {hide() {}},
+        setRequestActive: value => { indicator._requestButton.checked = value; },
+        _onRequest: preferences => requests.push(preferences),
+    });
+
+    indicator._activateRequest();
+    assert.deepEqual(requests, [false]);
+    indicator._activateRequest();
+    assert.deepEqual(requests, [false], 'an active overlay is not launched twice');
+});
+
 test('context-menu input cannot activate the request overlay', () => {
     const buttonHandlers = new Map();
     const indicatorHandlers = new Map();

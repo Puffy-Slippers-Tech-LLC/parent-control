@@ -268,7 +268,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._contextMenu?.close();
         this._tooltip.hide();
         this.setRequestActive(true);
-        this._onRequest?.(this);
+        this._onRequest?.(false);
     }
 
     _syncTooltip() {

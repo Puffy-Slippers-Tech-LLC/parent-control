@@ -3,9 +3,11 @@ import inspect
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 
 from tests.support.paths import ROOT
+from tests.support.objects import bind_methods
 from common.oh_no_parent_control_ui import messages as m
 KIOSK_MAIN = ROOT / "kiosk/oh_no_parent_control_kiosk/main.py"
 KIOSK_CONTENT = ROOT / "kiosk/oh_no_parent_control_kiosk/request_content.py"
@@ -14,6 +16,100 @@ PREVIEW_VIEWER = ROOT / "kiosk/oh_no_parent_control_kiosk/preview_viewer.py"
 
 
 class KioskRenderingTests(unittest.TestCase):
+    def test_reminder_preferences_activation_is_explicit_and_consumed_once(self):
+        from oh_no_parent_control_kiosk import main
+
+        class Window:
+            def __init__(self):
+                self.tabs = []
+
+            def present(self):
+                pass
+
+            def _show_preferences(self, *, tab):
+                self.tabs.append(tab)
+
+        for overlay in (False, True):
+            with self.subTest(overlay=overlay):
+                window = Window()
+                application = SimpleNamespace(
+                    _report_error=None, _preferences_requested=False,
+                    _preview=False, _child_overlay=overlay, _css_provider=object(),
+                    get_windows=lambda: [window],
+                )
+                bind_methods(application, main.Application, (
+                    'do_activate', 'do_command_line', '_preferences_activated'))
+                application.activate = application.do_activate
+                with patch.object(main, 'RequestWindow', Window):
+                    ordinary = SimpleNamespace(get_arguments=lambda: ['request'])
+                    application.do_command_line(ordinary)
+                    self.assertEqual(window.tabs, [])
+
+                    preferences = SimpleNamespace(
+                        get_arguments=lambda: ['request', '--preferences'])
+                    application.do_command_line(preferences)
+                    self.assertEqual(window.tabs, ['reminders'])
+                    application.do_command_line(ordinary)
+                    self.assertEqual(window.tabs, ['reminders'])
+
+                    application._preferences_activated()
+                    self.assertEqual(window.tabs, ['reminders', 'reminders'])
+                    application.do_activate()
+                    self.assertEqual(window.tabs, ['reminders', 'reminders'])
+
+    def test_language_startup_read_does_not_repeat_after_setup(self):
+        from oh_no_parent_control_kiosk import main
+
+        for overlay in (False, True):
+            for saved in ('', 'en'):
+                with self.subTest(overlay=overlay, saved=saved):
+                    callbacks, dialogs, applied, ready = [], [], [], []
+                    window = SimpleNamespace(
+                        _child_overlay=overlay, _preview=False,
+                        _language_target_uid=1001, _language_revision=0,
+                        _language_loading=False, _language_requested=False,
+                        _estimate_closed=False, _own_language=None,
+                        _language_load_failed=False,
+                        _stack=SimpleNamespace(set_visible=lambda *_: None,
+                                               set_sensitive=lambda *_: None),
+                        _language_readiness=object(),
+                        _whats_new=SimpleNamespace(try_auto=lambda: None),
+                        _apply_language=lambda language: applied.append(language) or True,
+                        _open_language_dialog=lambda: dialogs.append(True),
+                        _bus_call=lambda *args: callbacks.append(args[-1]),
+                    )
+                    bind_methods(window, main.RequestWindow, (
+                        '_load_language', '_language_done', '_language_loaded',
+                        '_language_saved', '_language_cancelled'))
+                    with patch.object(main, 'set_automation_id',
+                                      side_effect=lambda _, value: ready.append(value)), \
+                         patch.object(main.GLib, 'idle_add', return_value=1):
+                        # Account discovery can finish before the constructor's
+                        # queued startup read. Deliver its first language reply.
+                        window._load_language()
+                        values = (saved,) if overlay else (saved, 'en_US.UTF-8')
+                        reply = SimpleNamespace(unpack=lambda: values)
+                        callbacks.pop()(SimpleNamespace(call_finish=lambda _: reply), None)
+                        self.assertEqual(len(dialogs), 0 if saved else 1)
+
+                        # The queued read must not capture an unset preference
+                        # and deliver it after the chooser saves a language.
+                        window._load_language()
+                        if not saved:
+                            window._language_saved('de')
+                        while callbacks:
+                            callbacks.pop()(SimpleNamespace(call_finish=lambda _: reply), None)
+                        window._load_language()
+                        self.assertEqual(callbacks, [])
+                        self.assertEqual(len(dialogs), 0 if saved else 1)
+                        self.assertEqual(window._own_language, saved or 'de')
+                        self.assertEqual(ready[-1], 'kiosk-language-ready')
+
+                        # A deliberate Preferences action still refreshes it.
+                        window._language_requested = True
+                        window._load_language()
+                        self.assertEqual(len(callbacks), 1)
+
     def test_preview_scale_choices_have_public_stable_identities(self):
         source = PREVIEW_SCREEN.read_text(encoding="utf-8")
 

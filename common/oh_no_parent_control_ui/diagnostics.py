@@ -20,6 +20,14 @@ def collect_logs():
     LOG.info("diagnostics.001")
     try:
         connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        # Collect from the requesting frontend's session afresh, never from
+        # broker startup state or a previously observed reminder monitor.
+        system_info = collect_system_info(connection)
+        displays = system_info["displays"]
+        LOG.info("diagnostics.displays", status=displays["status"], count=len(displays["monitors"]))
+        for monitor in displays["monitors"]:
+            LOG.info("diagnostics.display", width=monitor["width"], height=monitor["height"],
+                     scale=monitor["scale"], primary=monitor["primary"], text_scale=displays["text_scale"])
         reply = connection.call_sync(
             BUS_NAME, OBJECT_PATH, BUS_NAME, "ExportDiagnosticLogs", None,
             GLib.VariantType.new("(ay)"), Gio.DBusCallFlags.NONE, 30_000, None,
@@ -32,4 +40,4 @@ def collect_logs():
     if not data or len(data) > MAX_BYTES:
         raise ValueError("Invalid diagnostic archive size")
     LOG.info("diagnostics.002", bytes=len(data))
-    return with_system_info(bytes(data), collect_system_info(connection))
+    return with_system_info(bytes(data), system_info)

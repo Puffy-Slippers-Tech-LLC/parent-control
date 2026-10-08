@@ -145,10 +145,10 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
         const gap = 8 * St.ThemeContext.get_for_stage(global.stage).scale_factor;
         const top = y + height + gap;
         tooltip.set_position(
-            Math.max(monitor.x, Math.min(x + (width - tooltipWidth) / 2,
-                monitor.x + monitor.width - tooltipWidth)),
-            Math.max(monitor.y, top + tooltipHeight <= monitor.y + monitor.height
-                ? top : y - tooltipHeight - gap));
+            Math.round(Math.max(monitor.x, Math.min(x + (width - tooltipWidth) / 2,
+                monitor.x + monitor.width - tooltipWidth))),
+            Math.round(Math.max(monitor.y, top + tooltipHeight <= monitor.y + monitor.height
+                ? top : y - tooltipHeight - gap)));
     };
     const actionRow = new St.BoxLayout({style_class: 'screen-time-reminder-actions',
         x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER});
@@ -222,7 +222,11 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
             width + control.get_preferred_width(-1)[1], 0);
         card.width = Math.min(Math.max(561 * scale, 404 * scale + actionWidth),
             monitor.width - 16 * scale);
-        card.set_position(monitor.x + (monitor.width - card.width) / 2, monitor.y + 8 * scale);
+        // An odd-width card on an even-width monitor otherwise lands at .5.
+        // Translating the whole actor between pixels softens every child,
+        // including the native text, logo and SVG action textures.
+        card.set_position(Math.round(monitor.x + (monitor.width - card.width) / 2),
+            Math.round(monitor.y + 8 * scale));
         syncTooltip();
         // Start on delivery, never while fullscreen suppresses the banner.
         if (card.visible && autoClose && deadline === null) {

@@ -218,6 +218,10 @@ def _review_language_changes(oracles):
 
 
 def _reminder_preview():
+    from common.oh_no_parent_control_ui.system_info import display_info
+    displays = display_info()
+    assert displays['status'] == 'complete' and displays['monitors'], displays
+    print('Live session display diagnostics: ' + json.dumps(displays), flush=True)
     _open_overlay(1)
     overlay = _overlay_automation()
     _complete_language_setup(overlay)

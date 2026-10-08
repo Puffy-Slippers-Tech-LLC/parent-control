@@ -1,6 +1,7 @@
 """Diagnostic access is role-checked, bounded and independent of UI permissions."""
 
 from io import BytesIO
+import json
 import threading
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -35,11 +36,35 @@ def test_ui_gets_archive_bytes_via_fixed_broker_method(monkeypatch):
     data = build_bundle([])
     connection = Mock(call_sync=Mock(return_value=GLib.Variant("(ay)", (data,))))
     monkeypatch.setattr(Gio, "bus_get_sync", lambda *_: connection)
-    monkeypatch.setattr(client, "collect_system_info", lambda bus: sample_info())
-    assert client.collect_logs() == with_system_info(data, sample_info())
+    system = {**sample_info(), "displays": {"status": "unavailable", "monitors": [], "text_scale": None}}
+    monkeypatch.setattr(client, "collect_system_info", lambda bus: system)
+    assert client.collect_logs() == with_system_info(data, system)
     assert connection.call_sync.call_args.args[:5] == (
         client.BUS_NAME, client.OBJECT_PATH, client.BUS_NAME, "ExportDiagnosticLogs", None,
     )
+
+
+def test_each_feedback_collection_attaches_current_session_displays(monkeypatch, caplog):
+    data = build_bundle([])
+    connection = Mock(call_sync=Mock(return_value=GLib.Variant("(ay)", (data,))))
+    monkeypatch.setattr(Gio, "bus_get_sync", lambda *_: connection)
+    current = {"status": "complete", "monitors": [
+        {"width": 2560, "height": 1440, "scale": 1.0, "primary": True}], "text_scale": 1.0}
+    collect = Mock(side_effect=lambda bus: {**sample_info(), "displays": current})
+    monkeypatch.setattr(client, "collect_system_info", collect)
+    with caplog.at_level("INFO", logger=client.LOG.name):
+        first = client.collect_logs()
+        current = {"status": "complete", "monitors": [
+            {"width": 3840, "height": 2160, "scale": 1.25, "primary": True}], "text_scale": 1.0}
+        second = client.collect_logs()
+    for archive_bytes, width, scale in ((first, 2560, 1.0), (second, 3840, 1.25)):
+        with ZipFile(BytesIO(archive_bytes)) as archive:
+            displays = json.loads(archive.read("system-info.json"))["system"]["displays"]
+        assert displays["monitors"][0]["width"] == width
+        assert displays["monitors"][0]["scale"] == scale
+    assert collect.call_count == 2
+    assert "physical-resolution=2560x1440" in caplog.text
+    assert "physical-resolution=3840x2160 scale=1.25" in caplog.text
 
 
 def test_ui_preserves_existing_collection_error_contract(monkeypatch):

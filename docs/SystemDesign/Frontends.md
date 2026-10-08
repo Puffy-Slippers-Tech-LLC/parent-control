@@ -483,6 +483,8 @@ The CSS border reserves the full painted border-image slices in both toolkits,
 so the logo, heading, progress bar and buttons stay clear of the rails and corners.
 Height follows the content. Literal reminder
 text wraps naturally.
+Shell banner and tooltip positions round to whole stage pixels so centering an
+odd-width card on an even-width monitor does not soften the entire actor tree.
 Action caption widgets are removed; their translations remain for tooltips
 and accessibility. The icon buttons
 share a centered horizontal action row and retain translated accessible names.

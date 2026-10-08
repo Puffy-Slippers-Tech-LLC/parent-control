@@ -69,6 +69,7 @@ DIAGNOSTIC_PACKAGES = (
     "libpam-malcontent", "python3", "python3-apt", "python3-gi", "python3-requests",
 )
 STATES = ("complete", "partial", "unavailable")
+MAX_DISPLAYS = 32
 ZONES = frozenset(json.loads(Path(__file__).with_name("diagnostic_timezones.json").read_text()))
 
 
@@ -239,6 +240,60 @@ def account_info(connection):
     return account_counts(roles, complete=complete)
 
 
+def display_info(connection=None):
+    """Project the calling session's active modes; discard all monitor identities."""
+    from gi.repository import Gio, GLib
+
+    try:
+        connection = connection or Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        reply = connection.call_sync(
+            "org.gnome.Mutter.DisplayConfig", "/org/gnome/Mutter/DisplayConfig",
+            "org.gnome.Mutter.DisplayConfig", "GetCurrentState", None,
+            GLib.VariantType.new("(ua((ssss)a(siiddada{sv})a{sv})a(iiduba(ssss)a{sv})a{sv})"),
+            Gio.DBusCallFlags.NO_AUTO_START, 2000, None)
+        _, monitors, logical, _ = reply.unpack()
+        if len(monitors) > MAX_DISPLAYS or len(logical) > MAX_DISPLAYS:
+            raise ValueError("Display count limit")
+        rows = []
+        for _, _, scale, _, primary, specs, _ in logical:
+            if len(specs) > MAX_DISPLAYS:
+                raise ValueError("Display count limit")
+            for spec in specs:
+                matches = [modes for identity, modes, _ in monitors if identity == spec]
+                if len(matches) != 1 or len(matches[0]) > 512:
+                    raise ValueError("Invalid active display")
+                current = [mode for mode in matches[0] if mode[6].get("is-current") is True]
+                if len(current) != 1:
+                    raise ValueError("Invalid active mode")
+                _, width, height, *_ = current[0]
+                rows.append({"width": width, "height": height, "scale": scale, "primary": primary})
+        result = {"status": "complete", "monitors": rows,
+                  "text_scale": Gio.Settings.new("org.gnome.desktop.interface").get_double("text-scaling-factor")}
+        validate_display_info(result)
+        return result
+    except Exception:
+        # No connector, vendor, serial, mode ID, environment or error text survives.
+        return {"status": "unavailable", "monitors": [], "text_scale": None}
+
+
+def validate_display_info(value):
+    if (type(value) is not dict or set(value) != {"status", "monitors", "text_scale"}
+            or value["status"] not in STATES or type(value["status"]) is not str
+            or type(value["monitors"]) is not list or len(value["monitors"]) > MAX_DISPLAYS):
+        raise ValueError("Invalid display diagnostics")
+    def scale(item):
+        return type(item) in (int, float) and 0.01 <= item <= 16
+    if value["text_scale"] is not None and not scale(value["text_scale"]):
+        raise ValueError("Invalid display text scale")
+    for row in value["monitors"]:
+        if type(row) is not dict or set(row) != {"width", "height", "scale", "primary"}:
+            raise ValueError("Invalid display diagnostic fields")
+        if (any(type(row[key]) is not int or not 1 <= row[key] <= 65536 for key in ("width", "height"))
+                or not scale(row["scale"]) or type(row["primary"]) is not bool):
+            raise ValueError("Invalid display diagnostic values")
+    return value
+
+
 def collect_system_info(connection):
     os_info = {"id": "unknown", "version": "unknown"}
     try:
@@ -264,6 +319,7 @@ def collect_system_info(connection):
         "timezone": timezone_info(),
         "session_type": category(os.environ.get("XDG_SESSION_TYPE"), ("wayland", "x11", "tty")),
         "accounts": account_info(connection), "dependencies": dependency_info(),
+        "displays": display_info(),
     })
 
 
@@ -281,7 +337,12 @@ def validate_system_info(value):
         if type(item) is not str or item != version(item):
             raise ValueError("Invalid system diagnostic version")
 
-    mapping(value, "schema app_version os kernel architecture timezone session_type accounts dependencies")
+    # Display information is additive; older retained reports remain readable.
+    has_displays = type(value) is dict and "displays" in value
+    mapping(value, "schema app_version os kernel architecture timezone session_type accounts dependencies"
+            + (" displays" if has_displays else ""))
+    if has_displays:
+        validate_display_info(value["displays"])
     if type(value["schema"]) is not int or value["schema"] != 1:
         raise ValueError("Invalid system diagnostic schema")
     mapping(value["os"], "id version")

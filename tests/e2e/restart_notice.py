@@ -1,7 +1,7 @@
 """301: genuine first-install restart modal bindings; no complete-case credit."""
 
 from installed_journey import JourneyPlan
-from journey_blocks import custom_child_selection, fresh_desktop, prefixed_stages, package_installation, station_entry
+from journey_blocks import custom_child_selection, fresh_desktop, prefixed_stages, package_installation, restart_reentry, station_entry
 from package_install import PackageInstallJourney, submit_install
 from product_free_entry import ProductFreeEntryJourney, refuse_command
 from private_artifacts import require
@@ -25,14 +25,11 @@ SCREENS = {
     'parent-launch': 'ui:parent-command-launch',
     'parent-notice': 'ui:restart-parent-read',
     'parent-wrong-owner': 'ui:restart-parent-wrong-owner',
-    'parent-close': 'ui:restart-parent-close', 'parent-closed': 'ui:restart-parent-closed',
-    'parent-relaunch': 'ui:parent-command-launch', 'parent-reentry': 'ui:restart-parent-read',
+    **restart_reentry('parent'),
     'parent-second-close': 'ui:restart-parent-close', 'parent-second-closed': 'ui:restart-parent-closed',
     'parent-logout': 'system:parent-logout', **CHILD,
     'overlay-launch': 'ui:child-command-launch', 'overlay-notice': 'ui:restart-overlay-read',
-    'overlay-close': 'ui:restart-overlay-close', 'overlay-closed': 'ui:restart-overlay-closed',
-    'overlay-exit': 'ui:restart-overlay-exit', 'overlay-desktop': 'ui:overlay-desktop',
-    'overlay-relaunch': 'ui:child-command-launch', 'overlay-reentry': 'ui:restart-overlay-read',
+    **restart_reentry('overlay'),
     'overlay-second-close': 'ui:restart-overlay-close', 'overlay-second-closed': 'ui:restart-overlay-closed',
     'overlay-second-exit': 'ui:restart-overlay-exit', 'overlay-second-desktop': 'ui:overlay-desktop',
     'child-logout': 'system:child-logout', **station_entry('initial-'),

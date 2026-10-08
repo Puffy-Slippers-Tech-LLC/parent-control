@@ -1119,7 +1119,8 @@ def test_pending_staging_handoff_uses_accepted_result(tmp_path):
                  summary='Acceptance passed.', handoff='Implement task 002.')
     workflow.save_handoff(tmp_path, state, 'staging failed', display=False)
     text = (tmp_path / 'handoff.txt').read_text()
-    assert 'staging remains' in text and 'Implement task 002.' in text
+    assert 'Git close-out remains' in text and 'git push remain' in text
+    assert 'Implement task 002.' in text
     assert 'Recover interrupted task' not in text
 
 
@@ -1131,11 +1132,16 @@ def test_staging_refuses_nonfile_or_external_paths_before_git(tmp_path, path):
 
 
 @pytest.fixture
-def commit_checkout(tmp_path):
+def commit_checkout(tmp_path, tmp_path_factory):
     prepare(tmp_path)
-    subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True)
+    subprocess.run(['git', 'init', '-q', '-b', 'main', str(tmp_path)], check=True)
     subprocess.run(['git', 'config', 'user.name', 'Launcher test'], cwd=tmp_path, check=True)
     subprocess.run(['git', 'config', 'user.email', 'launcher@example.invalid'], cwd=tmp_path, check=True)
+    remote = tmp_path_factory.mktemp('write-e2e-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=tmp_path, check=True)
+    subprocess.run(['git', 'config', 'branch.main.remote', 'origin'], cwd=tmp_path, check=True)
+    subprocess.run(['git', 'config', 'branch.main.merge', 'refs/heads/main'], cwd=tmp_path, check=True)
     return tmp_path
 
 
@@ -1166,6 +1172,8 @@ def test_commit_interruption_recovers_once_including_deleted_paths(commit_checko
     assert subprocess.run(['git', 'rev-list', '--count', 'HEAD'], cwd=root,
                           capture_output=True, text=True, check=True).stdout.strip() == '2'
     assert recovered['phase'] == 'complete' and 'commit_intent' not in recovered
+    assert workflow.git_output(root, 'ls-remote', 'origin', 'refs/heads/main').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
     if optimization:
         assert recovered['optimization']['pending'] == []
         assert recovered['optimization']['last_checkpoint']['tasks'] == ['000a', '000b', '001']
@@ -1197,6 +1205,49 @@ def test_commit_failure_retries_without_recounting_or_reacceptance(commit_checko
     recovered = workflow.recover_completion(root, root, persisted)
     assert recovered['optimization']['pending'] == ['001']
     assert recovered['completion_recorded']
+
+
+@pytest.mark.parametrize('optimization', [False, True])
+def test_push_failure_retries_existing_commit_before_counting_completion(commit_checkout, monkeypatch,
+                                                                       optimization):
+    root = commit_checkout
+    before = workflow.queue_state(root)[1]
+    state = dict(workflow.fresh_state('001'), commit_required=True, in_flight=True,
+                 queue_before=before)
+    if optimization:
+        state['optimization'] = {'pending': ['000a', '000b', '001'], 'last_checkpoint': None}
+        state['optimization_session'] = True
+        result = reply('task_complete', 'not_run', stage_paths=[])
+    else:
+        (root / workflow.QUEUE).write_text('| [x] | 001 | First |\n| [ ] | 002 | Second |\n')
+        (root / workflow.PLAN).write_text('Next task: **002 — Next**.\n')
+        result = reply('task_complete', 'passed')
+    state['pending_completion'] = result
+    git = workflow.git_output
+
+    def refuse_push(root, *args, **kwargs):
+        if args == ('push',):
+            return subprocess.CompletedProcess(args, 1, '', 'remote refused')
+        return git(root, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(workflow, 'git_output', refuse_push)
+        with pytest.raises(ValueError, match='completion push failed: remote refused'):
+            workflow.recover_completion(root, root, state)
+    commit = git(root, 'rev-parse', 'HEAD').stdout.strip()
+    assert not state.get('completion_recorded')
+    assert 'pending_completion' in state and 'commit_intent' in state
+    assert git(root, 'ls-remote', 'origin', 'refs/heads/main').stdout == ''
+    persisted = json.loads((root / 'checkpoint.json').read_text())
+    recovered = workflow.recover_completion(root, root, persisted)
+    assert git(root, 'rev-parse', 'HEAD').stdout.strip() == commit
+    assert git(root, 'ls-remote', 'origin', 'refs/heads/main').stdout.split()[0] == commit
+    assert 'pending_completion' not in recovered and 'commit_intent' not in recovered
+    if optimization:
+        assert recovered['optimization']['pending'] == []
+        assert recovered['optimization']['last_checkpoint']['commit'] == commit
+    else:
+        assert recovered['completion_recorded'] and recovered['optimization']['pending'] == ['001']
 
 
 def test_completion_refuses_overlapping_preexisting_staged_work(commit_checkout):

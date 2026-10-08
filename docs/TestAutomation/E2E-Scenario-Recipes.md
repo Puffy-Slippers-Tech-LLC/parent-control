@@ -1798,7 +1798,30 @@ Use the common 45-second public-result waits and the shared 330-second boot-chan
 deadline within the 1800-second case budget. Require all seven declared assertions,
 worker-title reconciliation, collection, worker shutdown, owned cleanup, baseline
 restoration and preservation. The command-reboot continuity regression remains
-`check_e2e_customer_reboot`; other fresh-install surfaces remain tasks 303–305.
+`check_e2e_customer_reboot`; Child App is case 258 below, while kiosk and the
+unrelated-request control remain tasks 304–305.
+
+### E2E-057
+
+Case **258**, variant `child` (`surface=child`), is one continuous English
+fresh-install Child App history. `fresh_child_restart.PLAN` composes LIFE04's
+`package_installation`, LIFE07's shared `restart_reentry('overlay')`, fresh
+desktop challenges and public postboot setup through `record_package_journey`
+and `onpc_customer_reboot::run_child_notice`.
+
+| Phase | Finite actions and independent results |
+| --- | --- |
+| Actual installation | Start product-free on Ubuntu, authenticate Jamie graphically, install the verified current-source package once and read completion/final reboot notice. Preserve the installation boot. |
+| Child App before reboot | Log out Jamie and authenticate Riley into the ordinary desktop through the installed GDM route. Keep controls disabled; launch `oh-no-parent-control-child` directly without requiring a panel. Read one owned modal before language setup or a usable request: `Restart the computer for Oh No! Parent Control to work properly.`, `Close`, `Reboot now`. Close once, independently require blocked request, exit normally and observe the same child desktop/boot. Reopen directly and read the same modal again. |
+| Reboot and usability | Activate the Child App modal's Reboot now once. Independently require a changed boot and usable GDM. Authenticate Jamie afresh, open Parent and finish English language setup; verify Riley's untouched disabled zero allowance, then save enabled 30 minutes through ordinary public controls. Log out Jamie, authenticate Riley afresh and launch Child App. Finish ordinary English language setup if needed; require enabled Request for the fixed correct child and no restart modal. |
+
+Use the common 45-second public-result waits, shared 330-second boot-change
+deadline and 1800-second case budget. Require all eight assertions, worker-title
+reconciliation, collection, worker shutdown, owned cleanup, baseline restoration
+and preservation. No private marker, app snapshot, command-reboot fallback,
+uncertain input replay or policy setup before the notice supplies acceptance.
+The shared reentry extraction affects `check_e2e_restart_notice` and Parent
+case 257; retain those regressions and `check_e2e_customer_reboot`.
 
 ## Coverage ownership and remaining limits
 

@@ -3013,6 +3013,54 @@
       ]
     },
     {
+      "id": "E2E-057",
+      "title": "Finish fresh installation through the Child App restart notice",
+      "category": "customer-journey",
+      "owners": ["package-lifecycle"],
+      "requirements": ["ONPC-CORE-INSTALL-001", "ONPC-CORE-LIFECYCLE-001"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Lifecycle.md", "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-057"],
+      "components": ["parent", "kiosk", "broker"],
+      "environment": ["ubuntu26.04"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
+      "phases": {
+        "setup": [{"id": "setup", "operation": "provision", "description": "Restore the product-free baseline and provision fixture credentials and the verified current package."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin an independent fresh-install history at the product-free greeter."}],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Sign in as the administrator, install the verified current package once and independently read its completion and final reboot notice without rebooting."},
+          {"id": "step-2", "operation": "ui", "description": "Enter the ordinary child desktop before policy setup, launch Child App directly, read its installation modal, Close and exit normally to the same desktop, then reopen and read the modal on the same boot."},
+          {"id": "step-3", "operation": "ui", "description": "Activate Child App Reboot now once, independently observe a new boot and usable greeter, enable the child through ordinary public Parent setup, then enter a fresh child desktop and require a usable fixed-child request without a restart modal."}
+        ],
+        "end": [{"id": "end", "operation": "collect", "description": "Collect complete public outcomes, boot continuity and reconciled worker evidence."}],
+        "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Finish owned worker shutdown, restore the baseline and preserve unrelated host and source files."}]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "installation-notice", "step_id": "step-1", "description": "The actual package installation completes successfully with its final reboot notice on the original boot."},
+          {"id": "child-installation-modal", "step_id": "step-2", "description": "Child App shows one owned modal, exact neutral instructions and usable Close/Reboot now actions before language setup or a usable request."},
+          {"id": "close-without-reboot", "step_id": "step-2", "description": "Close leaves the request blocked and normal overlay exit returns to the same child desktop without changing boot."},
+          {"id": "reopened-installation-modal", "step_id": "step-2", "description": "Ordinary direct reopening shows the installation-neutral modal again on the original boot."},
+          {"id": "new-boot-usable-greeter", "step_id": "step-3", "description": "One normal Child App modal reboot produces an independently verified new boot and usable greeter."},
+          {"id": "public-child-setup", "step_id": "step-3", "description": "After reboot, ordinary public Parent setup saves enabled 30-minute screen time for the declared child from untouched disabled defaults."},
+          {"id": "fresh-child-desktop", "step_id": "step-3", "description": "Fresh graphical child authentication reaches the new boot's usable desktop."},
+          {"id": "usable-child-request-without-modal", "step_id": "step-3", "description": "Fresh Child App completes ordinary language setup and exposes an enabled request for the correct fixed child without a restart modal."}
+        ],
+        "backend": [], "other_user": []
+      },
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {"surface": ["child"]}, "full_combinations": [],
+        "rationale": "One continuous genuine fresh-install Child App history; other surfaces and unrelated reboot requests have independent cases."
+      },
+      "variants": [{
+        "coverage_id": 258, "id": "child", "owner": "package-lifecycle",
+        "parameters": {"surface": "child"}, "status": "ready", "pending_reason": null,
+        "executable": {"path": "tests/e2e/fresh_child_restart.py", "test_id": "child"}
+      }]
+    },
+    {
       "id": "E2E-056",
       "title": "Finish fresh installation through the Parent restart notice",
       "category": "customer-journey",

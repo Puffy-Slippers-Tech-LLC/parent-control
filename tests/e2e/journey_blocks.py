@@ -307,6 +307,19 @@ def package_installation():
     }
 
 
+def restart_reentry(surface):
+    """LIFE07 Close, ordinary exit and reopening on the installation boot."""
+    require(surface in ('parent', 'overlay'), 'journey:restart-surface')
+    return {
+        surface + '-close': 'ui:restart-' + surface + '-close',
+        surface + '-closed': 'ui:restart-' + surface + '-closed',
+        **({'overlay-exit': 'ui:restart-overlay-exit',
+            'overlay-desktop': 'ui:overlay-desktop'} if surface == 'overlay' else {}),
+        surface + '-relaunch': 'ui:' + ('parent' if surface == 'parent' else 'child') + '-command-launch',
+        surface + '-reentry': 'ui:restart-' + surface + '-read',
+    }
+
+
 def reboot_desktop():
     """Fresh administrator observations for the declared post-reboot challenge."""
     return {'reboot-' + stage: tag for stage, tag in fresh_desktop('parent').items()}

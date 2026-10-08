@@ -25,7 +25,7 @@ APIS = {
     'account_fixture': {'DynamicAccountFixture', 'EmptyAccountFixture', 'station_fixture_actions'},
     'installed_journey': {'JourneyPlan', 'InstalledJourney', 'matched_screens', 'record_installed_journey'},
     'journey_blocks': {'fresh_desktop', 'parent_management', 'parent_reopen', 'parent_search', 'observed_text', 'language_selection',
-                       'product_free_desktop', 'package_installation', 'reboot_desktop', 'station_entry',
+                       'product_free_desktop', 'package_installation', 'restart_reentry', 'reboot_desktop', 'station_entry',
                        'custom_child_selection', 'custom_save_entry', 'ordinary_custom_save', 'allowance_selection',
                        'filter_screens', 'rejected_gdm_return', 'native_usable_app', 'native_activity_entry', 'overlay_entry',
                        'overlay_license_read', 'prefixed_stages', 'custom_allowance'},

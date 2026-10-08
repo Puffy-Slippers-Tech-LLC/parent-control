@@ -483,6 +483,17 @@ and seven assertions. The existing clean-install unit/cleanup owner verifies rea
 worker order/titles, refusal stopping and the recorder's package constructor,
 using private evidence and bounded waited Perl children without new resources.
 
+`journey_blocks.restart_reentry` / `onpc_customer_reboot::restart_reentry` share
+Close, normal overlay exit and same-boot reopening between qualification and
+complete Parent/Child App histories. Case 258 retains its own initial child
+entry, overlay reboot, postboot Riley disabled-default read, public enabled
+30-minute setup and fresh fixed-child request result. The clean-install safety
+owner checks both complete worker orders, real recorder construction, literal
+modal refusal before reply/input and an independent reentry caller. It retains
+pytest-private evidence and bounded waited Perl children, with no new process,
+storage, bus or display owner; existing compatible unit/cleanup classifications
+remain applicable. No product or host resource lifetime changed.
+
 Native activity transitions reuse `journey_blocks.native_activity_entry` /
 `onpc_app_rows::native_activity_entry` for
 launch/use/capture and `native_activity_resume` for an independently observed

@@ -810,6 +810,9 @@ def finish_completion(root, run, state, result, updated):
         paths = stage_completion(root, state, result)
     if state.get('commit_required'):
         commit = finish_commit(root, run, state, paths)
+        pushed = git_output(root, 'push', check=False)
+        if pushed.returncode:
+            raise ValueError('completion push failed: ' + pushed.stderr.strip())
         if state.get('optimization_session'):
             updated['optimization'] = {'pending': [], 'last_checkpoint': {
                 'tasks': list(state['optimization']['pending']), 'commit': commit}}
@@ -882,8 +885,8 @@ def validate_completion_queue(state, after):
 def save_handoff(run, state, reason, *, display=True):
     prompt = state['handoff']
     if state.get('pending_completion'):
-        prompt = (f"Task {state['task_id']} passed acceptance and queue close-out; staging remains. "
-                  "Staging and/or its completion commit remain. "
+        prompt = (f"Task {state['task_id']} passed acceptance and queue close-out; Git close-out remains. "
+                  "Staging, its completion commit and/or git push remain. "
                   "Restart tools/write-e2e to retry close-out from the retained result before "
                   "starting the next task. Do not rerun acceptance.\n" + prompt)
     elif state['in_flight']:

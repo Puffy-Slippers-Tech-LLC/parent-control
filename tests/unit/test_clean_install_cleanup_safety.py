@@ -1,6 +1,7 @@
 """Case 2 must stop before acknowledging any incomplete customer result."""
 
 import json
+import importlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
@@ -15,24 +16,34 @@ from tests.support.desktop_session import RUN_PROBE
 from tests.support.perl import run_perl
 
 
-@pytest.mark.parametrize('fault', ['', 'parent-notice', 'parent-close', 'parent-reentry',
-                                  'reboot-requested', 'reboot-greeter', 'return-desktop', 'usable-parent'])
-def test_parent_restart_actual_worker_order_titles_and_failure_stop(fault):
-    import fresh_parent_restart as parent_case
-    plan = parent_case.PLAN
+@pytest.mark.parametrize('module,worker,fault', [
+    *[('fresh_parent_restart', 'run_parent_notice', fault) for fault in
+      ('', 'parent-notice', 'parent-close', 'parent-reentry', 'reboot-requested',
+       'reboot-greeter', 'return-desktop', 'usable-parent')],
+    *[('fresh_child_restart', 'run_child_notice', fault) for fault in
+      ('', 'child-desktop', 'overlay-notice', 'overlay-close', 'overlay-closed',
+       'overlay-exit', 'overlay-desktop', 'overlay-reentry', 'reboot-requested',
+       'reboot-greeter', 'return-desktop', 'usable-parent', 'postboot-riley-selected',
+       'postboot-riley-configured', 'child-return-desktop', 'usable-overlay')],
+])
+def test_parent_restart_actual_worker_order_titles_and_failure_stop(module, worker, fault):
+    plan = importlib.import_module(module).PLAN
     source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_customer_reboot;')
-    source = source.replace('onpc_desktop_session::run', 'onpc_customer_reboot::run_parent_notice')
+    source = source.replace('onpc_desktop_session::run', 'onpc_customer_reboot::' + worker)
     declared = ','.join(repr(stage) for stage in plan.invocations)
-    source = source.replace('}, $action);', '}, [' + declared + "], "
-        "{'return' => ['parent', 'return-recipient-qualified', 'return-recipient-rechecked']});")
+    challenges = ','.join(repr(key) + '=>[' + ','.join(repr(value) for value in values) + ']'
+                          for key, values in plan.challenges.items())
+    source = source.replace('}, $action);', '}, [' + declared + '], {' + challenges + '});')
     source = source.replace('sub record_info { }', "sub record_info { push @main::events, ['title', $_[0]]; }")
     source = source.replace("push @events, ['stage', $_[0]];", """
         push @events, ['stage', $_[0]];
         die 'fixed refusal' if $_[0] eq $action;
         return {observed => $_[0], ui_focused => 1} if $_[0] =~ /(?:greeter|list)$/;
-        return {observed => $_[0], challenge => {id => 'return', role => 'parent',
+        my ($id, $role) = $_[0] =~ /^child-return-/ ? ('child-return', 'child') :
+            $_[0] =~ /^child-/ ? ('child', 'child') : ('return', 'parent');
+        return {observed => $_[0], challenge => {id => $id, role => $role,
             surface => 'gdm', check => $_[0] =~ /rechecked$/ ? 'rechecked' : 'qualified'}}
-            if $_[0] =~ /^return-recipient-/;
+            if $_[0] =~ /^(?:child-|return-).*recipient-(?:qualified|rechecked)$/;
     """)
     result = json.loads(run_perl(source, fault).stdout)
     assert bool(result['ok']) == (not fault), result
@@ -43,14 +54,18 @@ def test_parent_restart_actual_worker_order_titles_and_failure_stop(fault):
         plan.prefix + '-' + stage for stage in stages]
     assert not any(event[0] in ('pointer', 'click') for event in result['events'])
     if not fault:
-        assert result['events'].count(['secret']) == 2
+        assert result['events'].count(['secret']) == (4 if module == 'fresh_child_restart' else 2)
         assert [event for event in result['events'] if event[0] != 'title'][-1] == ['power', 'off']
 
 
-@pytest.mark.parametrize('stage', ['parent-notice', 'parent-reentry', 'reboot-requested'])
+@pytest.mark.parametrize('module,surface', [('fresh_parent_restart', 'parent'),
+                                          ('fresh_child_restart', 'overlay')])
+@pytest.mark.parametrize('stage', ['notice', 'reentry', 'reboot-requested'])
 @pytest.mark.parametrize('fault', ['', 'text', 'surface', 'modal', 'policy', 'missing'])
-def test_parent_restart_literal_results_precede_reply_and_reboot(tmp_path, monkeypatch, stage, fault):
-    import fresh_parent_restart as parent_case
+def test_parent_restart_literal_results_precede_reply_and_reboot(tmp_path, monkeypatch, module, surface, stage, fault):
+    parent_case = importlib.import_module(module)
+    if stage != 'reboot-requested':
+        stage = surface + '-' + stage
     monkeypatch.setattr(package_journey, 'AssetTransfer', Mock())
     context = SimpleNamespace(directory=tmp_path, installed_snapshot=None,
         verified=Mock(), lease=Mock(), guestfs=Mock())
@@ -60,8 +75,8 @@ def test_parent_restart_literal_results_precede_reply_and_reboot(tmp_path, monke
     current.vm = Mock()
     current.vm.read.return_value = {'boot_sha256': current.boot}
     current.ui = Mock(boot_proof=current.boot)
-    current.ui.submit_restart.return_value = {'surface': 'parent', 'status': 'acknowledged'}
-    value = {'surface': 'parent', 'modal': True, 'policy_blocked': True, 'texts': {
+    current.ui.submit_restart.return_value = {'surface': surface, 'status': 'acknowledged'}
+    value = {'surface': surface, 'modal': True, 'policy_blocked': True, 'texts': {
         'update-required-message': 'Restart the computer for Oh No! Parent Control to work properly.',
         'update-required-close': 'Close', 'update-required-reboot': 'Reboot now'}}
     if fault == 'text': value['texts']['update-required-message'] = 'Update before opening the kiosk'
@@ -82,12 +97,13 @@ def test_parent_restart_literal_results_precede_reply_and_reboot(tmp_path, monke
         assert (tmp_path / (stage + '.reply.json')).is_file()
         assert current.ui.submit_restart.call_count == (stage == 'reboot-requested')
         if stage == 'reboot-requested':
-            current.ui.submit_restart.assert_called_once_with('parent')
-            assert json.loads((tmp_path / 'customer-reboot-intent.json').read_text())['surface'] == 'parent'
+            current.ui.submit_restart.assert_called_once_with(surface)
+            assert json.loads((tmp_path / 'customer-reboot-intent.json').read_text())['surface'] == surface
 
 
-def test_parent_restart_real_recorder_constructs_package_envelope_before_worker(tmp_path, monkeypatch):
-    import fresh_parent_restart as parent_case
+@pytest.mark.parametrize('module', ['fresh_parent_restart', 'fresh_child_restart'])
+def test_parent_restart_real_recorder_constructs_package_envelope_before_worker(tmp_path, monkeypatch, module):
+    parent_case = importlib.import_module(module)
     monkeypatch.setattr(package_journey, 'AssetTransfer', Mock())
     recorder = MagicMock()
     context = SimpleNamespace(directory=tmp_path, installed_snapshot=None, credentials=Mock(),
@@ -103,6 +119,51 @@ def test_parent_restart_real_recorder_constructs_package_envelope_before_worker(
     with pytest.raises(RuntimeError, match='synthetic-worker-start'):
         parent_case.execute(recorder, context)
     context.credentials.provision.assert_called_once()
+
+
+@pytest.mark.parametrize('surface', ['parent', 'overlay'])
+@pytest.mark.parametrize('fault', ['', 'close', 'closed', 'relaunch', 'reentry'])
+def test_restart_reentry_independent_recipe_order_titles_and_refusal(surface, fault):
+    from journey_blocks import restart_reentry
+    screens = restart_reentry(surface)
+    assert set(screens.values()) <= {'ui:' + operation for operation in ui_module.OPERATIONS}
+    screens.clear()
+    assert restart_reentry(surface)
+    source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_customer_reboot;')
+    source = source.replace('onpc_desktop_session::run(sub {',
+        "onpc_customer_reboot::restart_reentry(onpc_journey->new(prefix => 'independent-restart', review => 0, exchange => sub {")
+    source = source.replace('}, $action);', '}), $action);')
+    source = source.replace("push @events, ['stage', $_[0]];",
+        "push @events, ['stage', $_[0]]; die 'fixed refusal' if $_[0] eq $ARGV[1];")
+    source = source.replace('sub record_info { }', "sub record_info { push @main::events, ['title', $_[0]]; }")
+    fault = surface + '-' + fault if fault else ''
+    result = json.loads(run_perl(source, surface, fault).stdout)
+    expected = list(restart_reentry(surface))
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    assert bool(result['ok']) == (not fault), result
+    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
+    assert [event[1] for event in result['events'] if event[0] == 'title'] == [
+        'independent-restart-' + stage for stage in stages]
+    assert not any(event[0] in ('secret', 'key', 'pointer', 'click') for event in result['events'])
+    with pytest.raises(EvidenceError): restart_reentry('kiosk')
+
+
+def test_child_restart_registered_leaves_and_postboot_policy_order():
+    import fresh_child_restart as child_case
+    import session_control
+    plan = child_case.PLAN
+    stages = list(plan.screen_tags)
+    for tag in plan.screen_tags.values():
+        assert (tag[3:] in ui_module.OPERATIONS if tag.startswith('ui:')
+                else tag[7:] in session_control.BINDINGS)
+    assert stages.index('overlay-reentry') < stages.index('reboot-greeter') < stages.index('postboot-riley-selected')
+    assert stages.index('postboot-riley-configured') < stages.index('child-return-desktop') < stages.index('usable-overlay')
+    assert plan.modal_reboots == {'reboot-requested': 'overlay'}
+    assert plan.child_bindings == {'postboot-riley-configured': 'child'}
+    # The shared configure_time_controls operation independently verifies the
+    # saved enabled 30-minute policy; PackageJourney adds no balance subclass.
+    assert plan.screen_tags['postboot-riley-configured'] == 'ui:time-explanation-setup-thirty-read'
+    assert plan.settings_checks['postboot-riley-selected'] == child_case.SettingsObservation('fixture-child', False, ('0 minutes',))
 
 
 def test_restart_instruction_oracle_is_immutable_and_validated():

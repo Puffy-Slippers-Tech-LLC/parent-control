@@ -19,23 +19,24 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **303 — [Fresh-install reboot prompt: Child App](E2E-Tasks/303-fresh-install-child-reboot.md)**.
+Next task: **304 — [Fresh-install reboot prompt: kiosk session](E2E-Tasks/304-fresh-install-kiosk-reboot.md)**.
 
-Task 302 completed E2E-056 `parent`, case 257, on Ubuntu 26.04 in
-`20261008T005153Z-5fc78720`: genuine installation/final notice, Parent's same-boot
-modal before management, Close/reopen, one public Parent Reboot now, changed boot,
-usable GDM, fresh administrator desktop and usable Parent without the modal.
-All seven assertions and the required command-reboot regression
-(`20261008T010236Z-98646c71`) passed, including collection, worker shutdown, owned
-cleanup, baseline restoration, finalization and preservation. Coverage was
-regenerated; the queue and LIFE07 catalogue retain the delivered scope.
+Task 303 completed E2E-057 `child`, case 258, on Ubuntu 26.04 in
+`20261008T014508Z-450ffde5`: genuine installation/final notice, direct pre-policy
+Child App modal, same-boot Close/normal desktop return/reopen, one public Child
+Reboot now, changed boot/usable GDM, public postboot enabled Riley setup and a
+fresh usable fixed-child request without the modal. All eight assertions and
+the required command-reboot, shared three-surface notice and Parent case 257
+regressions passed, including collection, worker shutdown, owned cleanup,
+baseline restoration, finalization and preservation. Coverage was regenerated;
+the queue and LIFE07 catalogue retain the scope and preserved report locations.
 
 Task 301 qualified the English fresh-install restart notice on Parent, Child App
 and kiosk on Ubuntu 26.04, with same-boot Close/re-entry, one kiosk Reboot now,
 new boot/usable greeter and fresh usability without the modal. The required
 customer-reboot regression, collection, worker shutdown, owned cleanup, baseline
 restoration, finalization and preservation passed. The queue and LIFE07 catalogue
-retain the exact scope and reports; complete cases remain tasks 302–305.
+retain the exact scope and reports; remaining complete cases are tasks 304–305.
 
 Task 300's complete Chinese latest-install case 254 and both required
 current-install/native-auth regressions passed on Ubuntu 26.04, including

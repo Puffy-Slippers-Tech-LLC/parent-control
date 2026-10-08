@@ -1,7 +1,7 @@
 """Case 257: genuine installation, Parent Close/re-entry and one modal reboot."""
 
 from installed_journey import JourneyPlan
-from journey_blocks import fresh_desktop, package_installation, prefixed_stages
+from journey_blocks import fresh_desktop, package_installation, prefixed_stages, restart_reentry
 from journey_checks import restart_instructions
 from package_install import check_install_result
 from package_journey import record_package_journey
@@ -11,10 +11,7 @@ INSTALL = package_installation()
 NOTICE = {
     'parent-launch': 'ui:parent-command-launch',
     'parent-notice': 'ui:restart-parent-read',
-    'parent-close': 'ui:restart-parent-close',
-    'parent-closed': 'ui:restart-parent-closed',
-    'parent-relaunch': 'ui:parent-command-launch',
-    'parent-reentry': 'ui:restart-parent-read',
+    **restart_reentry('parent'),
 }
 RETURN = prefixed_stages('return', fresh_desktop('parent'))
 POSTBOOT = {

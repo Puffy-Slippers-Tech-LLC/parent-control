@@ -573,6 +573,8 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # Batch optimization and commit recovery use the same private checkouts, local
 # Git identity/configuration and waited agent doubles; compatible overlap remains
 # valid without touching the developer's Git index, history, hooks or identity.
+# Push/retry checks add tiny pytest-private bare remotes and synchronously waited
+# local Git children, with no network or shared remote; compatible overlap holds.
 
 # Baseline mode/update/reboot tests mock every VM/package
 # mutation. Version checks spawn only bounded read-only dpkg comparisons with

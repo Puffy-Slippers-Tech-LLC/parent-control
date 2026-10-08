@@ -562,7 +562,7 @@ The next task starts with its own cap of 5.
 `--tasks N` limits completed tasks and defaults
 to `1`. Both limits accept positive integers for a new run; the launcher stops
 when either limit is reached. A task counts only after acceptance, queue
-close-out, successful staging and its completion commit. An empty active
+close-out, successful staging, its completion commit and `git push`. An empty active
 queue stops the workflow. A task blocker pauses for your answer as described below.
 With a live run, an invocation without
 parameters attaches without changing limits. Explicit `--tasks` and `--sessions`
@@ -582,17 +582,21 @@ task close-out, then starts no further session. Ctrl+C cancels immediately and
 waits for owned cleanup.
 
 After each completed task, the launcher stages its owned paths and commits them
-as `TA: Completed task ID` before selecting another task. Git uses literal paths
+as `TA: Completed task ID`, then runs `git push` before selecting another task.
+The push uses the checkout's existing Git remote and branch configuration.
+Git uses literal paths
 and `commit --only` so unrelated staged files remain outside the commit. Agents
 return explicit owned paths and never commit themselves. A path overlapping
 pre-existing staged work refuses close-out rather than committing that work.
-A staging or commit
+A staging, commit or push
 failure retains the accepted result; restart retries close-out without repeating
 valid acceptance. Commit intent is checkpointed before Git writes. Recovery
 recognizes only the matching immediate commit with unchanged owned files, avoiding
 a duplicate after interruption; an unexpected HEAD or changed files refuse.
-Missing Git identity or a failing commit hook remains an actionable close-out
-failure; the launcher does not change Git configuration or bypass hooks.
+Push recovery retries the push after recognizing the existing commit.
+Missing Git identity, remote/upstream configuration or a failing Git hook remains
+an actionable close-out failure; the launcher does not change Git configuration
+or bypass hooks.
 
 Every **three accepted and committed tasks**, a fresh **GPT-6.1 Sol High** session
 runs before another queue task. Its scope is the batch's exact three completed
@@ -604,7 +608,8 @@ cases compose shared building blocks, harness and libraries with finite case
 data, ordering and assertions; one-off mechanics move to their reusable owners.
 It preserves behavior, qualifications and guards, completes affected validation
 and resource review, then the launcher stages the fix and commits it as
-`TA: Refactored task FIRST to LAST`. A verified audit with no needed edits still
+`TA: Refactored task FIRST to LAST`, then runs `git push` through the same
+resumable close-out. A verified audit with no needed edits still
 gets an empty checkpoint commit. Optimization cannot close or reorder queue rows.
 
 The existing retained checkpoint owns pending batch IDs, the last optimized batch
@@ -744,16 +749,16 @@ Only a prerequisite requiring external action or an unresolved behavior decision
 returns a blocker with the actual validation outcome. A passing session completes
 the plan's acceptance, checks the row and advances its sole pointer. It returns an explicit
 list of task-related code, test and
-close-out files; the launcher stages and commits those files before
+close-out files; the launcher stages, commits and pushes those files before
 starting another session. This staging uses literal Git paths and needs no
 agent-side Git permission grant. Task 192 retains the plan's explicit host-only exception.
 Staged code is the baseline; agents do not analyze staged diffs.
 
 Close-out ignores reported paths that are absent from both the working tree and
 the Git index, such as temporary briefs created and deleted within the task.
-Tracked deletions still stage normally. If staging fails after acceptance, the
+Tracked deletions still stage normally. If Git close-out fails after acceptance, the
 launcher retains the accepted result and current handoff. Restart revalidates
-that result against the saved queue state and retries only its staging/commit before
+that result against the saved queue state and retries only its staging/commit/push before
 selecting the next task; it does not repeat the completed live acceptance or
 rewrite the previous run's evidence. Recovery preserves newly queued unchecked
 tasks; changes to existing task order or another task's status still refuse.

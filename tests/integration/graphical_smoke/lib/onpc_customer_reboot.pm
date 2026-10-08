@@ -5,6 +5,7 @@ use onpc_progress ();
 use onpc_journey ();
 use onpc_parent ();
 use onpc_gdm ();
+use onpc_allowance_boundaries ();
 
 sub run {
     onpc_progress::operation('Installing the product before the planned customer reboot');
@@ -190,7 +191,12 @@ sub restart_notice {
     onpc_gdm::enter_station($journey, 'renewed-');
     $journey->seen($_) for qw(kiosk-reentry reboot-requested reboot-greeter);
     onpc_gdm::named_login($journey, 'return', 'parent');
-    $journey->seen($_) for qw(usable-parent-launch usable-parent missing-notice-refused return-parent-logout);
+    $journey->seen($_) for qw(usable-parent-launch usable-parent missing-notice-refused);
+    for my $prefix ('postboot-riley', 'postboot-jamie') {
+        onpc_allowance_boundaries::select_child($journey, $prefix);
+        $journey->seen("$prefix-configured");
+    }
+    $journey->seen('return-parent-logout');
     onpc_gdm::named_login($journey, 'child-return', 'child');
     $journey->seen($_) for qw(usable-overlay-launch usable-overlay return-child-logout);
     onpc_gdm::enter_station($journey, '');

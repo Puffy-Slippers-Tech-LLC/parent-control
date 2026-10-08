@@ -442,6 +442,11 @@ over that package fragment and the shared fresh-desktop/station entries.
 The notice can arrive before the request's own-account load; the exact application
 owner and, for the overlay, active fixture session bind that early read.
 Language setup is permitted only in the postboot usability operation.
+Fresh installation leaves child controls off. After the verified reboot and
+Parent's missing-modal refusal, the qualification uses the shared canonical
+child-selection and FLOW02 setup operations to save an enabled 30-minute
+allowance for Riley and Jamie. Only then does it require enabled Request on the
+fresh Child App and default kiosk entries; no policy setup precedes the notices.
 `JourneyPlan.modal_reboots` pairs an exact surface read with the adjacent fresh
 GDM result. `UiObservations.submit_restart` consumes once; a bounded terminal
 stream permits transport uncertainty only after the exact boot/surface readiness

@@ -270,7 +270,9 @@ def test_restart_selector_exclusive_gate(extra):
 
 
 @pytest.mark.parametrize('fault', ['', 'parent-notice', 'parent-close', 'overlay-reentry',
-                                  'reboot-requested', 'reboot-greeter', 'usable-kiosk'])
+                                  'reboot-requested', 'reboot-greeter', 'postboot-riley-selected',
+                                  'postboot-riley-configured', 'postboot-jamie-selected',
+                                  'postboot-jamie-configured', 'usable-overlay', 'usable-kiosk'])
 def test_restart_worker_exact_composition_and_refusal(fault):
     import restart_notice
     plan = restart_notice.PLAN
@@ -434,3 +436,25 @@ def test_restart_plan_every_leaf_registered():
     import restart_notice
     for tag in restart_notice.PLAN.screen_tags.values():
         assert tag[3:] in accessible_ui.OPERATIONS if tag.startswith('ui:') else tag[7:] in session_control.BINDINGS
+
+
+def test_restart_enabled_request_preparation_follows_reboot():
+    import restart_notice
+    from journey_blocks import custom_child_selection
+    from ui_observations import SettingsObservation
+    plan = restart_notice.PLAN
+    stages = list(plan.screen_tags)
+    for prefix, child, identity in (('postboot-riley', 'child', 'fixture-child'),
+                                     ('postboot-jamie', 'existing', 'existing-fixture-child')):
+        selection = custom_child_selection(prefix, child)
+        configured = prefix + '-configured'
+        assert {stage: plan.screen_tags[stage] for stage in selection} == selection
+        assert plan.screen_tags[configured] == 'ui:time-explanation-setup-thirty-read'
+        assert plan.child_bindings[configured] == child
+        assert plan.settings_checks[prefix + '-selected'] == SettingsObservation(
+            identity, False, ('0 minutes',))
+        assert stages.index('missing-notice-refused') < stages.index(prefix + '-open')
+        assert stages.index(prefix + '-selected') < stages.index(configured)
+        assert stages.index(configured) < stages.index('return-parent-logout')
+    assert stages.index('return-parent-logout') < stages.index('usable-overlay-launch')
+    assert stages.index('usable-overlay') < stages.index('usable-kiosk')

@@ -19,7 +19,14 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **301 — [Qualify the installed product restart notice](E2E-Tasks/301-restart-notice.md)**.
+Next task: **302 — [Fresh-install reboot prompt: Parent](E2E-Tasks/302-fresh-install-parent-reboot.md)**.
+
+Task 301 qualified the English fresh-install restart notice on Parent, Child App
+and kiosk on Ubuntu 26.04, with same-boot Close/re-entry, one kiosk Reboot now,
+new boot/usable greeter and fresh usability without the modal. The required
+customer-reboot regression, collection, worker shutdown, owned cleanup, baseline
+restoration, finalization and preservation passed. The queue and LIFE07 catalogue
+retain the exact scope and reports; complete cases remain tasks 302–305.
 
 Task 300's complete Chinese latest-install case 254 and both required
 current-install/native-auth regressions passed on Ubuntu 26.04, including

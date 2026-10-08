@@ -24,3 +24,14 @@ selector during implementation; regenerate coverage through the maintained
 `tools/generate_test_coverage.sh` route. No executable selector exists yet.
 Historical clean-install case 2 and task 300's Chinese latest-install history do not
 supply this acceptance. Preserve failures, reconciliation and owned cleanup.
+
+## Scoped implementation route
+
+Read [LIFE07's installed qualification](../E2E-Building-Blocks.md#installed-restart-notice-qualification)
+and `tests/e2e/restart_notice.py` for the delivered capability scope. Compose
+`journey_blocks.package_installation`, the shared app/fresh-desktop entries and
+`InstalledJourney` with the case's own finite stages and assertions. Use
+`AccessibleUI.restart_notice` / `restart_action` / `restart_closed` /
+`restart_usable`, `JourneyPlan.modal_reboots` and `UiObservations.submit_restart`
+for the Parent binding; the qualification's public reboot used kiosk, so this
+complete Parent reboot history still needs independent live acceptance.

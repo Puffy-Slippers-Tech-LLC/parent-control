@@ -2052,12 +2052,37 @@ routes remain separate consumers.
 | LIFE04 | C | Perform a declared real install/update/remove/reinstall/purge with a registered package command over guarded SSH; observe completion and the actual customer notice. | `package_install.submit_install` / `observe_install` compose FILE01/02/06 and AUTH03 with verified artifact identity, one submission and independent completion/final notice. `PackageInstallJourney` qualifies the fresh product-free install entry; [install qualification](#customer-package-install-composition). `submit_release` / `observe_release` and `PackageUpgradeJourney` qualify the [genuine v1.2/current upgrade](#genuine-package-upgrade), including old-release activation and unchanged boot after upgrade. No Terminal, sudo-prompt exercise or private product-state assertion. | install and genuine v1.2/current update ready; other update/remove/reinstall/purge bindings pending |
 | LIFE05 | C | Follow the displayed activation requirement for the explicit finite list of affected apps/users: none, process reopen, session renewal, or reboot/login. | None: UI03(notice). Process: LIFE01 for each app. Session: DESK03 → GDM02 → DESK08 when reaching another retained user, then DESK04 → GDM07 for each required renewal. Reboot: LIFE02 → GDM07. Compare displayed state afterward; one user's logout does not renew every session. | pending |
 | LIFE06 | C | Remove and restore the owned VM's Internet access through one shared distro-independent operation; independently observe offline/online state and required product results. Local test-control access remains available. | `vm_internet.InternetIsolation.enter(transport)` / `restore(lease)` and `offline_controls.offline_controls`; [owned VM Internet contract](#owned-vm-internet-isolation). No guest networking service, new transport or injected product fault. | ready for the VM Internet helper and Parent enable/disable with independent saved-state reads and same-window continuity; other product results and complete scenarios remain pending |
-| LIFE07 | C | Read the installed product's owned restart modal before language setup; Close without reboot, re-enter and submit one normal Reboot now action. Observe a new boot, usable greeter and fresh target without the modal separately. | `AccessibleUI.restart_notice` / `restart_action` / `restart_closed` / `restart_usable`, `JourneyPlan.modal_reboots` and `UiObservations.submit_restart`; `restart_notice.RestartNoticeJourney` / `onpc_customer_reboot::restart_notice` compose LIFE04, fresh desktop/station entries and LIFE02's independent boot result. `check_e2e_restart_notice` starts product-free and binds Parent, direct Child App and kiosk without policy setup before the notice. Exact owners, duplicate/missing IDs and consumed input refuse; no marker injection or command-reboot fallback. | implementation present; installed qualification pending; complete cases remain tasks 302–305 |
+| LIFE07 | C | Read the installed product's owned restart modal before language setup; Close without reboot, re-enter and submit one normal Reboot now action. Observe a new boot, usable greeter and fresh target without the modal separately. | `AccessibleUI.restart_notice` / `restart_action` / `restart_closed` / `restart_usable`, `JourneyPlan.modal_reboots` and `UiObservations.submit_restart`; `restart_notice.RestartNoticeJourney` / `onpc_customer_reboot::restart_notice` compose LIFE04, fresh desktop/station entries and LIFE02's independent boot result. `check_e2e_restart_notice` starts product-free and binds Parent, direct Child App and kiosk without policy setup before the notice. Exact owners, duplicate/missing IDs and consumed input refuse; no marker injection or command-reboot fallback. [Installed qualification](#installed-restart-notice-qualification). | English fresh-install three-surface notice/Close/re-entry, kiosk reboot and postboot usability ready; other language/action histories and complete cases remain tasks 302–305 |
 
 `journey_blocks.parent_reopen()` supplies LIFE01's shared checkpoint declaration
 for `onpc_lifecycle::reopen`, including `initial-selection`. The app-restart
 qualification and cases 152, 158 and 159 compose it before their separate draft
 reset or child-persistence assertions; it never repairs the selected child.
+
+#### Installed restart notice qualification
+
+`check_e2e_restart_notice` passed all 15 assertions on Ubuntu 26.04 in
+[`20261008T001340Z-0ac17273`](../../output/test-runs/host/reports/20261008T001340Z-0ac17273/report.md).
+The genuine product-free install supplies the package completion/reboot notice;
+English Parent, direct Child App and kiosk each show the owned modal before
+language or policy setup, Close without a boot change and show it again on
+ordinary re-entry. Wrong-owner refusal precedes input. One public kiosk Reboot now
+produces a separately verified new boot and usable GDM. Fresh Parent is usable
+with no modal and refuses a missing-modal reboot; public Parent setup then saves
+enabled 30-minute allowances for Riley and Jamie before fresh Child App and
+default kiosk entries require enabled Request and no modal. Installation's
+disabled defaults are verified before that setup, not mistaken for an enabled
+request prerequisite.
+
+The affected command-reboot continuity regression passed all five assertions in
+[`20261008T002206Z-08d2c230`](../../output/test-runs/host/reports/20261008T002206Z-08d2c230/report.md).
+Both runs passed capture reconciliation, private collection, worker shutdown,
+owned cleanup, baseline restoration, finalization and source/host preservation.
+Host safety/composition and all three real GTK modal previews passed in
+`20261008T001304Z-6721020e`. This qualifies the fixed English slice, not complete
+cases or a Parent/Child App public reboot history. Those histories and other
+language/no-product-request results stay with tasks 302–305. No visual acceptance
+or product defect is claimed.
 
 #### Child desktop countdown qualification
 

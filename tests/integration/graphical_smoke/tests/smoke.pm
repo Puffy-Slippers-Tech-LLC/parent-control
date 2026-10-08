@@ -270,6 +270,17 @@ sub run {
         onpc_request_flow::overlay_prompt(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'rejection');
         return;
     }
+    for my $binding (['overlay_approval_immediate', 'approval-immediate'],
+                     ['overlay_flow_rejection', 'flow-rejection'],
+                     ['overlay_flow_cancel', 'flow-cancel']) {
+        if ($ready->{$binding->[0]}) {
+            console('sut')->disable();
+            exchange('setup-detached', undef);
+            onpc_request_flow::overlay_prompt(\&exchange, $ready->{invocations},
+                $ready->{challenge_bindings}, $binding->[1]);
+            return;
+        }
+    }
     if ($ready->{overlay_choices}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -308,6 +308,9 @@ and GLib doubles; child_preview remains compatible without a real bus/display.
 # UI/worker doubles and bounded waited Perl children. No live bus, VM, display
 # or shared paths; accessible_e2e_ui, challenges and installed-journey modules
 # retain their compatible classifications.
+# Overlay FLOW05/07 and immediate-exit parameters reuse those same private
+# trees, recorder files and waited Perl children. No shared mutable cache,
+# socket, display, service or process owner is added; compatible review holds.
 
 # Parent rejected-report checks use existing process-local AT-SPI doubles,
 # private tmp_path recorder files and bounded, waited Perl children. No live

@@ -430,6 +430,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_overlay_prompt'], ['check_e2e_overlay_prompt.py'],
             ['check_e2e_overlay_rejection'], ['check_e2e_overlay_rejection.py'],
             ['check_e2e_overlay_approved_exit'], ['check_e2e_overlay_approved_exit.py'],
+            ['check_e2e_overlay_approval'], ['check_e2e_overlay_approval.py'],
             ['check_e2e_overlay_license'], ['check_e2e_overlay_license.py'],
             ['check_e2e_overlay_browser_links'], ['check_e2e_overlay_browser_links.py'],
             ['check_e2e_read_overlay_about_and_links'], ['check_e2e_read_overlay_about_and_links.py'],
@@ -549,6 +550,7 @@ def qualification_artifact_command(root, category, args):
     output = str(named_input(fixture_source=True) if args in (
         ['check_e2e_overlay_valid_choices'], ['check_e2e_overlay_valid_choices.py'],
         ['check_e2e_overlay_approved_exit'], ['check_e2e_overlay_approved_exit.py'],
+        ['check_e2e_overlay_approval'], ['check_e2e_overlay_approval.py'],
         ['check_e2e_overlay_choices'], ['check_e2e_overlay_choices.py'],
         ['check_e2e_overlay_license'], ['check_e2e_overlay_license.py'],
         ['check_e2e_overlay_browser_links'], ['check_e2e_overlay_browser_links.py'],

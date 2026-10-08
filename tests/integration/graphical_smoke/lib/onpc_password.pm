@@ -128,7 +128,8 @@ sub enter_overlay_shell_password {
         my $id = 'overlay-shell-' . ($reject ? 'rejection' : 'approval');
         die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
             && $prefix =~ /\A[a-z][a-z0-9-]*\z/
-            && ($journey->{prefix} // '') eq ($reject ? 'overlay-rejection' : 'overlay-approved-exit')
+            && (($journey->{prefix} // '') eq ($reject ? 'overlay-rejection' : 'overlay-approved-exit')
+                || ($journey->{prefix} // '') eq 'overlay-approval-flow')
             && !$journey->{review} && !$challenges_used{$id};
         $challenges_used{$id} = 1;
         $authentication_started = $functional_started = $functional_input_started = 1;

@@ -17,6 +17,7 @@ CASE_MODULES = {Path(variant['executable']['path']).stem for _, variant in READY
 # Reviewed composition APIs, not a list of cases. Adding a ready inventory row
 # is sufficient to exercise it. New mechanics belong behind a shared API.
 APIS = {
+    'dataclasses': {'replace'},
     'countdown': {'CountdownObservation', 'check_countdown_balance'},
     'access_choices': {'AccessChoiceJourney'},
     'policy_edits': {'policy_edit'},
@@ -35,7 +36,7 @@ APIS = {
                        'policy_projection', 'request_choices', 'checked_language',
                        'approval_estimate', 'public_checks', 'restart_instructions'},
     'real_interval': {'interval_action'},
-    'request_flow': {'prepared_request', 'daily_station_entry', 'overlay_authentication', 'CHOICES', 'chinese_request'},
+    'request_flow': {'prepared_request', 'daily_station_entry', 'overlay_authentication', 'overlay_approved_request', 'overlay_rejected_request', 'CHOICES', 'chinese_request'},
     'kiosk_approved_flow': {'approved_request', 'obtain_time', 'chinese_approval'},
     'chinese_current_install': {'current_actions'},
     'chinese_journey': {'chinese_journey'},

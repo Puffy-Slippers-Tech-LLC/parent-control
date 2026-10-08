@@ -70,11 +70,11 @@ sub overlay_information {
 sub overlay_prompt {
     onpc_progress::operation('Qualifying one real Shell prompt and preserved form after Cancel');
     my ($exchange, $declared, $challenges, $approval) = @_;
-    die 'overlay-prompt:arguments' unless (@_ == 3 || @_ == 4 && ($approval eq 'approval' || $approval eq 'rejection')) && ref($exchange) eq 'CODE'
+    die 'overlay-prompt:arguments' unless (@_ == 3 || @_ == 4 && $approval =~ /\A(?:approval|rejection|approval-immediate|flow-rejection|flow-cancel)\z/) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => !$approval ? 'overlay-prompt' : $approval eq 'approval'
-            ? 'overlay-approved-exit' : 'overlay-rejection', review => 0);
+        prefix => !$approval ? 'overlay-prompt' : $approval =~ /^flow-/ ? 'overlay-approval-flow'
+            : $approval =~ /^approval/ ? 'overlay-approved-exit' : 'overlay-rejection', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -90,14 +90,16 @@ sub overlay_prompt {
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
     my $activity;
-    if ($approval && $approval eq 'approval') {
+    if ($approval && $approval ne 'rejection') {
         $activity = onpc_app_rows::native_activity_entry($journey, 'activity', 'command');
     }
     overlay_entry($journey, 'direct', 'command');
     $journey->seen('wrong-surface-refused');
     prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
-    if ($approval && $approval eq 'approval') {
-        shell_approve($journey);
+    if ($approval && $approval ne 'rejection') {
+        overlay_reject($journey, substr($approval, 5)) if $approval =~ /^flow-/;
+        overlay_approve($journey, $approval eq 'approval-immediate' || $approval eq 'flow-cancel'
+            ? 'immediate' : 'automatic');
     } else {
         if ($approval) {
             shell_reject($journey, 'rejection');
@@ -107,12 +109,47 @@ sub overlay_prompt {
         $journey->seen('form-returned');
         $journey->seen('cancel');
     }
-    $journey->seen('returned');
-    if ($approval && $approval eq 'approval') {
+    $journey->seen('returned') unless $approval && $approval ne 'rejection';
+    if ($approval && $approval ne 'rejection') {
         onpc_app_rows::native_read_activity($activity, 'returned');
         onpc_app_rows::native_finish_app($activity);
     }
     $journey->finish();
+}
+
+sub overlay_approve {
+    onpc_progress::operation('Approving the prepared overlay and observing its declared exit');
+    my ($journey, $exit) = @_;
+    die 'overlay-flow:exit' unless @_ == 2 && defined($exit)
+        && ($exit eq 'automatic' || $exit eq 'immediate');
+    shell_approve($journey, $exit);
+    return $journey->seen('returned');
+}
+
+sub overlay_reject {
+    onpc_progress::operation('Rejecting or cancelling the overlay and comparing the preserved form');
+    my ($journey, $outcome) = @_;
+    die 'overlay-flow:outcome' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && ($journey->{prefix} // '') eq 'overlay-approval-flow'
+        && defined($outcome) && ($outcome eq 'rejection' || $outcome eq 'cancel');
+    die 'overlay-flow:replay' if $journey->{shell_flow_started} || $journey->{invocation_failed};
+    $journey->{shell_flow_started} = 1;
+    my $preserved;
+    my $ok = eval {
+        $journey->seen('flow-before');
+        if ($outcome eq 'rejection') {
+            shell_reject($journey, 'rejection');
+        } else {
+            shell_cancel($journey, 'shell-cancel-ready', 'shell-dismissed');
+        }
+        $preserved = $journey->seen('flow-preserved');
+        1;
+    };
+    unless ($ok) {
+        $journey->{invocation_failed} = 1;
+        die $@;
+    }
+    return $preserved;
 }
 
 sub shell_reject {
@@ -138,9 +175,12 @@ sub shell_reject {
 
 sub shell_approve {
     onpc_progress::operation('Approving the declared overlay request once');
-    my ($journey) = @_;
-    die 'shell-approve:binding' unless @_ == 1 && ref($journey) eq 'onpc_journey'
-        && ($journey->{prefix} // '') eq 'overlay-approved-exit';
+    my ($journey, $exit) = @_;
+    $exit //= 'automatic';
+    die 'shell-approve:binding' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
+        && (($journey->{prefix} // '') eq 'overlay-approved-exit'
+            || ($journey->{prefix} // '') eq 'overlay-approval-flow')
+        && ($exit eq 'automatic' || $exit eq 'immediate');
     die 'shell-approve:replay' if $journey->{shell_approval_started} || $journey->{invocation_failed};
     $journey->{shell_approval_started} = 1;
     my $ok = eval {

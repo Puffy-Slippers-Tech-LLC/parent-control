@@ -54,6 +54,7 @@ OPERATION_LABELS = {
     'overlay-shell-rechecked': 'Rechecking the same empty Shell password recipient',
     'overlay-shell-submit-ready': 'Guarding one submission to the filled Shell challenge',
     'overlay-approval-success': 'Reading explicit approval before automatic overlay exit',
+    'overlay-approval-immediate': 'Reading explicit approval and taking the owned immediate exit',
     **{operation: 'Qualifying the wrong-password Shell challenge: ' +
        operation.removeprefix('overlay-shell-rejection-')
        for operation in accessible_ui.SHELL_REJECTION_ORDER},
@@ -831,14 +832,15 @@ class UiObservations:
         print(line, file=sys.stderr, flush=True)
         watch_activity.event(line)
 
-    def observe_shell_success(self, worker_input):
+    def observe_shell_success(self, worker_input, *, operation='overlay-approval-success'):
         """Keep the owned observer live while releasing one guarded Enter."""
-        require(callable(worker_input) and not getattr(self, 'shell_success_input', None),
+        require(operation in accessible_ui.SHELL_SUCCESS_OPERATIONS
+                and callable(worker_input) and not getattr(self, 'shell_success_input', None),
                 'ui:shell-input-binding')
         self.shell_success_input = worker_input
         self.shell_success_ready = False
         try:
-            result = self.observe('overlay-approval-success')
+            result = self.observe(operation)
             require(self.shell_success_ready, 'ui:shell-input-missing')
             return result
         except BaseException:
@@ -907,7 +909,7 @@ class UiObservations:
                 pending[:] = rest
                 value = json.loads(line)
                 if type(value) is dict and value.get('event') == 'overlay-approval-ready':
-                    require(operation == 'overlay-approval-success' and not results,
+                    require(operation in accessible_ui.SHELL_SUCCESS_OPERATIONS and not results,
                             'ui:shell-input-readiness')
                     self.shell_success_readiness(value)
                 elif type(value) is dict and value.get('event') == 'accessibility-trace-ready':
@@ -1002,6 +1004,21 @@ class UiObservations:
         with watch_activity.operation(OPERATION_LABELS[operation]):
             try:
                 shell_index = getattr(self, 'shell_approval_index', 0)
+                if operation == 'overlay-shell-open' and getattr(self, 'shell_cancel_active', False):
+                    require(getattr(self, 'shell_dismissed', False)
+                            and previous_operation == 'overlay-valid-fraction-soft-read',
+                            'ui:shell-retry-entry')
+                    self.shell_cancel_active = False
+                if (operation == 'overlay-shell-open'
+                        and getattr(self, 'shell_dismissed', False)
+                        and previous_operation == 'overlay-valid-fraction-soft-read'
+                        and (shell_index == 0 or getattr(self, 'shell_rejection', False)
+                             and shell_index == len(accessible_ui.SHELL_REJECTION_ORDER))):
+                    # A deliberate retry starts only after independently proved
+                    # dismissal and preserved usable form. Challenge IDs remain
+                    # globally single-use; no earlier recipient authority survives.
+                    shell_index = 0
+                    self.shell_dismissed = False
                 if 0 < shell_index < len(accessible_ui.SHELL_APPROVAL_ORDER):
                     require(operation in accessible_ui.SHELL_APPROVAL_OPERATIONS,
                             'ui:shell-intervening-operation')
@@ -1011,6 +1028,8 @@ class UiObservations:
                         self.shell_rejection = operation == accessible_ui.SHELL_REJECTION_ORDER[0]
                     order = (accessible_ui.SHELL_REJECTION_ORDER if getattr(self, 'shell_rejection', False) else
                              accessible_ui.SHELL_APPROVAL_ORDER)
+                    if not getattr(self, 'shell_rejection', False) and operation == 'overlay-approval-immediate':
+                        order = (*order[:-1], operation)
                     require(shell_index < len(order) and operation == order[shell_index],
                             'ui:shell-order')
                     if shell_index:
@@ -1067,6 +1086,12 @@ class UiObservations:
                     # age the forthcoming recipient proofs from this completed
                     # boundary, retaining their own acquisition-start clocks.
                     self.shell_approval_checked = time.monotonic()
+                    self.shell_dismissed = False
+                if operation == 'overlay-shell-dismissed':
+                    self.shell_dismissed = True
+                if operation == 'overlay-shell-cancel-ready':
+                    self.shell_cancel_active = True
+                    self.shell_dismissed = False
                 self.last_mate_operation = operation
                 return result
             except BaseException:
@@ -1542,8 +1567,9 @@ class UiObservations:
         if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'approval'}, 'ui:shell-response')
             value = result['approval']
-            if operation == 'overlay-approval-success':
-                require(value == {'approved': True, 'form_success': True}
+            if operation in accessible_ui.SHELL_SUCCESS_OPERATIONS:
+                require(value == {'approved': True, 'form_success': True,
+                                  **({'immediate_exit': True} if operation == 'overlay-approval-immediate' else {})}
                         and all(type(item) is bool for item in value.values()), 'ui:shell-result')
             elif operation == accessible_ui.SHELL_REJECTION_ORDER[-1]:
                 require(value == {'challenge_id': self.shell_approval_identity,

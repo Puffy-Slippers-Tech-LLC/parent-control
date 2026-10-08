@@ -374,7 +374,7 @@ class InstalledJourney:
 
     def publish_trace_input(self, stage, token, source):
         """Release external authentication input while its owned observer runs."""
-        shell = self.plan.screen_tags.get(stage) == 'ui:overlay-approval-success'
+        shell = self.plan.screen_tags.get(stage) in ('ui:overlay-approval-success', 'ui:overlay-approval-immediate')
         require(shell
                 and re.fullmatch(r'[0-9a-f]{32}', token)
                 and re.fullmatch(r'[0-9a-f]{64}', source), 'ui:trace-input-plan')
@@ -545,11 +545,12 @@ class InstalledJourney:
                 # a separate observer process added a round trip to every step.
                 self.ui.boot_guard = self.boot or ''
                 challenge = plan.challenge_at(stage)
-                if tag == 'ui:overlay-approval-success':
+                if tag in ('ui:overlay-approval-success', 'ui:overlay-approval-immediate'):
                     def worker_input(token, source):
                         guard()
                         self.publish_trace_input(stage, token, source)
-                    observed['ui'] = self.ui.observe_shell_success(worker_input)
+                    observed['ui'] = self.ui.observe_shell_success(worker_input, **(
+                        {'operation': tag[3:]} if tag == 'ui:overlay-approval-immediate' else {}))
                     self.verify_trace_input(stage, self.ui.shell_approval_identity[:32])
                 elif tag == 'ui:parent-custom-save-trace':
                     observed['ui'] = self.ui.observe_accessibility_input(

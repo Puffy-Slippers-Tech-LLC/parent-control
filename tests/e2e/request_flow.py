@@ -80,7 +80,7 @@ def chinese_request(prefix):
     }
 
 
-def overlay_authentication(*, result, prefix):
+def overlay_authentication(*, result, prefix, exit='automatic'):
     """Declare Shell authentication separately from form/destination readback.
 
     Requires the prepared fixed overlay request. Cancel returns prompt absence;
@@ -91,6 +91,8 @@ def overlay_authentication(*, result, prefix):
     """
     import re
     require(result in ('cancel', 'approval', 'rejection'), 'overlay-authentication:result')
+    require(exit in ('automatic', 'immediate') and (result == 'approval' or exit == 'automatic'),
+            'overlay-authentication:exit')
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'overlay-authentication:prefix')
     if result == 'cancel':
@@ -112,8 +114,28 @@ def overlay_authentication(*, result, prefix):
         prefix + '-qualified': 'ui:overlay-shell-qualified',
         prefix + '-rechecked': 'ui:overlay-shell-rechecked',
         prefix + '-submit-ready': 'ui:overlay-shell-submit-ready',
-        prefix + '-success': 'ui:overlay-approval-success',
+        prefix + '-success': ('ui:overlay-approval-immediate' if exit == 'immediate'
+                              else 'ui:overlay-approval-success'),
     }
+
+
+def overlay_approved_request(*, child, approver, duration_seconds, allow_soft, exit):
+    """FLOW05: fixed prepared overlay, explicit success and declared child return."""
+    require(dict(child=child, approver=approver, duration_seconds=duration_seconds,
+                 allow_soft=allow_soft) == CHOICES
+            and type(duration_seconds) is int and allow_soft is True, 'overlay-flow:choices')
+    return {**overlay_authentication(result='approval', prefix='approval', exit=exit),
+            'returned': 'ui:overlay-desktop'}
+
+
+def overlay_rejected_request(*, outcome, child, approver, duration_seconds, allow_soft):
+    """FLOW07: one denial/Cancel and immutable readback; leave the form open."""
+    overlay_approved_request(child=child, approver=approver, duration_seconds=duration_seconds,
+                             allow_soft=allow_soft, exit='automatic')
+    require(outcome in ('rejection', 'cancel'), 'overlay-flow:outcome')
+    return {'flow-before': 'ui:overlay-valid-fraction-soft-read',
+            **overlay_authentication(result=outcome, prefix='rejection' if outcome == 'rejection' else 'shell'),
+            'flow-preserved': 'ui:overlay-valid-fraction-soft-read'}
 
 
 CHOICES = dict(child='fixture-child', approver='fixture-parent', duration_seconds=75, allow_soft=True)

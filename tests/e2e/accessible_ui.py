@@ -850,6 +850,8 @@ SHELL_APPROVAL_ORDER = ('overlay-shell-open', 'overlay-shell-qualified',
                         'overlay-shell-rechecked', 'overlay-shell-submit-ready',
                         'overlay-approval-success')
 SHELL_APPROVAL_OPERATIONS = frozenset(SHELL_APPROVAL_ORDER)
+SHELL_SUCCESS_OPERATIONS = frozenset({'overlay-approval-success', 'overlay-approval-immediate'})
+SHELL_APPROVAL_OPERATIONS |= SHELL_SUCCESS_OPERATIONS
 SHELL_REJECTION_ORDER = tuple('overlay-shell-rejection-' + suffix for suffix in
     ('open', 'qualified', 'rechecked', 'submit-ready', 'cancel-ready'))
 SHELL_APPROVAL_OPERATIONS |= frozenset(SHELL_REJECTION_ORDER)
@@ -1545,6 +1547,29 @@ class AccessibleUI:
 
     def nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
               snapshot=None, facts=None, identities=None):
+        """Discard interrupted reads, including deferred public-label projections."""
+        try:
+            yield from self._observed_nodes(
+                root, strict=strict, protected_ids=protected_ids, protect_text=protect_text,
+                snapshot=snapshot, facts=facts, identities=identities)
+        except getattr(self.api, 'read_errors', ()) as error:
+            self.invalidate_observation()
+            raise UiError('ui:incomplete-tree') from error
+        except RuntimeError as error:
+            if (self.application_ui is not None
+                    and type(error).__name__ == 'UIClientError'
+                    and getattr(error, 'code', None) in ('Unavailable', 'Timeout', 'OwnerChanged')
+                    and not getattr(error, 'uncertain', False)):
+                # Inventory facts defer label reads until projection. An owner
+                # can exit at either boundary; discard the entire observation.
+                # Keep cached owner pins so a replacement still refuses. This
+                # read-only path never retries input or changes its deadline.
+                self.invalidate_observation()
+                raise UiError('ui:incomplete-tree') from error
+            raise
+
+    def _observed_nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
+                        snapshot=None, facts=None, identities=None):
         """Reuse complete reads only within an explicit observation boundary."""
         protected_ids = frozenset(protected_ids)
         if self._observation_cache is None:
@@ -1649,15 +1674,6 @@ class AccessibleUI:
                     count += 1
                     yield node
                 require(generation == self._observation_generation, 'ui:incomplete-tree')
-        except getattr(self.api, 'read_errors', ()) as error:
-            raise UiError('ui:incomplete-tree') from error
-        except RuntimeError as error:
-            if (self.application_ui is not None
-                    and type(error).__name__ == 'UIClientError'
-                    and getattr(error, 'code', None) in ('Unavailable', 'Timeout')
-                    and not getattr(error, 'uncertain', False)):
-                raise UiError('ui:incomplete-tree') from error
-            raise
         finally:
             if self._timing is not None:
                 self._timing['tree_reads'] += 1
@@ -8473,9 +8489,13 @@ class AccessibleUI:
             if not pinned:
                 require(self.system_prompt_kind() is None, 'ui:kiosk-approval-prompt')
             if immediate:
-                action = self.find_id('kiosk-result-action', root=page)
+                action = (self.snapshot_matches('kiosk-result-action',
+                    self.snapshot_scope(nodes, edges, page), identities=identities)
+                    if pinned else self.find_id('kiosk-result-action', root=page))
                 require(action is not None and self.has_state(action, self.api.StateType.VISIBLE)
-                        and self.has_state(action, self.api.StateType.SENSITIVE),
+                        and self.has_state(action, self.api.StateType.SENSITIVE)
+                        and (not pinned or action.get_process_id() == owner.get_process_id()
+                             and not self.has_state(action, self.api.StateType.DEFUNCT)),
                         'ui:kiosk-immediate-action')
                 return action
             return True
@@ -8487,6 +8507,10 @@ class AccessibleUI:
             self.wait(lambda: self.system_prompt_kind() is None,
                       'kiosk-approval-prompt', prompt_in_predicate=True)
         if immediate:
+            if pinned:
+                # The success and fresh absence of authentication settle the
+                # previous submission. Only this owned result permits exit input.
+                self.input_uncertain = False
             self._invoke_target(action)
         return {'approved': True, 'form_success': True, **({'immediate_exit': True} if immediate else {})}
 
@@ -8808,12 +8832,12 @@ class AccessibleUI:
                 return self.overlay_shell_rejected(pid, uid)
             challenge = self.shell_prompt(pid, uid, observation=observation,
                                           filled=operation in ('overlay-shell-submit-ready',
-                                                               'overlay-approval-success',
+                                                               *SHELL_SUCCESS_OPERATIONS,
                                                                SHELL_REJECTION_ORDER[-2]))
             require(challenge is not None, 'ui:shell-missing')
             identity = self.mate_challenge_identity(pid, challenge)
             require(identity == self.expected_mate_challenge, 'ui:shell-replacement')
-            if operation == 'overlay-approval-success':
+            if operation in SHELL_SUCCESS_OPERATIONS:
                 nodes, edges, identities, _facts = observation
                 app = self.snapshot_matches(CHILD_APPLICATION, nodes, identities=identities)
                 require(app is not None, 'ui:overlay-success-owner')
@@ -8830,7 +8854,10 @@ class AccessibleUI:
                 print(json.dumps({'event': 'overlay-approval-ready',
                                   'challenge_id': identity, 'boot_sha256': self.trace_boot},
                                  sort_keys=True), flush=True)
-                return self.kiosk_approval_success(overlay=True, pinned=(app, window))
+                result = self.kiosk_approval_success(overlay=True, pinned=(app, window),
+                    immediate=operation == 'overlay-approval-immediate')
+                self.input_uncertain = True
+                return result
             self.input_uncertain = operation in ('overlay-shell-submit-ready', SHELL_REJECTION_ORDER[-2])
             return {'challenge_id': identity}
         except BaseException:

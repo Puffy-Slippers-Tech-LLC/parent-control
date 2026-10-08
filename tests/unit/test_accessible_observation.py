@@ -747,6 +747,80 @@ def test_retired_state_cannot_prove_absence_until_a_new_complete_inventory(incom
     node.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('transition', ['exited', 'replaced', 'uncertain', 'denied', 'no-desktop'])
+@pytest.mark.parametrize('read_phase', ['inventory', 'label-projection'])
+def test_overlay_return_reacquires_complete_inventory_after_owner_exit(monkeypatch, transition, read_phase):
+    from tests.e2e.application_ui import Desktop
+    from tests.support.application_ui import ApplicationUI, UIClientError
+
+    panel = Node(name='Activities', role='toggle button')
+    shell = Node(name='gnome-shell', role='application', children=[panel])
+    desktop = Node(role='desktop frame', children=[shell])
+    ui = ui_for(desktop)
+    ui.timeout = .4
+    ui.require_child_overlay_session = Mock()
+    client = Mock(application_id=accessible_ui.CHILD_APPLICATION, owner=':1.42',
+                  object_path='/child', pid=4242)
+    client.listSurfaces.return_value = []
+    catalog = ApplicationUI(ui.api, clients={'child-request': client})
+    available = ['child-request']
+    catalog._available = Mock(side_effect=lambda: list(available))
+    ui.application_ui = catalog
+    ui.root = lambda: Desktop(desktop, catalog, {})
+    # The same owner was readable before the approved window began exiting.
+    assert catalog.applications()[0].client is client
+    error = UIClientError('Denied' if transition == 'denied' else 'OwnerChanged',
+                          uncertain=transition == 'uncertain')
+    if read_phase == 'inventory':
+        client.listSurfaces.side_effect = error
+    else:
+        # Live return failed after traversal: nodes() materializes lazy public
+        # labels while projecting its complete inventory into caller facts.
+        # Keep both inventory calls successful and fail only that later read.
+        client.listSurfaces.return_value = [{'id': 'kiosk-request-window'}]
+        client.inventory.return_value = [{'id': 'kiosk-request-window',
+            'type': 'window', 'role': 'window', 'visible': True,
+            'enabled': True, 'operations': []}]
+        client.call.side_effect = error
+    now, sleeps = [0.0], []
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+
+    def settle(delay):
+        # A failed partial read never satisfies desktop/absence acceptance.
+        assert not ui._observation_cache
+        sleeps.append(delay)
+        now[0] += delay
+        if transition in ('exited', 'no-desktop'):
+            available.clear()
+        if transition == 'no-desktop':
+            shell.children.clear()
+
+    monkeypatch.setattr(accessible_ui.time, 'sleep', settle)
+    if transition == 'exited':
+        ui.overlay_desktop()
+        assert sleeps == [.2]
+        assert catalog._available.call_count == 3
+    elif transition in ('replaced', 'no-desktop'):
+        with pytest.raises(UiError, match='^ui:timeout:overlay-desktop$'):
+            ui.overlay_desktop()
+        assert sleeps == [.2, .2]
+    else:
+        with pytest.raises(UIClientError) as caught:
+            ui.overlay_desktop()
+        assert caught.value is error
+        assert not sleeps
+    # Reacquisition cannot forget a pinned owner or silently bind its replacement.
+    assert catalog.clients == {'child-request': client}
+    if read_phase == 'inventory':
+        client.call.assert_not_called()
+    else:
+        client.inventory.assert_called_with('kiosk-request-window')
+        assert client.call.call_count == (3 if transition == 'replaced' else 1)
+        assert all(call.args == ('kiosk-request-window', 'kiosk-request-window',
+                                 'getElementById', None) for call in client.call.call_args_list)
+    panel.action.do_action.assert_not_called()
+
+
 def test_tree_preserves_depth_first_order_with_shared_children_and_cycles():
     ui, desktop, surface, controls = arbitrary_ui(50)
     nested = Node(identity='nested', children=[controls[-1]])

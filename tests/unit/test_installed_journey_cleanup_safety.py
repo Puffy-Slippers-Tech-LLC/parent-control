@@ -280,7 +280,9 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  kiosk_multiple.INELIGIBLE_PLAN, kiosk_multiple.INELIGIBLE_CASE_PLAN,
                                  restricted_station_about.PLAN, fresh_thirty_allowance.PLAN,
                                  fresh_thirty_allowance.JORDAN_PLAN, kiosk_about.PLAN, overlay_about.PLAN,
-                                 overlay_prompt.PLAN, overlay_approved_exit.PLAN, overlay_rejection.PLAN, INTERVAL_RECORDER_PLAN],
+                                 overlay_prompt.PLAN, overlay_approved_exit.PLAN, overlay_rejection.PLAN,
+                                 overlay_approved_exit.IMMEDIATE_PLAN, overlay_approved_exit.FLOW_REJECTION_PLAN,
+                                 overlay_approved_exit.FLOW_CANCEL_PLAN, INTERVAL_RECORDER_PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -301,7 +303,8 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',
                               'flow-rejection', 'flow-cancel', 'kiosk-multiple', 'multiple-case',
                               'ineligible-profile', 'ineligible-case', 'station-about', 'fresh-thirty-allowance',
-                              'jordan-thirty-allowance', 'station-about-case', 'overlay-about-case', 'overlay-prompt', 'overlay-approved-exit', 'overlay-rejection', 'real-interval'])
+                              'jordan-thirty-allowance', 'station-about-case', 'overlay-about-case', 'overlay-prompt', 'overlay-approved-exit', 'overlay-rejection',
+                              'overlay-immediate', 'overlay-flow-rejection', 'overlay-flow-cancel', 'real-interval'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
         tmp_path, monkeypatch, journey_inventory, collector_sync, plan, failure):
@@ -488,7 +491,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 'observed_monotonic_ns': len(boot_bindings)}
         if plan in (fresh_child_allowed.PLAN, fresh_child_denied.PLAN,
                     countdown_qualification.PLAN, countdown_qualification.OFF_PLAN,
-                    shell_panel.PLAN, overlay_prompt.PLAN, overlay_approved_exit.PLAN, overlay_rejection.PLAN) and state['stage'] == 'allowance-configured':
+                    shell_panel.PLAN, overlay_prompt.PLAN, overlay_approved_exit.PLAN, overlay_rejection.PLAN,
+                    overlay_approved_exit.IMMEDIATE_PLAN, overlay_approved_exit.FLOW_REJECTION_PLAN,
+                    overlay_approved_exit.FLOW_CANCEL_PLAN) and state['stage'] == 'allowance-configured':
             seconds = 0 if plan is fresh_child_denied.PLAN else 900
             text = '15 minutes' if seconds else '0 seconds'
             result['time_explanation'] = {
@@ -556,12 +561,15 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                     'observed_monotonic_ns': 2_000_000_000}
             if operation == 'child-countdown-present':
                 result['countdown'].update(text='00:16', observed_monotonic_ns=12_000_000_000)
-        if plan is overlay_approved_exit.PLAN and operation == 'overlay-native-activity':
+        if plan in (overlay_approved_exit.PLAN, overlay_approved_exit.IMMEDIATE_PLAN,
+                    overlay_approved_exit.FLOW_REJECTION_PLAN, overlay_approved_exit.FLOW_CANCEL_PLAN) and operation == 'overlay-native-activity':
             result['activity'] = {'binding': 'native-primary', 'pid': 123,
                 'endpoint': [':1.2', '/fixture'], 'state': {
                     'draft': 'ONPC fixture draft', 'submitted': 'ONPC fixture draft',
                     'score': 'Moves: 0; token: 0'}}
-        if plan in (overlay_about.PLAN, overlay_prompt.PLAN, overlay_approved_exit.PLAN, overlay_rejection.PLAN):
+        if plan in (overlay_about.PLAN, overlay_prompt.PLAN, overlay_approved_exit.PLAN, overlay_rejection.PLAN,
+                    overlay_approved_exit.IMMEDIATE_PLAN, overlay_approved_exit.FLOW_REJECTION_PLAN,
+                    overlay_approved_exit.FLOW_CANCEL_PLAN):
             if operation == 'time-explanation-setup-thirty-read':
                 result['time_explanation'] = {'child': 'fixture-child',
                     'daily': {'seconds': 1800, 'precision_seconds': 1},
@@ -590,13 +598,13 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         assert proof['child'] == child == plan.child_bindings[state['stage']]
         return {**observe_ui('parent-custom-save-trace'), 'token': token}
 
-    def shell_success(worker_input):
+    def shell_success(worker_input, *, operation='overlay-approval-success'):
         worker_input('a' * 32, 'a' * 64)
         proof = json.loads((directory / (state['stage'] + '.input.json')).read_bytes())
         assert proof['binding'] == 'overlay-approve' and proof['values'] == ['ret']
         (directory / (state['stage'] + '.input-done.json')).write_text(json.dumps(
             {'stage': state['stage'], 'token': 'a' * 32}))
-        return observe_ui('overlay-approval-success')
+        return observe_ui(operation)
 
     ui_observer = SimpleNamespace(
         observe_shell_success=shell_success, shell_approval_identity='a' * 64,
@@ -733,7 +741,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         fresh_thirty_allowance.FreshThirtyAllowanceJourney
                         if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN)
                         else overlay_prompt.OverlayPromptJourney if plan is overlay_prompt.PLAN
-                        else overlay_approved_exit.OverlayApprovedExitJourney if plan is overlay_approved_exit.PLAN
+                        else overlay_approved_exit.OverlayApprovedExitJourney if plan in (
+                            overlay_approved_exit.PLAN, overlay_approved_exit.IMMEDIATE_PLAN,
+                            overlay_approved_exit.FLOW_REJECTION_PLAN, overlay_approved_exit.FLOW_CANCEL_PLAN)
                         else overlay_rejection.OverlayRejectionJourney if plan is overlay_rejection.PLAN
                         else kiosk_approved.KioskRequestJourney if plan is kiosk_approved.PLAN
                         else journeys.InstalledJourney)

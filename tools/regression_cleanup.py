@@ -256,6 +256,10 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # mocked servers; it touches no live sockets, processes, VM leases or displays.
 # retain private tmp_path journals and VM/transport doubles. No new shared
 # resource or heavy fixture is introduced; their reviewed buckets still apply.
+# Overlay FLOW05/07 recorder parameters use the existing private tmp_path
+# evidence and process-local VM/transport doubles. They add no allocation or
+# cleanup lifetime, external service, bus/display/socket or unowned child.
+# The installed-journey/challenge cleanup classifications remain compatible.
 # Resume refusal and delayed-clock checks use those same private journals and
 # VM/SSH/time doubles, with no live guest, host clock or process mutation.
 # Restored-network checks mock link updates, carrier waits and replacement;

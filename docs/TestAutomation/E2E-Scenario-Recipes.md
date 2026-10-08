@@ -466,6 +466,19 @@ lifecycle, keeping their separate Cancel/normal-close result assertions. The
 stable `escape` binding names identify the latter API route. Mute and authenticated
 overlay outcomes remain outside that slice.
 
+Overlay FLOW05 now uses `request_flow.overlay_approved_request` /
+`onpc_request_flow::overlay_approve` for the qualified Riley/Jamie, 75-second,
+soft-included request, with explicit `exit='automatic'` or `exit='immediate'`.
+FLOW07 uses `request_flow.overlay_rejected_request` /
+`onpc_request_flow::overlay_reject` and `KioskRequestJourney` to compare preserved
+usable no-error choices after rejection or password-free Cancel, leaving the
+form open. A subsequent FLOW05 requires a new challenge. See the
+[overlay composition qualification](E2E-Building-Blocks.md#overlay-immediate-exit-and-approval-compositions).
+Consumers compose these shared declarations/workers and activity comparisons;
+the qualification plans supply no complete-case acceptance. Case 46 must still
+take the immediate action after explicit success, independently compare the
+same usable child activity and read the approved time through TIME01.
+
 Case 49 uses `kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved', ...)`, the shared
 `approved_request(exit='immediate')` declaration and
 `onpc_request_flow::approve` with the qualified immediate-success/exit leaf.

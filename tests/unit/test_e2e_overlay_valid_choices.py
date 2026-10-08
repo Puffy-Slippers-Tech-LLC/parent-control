@@ -18,6 +18,7 @@ from overlay_valid_choices import PLAN, OverlayValidChoicesJourney
 from overlay_choices import PLAN as CHOICES_PLAN, OverlayChoicesJourney
 from overlay_prompt import PLAN as PROMPT_PLAN, OverlayPromptJourney
 from overlay_approved_exit import PLAN as APPROVED_PLAN, OverlayApprovedExitJourney
+from overlay_approved_exit import IMMEDIATE_PLAN, FLOW_REJECTION_PLAN, FLOW_CANCEL_PLAN
 from overlay_license import PLAN as LICENSE_PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN, OverlayLicenseJourney
 from overlay_about import PLAN as ABOUT_CASE_PLAN
 from request_flow import prepared_request
@@ -341,7 +342,8 @@ def test_real_recorder_step_compares_renamed_activity_before_reply(tmp_path, fau
 
 
 @pytest.mark.parametrize('plan,fault', [(plan, fault) for plan in (
-    PLAN, CHOICES_PLAN, PROMPT_PLAN, APPROVED_PLAN, LICENSE_PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN, ABOUT_CASE_PLAN)
+    PLAN, CHOICES_PLAN, PROMPT_PLAN, APPROVED_PLAN, IMMEDIATE_PLAN, FLOW_REJECTION_PLAN, FLOW_CANCEL_PLAN,
+    LICENSE_PLAN, BROWSER_LINKS_PLAN, INFORMATION_PLAN, ABOUT_CASE_PLAN)
                                       for fault in ('', *plan.screen_tags)])
 def test_actual_worker_order_titles_and_failure_stop(tmp_path, plan, fault):
     program = r'''
@@ -384,10 +386,12 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     if plan is ABOUT_CASE_PLAN:
         program = program.replace('require onpc_request_flow;', 'require onpc_parent_about;').replace(
             'onpc_request_flow::overlay_valid_choices(', 'onpc_parent_about::run_overlay(')
-    elif plan is APPROVED_PLAN:
+    elif plan in (APPROVED_PLAN, IMMEDIATE_PLAN, FLOW_REJECTION_PLAN, FLOW_CANCEL_PLAN):
+        binding = {APPROVED_PLAN.worker_mode: 'approval', IMMEDIATE_PLAN.worker_mode: 'approval-immediate',
+                   FLOW_REJECTION_PLAN.worker_mode: 'flow-rejection', FLOW_CANCEL_PLAN.worker_mode: 'flow-cancel'}[plan.worker_mode]
         program = program.replace('onpc_request_flow::overlay_valid_choices(',
                                   'onpc_request_flow::overlay_prompt(').replace(
-                                      '}, $declared, $challenges);', '}, $declared, $challenges, "approval");')
+                                      '}, $declared, $challenges);', '}, $declared, $challenges, "' + binding + '");')
     else:
         program = program.replace('onpc_request_flow::overlay_valid_choices(',
                                   'onpc_request_flow::' + plan.worker_mode + '(')
@@ -408,7 +412,8 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         (tmp_path / 'testresults').mkdir()
         (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
         assert len(matched_screens(tmp_path, plan, observations)) == len(expected)
-        assert sum(event[0] == 'password' for event in result['events']) == (3 if plan is APPROVED_PLAN else 2)
+        assert sum(event[0] == 'password' for event in result['events']) == (
+            4 if plan is FLOW_REJECTION_PLAN else 3 if plan in (APPROVED_PLAN, IMMEDIATE_PLAN, FLOW_CANCEL_PLAN) else 2)
         assert [event[1] for event in result['events'] if event[0] == 'text'] == []
         if plan is CHOICES_PLAN:
             assert sum(event == ['key', 'esc'] for event in result['events']) == 0

@@ -375,6 +375,15 @@ consult the accessibility tree to fill a missing product value or retry an API
 refusal through a provider. Read waits may reacquire observations; input never
 runs inside those retry predicates.
 
+The complete `AccessibleUI.nodes` read boundary includes deferred product-label
+projection after inventory traversal. If an application exits during either
+read, discard the entire observation before bounded reacquisition. Preserve the
+catalog's owner pins; an absent owner may disappear from a fresh inventory, but
+a replacement owner cannot inherit its authority. Denied or uncertain operations
+remain terminal. `test_accessible_observation.py` exercises both read phases
+through the real desktop/catalogue path and requires a complete child desktop
+before accepting overlay return.
+
 `ApplicationUI` opens its own connection to the current
 `DBUS_SESSION_BUS_ADDRESS`, preserving isolation between private preview buses
 and installed user sessions. Its idempotent `close()` closes only that owned
@@ -547,6 +556,19 @@ The rejection worker accepts renamed endpoints while retaining the fixed request
 two same-challenge recipient proofs, one sealed wrong password and one submission.
 Only explicit owned denial and a fresh empty masked retry field release Cancel;
 the caller separately compares preserved usable no-error form choices.
+
+`request_flow.overlay_approved_request` / `onpc_request_flow::overlay_approve`
+compose fixed overlay FLOW05 with declared automatic or immediate return.
+`overlay_rejected_request` / `overlay_reject` compose FLOW07 with an independent
+before/preserved form comparison and leave the form open. A subsequent FLOW05
+is a deliberate new challenge, permitted only after dismissal and usable form
+readback; challenge identities and both secret deliveries remain single-use.
+The immediate success observer takes only the owned `kiosk-result-action`
+through the Application UI API after explicit success and authentication
+absence. The caller still compares the original usable activity. These helpers
+add no storage, process or cleanup owner; existing private unit/cleanup resource
+classifications remain applicable. Installed qualification is tracked in the
+[catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#overlay-approval-and-automatic-return-qualification).
 
 E2E declaration fragments and worker execution have matching shared owners:
 `journey_blocks.parent_reopen` / `onpc_lifecycle::reopen` for LIFE01,

@@ -688,6 +688,30 @@ class OverlayRejectionQualification(ChallengesQualification):
         return OverlayRejectionJourney(context, progress)
 
 
+class OverlayApprovalImmediateQualification(OverlayApprovedExitQualification):
+    @staticmethod
+    def journey(context, progress):
+        from overlay_approved_exit import IMMEDIATE_PLAN
+        journey = OverlayApprovedExitQualification.journey(context, progress)
+        return type(journey)(context, progress, IMMEDIATE_PLAN)
+
+
+class OverlayFlowRejectionQualification(OverlayApprovedExitQualification):
+    @staticmethod
+    def journey(context, progress):
+        from overlay_approved_exit import FLOW_REJECTION_PLAN
+        journey = OverlayApprovedExitQualification.journey(context, progress)
+        return type(journey)(context, progress, FLOW_REJECTION_PLAN)
+
+
+class OverlayFlowCancelQualification(OverlayApprovedExitQualification):
+    @staticmethod
+    def journey(context, progress):
+        from overlay_approved_exit import FLOW_CANCEL_PLAN
+        journey = OverlayApprovedExitQualification.journey(context, progress)
+        return type(journey)(context, progress, FLOW_CANCEL_PLAN)
+
+
 class OverlayChoicesQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

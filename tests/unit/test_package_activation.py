@@ -1,5 +1,7 @@
 import json
 import configparser
+import ctypes
+import fcntl
 import os
 import runpy
 import subprocess
@@ -104,7 +106,7 @@ def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch
 @pytest.mark.parametrize('fault', ['none', 'digest', 'size', 'source', 'path', 'missing'])
 @pytest.mark.parametrize('published', [False, True])
 def test_real_child_trust_snapshot_matches_exact_file_backend_records(tmp_path, fault, published):
-    from tests.support.trust_database import replace_records
+    from tests.support.trust_database import live_database, replace_records
     path = '/' + str(_activation['EXTENSION_PATH']) + '/indicatorLogic.mjs'
     record = (path, '12', 'a' * 64)
     row = [path, '2', '12', 'a' * 64]
@@ -125,14 +127,15 @@ def test_real_child_trust_snapshot_matches_exact_file_backend_records(tmp_path, 
     replace_records(database, rows, database_name='trust.slot_0' if published else 'trust.db',
                     metadata=b'generation=1\nname=trust.slot_0\nentries=3\npublish_time=1\n'
                     if published else None)
-    result = _activation['read_child_trust']({record}, database)
+    with live_database(database):
+        result = _activation['read_child_trust']({record}, database)
     assert result == ({record} if fault == 'none' else set())
 
 
 @pytest.mark.parametrize('mixed_generation', [False, True])
 @pytest.mark.parametrize('published', [False, True])
 def test_snapshot_survives_overlapping_queued_refreshes(tmp_path, monkeypatch, mixed_generation, published):
-    from tests.support.trust_database import replace_records
+    from tests.support.trust_database import live_database, replace_records
     read = _activation['read_child_trust']
     namespace = read.__globals__
     database = tmp_path / 'database'
@@ -180,11 +183,12 @@ def test_snapshot_survives_overlapping_queued_refreshes(tmp_path, monkeypatch, m
     else:
         lib.mdb_cursor_get = overlap
     monkeypatch.setitem(namespace, 'child_trust_lmdb', lambda: lib)
-    result = read(expected, database)
-    assert mutations
-    assert result == ({(paths[0], '12', 'a' * 64)} if mixed_generation else expected)
-    # The next poll gets a new snapshot, never a union of multiple generations.
-    assert read(expected, database) == ({(paths[1], '12', 'b' * 64)} if mixed_generation else set())
+    with live_database(database):
+        result = read(expected, database)
+        assert mutations
+        assert result == ({(paths[0], '12', 'a' * 64)} if mixed_generation else expected)
+        # The next poll gets a new snapshot, never a union of multiple generations.
+        assert read(expected, database) == ({(paths[1], '12', 'b' * 64)} if mixed_generation else set())
 
 
 @pytest.mark.parametrize('metadata', [
@@ -197,13 +201,14 @@ def test_snapshot_survives_overlapping_queued_refreshes(tmp_path, monkeypatch, m
     b'generation=1\nname=trust.slot_1\n',  # published DB absent
 ])
 def test_snapshot_refuses_invalid_publication_without_legacy_fallback(tmp_path, metadata):
-    from tests.support.trust_database import replace_records
+    from tests.support.trust_database import live_database, replace_records
     record = ('/packaged.mjs', '12', 'a' * 64)
     database = tmp_path / 'database'
     replace_records(database, [[record[0], '2', *record[1:]]])
     replace_records(database, [], database_name='trust.slot_0', metadata=metadata)
-    with pytest.raises(ValueError):
-        _activation['read_child_trust']({record}, database)
+    with live_database(database):
+        with pytest.raises(ValueError, match='child trust publication'):
+            _activation['read_child_trust']({record}, database)
 
 
 @pytest.mark.parametrize('error', [FileNotFoundError, PermissionError])
@@ -215,6 +220,92 @@ def test_snapshot_refuses_unavailable_lock_without_unlocked_fallback(tmp_path, m
     with pytest.raises(error):
         read(set(), tmp_path)
     library.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['none', 'library', 'open', 'transaction', 'close'])
+def test_snapshot_guard_covers_open_through_close_and_releases_on_failure(
+        tmp_path, monkeypatch, fault):
+    read = _activation['read_child_trust']
+    lock = tmp_path / 'lock.mdb'
+    lock.touch()
+    boundaries = []
+
+    def guarded(boundary):
+        boundaries.append(boundary)
+        # POSIX exclusive locks conflict with OFD locks even in this process.
+        # Closing this extra descriptor must not release the reader's guard.
+        with lock.open('r+b') as stream:
+            with pytest.raises(BlockingIOError):
+                fcntl.lockf(stream, fcntl.LOCK_EX | fcntl.LOCK_NB, 1)
+        if fault == boundary:
+            raise ValueError('injected failure')
+        return 0
+
+    def create(out):
+        ctypes.cast(out, ctypes.POINTER(ctypes.c_void_p))[0] = 1
+        return 0
+
+    library = SimpleNamespace(
+        mdb_env_create=create, mdb_env_set_maxdbs=lambda *args: 0,
+        mdb_env_open=lambda *args: guarded('open'),
+        mdb_txn_begin=lambda *args: guarded('transaction'),
+        mdb_dbi_open=lambda *args: -30798,
+        mdb_env_close=lambda *args: guarded('close'))
+
+    def bind():
+        guarded('library')
+        return library
+
+    monkeypatch.setitem(read.__globals__, 'child_trust_lmdb', bind)
+    if fault == 'none':
+        assert read(set(), tmp_path) == set()
+    else:
+        with pytest.raises(ValueError, match='injected failure'):
+            read(set(), tmp_path)
+    assert boundaries[0] == 'library'
+    assert boundaries[-1] == ('library' if fault == 'library' else 'close')
+    with lock.open('r+b') as stream:
+        fcntl.lockf(stream, fcntl.LOCK_EX | fcntl.LOCK_NB, 1)
+
+
+def test_snapshot_refuses_exclusive_initialization_lock(tmp_path, monkeypatch):
+    lock = tmp_path / 'lock.mdb'
+    lock.touch()
+    read = _activation['read_child_trust']
+    library = Mock()
+    monkeypatch.setitem(read.__globals__, 'child_trust_lmdb', library)
+    with lock.open('r+b') as stream:
+        fcntl.lockf(stream, fcntl.LOCK_EX | fcntl.LOCK_NB, 1)
+        with pytest.raises(BlockingIOError):
+            read(set(), tmp_path)
+    library.assert_not_called()
+
+
+def test_live_writer_survives_reader_after_unrelated_lock_descriptor_close(tmp_path):
+    from tests.support.trust_database import replace_records
+    database = tmp_path / 'database'
+    record = ('/packaged.mjs', '12', 'a' * 64)
+    refreshes = []
+
+    def after_refresh():
+        refreshes.append(True)
+        # Model fanotify closing an event descriptor in fapolicyd: POSIX locks
+        # on this inode vanish although the writer's LMDB environment is live.
+        with (database / 'lock.mdb').open('rb'):
+            pass
+        subprocess.run([sys.executable, '-c',
+                        'import json,runpy,sys; from pathlib import Path; '
+                        'helper=runpy.run_path(sys.argv[1]); '
+                        'record=tuple(json.loads(sys.argv[3])); '
+                        'assert helper["read_child_trust"]({record}, Path(sys.argv[2])) == {record}',
+                        str(Path(_activation['__file__'])), str(database), json.dumps(record)],
+                       check=True, timeout=15, capture_output=True)
+
+    # The second refresh must still acquire the shared writer mutex. LMDB
+    # 0.9.31 returns EINVAL here if the first reader destroyed that mutex.
+    replace_records(database, [[record[0], '2', *record[1:]]], repeats=2,
+                    after_refresh=after_refresh)
+    assert len(refreshes) == 2
 
 
 def test_wait_child_trust_refresh_cli_routes_to_helper(monkeypatch):

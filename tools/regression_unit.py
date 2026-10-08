@@ -142,6 +142,9 @@ Package trust snapshot tests use private tmp_path LMDB databases, bounded waited
 Python writer children and command/clock doubles. Reader transactions overlap
 only their owned fixture writers; no host database, journal, service, socket or
 cache is touched. The small fixtures preserve compatible classification.
+Lock-lifetime regressions acquire POSIX/OFD locks only on those private files;
+descriptor-close fault injection and bounded reader children share only their
+owned fixture writer. No live daemon or kernel tracing is used by these tests.
 
 Private-version and updateversion regressions use tiny private metadata trees,
 synchronously waited Make/dpkg children and stub builders. Publishing fixtures

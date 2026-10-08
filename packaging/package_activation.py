@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import fcntl
 import hashlib
 import json
 import os
@@ -402,6 +403,13 @@ class LMDBValue(ctypes.Structure):
     _fields_ = [('size', ctypes.c_size_t), ('data', ctypes.c_void_p)]
 
 
+class LMDBFileLock(ctypes.Structure):
+    """Linux struct flock on the supported 64-bit platforms."""
+    _fields_ = [('type', ctypes.c_short), ('whence', ctypes.c_short),
+                ('start', ctypes.c_int64), ('length', ctypes.c_int64),
+                ('pid', ctypes.c_int)]
+
+
 def child_trust_lmdb():
     """Bind the public LMDB C API provided by both distributions' liblmdb."""
     try:
@@ -458,9 +466,6 @@ def read_child_trust(expected, database=Path('/var/lib/fapolicyd')):
     """
     # LMDB silently skips locking on a read-only filesystem. Refuse that
     # fallback (including service sandboxes) and never create a missing lock.
-    descriptor = os.open(database / 'lock.mdb', os.O_RDWR | os.O_NOFOLLOW)
-    os.close(descriptor)
-    lib = child_trust_lmdb()
     env, txn, cursor = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
     dbi = ctypes.c_uint()
     readonly, notfound, get_both = 0x20000, -30798, 2
@@ -469,7 +474,17 @@ def read_child_trust(expected, database=Path('/var/lib/fapolicyd')):
         if result:
             raise ValueError('child trust snapshot unavailable')
 
+    descriptor = os.open(database / 'lock.mdb', os.O_RDWR | os.O_NOFOLLOW)
     try:
+        # fanotify can close another lock.mdb descriptor in the daemon, dropping
+        # all its POSIX locks. A reader must still never gain LMDB's exclusive
+        # byte-zero lock and reinitialize (or, on LMDB 0.9.31, destroy) mutexes
+        # used by that live writer. An independent OFD read lock conflicts even
+        # with this process's POSIX locks and survives unrelated descriptor
+        # closes. Keep it until env_close finishes, including failure cleanup.
+        guard = LMDBFileLock(fcntl.F_RDLCK, os.SEEK_SET, 0, 1, 0)
+        fcntl.fcntl(descriptor, fcntl.F_OFD_SETLK, bytes(guard))
+        lib = child_trust_lmdb()
         check(lib.mdb_env_create(ctypes.byref(env)))
         check(lib.mdb_env_set_maxdbs(env, 2))
         check(lib.mdb_env_open(env, os.fsencode(database), readonly, 0))
@@ -508,12 +523,15 @@ def read_child_trust(expected, database=Path('/var/lib/fapolicyd')):
             present.add(record)
         return present
     finally:
-        if cursor:
-            lib.mdb_cursor_close(cursor)
-        if txn:
-            lib.mdb_txn_abort(txn)
-        if env:
-            lib.mdb_env_close(env)
+        try:
+            if cursor:
+                lib.mdb_cursor_close(cursor)
+            if txn:
+                lib.mdb_txn_abort(txn)
+            if env:
+                lib.mdb_env_close(env)
+        finally:
+            os.close(descriptor)
 
 
 def child_trust_manifest(path=Path('/') / EXTENSION_TRUST_PATH):

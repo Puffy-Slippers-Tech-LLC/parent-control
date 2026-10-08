@@ -137,6 +137,13 @@ reader-table lock file needs write access; the broker's service sandbox grants
 that exact path while retaining read-only access to the database contents. A
 missing or unwritable lock file fails closed instead of allowing LMDB's unlocked
 read-only-filesystem fallback. Both packages explicitly depend on liblmdb.
+The reader holds an independent Linux open-file-description read lock on the
+LMDB lock file's initialization byte from before opening the environment until
+after closing it. fapolicyd's fanotify descriptor closes can release its POSIX
+file locks; without this guard, another reader can mistake the live environment
+for an exclusive one and reinitialize or destroy its shared mutexes (including
+with Ubuntu's LMDB 0.9.31). Failure to acquire the guard fails closed. Registered
+read transactions continue to protect snapshot pages during concurrent writes.
 The existing startup-exclusion marker remains present through a same-boot trust
 wait and earlier provisioning, including configuration retries without `preinst`.
 D-Bus activation cannot bypass the trust gate; an existing broker is stopped

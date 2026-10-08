@@ -391,14 +391,25 @@ captures and later comparisons. Recipes supply the expected labels, excluded
 labels, account values, capture endpoints and elapsed-time budget; the shared
 check preserves zero-grant and naturally decreasing daily-balance assertions.
 Keep those values in the consumer instead of copying a comparison subclass.
+For Parent desktop-entry names that follow the selected language, declare
+`app_names_capture` at the first read in that language and `app_names_same` at
+its later comparison. Account names, app IDs and rules still compare against
+the original policy capture; returning to the original language compares its
+names too. Do not remove names from preservation checks or translate the
+captured oracle. Case 256 supplies these separate endpoints; the
+[language recipe](../../docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-055)
+owns its finite values and comparisons.
 
 `public_language_value` also compares declared chooser/dialog presentations and
 feedback projections, with optional caller-named `capture`/`same` endpoints.
 It copies nested public values and refuses missing or repeated captures before
-the recorder reply. Parent dialog visits share `onpc_parent::dialog_visit` and
-`dialog_close`; recipes retain visit count, language, direction and assertions.
-Case 256 composes these with the enabled-policy and Preferences roundtrip
-operations. Its safety checks use private files/values and waited Perl children,
+the recorder reply. Parent dialog visits share `onpc_parent::dialog_visit` for
+qualification's separate read, `dialog_use` for a customer visit whose opening
+already reads the contents, and `dialog_close` for owned closure. Recipes retain
+visit count, language and assertions. Case 256 composes `dialog_use` with the
+enabled-policy checks and `onpc_parent::language_save`; it does not copy the
+qualification's chooser or repeated-read matrix. Its safety checks use private
+files/values and waited Perl children,
 compatible in both unit and cleanup inventories; no new live owner is introduced.
 
 `offline_language_actions` reuses the lease's existing Internet isolation and
@@ -442,11 +453,15 @@ over that package fragment and the shared fresh-desktop/station entries.
 The notice can arrive before the request's own-account load; the exact application
 owner and, for the overlay, active fixture session bind that early read.
 Language setup is permitted only in the postboot usability operation.
-Fresh installation leaves child controls off. After the verified reboot and
-Parent's missing-modal refusal, the qualification uses the shared canonical
-child-selection and FLOW02 setup operations to save an enabled 30-minute
-allowance for Riley and Jamie. Only then does it require enabled Request on the
-fresh Child App and default kiosk entries; no policy setup precedes the notices.
+Fresh-install consumers must declare the prerequisites of each postboot result;
+a successful reboot does not enable child controls. Observe the untouched
+notices and disabled defaults first, then establish request eligibility through
+shared public Parent operations before requiring enabled Request. In this
+qualification, after the verified reboot and Parent's missing-modal refusal,
+canonical child selection and FLOW02 save enabled 30-minute allowances for
+Riley and Jamie before fresh Child App and default kiosk entries. Keep this
+setup after the notices; never relax the enabled-Request assertion to accept
+the fresh installation's disabled defaults.
 `JourneyPlan.modal_reboots` pairs an exact surface read with the adjacent fresh
 GDM result. `UiObservations.submit_restart` consumes once; a bounded terminal
 stream permits transport uncertainty only after the exact boot/surface readiness

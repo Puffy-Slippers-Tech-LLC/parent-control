@@ -637,8 +637,9 @@ current consumers read the translated dialog and retained draft directly.
 Host previews execute the shared dialog input/read blocks through
 `gui_blocks.run_block`. `ParentDialogLanguageJourney` /
 `DIALOG_PLAN` and `onpc_parent::qualify_dialog_language` own the fixed qualification.
-Qualifications and case 256 share `onpc_parent::dialog_visit` / `dialog_close`
-for owned open, read, close and independent absence. Their historical keyboard
+Qualifications use `onpc_parent::dialog_visit`; case 256 uses `dialog_use`, whose
+opening already reads the contents. Both share `dialog_close` for owned closure
+and independent absence. Their historical keyboard
 direction coverage does not require traversal in current consumers.
 Callers retain finite visits, language and draft comparison endpoints.
 This extends UI16, ABOUT01, FEED01/03 and FEED10(dialog) only for the stated
@@ -677,8 +678,8 @@ before later input through normal closure, language changes and reopening.
 history and comparison endpoints. Shared `language_composition.language_policy`
 and `public_language_value` preserve immutable policy/draft captures; the latter
 rejects changed or missing complete public values and capture replay before a
-durable worker reply. Shared `onpc_parent::language_presentation_roundtrip`,
-`dialog_visit` / `dialog_close` and `onpc_text::replace_text` own normal input and
+durable worker reply. Shared `onpc_parent::language_save`,
+`dialog_use` / `dialog_close` and `onpc_text::replace_text` own normal input and
 independent results. The case does not inherit qualification controllers.
 
 Required regressions passed:

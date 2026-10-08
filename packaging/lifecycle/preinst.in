@@ -81,7 +81,14 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
     fi
     touch /var/lib/oh-no-parent-control/migration-in-progress
     if systemctl is-active --quiet oh-no-parent-control-broker.service; then
-        @service_command@ stop oh-no-parent-control-broker.service >/dev/null
+        # A concurrent D-Bus activation can cancel the stop job after the
+        # process exits. The guard prevents its replacement; verify the result.
+        @service_command@ stop oh-no-parent-control-broker.service >/dev/null || true
+        broker_state=$(systemctl show --property=ActiveState --value oh-no-parent-control-broker.service)
+        case "$broker_state" in
+            inactive|failed) ;;
+            *) echo 'oh-no-parent-control: broker did not stop; unpack must be retried' >&2; exit 1 ;;
+        esac
     fi
     touch /var/lib/oh-no-parent-control/package-activation-pending
     # Bootstrap the release-history origin even when the old payload predates

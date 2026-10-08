@@ -376,8 +376,8 @@ def test_child_module_trust_install_upgrade_and_reinstall(package_machine):
     assert filter_path.read_text() == '+ /\n - usr/share/\n  + *.js\n'
     commands = (root / 'commands').read_text().splitlines()
     refresh = commands.index('fapolicyd-cli --update')
-    ready = commands.index('oh-no-parent-control-package-activation wait-child-trust')
-    assert refresh < ready < commands.index(f'systemctl --system restart {BROKER}')
+    ready = commands.index('oh-no-parent-control-package-activation wait-child-trust --refresh')
+    assert ready < refresh < commands.index(f'systemctl --system restart {BROKER}')
 
 
 @pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
@@ -392,6 +392,20 @@ def test_child_trust_refresh_failure_blocks_activation_and_is_retryable(package_
     assert run().returncode == 0
     assert not (state / 'package-activation-pending').exists()
     assert not (state / 'migration-in-progress').exists()
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('state', ['inactive', 'failed', 'active', 'activating', 'deactivating'])
+def test_canceled_stop_requires_confirmed_broker_exit_before_migration(package_machine, state):
+    root, saved, run = package_machine
+    (root / 'broker-active').touch()
+    result = run(BROKER_STOP_STATUS='1', BROKER_STOP_STATE=state)
+    stopped = state in ('inactive', 'failed')
+    assert (result.returncode == 0) == stopped, result.stderr
+    commands = (root / 'commands').read_text()
+    assert ('oh-no-parent-control-migrate-state ' in commands) == stopped
+    assert (saved / 'migration-in-progress').exists() != stopped
+    assert (f'systemctl --system restart {BROKER}' in commands) == stopped
 
 
 @pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
@@ -517,6 +531,8 @@ def test_real_backend_upgrade_completes_and_broker_guard_expires_on_reboot(packa
         '    args = parser.parse_args()\n'
         '    if args.command == "wait-child-trust":\n'
         '        import os\n'
+        '        if args.refresh:\n'
+        '            subprocess.run([os.environ["AUDIT_ROOT"] + "/usr/sbin/fapolicyd-cli", "--update"], check=True)\n'
         '        raise SystemExit(int(os.environ.get("TRUST_READY_STATUS", "0")))')
     helper.write_text(f'#!{sys.executable}\n' + source.split('\n', 1)[1])
     helper.chmod(0o755)

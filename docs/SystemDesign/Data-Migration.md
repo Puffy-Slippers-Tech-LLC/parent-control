@@ -30,6 +30,12 @@ and future package upgrades.
 
 `debian/preinst` creates `/var/lib/oh-no-parent-control/migration-in-progress` before a new payload is unpacked. Both the broker launcher and its systemd unit refuse to start while that marker exists. `preinst` explicitly stops a running broker before package files or saved records can change.
 
+Both pre-installation and configuration verify that a requested broker stop
+ends in systemd's `inactive` or `failed` state before proceeding. A concurrent
+D-Bus activation can cancel the stop job even after the broker exits; its command
+status alone does not decide success. Active or transitional states and failed
+state queries retain the exclusion marker and refuse further work.
+
 After unpacking, `debian/postinst` runs the newly installed `/usr/libexec/oh-no-parent-control-migrate-state`. It retains the marker through provisioning, trust-database readiness and activation preparation, releasing it immediately before broker activation. A successful configuration that defers a changed trust backend until reboot releases the migration marker and retains the separate [boot-scoped trust guard](Lifecycle.md#startup-login-and-update-lifecycle). Configuration also establishes the marker and stops/verifies an existing broker when entered without `preinst`, so reconfiguration has the same exclusion. Failures before activation retain the marker and prevent D-Bus clients from starting the broker early.
 
 The maintainer script deliberately fails if migration fails. The marker then keeps the broker unavailable and APT leaves the package unconfigured. Fixing the underlying record or migration and running `dpkg --configure -a` retries the operation. A successfully migrated record is skipped on retry, so an interruption between records is safe.

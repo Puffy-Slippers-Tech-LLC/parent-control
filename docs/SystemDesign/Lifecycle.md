@@ -119,7 +119,15 @@ Removal restores the original configuration only when the owned
 replacement is unchanged. Local edits are preserved and block automatic cleanup.
 Because the update request is asynchronous, configuration waits up to 120 seconds
 for both exact packaged path/size/hash records in the live trust database before
-activating the broker. Timeout preserves pending activation for configuration retry.
+activating the broker. The configuration helper captures a journal cursor and
+the running daemon's PID/invocation before requesting the refresh, then waits
+for that same daemon's subsequent `Updated` event before invoking `--dump-db`.
+The completion event sequences the read; the exact records still establish
+readiness. This avoids racing fapolicyd 1.3.6's unlocked LMDB reader against
+its database rebuild. Missing completion, changed daemon identity and command
+failures preserve pending activation for configuration retry. The refresh and
+exact-record wait share the same 120-second deadline. Boot readiness and direct
+broker starts retain their read-only trust check.
 The existing startup-exclusion marker remains present through a same-boot trust
 wait and earlier provisioning, including configuration retries without `preinst`.
 D-Bus activation cannot bypass the trust gate; an existing broker is stopped

@@ -387,6 +387,8 @@ def child_trust_failure(error) -> str:
     """Describe readiness failure without exposing unrelated database records."""
     if isinstance(error, ChildTrustDeadline):
         return 'deadline modules=' + ','.join(error.modules)
+    if isinstance(error, ChildTrustRefreshError):
+        return 'refresh-' + error.reason
     if isinstance(error, subprocess.TimeoutExpired):
         return 'cli-timeout'
     if isinstance(error, subprocess.CalledProcessError):
@@ -396,7 +398,75 @@ def child_trust_failure(error) -> str:
     return 'manifest-or-read'
 
 
-def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH) -> None:
+class ChildTrustRefreshError(ValueError):
+    def __init__(self, reason):
+        self.reason = reason
+        super().__init__('child trust refresh could not be observed safely')
+
+
+def refresh_child_trust(deadline: float) -> None:
+    """Sequence the unlocked CLI reader after a running daemon's rebuild.
+
+    fapolicyd 1.3.6 opens --dump-db with MDB_NOLOCK: concurrent traversal can
+    abort in LMDB. Its fixed "Updated" journal event follows rebuild/sync.
+    This barrier never replaces the subsequent exact manifest comparison.
+    """
+    def budget():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ChildTrustRefreshError('deadline')
+        return remaining
+
+    def run(command):
+        return subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True,
+                              text=True, check=True, timeout=min(10, budget()),
+                              env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}).stdout
+
+    def identity():
+        raw = run(['/usr/bin/systemctl', 'show', 'fapolicyd.service',
+                   '--property=MainPID,InvocationID,ActiveState'])
+        fields = dict(line.split('=', 1) for line in raw.splitlines() if '=' in line)
+        pid, invocation = fields.get('MainPID', ''), fields.get('InvocationID', '')
+        if (fields.get('ActiveState') != 'active'
+                or not re.fullmatch(r'[1-9][0-9]{0,9}', pid)
+                or not re.fullmatch(r'[0-9a-f]{32}', invocation)
+                or invocation == '0' * 32):
+            raise ChildTrustRefreshError('daemon-identity')
+        return pid, invocation
+
+    owner = identity()
+    journal = ['/usr/bin/journalctl', '--no-pager', '--unit=fapolicyd.service',
+               '--lines=1', '--output=json']
+    rows = [json.loads(line) for line in run(journal + ['--output-fields=__CURSOR']).splitlines()]
+    cursor = rows[0].get('__CURSOR', '') if len(rows) == 1 and isinstance(rows[0], dict) else ''
+    if not isinstance(cursor, str) or not re.fullmatch(r'[A-Za-z0-9;=:_-]{1,1024}', cursor):
+        raise ChildTrustRefreshError('journal-cursor')
+
+    def check_owner():
+        if identity() != owner:
+            raise ChildTrustRefreshError('daemon-replaced')
+
+    check_owner()
+    run(['/usr/sbin/fapolicyd-cli', '--update'])
+    while True:
+        check_owner()
+        raw = run(journal + ['--after-cursor=' + cursor,
+                            '--output-fields=MESSAGE,_PID,_SYSTEMD_INVOCATION_ID',
+                            '_PID=' + owner[0], '_SYSTEMD_INVOCATION_ID=' + owner[1],
+                            'MESSAGE=Updated'])
+        rows = [json.loads(line) for line in raw.splitlines()]
+        complete = any(isinstance(row, dict) and row.get('MESSAGE') == 'Updated'
+                       and row.get('_PID') == owner[0]
+                       and row.get('_SYSTEMD_INVOCATION_ID') == owner[1]
+                       and isinstance(row.get('__CURSOR'), str)
+                       and row['__CURSOR'] != cursor for row in rows)
+        check_owner()
+        if complete:
+            return
+        time.sleep(min(.25, budget()))
+
+
+def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH, *, refresh=False) -> None:
     """Wait for the asynchronous trust update to publish our exact records.
 
     Read the packaged manifest, not mutable module bytes. The CLI's update
@@ -416,6 +486,8 @@ def wait_child_trust(path: Path = Path('/') / EXTENSION_TRUST_PATH) -> None:
     if not expected:
         raise ValueError('missing packaged child trust records')
     deadline = time.monotonic() + 120
+    if refresh:
+        refresh_child_trust(deadline)
     present = set()
     while True:
         remaining = deadline - time.monotonic()
@@ -450,7 +522,9 @@ def main() -> None:
     compare_parser = commands.add_parser("changed-impacts")
     compare_parser.add_argument("--old", type=Path, required=True)
     compare_parser.add_argument("--new", type=Path, required=True)
-    commands.add_parser("wait-child-trust")
+    trust_parser = commands.add_parser("wait-child-trust")
+    trust_parser.add_argument('--refresh', action='store_true',
+                              help='refresh a running daemon before reading its database')
     args = parser.parse_args()
     if args.command == "generate":
         generate(args.root.resolve(), args.output.resolve(), args.include)
@@ -468,7 +542,7 @@ def main() -> None:
             raise SystemExit('oh-no-parent-control: child trust activation cannot be recorded safely') from None
     else:
         try:
-            wait_child_trust()
+            wait_child_trust(refresh=args.refresh)
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             raise SystemExit('oh-no-parent-control: child trust database is not ready '
                              f'({child_trust_failure(error)})') from None

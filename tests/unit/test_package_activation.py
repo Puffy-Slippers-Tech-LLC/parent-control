@@ -78,6 +78,94 @@ def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch
     assert 0 < run.call_args.kwargs['timeout'] <= 120
 
 
+@pytest.mark.parametrize('fault', [None, 'delayed', 'missing', 'stale', 'wrong-pid',
+                                 'wrong-invocation', 'wrong-message', 'cursor',
+                                 'inactive', 'replaced-before-request', 'replaced',
+                                 'replaced-after-completion', 'update', 'journal'])
+def test_package_trust_refresh_finishes_before_unlocked_database_read(tmp_path, monkeypatch, fault):
+    wait = _activation['wait_child_trust']
+    namespace = wait.__globals__
+    trust = tmp_path / 'child.trust'
+    record = f'/{_activation["EXTENSION_PATH"]}/indicatorLogic.mjs 12 ' + 'a' * 64
+    trust.write_text(record + '\n')
+    state = dict(clock=0, requested=False, complete=False, polls=0, identities=0)
+    invocation = 'a' * 32
+
+    def run(argv, **kwargs):
+        assert 0 < kwargs['timeout'] <= 120 - state['clock']
+        assert kwargs['check'] and kwargs['capture_output']
+        assert kwargs['env']['LC_ALL'] == 'C'
+        if argv[0] == '/usr/bin/systemctl':
+            state['identities'] += 1
+            replaced = ((fault == 'replaced-before-request' and state['identities'] == 2)
+                        or (fault == 'replaced' and state['requested'])
+                        or (fault == 'replaced-after-completion' and state['complete']))
+            raw = ('MainPID=' + ('43' if replaced else '42') + '\nInvocationID=' +
+                   invocation + '\nActiveState=' + ('inactive' if fault == 'inactive' else 'active'))
+        elif argv[0] == '/usr/bin/journalctl':
+            if not state['requested']:
+                raw = json.dumps({'__CURSOR': '../private' if fault == 'cursor' else 's=before'})
+            else:
+                if fault == 'journal':
+                    raise subprocess.CalledProcessError(7, argv, stderr='private journal')
+                assert '--after-cursor=s=before' in argv
+                assert '_PID=42' in argv and '_SYSTEMD_INVOCATION_ID=' + invocation in argv
+                state['polls'] += 1
+                row = dict(MESSAGE='Updated', _PID='42',
+                           _SYSTEMD_INVOCATION_ID=invocation, __CURSOR='s=after')
+                replacements = {'stale': ('__CURSOR', 's=before'),
+                                'wrong-pid': ('_PID', '43'),
+                                'wrong-invocation': ('_SYSTEMD_INVOCATION_ID', 'b' * 32),
+                                'wrong-message': ('MESSAGE', 'Creating trust database')}
+                if fault in replacements:
+                    key, value = replacements[fault]
+                    row[key] = value
+                pending = fault == 'missing' or (fault == 'delayed' and state['polls'] == 1)
+                raw = '' if pending else json.dumps(row)
+                state['complete'] = not pending and fault not in replacements
+        elif argv == ['/usr/sbin/fapolicyd-cli', '--update']:
+            assert not state['requested']
+            state['requested'] = True
+            if fault == 'update':
+                raise subprocess.CalledProcessError(7, argv)
+            raw = ''
+        else:
+            assert argv == ['/usr/sbin/fapolicyd-cli', '--dump-db']
+            assert state['complete'], 'unlocked database traversal raced the rebuild'
+            raw = 'filedb ' + record
+        return SimpleNamespace(stdout=raw)
+
+    commands = Mock(side_effect=run)
+    monkeypatch.setattr(namespace['subprocess'], 'run', commands)
+    monkeypatch.setattr(namespace['time'], 'monotonic', lambda: state['clock'])
+
+    def sleep(delay):
+        assert delay == .25
+        state['clock'] += 40
+
+    monkeypatch.setattr(namespace['time'], 'sleep', sleep)
+    if fault in (None, 'delayed'):
+        wait(trust, refresh=True)
+        assert commands.call_args.args[0] == ['/usr/sbin/fapolicyd-cli', '--dump-db']
+        assert state['clock'] == (40 if fault == 'delayed' else 0)
+    else:
+        with pytest.raises((ValueError, subprocess.CalledProcessError)):
+            wait(trust, refresh=True)
+        assert all(call.args[0] != ['/usr/sbin/fapolicyd-cli', '--dump-db']
+                   for call in commands.call_args_list)
+        if fault in ('cursor', 'inactive', 'replaced-before-request'):
+            assert not state['requested']
+
+
+def test_wait_child_trust_refresh_cli_routes_to_helper(monkeypatch):
+    main = _activation['main']
+    wait = Mock()
+    monkeypatch.setitem(main.__globals__, 'wait_child_trust', wait)
+    monkeypatch.setattr('sys.argv', ['package-activation', 'wait-child-trust', '--refresh'])
+    main()
+    wait.assert_called_once_with(refresh=True)
+
+
 @pytest.mark.parametrize('backend', ['debdb', 'rpmdb,file', 'debdb,file'])
 def test_child_file_backend_is_enabled_reversibly_only_when_missing(tmp_path, backend):
     prepare = _activation['prepare_child_trust_backend']

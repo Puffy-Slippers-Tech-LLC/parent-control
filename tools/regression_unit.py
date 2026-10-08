@@ -104,6 +104,8 @@ children. They read immutable unit/launcher sources and mock every live service
 and database command. Existing package_activation, package_configuration,
 package_removal and systemd_unit classifications remain compatible; no shared
 path, cache, socket, VM, privileged write or new process lifetime is introduced.
+Package refresh-sequencing tests likewise use only journal/service doubles,
+a synthetic clock and private manifest files, preserving that classification.
 
 Private-version and updateversion regressions use tiny private metadata trees,
 synchronously waited Make/dpkg children and stub builders. Publishing fixtures

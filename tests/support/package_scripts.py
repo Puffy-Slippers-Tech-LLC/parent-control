@@ -171,13 +171,21 @@ systemctl() {
     record systemctl "$@"
     case "$1" in
         show)
-            test "$*" = 'show --property=ActiveState --value oh-no-parent-control-execution-policy-ready.service' || return 1
-            printf '%s\n' "${READINESS_STATE:-inactive}" ;;
+            case "$*" in
+                'show --property=ActiveState --value oh-no-parent-control-execution-policy-ready.service')
+                    printf '%s\n' "${READINESS_STATE:-inactive}" ;;
+                'show --property=ActiveState --value oh-no-parent-control-broker.service')
+                    printf '%s\n' "${BROKER_STOP_STATE:-inactive}" ;;
+                *) return 1 ;;
+            esac ;;
         stop)
             if [ "$2" = oh-no-parent-control-execution-policy-ready.service ]; then
                 return "${READINESS_STOP_STATUS:-0}"
             fi
             if [ "$2" = fapolicyd.service ]; then SERVICE_ACTIVE=0; fi
+            if [ "$2" = oh-no-parent-control-broker.service ]; then
+                return "${BROKER_STOP_STATUS:-0}"
+            fi
             return 0 ;;
         is-active)
             case "$3" in
@@ -192,7 +200,13 @@ systemctl() {
         *) return 0 ;;
     esac
 }
-deb_systemd_invoke() { record deb-systemd-invoke "$@"; SERVICE_ACTIVE=0; }
+deb_systemd_invoke() {
+    record deb-systemd-invoke "$@"
+    SERVICE_ACTIVE=0
+    if [ "$1 $2" = 'stop oh-no-parent-control-broker.service' ]; then
+        return "${BROKER_STOP_STATUS:-0}"
+    fi
+}
 invoke_rc_d() { record invoke-rc.d "$@"; }
 pam_auth_update() { record pam-auth-update "$@"; }
 busctl() { record busctl "$@"; }
@@ -324,7 +338,12 @@ case "$name" in
     oh-no-parent-control-package-activation)
         if [ "$*" = prepare-child-trust-backend ]; then printf '%s\n' "${TRUST_BACKEND_ACTION:-none}"; exit 0; fi
         if [ "$*" = complete-child-trust-backend ]; then exit "${TRUST_COMPLETE_STATUS:-0}"; fi
-        if [ "$*" = wait-child-trust ]; then exit "${TRUST_READY_STATUS:-0}"; fi
+        if [ "$1" = wait-child-trust ]; then
+            if [ "${2:-}" = --refresh ]; then
+                "$AUDIT_ROOT/usr/sbin/fapolicyd-cli" --update || exit "$?"
+            fi
+            exit "${TRUST_READY_STATUS:-0}"
+        fi
         printf '%s\n' "$IMPACTS" ;;
     oh-no-parent-control-fedora-execution-policy)
         case "$1" in
@@ -354,6 +373,12 @@ case "$name" in
                 test -f "$AUDIT_ROOT/broker-active"; exit $? ;;
             'stop oh-no-parent-control-broker.service')
                 if [ "${BROKER_STOP_REFUSED:-0}" != 1 ]; then rm -f "$AUDIT_ROOT/broker-active"; fi
+                exit "${BROKER_STOP_STATUS:-0}"
+                ;;
+            'show --property=ActiveState --value oh-no-parent-control-broker.service')
+                if [ -n "${BROKER_STOP_STATE:-}" ]; then printf '%s\n' "$BROKER_STOP_STATE"
+                elif [ -f "$AUDIT_ROOT/broker-active" ]; then printf '%s\n' active
+                else printf '%s\n' inactive; fi
                 ;;
             'is-active --quiet fapolicyd.service')
                 if [ -f "$AUDIT_ROOT/fapolicyd-active" ]; then exit 0; fi
@@ -379,6 +404,7 @@ case "$name" in
                 ;;
             'stop oh-no-parent-control-broker.service')
                 if [ "${BROKER_STOP_REFUSED:-0}" != 1 ]; then rm -f "$AUDIT_ROOT/broker-active"; fi
+                exit "${BROKER_STOP_STATUS:-0}"
                 ;;
             *oh-no-parent-control-broker.service*)
                 printf 'inactive static unit skipped\n' >&2

@@ -64,11 +64,12 @@ if [ "$1" = configure ]; then
     touch /var/lib/oh-no-parent-control/migration-in-progress
     if [ -d /run/systemd/system ] &&
        systemctl is-active --quiet oh-no-parent-control-broker.service; then
-        @service_command@ stop oh-no-parent-control-broker.service >/dev/null
-        if systemctl is-active --quiet oh-no-parent-control-broker.service; then
-            echo 'oh-no-parent-control: broker remained active; configuration must be retried' >&2
-            exit 1
-        fi
+        @service_command@ stop oh-no-parent-control-broker.service >/dev/null || true
+        broker_state=$(systemctl show --property=ActiveState --value oh-no-parent-control-broker.service)
+        case "$broker_state" in
+            inactive|failed) ;;
+            *) echo 'oh-no-parent-control: broker remained active; configuration must be retried' >&2; exit 1 ;;
+        esac
     fi
     /usr/libexec/oh-no-parent-control-migrate-state
     release_removal_guard
@@ -225,8 +226,7 @@ if [ "$1" = configure ]; then
     # Respect package-service policy when startup has been deferred.
     if [ "$trust_deferred" -eq 0 ] &&
        [ -d /run/systemd/system ] && systemctl is-active --quiet fapolicyd.service; then
-        /usr/sbin/fapolicyd-cli --update
-        /usr/libexec/oh-no-parent-control-package-activation wait-child-trust
+        /usr/libexec/oh-no-parent-control-package-activation wait-child-trust --refresh
 @trust_complete@
         rm -f "$trust_guard"
     fi

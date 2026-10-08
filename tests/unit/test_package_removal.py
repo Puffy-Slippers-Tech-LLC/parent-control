@@ -17,6 +17,20 @@ def machine(tmp_path, request):
 ubuntu_only = pytest.mark.parametrize('machine', ['ubuntu'], indirect=True)
 
 
+@pytest.mark.parametrize('stop_status', ['0', '1'])
+@pytest.mark.parametrize('state', ['inactive', 'failed', 'active', 'activating', 'deactivating'])
+def test_unpack_verifies_broker_exit_even_when_stop_job_is_canceled(machine, stop_status, state):
+    machine.baseline()
+    result = machine.run('preinst', 'upgrade', BROKER_ACTIVE='1',
+                         BROKER_STOP_STATUS=stop_status, BROKER_STOP_STATE=state)
+    stopped = state in ('inactive', 'failed')
+    assert (result.returncode == 0) == stopped, result.stderr
+    root = machine.root / 'var/lib/oh-no-parent-control'
+    assert (root / 'migration-in-progress').exists()
+    assert (root / 'package-activation-pending').exists() == stopped
+    assert 'show --property=ActiveState --value oh-no-parent-control-broker.service' in machine.commands
+
+
 def test_upgrade_captures_product_origin_once_before_unpack(machine):
     import json
     machine.baseline()

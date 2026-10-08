@@ -1,4 +1,4 @@
-"""Shared installed controller with real durable recorder; no VM operations."""
+"""Real installed recorder with checked collector sync calls; no VM operations."""
 
 from dataclasses import replace
 import copy
@@ -33,6 +33,7 @@ import overlay_about
 import mate_prompt
 import overlay_prompt
 import overlay_approved_exit
+import overlay_rejection
 import kiosk_multiple
 import kiosk_approval
 import auth_result
@@ -131,6 +132,7 @@ import inventory
 from private_artifacts import EvidenceError, PrivateCollector
 from recording import ScenarioRecorder
 from tests.support.paths import ROOT
+from tests.support.e2e_recording import collector_sync
 
 
 SYNTHETIC = journeys.JourneyPlan(
@@ -278,7 +280,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  kiosk_multiple.INELIGIBLE_PLAN, kiosk_multiple.INELIGIBLE_CASE_PLAN,
                                  restricted_station_about.PLAN, fresh_thirty_allowance.PLAN,
                                  fresh_thirty_allowance.JORDAN_PLAN, kiosk_about.PLAN, overlay_about.PLAN,
-                                 overlay_prompt.PLAN, overlay_approved_exit.PLAN, INTERVAL_RECORDER_PLAN],
+                                 overlay_prompt.PLAN, overlay_approved_exit.PLAN, overlay_rejection.PLAN, INTERVAL_RECORDER_PLAN],
                          ids=['parent', 'different-consumer', 'discovery', 'empty',
                               'standard-access', 'terminal', 'help', 'desktop-logout',
                               'desktop-switch', 'kiosk-entry', 'request-exit', 'parent-toggle',
@@ -299,10 +301,10 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'kiosk-rejection', 'auth-result', 'kiosk-approved-flow', 'restricted-station',
                               'flow-rejection', 'flow-cancel', 'kiosk-multiple', 'multiple-case',
                               'ineligible-profile', 'ineligible-case', 'station-about', 'fresh-thirty-allowance',
-                              'jordan-thirty-allowance', 'station-about-case', 'overlay-about-case', 'overlay-prompt', 'overlay-approved-exit', 'real-interval'])
+                              'jordan-thirty-allowance', 'station-about-case', 'overlay-about-case', 'overlay-prompt', 'overlay-approved-exit', 'overlay-rejection', 'real-interval'])
 @pytest.mark.parametrize('failure', [None, 'observation-write', 'return-step-write', 'worker-loss'])
 def test_shared_plan_records_before_input_and_latches_transition_failures(
-        tmp_path, monkeypatch, journey_inventory, plan, failure):
+        tmp_path, monkeypatch, journey_inventory, collector_sync, plan, failure):
     # A different trusted plan exercises the same recorder phase shape without
     # registering a synthetic scenario or awarding it any customer coverage.
     selector = ('E2E-003/existing-and-new' if plan is parent_discovery.PLAN else 'E2E-030/parent')
@@ -486,7 +488,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 'observed_monotonic_ns': len(boot_bindings)}
         if plan in (fresh_child_allowed.PLAN, fresh_child_denied.PLAN,
                     countdown_qualification.PLAN, countdown_qualification.OFF_PLAN,
-                    shell_panel.PLAN, overlay_prompt.PLAN, overlay_approved_exit.PLAN) and state['stage'] == 'allowance-configured':
+                    shell_panel.PLAN, overlay_prompt.PLAN, overlay_approved_exit.PLAN, overlay_rejection.PLAN) and state['stage'] == 'allowance-configured':
             seconds = 0 if plan is fresh_child_denied.PLAN else 900
             text = '15 minutes' if seconds else '0 seconds'
             result['time_explanation'] = {
@@ -559,7 +561,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 'endpoint': [':1.2', '/fixture'], 'state': {
                     'draft': 'ONPC fixture draft', 'submitted': 'ONPC fixture draft',
                     'score': 'Moves: 0; token: 0'}}
-        if plan in (overlay_about.PLAN, overlay_prompt.PLAN, overlay_approved_exit.PLAN):
+        if plan in (overlay_about.PLAN, overlay_prompt.PLAN, overlay_approved_exit.PLAN, overlay_rejection.PLAN):
             if operation == 'time-explanation-setup-thirty-read':
                 result['time_explanation'] = {'child': 'fixture-child',
                     'daily': {'seconds': 1800, 'precision_seconds': 1},
@@ -732,6 +734,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                         if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN)
                         else overlay_prompt.OverlayPromptJourney if plan is overlay_prompt.PLAN
                         else overlay_approved_exit.OverlayApprovedExitJourney if plan is overlay_approved_exit.PLAN
+                        else overlay_rejection.OverlayRejectionJourney if plan is overlay_rejection.PLAN
                         else kiosk_approved.KioskRequestJourney if plan is kiosk_approved.PLAN
                         else journeys.InstalledJourney)
         if failure:
@@ -783,14 +786,18 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         assert all(call.args == ('boot',) for call in boot.read.call_args_list)
 
 
-def test_repeated_assertion_write_failure_prevents_reply_and_latches(tmp_path, monkeypatch, journey_inventory):
+def test_repeated_assertion_write_failure_prevents_reply_and_latches(
+        tmp_path, monkeypatch, journey_inventory, collector_sync):
     test_shared_plan_records_before_input_and_latches_transition_failures(
-        tmp_path, monkeypatch, journey_inventory, repeated_operations.PLAN, 'assertion-write')
+        tmp_path, monkeypatch, journey_inventory, collector_sync,
+        repeated_operations.PLAN, 'assertion-write')
 
 
-def test_challenge_assertion_write_failure_prevents_reply_and_latches(tmp_path, monkeypatch, journey_inventory):
+def test_challenge_assertion_write_failure_prevents_reply_and_latches(
+        tmp_path, monkeypatch, journey_inventory, collector_sync):
     test_shared_plan_records_before_input_and_latches_transition_failures(
-        tmp_path, monkeypatch, journey_inventory, challenges.PLAN, 'assertion-write')
+        tmp_path, monkeypatch, journey_inventory, collector_sync,
+        challenges.PLAN, 'assertion-write')
 
 
 def test_invalid_phase_plan_refuses_before_credentials_or_worker(tmp_path):

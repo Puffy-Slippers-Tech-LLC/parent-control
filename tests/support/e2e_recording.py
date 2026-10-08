@@ -2,11 +2,57 @@
 
 import copy
 import json
+import os
+import stat
 from types import SimpleNamespace
 
 import pytest
 import recording
+import private_artifacts
 from private_artifacts import PrivateCollector
+
+
+@pytest.fixture
+def collector_sync(monkeypatch):
+    """Check collector flush/sync ordering without repeated physical flushes.
+
+    Only the collector's os reference is replaced. Retention journals and all
+    other writes retain real synchronization. Real file/directory fsync and
+    failure propagation are exercised separately in test_e2e_evidence.
+    """
+    active = []
+    write = PrivateCollector._write
+
+    def sync(fd):
+        collector, name, data, events = active[0]
+        if not events:
+            info = os.fstat(fd)
+            assert stat.S_ISREG(info.st_mode)
+            assert info.st_size == len(data)
+            # Independent read verifies flush happened before file fsync.
+            with (collector.path / name).open('rb') as stream:
+                assert os.fstat(stream.fileno()).st_ino == info.st_ino
+                assert stream.read() == data
+            events.append('file')
+        else:
+            assert events == ['file'] and fd == collector._fd
+            assert stat.S_ISDIR(os.fstat(fd).st_mode)
+            events.append('directory')
+
+    def checked_write(collector, name, data):
+        assert not active
+        events = []
+        active.append((collector, name, data, events))
+        try:
+            result = write(collector, name, data)
+            assert events == ['file', 'directory']
+            return result
+        finally:
+            active.clear()
+
+    monkeypatch.setattr(private_artifacts, 'os', SimpleNamespace(**(vars(os) | {'fsync': sync})))
+    monkeypatch.setattr(PrivateCollector, '_write', checked_write)
+
 
 @pytest.fixture
 def session(attempt, tmp_path):

@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **048f — [Observe overlay password rejection and Cancel](E2E-Tasks/048f-overlay-rejection.md)**.
+Next task: **048b — [Complete overlay exits and approval compositions](E2E-Tasks/048b-overlay-approval.md)**.
 
 Task 305 and its customer case were deleted at the developer's request. Do not
 resume its failed attempts or recreate its brief. Completed task 305a remains qualified.

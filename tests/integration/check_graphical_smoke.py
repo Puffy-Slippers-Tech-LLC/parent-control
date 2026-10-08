@@ -1122,7 +1122,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:product-free-entry-prerequisites')
     require(challenge_profile in ('parent', 'fresh-child', 'fresh-child-denied',
                                   'countdown-enabled', 'countdown-off', 'shell-panel',
-                                  'overlay-valid-choices', 'overlay-choices', 'overlay-prompt', 'overlay-approved-exit', 'overlay-license',
+                                  'overlay-valid-choices', 'overlay-choices', 'overlay-prompt', 'overlay-approved-exit', 'overlay-rejection', 'overlay-license',
                                   'overlay-browser-links', 'overlay-information') and
             (challenge_profile == 'parent' or challenges is True), 'smoke:challenge-profile')
     require(type(challenges) is bool and (not challenges or (
@@ -1567,6 +1567,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 'overlay-choices': 'installed-overlay-choices-qualification',
                 'overlay-prompt': 'installed-overlay-prompt-qualification',
                 'overlay-approved-exit': 'installed-overlay-approved-exit-qualification',
+                'overlay-rejection': 'installed-overlay-rejection-qualification',
                 'overlay-license': 'installed-overlay-license-qualification',
                 'overlay-browser-links': 'installed-overlay-browser-links-qualification',
                 'overlay-information': 'installed-overlay-information-qualification'}[challenge_profile]
@@ -1721,7 +1722,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         CountdownQualification, CountdownOffQualification, ShellPanelQualification,
                         OverlayValidChoicesQualification, OverlayChoicesQualification, OverlayLicenseQualification,
                         OverlayBrowserLinksQualification, OverlayInformationQualification, OverlayPromptQualification,
-                        OverlayApprovedExitQualification)
+                        OverlayApprovedExitQualification, OverlayRejectionQualification)
                     qualification_class = {'parent': ChallengesQualification,
                         'fresh-child': FreshChildAllowedQualification,
                         'fresh-child-denied': FreshChildDeniedQualification,
@@ -1732,6 +1733,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         'overlay-choices': OverlayChoicesQualification,
                         'overlay-prompt': OverlayPromptQualification,
                         'overlay-approved-exit': OverlayApprovedExitQualification,
+                        'overlay-rejection': OverlayRejectionQualification,
                         'overlay-license': OverlayLicenseQualification,
                         'overlay-browser-links': OverlayBrowserLinksQualification,
                         'overlay-information': OverlayInformationQualification}[challenge_profile]

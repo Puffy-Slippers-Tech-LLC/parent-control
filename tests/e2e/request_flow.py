@@ -84,17 +84,27 @@ def overlay_authentication(*, result, prefix):
     """Declare Shell authentication separately from form/destination readback.
 
     Requires the prepared fixed overlay request. Cancel returns prompt absence;
-    approval returns explicit success. The caller owns preserved choices,
+    approval returns explicit success; rejection proves denial before Cancel.
+    The caller owns preserved choices,
     automatic desktop return and activity comparisons. Renaming checkpoints
     does not qualify another request or provider tuple.
     """
     import re
-    require(result in ('cancel', 'approval'), 'overlay-authentication:result')
+    require(result in ('cancel', 'approval', 'rejection'), 'overlay-authentication:result')
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'overlay-authentication:prefix')
     if result == 'cancel':
         return {
             prefix + '-cancel-ready': 'ui:overlay-shell-cancel-ready',
+            prefix + '-dismissed': 'ui:overlay-shell-dismissed',
+        }
+    if result == 'rejection':
+        return {
+            prefix + '-open': 'ui:overlay-shell-rejection-open',
+            prefix + '-qualified': 'ui:overlay-shell-rejection-qualified',
+            prefix + '-rechecked': 'ui:overlay-shell-rejection-rechecked',
+            prefix + '-submit-ready': 'ui:overlay-shell-rejection-submit-ready',
+            prefix + '-cancel-ready': 'ui:overlay-shell-rejection-cancel-ready',
             prefix + '-dismissed': 'ui:overlay-shell-dismissed',
         }
     return {

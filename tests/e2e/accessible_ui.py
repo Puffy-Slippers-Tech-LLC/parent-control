@@ -841,6 +841,9 @@ SHELL_APPROVAL_ORDER = ('overlay-shell-open', 'overlay-shell-qualified',
                         'overlay-shell-rechecked', 'overlay-shell-submit-ready',
                         'overlay-approval-success')
 SHELL_APPROVAL_OPERATIONS = frozenset(SHELL_APPROVAL_ORDER)
+SHELL_REJECTION_ORDER = tuple('overlay-shell-rejection-' + suffix for suffix in
+    ('open', 'qualified', 'rechecked', 'submit-ready', 'cancel-ready'))
+SHELL_APPROVAL_OPERATIONS |= frozenset(SHELL_REJECTION_ORDER)
 OPERATIONS |= SHELL_APPROVAL_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= SHELL_APPROVAL_OPERATIONS
 OPERATIONS |= {'overlay-shell-dismissed'}
@@ -8770,7 +8773,7 @@ class AccessibleUI:
         require(operation in SHELL_APPROVAL_OPERATIONS, 'ui:shell-binding')
         self.require_child_overlay_session()
         try:
-            opening = operation == 'overlay-shell-open'
+            opening = operation in ('overlay-shell-open', SHELL_REJECTION_ORDER[0])
             if opening:
                 self.kiosk_valid_choice('overlay-valid-fraction-soft-read')
             self.invalidate_observation()
@@ -8789,9 +8792,12 @@ class AccessibleUI:
                 return {'challenge_id': self.mate_challenge_identity(pid, challenge),
                         'provider': self._shell_provider_metadata(owner),
                         'rejected_proofs': rejected}
+            if operation == SHELL_REJECTION_ORDER[-1]:
+                return self.overlay_shell_rejected(pid, uid)
             challenge = self.shell_prompt(pid, uid, observation=observation,
                                           filled=operation in ('overlay-shell-submit-ready',
-                                                               'overlay-approval-success'))
+                                                               'overlay-approval-success',
+                                                               SHELL_REJECTION_ORDER[-2]))
             require(challenge is not None, 'ui:shell-missing')
             identity = self.mate_challenge_identity(pid, challenge)
             require(identity == self.expected_mate_challenge, 'ui:shell-replacement')
@@ -8813,11 +8819,54 @@ class AccessibleUI:
                                   'challenge_id': identity, 'boot_sha256': self.trace_boot},
                                  sort_keys=True), flush=True)
                 return self.kiosk_approval_success(overlay=True, pinned=(app, window))
-            self.input_uncertain = operation == 'overlay-shell-submit-ready'
+            self.input_uncertain = operation in ('overlay-shell-submit-ready', SHELL_REJECTION_ORDER[-2])
             return {'challenge_id': identity}
         except BaseException:
             self.input_uncertain = True
             raise
+
+    def overlay_shell_rejected(self, pid, uid):
+        """Explicit Shell denial and fresh empty retry recipient before Escape.
+
+        Shell 50 retains its error label while initiating a new PAM session in
+        the same dialog. Read-only waits tolerate its disabled/hidden retry
+        field; no submission or cancellation is repeated. Upstream contract:
+        https://github.com/GNOME/gnome-shell/blob/50.0/js/ui/components/polkitAgent.js
+        """
+        def rejected():
+            self.invalidate_observation()
+            observation = self.read_snapshot(protect_text=True)
+            nodes, edges, _identities, facts = observation
+            owner = self.shell_prompt_owner(observation)
+            require(owner.get_process_id() == pid, 'ui:shell-owner')
+            require(self.system_prompt_kind(observation=(nodes, edges, facts)) == 'shell-polkit',
+                    'ui:shell-rejection-prompt-missing')
+            dialogs = [node for node in self.snapshot_scope(nodes, edges, owner)
+                       if facts[node]['showing']
+                       and (facts[node]['role'] in ('dialog', 'alert') or facts[node]['modal'])]
+            require(len(dialogs) == 1, 'ui:shell-dialog')
+            labels = [facts[node]['name'] for node in self.snapshot_scope(nodes, edges, dialogs[0])
+                      if facts[node]['role'] == 'label' and facts[node]['showing']]
+            message = 'Sorry, that didn’t work. Please try again.'
+            if message not in labels:
+                return False
+            require(labels.count(message) == 1, 'ui:shell-rejection-ambiguous')
+            try:
+                challenge = self.shell_prompt(pid, uid, observation=observation)
+            except UiError as error:
+                if str(error) not in ('ui:shell-field-state', 'ui:shell-field-not-empty'):
+                    raise
+                return False
+            require(self.mate_challenge_identity(pid, challenge) == self.expected_mate_challenge,
+                    'ui:shell-replacement')
+            return challenge
+        challenge = self.wait(rejected, 'shell-rejection', prompt_in_predicate=True)
+        current = self.shell_prompt(pid, uid, challenge=challenge)
+        identity = self.mate_challenge_identity(pid, current)
+        require(identity == self.expected_mate_challenge, 'ui:shell-replacement')
+        self.input_uncertain = True
+        return {'challenge_id': identity, 'rejected': True, 'cancel_ready': True,
+                'same_challenge_rechecked': True}
 
     def mate_provider_metadata(self, pid):
         from gi.repository import Gio
@@ -10975,6 +11024,11 @@ class AccessibleUI:
                 result['valid_choice'] = value
         elif operation == 'overlay-valid-refusals':
             self.require_child_overlay_session()
+            # A provider can unregister between desktop enumeration and its
+            # cache read. Reacquire a complete read before proving absence;
+            # the refusal checks reuse it and release no input.
+            self.wait(self.read_snapshot, 'overlay-refusal-observation',
+                      prompt_in_predicate=True)
             for call, expected in (
                 (lambda: self.select_kiosk_account('child', CHILD, expected=(CHILD,), overlay=True),
                  'ui:overlay-child-selection'),

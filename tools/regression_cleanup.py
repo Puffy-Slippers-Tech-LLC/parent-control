@@ -284,8 +284,10 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # child blocks/waits for SIGTERM locally; no worker signal mask is changed.
 
 # Measured four-worker costs guide packing only; never reuse passing results.
-# Recorder shards include their concurrent durable-write cost (higher than a
-# single worker's elapsed time). Recalibrate from --durations=0 after growth.
+# Recorder shards use function-local disk files and checked collector sync calls;
+# real disk sync/failure checks remain in e2e_evidence. Retention journal fsync
+# stays real. The matrix has no shared fixture, cache or new cleanup owner and
+# remains compatible in both inventories. Recalibrate from --durations=0 after growth.
 # Preparation recovery additions use private journals and mocked lease/SSH
 # lifecycle only. App-snapshot, graphical and retention cleanup stay compatible;
 # neither host privileges nor a shared VM/display/storage root is touched.
@@ -309,7 +311,8 @@ ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_write_e2e_cleanup_safety.py': 54,
              # Overlay qualification adds only private recorder/transport doubles;
              # its cleanup rows share no live VM, display, service or storage.
-             'test_installed_journey_cleanup_safety.py': 181,
+             # Measured 506 cases in four ~3-second workers with checked sync.
+             'test_installed_journey_cleanup_safety.py': 12,
              'test_e2e_leased_recording_cleanup_safety.py': 12,
              'test_e2e_suite_cleanup_safety.py': 21,
              'test_graphical_lease.py': 8.5,

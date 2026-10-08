@@ -428,6 +428,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_overlay_valid_choices'], ['check_e2e_overlay_valid_choices.py'],
             ['check_e2e_overlay_choices'], ['check_e2e_overlay_choices.py'],
             ['check_e2e_overlay_prompt'], ['check_e2e_overlay_prompt.py'],
+            ['check_e2e_overlay_rejection'], ['check_e2e_overlay_rejection.py'],
             ['check_e2e_overlay_approved_exit'], ['check_e2e_overlay_approved_exit.py'],
             ['check_e2e_overlay_license'], ['check_e2e_overlay_license.py'],
             ['check_e2e_overlay_browser_links'], ['check_e2e_overlay_browser_links.py'],
@@ -593,6 +594,7 @@ def qualification_artifact_command(root, category, args):
         ['check_e2e_chinese_native_auth'], ['check_e2e_chinese_native_auth.py'],
         ['check_e2e_kiosk_approved_flow'], ['check_e2e_kiosk_approved_flow.py'],
         ['check_e2e_overlay_prompt'], ['check_e2e_overlay_prompt.py'],
+        ['check_e2e_overlay_rejection'], ['check_e2e_overlay_rejection.py'],
         ['check_e2e_kiosk_approval'], ['check_e2e_kiosk_approval.py'],
         ['check_e2e_allowance_boundaries'], ['check_e2e_allowance_boundaries.py'])
         else named_input())

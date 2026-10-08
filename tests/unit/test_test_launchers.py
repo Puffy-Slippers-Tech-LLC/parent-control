@@ -12,6 +12,7 @@ from unittest.mock import Mock
 import pytest
 
 from tests.support.paths import ROOT
+from tests.support.launcher import synthetic_package_identity
 import test_launcher as host
 import test_commands as commands
 
@@ -34,7 +35,7 @@ def named_qualification_inputs():
 @pytest.mark.parametrize('suffix', ['', '.py'])
 @pytest.mark.parametrize('build_status', [0, 7])
 def test_every_named_input_consumer_prepares_before_dispatch(
-        monkeypatch, name, options, suffix, build_status):
+        monkeypatch, synthetic_package_identity, name, options, suffix, build_status):
     import dev_privileges
     import regression_process
     import test_storage
@@ -246,6 +247,7 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_mate_prompt', 'check_e2e_mate_prompt.py',
     'check_e2e_auth_prompt', 'check_e2e_auth_prompt.py',
     'check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
+    'check_e2e_overlay_rejection', 'check_e2e_overlay_rejection.py',
     'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py',
     'check_e2e_auth_result', 'check_e2e_auth_result.py',
     'check_e2e_kiosk_approved_flow', 'check_e2e_kiosk_approved_flow.py',
@@ -261,7 +263,8 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_operate_public_connectivity_controls',
     'check_e2e_operate_public_connectivity_controls.py',
 ])
-def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch(monkeypatch, selector):
+def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch(
+        monkeypatch, synthetic_package_identity, selector):
     import regression_process
     import test_storage
 
@@ -273,7 +276,7 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
         'check_e2e_customer_reboot',
         'check_e2e_read_parent_information_links', 'check_e2e_feedback_read',
         'check_e2e_text', 'check_e2e_feedback_privacy',
-        'check_e2e_overlay_prompt', 'check_e2e_kiosk_approval',
+        'check_e2e_overlay_prompt', 'check_e2e_overlay_rejection', 'check_e2e_kiosk_approval',
         'check_e2e_kiosk_approved_flow', 'check_e2e_chinese_native_auth')
     output = str(test_storage.named_input(package_source=current_package))
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
@@ -301,6 +304,7 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
                                      'check_e2e_feedback_privacy', 'check_e2e_feedback_privacy.py',
                                      'check_e2e_kiosk_entry', 'check_e2e_kiosk_entry.py',
                                      'check_e2e_overlay_prompt', 'check_e2e_overlay_prompt.py',
+                                     'check_e2e_overlay_rejection', 'check_e2e_overlay_rejection.py',
                                      'check_e2e_kiosk_approval', 'check_e2e_kiosk_approval.py',
                                      'check_e2e_kiosk_approved_flow', 'check_e2e_kiosk_approved_flow.py',
                                      'check_e2e_chinese_native_auth', 'check_e2e_chinese_native_auth.py',
@@ -401,7 +405,8 @@ def test_overlay_information_reuses_valid_existing_fixture_inputs(monkeypatch, s
     'check_e2e_operate_public_connectivity_controls.py',
     'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard',
     'check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py'])
-def test_toggle_qualification_reuses_existing_inputs_without_overwriting(monkeypatch, selector):
+def test_toggle_qualification_reuses_existing_inputs_without_overwriting(
+        monkeypatch, synthetic_package_identity, selector):
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
     validate = Mock()
     monkeypatch.setattr(commands, 'artifact_path', validate)

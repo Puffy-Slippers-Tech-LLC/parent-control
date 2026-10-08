@@ -70,10 +70,11 @@ sub overlay_information {
 sub overlay_prompt {
     onpc_progress::operation('Qualifying one real Shell prompt and preserved form after Cancel');
     my ($exchange, $declared, $challenges, $approval) = @_;
-    die 'overlay-prompt:arguments' unless (@_ == 3 || @_ == 4 && $approval eq 'approval') && ref($exchange) eq 'CODE'
+    die 'overlay-prompt:arguments' unless (@_ == 3 || @_ == 4 && ($approval eq 'approval' || $approval eq 'rejection')) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
     my $journey = onpc_journey->new(exchange => $exchange,
-        prefix => $approval ? 'overlay-approved-exit' : 'overlay-prompt', review => 0);
+        prefix => !$approval ? 'overlay-prompt' : $approval eq 'approval'
+            ? 'overlay-approved-exit' : 'overlay-rejection', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -89,25 +90,50 @@ sub overlay_prompt {
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
     my $activity;
-    if ($approval) {
+    if ($approval && $approval eq 'approval') {
         $activity = onpc_app_rows::native_activity_entry($journey, 'activity', 'command');
     }
     overlay_entry($journey, 'direct', 'command');
     $journey->seen('wrong-surface-refused');
     prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'overlay');
-    if ($approval) {
+    if ($approval && $approval eq 'approval') {
         shell_approve($journey);
     } else {
-        shell_cancel($journey, 'shell-cancel-ready', 'shell-dismissed');
+        if ($approval) {
+            shell_reject($journey, 'rejection');
+        } else {
+            shell_cancel($journey, 'shell-cancel-ready', 'shell-dismissed');
+        }
         $journey->seen('form-returned');
         $journey->seen('cancel');
     }
     $journey->seen('returned');
-    if ($approval) {
+    if ($approval && $approval eq 'approval') {
         onpc_app_rows::native_read_activity($activity, 'returned');
         onpc_app_rows::native_finish_app($activity);
     }
     $journey->finish();
+}
+
+sub shell_reject {
+    onpc_progress::operation('Observing one wrong overlay password and safely cancelling its rejected challenge');
+    my ($journey, $prefix) = @_;
+    die 'shell-reject:binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
+    die 'shell-reject:replay' if $journey->{shell_rejection_started} || $journey->{invocation_failed};
+    $journey->{shell_rejection_started} = 1;
+    my $ok = eval {
+        $journey->consume_observation("$prefix-open", $journey->seen("$prefix-open"));
+        onpc_password::enter_overlay_shell_password($journey, 'wrong', $prefix);
+        $journey->consume_observation("$prefix-submit-ready", $journey->seen("$prefix-submit-ready"));
+        testapi::send_key('ret');
+        shell_cancel($journey, "$prefix-cancel-ready", "$prefix-dismissed");
+        1;
+    };
+    unless ($ok) {
+        $journey->{invocation_failed} = 1;
+        die $@;
+    }
 }
 
 sub shell_approve {

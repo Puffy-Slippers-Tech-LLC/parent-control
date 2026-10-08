@@ -264,6 +264,12 @@ sub run {
         onpc_request_flow::overlay_prompt(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'approval');
         return;
     }
+    if ($ready->{overlay_rejection}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::overlay_prompt(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'rejection');
+        return;
+    }
     if ($ready->{overlay_choices}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

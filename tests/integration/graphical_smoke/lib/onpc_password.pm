@@ -120,25 +120,28 @@ sub enter_kiosk_mate_password {
 # consumed in order and the final reply is consumed before reading the secret.
 sub enter_overlay_shell_password {
     onpc_progress::operation('Qualifying the overlay approval password recipient');
-    my ($journey) = @_;
+    my ($journey, $wrong, $prefix) = @_;
     die "secret:input-refused\n" if $failed;
     my $ok = eval {
-        my $id = 'overlay-shell-approval';
-        die 'secret:challenge' unless @_ == 1 && ref($journey) eq 'onpc_journey'
-            && ($journey->{prefix} // '') eq 'overlay-approved-exit'
+        my $reject = (@_ == 2 || @_ == 3) && defined($wrong) && $wrong eq 'wrong';
+        $prefix //= $reject ? 'rejection' : 'approval';
+        my $id = 'overlay-shell-' . ($reject ? 'rejection' : 'approval');
+        die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
+            && $prefix =~ /\A[a-z][a-z0-9-]*\z/
+            && ($journey->{prefix} // '') eq ($reject ? 'overlay-rejection' : 'overlay-approved-exit')
             && !$journey->{review} && !$challenges_used{$id};
         $challenges_used{$id} = 1;
         $authentication_started = $functional_started = $functional_input_started = 1;
         die 'secret:console' unless testapi::current_console() eq 'sut';
         die 'secret:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
         my $proof;
-        for my $stage ('approval-qualified', 'approval-rechecked') {
+        for my $stage ($prefix . '-qualified', $prefix . '-rechecked') {
             $proof = $journey->seen($stage);
             die 'secret:recipient' unless ref($proof) eq 'HASH' && keys(%$proof) == 1
                 && ($proof->{observed} // '') eq $stage;
         }
         $active_challenge = {journey => $journey, id => $id, role => 'parent',
-                             stage => 'approval-rechecked', proof => $proof};
+                             stage => $prefix . '-rechecked', proof => $proof, wrong => $reject};
         type_fixture_secret('parent', $journey, $proof, $id);
         1;
     };

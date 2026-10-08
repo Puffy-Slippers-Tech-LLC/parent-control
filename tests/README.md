@@ -1017,8 +1017,16 @@ the large installed-journey safety matrix explicitly permits eight pieces of
 exact test IDs because its fixtures and outputs are function-local. This review
 applies to both schedulers, with a regression guard against shared fixture scope.
 Its synthetic inventories contain only the exercised scenario family, preserving
-that family's complete matrix and the real durable recorder while avoiding copies
-of unrelated families for every injected fault. These are explicit regression
+that family's complete matrix and the real recorder while avoiding copies
+of unrelated families for every injected fault. The matrix's opt-in
+`collector_sync` fixture checks flushed bytes and file-before-directory sync
+for every collector write without forcing repeated physical flushes. It replaces
+only the collector's OS reference; retention journals keep real synchronization.
+The collector regressions in `test_e2e_evidence.py` exercise real file/directory
+sync and refusal before registration when either sync fails. Launcher dispatch
+parameters use synthetic package identities instead of repeatedly scanning the
+checkout; `test_test_storage_cleanup_safety.py` retains real source-byte identity
+and preservation checks. These are explicit regression
 tests, included in unit/host/all coverage; startup and cleanup do not run them.
 Actual cleanup runs serially before worker scheduling with every live ownership,
 recovery and VM lease check intact. It creates no pytest fixtures or qualification

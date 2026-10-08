@@ -45,7 +45,7 @@ WORKER_APIS = {
     'onpc_about': {'open_about', 'read_help', 'open_from_help', 'open_license', 'close_information',
                    'check_link', 'return_to_parent', 'overlay_license'},
     'onpc_documentation': {'read'},
-    'onpc_request_flow': {'prepare', 'reject', 'approve', 'obtain_time', 'overlay_entry', 'daily_station_entry', 'shell_cancel', 'shell_approve', 'prepare_chinese', 'approve_chinese'},
+    'onpc_request_flow': {'prepare', 'reject', 'approve', 'obtain_time', 'overlay_entry', 'daily_station_entry', 'shell_cancel', 'shell_approve', 'shell_reject', 'prepare_chinese', 'approve_chinese'},
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
     'onpc_customer_reboot': {'chinese_desktop_renewal', 'chinese_initial_notice', 'chinese_initial_form',
@@ -76,6 +76,7 @@ def test_overlay_valid_choices_only_composes_shared_apis():
     assert not composition_errors((ROOT / 'tests/e2e/overlay_choices.py').read_text(), CASE_MODULES)
     assert not composition_errors((ROOT / 'tests/e2e/overlay_prompt.py').read_text(), CASE_MODULES)
     assert not composition_errors((ROOT / 'tests/e2e/overlay_approved_exit.py').read_text(), CASE_MODULES)
+    assert not composition_errors((ROOT / 'tests/e2e/overlay_rejection.py').read_text(), CASE_MODULES)
     assert not composition_errors((ROOT / 'tests/e2e/overlay_license.py').read_text(), CASE_MODULES)
 
 

@@ -17,6 +17,7 @@ from fresh_child_allowed import PLAN as CHILD_PLAN, FreshChildAllowedJourney
 from fresh_child_denied import PLAN as DENIED_PLAN, FreshChildDeniedJourney
 from countdown_qualification import PLAN as COUNTDOWN_PLAN, OFF_PLAN
 from shell_panel import PLAN as SHELL_PANEL_PLAN
+from overlay_rejection import PLAN as OVERLAY_REJECTION_PLAN
 from installed_journey import InstalledJourney, matched_screens
 from owned_commands import CommandError
 from parent_setup_qualification import ChallengesQualification, KioskEntryQualification, FreshChildAllowedQualification
@@ -280,7 +281,8 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
 
 
 @pytest.mark.parametrize('fault', ['', 'qualified', 'rechecked', 'typing', 'capture', 'review', 'cancel-authority', 'stale'])
-def test_shell_secret_is_single_use_sealed_and_terminal_on_uncertainty(fault):
+@pytest.mark.parametrize('rejection', [False, True])
+def test_shell_secret_is_single_use_sealed_and_terminal_on_uncertainty(fault, rejection):
     program = r'''
 use strict; use warnings; use JSON::PP;
 our $fault = shift @ARGV; our @events;
@@ -306,6 +308,11 @@ my $capture = eval { onpc_password::capture_before_authentication(); 1 };
 print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
     retry => $retry ? 1 : 0, capture => $capture ? 1 : 0, events => \@events});
 '''
+    if rejection:
+        program = (program.replace('overlay-approved-exit', 'overlay-rejection')
+            .replace('approval-', 'another-')
+            .replace('enter_overlay_shell_password($journey)', "enter_overlay_shell_password($journey, 'wrong', 'another')")
+            .replace("push @main::events, 'type';", "die 'wrong-input' unless $_[0] eq 'onpc-wrong-fixture-password'; push @main::events, 'type';"))
     raw = run_perl(program, fault).stdout
     assert 'fixture-only-canary' not in raw
     value = json.loads(raw)
@@ -313,6 +320,42 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
     assert value['retry'] == value['capture'] == 0
     assert len(value['events']) == value['before']
     assert value['events'].count('type') == (1 if fault in ('', 'typing') else 0)
+
+
+@pytest.mark.parametrize('fault', ['', *OVERLAY_REJECTION_PLAN.screen_tags])
+def test_overlay_rejection_actual_worker_order_titles_and_failure_stop(fault, tmp_path):
+    plan = OVERLAY_REJECTION_PLAN
+    program = (PERL.split('# After success or failure')[0]
+        .replace('onpc_challenges::run(', 'onpc_request_flow::overlay_prompt(')
+        .replace('$declaration, $bindings)', "$declaration, $bindings, 'rejection')")
+        .replace('(?:list|greeter|focused)', '(?:list|greeter|focused|opened)')
+        .replace('first-login', 'parent-login').replace('third-login', 'new-login')
+        .replace("$_[0] eq 'fixture-only-canary'", "($_[0] eq 'fixture-only-canary' || $_[0] eq 'onpc-wrong-fixture-password')")
+        .replace('our @events;', 'our @events; our @titles;')
+        .replace('sub record_info { }', 'sub record_info { push @main::titles, $_[0] }')
+        + r'print encode_json({ok => $ok ? 1 : 0, titles => \@titles, events => \@events});')
+    result = json.loads(run_perl(program, fault, json.dumps(plan.invocations), json.dumps(plan.challenges)).stdout)
+    assert bool(result['ok']) == (not fault), result
+    expected = list(plan.screen_tags)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
+    if not fault:
+        assert result['events'].count(['password']) == 3
+        results = tmp_path / 'testresults'
+        results.mkdir()
+        (results / 'result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': [
+            {'title': title, 'result': 'ok'} for title in result['titles']]}))
+        observations = [{'stage': stage,
+            ('ui' if tag.startswith('ui:') else 'system'): {
+                'operation': tag.split(':', 1)[1], 'outcome': 'passed'},
+            **({'challenge': plan.challenge_at(stage)} if plan.challenge_at(stage) else {})}
+            for stage, tag in plan.screen_tags.items()]
+        assert len(matched_screens(tmp_path, plan, observations)) == len(expected)
+    if ['stage', 'rejection-submit-ready'] in result['events']:
+        tail = result['events'][result['events'].index(['stage', 'rejection-submit-ready']) + 1:]
+        assert [event for event in tail if event[0] == 'key'] == (
+            [] if fault == 'rejection-submit-ready' else [['key', 'ret']] if fault == 'rejection-cancel-ready'
+            else [['key', 'ret'], ['key', 'esc']])
 
 
 @pytest.mark.parametrize('fault', ['', 'stale', 'mixed', 'role', 'surface', 'missing', 'typing',

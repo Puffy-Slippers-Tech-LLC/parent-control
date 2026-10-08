@@ -34,6 +34,12 @@ from those shared leaves; MATE proofs never authorize Shell input.
 Compose authentication declarations through `request_flow.overlay_authentication`
 and the paired shared workers in the
 [support guide](../../../tests/support/README.md#extend-without-hiding-the-scenario).
+Use `overlay_rejection.PLAN` / `OverlayRejectionJourney` and
+`onpc_request_flow::shell_reject` as the fixed rejection binding's references;
+its [qualified scope](../E2E-Building-Blocks.md#overlay-rejection-and-cancel-qualification)
+owns the retained acceptance and regressions. `AccessibleUI.overlay_shell_rejected`
+and the ordered `UiObservations` decoder require explicit same-challenge denial
+before releasing Cancel. Reuse `KioskRequestJourney` for preserved-form comparisons.
 Keep the new immediate-exit result separate from the qualified automatic-return branch.
 
 ## Live VM acceptance

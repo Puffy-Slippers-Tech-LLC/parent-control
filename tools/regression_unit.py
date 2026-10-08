@@ -497,6 +497,12 @@ from regression_ui import Bucket
 # Category diagnostic replay tests reuse fix_tests_cleanup_safety's private
 # checkpoint trees and recorded, waited children. Both unit and cleanup
 # compatibility remain unchanged; no shared owner or new resource is introduced.
+# Launcher dispatch parameters use process-local synthetic package identities,
+# avoiding repeated Make/source scans; real identity/refusal checks stay in
+# test_storage_cleanup_safety. Installed-journey parameters retain function-local
+# disk files and the real recorder, with collector-only checked sync calls.
+# e2e_evidence keeps real file/directory sync and failure-before-registration
+# coverage. Retention synchronization is untouched; all three remain compatible.
 REVIEWED = frozenset("""
 application_ui_support
 test_checkpoint
@@ -755,6 +761,8 @@ BUILD_REVIEWED = frozenset({'test_applications'})
 # module fixtures together; work_units owns the function-private exception.
 ESTIMATES = {
     **CLEANUP_ESTIMATES,
+    # Measured 913 dispatch cases with synthetic source identities.
+    'test_test_launchers.py': 6,
     'test_regression.py': 30,
     'test_regression_schedule.py': 25,
     'test_regression_session.py': 15,

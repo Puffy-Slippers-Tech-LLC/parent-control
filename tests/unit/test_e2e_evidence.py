@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import stat
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -322,6 +323,50 @@ def test_final_gate_rechecks_copies_and_rejects_unregistered_worker_files(attemp
         (collector.path / 'vars.json').write_text('{}')
     with pytest.raises(EvidenceError, match='artifact:'):
         contract.validate([result], collector)
+
+
+@pytest.mark.parametrize('kind', ['artifact', 'report'])
+@pytest.mark.parametrize('failure', [None, 'file', 'directory'])
+def test_real_collector_sync_order_and_failure_precede_registration(
+        collector, monkeypatch, kind, failure):
+    real_os = private_artifacts.os
+    events = []
+    name = 'backend.evidence' if kind == 'artifact' else 'result.json'
+    data = b'reviewed' if kind == 'artifact' else b'{"outcome": "passed"}'
+
+    def sync(fd):
+        assert not collector._records and not collector._reports
+        boundary = 'directory' if stat.S_ISDIR(real_os.fstat(fd).st_mode) else 'file'
+        if boundary == 'file':
+            assert events == []
+            with (collector.path / name).open('rb') as stream:
+                assert real_os.fstat(stream.fileno()).st_ino == real_os.fstat(fd).st_ino
+                assert stream.read() == data
+        else:
+            assert events == ['file'] and fd == collector._fd
+        events.append(boundary)
+        if failure == boundary:
+            raise OSError('private-sync-failure')
+        real_os.fsync(fd)
+
+    monkeypatch.setattr(private_artifacts, 'os',
+                        SimpleNamespace(**(vars(real_os) | {'fsync': sync})))
+    def save():
+        if kind == 'artifact':
+            return collector.add('backend', 'backend', data, reviewed=True)
+        return collector.save_report('result', {'outcome': 'passed'})
+
+    if failure:
+        with pytest.raises(EvidenceError, match='write-failed'):
+            save()
+        assert not collector._records and not collector._reports
+        with pytest.raises(EvidenceError, match='unregistered-file'):
+            collector.verify([])
+    else:
+        result = save()
+        assert events == ['file', 'directory']
+        collector.verify([result] if kind == 'artifact' else [])
+    assert events == (['file'] if failure == 'file' else ['file', 'directory'])
 
 
 def test_failed_write_never_registers_an_artifact(collector):

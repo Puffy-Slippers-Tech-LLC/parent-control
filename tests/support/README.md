@@ -32,7 +32,8 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Simulated VM baseline and lease | [vm_baseline.py](vm_baseline.py), [vm_runner.py](vm_runner.py) | Real temporary files and mocked VM operations. Import both `rig` and `lease_rig` when using the latter. Direct simulated `Lease` constructors instead request the explicitly imported `local_preparation_source` fixture, so they hash archived sources without reading the development checkout. JUnit builders retain selected identities and intentional faults. |
 | Synthetic E2E evidence and provenance | [e2e_evidence.py](e2e_evidence.py), [e2e_provenance.py](e2e_provenance.py) | `attempt`, `source`, `assets` and `lease` exercise real validators with declared synthetic inputs. |
 | Offline asset transfer | [e2e_transfer.py](e2e_transfer.py) | `GuestFiles` uses pytest-private files for actual upload bytes, metadata, corruption and partial-failure tests. It acquires no VM or cleanup ownership. |
-| Recorder and offline credential fixtures | [e2e_recording.py](e2e_recording.py), [e2e_credentials.py](e2e_credentials.py) | Recorder `session` uses an imported evidence `attempt`; credential `attempt` can be aliased locally. Preserve privacy canaries and cleanup results. |
+| Recorder and offline credential fixtures | [e2e_recording.py](e2e_recording.py), [e2e_credentials.py](e2e_credentials.py) | Recorder `session` uses an imported evidence `attempt`; opt-in `collector_sync` checks real flushed bytes and collector sync order while dedicated collector tests retain physical sync coverage. Retention sync remains real. Credential `attempt` can be aliased locally. Preserve privacy canaries and cleanup results. |
+| Launcher dispatch source identities | [launcher.py](launcher.py) | Opt-in `synthetic_package_identity` retains real named-input option/prefix selection with tiny synthetic hashes. Real source-byte identity/refusal checks remain in the storage regressions. |
 | Redacted authentication evidence | [authentication.py](authentication.py) | `collect_local` executes the real collector with account/OS reads replaced. |
 | Catalog scope and screenshot metadata | [installed_catalog.py](installed_catalog.py), [screens.py](screens.py) | Temporary real catalog discovery; synthetic PNG headers for metadata validation, not pixel acceptance. |
 | Child indicator unit adapter | [indicator.mjs](../child/support/indicator.mjs) | Fresh Node VM context and explicit platform doubles; nested-Shell tests retain real lifecycle/input coverage. |
@@ -535,12 +536,17 @@ never relaunch during resume. Keep the existing complete-order/failure-stop
 checks alongside an independent caller with renamed prefixes.
 
 Shell authentication declarations reuse `request_flow.overlay_authentication`
-for Cancel or fixed approval, paired with `onpc_request_flow::shell_cancel` /
-`shell_approve`. Tasks 048c/048d compose this fragment with
+for Cancel, fixed approval or rejection, paired with `onpc_request_flow::shell_cancel` /
+`shell_approve` / `shell_reject`. Tasks 048c/048d/048f compose this fragment with
 `KioskRequestJourney`; form preservation, desktop return, activity endpoints and
 assertion phases remain caller-owned. Declaration checkpoint renaming alone
 does not parameterize the approval worker or qualify another request/provider
-binding; use the [catalogue scope](../../docs/TestAutomation/E2E-Building-Blocks.md#overlay-approval-and-automatic-return-qualification).
+binding; use the [approval scope](../../docs/TestAutomation/E2E-Building-Blocks.md#overlay-approval-and-automatic-return-qualification)
+and [rejection scope](../../docs/TestAutomation/E2E-Building-Blocks.md#overlay-rejection-and-cancel-qualification).
+The rejection worker accepts renamed endpoints while retaining the fixed request,
+two same-challenge recipient proofs, one sealed wrong password and one submission.
+Only explicit owned denial and a fresh empty masked retry field release Cancel;
+the caller separately compares preserved usable no-error form choices.
 
 E2E declaration fragments and worker execution have matching shared owners:
 `journey_blocks.parent_reopen` / `onpc_lifecycle::reopen` for LIFE01,

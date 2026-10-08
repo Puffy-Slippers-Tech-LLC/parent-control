@@ -54,6 +54,9 @@ OPERATION_LABELS = {
     'overlay-shell-rechecked': 'Rechecking the same empty Shell password recipient',
     'overlay-shell-submit-ready': 'Guarding one submission to the filled Shell challenge',
     'overlay-approval-success': 'Reading explicit approval before automatic overlay exit',
+    **{operation: 'Qualifying the wrong-password Shell challenge: ' +
+       operation.removeprefix('overlay-shell-rejection-')
+       for operation in accessible_ui.SHELL_REJECTION_ORDER},
     **{operation: 'Checking the intended child graphical login recipient'
        for operation in accessible_ui.CHILD_GREETER_OPERATIONS},
     'fresh-child-desktop': 'Independently observing the usable intended child desktop',
@@ -1004,7 +1007,10 @@ class UiObservations:
                             'ui:shell-intervening-operation')
                 if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
-                    order = accessible_ui.SHELL_APPROVAL_ORDER
+                    if shell_index == 0:
+                        self.shell_rejection = operation == accessible_ui.SHELL_REJECTION_ORDER[0]
+                    order = (accessible_ui.SHELL_REJECTION_ORDER if getattr(self, 'shell_rejection', False) else
+                             accessible_ui.SHELL_APPROVAL_ORDER)
                     require(shell_index < len(order) and operation == order[shell_index],
                             'ui:shell-order')
                     if shell_index:
@@ -1055,7 +1061,7 @@ class UiObservations:
                             and self.chinese_returned, 'ui:mate-fresh-session-order')
                     self.mate_approval_index = 0
                     self.chinese_returned = False
-                if operation == 'overlay-shell-open':
+                if operation in ('overlay-shell-open', accessible_ui.SHELL_REJECTION_ORDER[0]):
                     # Opening includes request submission, prompt discovery and
                     # refusal qualification. It grants no password authority;
                     # age the forthcoming recipient proofs from this completed
@@ -1163,7 +1169,8 @@ class UiObservations:
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation not in (
                 'kiosk-mate-open', 'kiosk-mate-rejection-open', 'chinese-mate-open'):
             binding = [self.boot_guard or '', self.mate_approval_identity]
-        if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation != 'overlay-shell-open':
+        if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation not in (
+                'overlay-shell-open', accessible_ui.SHELL_REJECTION_ORDER[0]):
             binding = [self.boot_guard or '', self.shell_approval_identity]
         if self.accessibility_trace is not None:
             trace = self.accessibility_trace
@@ -1538,8 +1545,15 @@ class UiObservations:
             if operation == 'overlay-approval-success':
                 require(value == {'approved': True, 'form_success': True}
                         and all(type(item) is bool for item in value.values()), 'ui:shell-result')
+            elif operation == accessible_ui.SHELL_REJECTION_ORDER[-1]:
+                require(value == {'challenge_id': self.shell_approval_identity,
+                                  'rejected': True, 'cancel_ready': True,
+                                  'same_challenge_rechecked': True}
+                        and all(type(value[key]) is bool for key in (
+                            'rejected', 'cancel_ready', 'same_challenge_rechecked')),
+                        'ui:shell-rejection-result')
             else:
-                opening = operation == 'overlay-shell-open'
+                opening = operation in ('overlay-shell-open', accessible_ui.SHELL_REJECTION_ORDER[0])
                 require(type(value) is dict and set(value) == (
                     {'challenge_id', 'provider', 'rejected_proofs'} if opening else {'challenge_id'}),
                     'ui:shell-response')

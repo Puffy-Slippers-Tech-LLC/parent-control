@@ -19,7 +19,18 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **304 — [Fresh-install reboot prompt: kiosk session](E2E-Tasks/304-fresh-install-kiosk-reboot.md)**.
+Next task: **305 — [Unrelated reboot requests leave all apps usable](E2E-Tasks/305-unrelated-reboot.md)**.
+
+Task 304 completed E2E-058 `kiosk`, case 259, on Ubuntu 26.04 in
+`20261008T022232Z-88a775f3`: genuine installation/final notice, first English
+kiosk modal before policy setup, same-boot Close/exit/re-entry, one public kiosk
+reboot, changed boot/usable GDM, public enabled Jordan 30-minute setup and fresh
+usable Jordan/Jamie request without a modal. The recipe now supplies Jamie's
+public selection instead of assuming an initial approver order. All seven
+assertions and the required three-surface notice and command-reboot regressions
+passed, including collection, worker shutdown, owned cleanup, baseline restoration,
+finalization and preservation. Coverage was regenerated; the queue and LIFE07
+catalogue retain the scope and preserved report locations.
 
 Task 303 completed E2E-057 `child`, case 258, on Ubuntu 26.04 in
 `20261008T014508Z-450ffde5`: genuine installation/final notice, direct pre-policy
@@ -36,7 +47,8 @@ and kiosk on Ubuntu 26.04, with same-boot Close/re-entry, one kiosk Reboot now,
 new boot/usable greeter and fresh usability without the modal. The required
 customer-reboot regression, collection, worker shutdown, owned cleanup, baseline
 restoration, finalization and preservation passed. The queue and LIFE07 catalogue
-retain the exact scope and reports; remaining complete cases are tasks 304–305.
+retain the exact scope and reports; the unrelated-request complete case remains
+with task 305.
 
 Task 300's complete Chinese latest-install case 254 and both required
 current-install/native-auth regressions passed on Ubuntu 26.04, including

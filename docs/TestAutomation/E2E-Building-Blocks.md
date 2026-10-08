@@ -2053,7 +2053,7 @@ routes remain separate consumers.
 | LIFE04 | C | Perform a declared real install/update/remove/reinstall/purge with a registered package command over guarded SSH; observe completion and the actual customer notice. | `package_install.submit_install` / `observe_install` compose FILE01/02/06 and AUTH03 with verified artifact identity, one submission and independent completion/final notice. `PackageInstallJourney` qualifies the fresh product-free install entry; [install qualification](#customer-package-install-composition). `submit_release` / `observe_release` and `PackageUpgradeJourney` qualify the [genuine v1.2/current upgrade](#genuine-package-upgrade), including old-release activation and unchanged boot after upgrade. No Terminal, sudo-prompt exercise or private product-state assertion. | install and genuine v1.2/current update ready; other update/remove/reinstall/purge bindings pending |
 | LIFE05 | C | Follow the displayed activation requirement for the explicit finite list of affected apps/users: none, process reopen, session renewal, or reboot/login. | None: UI03(notice). Process: LIFE01 for each app. Session: DESK03 → GDM02 → DESK08 when reaching another retained user, then DESK04 → GDM07 for each required renewal. Reboot: LIFE02 → GDM07. Compare displayed state afterward; one user's logout does not renew every session. | pending |
 | LIFE06 | C | Remove and restore the owned VM's Internet access through one shared distro-independent operation; independently observe offline/online state and required product results. Local test-control access remains available. | `vm_internet.InternetIsolation.enter(transport)` / `restore(lease)` and `offline_controls.offline_controls`; [owned VM Internet contract](#owned-vm-internet-isolation). No guest networking service, new transport or injected product fault. | ready for the VM Internet helper and Parent enable/disable with independent saved-state reads and same-window continuity; other product results and complete scenarios remain pending |
-| LIFE07 | C | Read the installed product's owned restart modal before language setup; Close without reboot, re-enter and submit one normal Reboot now action. Observe a new boot, usable greeter and fresh target without the modal separately. | `AccessibleUI.restart_notice` / `restart_action` / `restart_closed` / `restart_usable`, `JourneyPlan.modal_reboots` and `UiObservations.submit_restart`; `restart_notice.RestartNoticeJourney` / `onpc_customer_reboot::restart_notice` compose LIFE04, fresh desktop/station entries and LIFE02's independent boot result. `check_e2e_restart_notice` starts product-free and binds Parent, direct Child App and kiosk without policy setup before the notice. `journey_blocks.restart_reentry` / `onpc_customer_reboot::restart_reentry` share Close/exit/reopening. `fresh_parent_restart.PLAN` / `onpc_customer_reboot::run_parent_notice` and `fresh_child_restart.PLAN` / `onpc_customer_reboot::run_child_notice` bind complete cases 257/258 through the same package recorder and modal operations. Exact owners, duplicate/missing IDs and consumed input refuse; no marker injection or command-reboot fallback. [Installed qualification](#installed-restart-notice-qualification). | English fresh-install three-surface notice/Close/re-entry, kiosk reboot and postboot usability ready; complete Parent/Child App cases 257/258 passed; remaining language/control and kiosk complete-case histories stay with tasks 304–305 |
+| LIFE07 | C | Read the installed product's owned restart modal before language setup; Close without reboot, re-enter and submit one normal Reboot now action. Observe a new boot, usable greeter and fresh target without the modal separately. | `AccessibleUI.restart_notice` / `restart_action` / `restart_closed` / `restart_usable`, `JourneyPlan.modal_reboots` and `UiObservations.submit_restart`; `restart_notice.RestartNoticeJourney` / `onpc_customer_reboot::restart_notice` compose LIFE04, fresh desktop/station entries and LIFE02's independent boot result. `check_e2e_restart_notice` starts product-free and binds Parent, direct Child App and kiosk without policy setup before the notice. `journey_blocks.restart_reentry` / `onpc_customer_reboot::restart_reentry` share Close/exit/reopening; `restart_kiosk_usability` supplies public Jamie selection before the independent Jordan/Jamie final guard. `fresh_parent_restart.PLAN` / `onpc_customer_reboot::run_parent_notice`, `fresh_child_restart.PLAN` / `run_child_notice` and `fresh_kiosk_restart.PLAN` / `run_kiosk_notice` bind complete cases 257–259 through the same package recorder and modal operations. Exact owners, duplicate/missing IDs and consumed input refuse; no marker injection or command-reboot fallback. [Installed qualification](#installed-restart-notice-qualification). | English fresh-install three-surface notice/Close/re-entry, kiosk reboot and postboot usability ready; complete Parent/Child App/kiosk cases 257–259 passed; unrelated-request controls remain with task 305 |
 
 `journey_blocks.parent_reopen()` supplies LIFE01's shared checkpoint declaration
 for `onpc_lifecycle::reopen`, including `initial-selection`. The app-restart
@@ -2111,23 +2111,41 @@ Jordan setup and enabled Request plus usable Jordan/Jamie account selectors.
 and independent final usability read with LIFE07. Baselines preserve other
 eligible administrators, so the recipe supplies the declared approver input
 instead of assuming the initial account order.
-Task 304's live acceptance remains pending. `fresh_child_restart.PLAN` /
+Complete case 259 passed all seven assertions on Ubuntu 26.04 in
+[`20261008T022232Z-88a775f3`](../../output/test-runs/host/exports/onpc-artifact-export-qbx70r9q/report.md):
+genuine installation/final notice, first English kiosk modal before policy setup,
+same-boot Close/normal exit/re-entry, one public kiosk reboot, new boot/usable GDM,
+public Jordan enabled 30-minute setup and fresh usable Jordan/Jamie request without
+the modal. The public Jamie selection repairs the omitted recipe input while
+retaining wrong-child/approver, disabled-control and uncertain-input refusals.
+The required shared three-surface notice regression passed all 14 declared
+assertions in
+[`20261008T022938Z-30eb5c08`](../../output/test-runs/host/exports/onpc-artifact-export-x8pu3s6n/report.md),
+and command-reboot continuity passed all five assertions in
+[`20261008T023915Z-9b1c48e7`](../../output/test-runs/host/exports/onpc-artifact-export-yyr9sxfx/report.md).
+All three passed collection, worker-title reconciliation, worker shutdown, owned
+cleanup, baseline restoration, finalization and preservation. Scoped host safety,
+independent helper consumption, controller result/refusal, composition and metadata
+consistency passed; coverage was regenerated. This completes task 304's kiosk
+history; unrelated-request controls remain with task 305.
+
+`fresh_child_restart.PLAN` /
 `onpc_customer_reboot::run_child_notice` register complete E2E-057 `child`, case
 258: direct pre-policy Child App entry, overlay modal reboot, independent boot
 and GDM result, public postboot Riley setup and fresh fixed-child request
 usability. Complete case 258 passed all eight assertions on Ubuntu 26.04 in
-[`20261008T014508Z-450ffde5`](../../output/test-runs/host/exports/onpc-artifact-export-hydnz_at/report.md).
+`20261008T014508Z-450ffde5` (historical export rotated by normal retention).
 The required command-reboot continuity regression passed in
-[`20261008T015149Z-bfb425de`](../../output/test-runs/host/reports/20261008T015149Z-bfb425de/report.md),
+`20261008T015149Z-bfb425de` (historical report rotated by normal retention),
 the shared three-surface notice qualification passed in
-[`20261008T012832Z-f24bf5b2`](../../output/test-runs/host/exports/onpc-artifact-export-xhx078s5/report.md),
+`20261008T012832Z-f24bf5b2` (historical export rotated by normal retention),
 and Parent case 257 passed all seven assertions in
-[`20261008T013814Z-8069c961`](../../output/test-runs/host/exports/onpc-artifact-export-_p13p10d/report.md).
+`20261008T013814Z-8069c961` (historical export rotated by normal retention).
 All passed collection, worker-title reconciliation, worker shutdown, owned
 cleanup, baseline restoration, finalization and preservation. Reports were
-preserved through the maintained exporter before subsequent VM runs could
-rotate them; expired Child/command-reboot evidence was replaced by the passing
-runs cited here. Scoped host safety/composition, metadata consistency and
+preserved through the maintained exporter before subsequent VM runs; those
+historical reports later rotated under normal retention.
+Scoped host safety/composition, metadata consistency and
 traceability passed; coverage was regenerated. The consumer's unit/cleanup
 tests retain private evidence and bounded waited Perl children with no new
 resource lifetime. This completes task 303 without kiosk complete-case,

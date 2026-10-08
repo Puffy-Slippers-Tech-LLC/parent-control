@@ -112,11 +112,22 @@ function harness() {
     const file = path => ({get_path: () => path, get_parent: () => file(path + '/..'),
         get_child: name => file(path + '/' + name), query_exists: () => true});
     const sessionMode = new SignalObject({isLocked: false, isGreeter: false});
-    const layoutManager = new SignalObject({primaryMonitor: {x: 0, y: 0, width: 1920, inFullscreen: false},
+    const primaryMonitor = {index: 0, x: 0, y: 0, width: 1920, height: 1080, inFullscreen: false};
+    const topWindowGroup = {};
+    const layers = [{}, topWindowGroup];
+    const addChrome = actor => {
+        chrome.push(actor);
+        if (actor.style_class === 'screen-time-reminder') banners.push(actor);
+    };
+    const layoutManager = new SignalObject({primaryMonitor, monitors: [primaryMonitor],
         addChrome: actor => {
-            chrome.push(actor);
-            if (actor.style_class === 'screen-time-reminder') banners.push(actor);
+            layers.splice(layers.indexOf(topWindowGroup), 0, actor);
+            addChrome(actor);
+        }, addTopChrome: actor => {
+            layers.push(actor);
+            addChrome(actor);
         }, removeChrome: actor => {
+            layers.splice(layers.indexOf(actor), 1);
             chrome.splice(chrome.indexOf(actor), 1);
             if (banners.includes(actor)) banners.splice(banners.indexOf(actor), 1);
         }});
@@ -156,7 +167,7 @@ function harness() {
         now += milliseconds * 1000;
         for (const [id, callback] of [...timers]) if (!callback()) timers.delete(id);
     };
-    return {notifier, sources, errors, callbacks, cancelled, banners, chrome, reply, policyReply,
+    return {notifier, sources, errors, callbacks, cancelled, banners, chrome, layers, topWindowGroup, reply, policyReply,
         advance, timers, sessionMode, layoutManager, context, preferencesOpened: () => preferencesOpened};
 }
 
@@ -312,6 +323,102 @@ test('fullscreen preference controls delivery without changing persistence or to
     for (const sync of h.sessionMode.handlers.updated) sync();
     assert.equal(h.notifier.current, null);
     assert.equal(h.timers.size, 0);
+});
+
+test('external-only fullscreen reminder stays above application layers without changing app focus', () => {
+    for (const enabled of [false, true]) {
+        const h = harness();
+        const external = h.layoutManager.primaryMonitor;
+        external.inFullscreen = true;
+        const game = {get_monitor: () => 0};
+        h.context.global.display.focus_window = game;
+        h.notifier.preferences = {show_in_fullscreen: enabled, reminders};
+        h.notifier.present(reminders[2], false);
+        const current = h.notifier.current;
+        assert.equal(current.card.visible, enabled);
+        assert.equal(current.countdown(), enabled ? 5 : null);
+        assert(h.layers.indexOf(current.card) > h.layers.indexOf(h.topWindowGroup));
+        const tooltip = h.chrome.find(actor => actor.style_class === 'dash-label screen-time-tooltip');
+        assert(h.layers.indexOf(tooltip) > h.layers.indexOf(current.card));
+        assert.equal(h.context.global.display.focus_window, game);
+        current.dismiss();
+        assert.equal(h.chrome.length, 0);
+        assert.equal(h.layers.length, 2);
+        assert.equal(h.timers.size, 0);
+    }
+});
+
+test('reminder follows the focused app monitor and uses its fullscreen state', () => {
+    const h = harness();
+    const internal = h.layoutManager.primaryMonitor;
+    const external = {index: 1, x: 1920, y: -200, width: 2560, height: 1440, inFullscreen: true};
+    h.layoutManager.monitors.push(external);
+    let gameMonitor = 1;
+    h.context.global.display.focus_window = {get_monitor: () => gameMonitor};
+    h.notifier.preferences = {show_in_fullscreen: false, reminders};
+    h.notifier.present(reminders[2], false);
+    const current = h.notifier.current;
+    assert.equal(current.card.visible, false);
+    assert.equal(current.countdown(), null);
+    assert.equal(current.card.x, external.x + (external.width - current.card.width) / 2);
+    assert.equal(current.card.y, external.y + 8);
+
+    // Changing the preference shows the same warning on the game display.
+    h.notifier.refresh();
+    h.reply({show_in_fullscreen: true, reminders});
+    for (const sync of current.notification.handlers['notify::urgency']) sync();
+    assert.equal(current.card.visible, true);
+    assert.equal(current.countdown(), 5);
+    h.advance(1000);
+
+    // A focused window can move between monitors without changing focus.
+    gameMonitor = 0;
+    for (const sync of h.context.global.display.handlers['window-entered-monitor']) sync();
+    assert.equal(current.card.x, internal.x + (internal.width - current.card.width) / 2);
+    assert.equal(current.countdown(), 4);
+    gameMonitor = 1;
+    for (const sync of h.context.global.display.handlers['notify::focus-window']) sync();
+    assert.equal(current.card.x, external.x + (external.width - current.card.width) / 2);
+    assert.equal(current.countdown(), 4);
+
+    const tooltip = h.chrome.find(actor => actor.style_class === 'dash-label screen-time-tooltip');
+    const control = current.card.children.at(-1).children[0];
+    Object.assign(control, {x: external.x + external.width - 50, y: external.y + 100,
+        mapped: true, hover: true});
+    control.handlers['notify::hover'][0]();
+    assert.equal(tooltip.visible, true);
+    assert(tooltip.x >= external.x);
+    assert(tooltip.x + tooltip.width <= external.x + external.width);
+    assert(tooltip.y >= external.y);
+    current.dismiss();
+    assert.deepEqual(h.errors, []);
+});
+
+test('monitor changes recover from stale app indices, missing displays and absent focus', () => {
+    const h = harness();
+    const external = {index: 0, x: -2560, y: 120, width: 2560, height: 1440, inFullscreen: true};
+    h.layoutManager.monitors = [external];
+    // Shell may update the active list before the old primary/focus reference.
+    h.context.global.display.focus_window = {get_monitor: () => 1};
+    h.notifier.preferences = {show_in_fullscreen: true, reminders};
+    h.notifier.schedule.previous = 15;
+    h.notifier.present(reminders[3], false);
+    const current = h.notifier.current;
+    assert.equal(current.card.visible, true);
+    assert.equal(current.card.x, external.x + (external.width - current.card.width) / 2);
+    h.layoutManager.monitors = [];
+    for (const sync of h.layoutManager.handlers['monitors-changed']) sync();
+    assert.equal(current.card.visible, false);
+    assert.equal(current.countdown(), null);
+    h.context.global.display.focus_window = null;
+    h.layoutManager.monitors = [external];
+    h.layoutManager.primaryMonitor = external;
+    for (const sync of h.layoutManager.handlers['monitors-changed']) sync();
+    assert.equal(current.card.visible, true);
+    assert.equal(current.card.x, external.x + (external.width - current.card.width) / 2);
+    current.dismiss();
+    assert.equal(h.chrome.length, 0);
+    assert.deepEqual(h.errors, []);
 });
 
 test('preview source destruction releases its sender watch without recursive destruction', () => {

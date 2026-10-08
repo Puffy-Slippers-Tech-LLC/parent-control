@@ -105,12 +105,12 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     content.add_child(countdown);
     card.add_child(content);
     const actions = [];
+    let monitor = null;
     tooltip = new St.Label({style_class: 'dash-label screen-time-tooltip',
         visible: false, reactive: false});
     const syncTooltip = () => {
         if (!tooltip || !card) return;
         const action = actions.find(({control}) => control.hover && control.mapped);
-        const monitor = Main.layoutManager.primaryMonitor;
         tooltip.visible = Boolean(action && card.visible && monitor);
         if (!tooltip.visible) return;
         tooltip.text = translations.text(action.key);
@@ -175,11 +175,18 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
             dismiss();
             return;
         }
-        const monitor = Main.layoutManager.primaryMonitor;
+        // Follow the app the child is using, including fullscreen games on a
+        // secondary display. Only use monitors in Shell's current active list:
+        // focus/primary references can lag behind a hotplug or display switch.
+        const {monitors, primaryMonitor} = Main.layoutManager;
+        monitor = monitors[global.display.focus_window?.get_monitor()] ??
+            (monitors.includes(primaryMonitor) ? primaryMonitor : monitors[0]) ?? null;
         card.visible = Boolean(monitor) && (notification.urgency === MessageTray.Urgency.CRITICAL ||
             (!monitor.inFullscreen && source.policy.showBanners));
-        syncTooltip();
-        if (!monitor) return;
+        if (!monitor) {
+            syncTooltip();
+            return;
+        }
         const scale = St.ThemeContext.get_for_stage(global.stage).scale_factor;
         // Reserve the frame corners, logo, message and gaps independently of
         // translated action widths. Let native layout move both buttons inward.
@@ -188,6 +195,7 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
         card.width = Math.min(Math.max(517 * scale, 360 * scale + actionWidth),
             monitor.width - 16 * scale);
         card.set_position(monitor.x + (monitor.width - card.width) / 2, monitor.y + 8 * scale);
+        syncTooltip();
         // Start on delivery, never while fullscreen suppresses the banner.
         if (card.visible && seconds >= 60 && deadline === null) {
             deadline = GLib.get_monotonic_time() + 5000000;
@@ -213,11 +221,15 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     Main.layoutManager.connectObject('monitors-changed', sync, card);
     Main.sessionMode.connectObject('updated', sync, card);
     global.display.connectObject('in-fullscreen-changed', sync, card);
+    global.display.connectObject('notify::focus-window', sync, card);
+    global.display.connectObject('window-entered-monitor', sync, card);
     relabel();
     source.addNotification(notification);
-    Main.layoutManager.addChrome(card, {trackFullscreen: false});
+    // Normal chrome sits below the top window group (including unmanaged X11
+    // surfaces). Critical reminders must remain above those game surfaces too.
+    Main.layoutManager.addTopChrome(card, {trackFullscreen: false});
     chromeAdded = true;
-    Main.layoutManager.addChrome(tooltip, {trackFullscreen: false});
+    Main.layoutManager.addTopChrome(tooltip, {trackFullscreen: false});
     tooltipChromeAdded = true;
     sync();
     return {source, notification, card, dismiss, preferences,

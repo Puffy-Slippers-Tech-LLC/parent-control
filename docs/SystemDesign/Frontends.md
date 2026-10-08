@@ -493,6 +493,11 @@ The child renderer owns only its own Shell chrome and notification model,
 without registering it with the message tray: the tray's fixed noncritical
 timeout cannot express persistence independently of fullscreen urgency.
 High urgency waits outside fullscreen; Critical appears above fullscreen.
+Banner and tooltip use Shell's top chrome above application window groups,
+including unmanaged X11 surfaces. Both follow the focused application's monitor,
+with the active primary or first active monitor as fallback; fullscreen gating
+uses the selected monitor. Focus, window-monitor and display changes reposition
+the current banner without restarting its deadline or taking application focus.
 An unlocked visible delivery at 60 seconds or more starts a five-second
 monotonic deadline and countdown; shorter deliveries persist without a bar.
 New banners dispose the old source, actor, signals and timer. Locking, extension

@@ -226,6 +226,7 @@ sub run_child_notice {
 }
 
 sub restart_kiosk_usability {
+    onpc_progress::operation('Selecting the declared kiosk approver and independently checking postboot usability');
     my ($journey) = @_;
     die 'restart:kiosk-usability-binding' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     $journey->seen($_) for qw(usable-kiosk-approver usable-kiosk);

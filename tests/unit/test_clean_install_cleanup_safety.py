@@ -235,6 +235,40 @@ def test_restart_kiosk_usability_independent_consumer_order_titles_and_refusal(f
     assert not any(event[0] in ('secret', 'key', 'pointer', 'click') for event in result['events'])
 
 
+@pytest.mark.parametrize('fault', ['', 'ignored-input'])
+def test_restart_kiosk_public_selection_repairs_other_initial_approver_without_weakening_guard(fault):
+    from tests.support.e2e_kiosk import accounts_form
+    from ui_observations import UiObservations
+    ui, approver, _choices, _expected = accounts_form('approver')
+    commit = approver.setValue.side_effect
+    commit('1010')  # Existing eligible parent selected before the public input.
+    child = ui.find_id('kiosk-child-selector')
+    child.value = '1002'
+    child.description = f'Selected account: {ui_module.EXISTING_CHILD}.'
+    child.children[0].identity = 'kiosk-child-selected-1002'
+    child.children[0].name = ui_module.EXISTING_CHILD
+    with pytest.raises(ui_module.UiError, match='kiosk-valid-selection'):
+        ui.restart_usable('kiosk')
+    approver.setValue.assert_not_called()
+    if fault:
+        approver.setValue.side_effect = lambda _uid: None
+        with pytest.raises(ui_module.UiError, match='timeout:kiosk-selected-account'):
+            ui.run('kiosk-language-jordan-jamie', '')
+        assert ui.input_uncertain
+        with pytest.raises(ui_module.UiError): ui.restart_usable('kiosk')
+    else:
+        result = ui.run('kiosk-language-jordan-jamie', '')
+        observer = UiObservations(Mock())
+        observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+        assert observer.observe('kiosk-language-jordan-jamie') == result
+        ui.restart_usable('kiosk')
+        result['request']['approver'] = 'other-fixture-parent'
+        observer.call.return_value = (json.dumps(result).encode(), [])
+        with pytest.raises(EvidenceError, match='ui:request'):
+            observer.observe('kiosk-language-jordan-jamie')
+    approver.setValue.assert_called_once_with('1000')
+
+
 def test_restart_instruction_oracle_is_immutable_and_validated():
     from journey_checks import restart_instructions
     texts = {'update-required-message': 'Install restart', 'update-required-close': 'Close',

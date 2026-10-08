@@ -21,6 +21,15 @@ Begin with current product installation/reboot activation completed and public c
 
 Gate: the unrelated package asset, normal public trigger and genuine reboot result must be declared and verified before execution. No suitable trigger is qualified yet. Missing assets/trigger remain a blocker; manually written `/run` markers or injected broker errors are engineering coverage.
 
+Shared source route: `AccessibleUI.restart_usable` owns no-modal usability on
+each surface. After `station_entry()`, reuse
+`journey_blocks.restart_kiosk_usability()` /
+`onpc_customer_reboot::restart_kiosk_usability` for public Jamie selection and
+the independent enabled Jordan/Jamie kiosk read. Enable the declared children
+through public Parent setup first; preserved baseline administrators do not
+imply Jamie is the initial approver. The unrelated-package trigger remains
+unqualified and supplies no acceptance from Task 304.
+
 Register one pending numeric case, its finite recipe, shared worker and exact
 selector during implementation; regenerate coverage through the maintained
 `tools/generate_test_coverage.sh` route. No executable selector exists yet.

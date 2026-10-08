@@ -30,13 +30,16 @@ export function displayState({calculatedEnd, currentTime, locked, greeter}) {
         shouldLock: !locked && !greeter && remaining <= 0,
         countdown: visible && remaining < 60,
         spinRequestIcon: visible && remaining <= 10,
-        nextUpdateSeconds: remaining > 60
-            ? (remaining % 60 || 60)
-            : 1,
+        nextUpdateSeconds: 1,
     };
 }
 
-export function formatRemainingTime(remaining, compact) {
+export function formatRemainingTime(remaining, compact, includeSeconds = false) {
+    if (includeSeconds) {
+        const seconds = Math.max(0, Math.ceil(remaining));
+        return [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+            .map(value => String(value).padStart(2, '0')).join(':');
+    }
     if (remaining > 60) {
         const totalMinutes = Math.floor(remaining / 60);
         const hours = Math.floor(totalMinutes / 60);

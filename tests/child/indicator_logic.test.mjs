@@ -69,6 +69,35 @@ test('formats minute, final-minute, zero, and multi-day remaining time', () => {
     assert.equal(formatRemainingTime(49 * 60 * 60, false), '49:00');
 });
 
+test('tooltip clock includes seconds through minute and hour boundaries', () => {
+    for (const [seconds, expected] of [
+        [3743, '01:02:23'], [3720, '01:02:00'], [3719, '01:01:59'],
+        [3600, '01:00:00'], [3599, '00:59:59'], [60, '00:01:00'],
+        [59, '00:00:59'], [0, '00:00:00'], [-1, '00:00:00'],
+        [49 * 3600, '49:00:00'],
+    ]) {
+        assert.equal(formatRemainingTime(seconds, false, true), expected);
+    }
+});
+
+test('dock tooltip counts down each second while the minute label stays stable', () => {
+    const indicator = createIndicator({formatRemainingTime});
+    Object.assign(indicator, {
+        _label: {}, _tooltip: {visible: false}, _requestButton: {},
+        _clearCountdownWarning() {}, _syncOrientation: () => false,
+        _updateRequestIcon() {},
+        _text: (key, values) => `${key}:${values.time}`,
+    });
+    for (const currentTime of [100, 101, 102]) {
+        const state = displayState({calculatedEnd: 3843, currentTime,
+            locked: false, greeter: false});
+        assert.equal(state.nextUpdateSeconds, 1);
+        indicator._updateLabel(state.remaining);
+        assert.equal(indicator._label.text, '01:02');
+        assert.equal(indicator._tooltip.text, `PANEL_TOOLTIP:01:02:${123 - currentTime}`);
+    }
+});
+
 test('tooltip follows hover, stays on the monitor, and hides during interaction', () => {
     const indicator = createIndicator({
         Main: {layoutManager: {
@@ -390,10 +419,10 @@ test('language refresh relabels the hidden dock tooltip before its next hover', 
         _contextMenu: {actor: {get_children: () => [menuLabel]}},
     });
     indicator.refreshLanguage();
-    assert.equal(indicator._tooltip.text, 'en:PANEL_TOOLTIP:00:45');
+    assert.equal(indicator._tooltip.text, 'en:PANEL_TOOLTIP:00:45:00');
     language = 'de';
     indicator.refreshLanguage();
-    assert.equal(indicator._tooltip.text, 'de:PANEL_TOOLTIP:00:45');
+    assert.equal(indicator._tooltip.text, 'de:PANEL_TOOLTIP:00:45:00');
     assert.equal(indicator._requestButton.accessible_name, 'de:PANEL_REQUEST_TIME:00:45');
     assert.equal(descriptions.at(-1), 'de:PANEL_DESCRIPTION:');
     assert.equal(indicator._tooltip.visible, false);
@@ -404,7 +433,7 @@ test('language refresh relabels the hidden dock tooltip before its next hover', 
     assert.equal(indicator._tooltip.direction, 'rtl');
     assert.equal(indicator._tooltip.style, 'text-align: right;');
     assert.equal(indicator._requestButton.direction, 'rtl');
-    assert.equal(indicator._tooltip.text, 'ar:PANEL_TOOLTIP:00:45');
+    assert.equal(indicator._tooltip.text, 'ar:PANEL_TOOLTIP:00:45:00');
     assert.deepEqual(menuText.attributes.values, {weight: 'bold', language: 'ar'});
     assert.equal(tooltipText.attributes.values.language, 'ar');
     assert.equal(originalAttributes.values.language, 'en');

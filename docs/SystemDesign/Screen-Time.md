@@ -251,7 +251,8 @@ temporary read failure. At expiry, deduplicated diagnostics record whether the
 estimate and daily limit are loaded, whether Shell is already in lock/greeter
 mode, and whether a lock request is pending. These contain no account/session
 identifiers; a separate fixed message records each actual Lock request.
-The tooltip retains the full time explanation on compact panels. The
+The tooltip retains the full time explanation on compact panels, displaying
+`HH:MM:SS` and counting down every second. The
 [right-click preference](Frontends.md#child-panel-preference) controls only
 countdown effects, not the estimate, request action or enforcement.
 

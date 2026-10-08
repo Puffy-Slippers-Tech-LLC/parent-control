@@ -804,9 +804,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             this._label.text = this._text(minutes >= 60 ? 'COMPACT_HOURS' : 'COMPACT_MINUTES',
                 {count: minutes >= 60 ? Math.floor(minutes / 60) : minutes});
         }
-        const time = remainingSecs > 60
-            ? formatRemainingTime(remainingSecs, false)
-            : this._text('SECOND_COUNT', {count: remainingSecs});
+        const time = formatRemainingTime(remainingSecs, false, true);
         this._tooltip.text = this._text('PANEL_TOOLTIP', {time});
         if (this._tooltip.visible)
             this._syncTooltip();

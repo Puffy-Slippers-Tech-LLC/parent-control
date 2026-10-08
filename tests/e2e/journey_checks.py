@@ -128,6 +128,21 @@ def _approval_estimate(journey, observed, *, capture, same):
                 journey.plan.prefix + ':approved-balance')
 
 
+def restart_instructions(surface, texts):
+    """Bind literal installation-neutral instructions to a fresh public modal."""
+    require(surface in ('parent', 'overlay', 'kiosk') and type(texts) is dict
+            and set(texts) == {'update-required-message', 'update-required-close', 'update-required-reboot'}
+            and all(type(text) is str and bool(text) for text in texts.values()),
+            'restart:comparison-plan')
+    return partial(_restart_instructions, surface=surface, texts=deepcopy(texts))
+
+
+def _restart_instructions(journey, observed, *, surface, texts):
+    require(observed.get('ui', {}).get('restart') == {
+        'surface': surface, 'texts': texts, 'modal': True, 'policy_blocked': True},
+        journey.plan.prefix + ':installed-instructions')
+
+
 def public_checks(*checks):
     """Run independent declared public comparisons before the durable reply."""
     require(bool(checks) and all(callable(check) for check in checks), 'journey:public-checks')

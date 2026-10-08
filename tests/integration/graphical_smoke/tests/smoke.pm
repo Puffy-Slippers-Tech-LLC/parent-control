@@ -168,6 +168,12 @@ sub run {
         onpc_customer_reboot::run_chinese_current(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{fresh_parent_restart}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_customer_reboot::run_parent_notice(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{restart_notice}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

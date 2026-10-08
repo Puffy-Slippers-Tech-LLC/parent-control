@@ -2,7 +2,7 @@
 
 import json
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -13,6 +13,109 @@ from private_artifacts import EvidenceError
 from tests.support.accessible_ui import Node, ui_for
 from tests.support.desktop_session import RUN_PROBE
 from tests.support.perl import run_perl
+
+
+@pytest.mark.parametrize('fault', ['', 'parent-notice', 'parent-close', 'parent-reentry',
+                                  'reboot-requested', 'reboot-greeter', 'return-desktop', 'usable-parent'])
+def test_parent_restart_actual_worker_order_titles_and_failure_stop(fault):
+    import fresh_parent_restart as parent_case
+    plan = parent_case.PLAN
+    source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_customer_reboot;')
+    source = source.replace('onpc_desktop_session::run', 'onpc_customer_reboot::run_parent_notice')
+    declared = ','.join(repr(stage) for stage in plan.invocations)
+    source = source.replace('}, $action);', '}, [' + declared + "], "
+        "{'return' => ['parent', 'return-recipient-qualified', 'return-recipient-rechecked']});")
+    source = source.replace('sub record_info { }', "sub record_info { push @main::events, ['title', $_[0]]; }")
+    source = source.replace("push @events, ['stage', $_[0]];", """
+        push @events, ['stage', $_[0]];
+        die 'fixed refusal' if $_[0] eq $action;
+        return {observed => $_[0], ui_focused => 1} if $_[0] =~ /(?:greeter|list)$/;
+        return {observed => $_[0], challenge => {id => 'return', role => 'parent',
+            surface => 'gdm', check => $_[0] =~ /rechecked$/ ? 'rechecked' : 'qualified'}}
+            if $_[0] =~ /^return-recipient-/;
+    """)
+    result = json.loads(run_perl(source, fault).stdout)
+    assert bool(result['ok']) == (not fault), result
+    expected = list(plan.screen_tags)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
+    assert [event[1] for event in result['events'] if event[0] == 'title' and event[1] != 'shutdown'] == [
+        plan.prefix + '-' + stage for stage in stages]
+    assert not any(event[0] in ('pointer', 'click') for event in result['events'])
+    if not fault:
+        assert result['events'].count(['secret']) == 2
+        assert [event for event in result['events'] if event[0] != 'title'][-1] == ['power', 'off']
+
+
+@pytest.mark.parametrize('stage', ['parent-notice', 'parent-reentry', 'reboot-requested'])
+@pytest.mark.parametrize('fault', ['', 'text', 'surface', 'modal', 'policy', 'missing'])
+def test_parent_restart_literal_results_precede_reply_and_reboot(tmp_path, monkeypatch, stage, fault):
+    import fresh_parent_restart as parent_case
+    monkeypatch.setattr(package_journey, 'AssetTransfer', Mock())
+    context = SimpleNamespace(directory=tmp_path, installed_snapshot=None,
+        verified=Mock(), lease=Mock(), guestfs=Mock())
+    current = package_journey.PackageJourney(context, Mock(), parent_case.PLAN, checks=parent_case.CHECKS)
+    current.steps = [{'stage': name} for name in current.plan.stages[:current.plan.stages.index(stage)]]
+    current.boot = 'a' * 64
+    current.vm = Mock()
+    current.vm.read.return_value = {'boot_sha256': current.boot}
+    current.ui = Mock(boot_proof=current.boot)
+    current.ui.submit_restart.return_value = {'surface': 'parent', 'status': 'acknowledged'}
+    value = {'surface': 'parent', 'modal': True, 'policy_blocked': True, 'texts': {
+        'update-required-message': 'Restart the computer for Oh No! Parent Control to work properly.',
+        'update-required-close': 'Close', 'update-required-reboot': 'Reboot now'}}
+    if fault == 'text': value['texts']['update-required-message'] = 'Update before opening the kiosk'
+    if fault == 'surface': value['surface'] = 'kiosk'
+    if fault == 'modal': value['modal'] = False
+    if fault == 'policy': value['policy_blocked'] = False
+    current.ui.observe.return_value = {} if fault == 'missing' else {'restart': value}
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError, match='installed-instructions'):
+            current.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+        current.progress.assert_not_called()
+        current.ui.submit_restart.assert_not_called()
+        with pytest.raises(EvidenceError, match='previous-failure'): current.step(Mock())
+    else:
+        current.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).is_file()
+        assert current.ui.submit_restart.call_count == (stage == 'reboot-requested')
+        if stage == 'reboot-requested':
+            current.ui.submit_restart.assert_called_once_with('parent')
+            assert json.loads((tmp_path / 'customer-reboot-intent.json').read_text())['surface'] == 'parent'
+
+
+def test_parent_restart_real_recorder_constructs_package_envelope_before_worker(tmp_path, monkeypatch):
+    import fresh_parent_restart as parent_case
+    monkeypatch.setattr(package_journey, 'AssetTransfer', Mock())
+    recorder = MagicMock()
+    context = SimpleNamespace(directory=tmp_path, installed_snapshot=None, credentials=Mock(),
+        verified=SimpleNamespace(inputs={}), lease=Mock(), guestfs=Mock(), commands=Mock())
+    def worker(**options):
+        current = options['guarded_observe'].__self__
+        assert isinstance(current, package_journey.PackageJourney)
+        assert current.plan is parent_case.PLAN and current.checks == parent_case.CHECKS
+        assert set(current.actions) == {'install-package'}
+        assert options['authenticate'] is True and options['timeout'] == 1800
+        raise RuntimeError('synthetic-worker-start')
+    context.run_worker = worker
+    with pytest.raises(RuntimeError, match='synthetic-worker-start'):
+        parent_case.execute(recorder, context)
+    context.credentials.provision.assert_called_once()
+
+
+def test_restart_instruction_oracle_is_immutable_and_validated():
+    from journey_checks import restart_instructions
+    texts = {'update-required-message': 'Install restart', 'update-required-close': 'Close',
+             'update-required-reboot': 'Reboot now'}
+    check = restart_instructions('parent', texts)
+    texts['update-required-message'] = 'Changed oracle'
+    observed = {'ui': {'restart': {'surface': 'parent', 'modal': True, 'policy_blocked': True,
+        'texts': {**texts, 'update-required-message': 'Install restart'}}}}
+    check(SimpleNamespace(plan=SimpleNamespace(prefix='another-recipe')), observed)
+    for surface, value in (('wrong', texts), ('parent', {})):
+        with pytest.raises(EvidenceError, match='comparison-plan'): restart_instructions(surface, value)
 
 
 def journey(monkeypatch):

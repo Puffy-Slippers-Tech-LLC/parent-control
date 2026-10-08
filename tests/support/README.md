@@ -474,6 +474,15 @@ error-feedback UI module retains its private display and stubbed reboot callback
 These additions share no VM or product process and add no host resource owner.
 The existing unit, cleanup and UI classifications remain applicable.
 
+`journey_checks.restart_instructions(surface, texts)` copies a caller's literal
+installation-neutral text oracle and checks the fresh public modal's exact
+surface, instructions and blocked-policy result before a durable reply or reboot.
+Complete Parent case 257 composes it with `record_package_journey`, the existing
+modal submission and fresh administrator entry; its recipe owns stages, values
+and seven assertions. The existing clean-install unit/cleanup owner verifies real
+worker order/titles, refusal stopping and the recorder's package constructor,
+using private evidence and bounded waited Perl children without new resources.
+
 Native activity transitions reuse `journey_blocks.native_activity_entry` /
 `onpc_app_rows::native_activity_entry` for
 launch/use/capture and `native_activity_resume` for an independently observed

@@ -170,6 +170,23 @@ sub restart_roundtrip {
     }
 }
 
+sub run_parent_notice {
+    onpc_progress::operation('Installing before Parent Close, reopening and one normal modal reboot');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'fresh-parent-restart:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'fresh-parent-restart', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_parent::login_functional($journey);
+    $journey->seen($_) for qw(command-context package-submitted package-result
+        parent-launch parent-notice parent-close parent-closed parent-relaunch parent-reentry
+        reboot-requested reboot-greeter);
+    onpc_gdm::named_login($journey, 'return', 'parent');
+    $journey->seen($_) for qw(usable-parent-launch usable-parent);
+    $journey->finish();
+}
+
 sub restart_notice {
     onpc_progress::operation('Qualifying the genuine first-install restart notice on all three surfaces');
     my ($exchange, $declared, $challenges) = @_;

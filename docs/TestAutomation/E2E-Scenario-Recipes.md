@@ -1779,6 +1779,27 @@ records the customer outcome and allocation decision for every registered,
 pending, retired and future-language family. This recipe document owns its
 finite compositions; shared UI owns local control matrices.
 
+### E2E-056
+
+Case **257**, variant `parent` (`surface=parent`), is one continuous English
+fresh-install history. Task 302 owns complete acceptance; LIFE07's three-surface
+qualification supplies shared operations, not this Parent reboot result.
+`fresh_parent_restart.PLAN` composes `package_installation`, public restart
+reads/actions and `prefixed_stages('return', fresh_desktop('parent'))` through
+`record_package_journey` and `onpc_customer_reboot::run_parent_notice`.
+
+| Phase | Finite actions and independent results |
+| --- | --- |
+| Actual installation | Start from the product-free Ubuntu baseline, authenticate Jamie graphically and install the verified current-source package once through LIFE04. Read successful completion and the final reboot notice separately. Retain this boot; no upgrade, app snapshot, private marker or injected error supplies the history. |
+| Parent before reboot | Launch installed Parent directly. Require one owned modal before management or language setup, with `Restart the computer for Oh No! Parent Control to work properly.`, `Close` and `Reboot now`. Activate Close once; observe the administrator desktop, no Parent management and unchanged boot. Reopen directly and independently read the same owned modal and exact instructions on that boot. |
+| Reboot and usability | Activate the Parent modal's Reboot now once through normal system authorization. Require a changed boot digest and fresh usable GDM before new graphical administrator authentication. Launch fresh Parent, finish ordinary English language setup if needed, and require an available child selector with no restart modal. No command-reboot fallback, uncertain-input replay or policy setup precedes the notice. |
+
+Use the common 45-second public-result waits and the shared 330-second boot-change
+deadline within the 1800-second case budget. Require all seven declared assertions,
+worker-title reconciliation, collection, worker shutdown, owned cleanup, baseline
+restoration and preservation. The command-reboot continuity regression remains
+`check_e2e_customer_reboot`; other fresh-install surfaces remain tasks 303–305.
+
 ## Coverage ownership and remaining limits
 
 Repeated setup and sanity observations do not count as duplicate primary

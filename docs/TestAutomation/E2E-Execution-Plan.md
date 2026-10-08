@@ -19,7 +19,16 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **302 — [Fresh-install reboot prompt: Parent](E2E-Tasks/302-fresh-install-parent-reboot.md)**.
+Next task: **303 — [Fresh-install reboot prompt: Child App](E2E-Tasks/303-fresh-install-child-reboot.md)**.
+
+Task 302 completed E2E-056 `parent`, case 257, on Ubuntu 26.04 in
+`20261008T005153Z-5fc78720`: genuine installation/final notice, Parent's same-boot
+modal before management, Close/reopen, one public Parent Reboot now, changed boot,
+usable GDM, fresh administrator desktop and usable Parent without the modal.
+All seven assertions and the required command-reboot regression
+(`20261008T010236Z-98646c71`) passed, including collection, worker shutdown, owned
+cleanup, baseline restoration, finalization and preservation. Coverage was
+regenerated; the queue and LIFE07 catalogue retain the delivered scope.
 
 Task 301 qualified the English fresh-install restart notice on Parent, Child App
 and kiosk on Ubuntu 26.04, with same-boot Close/re-entry, one kiosk Reboot now,

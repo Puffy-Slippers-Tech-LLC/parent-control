@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">24652</span>/<span style="color: gray">0</span>/24652 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">24868</span>/<span style="color: gray">0</span>/24868 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">172</span>/<span style="color: gray">0</span>/172 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">299</span>/<span style="color: gray">0</span>/299 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">244</span>/<span style="color: gray">0</span>/244 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">6</span>/<span style="color: gray">0</span>/6 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">145</span>/<span style="color: gray">0</span>/145 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">35</span>/<span style="color: gray">210</span>/245 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">25555</span>/<span style="color: gray">210</span>/25765** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">146</span>/<span style="color: gray">0</span>/146 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">36</span>/<span style="color: gray">210</span>/246 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">25773</span>/<span style="color: gray">210</span>/25983** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">34</span>/<span style="color: gray">210</span>/244 |
+| customer-journey | <span style="color: green">35</span>/<span style="color: gray">210</span>/245 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -69,6 +69,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [254](#scenario-254) | Chinese latest-install kiosk lifecycle | `E2E-053/latest-install` | ready |
 | [255](#scenario-255) | Personal languages persist across accounts and offline use | `E2E-054/account-offline` | ready |
 | [256](#scenario-256) | Change Parent language while retaining feedback and child policy | `E2E-055/parent-hebrew` | ready |
+| [257](#scenario-257) | Finish fresh installation through the Parent restart notice | `E2E-056/parent` | ready |
 | <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
@@ -347,7 +348,7 @@ Variant: launch: app grid
 **Steps:**
 
 - Log in as a standard user and observe the desktop. For app-grid, open the app grid to test discovery restrictions. Case 6 retains the legacy terminal ID but opens no terminal.
-- For app-grid, search for Oh No! Parent Control and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent.
+- For app-grid, search for Oh No! Parent Control and check that no Parent launcher or management window is available. Do not activate unrelated search results. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent.
 
 ### Scenario 6
 
@@ -360,7 +361,7 @@ Variant: launch: terminal
 **Steps:**
 
 - Log in as a standard user and observe the desktop. For app-grid, open the app grid to test discovery restrictions. Case 6 retains the legacy terminal ID but opens no terminal.
-- For app-grid, search for Oh No! Parent Control and check that the result is a web suggestion without a Parent launcher or management window. Leave the suggestion unopened. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent.
+- For app-grid, search for Oh No! Parent Control and check that no Parent launcher or management window is available. Do not activate unrelated search results. For case 6, reuse PARENT01 to invoke oh-no-parent-control-parent directly as the standard desktop user and read its management-access denial; no management controls become available. Dismiss the denial and observe the desktop with management absent.
 
 ### Scenario 44
 
@@ -761,6 +762,20 @@ Variant: history: parent hebrew
 - Read English management and inherited About/feedback text with unchanged draft and policy.
 - Save Hebrew, open inherited dialogs, and compare translated public logical text, original draft and policy.
 - Restore English and independently compare inherited dialogs, original draft, names, policy and numeric balances.
+
+### Scenario 257
+
+**Finish fresh installation through the Parent restart notice**
+
+Case: `E2E-056/parent` · Category: customer-journey · Status: **ready**
+
+Variant: surface: parent
+
+**Steps:**
+
+- Sign in as the administrator, install the verified current package once and independently read its completion and final reboot notice without rebooting.
+- Launch Parent, read its installation-neutral modal before management, Close without a boot change, then reopen and require the modal again.
+- Activate Parent Reboot now once, independently observe a new boot and usable greeter, sign in afresh and require usable Parent without a restart modal after ordinary language setup.
 
 <div style="color: gray">
 
